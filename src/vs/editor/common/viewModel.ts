@@ -23,11 +23,15 @@ import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
 import { InlineDecoration } from './viewModel/inlineDecorations.js';
 import { EditorOption, FindComputedEditorOptionValueById } from './config/editorOptions.js';
-import { FontInfo } from './config/fontInfo.js';
+import { BareFontInfo, FontInfo } from './config/fontInfo.js';
 
 export interface IFont {
 	fontFamily: string | undefined;
 	fontSize: number | undefined;
+}
+
+export interface IFontInfoReader {
+	readFontInfo(bareFontInfo: BareFontInfo): FontInfo;
 }
 
 export interface IViewModel extends ICursorSimpleModel, ISimpleModel {

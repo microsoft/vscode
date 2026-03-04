@@ -51,6 +51,7 @@ import { IEditorWhitespace, IFont, IViewModel } from '../../../common/viewModel.
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 import { ViewModel } from '../../../common/viewModel/viewModelImpl.js';
 import { OutgoingViewModelEventKind } from '../../../common/viewModelEventDispatcher.js';
+import { FontMeasurements } from '../../config/fontMeasurements.js';
 import * as nls from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -1780,6 +1781,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 						this._endUpdate();
 					}
 				},
+			},
+			{
+				readFontInfo: (bareFontInfo) => FontMeasurements.readFontInfo(dom.getWindow(this._domElement), bareFontInfo),
 			}
 		);
 

@@ -35,7 +35,7 @@ import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
-import { ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
+import { ILineHeightChangeAccessor, IFontInfoReader, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
 import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelFontChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
@@ -45,10 +45,6 @@ import { CustomLineHeightData } from '../viewLayout/lineHeights.js';
 import { TextModelEditSource } from '../textModelEditSource.js';
 import { InlineDecoration } from './inlineDecorations.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
-import { FontMeasurements } from '../../browser/config/fontMeasurements.js';
-import { getWindowById } from '../../../base/browser/dom.js';
-import { PixelRatio } from '../../../base/browser/pixelRatio.js';
-import { mainWindow } from '../../../base/browser/window.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -81,6 +77,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		private readonly _themeService: IThemeService,
 		private readonly _attachedView: IAttachedView,
 		private readonly _transactionalTarget: IBatchableTarget,
+		private readonly _fontInfoReader: IFontInfoReader,
 	) {
 		super();
 
@@ -610,9 +607,8 @@ export class ViewModel extends Disposable implements IViewModel {
 		const fontFeatureSettings = options.get(EditorOption.fontLigatures);
 		const fontVariationSettings = options.get(EditorOption.fontVariations);
 		const letterSpacing = options.get(EditorOption.letterSpacing);
-		const bareFontInfo = BareFontInfo._create(fontFamily, fontWeight, fontSize, fontFeatureSettings, fontVariationSettings, lineHeight, letterSpacing, PixelRatio.getInstance(mainWindow).value, this._configuration.isSimpleWidget);
-		const targetWindowId = mainWindow.vscodeWindowId;
-		return FontMeasurements.readFontInfo(getWindowById(targetWindowId, true).window, bareFontInfo);
+		const bareFontInfo = BareFontInfo._create(fontFamily, fontWeight, fontSize, fontFeatureSettings, fontVariationSettings, lineHeight, letterSpacing, fontInfo.pixelRatio, this._configuration.isSimpleWidget);
+		return this._fontInfoReader.readFontInfo(bareFontInfo);
 	}
 
 	/**
