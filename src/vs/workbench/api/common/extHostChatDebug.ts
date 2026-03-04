@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -289,6 +290,29 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 			default:
 				return undefined;
 		}
+	}
+
+	async $exportChatDebugLog(_handle: number, sessionResource: UriComponents, token: CancellationToken): Promise<VSBuffer | undefined> {
+		if (!this._provider?.provideChatDebugLogExport) {
+			return undefined;
+		}
+		const sessionUri = URI.revive(sessionResource);
+		const result = await this._provider.provideChatDebugLogExport(sessionUri, token);
+		if (!result) {
+			return undefined;
+		}
+		return VSBuffer.wrap(result);
+	}
+
+	async $importChatDebugLog(_handle: number, data: VSBuffer, token: CancellationToken): Promise<UriComponents | undefined> {
+		if (!this._provider?.resolveChatDebugLogImport) {
+			return undefined;
+		}
+		const result = await this._provider.resolveChatDebugLogImport(data.buffer, token);
+		if (!result) {
+			return undefined;
+		}
+		return result;
 	}
 
 	override dispose(): void {

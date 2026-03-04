@@ -178,6 +178,13 @@ export class ChatDebugEditor extends EditorPane {
 				this.homeView?.render();
 			}
 
+			// Auto-navigate to the new session when the debug panel is
+			// already open on the home view.  This avoids the user having to
+			// wait for the title to resolve and manually clicking the session.
+			if (this.viewState === ViewState.Home) {
+				this.navigateToSession(model.sessionResource);
+			}
+
 			// Track title changes per model, disposing the previous listener
 			// for the same model URI to avoid leaks.
 			const key = model.sessionResource.toString();

@@ -122,10 +122,6 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	}
 
 	async invokeProviders(sessionResource: URI): Promise<void> {
-		if (!LocalChatSessionUri.isLocalSession(sessionResource)) {
-			return;
-		}
-
 		// Cancel only the previous invocation for THIS session, not others.
 		// Each session has its own pipeline so events from multiple sessions
 		// can be streamed concurrently.
@@ -212,6 +208,38 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 					const resolved = await provider.resolveChatDebugLogEvent(eventId, CancellationToken.None);
 					if (resolved !== undefined) {
 						return resolved;
+					}
+				} catch (err) {
+					onUnexpectedError(err);
+				}
+			}
+		}
+		return undefined;
+	}
+
+	async exportLog(sessionResource: URI): Promise<Uint8Array | undefined> {
+		for (const provider of this._providers) {
+			if (provider.provideChatDebugLogExport) {
+				try {
+					const data = await provider.provideChatDebugLogExport(sessionResource, CancellationToken.None);
+					if (data !== undefined) {
+						return data;
+					}
+				} catch (err) {
+					onUnexpectedError(err);
+				}
+			}
+		}
+		return undefined;
+	}
+
+	async importLog(data: Uint8Array): Promise<URI | undefined> {
+		for (const provider of this._providers) {
+			if (provider.resolveChatDebugLogImport) {
+				try {
+					const sessionUri = await provider.resolveChatDebugLogImport(data, CancellationToken.None);
+					if (sessionUri !== undefined) {
+						return sessionUri;
 					}
 				} catch (err) {
 					onUnexpectedError(err);

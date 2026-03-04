@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../contrib/chat/common/chatDebugService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostChatDebugShape, ExtHostContext, IChatDebugEventDto, MainContext, MainThreadChatDebugShape } from '../common/extHost.protocol.js';
@@ -36,6 +37,14 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 			},
 			resolveChatDebugLogEvent: async (eventId, token) => {
 				return this._proxy.$resolveChatDebugLogEvent(handle, eventId, token);
+			},
+			provideChatDebugLogExport: async (sessionResource, token) => {
+				const result = await this._proxy.$exportChatDebugLog(handle, sessionResource, token);
+				return result?.buffer;
+			},
+			resolveChatDebugLogImport: async (data, token) => {
+				const result = await this._proxy.$importChatDebugLog(handle, VSBuffer.wrap(data), token);
+				return result ? URI.revive(result) : undefined;
 			}
 		}));
 	}
