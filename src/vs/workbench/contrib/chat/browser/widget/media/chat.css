@@ -1447,7 +1447,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Hide the tools button when the toolbar is in collapsed state */
-.interactive-session .chat-input-toolbar:has(.hide-chevrons) .action-item:has(.codicon-tools) {
+.interactive-session .chat-input-toolbar:has(.hide-chevrons) .action-item:has(.codicon-settings) {
 	display: none;
 }
 

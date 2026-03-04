@@ -948,7 +948,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	private async _send(options?: { openNewAfterSend?: boolean }): Promise<void> {
-		const query = this._editor.getModel()?.getValue().trim();
+		let query = this._editor.getModel()?.getValue().trim();
 		const session = this._newSession.value;
 		if (!query || !session || this._sending) {
 			return;
@@ -966,6 +966,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		if (this._slashCommandHandler?.tryExecuteSlashCommand(query)) {
 			this._editor.getModel()?.setValue('');
 			return;
+		}
+
+		// Expand prompt/skill slash commands into a CLI-friendly reference
+		const expanded = this._slashCommandHandler?.tryExpandPromptSlashCommand(query);
+		if (expanded) {
+			query = expanded;
 		}
 
 		session.setQuery(query);

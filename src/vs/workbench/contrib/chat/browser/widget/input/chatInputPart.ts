@@ -248,15 +248,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	readonly selectedToolsModel: ChatSelectedTools;
 
-	public getAttachedContext(sessionResource: URI) {
+	public getAttachedContext() {
 		const contextArr = new ChatRequestVariableSet();
 		contextArr.add(...this.attachmentModel.attachments, ...this.chatContextService.getWorkspaceContextItems());
 		return contextArr;
 	}
 
-	public getAttachedAndImplicitContext(sessionResource: URI): ChatRequestVariableSet {
+	public getAttachedAndImplicitContext(): ChatRequestVariableSet {
 
-		const contextArr = this.getAttachedContext(sessionResource);
+		const contextArr = this.getAttachedContext();
 
 		if (this.implicitContext) {
 			const implicitChatVariables = this.implicitContext.enabledBaseEntries(this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext'));
@@ -664,10 +664,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (sessionResource) {
 				const ctx = this.chatService.getChatSessionFromInternalUri(sessionResource);
 				if (ctx) {
-					this.chatSessionsService.notifySessionOptionsChange(
-						ctx.chatSessionResource,
-						[{ optionId: agentOptionId, value: mode.isBuiltin ? '' : modeName }]
-					).catch(err => this.logService.error('Failed to notify extension of agent change:', err));
+					let needsUpdate = true;
+					const agentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, agentOptionId);
+					if (typeof agentOption !== 'undefined') {
+						const agentId = (typeof agentOption === 'string' ? agentOption : agentOption.id) || ChatMode.Agent.id;
+						const isDefaultAgent = agentId === ChatMode.Agent.id;
+						needsUpdate = isDefaultAgent
+							? mode.id !== ChatMode.Agent.id
+							: mode.label.read(undefined) !== agentId; // Extensions use Label (name) as identifier for custom agents.
+					}
+					if (needsUpdate) {
+						this.chatSessionsService.notifySessionOptionsChange(
+							ctx.chatSessionResource,
+							[{ optionId: agentOptionId, value: mode.isBuiltin ? '' : modeName }]
+						).catch(err => this.logService.error('Failed to notify extension of agent change:', err));
+					}
 				}
 			}
 		}));
@@ -1934,7 +1945,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// when the session type changes (different session types may have
 			// different model pools via targetChatSessionType).
 			const newSessionType = this.getCurrentSessionType();
-			if (newSessionType !== this._currentSessionType) {
+			if (e.currentSessionResource && newSessionType !== this._currentSessionType) {
 				this._currentSessionType = newSessionType;
 				this.initSelectedModel();
 			}

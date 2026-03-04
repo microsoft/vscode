@@ -5,10 +5,11 @@
 
 import { constObservable, derived, IObservable, observableFromEventOpts } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import {
@@ -27,6 +28,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		const workspaceFolders = observableFromEventOpts(
 			{ owner: this },
@@ -71,6 +73,10 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		// No-op in core VS Code.
 	}
 
+	async deleteFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
+		// No-op in core VS Code.
+	}
+
 	async generateCustomization(type: PromptsType): Promise<void> {
 		const commandIds: Partial<Record<PromptsType, string>> = {
 			[PromptsType.agent]: GENERATE_AGENT_COMMAND_ID,
@@ -83,6 +89,10 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		if (commandId) {
 			await this.commandService.executeCommand(commandId);
 		}
+	}
+
+	async getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
+		return this.promptsService.getPromptSlashCommands(token);
 	}
 }
 

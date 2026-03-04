@@ -121,7 +121,7 @@ export class ConfigureToolsAction extends Action2 {
 		super({
 			id: ConfigureToolsAction.ID,
 			title: localize('label', "Configure Tools..."),
-			icon: Codicon.tools,
+			icon: Codicon.settings,
 			f1: false,
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
