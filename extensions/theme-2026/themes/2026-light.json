@@ -28,7 +28,7 @@
 		"button.secondaryHoverBackground": "#F2F3F4",
 		"checkbox.background": "#EAEAEA",
 		"checkbox.border": "#D8D8D8",
-		"checkbox.foreground": "#202020",
+		"checkbox.foreground": "#606060",
 		"dropdown.background": "#FFFFFF",
 		"dropdown.border": "#D8D8D8",
 		"dropdown.foreground": "#202020",
@@ -54,6 +54,7 @@
 		"widget.border": "#EEEEF1",
 		"editorStickyScroll.shadow": "#00000000",
 		"editorStickyScrollHover.background": "#F0F0F3",
+		"editorStickyScroll.border": "#F0F1F2FF",
 		"sideBarStickyScroll.shadow": "#00000000",
 		"panelStickyScroll.shadow": "#00000000",
 		"listFilterWidget.shadow": "#00000000",
@@ -272,6 +273,7 @@
 		"charts.green": "#388A34",
 		"charts.purple": "#652D90",
 		"agentStatusIndicator.background": "#FFFFFF",
+		"inlineChat.border": "#00000000"
 	},
 	"tokenColors": [
 		{
