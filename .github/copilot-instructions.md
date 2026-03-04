@@ -50,7 +50,7 @@ Each extension follows the standard VS Code extension structure with `package.js
 
 ## Validating TypeScript changes
 
-MANDATORY: Always check for compilation errors before running ANY script or declaring work complete, then fix all compilation errors before moving forward.
+MANDATORY: Always check for compilation errors before running any tests or validation scripts, or declaring work complete, then fix all compilation errors before moving forward.
 
 - NEVER run tests if there are compilation errors
 - NEVER use `npm run compile` to compile TypeScript files
