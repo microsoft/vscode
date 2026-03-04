@@ -505,6 +505,7 @@ suite('EditorGroupsService', () => {
 		const enforced2 = part.enforcePartOptions({ showTabs: 'single' });
 		assert.strictEqual(group.scopedContextKeyService.getContextKeyValue('editorTabsVisible'), false);
 		enforced2.dispose();
+		assert.strictEqual(group.scopedContextKeyService.getContextKeyValue('editorTabsVisible'), true);
 	});
 
 	test('editor basics', async function () {
