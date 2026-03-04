@@ -342,7 +342,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 	}
 });
 
-// Register Cmd+W / Ctrl+W to open new session when the current session is non-empty,
+// Register Cmd+W / Ctrl+W to close the current session and navigate to the new-session view,
 // mirroring how Cmd+W closes the active editor in the normal workbench.
 KeybindingsRegistry.registerKeybindingRule({
 	id: CLOSE_SESSION_COMMAND_ID,
