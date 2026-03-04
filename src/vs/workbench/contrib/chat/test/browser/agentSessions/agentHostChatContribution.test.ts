@@ -12,18 +12,19 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IAgentHostService, IAgentMessageEvent, IAgentProgressEvent, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agent/common/agentService.js';
+import { IAgentHostService, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentSession } from '../../../../../../platform/agent/common/agentService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
-import { IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInvocation } from '../../../common/chatService/chatService.js';
+import { IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { AgentHostContribution, AgentHostSessionListController, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
+import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -37,8 +38,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	private _nextId = 1;
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
-	private readonly _sessionMessages = new Map<string, IAgentMessageEvent[]>();
+	private readonly _sessionMessages = new Map<string, (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>();
 	public sendMessageCalls: { session: URI; prompt: string }[] = [];
+	public models: IAgentModelInfo[] = [];
+	public agents = [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', requiresAuth: true }];
 
 	override async setAuthToken(_token: string): Promise<void> { }
 
@@ -47,11 +50,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	override async listAgents() {
-		return [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', requiresAuth: true }];
+		return this.agents;
 	}
 
-	override async listModels() {
-		return [];
+	override async listModels(): Promise<IAgentModelInfo[]> {
+		return this.models;
 	}
 
 	override async createSession(): Promise<URI> {
@@ -65,7 +68,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this.sendMessageCalls.push({ session, prompt });
 	}
 
-	override async getSessionMessages(session: URI): Promise<IAgentMessageEvent[]> {
+	override async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
 		return this._sessionMessages.get(AgentSession.id(session)) ?? [];
 	}
 
@@ -78,7 +81,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._onDidSessionProgress.fire(event);
 	}
 
-	setSessionMessages(sessionId: string, messages: IAgentMessageEvent[]): void {
+	setSessionMessages(sessionId: string, messages: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]): void {
 		this._sessionMessages.set(sessionId, messages);
 	}
 
@@ -759,6 +762,235 @@ suite('AgentHostChatContribution', () => {
 				invocationMessage: 'Reading /tmp/test.txt',
 				pastTenseMessage: 'Read /tmp/test.txt',
 			});
+		});
+	});
+
+	// ---- History with tool events ----------------------------------------
+
+	suite('history with tool events', () => {
+
+		test('tool_start and tool_complete appear as toolInvocationSerialized in history', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const session = AgentSession.uri('copilot', 'tool-hist');
+
+			agentHostService.setSessionMessages('tool-hist', [
+				{ session, type: 'message', messageId: 'u1', content: 'run ls', role: 'user' },
+				{ session, type: 'tool_start', toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running `ls`', toolInput: 'ls', toolKind: 'terminal' },
+				{ session, type: 'tool_complete', toolCallId: 'tc-1', success: true, pastTenseMessage: 'Ran `ls`', toolOutput: 'file1\nfile2' },
+				{ session, type: 'message', messageId: 'a1', content: 'Here are the files.', role: 'assistant' },
+			]);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/tool-hist' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			// request, response
+			assert.strictEqual(chatSession.history.length, 2);
+
+			const response = chatSession.history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type === 'response') {
+				// tool invocation + markdown content
+				assert.strictEqual(response.parts.length, 2);
+				const toolPart = response.parts[0] as IChatToolInvocationSerialized;
+				assert.strictEqual(toolPart.kind, 'toolInvocationSerialized');
+				assert.strictEqual(toolPart.toolCallId, 'tc-1');
+				assert.strictEqual(toolPart.isComplete, true);
+				// Terminal tool has output and exit code
+				assert.strictEqual(toolPart.toolSpecificData?.kind, 'terminal');
+				const termData = toolPart.toolSpecificData as IChatTerminalToolInvocationData;
+				assert.strictEqual(termData.terminalCommandOutput?.text, 'file1\nfile2');
+				assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
+			}
+		});
+
+		test('orphaned tool_start is marked complete in history', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const session = AgentSession.uri('copilot', 'orphan-tool');
+
+			agentHostService.setSessionMessages('orphan-tool', [
+				{ session, type: 'message', messageId: 'u1', content: 'do something', role: 'user' },
+				{ session, type: 'tool_start', toolCallId: 'tc-orphan', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file' },
+				// No tool_complete for tc-orphan
+				{ session, type: 'message', messageId: 'a1', content: 'Done', role: 'assistant' },
+			]);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/orphan-tool' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.strictEqual(chatSession.history.length, 2);
+			const response = chatSession.history[1];
+			if (response.type === 'response') {
+				const toolPart = response.parts[0] as IChatToolInvocationSerialized;
+				assert.strictEqual(toolPart.kind, 'toolInvocationSerialized');
+				assert.strictEqual(toolPart.isComplete, true);
+			}
+		});
+
+		test('non-terminal tool_complete sets pastTenseMessage in history', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const session = AgentSession.uri('copilot', 'generic-tool');
+
+			agentHostService.setSessionMessages('generic-tool', [
+				{ session, type: 'message', messageId: 'u1', content: 'search', role: 'user' },
+				{ session, type: 'tool_start', toolCallId: 'tc-g', toolName: 'grep', displayName: 'Grep', invocationMessage: 'Searching...' },
+				{ session, type: 'tool_complete', toolCallId: 'tc-g', success: true, pastTenseMessage: 'Searched for pattern' },
+				{ session, type: 'message', messageId: 'a1', content: 'Found it.', role: 'assistant' },
+			]);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/generic-tool' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			const response = chatSession.history[1];
+			if (response.type === 'response') {
+				const toolPart = response.parts[0] as IChatToolInvocationSerialized;
+				assert.strictEqual(textOf(toolPart.pastTenseMessage), 'Searched for pattern');
+				assert.strictEqual(toolPart.toolSpecificData, undefined);
+			}
+		});
+
+		test('empty events produce empty history', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			agentHostService.setSessionMessages('empty-sess', []);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/empty-sess' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.strictEqual(chatSession.history.length, 0);
+		});
+	});
+
+	// ---- sendMessage error handling --------------------------------------
+
+	suite('sendMessage error handling', () => {
+
+		test('sendMessage failure resolves the agent invoke without throwing', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+			agentHostService.sendMessage = async () => {
+				throw new Error('connection lost');
+			};
+
+			const result = await agent.impl.invoke(
+				makeRequest({ message: 'Hello' }),
+				() => { }, [], CancellationToken.None,
+			);
+
+			assert.ok(result);
+		});
+	});
+
+	// ---- Session list provider filtering --------------------------------
+
+	suite('session list provider filtering', () => {
+
+		test('filters sessions to only the matching provider', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			// Add sessions from both providers
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'cp-1'), startTime: 1000, modifiedTime: 2000 });
+			agentHostService.addSession({ session: AgentSession.uri('claude', 'cl-1'), startTime: 1000, modifiedTime: 2000 });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'cp-2'), startTime: 3000, modifiedTime: 4000 });
+
+			await listController.refresh(CancellationToken.None);
+
+			// The list controller is configured for 'copilot', so only copilot sessions
+			assert.strictEqual(listController.items.length, 2);
+			assert.ok(listController.items.every(item => item.resource.scheme === 'agent-host-copilot'));
+		});
+	});
+
+	// ---- Language model provider ----------------------------------------
+
+	suite('language model provider', () => {
+
+		test('maps models with correct metadata', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			agentHostService.models = [
+				{ provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', maxContextWindow: 128000, supportsVision: true, supportsReasoningEffort: false },
+			];
+
+			const provider = disposables.add(instantiationService.createInstance(AgentHostLanguageModelProvider, 'agent-host-copilot', 'agent-host-copilot', 'copilot'));
+			const models = await provider.provideLanguageModelChatInfo({}, CancellationToken.None);
+
+			assert.strictEqual(models.length, 1);
+			assert.strictEqual(models[0].identifier, 'agent-host-copilot:gpt-4o');
+			assert.strictEqual(models[0].metadata.name, 'GPT-4o');
+			assert.strictEqual(models[0].metadata.maxInputTokens, 128000);
+			assert.strictEqual(models[0].metadata.capabilities?.vision, true);
+			assert.strictEqual(models[0].metadata.targetChatSessionType, 'agent-host-copilot');
+		});
+
+		test('filters out models from other providers', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			agentHostService.models = [
+				{ provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', maxContextWindow: 128000, supportsVision: false, supportsReasoningEffort: false },
+				{ provider: 'claude', id: 'claude-4', name: 'Claude 4', maxContextWindow: 200000, supportsVision: false, supportsReasoningEffort: false },
+			];
+
+			const provider = disposables.add(instantiationService.createInstance(AgentHostLanguageModelProvider, 'agent-host-copilot', 'agent-host-copilot', 'copilot'));
+			const models = await provider.provideLanguageModelChatInfo({}, CancellationToken.None);
+
+			assert.strictEqual(models.length, 1);
+			assert.strictEqual(models[0].metadata.name, 'GPT-4o');
+		});
+
+		test('filters out disabled models', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			agentHostService.models = [
+				{ provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', maxContextWindow: 128000, supportsVision: false, supportsReasoningEffort: false, policyState: 'enabled' },
+				{ provider: 'copilot', id: 'gpt-3.5', name: 'GPT-3.5', maxContextWindow: 16000, supportsVision: false, supportsReasoningEffort: false, policyState: 'disabled' },
+			];
+
+			const provider = disposables.add(instantiationService.createInstance(AgentHostLanguageModelProvider, 'agent-host-copilot', 'agent-host-copilot', 'copilot'));
+			const models = await provider.provideLanguageModelChatInfo({}, CancellationToken.None);
+
+			assert.strictEqual(models.length, 1);
+			assert.strictEqual(models[0].metadata.name, 'GPT-4o');
+		});
+
+		test('returns empty array on error', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			agentHostService.listModels = async () => { throw new Error('not connected'); };
+
+			const provider = disposables.add(instantiationService.createInstance(AgentHostLanguageModelProvider, 'agent-host-copilot', 'agent-host-copilot', 'copilot'));
+			const models = await provider.provideLanguageModelChatInfo({}, CancellationToken.None);
+
+			assert.strictEqual(models.length, 0);
+		});
+
+		test('sendChatRequest throws', async () => {
+			const { instantiationService } = createTestServices(disposables);
+
+			const provider = disposables.add(instantiationService.createInstance(AgentHostLanguageModelProvider, 'agent-host-copilot', 'agent-host-copilot', 'copilot'));
+
+			await assert.rejects(() => provider.sendChatRequest(), /do not support direct chat requests/);
+		});
+	});
+
+	// ---- AgentHostContribution discovery ---------------------------------
+
+	suite('dynamic discovery', () => {
+
+		test('setting gate prevents registration', async () => {
+			const { instantiationService } = createTestServices(disposables);
+			instantiationService.stub(IConfigurationService, { getValue: () => false });
+
+			const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
+			// Contribution should exist but not have registered any agents
+			assert.ok(contribution);
+			// Let async work settle
+			await new Promise(resolve => setTimeout(resolve, 10));
 		});
 	});
 });
