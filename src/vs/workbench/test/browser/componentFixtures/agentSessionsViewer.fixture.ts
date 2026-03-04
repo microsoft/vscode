@@ -596,4 +596,114 @@ export default defineThemedFixtureGroup({
 			}), approvalModel);
 		},
 	}),
+
+	ApprovalRow1Line: defineComponentFixture({
+		render: (ctx) => {
+			const resource = URI.parse('vscode-chat-session://local/approval-1line');
+			const approvalModel = createMockApprovalModel(resource, {
+				label: 'npm install --save express@latest',
+				languageId: 'sh',
+				confirm: () => { },
+			});
+			renderSessionItem(ctx, createMockSession({
+				resource,
+				label: 'Install express',
+				status: AgentSessionStatus.InProgress,
+				providerType: AgentSessionProviders.Local,
+				timing: {
+					created: now - 3 * 60 * 1000,
+					lastRequestStarted: now - 60 * 1000,
+					lastRequestEnded: undefined,
+				},
+			}), approvalModel);
+		},
+	}),
+
+	ApprovalRow2Lines: defineComponentFixture({
+		render: (ctx) => {
+			const resource = URI.parse('vscode-chat-session://local/approval-2lines');
+			const approvalModel = createMockApprovalModel(resource, {
+				label: 'cd /workspace/project\nnpm install',
+				languageId: 'sh',
+				confirm: () => { },
+			});
+			renderSessionItem(ctx, createMockSession({
+				resource,
+				label: 'Setup project dependencies',
+				status: AgentSessionStatus.InProgress,
+				providerType: AgentSessionProviders.Local,
+				timing: {
+					created: now - 3 * 60 * 1000,
+					lastRequestStarted: now - 60 * 1000,
+					lastRequestEnded: undefined,
+				},
+			}), approvalModel);
+		},
+	}),
+
+	ApprovalRow3Lines: defineComponentFixture({
+		render: (ctx) => {
+			const resource = URI.parse('vscode-chat-session://local/approval-3lines');
+			const approvalModel = createMockApprovalModel(resource, {
+				label: 'cd /workspace/project\nnpm install\nnpm run build',
+				languageId: 'sh',
+				confirm: () => { },
+			});
+			renderSessionItem(ctx, createMockSession({
+				resource,
+				label: 'Build the project',
+				status: AgentSessionStatus.InProgress,
+				providerType: AgentSessionProviders.Local,
+				timing: {
+					created: now - 2 * 60 * 1000,
+					lastRequestStarted: now - 60 * 1000,
+					lastRequestEnded: undefined,
+				},
+			}), approvalModel);
+		},
+	}),
+
+	ApprovalRow4Lines: defineComponentFixture({
+		render: (ctx) => {
+			const resource = URI.parse('vscode-chat-session://local/approval-4lines');
+			const approvalModel = createMockApprovalModel(resource, {
+				label: 'cd /workspace/project\nnpm install\nnpm run build\nnpm run test -- --coverage',
+				languageId: 'sh',
+				confirm: () => { },
+			});
+			renderSessionItem(ctx, createMockSession({
+				resource,
+				label: 'Build and test project',
+				status: AgentSessionStatus.InProgress,
+				providerType: AgentSessionProviders.Local,
+				timing: {
+					created: now - 2 * 60 * 1000,
+					lastRequestStarted: now - 60 * 1000,
+					lastRequestEnded: undefined,
+				},
+			}), approvalModel);
+		},
+	}),
+
+	ApprovalRow3LongLines: defineComponentFixture({
+		render: (ctx) => {
+			const resource = URI.parse('vscode-chat-session://local/approval-3longlines');
+			const approvalModel = createMockApprovalModel(resource, {
+				label: 'RUSTFLAGS="-C target-cpu=native -C opt-level=3" cargo build --release --target x86_64-unknown-linux-gnu\nfind ./target/release -name "*.so" -exec strip --strip-unneeded {} \\; && tar czf release-bundle.tar.gz -C target/release .\ncurl -X POST https://deploy.internal.example.com/api/v2/artifacts/upload --header "Authorization: Bearer $DEPLOY_TOKEN" --form "bundle=@release-bundle.tar.gz"',
+				languageId: 'sh',
+				confirm: () => { },
+			});
+			renderSessionItem(ctx, createMockSession({
+				resource,
+				label: 'Build and deploy native release',
+				status: AgentSessionStatus.InProgress,
+				providerType: AgentSessionProviders.Local,
+				timing: {
+					created: now - 2 * 60 * 1000,
+					lastRequestStarted: now - 60 * 1000,
+					lastRequestEnded: undefined,
+				},
+			}), approvalModel);
+		},
+	}),
 });
