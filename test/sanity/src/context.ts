@@ -33,10 +33,12 @@ interface ITargetMetadata {
 export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
 	private static readonly versionInfoInclude = /^.+\.(exe|dll|node|msi)$/i;
+	private static readonly versionInfoExclude = /^(dxil\.dll|ffmpeg\.dll|msalruntime\.dll)$/i;
 
 	private readonly tempDirs = new Set<string>();
 	private readonly wslTempDirs = new Set<string>();
 	private nextPort = 3010;
+	private currentTestName: string | undefined;
 
 	public constructor(public readonly options: Readonly<{
 		quality: 'stable' | 'insider' | 'exploration';
@@ -46,6 +48,7 @@ export class TestContext {
 		checkSigning: boolean;
 		headlessBrowser: boolean;
 		downloadOnly: boolean;
+		screenshotsDir: string | undefined;
 	}>) {
 	}
 
@@ -87,6 +90,7 @@ export class TestContext {
 
 		const self = this;
 		return test(name, async function () {
+			self.currentTestName = name;
 			self.log(`Starting test: ${name}`);
 
 			const homeDir = os.homedir();
@@ -101,6 +105,8 @@ export class TestContext {
 				throw error;
 
 			} finally {
+				self.currentTestName = undefined;
+
 				process.chdir(homeDir);
 				self.log(`Changed working directory to: ${homeDir}`);
 
@@ -404,7 +410,11 @@ export class TestContext {
 			if (entry.isDirectory()) {
 				this.collectVersionInfoFiles(filePath, files);
 			} else if (TestContext.versionInfoInclude.test(entry.name)) {
-				files.push(filePath);
+				if (TestContext.versionInfoExclude.test(entry.name)) {
+					this.log(`Skipping excluded file from VersionInfo validation: ${filePath}`);
+				} else {
+					files.push(filePath);
+				}
 			}
 		}
 	}
@@ -1066,6 +1076,26 @@ export class TestContext {
 	}
 
 	/**
+	 * Captures a screenshot of the current page if one is active.
+	 */
+	public async captureScreenshot(page: Page) {
+		if (!this.currentTestName) {
+			return;
+		}
+
+		try {
+			const screenshotDir = this.options.screenshotsDir ?? path.join(this.osTempDir, 'vscode-sanity-screenshots');
+			fs.mkdirSync(screenshotDir, { recursive: true });
+			const sanitizedName = this.currentTestName.replace(/[^a-zA-Z0-9_-]/g, '_');
+			const screenshotPath = path.join(screenshotDir, `${sanitizedName}.png`);
+			await page.screenshot({ path: screenshotPath, fullPage: true });
+			this.log(`Screenshot saved to: ${screenshotPath}`);
+		} catch (e) {
+			this.log(`Failed to capture screenshot: ${e instanceof Error ? e.message : String(e)}`);
+		}
+	}
+
+	/**
 	 * Constructs a web server URL with optional token and folder parameters.
 	 * @param port The port number of the web server.
 	 * @param token The optional authentication token.
@@ -1160,7 +1190,7 @@ export class TestContext {
 			await new Promise<void>((resolve, reject) => {
 				app.stderr.on('data', (data) => {
 					const text = `[${name}] ${data.toString().trim()}`;
-					if (/ECONNRESET/.test(text)) {
+					if (/ECONNRESET|ECONNABORTED/.test(text)) {
 						this.log(text);
 					} else {
 						reject(new Error(text));

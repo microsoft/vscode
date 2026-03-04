@@ -70,7 +70,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	protected override async initialize(): Promise<void> {
 		if ((process as INodeProcess).isEmbeddedApp) {
 			this.setState(State.Disabled(DisablementReason.EmbeddedApp));
-			this.logService.info('update#ctor - updates are disabled for embedded app');
+			this.logService.info('update#ctor - updates are disabled from embedded app');
 			return;
 		}
 
@@ -127,8 +127,9 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 		this.setState(State.CheckingForUpdates(explicit));
 
-		const background = !explicit && !this.shouldDisableProgressiveReleases();
-		const url = this.buildUpdateFeedUrl(this.quality, pendingCommit ?? this.productService.commit!, { background });
+		const internalOrg = this.getInternalOrg();
+		const background = !explicit && !internalOrg;
+		const url = this.buildUpdateFeedUrl(this.quality, pendingCommit ?? this.productService.commit!, { background, internalOrg });
 
 		if (!url) {
 			return;
@@ -205,7 +206,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
 		// Rebuild feed URL and trigger download via Electron's auto-updater
-		this.buildUpdateFeedUrl(this.quality!, state.update.version);
+		this.buildUpdateFeedUrl(this.quality!, state.update.version, { internalOrg: this.getInternalOrg() });
 		this.setState(State.CheckingForUpdates(true));
 		electron.autoUpdater.checkForUpdates();
 	}

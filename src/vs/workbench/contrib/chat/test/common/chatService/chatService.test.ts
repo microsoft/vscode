@@ -49,7 +49,11 @@ import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
+import { IChatDebugService } from '../../../common/chatDebugService.js';
+import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -163,6 +167,7 @@ suite('ChatService', () => {
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[IMcpService, new TestMcpService()],
 			[IPromptsService, new MockPromptsService()],
+			[ILanguageModelToolsService, testDisposables.add(new MockLanguageModelToolsService())]
 		)));
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
@@ -179,6 +184,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
+		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl()));
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
 				return {
@@ -472,6 +478,62 @@ suite('ChatService', () => {
 		// Complete the first request
 		completeRequest.complete();
 		await response.data.responseCompletePromise;
+	});
+
+	test('multiple steering messages are combined into a single request', async () => {
+		const requestStarted = new DeferredPromise<void>();
+		const completeRequest = new DeferredPromise<void>();
+		const invokedRequests: string[] = [];
+
+		const slowAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				invokedRequests.push(request.message);
+				if (invokedRequests.length === 1) {
+					requestStarted.complete();
+					await completeRequest.p;
+				}
+				return {};
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('slowAgent', { ...getAgentData('slowAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('slowAgent', slowAgent));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		// Start a request that will wait
+		const response = await testService.sendRequest(model.sessionResource, 'first request', { agentId: 'slowAgent' });
+		ChatSendResult.assertSent(response);
+
+		// Wait for the agent to start processing
+		await requestStarted.p;
+
+		// Queue 3 steering messages while the first request is in progress
+		const steering1 = await testService.sendRequest(model.sessionResource, 'steering1', { agentId: 'slowAgent', queue: ChatRequestQueueKind.Steering });
+		const steering2 = await testService.sendRequest(model.sessionResource, 'steering2', { agentId: 'slowAgent', queue: ChatRequestQueueKind.Steering });
+		const steering3 = await testService.sendRequest(model.sessionResource, 'steering3', { agentId: 'slowAgent', queue: ChatRequestQueueKind.Steering });
+		assert.ok(ChatSendResult.isQueued(steering1));
+		assert.ok(ChatSendResult.isQueued(steering2));
+		assert.ok(ChatSendResult.isQueued(steering3));
+
+		// Complete the first request - should trigger processing of combined steering requests
+		completeRequest.complete();
+		await response.data.responseCompletePromise;
+
+		// Wait for all deferred promises to resolve
+		await steering1.deferred;
+		await steering2.deferred;
+		await steering3.deferred;
+
+		// Should have only invoked 2 requests: the initial and the combined steering
+		assert.strictEqual(invokedRequests.length, 2, 'Should have only 2 invocations (initial + combined steering)');
+		// The combined message includes all steering texts joined with \n\n
+		assert.ok(invokedRequests[1].includes('steering1'), 'Combined message should include steering1');
+		assert.ok(invokedRequests[1].includes('steering2'), 'Combined message should include steering2');
+		assert.ok(invokedRequests[1].includes('steering3'), 'Combined message should include steering3');
+		assert.ok(invokedRequests[1].includes('\n\n'), 'Combined message should use \\n\\n as separator');
 	});
 });
 

@@ -15,18 +15,17 @@ import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
 import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
-import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes.js';
 import { GithubPromptHeaderAttributes, ISequenceValue, IHeaderAttribute, IScalarValue, parseCommaSeparatedList, ParsedPromptFile, PromptHeader, PromptHeaderAttributes, IValue } from '../promptFileParser.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { IPromptsService, Target } from '../service/promptsService.js';
+import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { AGENTS_SOURCE_FOLDER, CLAUDE_AGENTS_SOURCE_FOLDER, isInClaudeRulesFolder, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { AGENTS_SOURCE_FOLDER, isInClaudeAgentsFolder, isInClaudeRulesFolder, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { dirname } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
@@ -194,8 +193,11 @@ export class PromptValidator {
 					this.validateModel(attributes, ChatModeKind.Agent, report);
 					this.validateHandoffs(attributes, report);
 					await this.validateAgentsAttribute(attributes, header, report);
+					this.validateGithubPermissions(attributes, report);
 				} else if (target === Target.Claude) {
 					this.validateClaudeAttributes(attributes, report);
+				} else if (target === Target.GitHubCopilot) {
+					this.validateGithubPermissions(attributes, report);
 				}
 				break;
 			}
@@ -695,7 +697,57 @@ export class PromptValidator {
 			}
 		}
 	}
+
+	private validateGithubPermissions(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
+		const attribute = attributes.find(attr => attr.key === GithubPromptHeaderAttributes.github);
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'map') {
+			report(toMarker(localize('promptValidator.githubMustBeMap', "The 'github' attribute must be an object."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+		for (const prop of attribute.value.properties) {
+			if (prop.key.value !== 'permissions') {
+				report(toMarker(localize('promptValidator.unknownGithubProperty', "Unknown property '{0}' in 'github' object. Supported: 'permissions'.", prop.key.value), prop.key.range, MarkerSeverity.Warning));
+				continue;
+			}
+			if (prop.value.type !== 'map') {
+				report(toMarker(localize('promptValidator.permissionsMustBeMap', "The 'permissions' property must be an object."), prop.value.range, MarkerSeverity.Error));
+				continue;
+			}
+			for (const permProp of prop.value.properties) {
+				const scope = permProp.key.value;
+				const scopeInfo = githubPermissionScopes[scope];
+				if (!scopeInfo) {
+					const validScopes = Object.keys(githubPermissionScopes).sort().join(', ');
+					report(toMarker(localize('promptValidator.unknownPermissionScope', "Unknown permission scope '{0}'. Valid scopes: {1}.", scope, validScopes), permProp.key.range, MarkerSeverity.Warning));
+					continue;
+				}
+				if (permProp.value.type !== 'scalar') {
+					report(toMarker(localize('promptValidator.permissionValueMustBeString', "The permission value for '{0}' must be a string.", scope), permProp.value.range, MarkerSeverity.Error));
+					continue;
+				}
+				const value = permProp.value.value;
+				if (!scopeInfo.allowedValues.includes(value)) {
+					report(toMarker(localize('promptValidator.invalidPermissionValue', "Invalid permission value '{0}' for scope '{1}'. Allowed values: {2}.", value, scope, scopeInfo.allowedValues.join(', ')), permProp.value.range, MarkerSeverity.Error));
+				}
+			}
+		}
+	}
 }
+
+export const githubPermissionScopes: Record<string, { allowedValues: string[]; description: string }> = {
+	'actions': { allowedValues: ['read', 'write', 'none'], description: localize('githubPermission.actions', "Access to GitHub Actions workflows and runs") },
+	'checks': { allowedValues: ['read', 'none'], description: localize('githubPermission.checks', "Access to check runs and statuses") },
+	'contents': { allowedValues: ['read', 'write', 'none'], description: localize('githubPermission.contents', "Access to repository contents (files, commits, branches)") },
+	'discussions': { allowedValues: ['read', 'write', 'none'], description: localize('githubPermission.discussions', "Access to discussions") },
+	'issues': { allowedValues: ['read', 'write', 'none'], description: localize('githubPermission.issues', "Access to issues (read, create, update, comment)") },
+	'metadata': { allowedValues: ['read'], description: localize('githubPermission.metadata', "Repository metadata (always read-only)") },
+	'pull-requests': { allowedValues: ['read', 'write', 'none'], description: localize('githubPermission.pullRequests', "Access to pull requests (read, create, update, review)") },
+	'security-events': { allowedValues: ['read', 'none'], description: localize('githubPermission.securityEvents', "Access to security-related events") },
+	'workflows': { allowedValues: ['write', 'none'], description: localize('githubPermission.workflows', "Access to modify workflow files") },
+};
 
 function isTrueOrFalse(value: IValue): boolean {
 	if (value.type === 'scalar') {
@@ -707,11 +759,11 @@ function isTrueOrFalse(value: IValue): boolean {
 const allAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
-	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.userInvokable, PromptHeaderAttributes.disableModelInvocation],
+	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.userInvokable, PromptHeaderAttributes.disableModelInvocation, GithubPromptHeaderAttributes.github],
 	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.userInvokable, PromptHeaderAttributes.disableModelInvocation],
 	[PromptsType.hook]: [], // hooks are JSON files, not markdown with YAML frontmatter
 };
-const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers, PromptHeaderAttributes.infer];
+const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers, GithubPromptHeaderAttributes.github, PromptHeaderAttributes.infer];
 const recommendedAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: allAttributeNames[PromptsType.prompt].filter(name => !isNonRecommendedAttribute(name)),
 	[PromptsType.instructions]: allAttributeNames[PromptsType.instructions].filter(name => !isNonRecommendedAttribute(name)),
@@ -796,6 +848,8 @@ export function getAttributeDescription(attributeName: string, promptType: Promp
 					return localize('promptHeader.agent.userInvocable', 'Whether the agent can be selected and invoked by users in the UI.');
 				case PromptHeaderAttributes.disableModelInvocation:
 					return localize('promptHeader.agent.disableModelInvocation', 'If true, prevents the agent from being invoked as a subagent.');
+				case GithubPromptHeaderAttributes.github:
+					return localize('promptHeader.agent.github', 'GitHub-specific configuration for the agent, such as token permissions.');
 			}
 			break;
 		case PromptsType.prompt:
@@ -968,8 +1022,7 @@ export function isVSCodeOrDefaultTarget(target: Target): boolean {
 export function getTarget(promptType: PromptsType, header: PromptHeader | URI): Target {
 	const uri = header instanceof URI ? header : header.uri;
 	if (promptType === PromptsType.agent) {
-		const parentDir = dirname(uri);
-		if (parentDir.path.endsWith(`/${CLAUDE_AGENTS_SOURCE_FOLDER}`)) {
+		if (isInClaudeAgentsFolder(uri)) {
 			return Target.Claude;
 		}
 		if (!(header instanceof URI)) {

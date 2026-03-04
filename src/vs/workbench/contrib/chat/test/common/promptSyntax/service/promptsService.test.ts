@@ -40,8 +40,8 @@ import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry 
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage, Target } from '../../../../common/promptSyntax/service/promptsService.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
+import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -50,10 +50,10 @@ import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../servic
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
 import { IRemoteAgentService } from '../../../../../../services/remote/common/remoteAgentService.js';
 import { ChatModeKind } from '../../../../common/constants.js';
-import { HookType } from '../../../../common/promptSyntax/hookSchema.js';
+import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyService, IContextKeyChangeEvent } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IAgentPlugin, IAgentPluginCommand, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -488,7 +488,7 @@ suite('PromptsService', () => {
 			]);
 
 			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined);
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -659,7 +659,7 @@ suite('PromptsService', () => {
 			]);
 
 			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined);
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -733,7 +733,7 @@ suite('PromptsService', () => {
 			]);
 
 
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined);
 			const context = new ChatRequestVariableSet();
 			context.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'README.md')));
 
@@ -1177,6 +1177,7 @@ suite('PromptsService', () => {
 			);
 		});
 
+
 		test('agents with .md extension should be recognized, except README.md', async () => {
 			const rootFolderName = 'custom-agents-md-extension';
 			const rootFolder = `/${rootFolderName}`;
@@ -1336,6 +1337,60 @@ suite('PromptsService', () => {
 				expected,
 				'Must get custom agents with agents, skills, and instructions attributes.',
 			);
+		});
+
+		test('header with infer: false sets agentInvocable to false', async () => {
+			const rootFolderName = 'custom-agents-infer-false';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/agent-infer-false.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with infer: false.\'',
+						'infer: false',
+						'---',
+						'I should not be invocable by the model.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/agent-infer-true.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with infer: true.\'',
+						'infer: true',
+						'---',
+						'I should be invocable by the model.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/agent-no-infer.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent without infer.\'',
+						'---',
+						'I should default to being invocable by the model.',
+					]
+				}
+			]);
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+
+			const inferFalseAgent = result.find(a => a.name === 'agent-infer-false');
+			assert.ok(inferFalseAgent, 'Should find agent with infer: false');
+			assert.strictEqual(inferFalseAgent.visibility.agentInvocable, false, 'infer: false should set agentInvocable to false');
+
+			const inferTrueAgent = result.find(a => a.name === 'agent-infer-true');
+			assert.ok(inferTrueAgent, 'Should find agent with infer: true');
+			assert.strictEqual(inferTrueAgent.visibility.agentInvocable, true, 'infer: true should set agentInvocable to true');
+
+			const noInferAgent = result.find(a => a.name === 'agent-no-infer');
+			assert.ok(noInferAgent, 'Should find agent without infer');
+			assert.strictEqual(noInferAgent.visibility.agentInvocable, true, 'missing infer should default agentInvocable to true');
 		});
 
 		test('agents from user data folder', async () => {
@@ -3444,6 +3499,7 @@ suite('PromptsService', () => {
 			const hooks = observableValue<readonly IAgentPluginHook[]>('testPluginHooks', initialHooks);
 			const commands = observableValue<readonly IAgentPluginCommand[]>('testPluginCommands', []);
 			const skills = observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', []);
+			const agents = observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', []);
 			const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('testPluginMcpServerDefinitions', []);
 
 			return {
@@ -3451,9 +3507,11 @@ suite('PromptsService', () => {
 					uri: URI.file(path),
 					enabled,
 					setEnabled: () => { },
+					remove: () => { },
 					hooks,
 					commands,
 					skills,
+					agents,
 					mcpServerDefinitions,
 				},
 				hooks,

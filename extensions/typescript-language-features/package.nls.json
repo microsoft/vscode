@@ -1,5 +1,5 @@
 {
-	"displayName": "TypeScript and JavaScript Language Features",
+	"displayName": "JavaScript and TypeScript Language Features",
 	"description": "Provides rich language support for JavaScript and TypeScript.",
 	"workspaceTrust": "The extension requires workspace trust when the workspace version is used because it executes code specified by the workspace.",
 	"virtualWorkspaces": "In virtual workspaces, resolving and finding references across files is not supported.",
@@ -248,8 +248,8 @@
 	"configuration.autoClosingTags.enabled.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.autoClosingTags.enabled#` instead.",
 	"typescript.suggest.enabled": "Enable/disable autocomplete suggestions.",
 	"configuration.suggest.enabled.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.suggest.enabled#` instead.",
-	"configuration.suggest.completeJSDocs": "Enable/disable suggestion to complete JSDoc comments.",
-	"configuration.suggest.completeJSDocs.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.suggest.completeJSDocs#` instead.",
+	"configuration.suggest.jsdoc.enabled": "Enable/disable suggestion to complete JSDoc comments.",
+	"configuration.suggest.completeJSDocs.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.suggest.jsdoc.enabled#` instead.",
 	"configuration.tsserver.useVsCodeWatcher": "Use VS Code's file watchers instead of TypeScript's. Requires using TypeScript 5.4+ in the workspace.",
 	"configuration.tsserver.watchOptions": "Configure which watching strategies should be used to keep track of files and directories.",
 	"configuration.tsserver.watchOptions.vscode": "Use VS Code's file watchers instead of TypeScript's. Requires using TypeScript 5.4+ in the workspace.",

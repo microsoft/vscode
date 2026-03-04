@@ -236,6 +236,7 @@ export class BrowserEditor extends EditorPane {
 	private _currentKeyDownEvent: IBrowserViewKeyDownEvent | undefined;
 
 	private _navigationBar!: BrowserNavigationBar;
+	private _browserContainerWrapper!: HTMLElement;
 	private _browserContainer!: HTMLElement;
 	private _placeholderScreenshot!: HTMLElement;
 	private _overlayPauseContainer!: HTMLElement;
@@ -325,10 +326,15 @@ export class BrowserEditor extends EditorPane {
 		});
 		this._register(toDisposable(() => this._findWidget.rawValue?.dispose()));
 
+		// Create browser container wrapper (flex item that fills remaining space)
+		this._browserContainerWrapper = $('.browser-container-wrapper');
+		this._browserContainerWrapper.style.setProperty('--zoom-factor', String(getZoomFactor(this.window)));
+		root.appendChild(this._browserContainerWrapper);
+
 		// Create browser container (stub element for positioning)
 		this._browserContainer = $('.browser-container');
 		this._browserContainer.tabIndex = 0; // make focusable
-		root.appendChild(this._browserContainer);
+		this._browserContainerWrapper.appendChild(this._browserContainer);
 
 		// Create placeholder screenshot (background placeholder when WebContentsView is hidden)
 		this._placeholderScreenshot = $('.browser-placeholder-screenshot');
@@ -385,7 +391,8 @@ export class BrowserEditor extends EditorPane {
 		this._inputDisposables.clear();
 
 		// Resolve the browser view model from the input
-		this._model = await input.resolve();
+		const model = await input.resolve();
+		this._model = model;
 		if (token.isCancellationRequested || this.input !== input) {
 			return;
 		}
@@ -419,12 +426,16 @@ export class BrowserEditor extends EditorPane {
 		});
 		this.setBackgroundImage(this._model.screenshot);
 
-		if (context.newInGroup) {
-			if (this._model.url) {
-				this._browserContainer.focus();
-			} else {
-				this.focusUrlInput();
-			}
+		if (!options?.preserveFocus) {
+			setTimeout(() => {
+				if (this._model === model) {
+					if (this._model.url) {
+						this._browserContainer.focus();
+					} else {
+						this.focusUrlInput();
+					}
+				}
+			}, 0);
 		}
 
 		// Start / stop screenshots when the model visibility changes
@@ -497,6 +508,8 @@ export class BrowserEditor extends EditorPane {
 		// Listen for zoom level changes and update browser view zoom factor
 		this._inputDisposables.add(onDidChangeZoomLevel(targetWindowId => {
 			if (targetWindowId === this.window.vscodeWindowId) {
+				// Update CSS variable for size calculations
+				this._browserContainerWrapper.style.setProperty('--zoom-factor', String(getZoomFactor(this.window)));
 				this.layoutBrowserContainer();
 			}
 		}));
@@ -652,7 +665,7 @@ export class BrowserEditor extends EditorPane {
 		const sharingEnabled = this.contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext);
 		const isShared = sharingEnabled && !!this._model && this._model.sharedWithAgent;
 
-		this._browserContainer.classList.toggle('shared', isShared);
+		this._browserContainerWrapper.classList.toggle('shared', isShared);
 		this._navigationBar.setShared(isShared);
 	}
 
@@ -692,8 +705,8 @@ export class BrowserEditor extends EditorPane {
 		return this._model?.goForward();
 	}
 
-	async reload(): Promise<void> {
-		return this._model?.reload();
+	async reload(hard?: boolean): Promise<void> {
+		return this._model?.reload(hard);
 	}
 
 	async toggleDevTools(): Promise<void> {
@@ -709,7 +722,7 @@ export class BrowserEditor extends EditorPane {
 	 */
 	async showFind(): Promise<void> {
 		// Get selected text from the browser view to pre-populate the search box.
-		const selectedText = await this._model?.getSelectedText();
+		const selectedText = (await this._model?.getSelectedText())?.trim();
 
 		// Only use the selected text if it doesn't contain newlines (single line selection)
 		const textToReveal = selectedText && !/[\r\n]/.test(selectedText) ? selectedText : undefined;

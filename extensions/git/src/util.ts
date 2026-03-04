@@ -867,10 +867,12 @@ export function getStashDescription(stash: Stash): string | undefined {
 	return descriptionSegments.join(' \u2022 ');
 }
 
+export const CopilotWorktreeBranchPrefix = 'copilot-worktree-';
+
 export function isCopilotWorktree(path: string): boolean {
 	const lastSepIndex = path.lastIndexOf(sep);
 
 	return lastSepIndex !== -1
-		? path.substring(lastSepIndex + 1).startsWith('copilot-worktree-')
-		: path.startsWith('copilot-worktree-');
+		? path.substring(lastSepIndex + 1).startsWith(CopilotWorktreeBranchPrefix)
+		: path.startsWith(CopilotWorktreeBranchPrefix);
 }

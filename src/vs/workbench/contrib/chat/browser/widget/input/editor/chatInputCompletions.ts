@@ -55,10 +55,16 @@ import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../.
 import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
+import {
+	PromptsType,
+	Target
+} from '../../../../common/promptSyntax/promptTypes.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
+import { IChatService } from '../../../../common/chatService/chatService.js';
+import { getPromptFileType } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 
 /**
  * Regex matching a slash command word (e.g. `/foo`). Uses `\p{L}` for Unicode
@@ -77,6 +83,8 @@ class SlashCommandCompletions extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@IPromptsService private readonly promptsService: IPromptsService,
+		@IChatService chatService: IChatService,
+		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IMcpService mcpService: IMcpService,
 	) {
 		super();
@@ -90,8 +98,15 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				if (widget.lockedAgentId && !widget.attachmentCapabilities.supportsPromptAttachments) {
-					return null;
+
+				let customAgentTarget: Target | undefined = undefined;
+				if (widget.lockedAgentId) {
+					if (!widget.attachmentCapabilities.supportsPromptAttachments) {
+						return null;
+					}
+					const sessionResource = widget.viewModel.model.sessionResource;
+					const ctx = sessionResource && chatService.getChatSessionFromInternalUri(sessionResource);
+					customAgentTarget = (ctx ? chatSessionsService.getCustomAgentTargetForSessionType(ctx.chatSessionType) : undefined) ?? Target.Undefined;
 				}
 
 				const range = computeCompletionRanges(model, position, SlashCommandWord);
@@ -117,18 +132,31 @@ class SlashCommandCompletions extends Disposable {
 				}
 
 				return {
-					suggestions: slashCommands.map((c, i): CompletionItem => {
-						const withSlash = `/${c.command}`;
-						return {
-							label: withSlash,
-							insertText: c.executeImmediately ? '' : `${withSlash} `,
-							documentation: c.detail,
-							range,
-							sortText: c.sortText ?? 'a'.repeat(i + 1),
-							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] } : undefined,
-						};
-					})
+					suggestions: slashCommands
+						.filter(c => {
+							if (!widget.lockedAgentId) {
+								return true;
+							}
+							if (c.modes && c.modes.length && !c.modes.includes(ChatModeKind.Agent)) {
+								return false;
+							}
+							if (c.target && customAgentTarget && c.target !== customAgentTarget) {
+								return false;
+							}
+							return true;
+						})
+						.map((c, i): CompletionItem => {
+							const withSlash = `/${c.command}`;
+							return {
+								label: { label: withSlash, description: c.detail },
+								insertText: c.executeImmediately ? '' : `${withSlash} `,
+								documentation: c.detail,
+								range,
+								sortText: c.sortText ?? 'a'.repeat(i + 1),
+								kind: CompletionItemKind.Text, // The icons are disabled here anyway,
+								command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] } : undefined,
+							};
+						})
 				};
 			}
 		}));
@@ -164,7 +192,7 @@ class SlashCommandCompletions extends Disposable {
 					suggestions: slashCommands.map((c, i): CompletionItem => {
 						const withSlash = `${chatSubcommandLeader}${c.command}`;
 						return {
-							label: withSlash,
+							label: { label: withSlash, description: c.detail },
 							insertText: c.executeImmediately ? '' : `${withSlash} `,
 							documentation: c.detail,
 							range,
@@ -213,7 +241,26 @@ class SlashCommandCompletions extends Disposable {
 				}
 
 				// Filter out commands that are not user-invocable (hidden from / menu)
-				const userInvocableCommands = promptCommands.filter(c => c.parsedPromptFile?.header?.userInvocable !== false);
+				const userInvocableCommands = promptCommands
+					.filter(c => {
+						if (widget.lockedAgentId) {
+							// Exclude extension-provided prompt files for locked agents.
+							if (c.promptPath.extension) {
+								return false;
+							}
+							// Exclude hooks as those don't work in locked agent scenarios.
+							try {
+								const promptType = getPromptFileType(c.promptPath.uri);
+								if (promptType && promptType === PromptsType.hook) {
+									return false;
+								}
+							} catch {
+
+							}
+						}
+						return true;
+					})
+					.filter(c => c.parsedPromptFile?.header?.userInvocable !== false);
 				if (userInvocableCommands.length === 0) {
 					return null;
 				}

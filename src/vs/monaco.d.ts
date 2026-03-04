@@ -4307,6 +4307,11 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		above?: boolean;
+		/**
+		 * Should long line warning hovers be shown (tokenization skipped, rendering paused)?
+		 * Defaults to true.
+		 */
+		showLongLineWarning?: boolean;
 	}
 
 	/**

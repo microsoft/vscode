@@ -235,6 +235,7 @@
 	visibility: hidden;
 	padding-top: 6px;
 	height: 22px;
+	transition: opacity 0.1s ease-in-out, visibility 0s linear 0.1s;
 }
 
 /* Show toolbar on hover and last response. Also show when the item has keyboard focus (focus-within) or when the surrounding list row is marked focused (monaco list keyboard navigation). */
@@ -244,9 +245,12 @@
 .interactive-item-container.interactive-response:not(.chat-response-loading):focus-within .chat-footer-toolbar,
 .interactive-item-container.interactive-response:not(.chat-response-loading):focus-within .chat-footer-toolbar .chat-footer-details,
 .monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar,
-.monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details {
+.monaco-list-row.focused .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar .chat-footer-details,
+.interactive-item-container.interactive-response:not(.chat-response-loading).group-hovered .chat-footer-toolbar,
+.interactive-item-container.interactive-response:not(.chat-response-loading).group-hovered .chat-footer-toolbar .chat-footer-details {
 	opacity: 1;
 	visibility: visible;
+	transition: opacity 0.1s ease-in-out, visibility 0s linear 0s;
 }
 
 /* Style the internal toolbar element to use flexbox */
@@ -278,7 +282,11 @@
 }
 
 .interactive-item-container > .value .chat-used-context {
-	margin-bottom: 10px;
+	margin-bottom: 16px;
+}
+
+.interactive-item-container > .value .chat-used-context .chat-used-context-list {
+	margin-bottom: 0;
 }
 
 .interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) {
@@ -305,10 +313,13 @@
 	font-weight: 600;
 }
 
-.interactive-item-container .value .rendered-markdown table {
+.interactive-item-container .value .rendered-markdown .rendered-markdown-table-scroll-wrapper {
 	width: 100%;
-	text-align: left;
 	margin-bottom: 16px;
+}
+
+.interactive-item-container .value .rendered-markdown table {
+	text-align: left;
 	border-radius: var(--vscode-cornerRadius-medium);
 	overflow: hidden;
 	border-collapse: separate;
@@ -322,6 +333,11 @@
 	border-top: none;
 	border-left: none;
 	padding: 4px 6px;
+}
+
+.interactive-item-container .value .rendered-markdown table th {
+	white-space: normal;
+	overflow-wrap: break-word;
 }
 
 .interactive-item-container .value .rendered-markdown table td:last-child,
@@ -608,7 +624,7 @@
 	}
 
 	&:not(:last-child) {
-		margin-bottom: 12px;
+		margin-bottom: 16px;
 	}
 }
 
@@ -802,6 +818,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* top padding is inside the editor widget */
 	width: 100%;
 	position: relative;
+	/* Prevent contents from covering border corner */
+	overflow: hidden;
 }
 
 /* Context usage widget container - positioned in the bottom toolbar */
@@ -1249,6 +1267,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	justify-content: space-between;
 	padding-bottom: 0;
+	/* no scrollbar */
+	padding-right: 6px;
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
@@ -1264,7 +1284,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-editor-container {
-	padding: 0 4px;
+	padding: 0 0 0 4px;
+}
+
+.interactive-session .interactive-input-part.compact .chat-editor-container {
+	/* No scrollbar */
+	padding-right: 4px;
 }
 
 .chat-editor-container .monaco-editor .mtk1 {
@@ -1307,6 +1332,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars :not(.responsive.chat-input-toolbar) .actions-container:first-child {
 	margin-right: auto;
+}
+
+.interactive-session .chat-input-toolbars > .chat-input-toolbar .actions-container:first-child {
+	margin-right: 0;
 }
 
 .interactive-session .chat-input-toolbars .tool-warning-indicator {
@@ -1386,10 +1415,40 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
-	padding: 3px 0px 3px 6px;
+	padding: 3px 1px 3px 7px;
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
+}
+
+/* When chevrons are hidden and only showing an icon (no label), size to 22x22 with centered icon */
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.hide-chevrons:not(:has(.chat-input-picker-label)),
+.interactive-session .chat-input-toolbar .chat-input-picker-item.hide-chevrons .action-label:not(:has(.chat-input-picker-label)),
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.hide-chevrons:not(:has(.chat-input-picker-label)) {
+	width: 22px;
+	min-width: 22px;
+	height: 22px;
+	padding: 0;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	.codicon {
+		justify-content: center;
+	}
+}
+
+/* When chevrons are hidden but label is still shown (e.g. model picker), use equal padding */
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.hide-chevrons:has(.chat-input-picker-label),
+.interactive-session .chat-input-toolbar .chat-input-picker-item.hide-chevrons .action-label:has(.chat-input-picker-label),
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.hide-chevrons:has(.chat-input-picker-label) {
+	padding: 3px 7px;
+}
+
+/* Hide the tools button when the toolbar is in collapsed state */
+.interactive-session .chat-input-toolbar:has(.hide-chevrons) .action-item:has(.codicon-settings) {
+	display: none;
 }
 
 .monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
@@ -1426,6 +1485,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .action-widget .monaco-list-row.chat-model-picker-unavailable .description a:hover,
 .action-widget .monaco-list-row.chat-model-picker-unavailable .description a:active {
 	color: var(--vscode-textLink-activeForeground);
+}
+
+.action-widget .action-list-filter-input.chat-model-picker-filter-input,
+.action-widget .action-list-filter-input.chat-model-picker-filter-input:focus {
+	outline: none;
+	box-shadow: none;
+	border-color: transparent;
+	background-color: transparent;
+}
+
+.action-widget .action-list-filter:has(.chat-model-picker-filter-input) {
+	margin-bottom: 4px;
 }
 
 .interactive-session .chat-input-toolbars .codicon-debug-stop {
@@ -2176,6 +2247,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	line-height: unset;
 }
 
+.interactive-session .chat-used-context.show-checkmarks .chat-used-context-label .monaco-button {
+	gap: 4px;
+	margin-left: 0;
+}
+
 .interactive-session .chat-file-changes-label .monaco-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
@@ -2199,6 +2275,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-used-context-label .monaco-button .codicon {
 	font-size: 12px;
 	color: var(--vscode-icon-foreground) !important;
+}
+
+/* Hide the leading icon on collapsible parts by default; show-checkmarks restores it */
+.interactive-session .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron):not(.codicon-error):not(.codicon-warning) {
+	display: none;
+}
+
+.interactive-session .chat-used-context.show-checkmarks .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
+	display: inline-block;
 }
 
 /* Hover chevron indicator for collapsible parts */
@@ -2290,6 +2375,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		-webkit-text-fill-color: transparent;
 		animation: chat-thinking-shimmer 2s linear infinite;
 	}
+}
+
+.show-checkmarks .progress-container > .codicon.codicon-check,
+.progress-container.show-checkmarks > .codicon.codicon-check {
+	display: inline-flex;
+	margin-left: 4px;
 }
 
 .interactive-item-container .chat-command-button {
@@ -2698,14 +2789,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.interactive-request .header.partially-disabled .detail-container {
-		margin-left: 4px;
+		margin-left: 0px;
 	}
 
 	.interactive-item-container .header .detail .codicon-check {
 		margin-right: 7px;
 		vertical-align: middle;
 		font-size: 11px;
+		display: none;
 	}
+
+	.interactive-item-container .header.partially-disabled .detail.show-checkmarks {
+		margin-left: 4px;
+
+		.codicon-check {
+			display: inline;
+		}
+	}
+
 
 	.request-hover {
 		position: absolute;
@@ -2849,7 +2950,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.checkpoint-container:focus-within,
-	.checkpoint-container.response-hovered,
+	.checkpoint-container.group-hovered,
 	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container {
 		opacity: 1;
 	}

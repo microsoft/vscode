@@ -48,6 +48,11 @@ export interface IPolicyData {
 	readonly mcpAccess?: 'allow_all' | 'registry_only';
 }
 
+export interface ICopilotTokenInfo {
+	readonly sn?: string;
+	readonly fcv1?: string;
+}
+
 export interface IDefaultAccountAuthenticationProvider {
 	readonly id: string;
 	readonly name: string;

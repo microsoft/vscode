@@ -7,6 +7,7 @@ import { app, Details, GPUFeatureStatus, powerMonitor, protocol, session, Sessio
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
+import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { Event } from '../../base/common/event.js';
@@ -407,7 +408,11 @@ export class CodeApplication extends Disposable {
 
 			// Mac only event: open new window when we get activated
 			if (!hasVisibleWindows) {
-				await this.windowsMainService?.openEmptyWindow({ context: OpenContext.DOCK });
+				if ((process as INodeProcess).isEmbeddedApp || (this.environmentMainService.args['sessions'] && this.productService.quality !== 'stable')) {
+					await this.windowsMainService?.openSessionsWindow({ context: OpenContext.DOCK });
+				} else {
+					await this.windowsMainService?.openEmptyWindow({ context: OpenContext.DOCK });
+				}
 			}
 		});
 
@@ -1283,7 +1288,7 @@ export class CodeApplication extends Disposable {
 		// MCP
 		const mcpDiscoveryChannel = ProxyChannel.fromService(accessor.get(INativeMcpDiscoveryHelperService), disposables);
 		mainProcessElectronServer.registerChannel(NativeMcpDiscoveryHelperChannelName, mcpDiscoveryChannel);
-		const mcpGatewayChannel = this._register(new McpGatewayChannel(mainProcessElectronServer, accessor.get(IMcpGatewayService)));
+		const mcpGatewayChannel = this._register(new McpGatewayChannel(mainProcessElectronServer, accessor.get(IMcpGatewayService), accessor.get(ILoggerMainService)));
 		mainProcessElectronServer.registerChannel(McpGatewayChannelName, mcpGatewayChannel);
 
 		// Logger
@@ -1430,6 +1435,11 @@ export class CodeApplication extends Disposable {
 	}
 
 	private afterWindowOpen(instantiationService: IInstantiationService): void {
+
+		// Accurate Windows version info
+		if (isWindows) {
+			initWindowsVersionInfo();
+		}
 
 		// Windows: mutex
 		this.installMutex();

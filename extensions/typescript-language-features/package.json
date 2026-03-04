@@ -1919,10 +1919,10 @@
             "markdownDeprecationMessage": "%configuration.suggest.paths.unifiedDeprecationMessage%",
             "scope": "resource"
           },
-          "js/ts.suggest.completeJSDocs": {
+          "js/ts.suggest.jsdoc.enabled": {
             "type": "boolean",
             "default": true,
-            "description": "%configuration.suggest.completeJSDocs%",
+            "description": "%configuration.suggest.jsdoc.enabled%",
             "scope": "language-overridable",
             "keywords": [
               "JavaScript",
@@ -1932,14 +1932,14 @@
           "javascript.suggest.completeJSDocs": {
             "type": "boolean",
             "default": true,
-            "description": "%configuration.suggest.completeJSDocs%",
+            "description": "%configuration.suggest.jsdoc.enabled%",
             "markdownDeprecationMessage": "%configuration.suggest.completeJSDocs.unifiedDeprecationMessage%",
             "scope": "language-overridable"
           },
           "typescript.suggest.completeJSDocs": {
             "type": "boolean",
             "default": true,
-            "description": "%configuration.suggest.completeJSDocs%",
+            "description": "%configuration.suggest.jsdoc.enabled%",
             "markdownDeprecationMessage": "%configuration.suggest.completeJSDocs.unifiedDeprecationMessage%",
             "scope": "language-overridable"
           },
@@ -2856,13 +2856,13 @@
         "command": "typescript.experimental.enableTsgo",
         "title": "Use TypeScript Go (Experimental)",
         "category": "TypeScript",
-        "enablement": "!config.typescript.experimental.useTsgo && config.typescript-go.executablePath"
+        "enablement": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && config.typescript-go.executablePath"
       },
       {
         "command": "typescript.experimental.disableTsgo",
         "title": "Stop using TypeScript Go (Experimental)",
         "category": "TypeScript",
-        "enablement": "config.typescript.experimental.useTsgo"
+        "enablement": "config.js/ts.experimental.useTsgo || config.typescript.experimental.useTsgo"
       }
     ],
     "menus": {
@@ -2939,7 +2939,7 @@
       "editor/context": [
         {
           "command": "typescript.goToSourceDefinition",
-          "when": "!config.typescript.experimental.useTsgo && tsSupportsSourceDefinition && (resourceLangId == typescript || resourceLangId == typescriptreact || resourceLangId == javascript || resourceLangId == javascriptreact)",
+          "when": "!config.js/ts.experimental.useTsgo && !config.typescript.experimental.useTsgo && tsSupportsSourceDefinition && (resourceLangId == typescript || resourceLangId == typescriptreact || resourceLangId == javascript || resourceLangId == javascriptreact)",
           "group": "navigation@1.41"
         }
       ],

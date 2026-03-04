@@ -15,6 +15,7 @@ import { rcut } from '../../../../../../base/common/strings.js';
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
@@ -162,6 +163,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		// Extract description, agentName, and prompt from toolInvocation
 		const { description, agentName, prompt, modelName } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);
@@ -169,7 +171,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// Build title: "AgentName: description" or "Subagent: description"
 		const prefix = agentName || localize('chat.subagent.prefix', 'Subagent');
 		const initialTitle = `${prefix}: ${description}`;
-		super(initialTitle, context, undefined, hoverService);
+		super(initialTitle, context, undefined, hoverService, configurationService);
 
 		this.description = description;
 		this.agentName = agentName;
@@ -376,6 +378,29 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		const labelElement = this._collapseButton.labelElement;
+
+		if (!this.isActive) {
+			labelElement.textContent = '';
+			this.titleShimmerSpan = undefined;
+
+			if (this.titleDetailRendered) {
+				this.titleDetailRendered.dispose();
+				this.titleDetailRendered = undefined;
+			}
+			this.titleDetailContainer = undefined;
+
+			const prefixSpan = $('span');
+			prefixSpan.textContent = `${prefix}:`;
+			labelElement.appendChild(prefixSpan);
+
+			const descSpan = $('span.chat-thinking-title-detail-text');
+			descSpan.textContent = ` ${this.description}`;
+			labelElement.appendChild(descSpan);
+
+			this._collapseButton.element.ariaLabel = shimmerText;
+			this._collapseButton.element.ariaExpanded = String(this.isExpanded());
+			return;
+		}
 
 		// Ensure the persistent shimmer span exists
 		if (!this.titleShimmerSpan || !this.titleShimmerSpan.parentElement) {

@@ -18,7 +18,12 @@ import { IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 const queuingActionsPresent = ContextKeyExpr.and(
-	ContextKeyExpr.or(ChatContextKeys.requestInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.QueueOrSteer)),
+	ContextKeyExpr.or(
+		ChatContextKeys.requestInProgress,
+		ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.QueueOrSteer),
+		ChatContextKeys.Editing.hasQuestionCarousel,
+		ChatContextKeys.Editing.hasToolConfirmation,
+	),
 	ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.Sent),
 );
 
@@ -213,7 +218,7 @@ export class ChatSendPendingImmediatelyAction extends Action2 {
 		];
 
 		chatService.setPendingRequests(context.sessionResource, reordered);
-		chatService.cancelCurrentRequestForSession(context.sessionResource);
+		chatService.cancelCurrentRequestForSession(context.sessionResource, 'queueRunNext');
 		chatService.processPendingRequests(context.sessionResource);
 	}
 }
@@ -280,7 +285,10 @@ export function registerChatQueueActions(): void {
 		submenu: MenuId.ChatExecuteQueue,
 		title: localize2('chat.queueSubmenu', "Queue"),
 		icon: Codicon.listOrdered,
-		when: queuingActionsPresent,
+		when: ContextKeyExpr.and(
+			queuingActionsPresent,
+			ChatContextKeys.inputHasText,
+		),
 		group: 'navigation',
 		order: 4,
 	});
