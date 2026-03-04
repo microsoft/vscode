@@ -9,11 +9,14 @@ import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationCo
 import { IToolData } from '../../../common/tools/languageModelToolsService.js';
 
 export class MockLanguageModelToolsConfirmationService implements ILanguageModelToolsConfirmationService {
-	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session' }): void {
+	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session'; focusToolId?: string }): void {
 		throw new Error('Method not implemented.');
 	}
 	registerConfirmationContribution(toolName: string, contribution: ILanguageModelToolConfirmationContribution): IDisposable {
 		throw new Error('Method not implemented.');
+	}
+	toolCanManageConfirmation(): boolean {
+		return false;
 	}
 	resetToolAutoConfirmation(): void {
 
