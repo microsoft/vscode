@@ -284,7 +284,7 @@ export class SlashCommandHandler extends Disposable {
 			_debugDisplayName: 'sessionsPromptSlashCommands',
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
-				const range = this._computeCompletionRanges(model, position, /\/[\p{L}\d_\-\.:]*$/gu);
+				const range = this._computeCompletionRanges(model, position, /\/[\p{L}0-9_.:-]*/gu);
 				if (!range) {
 					return null;
 				}
