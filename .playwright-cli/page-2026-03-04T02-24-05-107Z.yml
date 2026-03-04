@@ -1,0 +1,108 @@
+- application [ref=e2]:
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - toolbar "Sessions actions" [ref=e14]:
+          - button "Find Session" [ref=e176] [cursor=pointer]: 
+          - button "Filter Sessions" [ref=e179] [cursor=pointer]: 
+        - toolbar [ref=e22]:
+          - button "Primary Side Bar" [pressed] [ref=e23] [cursor=pointer]: 
+        - generic:
+          - generic:
+            - generic:
+              - toolbar
+      - generic [ref=e30]:
+        - text:    
+        - generic [ref=e32]:
+          - generic [ref=e34]:
+            - button "New Session ⌘W" [ref=e36] [cursor=pointer]:
+              - text: New Session
+              - generic [ref=e37]: ⌘W
+            - list "Agent Sessions" [ref=e40]
+          - generic [ref=e42]:
+            - button "CUSTOMIZATIONS " [expanded] [ref=e45] [cursor=pointer]:
+              - generic [ref=e46]: CUSTOMIZATIONS
+              - generic [ref=e48]: 
+            - toolbar [ref=e52]:
+              - button [ref=e53] [cursor=pointer]
+              - button " Agents" [ref=e55] [cursor=pointer]:
+                - generic [ref=e56]: 
+                - generic [ref=e57]: Agents
+              - button [ref=e58] [cursor=pointer]
+              - button " Skills" [ref=e60] [cursor=pointer]:
+                - generic [ref=e61]: 
+                - generic [ref=e62]: Skills
+              - button [ref=e63] [cursor=pointer]
+              - button " Instructions" [ref=e65] [cursor=pointer]:
+                - generic [ref=e66]: 
+                - generic [ref=e67]: Instructions
+              - button [ref=e68] [cursor=pointer]
+              - button " Prompts" [ref=e70] [cursor=pointer]:
+                - generic [ref=e71]: 
+                - generic [ref=e72]: Prompts
+              - button [ref=e73] [cursor=pointer]
+              - button " Hooks" [ref=e75] [cursor=pointer]:
+                - generic [ref=e76]: 
+                - generic [ref=e77]: Hooks
+      - toolbar [ref=e81]:
+        - button [ref=e82]
+        - button " Sign In" [ref=e84] [cursor=pointer]:
+          - generic [ref=e85]: 
+          - generic [ref=e86]: Sign In
+    - generic [ref=e90]:
+      - generic [ref=e92]:
+        - toolbar [ref=e100]:
+          - button "Go Back (⌃-)" [disabled] [ref=e180]: 
+          - button "Go Forward (⌃⇧-)" [disabled] [ref=e181]: 
+          - listitem [ref=e182] [cursor=pointer]:
+            - toolbar [ref=e185]:
+              - button "Search" [ref=e186]:
+                - generic [ref=e187]: 
+                - generic [ref=e188]: Search
+        - toolbar "Title actions" [ref=e114]:
+          - button "Toggle Primary Side Bar (⌘B)" [pressed] [ref=e189] [cursor=pointer]: 
+          - button "Toggle Panel (⌘J)" [ref=e190] [cursor=pointer]: 
+          - button "Toggle Secondary Side Bar (⌥⌘B)" [ref=e191] [cursor=pointer]: 
+      - main [ref=e123]:
+        - generic [ref=e130]:
+          - text:  
+          - generic [ref=e133]:
+            - generic [ref=e137]:
+              - radio "Local Cloud" [ref=e140]:
+                - button "Local" [ref=e141] [cursor=pointer]:
+                  - generic [ref=e142]: Local
+                - button "Cloud" [ref=e143] [cursor=pointer]:
+                  - generic [ref=e144]: Cloud
+              - generic [ref=e145]:
+                - text:  
+                - button " Pick Folder " [ref=e148] [cursor=pointer]:
+                  - generic [ref=e149]: 
+                  - generic [ref=e150]: Pick Folder
+                  - generic [ref=e151]: 
+            - generic [ref=e153]:
+              - code [ref=e155]:
+                - generic [ref=e156]:
+                  - textbox "Chat input" [active] [ref=e157]
+                  - textbox [ref=e158]
+              - generic [ref=e163]:
+                - button "Add Context..." [ref=e164] [cursor=pointer]:
+                  - generic [ref=e165]: 
+                - button "Pick Model, Auto" [ref=e167] [cursor=pointer]:
+                  - generic [ref=e168]: Auto
+                  - generic [ref=e169]: 
+                - text: 
+                - button "Send" [disabled] [ref=e171]: 
+            - generic [ref=e172]:
+              - generic [ref=e173]:
+                - button " Worktree ":
+                  - generic: 
+                  - generic: Worktree
+                  - generic: 
+              - generic [ref=e175]:
+                - button " Branch ":
+                  - generic: 
+                  - generic: Branch
+                  - generic: 
+  - generic:
+    - alert
+    - alert

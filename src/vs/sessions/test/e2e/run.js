@@ -212,7 +212,7 @@ async function main() {
 	server.stderr.on('data', d => { /* silent */ });
 
 	// Wait for server to be ready
-	await waitForServer(`http://localhost:${PORT}/`, 30_000);
+	await waitForServer(BASE_URL, 30_000);
 	console.log(`Server ready.\n`);
 
 	// Open browser via playwright-cli
