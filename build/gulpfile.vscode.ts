@@ -446,6 +446,17 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				const excludes = copilotPlatforms
 					.filter(p => p !== targetPlatformArch)
 					.map(p => `!**/node_modules/@github/copilot-${p}/**`);
+
+				// Strip agent host SDK dependencies entirely from stable builds
+				if (quality === 'stable') {
+					excludes.push(
+						'!**/node_modules/@github/copilot/**',
+						'!**/node_modules/@github/copilot-sdk/**',
+						'!**/node_modules/@github/copilot-*/**',
+						'!**/node_modules/@anthropic-ai/**',
+					);
+				}
+
 				return ['**', ...excludes];
 			})()))
 			.pipe(jsFilter)
