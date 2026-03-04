@@ -147,7 +147,6 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		};
 
 		this.interruptActiveResponseCallback = history.length > 0 ? undefined : async () => {
-			// TODO: Hook up session.abort()
 			return true;
 		};
 	}
@@ -327,6 +326,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				case 'error':
 					this._logService.error(`[AgentHost:${sessionStr}] error: (${e.errorType}) ${e.message}`);
 					progress([{ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${e.errorType}) ${e.message}`) }]);
+					finish();
 					break;
 
 				case 'usage':

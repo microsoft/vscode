@@ -10,6 +10,7 @@ import { DisposableStore, toDisposable } from '../../../../../../base/common/lif
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentAttachment, IAgentHostService, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentSession } from '../../../../../../platform/agent/common/agentService.js';
@@ -74,7 +75,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	override async disposeSession(_session: URI): Promise<void> { }
-	override async abortSession(_session: URI): Promise<void> { }
+	public abortSessionCalls: URI[] = [];
+	override async abortSession(session: URI): Promise<void> { this.abortSessionCalls.push(session); }
 	override async shutdown(): Promise<void> { }
 	override async restartAgentHost(): Promise<void> { }
 
@@ -547,6 +549,54 @@ suite('AgentHostChatContribution', () => {
 			const invocation = collected[0][0] as IChatToolInvocation;
 			assert.strictEqual(invocation.kind, 'toolInvocation');
 			assert.strictEqual(IChatToolInvocation.isComplete(invocation), true);
+		});
+
+		test('cancellation calls abortSession on the agent host service', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const cts = new CancellationTokenSource();
+			disposables.add(cts);
+
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
+				cts.cancel();
+			};
+
+			await agent.impl.invoke(
+				makeRequest(),
+				() => { }, [], cts.token,
+			);
+
+			assert.strictEqual(agentHostService.abortSessionCalls.length, 1);
+		});
+	});
+
+	// ---- Error events -------------------------------------------------------
+
+	suite('error events', () => {
+
+		test('error event renders error message and finishes the request', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const collected: IChatProgress[][] = [];
+
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
+				agentHostService.fireProgress({ session, type: 'error', errorType: 'test_error', message: 'Something went wrong' });
+			};
+
+			await agent.impl.invoke(
+				makeRequest(),
+				(parts) => collected.push(parts),
+				[], CancellationToken.None,
+			);
+
+			// Should have received the error message and the request should have finished
+			assert.strictEqual(collected.length, 1);
+			assert.strictEqual(collected[0][0].kind, 'markdownContent');
+			assert.ok((collected[0][0] as IChatMarkdownContent).content.value.includes('Something went wrong'));
 		});
 	});
 
@@ -1187,7 +1237,7 @@ suite('AgentHostChatContribution', () => {
 			// Contribution should exist but not have registered any agents
 			assert.ok(contribution);
 			// Let async work settle
-			await new Promise(resolve => setTimeout(resolve, 10));
+			await timeout(10);
 		});
 	});
 });

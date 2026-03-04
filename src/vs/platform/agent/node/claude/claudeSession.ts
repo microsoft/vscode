@@ -119,6 +119,16 @@ export class ClaudeSession extends Disposable {
 	}
 
 	/**
+	 * Abort the current turn by signaling the AbortController.
+	 */
+	abort(): void {
+		this._logService.info(`[Claude:${this.sessionId}] Aborting...`);
+		this._abortController.abort();
+		// Create a new AbortController for future turns
+		this._abortController = new AbortController();
+	}
+
+	/**
 	 * Send a user message to the running session.
 	 */
 	async send(prompt: string): Promise<void> {

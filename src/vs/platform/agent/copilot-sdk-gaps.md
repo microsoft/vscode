@@ -32,19 +32,9 @@ Uses `toolInvocationToken` from the per-request context to invoke confirmation t
 
 **Fix**: Mode instructions can be forwarded over IPC. Full prompt resolution needs more research on what the SDK accepts.
 
-## Session events not forwarded
+## ~~Session events not forwarded~~ (partially done)
 
-**Extension** handles these events that the agent host does not:
-
-| Event | Extension behavior | Agent host |
-|---|---|---|
-| `session.title_changed` | Updates UI title | Not handled |
-| `session.error` | Shows error in stream + request logger | Not handled |
-| `assistant.usage` | Reports token usage via `stream.usage()` | Not handled |
-| `assistant.reasoning` / `reasoning_delta` | Renders as thinking blocks | Not handled |
-| `tool.user_requested` | Routes through user question handler | Not handled |
-
-**Fix**: Forward these events over IPC. `session.title_changed` and `session.error` are simple additions. `assistant.usage` needs a new event type in the IPC contract. Reasoning events need a new progress event type.
+`session.error` and `assistant.usage` are now forwarded over IPC. Error events also terminate the in-flight request. `title_changed` is in the IPC contract but the Copilot SDK does not emit it. Reasoning events still need work.
 
 ## User input handling
 
@@ -54,13 +44,9 @@ Uses `toolInvocationToken` from the per-request context to invoke confirmation t
 
 **Fix**: Add `onUserInputRequest` event to the IPC contract. When the SDK asks for user input, fire the event, renderer shows UI, and sends the response back.
 
-## Client environment sanitization
+## ~~Client environment sanitization~~ (done)
 
-**Extension**: Carefully strips `VSCODE_*`, `ELECTRON_*` env vars (keeping `ELECTRON_RUN_AS_NODE`), sets `useStdio: true`, and configures `cliPath`.
-
-**Agent host**: No environment sanitization for the Copilot client. The utility process inherits the full Electron environment which may interfere with the CLI subprocess.
-
-**Fix**: Strip problematic env vars in the `CopilotClient` constructor options. This is a small, safe change.
+Stripped `VSCODE_*`, `ELECTRON_*` env vars. Set `useStdio: true` and `autoStart: true`.
 
 ## MCP server configuration
 
@@ -78,10 +64,6 @@ Uses `toolInvocationToken` from the per-request context to invoke confirmation t
 
 **Fix**: This is tightly coupled to the permission system. Once permission round-trips are implemented, edit tracking can be added.
 
-## Cancellation / abort
+## ~~Cancellation / abort~~ (done)
 
-**Extension**: Calls `this._sdkSession.abort()` on cancellation, which actually stops the SDK's processing loop.
-
-**Agent host**: Cancellation disposes the event listener but doesn't call `session.abort()` on the SDK.
-
-**Fix**: Call `session.abort()` when cancellation is requested. Small change.
+`abortSession(session)` IPC method added. Cancellation requests in the session handler call `abortSession` before finishing. CopilotAgent calls `session.abort()`, ClaudeAgent calls `AbortController.abort()`.
