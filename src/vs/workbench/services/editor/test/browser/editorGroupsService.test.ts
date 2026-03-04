@@ -483,6 +483,30 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(part.partOptions.allowDropIntoGroup, true);
 	});
 
+	test('enforced options update EditorTabsVisibleContext', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		const [part] = await createPart(instantiationService);
+
+		const group = part.activeGroup;
+
+		// Default: showTabs is 'multiple', context key should be true
+		assert.strictEqual(part.partOptions.showTabs, 'multiple');
+		assert.strictEqual(group.scopedContextKeyService.getContextKeyValue('editorTabsVisible'), true);
+
+		// Enforce showTabs to 'none': context key should be false
+		const enforced1 = part.enforcePartOptions({ showTabs: 'none' });
+		assert.strictEqual(group.scopedContextKeyService.getContextKeyValue('editorTabsVisible'), false);
+
+		// Dispose enforcement: back to 'multiple', context key should be true
+		enforced1.dispose();
+		assert.strictEqual(group.scopedContextKeyService.getContextKeyValue('editorTabsVisible'), true);
+
+		// Enforce showTabs to 'single': context key should be false
+		const enforced2 = part.enforcePartOptions({ showTabs: 'single' });
+		assert.strictEqual(group.scopedContextKeyService.getContextKeyValue('editorTabsVisible'), false);
+		enforced2.dispose();
+	});
+
 	test('editor basics', async function () {
 		const [part] = await createPart();
 		const group = part.activeGroup;
