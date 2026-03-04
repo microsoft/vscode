@@ -27,7 +27,7 @@ import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js'
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { getCleanPromptName, SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { getTarget } from '../../common/promptSyntax/languageProviders/promptValidator.js';
+import { getTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
 
 /**
  * Options to override the default folder-picker and editor-open behaviour

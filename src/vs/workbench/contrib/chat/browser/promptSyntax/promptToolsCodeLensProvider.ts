@@ -20,9 +20,9 @@ import { registerEditorFeature } from '../../../../../editor/common/editorFeatur
 import { PromptFileRewriter } from './promptFileRewriter.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IEditorModel } from '../../../../../editor/common/editorCommon.js';
-import { isTarget, parseCommaSeparatedList, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
-import { getTarget, isVSCodeOrDefaultTarget } from '../../common/promptSyntax/languageProviders/promptValidator.js';
+import { parseCommaSeparatedList, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { isBoolean } from '../../../../../base/common/types.js';
+import { getTarget, isTarget, isVSCodeOrDefaultTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
 
 class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider {
 

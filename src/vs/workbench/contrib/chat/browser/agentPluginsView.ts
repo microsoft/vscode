@@ -17,7 +17,7 @@ import { Disposable, DisposableStore, disposeIfDisposable, IDisposable, isDispos
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IPagedModel, PagedModel } from '../../../../base/common/paging.js';
-import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
+import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -56,7 +56,7 @@ export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.install
 //#region Item model
 
 function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService): IInstalledPluginItem {
-	const name = basename(plugin.uri);
+	const name = plugin.label;
 	const description = plugin.fromMarketplace?.description ?? labelService.getUriLabel(dirname(plugin.uri), { relative: true });
 	const marketplace = plugin.fromMarketplace?.marketplace;
 	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin };
@@ -68,6 +68,7 @@ function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePlugin
 		name: plugin.name,
 		description: plugin.description,
 		source: plugin.source,
+		sourceDescriptor: plugin.sourceDescriptor,
 		marketplace: plugin.marketplace,
 		marketplaceReference: plugin.marketplaceReference,
 		marketplaceType: plugin.marketplaceType,
@@ -95,6 +96,7 @@ class InstallPluginAction extends Action {
 			description: this.item.description,
 			version: '',
 			source: this.item.source,
+			sourceDescriptor: this.item.sourceDescriptor,
 			marketplace: this.item.marketplace,
 			marketplaceReference: this.item.marketplaceReference,
 			marketplaceType: this.item.marketplaceType,
@@ -518,6 +520,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 					description: m.description,
 					version: '',
 					source: m.source,
+					sourceDescriptor: m.sourceDescriptor,
 					marketplace: m.marketplace,
 					marketplaceReference: m.marketplaceReference,
 					marketplaceType: m.marketplaceType,

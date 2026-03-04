@@ -15,8 +15,8 @@ import { ILanguageModelToolsService, isToolSet, IToolSet } from '../../tools/lan
 import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
-import { ClaudeHeaderAttributes, IHeaderAttribute, parseCommaSeparatedList, PromptBody, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
-import { getAttributeDescription, getTarget, isVSCodeOrDefaultTarget, knownClaudeModels, knownClaudeTools } from './promptValidator.js';
+import { IHeaderAttribute, parseCommaSeparatedList, PromptBody, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
+import { ClaudeHeaderAttributes, getAttributeDefinition, getTarget, isVSCodeOrDefaultTarget, knownClaudeModels, knownClaudeTools } from './promptFileAttributes.js';
 
 export class PromptHoverProvider implements HoverProvider {
 	/**
@@ -73,7 +73,7 @@ export class PromptHoverProvider implements HoverProvider {
 	private async provideHeaderHover(position: Position, promptType: PromptsType, header: PromptHeader, target: Target): Promise<Hover | undefined> {
 		for (const attribute of header.attributes) {
 			if (attribute.range.containsPosition(position)) {
-				const description = getAttributeDescription(attribute.key, promptType, target);
+				const description = getAttributeDefinition(attribute.key, promptType, target)?.description;
 				if (description) {
 					switch (attribute.key) {
 						case PromptHeaderAttributes.model:
@@ -233,7 +233,7 @@ export class PromptHoverProvider implements HoverProvider {
 	}
 
 	private getHandsOffHover(attribute: IHeaderAttribute, position: Position, target: Target): Hover | undefined {
-		const handoffsBaseMessage = getAttributeDescription(PromptHeaderAttributes.handOffs, PromptsType.agent, target)!;
+		const handoffsBaseMessage = getAttributeDefinition(PromptHeaderAttributes.handOffs, PromptsType.agent, target)?.description!;
 		if (!isVSCodeOrDefaultTarget(target)) {
 			return this.createHover(handoffsBaseMessage + '\n\n' + localize('promptHeader.agent.handoffs.githubCopilot', 'Note: This attribute is not used in GitHub Copilot or Claude targets.'), attribute.range);
 		}

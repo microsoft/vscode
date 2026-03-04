@@ -15,11 +15,10 @@ import { IChatModeService } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
-import { ClaudeHeaderAttributes, ISequenceValue, IValue, parseCommaSeparatedList, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
-import { getAttributeDescription, getTarget, getValidAttributeNames, claudeAgentAttributes, claudeRulesAttributes, knownClaudeTools, knownGithubCopilotTools, IValueEntry } from './promptValidator.js';
+import { ISequenceValue, IValue, parseCommaSeparatedList, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
+import { getAttributeDefinition, getTarget, getValidAttributeNames, knownClaudeTools, knownGithubCopilotTools, IValueEntry, ClaudeHeaderAttributes, } from './promptFileAttributes.js';
 import { localize } from '../../../../../../nls.js';
 import { formatArrayValue, getQuotePreference } from '../utils/promptEditHelper.js';
-
 
 export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	/**
@@ -129,7 +128,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		for (const attribute of attributesToPropose) {
 			const item: CompletionItem = {
 				label: attribute,
-				documentation: getAttributeDescription(attribute, promptType, target),
+				documentation: getAttributeDefinition(attribute, promptType, target)?.description,
 				kind: CompletionItemKind.Property,
 				insertText: getInsertText(attribute),
 				insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet,
@@ -233,29 +232,15 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		return { suggestions };
 	}
 
-	private getValueSuggestions(promptType: PromptsType, attribute: string, target: Target): IValueEntry[] {
-		if (target === Target.Claude) {
-			const attributeDesc = promptType === PromptsType.instructions ? claudeRulesAttributes[attribute] : claudeAgentAttributes[attribute];
-			if (attributeDesc) {
-				if (attributeDesc.enums) {
-					return attributeDesc.enums;
-				} else if (attributeDesc.defaults) {
-					return attributeDesc.defaults.map(value => ({ name: value }));
-				}
-			}
-			return [];
+	private getValueSuggestions(promptType: PromptsType, attribute: string, target: Target): readonly IValueEntry[] {
+		const attributeDesc = getAttributeDefinition(attribute, promptType, target);
+		if (attributeDesc?.enums) {
+			return attributeDesc.enums;
+		}
+		if (attributeDesc?.defaults) {
+			return attributeDesc.defaults.map(value => ({ name: value }));
 		}
 		switch (attribute) {
-			case PromptHeaderAttributes.applyTo:
-				if (promptType === PromptsType.instructions) {
-					return [
-						{ name: `'**'` },
-						{ name: `'**/*.ts, **/*.js'` },
-						{ name: `'**/*.php'` },
-						{ name: `'**/*.py'` }
-					];
-				}
-				break;
 			case PromptHeaderAttributes.agent:
 			case PromptHeaderAttributes.mode:
 				if (promptType === PromptsType.prompt) {
@@ -268,47 +253,12 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 					return suggestions;
 				}
 				break;
-			case PromptHeaderAttributes.target:
-				if (promptType === PromptsType.agent) {
-					return [{ name: 'vscode' }, { name: 'github-copilot' }];
-				}
-				break;
-			case PromptHeaderAttributes.tools:
-				if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
-					return [
-						{ name: '[]' },
-						{ name: `['search', 'edit', 'web']` }
-					];
-				}
-				break;
 			case PromptHeaderAttributes.model:
 				if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
 					return this.getModelNames(promptType === PromptsType.agent);
 				}
 				break;
-			case PromptHeaderAttributes.infer:
-				if (promptType === PromptsType.agent) {
-					return [
-						{ name: 'true' },
-						{ name: 'false' }
-					];
-				}
-				break;
-			case PromptHeaderAttributes.agents:
-				if (promptType === PromptsType.agent) {
-					return [{ name: '["*"]' }];
-				}
-				break;
-			case PromptHeaderAttributes.userInvocable:
-				if (promptType === PromptsType.agent || promptType === PromptsType.skill) {
-					return [{ name: 'true' }, { name: 'false' }];
-				}
-				break;
-			case PromptHeaderAttributes.disableModelInvocation:
-				if (promptType === PromptsType.agent || promptType === PromptsType.skill) {
-					return [{ name: 'true' }, { name: 'false' }];
-				}
-				break;
+
 		}
 		return [];
 	}

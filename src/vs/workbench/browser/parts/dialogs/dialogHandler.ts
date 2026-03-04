@@ -9,6 +9,7 @@ import { IConfirmation, IConfirmationResult, IInputResult, ICheckbox, IInputElem
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import Severity from '../../../../base/common/severity.js';
+import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { Dialog, IDialogResult } from '../../../../base/browser/ui/dialog/dialog.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -105,7 +106,13 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 				parent.appendChild(result.element);
 				result.element.classList.add(...(markdownDetail.classes || []));
 			});
+			customOptions.renderBody?.(parent, dialogDisposables);
 		} : undefined;
+
+		const buttonOptions = customOptions?.buttonOptions?.map(opt => opt ? {
+			sublabel: opt.sublabel,
+			styleButton: opt.styleButton ? (button: IButton) => opt.styleButton!(button) : undefined
+		} : undefined) ?? customOptions?.buttonDetails?.map(detail => ({ sublabel: detail }));
 
 		const dialog = new Dialog(
 			this.layoutService.activeContainer,
@@ -118,7 +125,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 				renderBody,
 				icon: customOptions?.icon,
 				disableCloseAction: customOptions?.disableCloseAction,
-				buttonOptions: customOptions?.buttonDetails?.map(detail => ({ sublabel: detail })),
+				buttonOptions,
 				checkboxLabel: checkbox?.label,
 				checkboxChecked: checkbox?.checked,
 				inputs
