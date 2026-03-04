@@ -185,7 +185,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IGitService private readonly gitService: IGitService,
 		@IStorageService private readonly storageService: IStorageService,
