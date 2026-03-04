@@ -431,10 +431,11 @@ suite('PromptHeaderAutocompletion', () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				'hooks: |',
+				'hooks:',
 				'  SessionStart:',
 				'    - type: command',
 				'      command: "echo hi"',
+				'  |',
 				'---',
 			].join('\n');
 
@@ -452,13 +453,14 @@ suite('PromptHeaderAutocompletion', () => {
 				'---',
 				'description: "Test"',
 				'target: vscode',
-				'hooks: |',
+				'hooks:',
 				'  SessionStart:',
 				'    - type: command',
 				'      command: "echo hi"',
 				'  PreToolUse:',
 				'    - type: command',
 				'      command: "lint"',
+				'  |',
 				'---',
 			].join('\n');
 

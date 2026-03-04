@@ -12,7 +12,6 @@ import { untildify } from '../../../../../base/common/labels.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { HookType, HOOKS_BY_TARGET, HOOK_METADATA } from './hookTypes.js';
 import { Target } from './promptTypes.js';
-import { extractHookCommandsFromItem } from './hookClaudeCompat.js';
 import { IValue, IMapValue } from './promptFileParser.js';
 
 /**
@@ -465,6 +464,64 @@ export function resolveHookCommand(raw: Record<string, unknown>, workspaceRootUr
 		...(normalized.env && { env: normalized.env }),
 		...(normalized.timeout !== undefined && { timeout: normalized.timeout }),
 	};
+}
+
+/**
+ * Helper to extract hook commands from an item that could be:
+ * 1. A direct command object: { type: 'command', command: '...' }
+ * 2. A nested structure with matcher (Claude style): { matcher: '...', hooks: [{ type: 'command', command: '...' }] }
+ *
+ * This allows Copilot format to handle Claude-style entries if pasted.
+ * Also handles Claude's leniency where 'type' field can be omitted.
+ */
+export function extractHookCommandsFromItem(
+	item: unknown,
+	workspaceRootUri: URI | undefined,
+	userHome: string
+): IHookCommand[] {
+	if (!item || typeof item !== 'object') {
+		return [];
+	}
+
+	const itemObj = item as Record<string, unknown>;
+	const commands: IHookCommand[] = [];
+
+	// Check for nested hooks with matcher (Claude style): { matcher: "...", hooks: [...] }
+	const nestedHooks = itemObj.hooks;
+	if (nestedHooks !== undefined && Array.isArray(nestedHooks)) {
+		for (const nestedHook of nestedHooks) {
+			if (!nestedHook || typeof nestedHook !== 'object') {
+				continue;
+			}
+			const normalized = normalizeForResolve(nestedHook as Record<string, unknown>);
+			const resolved = resolveHookCommand(normalized, workspaceRootUri, userHome);
+			if (resolved) {
+				commands.push(resolved);
+			}
+		}
+	} else {
+		// Direct command object
+		const normalized = normalizeForResolve(itemObj);
+		const resolved = resolveHookCommand(normalized, workspaceRootUri, userHome);
+		if (resolved) {
+			commands.push(resolved);
+		}
+	}
+
+	return commands;
+}
+
+/**
+ * Normalizes a hook command object for resolving.
+ * Claude format allows omitting the 'type' field, treating it as 'command'.
+ * This ensures compatibility when Claude-style hooks are pasted into Copilot format.
+ */
+function normalizeForResolve(raw: Record<string, unknown>): Record<string, unknown> {
+	// If type is missing or already 'command', ensure it's set to 'command'
+	if (raw.type === undefined || raw.type === 'command') {
+		return { ...raw, type: 'command' };
+	}
+	return raw;
 }
 
 /**

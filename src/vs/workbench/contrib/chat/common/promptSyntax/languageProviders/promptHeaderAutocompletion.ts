@@ -92,6 +92,17 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		const colonPosition = colonIndex !== -1 ? new Position(position.lineNumber, colonIndex + 1) : undefined;
 
 		if (!colonPosition || position.isBeforeOrEqual(colonPosition)) {
+			// Check if the position is inside a multi-line attribute (e.g., hooks map).
+			// In that case, provide value completions for that attribute instead of attribute name completions.
+			const containingAttribute = header.attributes.find(({ range }) =>
+				range.startLineNumber < position.lineNumber && position.lineNumber <= range.endLineNumber);
+			if (containingAttribute) {
+				const attrLineText = model.getLineContent(containingAttribute.range.startLineNumber);
+				const attrColonIndex = attrLineText.indexOf(':');
+				if (attrColonIndex !== -1) {
+					return this.provideValueCompletions(model, position, header, new Position(containingAttribute.range.startLineNumber, attrColonIndex + 1), promptType);
+				}
+			}
 			return this.provideAttributeNameCompletions(model, position, header, colonPosition, promptType);
 		} else if (colonPosition && colonPosition.isBefore(position)) {
 			return this.provideValueCompletions(model, position, header, colonPosition, promptType);
