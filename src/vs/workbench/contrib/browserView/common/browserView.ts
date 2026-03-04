@@ -118,10 +118,11 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly storageScope: BrowserViewStorageScope;
 	readonly sharedWithAgent: boolean;
 	readonly zoomFactor: number;
-	readonly zoomIndex: number;
+	readonly canZoomIn: boolean;
+	readonly canZoomOut: boolean;
 
 	readonly onDidChangeSharedWithAgent: Event<boolean>;
-	readonly onDidChangeZoomIndex: Event<number>;
+	readonly onDidChangeZoom: Event<void>;
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent>;
 	readonly onDidChangeLoadingState: Event<IBrowserViewLoadingEvent>;
 	readonly onDidChangeFocus: Event<IBrowserViewFocusEvent>;
@@ -176,8 +177,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private readonly _onDidChangeSharedWithAgent = this._register(new Emitter<boolean>());
 	readonly onDidChangeSharedWithAgent: Event<boolean> = this._onDidChangeSharedWithAgent.event;
 
-	private readonly _onDidChangeZoomIndex = this._register(new Emitter<number>());
-	readonly onDidChangeZoomIndex: Event<number> = this._onDidChangeZoomIndex.event;
+	private readonly _onDidChangeZoom = this._register(new Emitter<void>());
+	readonly onDidChangeZoom: Event<void> = this._onDidChangeZoom.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
@@ -210,7 +211,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get storageScope(): BrowserViewStorageScope { return this._storageScope; }
 	get sharedWithAgent(): boolean { return this._sharedWithAgent; }
 	get zoomFactor(): number { return browserZoomPercentages[this._browserZoomIndex] / 100; }
-	get zoomIndex(): number { return this._browserZoomIndex; }
+	get canZoomIn(): boolean { return this._browserZoomIndex < browserZoomPercentages.length - 1; }
+	get canZoomOut(): boolean { return this._browserZoomIndex > 0; }
 
 	get onDidNavigate(): Event<IBrowserViewNavigationEvent> {
 		return this.browserViewService.onDynamicDidNavigate(this.id);
@@ -412,7 +414,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}
 		this._browserZoomIndex = clamped;
 		await this.browserViewService.setBrowserZoomIndex(this.id, this._browserZoomIndex);
-		this._onDidChangeZoomIndex.fire(this._browserZoomIndex);
+		this._onDidChangeZoom.fire();
 	}
 
 	async zoomIn(): Promise<void> {

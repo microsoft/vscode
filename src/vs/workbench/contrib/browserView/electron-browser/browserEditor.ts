@@ -22,7 +22,7 @@ import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, BrowserNewPageLocation, browserZoomPercentages } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, BrowserNewPageLocation } from '../../../../platform/browserView/common/browserView.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -425,7 +425,7 @@ export class BrowserEditor extends EditorPane {
 		}));
 
 		// Reactively update zoom context keys when the model zoom changes
-		this._inputDisposables.add(this._model.onDidChangeZoomIndex(() => {
+		this._inputDisposables.add(this._model.onDidChangeZoom(() => {
 			this.updateZoomContext();
 		}));
 
@@ -743,8 +743,8 @@ export class BrowserEditor extends EditorPane {
 
 	private updateZoomContext(): void {
 		if (this._model) {
-			this._canZoomInContext.set(this._model.zoomIndex < browserZoomPercentages.length - 1);
-			this._canZoomOutContext.set(this._model.zoomIndex > 0);
+			this._canZoomInContext.set(this._model.canZoomIn);
+			this._canZoomOutContext.set(this._model.canZoomOut);
 		}
 	}
 
