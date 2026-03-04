@@ -783,6 +783,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		try {
 			const ref = await this.textModelService.createModelReference(uri);
+
+			if (!isEqual(this.currentEditingUri, uri)) {
+				ref.dispose();
+				return; // another item was selected while loading
+			}
+
 			this.currentModelRef = ref;
 			this.embeddedEditor!.setModel(ref.object.textEditorModel);
 			this.embeddedEditor!.updateOptions({ readOnly: isReadOnly });
