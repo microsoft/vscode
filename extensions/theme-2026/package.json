@@ -8,9 +8,6 @@
 	"engines": {
 		"vscode": "^1.85.0"
 	},
-    "enabledApiProposals": [
-      "css"
-  ],
 	"categories": [
 		"Themes"
 	],
@@ -28,11 +25,6 @@
 				"uiTheme": "vs-dark",
 				"path": "./themes/2026-dark.json"
 			}
-		],
-    "css": [
-      {
-        "path": "./themes/styles.css"
-      }
-    ]
+		]
 	}
 }
