@@ -1,0 +1,12 @@
+{
+"name": "sessions-e2e-tests",
+"version": "0.0.1",
+"private": true,
+"description": "Automated E2E tests for the Agent Sessions window using playwright-cli",
+"scripts": {
+"test": "node run.cjs"
+},
+"dependencies": {
+"@playwright/cli": "latest"
+}
+}
