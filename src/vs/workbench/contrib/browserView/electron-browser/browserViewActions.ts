@@ -7,11 +7,11 @@ import { localize2 } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingWeight, KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
+import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_CAN_ZOOM_IN, CONTEXT_BROWSER_CAN_ZOOM_OUT, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
@@ -26,8 +26,9 @@ const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEdito
 
 const BrowserCategory = localize2('browserCategory', "Browser");
 const ActionGroupTabs = '1_tabs';
-const ActionGroupPage = '2_page';
-const ActionGroupSettings = '3_settings';
+const ActionGroupZoom = '2_zoom';
+const ActionGroupPage = '3_page';
+const ActionGroupSettings = '4_settings';
 
 interface IOpenBrowserOptions {
 	url?: string;
@@ -445,7 +446,7 @@ class ClearEphemeralBrowserStorageAction extends Action2 {
 			precondition: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '3_settings',
+				group: ActionGroupSettings,
 				order: 1,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral)
 			}
@@ -480,6 +481,110 @@ class OpenBrowserSettingsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const preferencesService = accessor.get(IPreferencesService);
 		await preferencesService.openSettings({ query: '@id:workbench.browser.*,chat.sendElementsToChat.*' });
+	}
+}
+
+// Zoom actions
+
+// Zoom keybindings registered separately from the Action2 precondition so they
+// always fire when the browser is focused, preventing VS Code's own zoom from
+// triggering even when the browser is at its min/max zoom level.
+const zoomInKeybindingRule = {
+	id: 'workbench.action.browser.zoomIn',
+	when: CONTEXT_BROWSER_FOCUSED,
+	weight: KeybindingWeight.WorkbenchContrib + 75,
+	primary: KeyMod.CtrlCmd | KeyCode.Equal,
+	secondary: [KeyMod.CtrlCmd | KeyCode.NumpadAdd],
+};
+const zoomOutKeybindingRule = {
+	id: 'workbench.action.browser.zoomOut',
+	when: CONTEXT_BROWSER_FOCUSED,
+	weight: KeybindingWeight.WorkbenchContrib + 75,
+	primary: KeyMod.CtrlCmd | KeyCode.Minus,
+	secondary: [KeyMod.CtrlCmd | KeyCode.NumpadSubtract],
+};
+const resetZoomKeybindingRule = {
+	id: 'workbench.action.browser.resetZoom',
+	when: CONTEXT_BROWSER_FOCUSED,
+	weight: KeybindingWeight.WorkbenchContrib + 75,
+	primary: KeyMod.CtrlCmd | KeyCode.Numpad0,
+};
+
+class ZoomInAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.zoomIn';
+
+	constructor() {
+		super({
+			id: ZoomInAction.ID,
+			title: localize2('browser.zoomInAction', 'Zoom In'),
+			category: BrowserCategory,
+			icon: Codicon.zoomIn,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), CONTEXT_BROWSER_CAN_ZOOM_IN),
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: ActionGroupZoom,
+				order: 1,
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.zoomIn();
+		}
+	}
+}
+
+class ZoomOutAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.zoomOut';
+
+	constructor() {
+		super({
+			id: ZoomOutAction.ID,
+			title: localize2('browser.zoomOutAction', 'Zoom Out'),
+			category: BrowserCategory,
+			icon: Codicon.zoomOut,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), CONTEXT_BROWSER_CAN_ZOOM_OUT),
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: ActionGroupZoom,
+				order: 2,
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.zoomOut();
+		}
+	}
+}
+
+class ResetZoomAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.resetZoom';
+
+	constructor() {
+		super({
+			id: ResetZoomAction.ID,
+			title: localize2('browser.resetZoomAction', 'Reset Zoom'),
+			category: BrowserCategory,
+			icon: Codicon.screenNormal,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: ActionGroupZoom,
+				order: 3,
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.resetZoom();
+		}
 	}
 }
 
@@ -617,6 +722,12 @@ registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
 registerAction2(ClearEphemeralBrowserStorageAction);
 registerAction2(OpenBrowserSettingsAction);
+registerAction2(ZoomInAction);
+registerAction2(ZoomOutAction);
+registerAction2(ResetZoomAction);
+KeybindingsRegistry.registerKeybindingRule(zoomInKeybindingRule);
+KeybindingsRegistry.registerKeybindingRule(zoomOutKeybindingRule);
+KeybindingsRegistry.registerKeybindingRule(resetZoomKeybindingRule);
 registerAction2(ShowBrowserFindAction);
 registerAction2(HideBrowserFindAction);
 registerAction2(BrowserFindNextAction);

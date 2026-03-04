@@ -34,7 +34,7 @@ export interface IBrowserViewState {
 	lastFavicon: string | undefined;
 	lastError: IBrowserViewLoadError | undefined;
 	storageScope: BrowserViewStorageScope;
-	zoomFactor: number;
+	browserZoomIndex: number;
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -118,6 +118,10 @@ export enum BrowserViewStorageScope {
 }
 
 export const ipcBrowserViewChannelName = 'browserView';
+
+/** Discrete zoom levels matching Edge/Chrome, expressed as percentages. */
+export const browserZoomPercentages = [25, 33, 50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300, 400, 500] as const;
+export const browserZoomDefaultIndex = browserZoomPercentages.indexOf(100);
 
 /**
  * This should match the isolated world ID defined in `preload-browserView.ts`.
@@ -286,4 +290,11 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	clearStorage(id: string): Promise<void>;
+
+	/**
+	 * Set the browser zoom index for a browser view (independent from VS Code zoom)
+	 * @param id The browser view identifier
+	 * @param zoomIndex Index into browserZoomPercentages
+	 */
+	setBrowserZoomIndex(id: string, zoomIndex: number): Promise<void>;
 }
