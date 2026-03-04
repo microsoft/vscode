@@ -129,10 +129,7 @@ export class SlashCommandHandler extends Disposable {
 
 		const args = match[2]?.trim() ?? '';
 		const uri = promptCommand.promptPath.uri;
-		const typeLabel = promptCommand.promptPath.type === PromptsType.skill ? 'skill'
-			: promptCommand.promptPath.type === PromptsType.instructions ? 'instructions file'
-			: promptCommand.promptPath.type === PromptsType.agent ? 'agent file'
-			: 'prompt file';
+		const typeLabel = promptCommand.promptPath.type === PromptsType.skill ? 'skill' : 'prompt file';
 		const expanded = `Use the ${typeLabel} located at [${promptCommand.name}](${uri.toString()}).`;
 		return args ? `${expanded} ${args}` : expanded;
 	}
