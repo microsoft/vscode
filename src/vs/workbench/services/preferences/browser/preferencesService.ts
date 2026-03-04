@@ -48,6 +48,7 @@ import { IURLService } from '../../../../platform/url/common/url.js';
 import { compareIgnoreCase } from '../../../../base/common/strings.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -90,7 +91,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@ITextEditorService private readonly textEditorService: ITextEditorService,
 		@IURLService urlService: IURLService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -372,7 +374,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private getEditorGroupFromOptions(options: { groupId?: number; openToSide?: boolean }): PreferredGroup {
-		if (this.configurationService.getValue<string>('workbench.editor.useModal') !== 'off') {
+		if (
+			this.configurationService.getValue<string>('workbench.editor.useModal') !== 'off' &&					// modal editors enabled in settings
+			!this.environmentService.enableSmokeTestDriver && !this.environmentService.extensionTestsLocationURI	// but not in smoke test or extension test environments to reduce flakiness
+		) {
 			return MODAL_GROUP;
 		}
 		if (options.openToSide) {
