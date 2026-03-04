@@ -479,6 +479,62 @@ suite('ChatService', () => {
 		completeRequest.complete();
 		await response.data.responseCompletePromise;
 	});
+
+	test('multiple steering messages are combined into a single request', async () => {
+		const requestStarted = new DeferredPromise<void>();
+		const completeRequest = new DeferredPromise<void>();
+		const invokedRequests: string[] = [];
+
+		const slowAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				invokedRequests.push(request.message);
+				if (invokedRequests.length === 1) {
+					requestStarted.complete();
+					await completeRequest.p;
+				}
+				return {};
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('slowAgent', { ...getAgentData('slowAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('slowAgent', slowAgent));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		// Start a request that will wait
+		const response = await testService.sendRequest(model.sessionResource, 'first request', { agentId: 'slowAgent' });
+		ChatSendResult.assertSent(response);
+
+		// Wait for the agent to start processing
+		await requestStarted.p;
+
+		// Queue 3 steering messages while the first request is in progress
+		const steering1 = await testService.sendRequest(model.sessionResource, 'steering1', { agentId: 'slowAgent', queue: ChatRequestQueueKind.Steering });
+		const steering2 = await testService.sendRequest(model.sessionResource, 'steering2', { agentId: 'slowAgent', queue: ChatRequestQueueKind.Steering });
+		const steering3 = await testService.sendRequest(model.sessionResource, 'steering3', { agentId: 'slowAgent', queue: ChatRequestQueueKind.Steering });
+		assert.ok(ChatSendResult.isQueued(steering1));
+		assert.ok(ChatSendResult.isQueued(steering2));
+		assert.ok(ChatSendResult.isQueued(steering3));
+
+		// Complete the first request - should trigger processing of combined steering requests
+		completeRequest.complete();
+		await response.data.responseCompletePromise;
+
+		// Wait for all deferred promises to resolve
+		await steering1.deferred;
+		await steering2.deferred;
+		await steering3.deferred;
+
+		// Should have only invoked 2 requests: the initial and the combined steering
+		assert.strictEqual(invokedRequests.length, 2, 'Should have only 2 invocations (initial + combined steering)');
+		// The combined message includes all steering texts joined with \n\n
+		assert.ok(invokedRequests[1].includes('steering1'), 'Combined message should include steering1');
+		assert.ok(invokedRequests[1].includes('steering2'), 'Combined message should include steering2');
+		assert.ok(invokedRequests[1].includes('steering3'), 'Combined message should include steering3');
+		assert.ok(invokedRequests[1].includes('\n\n'), 'Combined message should use \\n\\n as separator');
+	});
 });
 
 

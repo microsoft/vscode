@@ -352,7 +352,6 @@
 		color: var(--vscode-descriptionForeground);
 
 		.reset-filter-link {
-			margin-left: 4px;
 			color: var(--vscode-textLink-foreground);
 			cursor: pointer;
 			text-decoration: none;

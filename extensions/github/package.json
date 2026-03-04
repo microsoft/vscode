@@ -183,7 +183,7 @@
           "when": "github.hasGitHubRepo && timelineItem =~ /git:file:commit\\b/"
         }
       ],
-      "chat/input/editing/sessionToolbar": [
+      "chat/input/editing/sessionApplyActions": [
         {
           "command": "github.createPullRequest",
           "group": "navigation",
