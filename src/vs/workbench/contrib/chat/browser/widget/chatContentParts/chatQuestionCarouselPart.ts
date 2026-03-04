@@ -591,10 +591,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			inputScrollable.scanDomNode();
 		}));
 
-		// Render footer for multi-question carousels
-		const isSingleQuestion = this.carousel.questions.length === 1;
+		// Render footer for multi-question carousels or single-question multi-select
 		if (!isSingleQuestion) {
 			this.renderFooter();
+		} else if (question.type === 'multiSelect') {
+			this.renderSingleQuestionFooter();
 		}
 
 		// Update aria-label to reflect the current question
@@ -700,6 +701,31 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			if (this._submitHint) {
 				this._submitHint.style.display = isLastQuestion ? '' : 'none';
 			}
+		}
+	}
+
+	/**
+	 * Renders a simplified footer with just a submit button for single-question multi-select carousels.
+	 */
+	private renderSingleQuestionFooter(): void {
+		if (!this._footerRow) {
+			const interactiveStore = this._interactiveUIStore.value;
+			if (!interactiveStore) {
+				return;
+			}
+
+			this._footerRow = dom.$('.chat-question-footer-row');
+
+			const rightControls = dom.$('.chat-question-footer-right');
+
+			const submitButton = interactiveStore.add(new Button(rightControls, { ...defaultButtonStyles }));
+			submitButton.element.classList.add('chat-question-submit-button');
+			submitButton.label = localize('submit', 'Submit');
+			interactiveStore.add(submitButton.onDidClick(() => this.submit()));
+			this._submitButton = submitButton;
+
+			this._footerRow.appendChild(rightControls);
+			this.domNode.append(this._footerRow);
 		}
 	}
 
