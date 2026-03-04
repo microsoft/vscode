@@ -122,7 +122,7 @@ export class ChatDebugLogsView extends Disposable {
 		filterContainer.appendChild(this.filterWidget.element);
 
 		// Troubleshoot button
-		const troubleshootButton = this._register(new Button(this.headerContainer, { ...defaultButtonStyles, secondary: true, title: localize('chatDebug.troubleshoot', "Add event logs snapshot to Chat") }));
+		const troubleshootButton = this._register(new Button(this.headerContainer, { ...defaultButtonStyles, secondary: true, title: localize('chatDebug.troubleshoot', "Add snapshot to Chat") }));
 		troubleshootButton.element.classList.add('chat-debug-troubleshoot-button', 'monaco-text-button');
 		DOM.append(troubleshootButton.element, $(`span${ThemeIcon.asCSSSelector(Codicon.chatSparkle)}`));
 		this._register(troubleshootButton.onDidClick(async () => {
