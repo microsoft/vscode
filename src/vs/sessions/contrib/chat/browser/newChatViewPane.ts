@@ -335,13 +335,13 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private async _createNewSession(): Promise<void> {
 		const target = this._targetPicker.selectedTarget;
-		const defaultRepoUri = this._folderPicker.selectedFolderUri;
+		let defaultRepoUri = this._folderPicker.selectedFolderUri;
 
 		// For local targets, request workspace trust before creating the session
 		if (target === AgentSessionProviders.Background && defaultRepoUri) {
 			const trusted = await this._requestFolderTrust(defaultRepoUri);
 			if (!trusted) {
-				return;
+				defaultRepoUri = undefined;
 			}
 		}
 
