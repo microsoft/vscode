@@ -225,7 +225,14 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._focusEditor();
 		}));
 
-		this._register(this._folderPicker.onDidSelectFolder(() => {
+		this._register(this._folderPicker.onDidSelectFolder(async (folderUri) => {
+			const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
+				uri: folderUri,
+				message: localize('trustFolderMessage', "Do you trust the authors of the files in this folder? Copilot will be able to read files, run commands, and make changes in this folder."),
+			});
+			if (trusted) {
+				this._newSession.value?.setRepoUri(folderUri);
+			}
 			this._updateDraftState();
 			this._focusEditor();
 		}));
@@ -352,12 +359,14 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Wire pickers to the new session and disconnect inactive ones
 		const target = this._targetPicker.selectedTarget;
 		if (target === AgentSessionProviders.Background) {
-			this._folderPicker.setNewSession(session);
 			this._isolationModePicker.setNewSession(session);
 			this._branchPicker.setNewSession(session);
 			this._repoPicker.setNewSession(undefined);
+			const folderUri = this._folderPicker.selectedFolderUri;
+			if (folderUri) {
+				session.setRepoUri(folderUri);
+			}
 		} else {
-			this._folderPicker.setNewSession(undefined);
 			this._isolationModePicker.setNewSession(undefined);
 			this._branchPicker.setNewSession(undefined);
 			this._repoPicker.setNewSession(session);
@@ -967,20 +976,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 				this._openRepoOrFolderPicker(session.target);
 			}
 			return;
-		}
-
-		// For local targets, request workspace trust for the selected folder
-		if (session.target === AgentSessionProviders.Background) {
-			const folderUri = this._folderPicker.selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
-			if (folderUri) {
-				const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
-					uri: folderUri,
-					message: localize('trustFolderMessage', "Do you trust the authors of the files in this folder? Copilot will be able to read files, run commands, and make changes in this folder."),
-				});
-				if (!trusted) {
-					return;
-				}
-			}
 		}
 
 		// Check for slash commands first
