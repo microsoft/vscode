@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, ModifierKeyEmitter } from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
@@ -42,6 +42,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 	private readonly _primaryActionAction: Action;
 	private readonly _primaryAction: ActionViewItem;
 	private readonly _dropdown: ActionWidgetDropdownActionViewItem;
+	private _altKeyPressed = false;
 
 	constructor(
 		action: IAction,
@@ -61,7 +62,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 		this._primaryActionAction = this._register(new Action(
 			'chat.queuePickerPrimary',
 			isSteerDefault ? localize('chat.steerWithMessage', "Steer with Message") : localize('chat.queueMessage', "Add to Queue"),
-			ThemeIcon.asClassName(Codicon.arrowUp),
+			ThemeIcon.asClassName(isSteerDefault ? Codicon.arrowRight : Codicon.add),
 			!!contextKeyService.getContextKeyValue(ChatContextKeys.inputHasText.key),
 			() => this._runDefaultAction()
 		));
@@ -91,21 +92,35 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 				this._updatePrimaryAction();
 			}
 		}));
+
+		// Toggle icon when Alt key is pressed/released
+		this._register(ModifierKeyEmitter.getInstance().event(status => {
+			if (this._altKeyPressed !== status.altKey) {
+				this._altKeyPressed = status.altKey;
+				this._updatePrimaryAction();
+			}
+		}));
 	}
 
 	private _isSteerDefault(): boolean {
 		return this.configurationService.getValue<string>(ChatConfiguration.RequestQueueingDefaultAction) === 'steer';
 	}
 
-	private _updatePrimaryAction(): void {
+	private _isEffectiveSteer(): boolean {
 		const isSteerDefault = this._isSteerDefault();
-		this._primaryActionAction.label = isSteerDefault
+		return this._altKeyPressed ? !isSteerDefault : isSteerDefault;
+	}
+
+	private _updatePrimaryAction(): void {
+		const isSteer = this._isEffectiveSteer();
+		this._primaryActionAction.label = isSteer
 			? localize('chat.steerWithMessage', "Steer with Message")
 			: localize('chat.queueMessage', "Add to Queue");
+		this._primaryActionAction.class = ThemeIcon.asClassName(isSteer ? Codicon.arrowRight : Codicon.add);
 	}
 
 	private _runDefaultAction(): void {
-		const actionId = this._isSteerDefault()
+		const actionId = this._isEffectiveSteer()
 			? ChatSteerWithMessageAction.ID
 			: ChatQueueMessageAction.ID;
 		this.commandService.executeCommand(actionId);
