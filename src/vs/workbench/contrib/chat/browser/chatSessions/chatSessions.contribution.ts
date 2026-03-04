@@ -1052,12 +1052,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				options: newSessionOptions ?? {},
 				dispose: () => { }
 			};
-
-			for (const [optionId, value] of Object.entries(newSessionOptions ?? {})) {
-				this.setSessionOption(sessionResource, optionId, value);
-			}
 		} else {
 			session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+		}
+
+		for (const [optionId, value] of Object.entries(session.options ?? {})) {
+			this.setSessionOption(sessionResource, optionId, value);
 		}
 
 		// Make sure another session wasn't created while we were awaiting the provider
