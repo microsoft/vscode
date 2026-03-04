@@ -38,6 +38,10 @@ export class ChatDebugFilterState extends Disposable {
 	// Text filter
 	textFilter: string = '';
 
+	// Parsed timestamp filters (epoch ms)
+	beforeTimestamp: number | undefined;
+	afterTimestamp: number | undefined;
+
 	isKindVisible(kind: string, category?: string): boolean {
 		switch (kind) {
 			case 'toolCall': return this.filterKindToolCall;
@@ -70,8 +74,87 @@ export class ChatDebugFilterState extends Disposable {
 		const normalized = text.toLowerCase();
 		if (this.textFilter !== normalized) {
 			this.textFilter = normalized;
+			this._parseTimestampFilters(normalized);
 			this._onDidChange.fire();
 		}
+	}
+
+	setBeforeTimestamp(timestamp: number | undefined): void {
+		if (this.beforeTimestamp !== timestamp) {
+			this.beforeTimestamp = timestamp;
+			this._onDidChange.fire();
+		}
+	}
+
+	/**
+	 * Parse `before:HH:MM:SS`, `before:YYYY-MM-DD`, or `before:YYYY-MM-DDTHH:MM:SS`
+	 * (ISO 8601) from the filter text.
+	 */
+	private _parseTimestampFilters(text: string): void {
+		this.beforeTimestamp = ChatDebugFilterState.parseTimeToken(text, 'before');
+		this.afterTimestamp = ChatDebugFilterState.parseTimeToken(text, 'after');
+	}
+
+	static parseTimeToken(text: string, prefix: string): number | undefined {
+		// For 'before:', round up to include the entire second (ms=999).
+		// For 'after:', use the start of the second (ms=0).
+		const ms = prefix === 'before' ? 999 : 0;
+
+		// Full ISO 8601: before:YYYY-MM-DDTHH:MM:SS or before:YYYY-MM-DDTHH:MM
+		const fullRegex = new RegExp(`${prefix}:(\\d{4})-(\\d{2})-(\\d{2})t(\\d{1,2}):(\\d{2})(?::(\\d{2}))?`);
+		const fullMatch = fullRegex.exec(text);
+		if (fullMatch) {
+			const d = new Date(
+				parseInt(fullMatch[1], 10), parseInt(fullMatch[2], 10) - 1, parseInt(fullMatch[3], 10),
+				parseInt(fullMatch[4], 10), parseInt(fullMatch[5], 10), fullMatch[6] ? parseInt(fullMatch[6], 10) : 0, ms
+			);
+			return d.getTime();
+		}
+
+		// Date-only ISO 8601: before:YYYY-MM-DD (end of that day for before, start for after)
+		const dateRegex = new RegExp(`${prefix}:(\\d{4})-(\\d{2})-(\\d{2})(?!\\d|t)`);
+		const dateMatch = dateRegex.exec(text);
+		if (dateMatch) {
+			const year = parseInt(dateMatch[1], 10);
+			const month = parseInt(dateMatch[2], 10) - 1;
+			const day = parseInt(dateMatch[3], 10);
+			if (prefix === 'before') {
+				return new Date(year, month, day, 23, 59, 59, 999).getTime();
+			}
+			return new Date(year, month, day, 0, 0, 0, 0).getTime();
+		}
+
+		// Time-only: before:HH:MM:SS or before:HH:MM (relative to today)
+		const timeRegex = new RegExp(`${prefix}:(\\d{1,2}):(\\d{2})(?::(\\d{2}))?`);
+		const timeMatch = timeRegex.exec(text);
+		if (timeMatch) {
+			const now = new Date();
+			const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(),
+				parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), timeMatch[3] ? parseInt(timeMatch[3], 10) : 0, ms);
+			return d.getTime();
+		}
+
+		return undefined;
+	}
+
+	/** Returns the text filter with before:/after: tokens removed. */
+	get textFilterWithoutTimestamps(): string {
+		return this.textFilter
+			.replace(/\b(?:before|after):\d{4}-\d{2}-\d{2}t\d{1,2}:\d{2}(?::\d{2})?\b/g, '')
+			.replace(/\b(?:before|after):\d{4}-\d{2}-\d{2}\b/g, '')
+			.replace(/\b(?:before|after):\d{1,2}:\d{2}(?::\d{2})?\b/g, '')
+			.trim();
+	}
+
+	isTimestampVisible(created: Date): boolean {
+		const time = created.getTime();
+		if (this.beforeTimestamp !== undefined && time > this.beforeTimestamp) {
+			return false;
+		}
+		if (this.afterTimestamp !== undefined && time < this.afterTimestamp) {
+			return false;
+		}
+		return true;
 	}
 
 	fire(): void {
