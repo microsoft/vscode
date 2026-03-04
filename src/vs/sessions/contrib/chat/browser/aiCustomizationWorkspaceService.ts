@@ -69,7 +69,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			joinPath(userHome, '.agents'),
 		];
 		this._cliUserFilter = {
-			sources: [PromptsStorage.local, PromptsStorage.user],
+			sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin],
 			includedUserFileRoots: this._cliUserRoots,
 		};
 
@@ -113,14 +113,15 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		AICustomizationManagementSection.Prompts,
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.McpServers,
+		AICustomizationManagementSection.Plugins,
 	];
 
 	private static readonly _hooksFilter: IStorageSourceFilter = {
-		sources: [PromptsStorage.local],
+		sources: [PromptsStorage.local, PromptsStorage.plugin],
 	};
 
 	private static readonly _allUserRootsFilter: IStorageSourceFilter = {
-		sources: [PromptsStorage.local, PromptsStorage.user],
+		sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin],
 	};
 
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {

@@ -19,6 +19,7 @@ import { PromptsType } from '../../../../../workbench/contrib/chat/common/prompt
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IMcpServer, IMcpService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem } from '../../browser/customizationsToolbar.contribution.js';
@@ -191,6 +192,10 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			reg.defineInstance(IMcpService, createMockMcpService(options?.mcpServerCount ?? 0));
 			reg.defineInstance(IAICustomizationWorkspaceService, createMockWorkspaceService());
 			reg.defineInstance(IWorkspaceContextService, createMockWorkspaceContextService());
+			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
+				override readonly plugins = observableValue<readonly never[]>('mockPlugins', []);
+				override readonly allPlugins = observableValue<readonly never[]>('mockAllPlugins', []);
+			}());
 			// Additional services needed by CustomizationLinkViewItem
 			reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
 				override readonly onDidChangeLanguageModels = Event.None;
