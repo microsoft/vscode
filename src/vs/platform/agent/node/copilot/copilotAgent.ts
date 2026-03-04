@@ -257,9 +257,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 		invocation: { sessionId: string },
 	): Promise<{ kind: 'approved' | 'denied-interactively-by-user' }> {
 		const session = AgentSession.uri(this.id, invocation.sessionId);
-		const requestId = generateUuid();
 
-		this._logService.info(`[Copilot:${invocation.sessionId}] Permission request: kind=${request.kind}, requestId=${requestId}`);
+		this._logService.info(`[Copilot:${invocation.sessionId}] Permission request: kind=${request.kind}`);
+
+		// Auto-approve reads inside the working directory
+		if (request.kind === 'read') {
+			const requestPath = typeof request.path === 'string' ? request.path : undefined;
+			const workingDir = this._sessionWorkingDirs.get(invocation.sessionId);
+			if (requestPath && workingDir && requestPath.startsWith(workingDir)) {
+				this._logService.trace(`[Copilot:${invocation.sessionId}] Auto-approving read inside working directory: ${requestPath}`);
+				return { kind: 'approved' };
+			}
+		}
+
+		const requestId = generateUuid();
+		this._logService.info(`[Copilot:${invocation.sessionId}] Requesting permission from renderer: requestId=${requestId}`);
 
 		const deferred = new DeferredPromise<boolean>();
 		this._pendingPermissions.set(requestId, { sessionId: invocation.sessionId, deferred });
