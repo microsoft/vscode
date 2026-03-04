@@ -24,6 +24,7 @@ Visual Studio Code is built with a layered architecture using TypeScript, web AP
   - `workbench/api/` - Extension host and VS Code API implementation
 - `src/vs/code/` - Electron main process specific implementation
 - `src/vs/server/` - Server specific implementation
+- `src/vs/sessions/` - Agent sessions window, a dedicated workbench layer for agentic workflows (sits alongside `vs/workbench`, may import from it but not vice versa)
 
 The core architecture follows these principles:
 - **Layered architecture** - from `base`, `platform`, `editor`, to `workbench`
@@ -135,6 +136,7 @@ function f(x: number, y: string): void { }
 - Prefer regex capture groups with names over numbered capture groups.
 - If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task
 - Never duplicate imports. Always reuse existing imports if they are present.
+- When removing an import, do not leave behind blank lines where the import was. Ensure the surrounding code remains compact.
 - Do not use `any` or `unknown` as the type for variables, parameters, or return values unless absolutely necessary. If they need type annotations, they should have proper types or interfaces defined.
 - When adding file watching, prefer correlated file watchers (via fileService.createWatcher) to shared ones.
 - When adding tooltips to UI elements, prefer the use of IHoverService service.
