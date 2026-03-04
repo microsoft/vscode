@@ -11,7 +11,7 @@ import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import * as strings from '../../../base/common/strings.js';
 import { ConfigurationChangedEvent, EditorOption, filterValidationDecorations, filterFontDecorations, FindComputedEditorOptionValueById } from '../config/editorOptions.js';
-import { EDITOR_FONT_DEFAULTS } from '../config/fontInfo.js';
+import { BareFontInfo, EDITOR_FONT_DEFAULTS, FontInfo } from '../config/fontInfo.js';
 import { CursorsController } from '../cursor/cursor.js';
 import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from '../cursorCommon.js';
 import { CursorChangeReason } from '../cursorEvents.js';
@@ -35,7 +35,7 @@ import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
-import { IFont, ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
+import { ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
 import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelFontChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
@@ -45,6 +45,10 @@ import { CustomLineHeightData } from '../viewLayout/lineHeights.js';
 import { TextModelEditSource } from '../textModelEditSource.js';
 import { InlineDecoration } from './inlineDecorations.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
+import { FontMeasurements } from '../../browser/config/fontMeasurements.js';
+import { getWindowById } from '../../../base/browser/dom.js';
+import { PixelRatio } from '../../../base/browser/pixelRatio.js';
+import { mainWindow } from '../../../base/browser/window.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -577,28 +581,38 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly hiddenAreasModel = new HiddenAreasModel();
 	private previousHiddenAreas: readonly Range[] = [];
 
-	public getFontAtPosition(position: IPosition): IFont | null {
+	public getFontAtPosition(position: IPosition): FontInfo | null {
 		const allowVariableFonts = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
 		if (!allowVariableFonts) {
 			return null;
 		}
 		const fontDecorations = this.model.getFontDecorationsInRange(Range.fromPositions(position), this._editorId);
 		const fontInfo = this._configuration.options.get(EditorOption.fontInfo);
-		let fontSize: number | undefined;
-		let fontFamily: string | undefined;
+		let candidateFontSize: number | undefined;
+		let candidateFontFamily: string | undefined;
 		for (const fontDecoration of fontDecorations) {
-			if (!fontSize && fontDecoration.options.fontSize) {
-				fontSize = fontDecoration.options.fontSize;
+			if (!candidateFontSize && fontDecoration.options.fontSize) {
+				candidateFontSize = fontDecoration.options.fontSize;
 			}
-			if (!fontFamily && fontDecoration.options.fontFamily) {
-				fontFamily = fontDecoration.options.fontFamily;
+			if (!candidateFontFamily && fontDecoration.options.fontFamily) {
+				candidateFontFamily = fontDecoration.options.fontFamily;
 			}
-			if (fontSize && fontFamily) {
+			if (candidateFontSize && candidateFontFamily) {
 				break;
 			}
 		}
 		const defaultFontSize = this._configuration.options.get(EditorOption.fontSize);
-		return { fontFamily: fontFamily ?? fontInfo.fontFamily, fontSize: fontSize ? fontSize * defaultFontSize : defaultFontSize };
+		const fontFamily = candidateFontFamily ?? fontInfo.fontFamily;
+		const fontSize = candidateFontSize ? candidateFontSize * defaultFontSize : defaultFontSize;
+		const lineHeight = this.viewLayout.getLineHeightForLineNumber(position.lineNumber);
+		const options = this._configuration.options;
+		const fontWeight = options.get(EditorOption.fontWeight);
+		const fontFeatureSettings = options.get(EditorOption.fontLigatures);
+		const fontVariationSettings = options.get(EditorOption.fontVariations);
+		const letterSpacing = options.get(EditorOption.letterSpacing);
+		const bareFontInfo = BareFontInfo._create(fontFamily, fontWeight, fontSize, fontFeatureSettings, fontVariationSettings, lineHeight, letterSpacing, PixelRatio.getInstance(mainWindow).value, this._configuration.isSimpleWidget);
+		const targetWindowId = mainWindow.vscodeWindowId;
+		return FontMeasurements.readFontInfo(getWindowById(targetWindowId, true).window, bareFontInfo);
 	}
 
 	/**

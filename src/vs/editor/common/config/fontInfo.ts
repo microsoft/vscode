@@ -136,7 +136,7 @@ export class BareFontInfo {
 }
 
 // change this whenever `FontInfo` members are changed
-export const SERIALIZED_FONT_INFO_VERSION = 2;
+export const SERIALIZED_FONT_INFO_VERSION = 3;
 
 export class FontInfo extends BareFontInfo {
 	readonly _editorStylingBrand: void = undefined;
@@ -151,6 +151,7 @@ export class FontInfo extends BareFontInfo {
 	readonly middotWidth: number;
 	readonly wsmiddotWidth: number;
 	readonly maxDigitWidth: number;
+	readonly fontHeight: number;
 
 	/**
 	 * @internal
@@ -172,6 +173,7 @@ export class FontInfo extends BareFontInfo {
 		middotWidth: number;
 		wsmiddotWidth: number;
 		maxDigitWidth: number;
+		fontHeight: number;
 	}, isTrusted: boolean) {
 		super(opts);
 		this.isTrusted = isTrusted;
@@ -183,6 +185,7 @@ export class FontInfo extends BareFontInfo {
 		this.middotWidth = opts.middotWidth;
 		this.wsmiddotWidth = opts.wsmiddotWidth;
 		this.maxDigitWidth = opts.maxDigitWidth;
+		this.fontHeight = opts.fontHeight;
 	}
 
 	/**
@@ -204,6 +207,7 @@ export class FontInfo extends BareFontInfo {
 			&& this.middotWidth === other.middotWidth
 			&& this.wsmiddotWidth === other.wsmiddotWidth
 			&& this.maxDigitWidth === other.maxDigitWidth
+			&& this.fontHeight === other.fontHeight
 		);
 	}
 }

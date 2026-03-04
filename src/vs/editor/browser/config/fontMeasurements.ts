@@ -32,6 +32,7 @@ export interface ISerializedFontInfo {
 	readonly middotWidth: number;
 	readonly wsmiddotWidth: number;
 	readonly maxDigitWidth: number;
+	readonly fontHeight: number;
 }
 
 export class FontMeasurementsImpl extends Disposable {
@@ -149,6 +150,7 @@ export class FontMeasurementsImpl extends Disposable {
 					middotWidth: Math.max(readConfig.middotWidth, 5),
 					wsmiddotWidth: Math.max(readConfig.wsmiddotWidth, 5),
 					maxDigitWidth: Math.max(readConfig.maxDigitWidth, 5),
+					fontHeight: readConfig.fontHeight,
 				}, false);
 			}
 
@@ -224,6 +226,12 @@ export class FontMeasurementsImpl extends Disposable {
 			canUseHalfwidthRightwardsArrow = false;
 		}
 
+		const canvas = new OffscreenCanvas(1, 1);
+		const canvasCtx = canvas.getContext('2d')!;
+		canvasCtx.font = `${bareFontInfo.fontSize}px ${bareFontInfo.fontFamily}`;
+		const tm = canvasCtx.measureText('A');
+		const fontHeight = tm.fontBoundingBoxAscent + tm.fontBoundingBoxDescent;
+
 		return new FontInfo({
 			pixelRatio: PixelRatio.getInstance(targetWindow).value,
 			fontFamily: bareFontInfo.fontFamily,
@@ -240,7 +248,8 @@ export class FontMeasurementsImpl extends Disposable {
 			spaceWidth: space.width,
 			middotWidth: middot.width,
 			wsmiddotWidth: wsmiddotWidth.width,
-			maxDigitWidth: maxDigitWidth
+			maxDigitWidth: maxDigitWidth,
+			fontHeight: fontHeight
 		}, true);
 	}
 }

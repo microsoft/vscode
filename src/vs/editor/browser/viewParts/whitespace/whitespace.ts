@@ -28,7 +28,6 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 	private _options: WhitespaceOptions;
 	private _selection: Selection[];
 	private _renderResult: string[] | null;
-	private readonly _fontMetricsCache: FontMetricsCache;
 
 	constructor(context: ViewContext) {
 		super();
@@ -36,7 +35,6 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		this._options = new WhitespaceOptions(this._context.configuration);
 		this._selection = [];
 		this._renderResult = null;
-		this._fontMetricsCache = new FontMetricsCache();
 		this._context.addEventHandler(this);
 	}
 
@@ -212,12 +210,8 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 			if (!visibleRange) {
 				continue;
 			}
-
 			const fontInfo = this._context.viewModel.getFontAtPosition(new Position(lineNumber, charIndex + 1));
-			const fontFamily = fontInfo?.fontFamily ?? this._options.fontFamily;
-			const fontSize = fontInfo?.fontSize ?? this._options.fontSize;
-			const fontHeight = this._fontMetricsCache.getMetrics(fontFamily, fontSize);
-			const cy = lineHeight - fontHeight / 2;
+			const cy = fontInfo ? lineHeight - fontInfo.fontHeight / 2 : lineHeight / 2;
 
 			if (USE_SVG) {
 				maxLeft = Math.max(maxLeft, visibleRange.left);
@@ -291,8 +285,6 @@ class WhitespaceOptions {
 	public readonly canUseHalfwidthRightwardsArrow: boolean;
 	public readonly lineHeight: number;
 	public readonly stopRenderingLineAfter: number;
-	public readonly fontFamily: string;
-	public readonly fontSize: number;
 
 	constructor(config: IEditorConfiguration) {
 		const options = config.options;
@@ -315,8 +307,6 @@ class WhitespaceOptions {
 		this.canUseHalfwidthRightwardsArrow = fontInfo.canUseHalfwidthRightwardsArrow;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
-		this.fontFamily = fontInfo.fontFamily;
-		this.fontSize = fontInfo.fontSize;
 	}
 
 	public equals(other: WhitespaceOptions): boolean {
@@ -329,27 +319,6 @@ class WhitespaceOptions {
 			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
 			&& this.lineHeight === other.lineHeight
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
-			&& this.fontFamily === other.fontFamily
-			&& this.fontSize === other.fontSize
 		);
-	}
-}
-
-class FontMetricsCache {
-
-	private readonly _cache = new Map<string, number>();
-
-	getMetrics(fontFamily: string, fontSize: number): number {
-		const key = `${fontFamily}|${fontSize}`;
-		let height = this._cache.get(key);
-		if (!height) {
-			const canvas = new OffscreenCanvas(1, 1);
-			const ctx = canvas.getContext('2d')!;
-			ctx.font = `${fontSize}px ${fontFamily}`;
-			const tm = ctx.measureText('A');
-			height = tm.fontBoundingBoxAscent + tm.fontBoundingBoxDescent;
-			this._cache.set(key, height);
-		}
-		return height;
 	}
 }

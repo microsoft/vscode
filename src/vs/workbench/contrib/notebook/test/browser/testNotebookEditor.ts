@@ -394,6 +394,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 					middotWidth: 10,
 					wsmiddotWidth: 10,
 					maxDigitWidth: 10,
+					fontHeight: 19,
 				}, true),
 				stickyHeight: 0,
 				listViewOffsetTop: 0,

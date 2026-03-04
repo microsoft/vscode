@@ -6514,6 +6514,7 @@ declare namespace monaco.editor {
 		readonly middotWidth: number;
 		readonly wsmiddotWidth: number;
 		readonly maxDigitWidth: number;
+		readonly fontHeight: number;
 	}
 
 	export class BareFontInfo {
