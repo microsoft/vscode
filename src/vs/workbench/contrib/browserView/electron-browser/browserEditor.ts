@@ -517,7 +517,7 @@ export class BrowserEditor extends EditorPane {
 			this.checkOverlays();
 		}));
 
-		// Listen for zoom level changes and update browser view zoom factor
+		// Listen for workbench zoom level changes and update browser view placeholder screenshot's zoom factor
 		this._inputDisposables.add(onDidChangeZoomLevel(targetWindowId => {
 			if (targetWindowId === this.window.vscodeWindowId) {
 				// Update CSS variable for size calculations
