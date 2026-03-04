@@ -161,8 +161,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return provider.provideChatSessionContent(sessionResource, token);
 	}
 
-	async canResolveChatSession(chatSessionResource: URI): Promise<boolean> {
-		return this.contentProviders.has(chatSessionResource.scheme);
+	async canResolveChatSession(sessionType: string): Promise<boolean> {
+		return this.contentProviders.has(sessionType);
 	}
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined {
