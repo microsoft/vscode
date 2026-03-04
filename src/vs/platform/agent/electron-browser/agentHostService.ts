@@ -13,7 +13,7 @@ import { acquirePort } from '../../../base/parts/ipc/electron-browser/ipc.mp.js'
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentDescriptor, IAgentHostService, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../common/agentService.js';
+import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentHostService, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../common/agentService.js';
 
 /**
  * Renderer-side implementation of {@link IAgentHostService} that connects
@@ -86,8 +86,8 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		return this._proxy.createSession(config);
 	}
-	sendMessage(session: URI, prompt: string): Promise<void> {
-		return this._proxy.sendMessage(session, prompt);
+	sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void> {
+		return this._proxy.sendMessage(session, prompt, attachments);
 	}
 	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
 		return this._proxy.getSessionMessages(session);

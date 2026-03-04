@@ -8,7 +8,7 @@ import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js'
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession, IAgentDescriptor } from '../../common/agentService.js';
+import { IAgentAttachment, IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession, IAgentDescriptor } from '../../common/agentService.js';
 import { ClaudeSession } from './claudeSession.js';
 
 /**
@@ -67,7 +67,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return sessionUri;
 	}
 
-	async sendMessage(session: URI, prompt: string): Promise<void> {
+	async sendMessage(session: URI, prompt: string, _attachments?: IAgentAttachment[]): Promise<void> {
 		const rawId = AgentSession.id(session);
 		const sess = this._sessions.get(rawId);
 		if (!sess) {

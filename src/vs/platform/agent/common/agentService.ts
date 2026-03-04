@@ -47,6 +47,20 @@ export interface IAgentCreateSessionConfig {
 	readonly session?: URI;
 }
 
+/** Serializable attachment passed alongside a message to the agent host. */
+export interface IAgentAttachment {
+	readonly type: 'file' | 'directory' | 'selection';
+	readonly path: string;
+	readonly displayName?: string;
+	/** For selections: the selected text. */
+	readonly text?: string;
+	/** For selections: line/character range. */
+	readonly selection?: {
+		readonly start: { readonly line: number; readonly character: number };
+		readonly end: { readonly line: number; readonly character: number };
+	};
+}
+
 /** Serializable model information from the agent host. */
 export interface IAgentModelInfo {
 	readonly provider: AgentProvider;
@@ -201,7 +215,7 @@ export interface IAgent {
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 
 	/** Send a user message into an existing session. */
-	sendMessage(session: URI, prompt: string): Promise<void>;
+	sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void>;
 
 	/** Retrieve all session events/messages for reconstruction. */
 	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>;
@@ -258,7 +272,7 @@ export interface IAgentService {
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 
 	/** Send a user message into an existing session. */
-	sendMessage(session: URI, prompt: string): Promise<void>;
+	sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void>;
 
 	/** Retrieve all session events/messages for reconstruction, including tool invocations. */
 	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>;

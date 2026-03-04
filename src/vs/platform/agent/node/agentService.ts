@@ -7,7 +7,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentService, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession, IAgentDescriptor } from '../common/agentService.js';
+import { AgentProvider, IAgentAttachment, IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentService, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession, IAgentDescriptor } from '../common/agentService.js';
 
 /**
  * The agent service implementation that runs inside the agent-host utility
@@ -59,6 +59,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async setAuthToken(token: string): Promise<void> {
+		this._logService.trace('[AgentService] setAuthToken called');
 		const promises: Promise<void>[] = [];
 		for (const provider of this._providers.values()) {
 			promises.push(provider.setAuthToken(token));
@@ -69,17 +70,23 @@ export class AgentService extends Disposable implements IAgentService {
 	// ---- session management -------------------------------------------------
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
+		this._logService.trace('[AgentService] listSessions called');
 		const results = await Promise.all(
 			[...this._providers.values()].map(p => p.listSessions())
 		);
-		return results.flat();
+		const flat = results.flat();
+		this._logService.trace(`[AgentService] listSessions returned ${flat.length} sessions`);
+		return flat;
 	}
 
 	async listModels(): Promise<IAgentModelInfo[]> {
+		this._logService.trace('[AgentService] listModels called');
 		const results = await Promise.all(
 			[...this._providers.values()].map(p => p.listModels())
 		);
-		return results.flat();
+		const flat = results.flat();
+		this._logService.trace(`[AgentService] listModels returned ${flat.length} models`);
+		return flat;
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
@@ -88,26 +95,34 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
-		this._logService.info(`Creating session via provider=${provider.id} ${config?.model ? `model=${config.model}` : ''}`);
+		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model ?? '(default)'}`);
 		const session = await provider.createSession(config);
 		this._sessionToProvider.set(session.toString(), provider.id);
+		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
 		return session;
 	}
 
-	async sendMessage(session: URI, prompt: string): Promise<void> {
+	async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void> {
+		this._logService.trace(`[AgentService] sendMessage: session=${session.toString()}, prompt=${prompt.length} chars, attachments=${attachments?.length ?? 0}`);
 		const provider = this._getProviderForSession(session);
-		await provider.sendMessage(session, prompt);
+		await provider.sendMessage(session, prompt, attachments);
+		this._logService.trace(`[AgentService] sendMessage returned for ${session.toString()}`);
 	}
 
 	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
+		this._logService.trace(`[AgentService] getSessionMessages: ${session.toString()}`);
 		const provider = this._findProviderForSession(session);
 		if (!provider) {
+			this._logService.trace(`[AgentService] getSessionMessages: no provider found, returning empty`);
 			return [];
 		}
-		return provider.getSessionMessages(session);
+		const messages = await provider.getSessionMessages(session);
+		this._logService.trace(`[AgentService] getSessionMessages returned ${messages.length} events`);
+		return messages;
 	}
 
 	async disposeSession(session: URI): Promise<void> {
+		this._logService.trace(`[AgentService] disposeSession: ${session.toString()}`);
 		const provider = this._findProviderForSession(session);
 		if (provider) {
 			await provider.disposeSession(session);

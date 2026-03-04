@@ -23,6 +23,7 @@ import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IOutputService } from '../../../../../services/output/common/output.js';
 import { AgentHostContribution, AgentHostSessionListController, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
@@ -133,6 +134,7 @@ function createTestServices(disposables: DisposableStore) {
 		registerLanguageModelProvider: () => toDisposable(() => { }),
 	});
 	instantiationService.stub(IConfigurationService, { getValue: () => true });
+	instantiationService.stub(IOutputService, { getChannel: () => undefined });
 
 	return { instantiationService, agentHostService, chatAgentService };
 }

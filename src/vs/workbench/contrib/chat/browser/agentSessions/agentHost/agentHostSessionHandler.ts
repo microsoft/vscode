@@ -13,7 +13,7 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { IAgentHostService, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentProvider, AgentSession } from '../../../../../../platform/agent/common/agentService.js';
+import { IAgentHostService, IAgentAttachment, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentProvider, AgentSession, IAgentProgressEvent } from '../../../../../../platform/agent/common/agentService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatTerminalToolInvocationData, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -199,7 +199,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			sessionResource,
 			history,
 			(message: string, progress: (parts: IChatProgress[]) => void, token: CancellationToken) =>
-				this._sendAndStreamResponse(resolvedSession, message, progress, token),
+				this._sendAndStreamResponse(resolvedSession, message, [], progress, token),
 			() => {
 				this._activeSessions.delete(resourceKey);
 				this._resourceToSession.delete(sessionResource.toString());
@@ -248,7 +248,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const session = await this._resolveSession(request.sessionResource, request.userSelectedModelId);
 		this._logService.info(`[AgentHost] resolved session: ${session.toString()}`);
 
-		await this._sendAndStreamResponse(session, request.message, progress, cancellationToken);
+		const attachments = this._convertVariablesToAttachments(request);
+		await this._sendAndStreamResponse(session, request.message, attachments, progress, cancellationToken);
 
 		const resourceKey = request.sessionResource.path.substring(1);
 		const activeSession = this._activeSessions.get(resourceKey);
@@ -262,6 +263,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private async _sendAndStreamResponse(
 		session: URI,
 		message: string,
+		attachments: IAgentAttachment[],
 		progress: (parts: IChatProgress[]) => void,
 		cancellationToken: CancellationToken,
 	): Promise<void> {
@@ -293,10 +295,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			switch (e.type) {
 				case 'delta':
+					this._logService.trace(`[AgentHost:${sessionStr}] delta: ${e.content.length} chars`);
 					progress([{ kind: 'markdownContent', content: new MarkdownString(e.content) }]);
 					break;
 
 				case 'tool_start': {
+					this._logService.trace(`[AgentHost:${sessionStr}] tool_start: ${e.toolName} (${e.toolCallId}), kind=${e.toolKind ?? 'generic'}`);
 					const invocation = this._createToolInvocation(e);
 					activeToolInvocations.set(e.toolCallId, invocation);
 					progress([invocation]);
@@ -304,16 +308,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 
 				case 'tool_complete': {
+					this._logService.trace(`[AgentHost:${sessionStr}] tool_complete: ${e.toolCallId}, success=${e.success}`);
 					const invocation = activeToolInvocations.get(e.toolCallId);
 					if (invocation) {
 						activeToolInvocations.delete(e.toolCallId);
 						this._finalizeToolInvocation(invocation, e);
+					} else {
+						this._logService.trace(`[AgentHost:${sessionStr}] tool_complete for unknown toolCallId: ${e.toolCallId}`);
 					}
 					break;
 				}
 
 				case 'idle':
+					this._logService.trace(`[AgentHost:${sessionStr}] idle, finishing`);
 					finish();
+					break;
+
+				default:
+					this._logService.trace(`[AgentHost:${sessionStr}] unhandled event type: ${(e as IAgentProgressEvent).type}`);
 					break;
 			}
 		});
@@ -324,8 +336,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 
 		try {
-			this._logService.info(`[AgentHost] Sending message to session ${session.toString()}`);
-			await this._agentHostService.sendMessage(session, message);
+			this._logService.info(`[AgentHost] Sending message to session ${session.toString()} (${attachments.length} attachments)`);
+			await this._agentHostService.sendMessage(session, message, attachments.length > 0 ? attachments : undefined);
 			this._logService.info(`[AgentHost] sendMessage returned for session ${session.toString()}`);
 		} catch (err) {
 			this._logService.error(`[AgentHost] [${session.toString()}] sendMessage failed`, err);
@@ -340,16 +352,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (sessionResource.scheme === this._config.sessionType && !sessionResource.path.startsWith('/untitled-')) {
 			// Convert UI resource scheme (e.g. agent-host) to provider URI scheme (e.g. copilot)
 			const rawId = sessionResource.path.substring(1);
-			return AgentSession.uri(this._config.provider, rawId);
+			const session = AgentSession.uri(this._config.provider, rawId);
+			this._logService.trace(`[AgentHost] Resolved existing session: ${sessionResource.toString()} -> ${session.toString()}`);
+			return session;
 		}
 
 		const key = sessionResource.toString();
 		const existing = this._resourceToSession.get(key);
 		if (existing) {
+			this._logService.trace(`[AgentHost] Reusing mapped session: ${key} -> ${existing.toString()}`);
 			return existing;
 		}
 
+		this._logService.trace(`[AgentHost] Creating new session for resource ${key}, model=${model ?? '(default)'}, provider=${this._config.provider}`);
 		const session = await this._agentHostService.createSession({ model, provider: this._config.provider });
+		this._logService.trace(`[AgentHost] Created new session: ${session.toString()}`);
 		this._resourceToSession.set(key, session);
 		return session;
 	}
@@ -382,6 +399,32 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		return invocation;
+	}
+
+	private _convertVariablesToAttachments(request: IChatAgentRequest): IAgentAttachment[] {
+		const attachments: IAgentAttachment[] = [];
+		for (const v of request.variables.variables) {
+			if (v.kind === 'file') {
+				const uri = v.value instanceof URI ? v.value : undefined;
+				if (uri?.scheme === 'file') {
+					attachments.push({ type: 'file', path: uri.fsPath, displayName: v.name });
+				}
+			} else if (v.kind === 'directory') {
+				const uri = v.value instanceof URI ? v.value : undefined;
+				if (uri?.scheme === 'file') {
+					attachments.push({ type: 'directory', path: uri.fsPath, displayName: v.name });
+				}
+			} else if (v.kind === 'implicit' && v.isSelection) {
+				const uri = v.uri;
+				if (uri?.scheme === 'file') {
+					attachments.push({ type: 'selection', path: uri.fsPath, displayName: v.name });
+				}
+			}
+		}
+		if (attachments.length > 0) {
+			this._logService.trace(`[AgentHost] Converted ${attachments.length} attachments from ${request.variables.variables.length} variables`);
+		}
+		return attachments;
 	}
 
 	private _finalizeToolInvocation(invocation: ChatToolInvocation, event: IAgentToolCompleteEvent): void {

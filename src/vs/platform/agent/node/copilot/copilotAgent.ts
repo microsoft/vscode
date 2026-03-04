@@ -8,7 +8,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession, IAgentDescriptor } from '../../common/agentService.js';
+import { IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession, IAgentDescriptor, IAgentAttachment } from '../../common/agentService.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isHiddenTool } from './copilotToolDisplay.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 
@@ -133,6 +133,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			model: config?.model,
 			sessionId: config?.session ? AgentSession.id(config.session) : undefined,
 			streaming: true,
+			onPermissionRequest: (request) => {
+				this._logService.trace(`[Copilot] Permission request: kind=${request.kind}, auto-approving`);
+				return { kind: 'approved' };
+			},
 		});
 
 		const wrapper = this._trackSession(raw);
@@ -141,12 +145,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return session;
 	}
 
-	async sendMessage(session: URI, prompt: string): Promise<void> {
+	async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void> {
 		const sessionId = AgentSession.id(session);
-		this._logService.info(`[Copilot:${sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`);
+		this._logService.info(`[Copilot:${sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId);
 		this._logService.info(`[Copilot:${sessionId}] Found session wrapper, calling session.send()...`);
-		await entry.session.send({ prompt });
+
+		const sdkAttachments = attachments?.map(a => {
+			if (a.type === 'selection') {
+				return { type: 'selection' as const, filePath: a.path, displayName: a.displayName ?? a.path, text: a.text, selection: a.selection };
+			}
+			return { type: a.type, path: a.path, displayName: a.displayName };
+		});
+		if (sdkAttachments?.length) {
+			this._logService.trace(`[Copilot:${sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type, path: a.type === 'selection' ? a.filePath : a.path })))}`);
+		}
+
+		await entry.session.send({ prompt, attachments: sdkAttachments });
 		this._logService.info(`[Copilot:${sessionId}] session.send() returned`);
 	}
 
@@ -432,7 +447,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _resumeSession(sessionId: string): Promise<CopilotSessionWrapper> {
 		this._logService.info(`[Copilot:${sessionId}] Session not in memory, resuming...`);
 		const client = await this._ensureClient();
-		const raw = await client.resumeSession(sessionId);
+		const raw = await client.resumeSession(sessionId, {
+			onPermissionRequest: (request) => {
+				this._logService.trace(`[Copilot:${sessionId}] Permission request: kind=${request.kind}, auto-approving`);
+				return { kind: 'approved' };
+			},
+		});
 		return this._trackSession(raw, sessionId);
 	}
 

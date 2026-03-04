@@ -8,9 +8,11 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IAgentHostService, AgentHostEnabledSettingId, IAgentDescriptor } from '../../../../../../platform/agent/common/agentService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { ILogService, LogLevel } from '../../../../../../platform/log/common/log.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../services/output/common/output.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider.js';
@@ -31,6 +33,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	static readonly ID = 'workbench.contrib.agentHostContribution';
 
+	private static readonly _outputChannelId = 'agentHostIpc';
+
+	private _outputChannel: IOutputChannel | undefined;
+	private _isChannelRegistered = false;
+
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
@@ -38,6 +45,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@ILogService private readonly _logService: ILogService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@IOutputService private readonly _outputService: IOutputService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
@@ -47,7 +55,63 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			return;
 		}
 
+		this._setupIpcLogging();
 		this._discoverAndRegisterAgents();
+	}
+
+	// ---- IPC output channel (trace-level only) ------------------------------
+
+	private _setupIpcLogging(): void {
+		this._updateOutputChannel();
+		this._register(this._logService.onDidChangeLogLevel(() => this._updateOutputChannel()));
+
+		// Subscribe to all progress events for IPC logging
+		this._register(this._agentHostService.onDidSessionProgress(e => {
+			this._traceIpc('event', 'onDidSessionProgress', e);
+		}));
+	}
+
+	private _updateOutputChannel(): void {
+		const isTrace = this._logService.getLevel() === LogLevel.Trace;
+		const registry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
+
+		if (isTrace && !this._isChannelRegistered) {
+			registry.registerChannel({
+				id: AgentHostContribution._outputChannelId,
+				label: 'Agent Host IPC',
+				log: false,
+			});
+			this._isChannelRegistered = true;
+			this._outputChannel = undefined; // force re-fetch
+		} else if (!isTrace && this._isChannelRegistered) {
+			registry.removeChannel(AgentHostContribution._outputChannelId);
+			this._isChannelRegistered = false;
+			this._outputChannel = undefined;
+		}
+	}
+
+	private _traceIpc(direction: 'call' | 'result' | 'event', method: string, data?: unknown): void {
+		if (this._logService.getLevel() !== LogLevel.Trace) {
+			return;
+		}
+
+		if (!this._outputChannel) {
+			this._outputChannel = this._outputService.getChannel(AgentHostContribution._outputChannelId);
+			if (!this._outputChannel) {
+				return;
+			}
+		}
+
+		const timestamp = new Date().toISOString();
+		let payload: string;
+		try {
+			payload = data !== undefined ? JSON.stringify(data, null, 2) : '';
+		} catch {
+			payload = String(data);
+		}
+
+		const arrow = direction === 'call' ? '>>' : direction === 'result' ? '<<' : '**';
+		this._outputChannel.append(`[${timestamp}] ${arrow} ${method}${payload ? `\n${payload}` : ''}\n`);
 	}
 
 	private async _discoverAndRegisterAgents(): Promise<void> {
