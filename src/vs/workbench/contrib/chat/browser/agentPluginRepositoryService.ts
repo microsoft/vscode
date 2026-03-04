@@ -6,7 +6,7 @@
 import { Action } from '../../../../base/common/actions.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { revive } from '../../../../base/common/marshalling.js';
-import { dirname, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
+import { dirname, isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -273,19 +273,27 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			this._logService.warn(`[${plugin.sourceDescriptor.kind}] Failed to remove plugin cache '${cleanupDir.toString()}':`, err);
 		}
 
-		// Prune empty parent directories up to (but not including) the cache root
-		// so we don't leave dangling owner/authority folders behind.
-		await this._pruneEmptyParents(cleanupDir);
+		try {
+			// Prune empty parent directories up to (but not including) the cache root
+			// so we don't leave dangling owner/authority folders behind.
+			await this._pruneEmptyParents(cleanupDir);
+		} catch (err) {
+			this._logService.warn(`[${plugin.sourceDescriptor.kind}] Failed to cleanup plugin source:`, err);
+		}
 	}
 
 	/**
 	 * Walk from {@link child}'s parent toward {@link _cacheRoot}, removing
 	 * each directory that is empty. Stops as soon as a non-empty directory
-	 * is found or the cache root is reached.
+	 * is found or the cache root is reached. Only operates on descendants
+	 * of the cache root — returns immediately for paths outside it.
 	 */
 	private async _pruneEmptyParents(child: URI): Promise<void> {
+		if (!isEqualOrParent(child, this._cacheRoot)) {
+			return;
+		}
 		let current = dirname(child);
-		while (!isEqualOrParent(this._cacheRoot, current)) {
+		while (isEqualOrParent(current, this._cacheRoot) && !isEqual(current, this._cacheRoot)) {
 			try {
 				const stat = await this._fileService.resolve(current);
 				if (stat.children && stat.children.length > 0) {

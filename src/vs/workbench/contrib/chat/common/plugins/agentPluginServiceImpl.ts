@@ -914,7 +914,9 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 					// For non-marketplace (direct-source) plugins, also clean up the
 					// on-disk cache. This is best-effort — failures are logged but
 					// do not block removal.
-					this._pluginRepositoryService.cleanupPluginSource(entry.plugin);
+					this._pluginRepositoryService.cleanupPluginSource(entry.plugin).catch(error => {
+						this._logService.error('[MarketplaceAgentPluginDiscovery] Failed to clean up plugin source', error);
+					});
 				},
 			});
 		}
