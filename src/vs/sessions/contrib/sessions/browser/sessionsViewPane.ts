@@ -325,27 +325,10 @@ KeybindingsRegistry.registerKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 });
 
-const CLOSE_SESSION_COMMAND_ID = 'agentSession.close';
-registerAction2(class CloseSessionAction extends Action2 {
-	constructor() {
-		super({
-			id: CLOSE_SESSION_COMMAND_ID,
-			title: localize2('closeSession', "Close Session"),
-			f1: true,
-			precondition: ContextKeyExpr.and(IsNewChatSessionContext.negate(), EditorsVisibleContext.negate()),
-			category: SessionsCategories.Sessions,
-		});
-	}
-	override async run(accessor: ServicesAccessor) {
-		const sessionsService = accessor.get(ISessionsManagementService);
-		await sessionsService.openNewSessionView();
-	}
-});
-
-// Register Cmd+W / Ctrl+W to close the current session and navigate to the new-session view,
+// Register Cmd+W / Ctrl+W to open new session when the current session is non-empty,
 // mirroring how Cmd+W closes the active editor in the normal workbench.
 KeybindingsRegistry.registerKeybindingRule({
-	id: CLOSE_SESSION_COMMAND_ID,
+	id: ACTION_ID_NEW_CHAT,
 	weight: KeybindingWeight.WorkbenchContrib + 1,
 	when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), EditorsVisibleContext.negate()),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyW,
