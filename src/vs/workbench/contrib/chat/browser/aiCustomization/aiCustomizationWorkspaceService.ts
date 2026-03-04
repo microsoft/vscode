@@ -71,6 +71,10 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		// No-op in core VS Code.
 	}
 
+	async deleteFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
+		// No-op in core VS Code.
+	}
+
 	async generateCustomization(type: PromptsType): Promise<void> {
 		const commandIds: Partial<Record<PromptsType, string>> = {
 			[PromptsType.agent]: GENERATE_AGENT_COMMAND_ID,
