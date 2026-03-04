@@ -6,8 +6,7 @@
 import { TextDecoder } from 'util';
 import { commands, env, ProgressLocation, Uri, window, workspace, QuickPickOptions, FileType, l10n, Disposable, TextDocumentContentProvider } from 'vscode';
 import { getOctokit } from './auth.js';
-import { GitErrorCodes } from './typings/git.constants.js';
-import type { PushErrorHandler, Remote, Repository } from './typings/git.d.ts';
+import { GitErrorCodes, PushErrorHandler, Remote, Repository } from './typings/git.js';
 import * as path from 'path';
 import { TelemetryReporter } from '@vscode/extension-telemetry';
 

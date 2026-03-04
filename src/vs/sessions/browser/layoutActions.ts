@@ -52,7 +52,7 @@ class ToggleSidebarVisibilityAction extends Action2 {
 			},
 			menu: [
 				{
-					id: Menus.TitleBarLeft,
+					id: Menus.TitleBarLeftLayout,
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
@@ -104,7 +104,7 @@ class ToggleSecondarySidebarVisibilityAction extends Action2 {
 			f1: true,
 			menu: [
 				{
-					id: Menus.TitleBarRight,
+					id: Menus.TitleBarRightLayout,
 					group: 'navigation',
 					order: 10,
 					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
@@ -165,7 +165,7 @@ registerAction2(ToggleSecondarySidebarVisibilityAction);
 registerAction2(TogglePanelVisibilityAction);
 
 // Floating window controls: always-on-top
-MenuRegistry.appendMenuItem(Menus.TitleBarRight, {
+MenuRegistry.appendMenuItem(Menus.TitleBarRightLayout, {
 	command: {
 		id: 'workbench.action.toggleWindowAlwaysOnTop',
 		title: localize('toggleWindowAlwaysOnTop', "Toggle Always on Top"),

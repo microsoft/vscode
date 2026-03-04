@@ -17,7 +17,6 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { INewSession } from './newSession.js';
 
 const STORAGE_KEY_LAST_FOLDER = 'agentSessions.lastPickedFolder';
 const STORAGE_KEY_RECENT_FOLDERS = 'agentSessions.recentlyPickedFolders';
@@ -43,21 +42,12 @@ export class FolderPicker extends Disposable {
 
 	private _selectedFolderUri: URI | undefined;
 	private _recentlyPickedFolders: URI[] = [];
-	private _newSession: INewSession | undefined;
 
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 
 	get selectedFolderUri(): URI | undefined {
 		return this._selectedFolderUri;
-	}
-
-	/**
-	 * Sets the pending session that this picker writes to.
-	 * When the user selects a folder, it calls `setRepoUri` on the session.
-	 */
-	setNewSession(session: INewSession | undefined): void {
-		this._newSession = session;
 	}
 
 	constructor(
@@ -162,7 +152,7 @@ export class FolderPicker extends Disposable {
 	}
 
 	/**
-	 * Programmatically set the selected folder.
+	 * Programmatically set the selected folder (e.g. restoring draft state).
 	 */
 	setSelectedFolder(folderUri: URI): void {
 		this._selectFolder(folderUri);
@@ -181,7 +171,6 @@ export class FolderPicker extends Disposable {
 		this._addToRecentlyPickedFolders(folderUri);
 		this.storageService.store(STORAGE_KEY_LAST_FOLDER, folderUri.toString(), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._updateTriggerLabel(this._triggerElement);
-		this._newSession?.setRepoUri(folderUri);
 		this._onDidSelectFolder.fire(folderUri);
 	}
 
@@ -269,6 +258,20 @@ export class FolderPicker extends Disposable {
 		});
 
 		return items;
+	}
+
+	/**
+	 * Removes a folder from the recently picked list and storage.
+	 */
+	removeFromRecents(folderUri: URI): void {
+		this._recentlyPickedFolders = this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri));
+		this.storageService.store(STORAGE_KEY_RECENT_FOLDERS, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
+		// If this was the last picked folder, clear it
+		if (this._selectedFolderUri && isEqual(this._selectedFolderUri, folderUri)) {
+			this._selectedFolderUri = undefined;
+			this.storageService.remove(STORAGE_KEY_LAST_FOLDER, StorageScope.PROFILE);
+			this._updateTriggerLabel(this._triggerElement);
+		}
 	}
 
 	private _removeFolder(folderUri: URI): void {

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { RefType } from './typings/git.constants.js';
-import type { API as GitAPI, Repository } from './typings/git.d.ts';
+import { API as GitAPI, RefType, Repository } from './typings/git.js';
 import { publishRepository } from './publish.js';
 import { DisposableStore, getRepositoryFromUrl } from './util.js';
 import { LinkContext, getCommitLink, getLink, getVscodeDevHost } from './links.js';

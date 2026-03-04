@@ -16,7 +16,8 @@ import { IChatService } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
-import { ICustomAgent, PromptsStorage, Target } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ICustomAgent, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { MockPromptsService } from '../../promptSyntax/service/mockPromptsService.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 

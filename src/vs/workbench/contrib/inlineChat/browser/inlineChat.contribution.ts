@@ -96,6 +96,7 @@ registerAction2(InlineChatActions.SubmitInlineChatInputAction);
 registerAction2(InlineChatActions.QueueInChatAction);
 registerAction2(InlineChatActions.HideInlineChatInputAction);
 registerAction2(InlineChatActions.FixDiagnosticsAction);
+registerAction2(InlineChatActions.DismissEditorAffordanceAction);
 
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);

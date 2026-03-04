@@ -20,5 +20,8 @@
     "warnings-to-errors-webpack-plugin": "^2.3.0",
     "webpack": "^5.105.0",
     "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "postcss": "^8.5.6"
   }
 }

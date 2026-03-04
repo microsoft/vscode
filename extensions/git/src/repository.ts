@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import TelemetryReporter from '@vscode/extension-telemetry';
+import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
@@ -24,7 +25,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktree, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktreeFolder, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { GitArtifactProvider } from './artifactProvider';
@@ -953,7 +954,7 @@ export class Repository implements Disposable {
 		const icon = repository.kind === 'submodule'
 			? new ThemeIcon('archive')
 			: repository.kind === 'worktree'
-				? isCopilotWorktree(repository.root)
+				? isCopilotWorktreeFolder(repository.root)
 					? new ThemeIcon('chat-sparkle')
 					: new ThemeIcon('worktree')
 				: new ThemeIcon('repo');
@@ -966,7 +967,7 @@ export class Repository implements Disposable {
 		//   from the Repositories view.
 		this._isHidden = workspace.workspaceFolders === undefined ||
 			(repository.kind === 'worktree' &&
-				isCopilotWorktree(repository.root) && parent !== undefined);
+				isCopilotWorktreeFolder(repository.root) && parent !== undefined);
 
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden, parent);
@@ -3292,6 +3293,56 @@ export class Repository implements Disposable {
 		}
 
 		return this.unpublishedCommits;
+	}
+
+	async generateRandomBranchName(): Promise<string | undefined> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
+
+		if (!branchRandomNameEnabled) {
+			return undefined;
+		}
+
+		const branchPrefix = config.get<string>('branchPrefix', '');
+		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar', '-');
+		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary', ['adjectives', 'animals']);
+
+		const dictionaries: string[][] = [];
+		for (const dictionary of branchRandomNameDictionary) {
+			if (dictionary.toLowerCase() === 'adjectives') {
+				dictionaries.push(adjectives);
+			}
+			if (dictionary.toLowerCase() === 'animals') {
+				dictionaries.push(animals);
+			}
+			if (dictionary.toLowerCase() === 'colors') {
+				dictionaries.push(colors);
+			}
+			if (dictionary.toLowerCase() === 'numbers') {
+				dictionaries.push(NumberDictionary.generate({ length: 3 }));
+			}
+		}
+
+		if (dictionaries.length === 0) {
+			return undefined;
+		}
+
+		// 5 attempts to generate a random branch name
+		for (let index = 0; index < 5; index++) {
+			const randomName = uniqueNamesGenerator({
+				dictionaries,
+				length: dictionaries.length,
+				separator: branchWhitespaceChar
+			});
+
+			// Check for local ref conflict
+			const refs = await this.getRefs({ pattern: `refs/heads/${branchPrefix}${randomName}` });
+			if (refs.length === 0) {
+				return `${branchPrefix}${randomName}`;
+			}
+		}
+
+		return undefined;
 	}
 
 	dispose(): void {
