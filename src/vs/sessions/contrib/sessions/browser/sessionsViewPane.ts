@@ -326,7 +326,7 @@ KeybindingsRegistry.registerKeybindingRule({
 });
 
 const CLOSE_SESSION_COMMAND_ID = 'agentSession.close';
-registerAction2(class RefreshAgentSessionsViewerAction extends Action2 {
+registerAction2(class CloseSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: CLOSE_SESSION_COMMAND_ID,
