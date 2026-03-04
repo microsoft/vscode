@@ -836,12 +836,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const label = dom.$('.chat-question-list-label');
 			const separatorIndex = option.label.indexOf(' - ');
 			if (separatorIndex !== -1) {
+				listItem.classList.add('has-description');
 				const titleSpan = dom.$('span.chat-question-list-label-title');
 				titleSpan.textContent = option.label.substring(0, separatorIndex);
 				label.appendChild(titleSpan);
 
 				const descSpan = dom.$('span.chat-question-list-label-desc');
-				descSpan.textContent = ': ' + option.label.substring(separatorIndex + 3);
+				descSpan.textContent = option.label.substring(separatorIndex + 3);
 				label.appendChild(descSpan);
 			} else {
 				label.textContent = option.label;
@@ -1036,12 +1037,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const label = dom.$('.chat-question-list-label');
 			const separatorIndex = option.label.indexOf(' - ');
 			if (separatorIndex !== -1) {
+				listItem.classList.add('has-description');
 				const titleSpan = dom.$('span.chat-question-list-label-title');
 				titleSpan.textContent = option.label.substring(0, separatorIndex);
 				label.appendChild(titleSpan);
 
 				const descSpan = dom.$('span.chat-question-list-label-desc');
-				descSpan.textContent = ': ' + option.label.substring(separatorIndex + 3);
+				descSpan.textContent = option.label.substring(separatorIndex + 3);
 				label.appendChild(descSpan);
 			} else {
 				label.textContent = option.label;

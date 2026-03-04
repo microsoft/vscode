@@ -14,15 +14,15 @@
 .interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container .chat-question-carousel-container {
 	margin: 0;
 	border: 1px solid var(--vscode-input-border, transparent);
-	background-color: var(--vscode-editor-background);
-	border-radius: 4px;
+	background-color: var(--vscode-panel-background);
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
 /* general questions styling */
 .interactive-session .chat-question-carousel-container {
 	margin: 8px 0;
 	border: 1px solid var(--vscode-chat-requestBorder);
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-large);
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
@@ -56,14 +56,12 @@
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
-	background: var(--vscode-chat-requestBackground);
 	overflow: hidden;
 
 	.chat-question-header-row {
 		display: flex;
 		flex-direction: column;
 		flex-shrink: 0;
-		background: var(--vscode-chat-requestBackground);
 		overflow: hidden;
 
 		.chat-question-title-row {
@@ -137,7 +135,7 @@
 	}
 
 	/* some hackiness to get the focus looking right */
-	.chat-question-list-item:focus:not(.selected),
+	.chat-question-list-item:focus,
 	.chat-question-list:focus {
 		outline: none;
 	}
@@ -146,15 +144,15 @@
 		display: flex;
 		flex-direction: column;
 		outline: none;
-		padding: 0 0 4px 0;
+		padding: 0;
 
 		.chat-question-list-item {
 			display: flex;
-			align-items: baseline;
-			gap: 8px;
+			align-items: center;
+			gap: 12px;
 			padding: 6px 8px;
 			cursor: pointer;
-			border-radius: 3px;
+			border-radius: var(--vscode-cornerRadius-medium);
 			user-select: none;
 
 			.chat-question-list-indicator {
@@ -191,6 +189,21 @@
 			.chat-question-list-label-desc {
 				font-weight: normal;
 				color: var(--vscode-descriptionForeground);
+			}
+		}
+
+		.chat-question-list-item.has-description {
+			align-items: flex-start;
+
+			.chat-question-list-number {
+				line-height: 1.4;
+				font-size: var(--vscode-chat-font-size-body-s);
+				font-weight: 500;
+			}
+
+			.chat-question-list-checkbox {
+				/* Title line-height is ~17px (1.4 * body-s), checkbox is 16px: 1px offset */
+				margin-top: 1px;
 			}
 		}
 
@@ -236,11 +249,12 @@
 	}
 
 	.chat-question-freeform {
-		margin: 0px 0 0 12px;
+		margin: 0;
 		display: flex;
 		flex-direction: row;
 		align-items: center;
-		gap: 8px;
+		padding: 4px 8px;
+		gap: 12px;
 
 		.chat-question-freeform-number {
 			height: fit-content;
@@ -283,9 +297,11 @@
 	/* todo: change to use keybinding service so we don't have to recreate this */
 	.chat-question-list-number,
 	.chat-question-freeform-number {
-		font-size: 11px;
+		font-size: var(--vscode-chat-font-size-body-s);
 		color: var(--vscode-descriptionForeground);
 		flex-shrink: 0;
+		min-width: 1ch;
+		text-align: right;
 	}
 }
 
@@ -302,7 +318,7 @@
 /* close button for multi-question carousels (positioned top-right) */
 .interactive-session .chat-question-carousel-container > .chat-question-close-container {
 	position: absolute;
-	top: 4px;
+	top: 6px;
 	right: 8px;
 	z-index: 1;
 
@@ -327,9 +343,8 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding: 4px 16px;
+	padding: 4px 8px;
 	border-top: 1px solid var(--vscode-chat-requestBorder);
-	background: var(--vscode-chat-requestBackground);
 	flex-shrink: 0;
 
 	.chat-question-footer-left {
@@ -403,9 +418,7 @@
 
 	.chat-question-summary-item {
 		display: flex;
-		flex-direction: row;
-		flex-wrap: wrap;
-		align-items: baseline;
+		flex-direction: column;
 		gap: 0;
 		font-size: var(--vscode-chat-font-size-body-s);
 	}
@@ -414,11 +427,6 @@
 		color: var(--vscode-descriptionForeground);
 		word-wrap: break-word;
 		overflow-wrap: break-word;
-	}
-
-	.chat-question-summary-label::after {
-		content: ': ';
-		white-space: pre;
 	}
 
 	.chat-question-summary-answer-title {
