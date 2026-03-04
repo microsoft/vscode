@@ -60,6 +60,7 @@
 		"list.hoverBackground": "#262728",
 		"list.hoverForeground": "#bfbfbf",
 		"list.dropBackground": "#3994BC1A",
+		"toolbar.hoverBackground": "#262728",
 		"list.focusBackground": "#3994BC26",
 		"list.focusForeground": "#bfbfbf",
 		"list.focusOutline": "#3994BCB3",
