@@ -31,9 +31,22 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 	private readonly _serverIdMap = new Map<string, number>();
 	private _nextServerIndex = 0;
 
+	/**
+	 * Per-server promise that races server startup against the grace period timeout.
+	 * Once set for a server, subsequent list calls await the already-resolved promise
+	 * and return immediately instead of waiting again.
+	 *
+	 * The `resolved` flag tracks whether the promise has settled. If a server's
+	 * cacheState regresses to Unknown/Outdated after the promise resolved (e.g.
+	 * after a cache reset), `_waitForStartup` discards the stale entry and creates
+	 * a fresh race so the server gets another chance to start.
+	 */
+	private readonly _startupGrace = new Map<string, { promise: Promise<boolean>; resolved: boolean }>();
+
 	constructor(
 		private readonly _mcpService: IMcpService,
 		private readonly _logService: ILogService,
+		private readonly _startupGracePeriodMs = 5000,
 	) {
 		super();
 		this._logService.debug('[McpGateway][ToolBroker] Initialized');
@@ -86,6 +99,50 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 		return undefined;
 	}
 
+	private _waitForStartup(server: IMcpServer): Promise<boolean> {
+		const id = server.definition.id;
+		const existing = this._startupGrace.get(id);
+		// If the previous grace promise already resolved but the server is still
+		// Unknown/Outdated, the entry is stale (e.g. caches were reset). Discard
+		// it so we create a fresh race below.
+		if (existing?.resolved) {
+			const state = server.cacheState.get();
+			if (state === McpServerCacheState.Unknown || state === McpServerCacheState.Outdated) {
+				this._startupGrace.delete(id);
+			}
+		}
+		if (!this._startupGrace.has(id)) {
+			const entry: { promise: Promise<boolean>; resolved: boolean } = {
+				promise: Promise.race([
+					this._ensureServerReady(server),
+					new Promise<boolean>(resolve => setTimeout(() => resolve(false), this._startupGracePeriodMs)),
+				]),
+				resolved: false,
+			};
+			entry.promise.then(() => { entry.resolved = true; });
+			this._startupGrace.set(id, entry);
+		}
+		return this._startupGrace.get(id)!.promise;
+	}
+
+	private async _shouldUseCachedData(server: IMcpServer): Promise<boolean> {
+		const cacheState = server.cacheState.get();
+		if (cacheState === McpServerCacheState.Unknown || cacheState === McpServerCacheState.Outdated) {
+			// On first list call: wait up to the grace period for the server to start.
+			// On subsequent calls: the stored promise is already resolved, returns immediately.
+			// Outdated servers get the same grace period as Unknown — a prior fast startup
+			// does not guarantee a fast restart.
+			await this._waitForStartup(server);
+			const newState = server.cacheState.get();
+			return newState === McpServerCacheState.Live
+				|| newState === McpServerCacheState.Cached
+				|| newState === McpServerCacheState.RefreshingFromCached;
+		}
+		return cacheState === McpServerCacheState.Live
+			|| cacheState === McpServerCacheState.Cached
+			|| cacheState === McpServerCacheState.RefreshingFromCached;
+	}
+
 	listen<T>(_ctx: unknown, event: string): Event<T> {
 		switch (event) {
 			case 'onDidChangeTools':
@@ -129,28 +186,20 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 	}
 
 	private async _listTools(): Promise<readonly MCP.Tool[]> {
-		const mcpTools: MCP.Tool[] = [];
 		const servers = this._mcpService.servers.get();
-		this._logService.debug(`[McpGateway][ToolBroker] listTools: ${servers.length} server(s) known`);
-		await Promise.all(servers.map(server => this._ensureServerReady(server)));
-
-		for (const server of servers) {
-			const cacheState = server.cacheState.get();
-			if (cacheState !== McpServerCacheState.Live && cacheState !== McpServerCacheState.Cached && cacheState !== McpServerCacheState.RefreshingFromCached) {
-				this._logService.debug(`[McpGateway][ToolBroker] Skipping server '${server.definition.id}' (cacheState=${cacheState})`);
-				continue;
+		const perServer = await Promise.all(servers.map(async server => {
+			if (!await this._shouldUseCachedData(server)) {
+				this._logService.debug(`[McpGateway][ToolBroker] Server '${server.definition.id}' not ready, skipping tool listing`);
+				return [] as MCP.Tool[];
 			}
+			return server.tools.get()
+				.filter(t => t.visibility & McpToolVisibility.Model)
+				.map(t => t.definition);
+		}));
 
-			for (const tool of server.tools.get()) {
-				if (!(tool.visibility & McpToolVisibility.Model)) {
-					continue;
-				}
-
-				mcpTools.push(tool.definition);
-			}
-		}
-
+		const mcpTools = perServer.flat();
 		this._logService.debug(`[McpGateway][ToolBroker] listTools result: ${mcpTools.length} tool(s): [${mcpTools.map(t => t.name).join(', ')}]`);
+
 		return mcpTools;
 	}
 
@@ -180,7 +229,9 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 		this._logService.debug(`[McpGateway][ToolBroker] listResources: ${servers.length} server(s) known`);
 
 		await Promise.all(servers.map(async server => {
-			await this._ensureServerReady(server);
+			if (!await this._shouldUseCachedData(server)) {
+				return;
+			}
 
 			const capabilities = server.capabilities.get();
 			if (!capabilities || !(capabilities & McpCapability.Resources)) {
@@ -220,7 +271,9 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 		this._logService.debug(`[McpGateway][ToolBroker] listResourceTemplates: ${servers.length} server(s) known`);
 
 		await Promise.all(servers.map(async server => {
-			await this._ensureServerReady(server);
+			if (!await this._shouldUseCachedData(server)) {
+				return;
+			}
 
 			const capabilities = server.capabilities.get();
 			if (!capabilities || !(capabilities & McpCapability.Resources)) {
