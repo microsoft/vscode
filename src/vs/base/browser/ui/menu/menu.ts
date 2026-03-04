@@ -1240,6 +1240,8 @@ ${formatRule(Codicon.menuSubmenu)}
 	animation: fadeIn 0.083s linear;
 	-webkit-app-region: no-drag;
 	box-shadow: var(--vscode-shadow-lg${style.shadowColor ? `, 0 0 12px ${style.shadowColor}` : ''});
+	border-radius: var(--vscode-cornerRadius-large);
+	overflow: hidden;
 }
 
 .context-view.monaco-menu-container :focus,
