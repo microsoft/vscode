@@ -31,6 +31,8 @@ const FILES_TO_SKIP = [
 	'**/node_modules/@github/copilot-darwin-arm64/**',
 	'**/node_modules.asar.unpacked/@github/copilot-darwin-x64/**',
 	'**/node_modules.asar.unpacked/@github/copilot-darwin-arm64/**',
+	// Claude Agent SDK: vendored ripgrep has binaries for all platforms
+	'**/node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/**',
 ];
 
 function isFileSkipped(file: string): boolean {
