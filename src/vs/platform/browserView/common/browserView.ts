@@ -6,6 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
 
 export interface IBrowserViewBounds {
 	windowId: number;
@@ -125,6 +126,9 @@ export const ipcBrowserViewChannelName = 'browserView';
  */
 export const browserZoomFactors = [0.25, 1 / 3, 0.5, 2 / 3, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5] as const;
 export const browserZoomDefaultIndex = browserZoomFactors.indexOf(1);
+export function browserZoomLabel(zoomFactor: number): string {
+	return localize('browserZoomPercent', "{0}%", Math.round(zoomFactor * 100));
+}
 
 /**
  * This should match the isolated world ID defined in `preload-browserView.ts`.
