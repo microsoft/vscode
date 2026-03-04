@@ -188,7 +188,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		if (servers.length > 0) {
 			userMcpServers.servers = {};
 			for (const [serverName, server] of servers) {
-				userMcpServers.servers[serverName] = this.sanitizeServer(server, scannedMcpServers.sandbox);
+				userMcpServers.servers[serverName] = this.sanitizeServer(server);
 			}
 		}
 		return userMcpServers;
@@ -203,14 +203,14 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		if (servers.length > 0) {
 			scannedMcpServers.servers = {};
 			for (const [serverName, config] of servers) {
-				const serverConfig = this.sanitizeServer(config, scannedMcpServers.sandbox);
+				const serverConfig = this.sanitizeServer(config);
 				scannedMcpServers.servers[serverName] = serverConfig;
 			}
 		}
 		return scannedMcpServers;
 	}
 
-	private sanitizeServer(serverOrConfig: IOldScannedMcpServer | Mutable<IMcpServerConfiguration>, sandbox?: IMcpSandboxConfiguration): IMcpServerConfiguration {
+	private sanitizeServer(serverOrConfig: IOldScannedMcpServer | Mutable<IMcpServerConfiguration>): IMcpServerConfiguration {
 		let server: IMcpServerConfiguration;
 		if ((<IOldScannedMcpServer>serverOrConfig).config) {
 			const oldScannedMcpServer = <IOldScannedMcpServer>serverOrConfig;
@@ -226,11 +226,6 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		if (server.type === undefined || (server.type !== McpServerType.REMOTE && server.type !== McpServerType.LOCAL)) {
 			(<Mutable<ICommonMcpServerConfiguration>>server).type = (<IMcpStdioServerConfiguration>server).command ? McpServerType.LOCAL : McpServerType.REMOTE;
 		}
-
-		if (sandbox && server.type === McpServerType.LOCAL) {
-			(<Mutable<IMcpStdioServerConfiguration>>server).sandbox = sandbox;
-		}
-
 		return server;
 	}
 
