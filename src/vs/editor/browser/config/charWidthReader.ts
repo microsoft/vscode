@@ -155,6 +155,8 @@ class FontHeightReader {
 
 	private readonly _cache = new Map<string, number>();
 
+	private constructor() { }
+
 	public read(bareFontInfo: BareFontInfo): number {
 		const key = `${bareFontInfo.fontFamily}|${bareFontInfo.fontSize}`;
 		let height = this._cache.get(key);

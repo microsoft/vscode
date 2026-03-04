@@ -580,7 +580,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public getFontAtPosition(position: IPosition): FontInfo {
 		const options = this._configuration.options;
-		const fontInfo = this._configuration.options.get(EditorOption.fontInfo);
+		const fontInfo = options.get(EditorOption.fontInfo);
 		const allowVariableFonts = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
 		if (!allowVariableFonts) {
 			return fontInfo;
@@ -603,7 +603,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		if (!candidateFontSize && !candidateFontFamily && lineHeight === fontInfo.lineHeight) {
 			return fontInfo;
 		}
-		const defaultFontSize = this._configuration.options.get(EditorOption.fontSize);
+		const defaultFontSize = options.get(EditorOption.fontSize);
 		const fontFamily = candidateFontFamily ?? fontInfo.fontFamily;
 		const fontSize = candidateFontSize ? candidateFontSize * defaultFontSize : defaultFontSize;
 		const fontWeight = options.get(EditorOption.fontWeight);

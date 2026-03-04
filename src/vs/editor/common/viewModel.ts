@@ -25,11 +25,6 @@ import { InlineDecoration } from './viewModel/inlineDecorations.js';
 import { EditorOption, FindComputedEditorOptionValueById } from './config/editorOptions.js';
 import { BareFontInfo, FontInfo } from './config/fontInfo.js';
 
-export interface IFont {
-	fontFamily: string | undefined;
-	fontSize: number | undefined;
-}
-
 export interface IFontInfoReader {
 	readFontInfo(bareFontInfo: BareFontInfo): FontInfo;
 }

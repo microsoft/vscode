@@ -753,7 +753,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 					bold: presentation.bold,
 					underline: presentation.underline,
 					strikethrough: presentation.strikethrough,
-					fontSize: fontInfo?.fontSize ? `${fontInfo.fontSize}px` : undefined
+					fontSize: `${fontInfo.fontSize}px`
 				});
 			}
 			return;
