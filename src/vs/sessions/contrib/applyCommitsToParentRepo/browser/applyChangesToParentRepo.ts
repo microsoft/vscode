@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toAction } from '../../../../base/common/actions.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -20,7 +20,6 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -30,51 +29,22 @@ const hasWorktreeAndRepositoryContextKey = new RawContextKey<boolean>('agentSess
 	description: localize('agentSessionHasWorktreeAndRepository', "True when the active agent session has both a worktree and a parent repository.")
 });
 
-const hasAheadCommitsContextKey = new RawContextKey<boolean>('agentSessionHasAheadCommits', false, {
-	type: 'boolean',
-	description: localize('agentSessionHasAheadCommits', "True when the active agent session worktree has commits ahead of its upstream.")
-});
-
 class ApplyChangesToParentRepoContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.applyChangesToParentRepo';
 
-	private readonly _gitRepoDisposables = this._register(new MutableDisposable<DisposableStore>());
-
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
-		@IGitService private readonly gitService: IGitService,
 	) {
 		super();
 
 		const worktreeAndRepoKey = hasWorktreeAndRepositoryContextKey.bindTo(contextKeyService);
-		const aheadCommitsKey = hasAheadCommitsContextKey.bindTo(contextKeyService);
 
 		this._register(autorun(reader => {
 			const activeSession = sessionManagementService.activeSession.read(reader);
 			const hasWorktreeAndRepo = !!activeSession?.worktree && !!activeSession?.repository;
 			worktreeAndRepoKey.set(hasWorktreeAndRepo);
-
-			this._gitRepoDisposables.clear();
-
-			if (!hasWorktreeAndRepo || !activeSession?.worktree) {
-				aheadCommitsKey.set(false);
-				return;
-			}
-
-			const repoDisposables = this._gitRepoDisposables.value = new DisposableStore();
-			this.gitService.openRepository(activeSession.worktree).then(repository => {
-				if (repoDisposables.isDisposed || !repository) {
-					aheadCommitsKey.set(false);
-					return;
-				}
-				repoDisposables.add(autorun(innerReader => {
-					const state = repository.state.read(innerReader);
-					const ahead = state.HEAD?.ahead ?? 0;
-					aheadCommitsKey.set(ahead > 0);
-				}));
-			});
 		}));
 	}
 }
