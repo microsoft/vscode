@@ -101,6 +101,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 				env: config.env ? { ...config.env } : {},
 				envFile: config.envFile,
 				cwd: config.cwd,
+				sandbox: config.sandbox
 			};
 		}
 
