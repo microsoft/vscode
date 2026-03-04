@@ -344,13 +344,13 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		try {
 			const session = await this.sessionsManagementService.createNewSessionForTarget(target, resource, defaultRepoUri);
-			this._setNewSession(session);
+			await this._setNewSession(session);
 		} catch (e) {
 			this.logService.error('Failed to create new session:', e);
 		}
 	}
 
-	private _setNewSession(session: INewSession): void {
+	private async _setNewSession(session: INewSession): Promise<void> {
 		this._newSession.value = session;
 
 		// Wire pickers to the new session and disconnect inactive ones
@@ -361,7 +361,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._repoPicker.setNewSession(undefined);
 			const folderUri = this._folderPicker.selectedFolderUri;
 			if (folderUri) {
-				this._requestFolderTrust(folderUri, session);
+				await this._requestFolderTrust(folderUri, session);
 			}
 		} else {
 			this._isolationModePicker.setNewSession(undefined);
