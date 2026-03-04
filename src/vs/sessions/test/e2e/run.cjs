@@ -280,10 +280,15 @@ async function main() {
 	console.log(`Server ready.\n`);
 
 	// Open browser, then navigate to the sessions URL
-	runPlaywrightCli(['open', '--headed']);
+	const openResult = runPlaywrightCli(['open', '--headed']);
+	if (!openResult.ok) {
+		console.error('Failed to open browser:', openResult.stdout, openResult.stderr);
+		server.kill();
+		process.exit(1);
+	}
 	const gotoResult = runPlaywrightCli(['goto', BASE_URL]);
 	if (!gotoResult.ok) {
-		console.error('Failed to navigate:', gotoResult.stderr);
+		console.error('Failed to navigate:', gotoResult.stdout, gotoResult.stderr);
 		server.kill();
 		process.exit(1);
 	}
