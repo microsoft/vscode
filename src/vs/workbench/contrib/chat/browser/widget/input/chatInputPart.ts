@@ -2030,6 +2030,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatInputWidgetsContainer = elements.chatInputWidgetsContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
 
+		if (this.options.isSessionsWindow) {
+			toolbarsContainer.prepend(this.contextUsageWidgetContainer);
+		}
+
 		// Context usage widget — will be positioned in the toolbar after toolbars are created
 		this.contextUsageWidget = this._register(this.instantiationService.createInstance(ChatContextUsageWidget));
 		this.contextUsageWidgetContainer.appendChild(this.contextUsageWidget.domNode);

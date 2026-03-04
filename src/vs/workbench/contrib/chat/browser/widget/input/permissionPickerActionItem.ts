@@ -37,11 +37,12 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		const isAutoApprovePolicyRestricted = () => configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const isAutopilotEnabled = () => configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const currentLevel = delegate.currentPermissionLevel.get();
 				const policyRestricted = isAutoApprovePolicyRestricted();
-				return [
+				const actions: IActionWidgetDropdownAction[] = [
 					{
 						...action,
 						id: 'chat.permissions.default',
@@ -81,10 +82,12 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 							}
 						},
 					} satisfies IActionWidgetDropdownAction,
-					{
+				];
+				if (isAutopilotEnabled()) {
+					actions.push({
 						...action,
 						id: 'chat.permissions.autopilot',
-						label: localize('permissions.autopilot', "Autopilot"),
+						label: localize('permissions.autopilot', "Autopilot (Preview)"),
 						icon: ThemeIcon.fromId(Codicon.rocket.id),
 						checked: currentLevel === ChatPermissionLevel.Autopilot,
 						enabled: !policyRestricted,
@@ -101,8 +104,9 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 								this.renderLabel(this.element);
 							}
 						},
-					} satisfies IActionWidgetDropdownAction,
-				];
+					} satisfies IActionWidgetDropdownAction);
+				}
+				return actions;
 			}
 		};
 
@@ -121,7 +125,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		switch (level) {
 			case ChatPermissionLevel.Autopilot:
 				icon = Codicon.rocket;
-				label = localize('permissions.autopilot.label', "Autopilot");
+				label = localize('permissions.autopilot.label', "Autopilot (Preview)");
 				break;
 			case ChatPermissionLevel.AutoApprove:
 				icon = Codicon.warning;
