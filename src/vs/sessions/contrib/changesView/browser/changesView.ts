@@ -54,7 +54,6 @@ import { createFileIconThemableTreeContainerScope } from '../../../../workbench/
 import { IActivityService, NumberBadge } from '../../../../workbench/services/activity/common/activity.js';
 import { IEditorService, MODAL_GROUP, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
@@ -254,7 +253,6 @@ export class ChangesViewPane extends ViewPane {
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -561,12 +559,16 @@ export class ChangesViewPane extends ViewPane {
 				return files > 0;
 			}));
 
-			// Check if a PR exists when the active session changes
+			// Set context key for PR state from session metadata
+			const hasOpenPullRequestKey = scopedContextKeyService.createKey<boolean>('github.copilot.chat.copilotCLI.hasOpenPullRequest', false);
 			this.renderDisposables.add(autorun(reader => {
 				const sessionResource = activeSessionResource.read(reader);
+				sessionsChangedSignal.read(reader);
 				if (sessionResource) {
 					const metadata = this.agentSessionsService.getSession(sessionResource)?.metadata;
-					this.commandService.executeCommand('github.checkOpenPullRequest', sessionResource, metadata).catch(() => { /* ignore */ });
+					hasOpenPullRequestKey.set(!!metadata?.pullRequestUrl);
+				} else {
+					hasOpenPullRequestKey.set(false);
 				}
 			}));
 
@@ -591,9 +593,6 @@ export class ChangesViewPane extends ViewPane {
 									{ supportHtml: true }
 								);
 								return { showIcon: true, showLabel: true, isSecondary: true, customClass: 'working-set-diff-stats', customLabel: diffStatsLabel };
-							}
-							if (action.id === 'github.createPullRequest' || action.id === 'github.openPullRequest') {
-								return { showIcon: true, showLabel: true, isSecondary: true };
 							}
 							if (action.id === 'chatEditing.synchronizeChanges') {
 								return { showIcon: true, showLabel: true, isSecondary: true };
