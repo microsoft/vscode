@@ -210,4 +210,193 @@ suite('AgentPluginRepositoryService', () => {
 
 		assert.deepStrictEqual(commands, ['git.openRepository', 'git.fetch', '_git.checkout']);
 	});
+
+	// =========================================================================
+	// cleanupPluginSource — issue #297251 regression
+	// =========================================================================
+
+	suite('cleanupPluginSource', () => {
+
+		function createServiceWithDel(
+			onDel: (resource: URI) => void,
+			options?: { resolve?: (resource: URI) => { children?: unknown[] } },
+		) {
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(ICommandService, { executeCommand: async () => undefined } as unknown as ICommandService);
+			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+			instantiationService.stub(IFileService, {
+				exists: async () => true,
+				del: async (resource: URI) => { onDel(resource); },
+				createFolder: async () => undefined,
+				resolve: async (resource: URI) => options?.resolve?.(resource) ?? { children: [] },
+			} as unknown as IFileService);
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(INotificationService, { notify: () => undefined } as unknown as INotificationService);
+			instantiationService.stub(IProgressService, { withProgress: async (_o: unknown, cb: (...a: unknown[]) => Promise<unknown>) => cb() } as unknown as IProgressService);
+			instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+			return instantiationService.createInstance(AgentPluginRepositoryService);
+		}
+
+		test('does not delete files for relative-path (marketplace) plugin', async () => {
+			const deleted: string[] = [];
+			const service = createServiceWithDel(r => deleted.push(r.path));
+
+			await service.cleanupPluginSource({
+				name: 'marketplace-plugin',
+				description: '',
+				version: '',
+				source: 'plugins/foo',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/foo' },
+				marketplace: 'microsoft/vscode',
+				marketplaceReference: parseMarketplaceReference('microsoft/vscode')!,
+				marketplaceType: MarketplaceType.Copilot,
+			});
+
+			assert.strictEqual(deleted.length, 0);
+		});
+
+		test('deletes cache for github plugin source', async () => {
+			const deleted: string[] = [];
+			const service = createServiceWithDel(r => deleted.push(r.path));
+
+			await service.cleanupPluginSource({
+				name: 'gh-plugin',
+				description: '',
+				version: '',
+				source: '',
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo' },
+				marketplace: 'owner/marketplace',
+				marketplaceReference: parseMarketplaceReference('owner/marketplace')!,
+				marketplaceType: MarketplaceType.Copilot,
+			});
+
+			assert.ok(deleted.length >= 1);
+			assert.ok(deleted[0].includes('github.com/owner/repo'));
+		});
+
+		test('deletes parent cache dir for npm plugin source', async () => {
+			const deleted: string[] = [];
+			const service = createServiceWithDel(r => deleted.push(r.path));
+
+			await service.cleanupPluginSource({
+				name: 'npm-plugin',
+				description: '',
+				version: '',
+				source: '',
+				sourceDescriptor: { kind: PluginSourceKind.Npm, package: '@acme/plugin' },
+				marketplace: 'owner/marketplace',
+				marketplaceReference: parseMarketplaceReference('owner/marketplace')!,
+				marketplaceType: MarketplaceType.Copilot,
+			});
+
+			assert.ok(deleted.length >= 1);
+			// First delete should be the npm/<sanitized-package> cache dir
+			assert.ok(deleted[0].includes('/npm/'), `Expected npm path, got: ${deleted[0]}`);
+		});
+
+		test('deletes cache for pip plugin source', async () => {
+			const deleted: string[] = [];
+			const service = createServiceWithDel(r => deleted.push(r.path));
+
+			await service.cleanupPluginSource({
+				name: 'pip-plugin',
+				description: '',
+				version: '',
+				source: '',
+				sourceDescriptor: { kind: PluginSourceKind.Pip, package: 'my-pip-pkg' },
+				marketplace: 'owner/marketplace',
+				marketplaceReference: parseMarketplaceReference('owner/marketplace')!,
+				marketplaceType: MarketplaceType.Copilot,
+			});
+
+			assert.ok(deleted.length >= 1);
+			assert.ok(deleted[0].includes('pip/my-pip-pkg'));
+		});
+
+		test('does not throw when delete fails', async () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(ICommandService, { executeCommand: async () => undefined } as unknown as ICommandService);
+			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+			instantiationService.stub(IFileService, {
+				exists: async () => true,
+				del: async () => { throw new Error('permission denied'); },
+				createFolder: async () => undefined,
+				resolve: async () => ({ children: [] }),
+			} as unknown as IFileService);
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(INotificationService, { notify: () => undefined } as unknown as INotificationService);
+			instantiationService.stub(IProgressService, { withProgress: async (_o: unknown, cb: (...a: unknown[]) => Promise<unknown>) => cb() } as unknown as IProgressService);
+			instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+			const service = instantiationService.createInstance(AgentPluginRepositoryService);
+
+			// Should not throw — cleanup is best-effort
+			await service.cleanupPluginSource({
+				name: 'gh-plugin',
+				description: '',
+				version: '',
+				source: '',
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo' },
+				marketplace: 'owner/marketplace',
+				marketplaceReference: parseMarketplaceReference('owner/marketplace')!,
+				marketplaceType: MarketplaceType.Copilot,
+			});
+		});
+
+		test('prunes empty parent directories up to cache root', async () => {
+			// After deleting github.com/owner/repo, the "owner" dir is empty
+			// and should also be removed.
+			const deleted: string[] = [];
+			const service = createServiceWithDel(
+				r => deleted.push(r.path),
+				{ resolve: () => ({ children: [] }) },
+			);
+
+			await service.cleanupPluginSource({
+				name: 'gh-plugin',
+				description: '',
+				version: '',
+				source: '',
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo' },
+				marketplace: 'owner/marketplace',
+				marketplaceReference: parseMarketplaceReference('owner/marketplace')!,
+				marketplaceType: MarketplaceType.Copilot,
+			});
+
+			// Should have deleted the repo dir + empty parents (owner, github.com)
+			assert.ok(deleted.length >= 2, `Expected at least 2 deletions (repo + parent), got ${deleted.length}: ${deleted.join(', ')}`);
+			assert.ok(deleted[0].includes('github.com/owner/repo'), 'First delete should be the repo dir');
+			assert.ok(deleted.some(p => p.endsWith('/owner')), 'Should prune empty owner directory');
+		});
+
+		test('stops pruning at non-empty parent', async () => {
+			const deleted: string[] = [];
+			const service = createServiceWithDel(
+				r => deleted.push(r.path),
+				{
+					resolve: (resource: URI) => {
+						// owner dir still has another repo
+						if (resource.path.endsWith('/owner')) {
+							return { children: [{ name: 'other-repo' }] };
+						}
+						return { children: [] };
+					},
+				},
+			);
+
+			await service.cleanupPluginSource({
+				name: 'gh-plugin',
+				description: '',
+				version: '',
+				source: '',
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo' },
+				marketplace: 'owner/marketplace',
+				marketplaceReference: parseMarketplaceReference('owner/marketplace')!,
+				marketplaceType: MarketplaceType.Copilot,
+			});
+
+			// Should only delete the repo dir, stop at non-empty owner dir
+			assert.strictEqual(deleted.length, 1);
+			assert.ok(deleted[0].includes('github.com/owner/repo'));
+		});
+	});
 });

@@ -16,6 +16,7 @@ import { ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { PluginInstallService } from '../../../browser/pluginInstallService.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions, IPullRepositoryOptions } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IPluginSource } from '../../../common/plugins/pluginSource.js';
 
 suite('PluginInstallService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -145,6 +146,69 @@ suite('PluginInstallService', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 
 		// IAgentPluginRepositoryService
+		// Build mock source repositories for npm/pip that simulate terminal-based install
+		const makeMockPackageRepo = (kind: PluginSourceKind): IPluginSource => ({
+			kind,
+			getCleanupTarget: () => URI.file('/mock-cleanup'),
+			getInstallUri: () => URI.file('/mock'),
+			ensure: async () => state.ensurePluginSourceResult,
+			update: async () => { },
+			getLabel: (d) => kind === PluginSourceKind.Npm ? (d as { package: string }).package : (d as { package: string }).package,
+			runInstall: async (_installDir: URI, pluginDir: URI, plugin: IMarketplacePlugin) => {
+				// Simulate confirmation dialog
+				if (!state.dialogConfirmResult) {
+					return undefined;
+				}
+
+				// Simulate building and running the command
+				const descriptor = plugin.sourceDescriptor;
+				let args: string[];
+				if (kind === PluginSourceKind.Npm) {
+					const npm = descriptor as { package: string; version?: string; registry?: string };
+					const packageSpec = npm.version ? `${npm.package}@${npm.version}` : npm.package;
+					args = ['npm', 'install', '--prefix', _installDir.fsPath, packageSpec];
+					if (npm.registry) {
+						args.push('--registry', npm.registry);
+					}
+				} else {
+					const pip = descriptor as { package: string; version?: string; registry?: string };
+					const packageSpec = pip.version ? `${pip.package}==${pip.version}` : pip.package;
+					args = ['pip', 'install', '--target', _installDir.fsPath, packageSpec];
+					if (pip.registry) {
+						args.push('--index-url', pip.registry);
+					}
+				}
+				const command = args.join(' ');
+				state.terminalCommands.push(command);
+
+				if (state.terminalExitCode !== 0) {
+					state.notifications.push({ severity: 3, message: `Plugin installation command failed: Command exited with code ${state.terminalExitCode}` });
+					return undefined;
+				}
+
+				// Check if plugin dir exists
+				const exists = typeof state.fileExistsResult === 'function'
+					? await state.fileExistsResult(pluginDir)
+					: state.fileExistsResult;
+				if (!exists) {
+					const label = kind === PluginSourceKind.Npm ? 'npm' : 'pip';
+					const pkg = (descriptor as { package: string }).package;
+					state.notifications.push({ severity: 3, message: `${label} package '${pkg}' was not found after installation.` });
+					return undefined;
+				}
+
+				return { pluginDir };
+			},
+		});
+
+		const mockSourceRepos = new Map<PluginSourceKind, IPluginSource>([
+			[PluginSourceKind.RelativePath, { kind: PluginSourceKind.RelativePath, getCleanupTarget: () => undefined, getInstallUri: () => { throw new Error(); }, ensure: async () => { throw new Error(); }, update: async () => { throw new Error(); }, getLabel: (d) => (d as { path: string }).path || '.' }],
+			[PluginSourceKind.GitHub, { kind: PluginSourceKind.GitHub, getCleanupTarget: () => URI.file('/mock'), getInstallUri: () => URI.file('/mock'), ensure: async () => URI.file('/mock'), update: async () => { }, getLabel: (d) => (d as { repo: string }).repo }],
+			[PluginSourceKind.GitUrl, { kind: PluginSourceKind.GitUrl, getCleanupTarget: () => URI.file('/mock'), getInstallUri: () => URI.file('/mock'), ensure: async () => URI.file('/mock'), update: async () => { }, getLabel: (d) => (d as { url: string }).url }],
+			[PluginSourceKind.Npm, makeMockPackageRepo(PluginSourceKind.Npm)],
+			[PluginSourceKind.Pip, makeMockPackageRepo(PluginSourceKind.Pip)],
+		]);
+
 		instantiationService.stub(IAgentPluginRepositoryService, {
 			getPluginInstallUri: (plugin: IMarketplacePlugin) => {
 				return URI.joinPath(state.ensureRepositoryResult, plugin.source);
@@ -164,6 +228,8 @@ suite('PluginInstallService', () => {
 			updatePluginSource: async (plugin: IMarketplacePlugin, options?: IPullRepositoryOptions) => {
 				state.updatePluginSourceCalls.push({ plugin, options });
 			},
+			getPluginSource: (kind: PluginSourceKind) => mockSourceRepos.get(kind)!,
+			cleanupPluginSource: async () => { },
 		} as unknown as IAgentPluginRepositoryService);
 
 		// IPluginMarketplaceService
@@ -540,7 +606,7 @@ suite('PluginInstallService', () => {
 
 	suite('updatePlugin', () => {
 
-		test('calls pullRepository for relative-path plugins', async () => {
+		test('calls updatePluginSource for relative-path plugins', async () => {
 			const { service, state } = createService();
 			const plugin = createPlugin({
 				source: 'plugins/myPlugin',
@@ -549,8 +615,7 @@ suite('PluginInstallService', () => {
 
 			await service.updatePlugin(plugin);
 
-			assert.strictEqual(state.pullRepositoryCalls.length, 1);
-			assert.strictEqual(state.updatePluginSourceCalls.length, 0);
+			assert.strictEqual(state.updatePluginSourceCalls.length, 1);
 		});
 
 		test('calls updatePluginSource for GitHub plugins', async () => {
@@ -562,7 +627,6 @@ suite('PluginInstallService', () => {
 			await service.updatePlugin(plugin);
 
 			assert.strictEqual(state.updatePluginSourceCalls.length, 1);
-			assert.strictEqual(state.pullRepositoryCalls.length, 0);
 		});
 
 		test('calls updatePluginSource for GitUrl plugins', async () => {
@@ -574,7 +638,6 @@ suite('PluginInstallService', () => {
 			await service.updatePlugin(plugin);
 
 			assert.strictEqual(state.updatePluginSourceCalls.length, 1);
-			assert.strictEqual(state.pullRepositoryCalls.length, 0);
 		});
 
 		test('re-installs for npm plugin updates', async () => {
