@@ -1096,7 +1096,7 @@ export class InlineCompletionsModel extends Disposable {
 				const edits = [primaryEdit, ...getSecondaryEdits(this.textModel, positions, primaryEdit)].filter(isDefined);
 				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
 
-				editor.edit(TextEdit.fromParallelReplacementsUnsorted(edits), this._getMetadata(completion, type));
+				editor.edit(TextEdit.fromParallelReplacementsUnsorted(edits), this._getMetadata(completion, this.textModel.getLanguageId(), type));
 				editor.setSelections(selections, 'inlineCompletionPartialAccept');
 				editor.revealPositionInCenterIfOutsideViewport(editor.getPosition()!, ScrollType.Smooth);
 			} finally {
