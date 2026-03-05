@@ -192,19 +192,19 @@ export interface IChatDebugService extends IDisposable {
 	resolveEvent(eventId: string): Promise<IChatDebugResolvedEventContent | undefined>;
 
 	/**
-	 * Fired when a session is marked for troubleshooting.
+	 * Fired when debug data is attached to a session.
 	 */
-	readonly onDidMarkSessionForTroubleshoot: Event<URI>;
+	readonly onDidAttachDebugData: Event<URI>;
 
 	/**
-	 * Mark a session as having troubleshoot data attached.
+	 * Mark a session as having debug data attached.
 	 */
-	markSessionForTroubleshoot(sessionResource: URI): void;
+	markDebugDataAttached(sessionResource: URI): void;
 
 	/**
-	 * Check whether a session has been marked for troubleshooting.
+	 * Check whether a session has had debug data attached.
 	 */
-	isSessionMarkedForTroubleshoot(sessionResource: URI): boolean;
+	hasAttachedDebugData(sessionResource: URI): boolean;
 }
 
 /**
