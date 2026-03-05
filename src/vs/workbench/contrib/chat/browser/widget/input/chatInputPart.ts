@@ -3146,7 +3146,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const inputToolbarWidth = this.cachedInputToolbarWidth = this.inputActionsToolbar.getItemsWidth();
 			const executeToolbarPadding = (this.executeToolbar.getItemsLength() - 1) * toolbarItemGap;
 			const inputToolbarPadding = this.inputActionsToolbar.getItemsLength() ? (this.inputActionsToolbar.getItemsLength() - 1) * toolbarItemGap : 0;
-			const contextUsageWidth = dom.getTotalWidth(this.contextUsageWidgetContainer);
+			const contextUsageWidth = 0;// dom.getTotalWidth(this.contextUsageWidgetContainer);
 			const inputToolbarsPadding = 12; // pdading between input toolbar/execute toolbar/contextUsage.
 			return executeToolbarWidth + executeToolbarPadding + contextUsageWidth + (this.options.renderInputToolbarBelowInput ? 0 : inputToolbarWidth + inputToolbarPadding + inputToolbarsPadding);
 		};
