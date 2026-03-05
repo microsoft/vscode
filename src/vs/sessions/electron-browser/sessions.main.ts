@@ -352,14 +352,15 @@ export class SessionsMain extends Disposable {
 		logService: ILogService,
 		policyService: IPolicyService
 	): Promise<{ configurationService: ConfigurationService; workspaceContextService: SessionsWorkspaceContextService }> {
-		const configurationService = new ConfigurationService(userDataProfileService.currentProfile.settingsResource, fileService, policyService, logService);
+		const workspaceContextService = new SessionsWorkspaceContextService(workspaceIdentifier, uriIdentityService);
+		const configurationService = new ConfigurationService(userDataProfileService, workspaceContextService, uriIdentityService, fileService, policyService, logService);
 		try {
 			await configurationService.initialize();
 		} catch (error) {
 			onUnexpectedError(error);
 		}
 
-		const workspaceContextService = new SessionsWorkspaceContextService(workspaceIdentifier, uriIdentityService, configurationService);
+		workspaceContextService.setConfigurationService(configurationService);
 		return { configurationService, workspaceContextService };
 	}
 
