@@ -11,7 +11,7 @@ import { ChatRequestModel, IChatRequestVariableData } from '../model/chatModel.j
 import { ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from '../requestParser/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatCopyKind, IChatSendRequestOptions, IChatUserActionEvent } from './chatService.js';
 import { isImageVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentLocation, ChatPermissionLevel } from '../constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ILanguageModelsService } from '../languageModels.js';
 import { chatSessionResourceToId } from '../model/chatUri.js';
 
@@ -305,7 +305,7 @@ export class ChatRequestTelemetry {
 			numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length,
 			attachmentKinds: this.attachmentKindsForTelemetry(request.variableData),
 			model: this.resolveModelId(this.opts.options?.userSelectedModelId),
-			permissionLevel: this.opts.options?.modeInfo?.permissionLevel,
+			permissionLevel: this.opts.options?.modeInfo?.kind === ChatModeKind.Ask ? undefined : this.opts.options?.modeInfo?.permissionLevel,
 		});
 	}
 
