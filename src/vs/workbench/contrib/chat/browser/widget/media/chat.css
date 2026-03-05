@@ -1508,6 +1508,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-icon-foreground);
 }
 
+/* Keep hover background while picker dropdown is open */
+.interactive-session .chat-input-toolbar .action-label[aria-expanded="true"],
+.interactive-session .chat-secondary-toolbar .action-label[aria-expanded="true"] {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
 /* When chevrons are hidden and only showing an icon (no label), size to 22x22 with centered icon */
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.hide-chevrons:not(:has(.chat-input-picker-label)),
 .interactive-session .chat-input-toolbar .chat-input-picker-item.hide-chevrons .action-label:not(:has(.chat-input-picker-label)),
