@@ -36,6 +36,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
+import { IKeyboardLayoutService } from '../../../../platform/keyboardLayout/common/keyboardLayout.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -394,6 +395,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IKeyboardLayoutService private readonly _keyboardLayoutService: IKeyboardLayoutService,
 	) {
 		super();
 
@@ -1114,6 +1116,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Disable all input if the terminal is exiting
 			if (this._isExiting) {
 				return false;
+			}
+
+			// Workaround for Chromium 142+ regression where numpad keys report
+			// key: "Unidentified" (chromium issue 405793116). Fix the key property
+			// so xterm.js (especially the Kitty keyboard protocol handler) can
+			// correctly identify numpad keys and generate proper escape sequences.
+			if (event.key === 'Unidentified' && event.code.startsWith('Numpad')) {
+				const fixedKey = this._resolveNumpadKey(event);
+				if (fixedKey) {
+					Object.defineProperty(event, 'key', { value: fixedKey });
+				}
 			}
 
 			const standardKeyboardEvent = new StandardKeyboardEvent(event);
@@ -2031,6 +2044,56 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this._onDidChangeShellType.fire(shellType);
 
+	}
+
+	/**
+	 * Maps a numpad KeyboardEvent.code to the correct key value.
+	 * Workaround for Chromium 142+ regression (chromium issue 405793116)
+	 * where numpad keys report key: "Unidentified".
+	 */
+	private _resolveNumpadKey(event: KeyboardEvent): string | undefined {
+		const suffix = event.code.slice(6); // Remove 'Numpad' prefix
+		const numLockOn = event.getModifierState('NumLock');
+
+		// Operator keys produce the same key regardless of NumLock state
+		switch (suffix) {
+			case 'Add': return '+';
+			case 'Subtract': return '-';
+			case 'Multiply': return '*';
+			case 'Divide': return '/';
+			case 'Enter': return 'Enter';
+			case 'Equal': return '=';
+		}
+
+		if (numLockOn) {
+			// NumLock ON: digit keys produce numbers
+			if (suffix >= '0' && suffix <= '9') {
+				return suffix;
+			}
+			if (suffix === 'Decimal') {
+				// Locale-aware: German layouts produce ',' instead of '.'
+				const mapping = this._keyboardLayoutService.getRawKeyboardMapping();
+				const decimalEntry = mapping?.['NumpadDecimal'] as { value?: string } | undefined;
+				return decimalEntry?.value || '.';
+			}
+		} else {
+			// NumLock OFF: digit keys produce navigation keys
+			switch (suffix) {
+				case '0': return 'Insert';
+				case '1': return 'End';
+				case '2': return 'ArrowDown';
+				case '3': return 'PageDown';
+				case '4': return 'ArrowLeft';
+				case '5': return 'Clear';
+				case '6': return 'ArrowRight';
+				case '7': return 'Home';
+				case '8': return 'ArrowUp';
+				case '9': return 'PageUp';
+				case 'Decimal': return 'Delete';
+			}
+		}
+
+		return undefined;
 	}
 
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
