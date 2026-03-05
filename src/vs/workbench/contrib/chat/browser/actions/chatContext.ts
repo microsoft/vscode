@@ -300,6 +300,11 @@ class DebugEventsSnapshotContextValuePick implements IChatContextValueItem {
 		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
 	) { }
 
+	isEnabled(widget: IChatWidget): boolean {
+		const sessionResource = widget.viewModel?.sessionResource;
+		return !!sessionResource && this._chatDebugService.getEvents(sessionResource).length > 0;
+	}
+
 	async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry | undefined> {
 		const sessionResource = widget.viewModel?.sessionResource;
 		if (!sessionResource) {

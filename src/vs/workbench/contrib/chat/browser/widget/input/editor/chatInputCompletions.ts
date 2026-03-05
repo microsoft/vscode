@@ -959,6 +959,11 @@ class BuiltinDynamicCompletions extends Disposable {
 				return;
 			}
 
+			const sessionResource = widget.viewModel?.sessionResource;
+			if (!sessionResource || this.chatDebugService.getEvents(sessionResource).length === 0) {
+				return;
+			}
+
 			const text = `${chatVariableLeader}debugEventsSnapshot`;
 			const result: CompletionList = { suggestions: [] };
 			result.suggestions.push({
