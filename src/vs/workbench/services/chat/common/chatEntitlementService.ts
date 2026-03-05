@@ -164,6 +164,8 @@ export interface IChatEntitlementService {
 	readonly anonymous: boolean;
 	readonly anonymousObs: IObservable<boolean>;
 
+	markAnonymousRateLimited(): void;
+
 	update(token: CancellationToken): Promise<void>;
 }
 
@@ -510,6 +512,15 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	}
 
 	//#endregion
+
+	markAnonymousRateLimited(): void {
+		if (!this.anonymous) {
+			return;
+		}
+
+		this.chatQuotaExceededContextKey.set(true);
+		this._onDidChangeQuotaExceeded.fire();
+	}
 
 	async update(token: CancellationToken): Promise<void> {
 		await this.requests?.value.forceResolveEntitlement(token);

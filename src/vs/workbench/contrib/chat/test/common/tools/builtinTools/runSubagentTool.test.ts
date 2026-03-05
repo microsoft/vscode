@@ -15,7 +15,9 @@ import { IChatAgentService } from '../../../../common/participants/chatAgents.js
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { ICustomAgent, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { MockPromptsService } from '../../promptSyntax/service/mockPromptsService.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 
@@ -55,7 +57,8 @@ suite('RunSubagentTool', () => {
 				tools: ['tool1', 'tool2'],
 				agentInstructions: { content: 'Custom agent body', toolReferences: [] },
 				source: { storage: PromptsStorage.local },
-				visibility: { userInvokable: true, agentInvokable: true }
+				target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true }
 			};
 			promptsService.setCustomModes([customMode]);
 
@@ -69,6 +72,7 @@ suite('RunSubagentTool', () => {
 				configService,
 				promptsService,
 				{} as IInstantiationService,
+				{} as IProductService,
 			));
 
 			const result = await tool.prepareToolInvocation(
@@ -112,6 +116,7 @@ suite('RunSubagentTool', () => {
 				configService,
 				promptsService,
 				{} as IInstantiationService,
+				{} as IProductService,
 			));
 
 			const toolData = tool.getToolData();
@@ -140,6 +145,7 @@ suite('RunSubagentTool', () => {
 				configService,
 				promptsService,
 				{} as IInstantiationService,
+				{} as IProductService,
 			));
 
 			const toolData = tool.getToolData();
@@ -260,6 +266,7 @@ suite('RunSubagentTool', () => {
 				configService,
 				promptsService,
 				{} as IInstantiationService,
+				{} as IProductService,
 			));
 
 			return tool;
@@ -274,7 +281,8 @@ suite('RunSubagentTool', () => {
 				model: modelQualifiedNames,
 				agentInstructions: { content: 'test', toolReferences: [] },
 				source: { storage: PromptsStorage.local },
-				visibility: { userInvokable: true, agentInvokable: true }
+				target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true }
 			};
 		}
 

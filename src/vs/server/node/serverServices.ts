@@ -115,7 +115,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	socketServer.registerChannel('logger', new LoggerChannel(loggerService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
 
 	const logger = loggerService.createLogger('remoteagent', { name: localize('remoteExtensionLog', "Server") });
-	const logService = new LogService(logger, [new ServerLogger(getLogLevel(environmentService))]);
+	const logService = disposables.add(new LogService(logger, [new ServerLogger(getLogLevel(environmentService))]));
 	services.set(ILogService, logService);
 	setTimeout(() => cleanupOlderLogs(environmentService.logsHome.with({ scheme: Schemas.file }).fsPath).then(null, err => logService.error(err)), 10000);
 	disposables.add(logService.onDidChangeLogLevel(logLevel => log(logService, logLevel, `Log level changed to ${LogLevelToString(logService.getLevel())}`)));

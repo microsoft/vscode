@@ -136,7 +136,7 @@ export class DebugService implements IDebugService {
 		this.model = this.instantiationService.createInstance(DebugModel, this.debugStorage);
 		this.telemetry = this.instantiationService.createInstance(DebugTelemetry, this.model);
 
-		this.viewModel = new ViewModel(contextKeyService);
+		this.viewModel = this.disposables.add(new ViewModel(contextKeyService));
 		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
 
 		this.disposables.add(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));

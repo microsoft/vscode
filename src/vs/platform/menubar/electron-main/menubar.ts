@@ -82,9 +82,9 @@ export class Menubar extends Disposable {
 	) {
 		super();
 
-		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
+		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doUpdateMenu(), 0));
 
-		this.menuGC = new RunOnceScheduler(() => { this.oldMenus = []; }, 10000);
+		this.menuGC = this._register(new RunOnceScheduler(() => { this.oldMenus = []; }, 10000));
 
 		this.menubarMenus = Object.create(null);
 		this.keybindings = Object.create(null);

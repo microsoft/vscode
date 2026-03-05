@@ -3,6 +3,6 @@ src/**
 out/**
 build/**
 extension.webpack.config.js
-tsconfig.json
+tsconfig*.json
 package-lock.json
 testWorkspace/**

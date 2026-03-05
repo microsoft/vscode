@@ -41,7 +41,7 @@ import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, M
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { GlyphMarginLanesModel } from './glyphLanesModel.js';
-import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
+import { CustomLineHeightData } from '../viewLayout/lineHeights.js';
 import { TextModelEditSource } from '../textModelEditSource.js';
 import { InlineDecoration } from './inlineDecorations.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
@@ -196,23 +196,23 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._eventDispatcher.removeViewEventHandler(eventHandler);
 	}
 
-	private _getCustomLineHeights(): ICustomLineHeightData[] {
+	private _getCustomLineHeights(): CustomLineHeightData[] {
 		const allowVariableLineHeights = this._configuration.options.get(EditorOption.allowVariableLineHeights);
 		if (!allowVariableLineHeights) {
 			return [];
 		}
-		const defaultLineHeight = this._configuration.options.get(EditorOption.lineHeight);
 		const decorations = this.model.getCustomLineHeightsDecorations(this._editorId);
-		return decorations.map((d) => {
-			const lineNumber = d.range.startLineNumber;
-			const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
-			return {
-				decorationId: d.id,
-				startLineNumber: viewRange.startLineNumber,
-				endLineNumber: viewRange.endLineNumber,
-				lineHeight: d.options.lineHeight ? d.options.lineHeight * defaultLineHeight : 0
-			};
-		});
+		return CustomLineHeightData.fromDecorations(decorations, this.coordinatesConverter, this._configuration);
+	}
+
+	private _getCustomLineHeightsForLines(fromLineNumber: number, toLineNumber: number): CustomLineHeightData[] {
+		const allowVariableLineHeights = this._configuration.options.get(EditorOption.allowVariableLineHeights);
+		if (!allowVariableLineHeights) {
+			return [];
+		}
+		const modelRange = new Range(fromLineNumber, 1, toLineNumber, this.model.getLineMaxColumn(toLineNumber));
+		const decorations = this.model.getCustomLineHeightsDecorationsInRange(modelRange, this._editorId);
+		return CustomLineHeightData.fromDecorations(decorations, this.coordinatesConverter, this._configuration);
 	}
 
 	private _updateConfigurationViewLineCountNow(): void {
@@ -346,6 +346,11 @@ export class ViewModel extends Disposable implements IViewModel {
 			const lineBreaks = lineBreaksComputer.finalize();
 			const lineBreakQueue = new ArrayQueue(lineBreaks);
 
+			// Collect model line ranges that need custom line height computation.
+			// We defer this until after the loop because the coordinatesConverter
+			// relies on projections that may not yet reflect all changes in the batch.
+			const customLineHeightRangesToInsert: { fromLineNumber: number; toLineNumber: number }[] = [];
+
 			for (const change of changes) {
 				switch (change.changeType) {
 					case textModelEvents.RawContentChangedType.Flush: {
@@ -361,6 +366,7 @@ export class ViewModel extends Disposable implements IViewModel {
 						if (linesDeletedEvent !== null) {
 							eventsCollector.emitViewEvent(linesDeletedEvent);
 							this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
+							customLineHeightRangesToInsert.push({ fromLineNumber: change.lastUntouchedLinePostEdit, toLineNumber: change.lastUntouchedLinePostEdit });
 						}
 						hadOtherModelChange = true;
 						break;
@@ -371,6 +377,7 @@ export class ViewModel extends Disposable implements IViewModel {
 						if (linesInsertedEvent !== null) {
 							eventsCollector.emitViewEvent(linesInsertedEvent);
 							this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
+							customLineHeightRangesToInsert.push({ fromLineNumber: change.fromLineNumberPostEdit, toLineNumber: change.toLineNumberPostEdit });
 						}
 						hadOtherModelChange = true;
 						break;
@@ -386,10 +393,12 @@ export class ViewModel extends Disposable implements IViewModel {
 						if (linesInsertedEvent) {
 							eventsCollector.emitViewEvent(linesInsertedEvent);
 							this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
+							customLineHeightRangesToInsert.push({ fromLineNumber: change.lineNumberPostEdit, toLineNumber: change.lineNumberPostEdit });
 						}
 						if (linesDeletedEvent) {
 							eventsCollector.emitViewEvent(linesDeletedEvent);
 							this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
+							customLineHeightRangesToInsert.push({ fromLineNumber: change.lineNumberPostEdit, toLineNumber: change.lineNumberPostEdit });
 						}
 						break;
 					}
@@ -403,6 +412,19 @@ export class ViewModel extends Disposable implements IViewModel {
 			if (versionId !== null) {
 				this._lines.acceptVersionId(versionId);
 			}
+
+			// Apply deferred custom line heights now that projections are stable
+			if (customLineHeightRangesToInsert.length > 0) {
+				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
+					for (const range of customLineHeightRangesToInsert) {
+						const customLineHeights = this._getCustomLineHeightsForLines(range.fromLineNumber, range.toLineNumber);
+						for (const data of customLineHeights) {
+							accessor.insertOrChangeCustomLineHeight(data.decorationId, data.startLineNumber, data.endLineNumber, data.lineHeight);
+						}
+					}
+				});
+			}
+
 			this.viewLayout.onHeightMaybeChanged();
 
 			if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
@@ -772,10 +794,6 @@ export class ViewModel extends Disposable implements IViewModel {
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
 	 */
 	public setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void {
-		if (this._lines.getViewLineCount() === 0) {
-			// No visible lines to set viewport on
-			return;
-		}
 		this._viewportStart.update(this, startLineNumber);
 	}
 
@@ -881,9 +899,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		if (lineData.inlineDecorations) {
 			inlineDecorations = [
 				...inlineDecorations,
-				...lineData.inlineDecorations.map(d =>
-					d.toInlineDecoration(lineNumber)
-				)
+				...lineData.inlineDecorations
 			];
 		}
 

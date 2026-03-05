@@ -5,8 +5,6 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -15,19 +13,14 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/editing/chatEditingService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
-import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
-import { ChatViewId, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction, EditingSessionActionContext, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
-import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
-import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
-import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
+import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 import { AgentSessionProviders, AgentSessionsViewerOrientation } from '../agentSessions/agentSessions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -115,12 +108,11 @@ export function registerNewChatActions() {
 						id: MenuId.ChatNewMenu,
 						group: '1_open',
 						order: 1,
-					},
-					{
-						id: MenuId.CompactWindowEditorTitle,
-						group: 'navigation',
-						when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-						order: 1
+						when: ContextKeyExpr.and(
+							ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('copilot'),
+							ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('new-session'),
+							ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('comment')
+						)
 					}
 				],
 				keybinding: {
@@ -145,6 +137,40 @@ export function registerNewChatActions() {
 		}
 	}
 	);
+
+	const iconVariants = [
+		{ idSuffix: '.copilotIcon', iconValue: 'copilot', icon: Codicon.copilot },
+		{ idSuffix: '.newSessionIcon', iconValue: 'new-session', icon: Codicon.newSession },
+		{ idSuffix: '.commentIcon', iconValue: 'comment', icon: Codicon.comment },
+	] as const;
+
+	for (const variant of iconVariants) {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: ACTION_ID_NEW_CHAT + variant.idSuffix,
+					title: localize2('chat.newEdits.label', "New Chat"),
+					category: CHAT_CATEGORY,
+					icon: variant.icon,
+					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
+					f1: false,
+					menu: [{
+						id: MenuId.ChatNewMenu,
+						group: '1_open',
+						order: 1,
+						when: ChatContextKeys.newChatButtonExperimentIcon.isEqualTo(variant.iconValue)
+					}]
+				});
+			}
+
+			async run(accessor: ServicesAccessor, ...args: unknown[]) {
+				const executeCommandContext = isNewEditSessionActionContext(args[0]) ? args[0] : undefined;
+				const context = getEditingSessionContext(accessor, args);
+				await runNewChatAction(accessor, context, executeCommandContext);
+			}
+		});
+	}
+
 	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_NEW_CHAT);
 
 	registerAction2(class NewLocalChatAction extends Action2 {
@@ -270,23 +296,6 @@ export function registerNewChatActions() {
 	});
 }
 
-/**
- * Creates a new session resource URI with the specified session type.
- * For remote sessions, creates a URI with the session type as the scheme.
- * For local sessions, creates a LocalChatSessionUri.
- */
-function getResourceForNewChatSession(sessionType: string): URI {
-	const isRemoteSession = sessionType !== localChatSessionType;
-	if (isRemoteSession) {
-		return URI.from({
-			scheme: sessionType,
-			path: `/untitled-${generateUuid()}`,
-		});
-	}
-
-	return LocalChatSessionUri.forSession(generateUuid());
-}
-
 async function runNewChatAction(
 	accessor: ServicesAccessor,
 	context: EditingSessionActionContext | undefined,
@@ -311,18 +320,8 @@ async function runNewChatAction(
 
 	await editingSession?.stop();
 
-	// Create a new session with the same type as the current session
-	const currentResource = widget.viewModel?.model.sessionResource;
-	const newSessionType = sessionType ?? (currentResource ? getChatSessionType(currentResource) : localChatSessionType);
-	if (isIChatViewViewContext(widget.viewContext) && newSessionType !== localChatSessionType) {
-		// For the sidebar, we need to explicitly load a session with the same type
-		const newResource = getResourceForNewChatSession(newSessionType);
-		const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-		await view.loadSession(newResource);
-	} else {
-		// For the editor, widget.clear() already preserves the session type via clearChatEditor
-		await widget.clear();
-	}
+	// Create a new session, preserving the session type (or using the specified one)
+	await clearChatSessionPreservingType(widget, viewsService, sessionType);
 
 	widget.attachmentModel.clear(true);
 	widget.focusInput();

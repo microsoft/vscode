@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
@@ -47,18 +47,21 @@ import { ACTION_START as INLINE_CHAT_START } from '../../../inlineChat/common/in
 import { IPosition } from '../../../../../editor/common/core/position.js';
 import { IMarker, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { ChatSetupController } from './chatSetupController.js';
-import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult } from './chatSetup.js';
+import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult, maybeEnableAuthExtension, refreshTokens } from './chatSetup.js';
 import { ChatSetup } from './chatSetupRunner.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IOutputService } from '../../../../services/output/common/output.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
 	outputChannelId: product.defaultChatAgent?.chatExtensionOutputId ?? '',
+	outputExtensionStateCommand: product.defaultChatAgent?.chatExtensionOutputExtensionStateCommand ?? '',
 };
 
 const ToolsAgentContextKey = ContextKeyExpr.and(
@@ -175,6 +178,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	private static readonly TRUST_NEEDED_MESSAGE = new MarkdownString(localize('trustNeeded', "You need to trust this workspace to use Chat."));
 
 	private static readonly CHAT_RETRY_COMMAND_ID = 'workbench.action.chat.retrySetup';
+	private static readonly CHAT_SHOW_OUTPUT_COMMAND_ID = 'workbench.action.chat.showOutput';
 
 	private readonly _onUnresolvableError = this._register(new Emitter<void>());
 	readonly onUnresolvableError = this._onUnresolvableError.event;
@@ -193,6 +197,9 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IOutputService private readonly outputService: IOutputService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -210,6 +217,27 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			await widget?.clear();
 
 			hostService.reload();
+		}));
+
+		// Show output command: execute extension state command if available, then show output channel
+		this._register(CommandsRegistry.registerCommand(SetupAgent.CHAT_SHOW_OUTPUT_COMMAND_ID, async (accessor) => {
+			const commandService = accessor.get(ICommandService);
+
+			if (defaultChat.outputExtensionStateCommand) {
+				// Command invocation may fail or is blocked by the extension activating
+				// so we just don't wait and timeout after a certain time, logging the error if it fails or times out.
+				raceTimeout(
+					commandService.executeCommand(defaultChat.outputExtensionStateCommand),
+					5000,
+					() => this.logService.info('[chat setup] Timed out executing extension state command')
+				).then(undefined, error => {
+					this.logService.info('[chat setup] Failed to execute extension state command', error);
+				});
+			}
+
+			if (defaultChat.outputChannelId) {
+				await commandService.executeCommand(`workbench.action.output.show.${defaultChat.outputChannelId}`);
+			}
 		}));
 	}
 
@@ -252,7 +280,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		progress({
 			kind: 'progressMessage',
-			content: new MarkdownString(localize('waitingChat', "Getting chat ready...")),
+			content: new MarkdownString(localize('waitingChat', "Getting chat ready")),
+			shimmer: true,
 		});
 
 		await this.forwardRequestToChat(requestModel, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
@@ -289,6 +318,15 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doForwardRequestToChatWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
+
+		// Ensure auth extension is enabled before waiting for chat readiness.
+		// This must run before the readiness event listeners are set up because
+		// updateRunningExtensions restarts all extension hosts.
+		const authExtensionReEnabled = await maybeEnableAuthExtension(this.extensionsWorkbenchService, this.logService);
+		if (authExtensionReEnabled) {
+			refreshTokens(this.commandService);
+		}
+
 		const widget = chatWidgetService.getWidgetBySessionResource(requestModel.session.sessionResource);
 		const modeInfo = widget?.input.currentModeInfo;
 
@@ -319,7 +357,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			const timeoutHandle = setTimeout(() => {
 				progress({
 					kind: 'progressMessage',
-					content: new MarkdownString(localize('waitingChat2', "Chat is almost ready...")),
+					content: new MarkdownString(localize('waitingChat2', "Chat is almost ready")),
+					shimmer: true,
 				});
 			}, 10000);
 
@@ -463,14 +502,24 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 						content: new MarkdownString(warningMessage)
 					});
 
-					progress({
-						kind: 'command',
-						command: {
-							id: SetupAgent.CHAT_RETRY_COMMAND_ID,
-							title: localize('retryChat', "Restart"),
-							arguments: [requestModel.session.sessionResource]
-						}
-					});
+					if (defaultChat.outputChannelId && this.outputService.getChannelDescriptor(defaultChat.outputChannelId)) {
+						progress({
+							kind: 'command',
+							command: {
+								id: SetupAgent.CHAT_SHOW_OUTPUT_COMMAND_ID,
+								title: localize('showCopilotChatDetails', "Show Details")
+							}
+						});
+					} else {
+						progress({
+							kind: 'command',
+							command: {
+								id: SetupAgent.CHAT_RETRY_COMMAND_ID,
+								title: localize('retryChat', "Restart"),
+								arguments: [requestModel.session.sessionResource]
+							}
+						});
+					}
 
 					// This means Chat is unhealthy and we cannot retry the
 					// request. Signal this to the outside via an event.
@@ -602,13 +651,15 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 				case ChatSetupStep.SigningIn:
 					progress({
 						kind: 'progressMessage',
-						content: new MarkdownString(localize('setupChatSignIn2', "Signing in to {0}...", defaultAccountService.getDefaultAccountAuthenticationProvider().name)),
+						content: new MarkdownString(localize('setupChatSignIn2', "Signing in to {0}", defaultAccountService.getDefaultAccountAuthenticationProvider().name)),
+						shimmer: true,
 					});
 					break;
 				case ChatSetupStep.Installing:
 					progress({
 						kind: 'progressMessage',
-						content: new MarkdownString(localize('installingChat', "Getting chat ready...")),
+						content: new MarkdownString(localize('installingChat', "Getting chat ready")),
+						shimmer: true,
 					});
 					break;
 			}

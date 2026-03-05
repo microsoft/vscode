@@ -506,7 +506,7 @@ export class CommentController extends Disposable implements IEditorContribution
 
 		this.editor = editor;
 
-		this._commentingRangeDecorator = new CommentingRangeDecorator();
+		this._commentingRangeDecorator = this._register(new CommentingRangeDecorator());
 		this._register(this._commentingRangeDecorator.onDidChangeDecorationsCount(count => {
 			if (count === 0) {
 				this.clearEditorListeners();

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { BeforeSendResponse, BrowserWindow, BrowserWindowConstructorOptions, Event, OnBeforeSendHeadersListenerDetails } from 'electron';
+import type { BeforeSendResponse, BrowserWindow, BrowserWindowConstructorOptions, Event, HeadersReceivedResponse, OnBeforeSendHeadersListenerDetails, OnHeadersReceivedListenerDetails } from 'electron';
 import { Queue, raceTimeout, TimeoutTimer } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
@@ -84,12 +84,17 @@ export class WebPageLoader extends Disposable {
 			.once('did-start-loading', this.onStartLoading.bind(this))
 			.once('did-finish-load', this.onFinishLoad.bind(this))
 			.once('did-fail-load', this.onFailLoad.bind(this))
-			.once('will-navigate', this.onRedirect.bind(this))
-			.once('will-redirect', this.onRedirect.bind(this))
+			.on('will-navigate', this.onRedirect.bind(this))
+			.on('will-redirect', this.onRedirect.bind(this))
 			.on('select-client-certificate', (event) => event.preventDefault());
 
 		this._window.webContents.session.webRequest.onBeforeSendHeaders(
 			this.onBeforeSendHeaders.bind(this));
+
+		this._window.webContents.session.webRequest.onHeadersReceived(
+			this.onHeadersReceived.bind(this));
+
+		this._window.webContents.session.on('will-download', this.onDownload.bind(this));
 	}
 
 	private trace(message: string) {
@@ -158,6 +163,65 @@ export class WebPageLoader extends Disposable {
 	}
 
 	/**
+	 * Checks response headers for download-triggering Content-Disposition.
+	 * For text-based content types, replaces it with 'inline' so the content
+	 * is rendered and can be extracted. For binary content, cancels the response.
+	 */
+	private onHeadersReceived(details: OnHeadersReceivedListenerDetails, callback: (headersReceivedResponse: HeadersReceivedResponse) => void) {
+		const headers = details.responseHeaders;
+		if (headers) {
+			let hasAttachment = false;
+			let attachmentHeaderName: string | undefined;
+			let contentType: string | undefined;
+
+			for (const name of Object.keys(headers)) {
+				const lowerName = name.toLowerCase();
+				if (lowerName === 'content-disposition' && headers[name]?.some(v => v.toLowerCase().includes('attachment'))) {
+					hasAttachment = true;
+					attachmentHeaderName = name;
+				}
+				if (lowerName === 'content-type') {
+					contentType = headers[name]?.[0]?.toLowerCase();
+				}
+			}
+
+			if (hasAttachment && attachmentHeaderName) {
+				if (this.isTextMimeType(contentType)) {
+					this.trace(`Replacing Content-Disposition: attachment with inline for ${details.url} (content-type: ${contentType})`);
+					headers[attachmentHeaderName] = ['inline'];
+					callback({ responseHeaders: headers, cancel: false });
+				} else {
+					this.trace(`Blocked binary download (Content-Disposition: attachment, content-type: ${contentType}) for ${details.url}`);
+					callback({ cancel: true });
+				}
+				return;
+			}
+		}
+		callback({ cancel: false });
+	}
+
+	/**
+	 * Returns whether the given MIME type represents text-based content
+	 * that can be meaningfully rendered and extracted.
+	 */
+	private static readonly TEXT_MIME_TYPE_RE = /^(?:text\/|application\/(?:json|xml|xhtml\+xml|rss\+xml|atom\+xml|svg\+xml|javascript|ecmascript|x-yaml|yaml|toml|.*\+(?:xml|json))$)/;
+
+	private isTextMimeType(contentType: string | undefined): boolean {
+		const mimeType = contentType?.split(';')[0].trim();
+		return !!mimeType && WebPageLoader.TEXT_MIME_TYPE_RE.test(mimeType);
+	}
+
+	/**
+	 * Handles the 'will-download' event, blocking any downloads.
+	 */
+	private onDownload(_event: Event, item: Electron.DownloadItem) {
+		const filename = item.getFilename();
+		this.trace(`Blocked download: ${filename}`);
+		item.cancel();
+		void this._queue.queue(() => this.extractContent({ status: 'error', error: `Download not allowed: ${filename}` }));
+	}
+
+	/**
 	 * Handles the 'did-start-loading' event, enabling network tracking.
 	 */
 	private onStartLoading() {
@@ -198,6 +262,9 @@ export class WebPageLoader extends Disposable {
 		if (statusCode === -3) {
 			this.trace(`Ignoring ERR_ABORTED (-3) as it may be caused by CSP or other measures`);
 			void this._queue.queue(() => this.extractContent());
+		} else if (statusCode === -27) {
+			this.trace(`Ignoring ERR_BLOCKED_BY_CLIENT (-27) as it may be caused by ad-blockers or similar extensions`);
+			void this._queue.queue(() => this.extractContent());
 		} else {
 			void this._queue.queue(() => this.extractContent({ status: 'error', statusCode, error }));
 		}
@@ -222,6 +289,13 @@ export class WebPageLoader extends Disposable {
 
 			// Allow redirect if target is a trusted domain
 			if (this._isTrustedDomain(toURI)) {
+				return;
+			}
+
+			// Ignore script-initiated navigation (ads/trackers etc)
+			if (this._didFinishLoad) {
+				this.trace(`Blocking post-load navigation to ${url} (likely ad/tracker script)`);
+				event.preventDefault();
 				return;
 			}
 

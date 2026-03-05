@@ -435,7 +435,7 @@ export class InstallAction extends ExtensionAction {
 		this.updateLabel();
 	}
 
-	private readonly updateThrottler = new Throttler();
+	private readonly updateThrottler = this._register(new Throttler());
 	public readonly options: InstallOptions;
 
 	constructor(
@@ -954,7 +954,7 @@ export class UpdateAction extends ExtensionAction {
 	private static readonly EnabledClass = `${this.LABEL_ACTION_CLASS} update`;
 	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
 
-	private readonly updateThrottler = new Throttler();
+	private readonly updateThrottler = this._register(new Throttler());
 
 	constructor(
 		private readonly verbose: boolean,
@@ -2542,7 +2542,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 	private readonly _onDidChangeStatus = this._register(new Emitter<void>());
 	readonly onDidChangeStatus = this._onDidChangeStatus.event;
 
-	private readonly updateThrottler = new Throttler();
+	private readonly updateThrottler = this._register(new Throttler());
 
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,

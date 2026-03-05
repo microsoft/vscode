@@ -7,16 +7,17 @@ import { $ } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IChatHookPart } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
-import { HOOK_TYPES, HookTypeValue } from '../../../common/promptSyntax/hookSchema.js';
+import { HookType, HOOK_METADATA, HookTypeValue } from '../../../common/promptSyntax/hookTypes.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import './media/chatHookContentPart.css';
 
 function getHookTypeLabel(hookType: HookTypeValue): string {
-	return HOOK_TYPES.find(hook => hook.id === hookType)?.label ?? hookType;
+	return HOOK_METADATA[hookType as HookType]?.label ?? hookType;
 }
 
 export class ChatHookContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
@@ -25,20 +26,28 @@ export class ChatHookContentPart extends ChatCollapsibleContentPart implements I
 		private readonly hookPart: IChatHookPart,
 		context: IChatContentPartRenderContext,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		const hookTypeLabel = getHookTypeLabel(hookPart.hookType);
 		const isStopped = !!hookPart.stopReason;
 		const isWarning = !!hookPart.systemMessage;
+		const toolName = hookPart.toolDisplayName;
 		const title = isStopped
-			? localize('hook.title.stopped', "Blocked by {0} hook", hookTypeLabel)
-			: localize('hook.title.warning', "Warning from {0} hook", hookTypeLabel);
+			? (toolName
+				? localize('hook.title.stoppedWithTool', "Blocked {0} - {1} hook", toolName, hookTypeLabel)
+				: localize('hook.title.stopped', "Blocked by {0} hook", hookTypeLabel))
+			: (toolName
+				? localize('hook.title.warningWithTool', "Warning for {0} - {1} hook", toolName, hookTypeLabel)
+				: localize('hook.title.warning', "Warning from {0} hook", hookTypeLabel));
 
-		super(title, context, undefined, hoverService);
+		super(title, context, undefined, hoverService, configurationService);
 
-		this.icon = isStopped ? Codicon.circleSlash : isWarning ? Codicon.warning : Codicon.check;
+		this.icon = isStopped ? Codicon.error : isWarning ? Codicon.warning : Codicon.check;
 
 		if (isStopped) {
 			this.domNode.classList.add('chat-hook-outcome-blocked');
+		} else if (isWarning) {
+			this.domNode.classList.add('chat-hook-outcome-warning');
 		}
 
 		this.setExpanded(false);
@@ -50,7 +59,10 @@ export class ChatHookContentPart extends ChatCollapsibleContentPart implements I
 		if (this.hookPart.stopReason) {
 			const reasonElement = $('.chat-hook-reason', undefined, this.hookPart.stopReason);
 			content.appendChild(reasonElement);
-		} else if (this.hookPart.systemMessage) {
+		}
+
+		const isToolHook = this.hookPart.hookType === HookType.PreToolUse || this.hookPart.hookType === HookType.PostToolUse;
+		if (this.hookPart.systemMessage && (isToolHook || !this.hookPart.stopReason)) {
 			const messageElement = $('.chat-hook-message', undefined, this.hookPart.systemMessage);
 			content.appendChild(messageElement);
 		}
@@ -64,6 +76,7 @@ export class ChatHookContentPart extends ChatCollapsibleContentPart implements I
 		}
 		return other.hookType === this.hookPart.hookType &&
 			other.stopReason === this.hookPart.stopReason &&
-			other.systemMessage === this.hookPart.systemMessage;
+			other.systemMessage === this.hookPart.systemMessage &&
+			other.toolDisplayName === this.hookPart.toolDisplayName;
 	}
 }

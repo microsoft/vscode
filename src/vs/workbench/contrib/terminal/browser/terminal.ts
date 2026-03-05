@@ -164,13 +164,6 @@ export interface ITerminalChatService {
 	 * @returns The chat session resource if found, undefined otherwise
 	 */
 	getChatSessionResourceForInstance(instance: ITerminalInstance): URI | undefined;
-	/**
-	 * @deprecated Use getChatSessionResourceForInstance instead
-	 * Returns the chat session ID for a given terminal instance, if it has been registered.
-	 * @param instance The terminal instance to look up
-	 * @returns The chat session ID if found, undefined otherwise
-	 */
-	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined;
 
 	/**
 	 * Check if a terminal is a background terminal (tool-driven terminal that may be hidden from
@@ -527,6 +520,12 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * @param forceSaveState Used when the window is shutting down and we need to reveal and save hideFromUser terminals
 	 */
 	showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): Promise<void>;
+	/**
+	 * Moves a visible terminal instance to the background. The terminal process
+	 * remains alive but the instance is removed from its group/editor and tracked
+	 * internally so it can later be shown again via {@link showBackgroundTerminal}.
+	 */
+	moveToBackground(instance: ITerminalInstance): void;
 	revealActiveTerminal(preserveFocus?: boolean): Promise<void>;
 	moveToEditor(source: ITerminalInstance, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): void;
 	moveIntoNewEditor(source: ITerminalInstance): void;
@@ -834,6 +833,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly fixedCols?: number;
 	readonly fixedRows?: number;
 	readonly domElement: HTMLElement;
+	readonly isVisible: boolean;
 	readonly icon?: TerminalIcon;
 	readonly color?: string;
 	readonly reconnectionProperties?: IReconnectionProperties;

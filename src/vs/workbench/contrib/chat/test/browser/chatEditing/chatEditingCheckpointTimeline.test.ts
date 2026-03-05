@@ -1248,6 +1248,54 @@ suite('ChatEditingCheckpointTimeline', function () {
 		await timeline.navigateToCheckpoint(stop2NewCheckpointId);
 		assert.strictEqual(fileContents.get(uri), 'replacement edit', 'Content should still be correct after full timeline traversal');
 	});
+
+	test('undo/redo with multiple no-edit requests advances one request at a time', async function () {
+		// req1: no edits
+		timeline.createCheckpoint('req1', undefined, 'Start req1');
+
+		// req2: no edits
+		timeline.createCheckpoint('req2', undefined, 'Start req2');
+
+		// req3: no edits
+		timeline.createCheckpoint('req3', undefined, 'Start req3');
+
+		// req4: no edits
+		timeline.createCheckpoint('req4', undefined, 'Start req4');
+
+		// Undo should step one request at a time
+		assert.strictEqual(timeline.canUndo.get(), true);
+
+		await timeline.undoToLastCheckpoint();
+		assert.deepStrictEqual(timeline.requestDisablement.get().map(d => d.requestId), ['req4']);
+
+		await timeline.undoToLastCheckpoint();
+		assert.deepStrictEqual(timeline.requestDisablement.get().map(d => d.requestId), ['req4', 'req3']);
+
+		await timeline.undoToLastCheckpoint();
+		assert.deepStrictEqual(timeline.requestDisablement.get().map(d => d.requestId), ['req4', 'req3', 'req2']);
+
+		await timeline.undoToLastCheckpoint();
+		assert.deepStrictEqual(timeline.requestDisablement.get().map(d => d.requestId), ['req4', 'req3', 'req2', 'req1']);
+
+		assert.strictEqual(timeline.canUndo.get(), false);
+
+		// Redo should also step one request at a time (not skip all at once)
+		assert.strictEqual(timeline.canRedo.get(), true);
+
+		await timeline.redoToNextCheckpoint();
+		assert.deepStrictEqual(timeline.requestDisablement.get().map(d => d.requestId), ['req4', 'req3', 'req2']);
+
+		await timeline.redoToNextCheckpoint();
+		assert.deepStrictEqual(timeline.requestDisablement.get().map(d => d.requestId), ['req4', 'req3']);
+
+		await timeline.redoToNextCheckpoint();
+		assert.deepStrictEqual(timeline.requestDisablement.get().map(d => d.requestId), ['req4']);
+
+		await timeline.redoToNextCheckpoint();
+		assert.deepStrictEqual(timeline.requestDisablement.get().map(d => d.requestId), []);
+
+		assert.strictEqual(timeline.canRedo.get(), false);
+	});
 });
 
 // Mock notebook service for tests that don't need notebook functionality

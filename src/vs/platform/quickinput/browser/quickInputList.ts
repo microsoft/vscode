@@ -686,13 +686,13 @@ export class QuickInputList extends Disposable {
 
 	//#region QuickInputList Events
 
-	private readonly _onKeyDown = new Emitter<StandardKeyboardEvent>();
+	private readonly _onKeyDown = this._register(new Emitter<StandardKeyboardEvent>());
 	/**
 	 * Event that is fired when the tree receives a keydown.
 	*/
 	readonly onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
 
-	private readonly _onLeave = new Emitter<void>();
+	private readonly _onLeave = this._register(new Emitter<void>());
 	/**
 	 * Event that is fired when the tree would no longer have focus.
 	*/
@@ -710,13 +710,13 @@ export class QuickInputList extends Disposable {
 	private readonly _checkedElementsObservable = observableValueOpts({ equalsFn: equals }, new Array<IQuickPickItem>());
 	readonly onChangedCheckedElements: Event<IQuickPickItem[]> = Event.fromObservable(this._checkedElementsObservable, this._store);
 
-	private readonly _onButtonTriggered = new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>();
+	private readonly _onButtonTriggered = this._register(new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>());
 	onButtonTriggered = this._onButtonTriggered.event;
 
-	private readonly _onSeparatorButtonTriggered = new Emitter<IQuickPickSeparatorButtonEvent>();
+	private readonly _onSeparatorButtonTriggered = this._register(new Emitter<IQuickPickSeparatorButtonEvent>());
 	onSeparatorButtonTriggered = this._onSeparatorButtonTriggered.event;
 
-	private readonly _elementChecked = new Emitter<{ element: IQuickPickElement; checked: boolean }>();
+	private readonly _elementChecked = this._register(new Emitter<{ element: IQuickPickElement; checked: boolean }>());
 	private readonly _elementCheckedEventBufferer = new EventBufferer();
 
 	//#endregion

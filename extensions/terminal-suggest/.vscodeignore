@@ -1,9 +1,8 @@
 src/**
 out/**
-tsconfig.json
+tsconfig*.json
 .vscode/**
-extension.webpack.config.js
-extension-browser.webpack.config.js
+esbuild*.mts
 package-lock.json
 fixtures/**
 scripts/**
