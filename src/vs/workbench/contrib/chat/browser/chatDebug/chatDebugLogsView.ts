@@ -29,6 +29,7 @@ import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem, LogsViewMode } f
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
 import { ChatDebugDetailPanel } from './chatDebugDetailPanel.js';
 import { IChatWidgetService } from '../chat.js';
+import { createDebugEventsAttachment } from '../chatSlashCommands.js';
 
 const $ = DOM.$;
 
@@ -131,9 +132,8 @@ export class ChatDebugLogsView extends Disposable {
 			}
 			const widget = await this.chatWidgetService.openSession(this.currentSessionResource);
 			if (widget) {
-				const value = '/troubleshoot ';
-				widget.inputEditor.setValue(value);
-				widget.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
+				const attachment = await createDebugEventsAttachment(this.currentSessionResource, this.chatDebugService);
+				widget.attachmentModel.addContext(attachment);
 				widget.focusInput();
 			}
 		}));
