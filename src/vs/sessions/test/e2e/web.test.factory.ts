@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbench, IWorkbenchConstructionOptions } from '../../workbench/browser/web.api.js';
+import { IWorkbench, IWorkbenchConstructionOptions } from '../../../../workbench/browser/web.api.js';
 import { TestSessionsBrowserMain } from './web.test.js';
-import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
-import { mark } from '../../base/common/performance.js';
-import { DeferredPromise } from '../../base/common/async.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { mark } from '../../../../base/common/performance.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 
 const workbenchPromise = new DeferredPromise<IWorkbench>();
 

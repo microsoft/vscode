@@ -1990,19 +1990,36 @@ export default tseslint.config(
 					]
 				},
 				{
-					'target': 'src/vs/sessions/sessions.web.test.internal.ts',
+					'target': 'src/vs/sessions/test/e2e/sessions.web.test.internal.ts',
 					'layer': 'browser',
 					'restrictions': [
 						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
 						'vs/sessions/~',
+						'vs/sessions/test/e2e/**',
 						'vs/sessions/contrib/*/~',
 						'vs/workbench/~',
 						'vs/workbench/browser/**',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/sessions/sessions.web.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/test/e2e/{web.test.ts,web.test.factory.ts}',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/test/e2e/**',
+						'vs/sessions/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~'
 					]
 				},
 				{

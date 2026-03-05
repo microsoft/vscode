@@ -137,7 +137,7 @@ ${importMapJson}
 </head>
 <body aria-label="">
 	<script type="module">
-		import { create, URI } from '${fileRoot}/vs/sessions/${useMock ? 'sessions.web.test.internal' : 'sessions.web.main.internal'}.js';
+		import { create, URI } from '${fileRoot}/vs/sessions/${useMock ? 'test/e2e/sessions.web.test.internal' : 'sessions.web.main.internal'}.js';
 		create(document.body, {
 			productConfiguration: {
 				nameShort: 'Sessions (Web)',
@@ -147,8 +147,8 @@ ${importMapJson}
 			${additionalBuiltinExtensions}
 			workspaceProvider: {
 				workspace: ${useMock
-					? `{ folderUri: URI.parse('mock-fs://mock-repo/') }`
-					: 'undefined'},
+			? `{ folderUri: URI.parse('mock-fs://mock-repo/') }`
+			: 'undefined'},
 				open: async () => false,
 				payload: [['isSessionsWindow', 'true']],
 			},
