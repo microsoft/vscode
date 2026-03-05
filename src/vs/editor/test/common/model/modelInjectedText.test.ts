@@ -44,7 +44,7 @@ suite('Editor Model - Injected Text Events', () => {
 			{
 				kind: 'lineChanged',
 				lineNumber: 1,
-				newLineNumber: 1,
+				lineNumberPostEdit: 1,
 			}
 		]);
 
@@ -68,12 +68,12 @@ suite('Editor Model - Injected Text Events', () => {
 			{
 				kind: 'lineChanged',
 				lineNumber: 1,
-				newLineNumber: 1,
+				lineNumberPostEdit: 1,
 			},
 			{
 				kind: 'lineChanged',
 				lineNumber: 2,
-				newLineNumber: 2,
+				lineNumberPostEdit: 2,
 			}
 		]);
 
@@ -83,7 +83,7 @@ suite('Editor Model - Injected Text Events', () => {
 			{
 				kind: 'lineChanged',
 				lineNumber: 2,
-				newLineNumber: 2,
+				lineNumberPostEdit: 2,
 			}
 		]);
 
@@ -101,7 +101,7 @@ suite('Editor Model - Injected Text Events', () => {
 			{
 				kind: 'lineChanged',
 				lineNumber: 2,
-				newLineNumber: 2,
+				lineNumberPostEdit: 2,
 			},
 			{
 				kind: 'linesInserted',
@@ -117,17 +117,17 @@ suite('Editor Model - Injected Text Events', () => {
 			{
 				kind: 'lineChanged',
 				lineNumber: 5,
-				newLineNumber: 5,
+				lineNumberPostEdit: 5,
 			},
 			{
 				kind: 'lineChanged',
 				lineNumber: 4,
-				newLineNumber: 4,
+				lineNumberPostEdit: 4,
 			},
 			{
 				kind: 'lineChanged',
 				lineNumber: 3,
-				newLineNumber: 3,
+				lineNumberPostEdit: 3,
 			},
 			{
 				kind: 'linesInserted',
@@ -142,12 +142,10 @@ suite('Editor Model - Injected Text Events', () => {
 			{
 				kind: 'lineChanged',
 				lineNumber: 2,
-				newLineNumber: 2,
+				lineNumberPostEdit: 2,
 			},
 			{
 				kind: 'linesDeleted',
-				fromLineNumber: 3,
-				count: 14,
 			}
 		]);
 
@@ -160,7 +158,7 @@ function mapChange(change: ModelRawChange): unknown {
 		return {
 			kind: 'lineChanged',
 			lineNumber: change.lineNumber,
-			newLineNumber: change.lineNumberPostEdit,
+			lineNumberPostEdit: change.lineNumberPostEdit,
 		};
 	} else if (change.changeType === RawContentChangedType.LinesInserted) {
 		return {
@@ -171,7 +169,6 @@ function mapChange(change: ModelRawChange): unknown {
 	} else if (change.changeType === RawContentChangedType.LinesDeleted) {
 		return {
 			kind: 'linesDeleted',
-			fromLineNumber: change.fromLineNumber
 		};
 	} else if (change.changeType === RawContentChangedType.EOLChanged) {
 		return {
