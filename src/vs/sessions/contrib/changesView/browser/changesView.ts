@@ -584,6 +584,7 @@ export class ChangesViewPane extends ViewPane {
 					menuId,
 					{
 						telemetrySource: 'changesView',
+						disableWhileRunning: isSessionMenu,
 						menuOptions: isSessionMenu && sessionResource
 							? { args: [sessionResource, this.agentSessionsService.getSession(sessionResource)?.metadata] }
 							: { shouldForwardArgs: true },
