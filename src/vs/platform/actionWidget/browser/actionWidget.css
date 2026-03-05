@@ -221,10 +221,6 @@
 .action-widget .description-below .monaco-list .monaco-list-row.action {
 	flex-wrap: wrap;
 	align-content: center;
-	/* padding-right: 4px; */
-}
-
-.action-widget .description-below .monaco-list .monaco-list-row {
 	padding-top: 6px;
 	padding-right: 2px;
 
@@ -237,7 +233,6 @@
 		width: 100%;
 		margin-left: 0;
 		padding-left: 18px;
-		/* align with title (icon width + gap) */
 		font-size: 11px;
 		line-height: 14px;
 		opacity: 0.8;
@@ -245,7 +240,6 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-
 }
 
 /* Item toolbar - shows on hover/focus */

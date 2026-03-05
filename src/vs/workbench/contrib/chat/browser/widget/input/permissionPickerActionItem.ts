@@ -114,7 +114,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 									custom: {
 										icon: Codicon.warning,
 										markdownDetails: [{
-											markdown: new MarkdownString(localize('permissions.autoApprove.warning.detail', "Bypass Approvals will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls.\n\nThis applies to the current session only and resets when you start a new chat.")),
+											markdown: new MarkdownString(localize('permissions.autoApprove.warning.detail', "Bypass Approvals will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls.")),
 										}],
 									},
 								});
