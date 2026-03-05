@@ -917,6 +917,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				const AddonCtor = await this._xtermAddonLoader.importAddon('image');
 				this._imageAddon = new AddonCtor();
 				this.raw.loadAddon(this._imageAddon);
+				type TerminalImageAddonActivatedClassification = {
+					owner: 'anthonykim1';
+					comment: 'Tracks when the xterm.js image addon is loaded, including dynamic enablement';
+				};
+				this._telemetryService.publicLog2<{}, TerminalImageAddonActivatedClassification>('terminal/imageAddonActivated');
 				this._register(this._imageAddon.onImageAdded(() => {
 					type TerminalImageAddedClassification = {
 						owner: 'anthonykim1';
