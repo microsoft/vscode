@@ -85,12 +85,18 @@ export class ModalEditorPart {
 			}
 		}));
 
+		let useModalMode = this.configurationService.getValue<string>('workbench.editor.useModal');
+		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.editor.useModal')) {
+				useModalMode = this.configurationService.getValue<string>('workbench.editor.useModal');
+			}
+		}));
+
 		disposables.add(addDisposableListener(modalElement, EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 
 			// Prevent unsupported commands unless all editors open in modal
-			const useModal = this.configurationService.getValue<string>('workbench.editor.useModal');
-			if (useModal !== 'all') {
+			if (useModalMode !== 'all') {
 				const resolved = this.keybindingService.softDispatch(event, this.layoutService.mainContainer);
 				if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
 					if (
