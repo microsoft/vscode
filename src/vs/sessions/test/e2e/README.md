@@ -1,18 +1,69 @@
 # Agent Sessions — E2E Tests
 
-Automated dogfooding tests for the Agent Sessions window using
-[`playwright-cli`](https://github.com/microsoft/playwright-cli) and a lightweight
-web server that serves Sessions in a browser.
+Automated dogfooding tests for the Agent Sessions window using a
+**compile-and-replay** architecture powered by
+[`playwright-cli`](https://github.com/microsoft/playwright-cli) and Copilot CLI.
 
-## Architecture
+## How It Works
+
+There are two phases:
+
+### Phase 1: Generate (uses LLM — slow, run once)
+
+```bash
+npm run generate
+```
+
+For each `.scenario.md` file, the generate script:
+1. Starts the Sessions web server and opens the page in `playwright-cli`
+2. Takes an accessibility tree snapshot of the current page
+3. Sends each natural-language step + snapshot to **Copilot CLI**, which returns
+   the exact `playwright-cli` commands (e.g. `click e43`, `type "hello"`)
+4. Executes the commands to advance the UI state for the next step
+5. Writes the compiled commands to a `.commands.json` file next to the scenario
+
+```
+scenarios/
+├── 01-repo-picker-on-submit.scenario.md       ← human-written
+├── 01-repo-picker-on-submit.commands.json      ← agent-generated
+├── 02-cloud-disables-add-run-action.scenario.md
+└── 02-cloud-disables-add-run-action.commands.json
+```
+
+The `.commands.json` files are **committed to git** — they're the deterministic
+test plan that everyone runs.
+
+### Phase 2: Test (no LLM — fast, deterministic)
+
+```bash
+npm test
+```
+
+The test runner reads each `.commands.json` and replays the `playwright-cli`
+commands mechanically. No LLM calls, no regex matching, no icon stripping.
+Just sequential commands and assertions.
+
+### When to Re-generate
+
+Run `npm run generate` when:
+- You add a new `.scenario.md` file
+- The UI changes and refs are stale (tests start failing)
+- You modify an existing scenario's steps
+
+## File Structure
 
 ```
 e2e/
-├── run.cjs                   # Test runner — single command to run all scenarios
-├── scenarios/               # Plain-English test scenarios (*.scenario.md)
+├── common.cjs               # Shared helpers (server, playwright-cli, parser)
+├── generate.cjs              # Compiles scenarios → .commands.json via Copilot CLI
+├── test.cjs                  # Replays .commands.json deterministically
+├── package.json              # npm scripts: generate, test
+├── scenarios/
 │   ├── 01-repo-picker-on-submit.scenario.md
-│   └── 02-cloud-disables-add-run-action.scenario.md
-├── .gitignore               # Ignores out/ and *.png
+│   ├── 01-repo-picker-on-submit.commands.json
+│   ├── 02-cloud-disables-add-run-action.scenario.md
+│   └── 02-cloud-disables-add-run-action.commands.json
+├── .gitignore
 └── README.md
 ```
 
@@ -20,24 +71,9 @@ Supporting scripts at the repo root:
 
 ```
 scripts/
-├── code-sessions-web.js     # HTTP server that serves Sessions as a web app
-└── code-sessions-web.sh     # Shell wrapper
+├── code-sessions-web.js      # HTTP server that serves Sessions as a web app
+└── code-sessions-web.sh      # Shell wrapper
 ```
-
-### How It Works
-
-1. `run.cjs` starts the Sessions web server (`scripts/code-sessions-web.js`) on a random
-   port with `?skip-sessions-welcome` to bypass the sign-in overlay.
-2. It opens the page in `playwright-cli` (headed mode).
-3. It reads each `*.scenario.md` file from `scenarios/` and extracts the `## Steps` list.
-4. For each step, `run.cjs` translates the natural-language instruction into
-   `playwright-cli` commands:
-   - **Click**: takes a snapshot, finds the button ref by label, clicks the ref.
-   - **Type / Press**: calls `playwright-cli type` or `playwright-cli press`.
-   - **Verify visible**: takes a snapshot and checks the text appears.
-   - **Verify button disabled/enabled**: takes a snapshot, finds the button line,
-     checks for `[disabled]`.
-5. Results are printed with ✅/❌ per step. Failed steps capture a screenshot.
 
 ## Prerequisites
 
@@ -45,22 +81,32 @@ scripts/
   ```bash
   npm install && npm run compile
   ```
-- `playwright-cli` installed globally:
+- Dependencies installed:
   ```bash
-  npm install -g @playwright/cli@latest
+  cd src/vs/sessions/test/e2e && npm install
+  ```
+- Copilot CLI available (for `npm run generate` only):
+  ```bash
+  copilot --version
   ```
 
 ## Running
 
-From the repo root:
-
 ```bash
-node src/vs/sessions/test/e2e/run.cjs
+cd src/vs/sessions/test/e2e
+
+# First time or after UI changes:
+npm run generate
+
+# Run tests (fast, deterministic):
+npm test
 ```
 
-Example output:
+Example test output:
 
 ```
+Found 2 compiled scenario(s)
+
 Starting sessions web server on port 9542…
 Server ready.
 
@@ -79,10 +125,10 @@ Results: 6 passed, 0 failed
 
 ## Writing a New Scenario
 
-Create a new `NN-description.scenario.md` file in the `scenarios/` directory.
-Files are sorted by name and run in order.
+1. Create a new `NN-description.scenario.md` file in `scenarios/`.
+   Files are sorted by name and run in order.
 
-### Scenario Format
+2. Use this format:
 
 ```markdown
 # Scenario: Short description of what this tests
@@ -94,106 +140,85 @@ Files are sorted by name and run in order.
 4. Verify the repository picker dropdown is visible
 ```
 
-The `## Steps` section is required. Steps can use numbered lists (`1.`) or bullets (`-`).
+3. Run `npm run generate` to compile it into a `.commands.json` file.
 
-### Supported Step Patterns
+4. Run `npm test` to verify it works.
 
-| Pattern | What it does |
-|---------|--------------|
-| `Click button "<label>"` | Snapshots the page, finds the button by label, clicks it |
-| `Type "<text>" in the chat input` | Types text into the chat input |
-| `Press Enter to submit` | Presses Enter |
-| `Press <key>` | Presses any key (e.g., `Escape`, `Tab`) |
-| `Verify the repository picker dropdown is visible` | Checks snapshot for "Pick Repository" |
-| `Verify <element> is visible` | Checks snapshot for the element text |
-| `Verify the "<label>" button is disabled` | Checks snapshot for button with `[disabled]` |
-| `Verify the "<label>" button is enabled` | Checks snapshot for button without `[disabled]` |
+5. Commit both the `.scenario.md` and `.commands.json` files.
 
-### Adding New Step Patterns
+### Step Language
 
-To support a new kind of step:
+Write steps in plain English. The Copilot agent interprets them against the
+page's accessibility tree. Common patterns:
 
-1. Open `run.cjs` and find the `stepToCommands()` function.
-2. Add a new regex match case that returns a command object:
-   ```js
-   // Example: support "Wait <N> seconds"
-   if ((m = step.match(/^wait (\d+) seconds?$/i))) {
-       return [{ type: 'cli', args: ['wait', m[1]] }];
-   }
-   ```
-3. If the command type is new (not `cli`, `click-button`, `assert-visible`, etc.),
-   add a corresponding `case` in the `executeStep()` function's switch statement.
+| Pattern | Example |
+|---------|---------|
+| Click a button | `Click button "Cloud"` |
+| Type in an input | `Type "hello" in the chat input` |
+| Press a key | `Press Enter` |
+| Verify visibility | `Verify the repository picker dropdown is visible` |
+| Verify button state | `Verify the "Send" button is disabled` |
+
+You're not limited to these patterns — the agent understands natural language.
+
+### The .commands.json Format
+
+Each compiled step looks like:
+
+```json
+{
+  "description": "Click button \"Cloud\"",
+  "commands": [
+    "click e143"
+  ]
+}
+```
+
+For assertions, the agent outputs a `snapshot` command followed by an assertion comment:
+
+```json
+{
+  "description": "Verify the repository picker dropdown is visible",
+  "commands": [
+    "snapshot",
+    "# ASSERT_VISIBLE: Repository Picker"
+  ]
+}
+```
+
+The test runner understands these comment-based assertions:
+- `# ASSERT_VISIBLE: <text>` — checks snapshot contains the text
+- `# ASSERT_DISABLED: <label>` — checks button has `[disabled]`
+- `# ASSERT_ENABLED: <label>` — checks button doesn't have `[disabled]`
 
 ### How a Step Executes (Worked Example)
 
-To understand the internals, let's trace the step `Click button "Cloud"` end to end.
+Let's trace `Click button "Cloud"` through both phases.
 
-**1 — The Sessions UI renders in the browser.** Among many DOM nodes, the target
-picker produces:
-
-```html
-<div class="session-target-picker" data-testid="sessions-target-picker">
-  <div class="monaco-button" role="button" tabindex="0" aria-pressed="true">
-    <span>Local</span>
-  </div>
-  <div class="monaco-button" role="button" tabindex="0" aria-pressed="false">
-    <span>Cloud</span>
-  </div>
-</div>
-```
-
-**2 — `run.cjs` parses the step string** through `stepToCommands()`:
-
-```
-"Click button \"Cloud\""  →  regex /^click button "(.+?)"$/i  →  { type: 'click-button', label: 'Cloud' }
-```
-
-**3 — `executeStep()` handles the `click-button` command.** It first shells out to
-`playwright-cli snapshot`. This asks Chromium for the page's **accessibility tree**
-(the same tree screen readers use) and writes it to a YAML file:
+**Generate phase** — the agent sees the accessibility tree snapshot:
 
 ```yaml
-# .playwright-cli/page-2026-03-04T02-41-24-576Z.yml
-- banner
-  - heading "Sessions" [level=1] [ref=e12]
-- main
-  - group "Session target"
-    - button "Local" [pressed] [ref=e42]
-    - button "Cloud" [ref=e43]
-  - textbox "Ask anything, @ to mention" [ref=e67]
-  - button "Send" [ref=e68]
+- group "Session target"
+  - button "Local" [ref=e141]
+  - button "Cloud" [ref=e143]
 ```
 
-Note: no CSS classes, no DOM structure — just what a screen reader would see. Each
-interactive element gets a unique `ref` assigned by `playwright-cli`.
+Copilot CLI returns: `click e143`
 
-**4 — `findRefByButtonName()` scans the YAML** line by line looking for a line that
-contains both `button` and `"Cloud"`:
+This is saved to `.commands.json` and the click is executed to advance state.
 
-```
-"    - button "Local" [pressed] [ref=e42]"  → has "button", has "Local" not "Cloud" → skip
-"    - button "Cloud" [ref=e43]"            → has "button" AND "Cloud" → extract e43 ✓
-```
+**Test phase** — the runner reads:
 
-**5 — `run.cjs` shells out to `playwright-cli click e43`.** The CLI maps `e43` back to
-the DOM element (it kept the ref→element mapping from the snapshot), sends a click
-event via CDP, and Chromium dispatches the click. The Sessions UI switches to Cloud mode.
-
-**6 — The step passes** (exit code 0):
-
-```
-  ✅   step 1: Click button "Cloud"
+```json
+{ "commands": ["click e143"] }
 ```
 
-The full chain: **DOM → Chromium accessibility tree → YAML file → regex search →
-ref ID → CDP click → DOM event**. Our code only touches the middle part (reading
-YAML and finding the ref). Everything else is Chromium and `playwright-cli`.
+It shells out to `playwright-cli click e143`. Done. No parsing, no matching.
 
-### Tips for Writing Good Scenarios
+### Tips
 
-- **Use exact button labels** as they appear in the UI (e.g., `"Cloud"`, `"Local"`).
-  The runner matches button text from `playwright-cli` accessibility snapshots.
-- **One action per step** — keep steps atomic so failures are easy to diagnose.
-- **Order matters** — scenarios run sequentially and the browser state carries over
-  (an `Escape` press is injected between scenarios to dismiss overlays).
+- **Use exact button labels** as they appear in the UI.
+- **One action per step** — keep steps atomic for clear failure messages.
+- **Order matters** — scenarios run sequentially; an Escape is pressed between them.
 - **Prefix filenames** with numbers (`01-`, `02-`, …) to control execution order.
+- **Re-generate selectively**: `npm run generate -- 01-repo` to recompile one scenario.
