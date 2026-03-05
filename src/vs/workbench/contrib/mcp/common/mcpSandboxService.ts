@@ -20,7 +20,7 @@ import { IMcpResourceScannerService, McpResourceTarget } from '../../../../platf
 import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IMcpSandboxConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { IMcpPotentialSandboxBlock, McpServerDefinition, McpServerLaunch, McpServerTransportType } from './mcpTypes.js';
+import { IMcpPotentialSandboxBlock, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from './mcpTypes.js';
 
 export const IMcpSandboxService = createDecorator<IMcpSandboxService>('mcpSandboxService');
 
@@ -87,15 +87,14 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 			this._logService.trace(`McpSandboxService: Launching with config target ${configTarget}`);
 			const launchDetails = await this._resolveSandboxLaunchDetails(configTarget, remoteAuthority, launch.sandbox, launch.cwd);
 			const sandboxArgs = this._getSandboxCommandArgs(launch.command, launch.args, launchDetails.sandboxConfigPath);
-			const sandboxEnv = this._getSandboxEnvVariables(launchDetails.tempDir, launchDetails.rgPath, remoteAuthority);
+			const sandboxEnv = this._getSandboxEnvVariables(launch.env, launchDetails.tempDir, launchDetails.rgPath, remoteAuthority);
 			if (launchDetails.srtPath) {
-				const envWithSandbox = sandboxEnv ? { ...launch.env, ...sandboxEnv } : launch.env;
 				if (launchDetails.execPath) {
 					return {
 						...launch,
 						command: launchDetails.execPath,
 						args: [launchDetails.srtPath, ...sandboxArgs],
-						env: envWithSandbox,
+						env: sandboxEnv,
 						type: McpServerTransportType.Stdio,
 					};
 				} else {
@@ -103,7 +102,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 						...launch,
 						command: launchDetails.srtPath,
 						args: sandboxArgs,
-						env: envWithSandbox,
+						env: sandboxEnv,
 						type: McpServerTransportType.Stdio,
 					};
 				}
@@ -273,10 +272,10 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		return undefined; // Use Electron executable as the default exec path for local development, which will run the sandbox runtime wrapper with Electron in node mode. For remote, we need to specify the node executable to ensure it runs with Node.js.
 	}
 
-	private _getSandboxEnvVariables(tempDir: URI | undefined, rgPath: string | undefined, remoteAuthority?: string): Record<string, string | null> | undefined {
-		let env: Record<string, string | null> = {};
+	private _getSandboxEnvVariables(baseEnv: McpServerTransportStdio['env'], tempDir: URI | undefined, rgPath: string | undefined, remoteAuthority?: string): McpServerTransportStdio['env'] {
+		let env: McpServerTransportStdio['env'] = { ...baseEnv };
 		if (tempDir) {
-			env = { TMPDIR: tempDir.path, SRT_DEBUG: 'true' };
+			env = { ...env, TMPDIR: tempDir.path, SRT_DEBUG: 'true' };
 		}
 		if (rgPath) {
 			env = { ...env, PATH: `${dirname(rgPath)}` };
