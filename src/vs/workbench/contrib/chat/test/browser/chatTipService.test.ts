@@ -253,6 +253,7 @@ suite('ChatTipService', () => {
 
 		assert.ok(tip);
 		assert.strictEqual(tip.id, 'tip.switchToAuto');
+		assert.ok(tip.content.value.includes('GPT-4.1'));
 	});
 
 	test('does not return Auto switch tip when current model is not gpt-4.1', () => {
