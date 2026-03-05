@@ -80,7 +80,7 @@ interface IAICustomizationGroupItem {
 	readonly type: 'group';
 	readonly id: string;
 	readonly label: string;
-	readonly storage: PromptsStorage;
+	readonly storage: AICustomizationPromptsStorage;
 	readonly promptType: PromptsType;
 	readonly icon: ThemeIcon;
 }
@@ -94,7 +94,7 @@ interface IAICustomizationFileItem {
 	readonly uri: URI;
 	readonly name: string;
 	readonly description?: string;
-	readonly storage: PromptsStorage;
+	readonly storage: AICustomizationPromptsStorage;
 	readonly promptType: PromptsType;
 }
 
@@ -442,7 +442,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			type: 'group',
 			id: `group-${promptType}-${storageSuffixes[storage]}`,
 			label: storageLabels[storage],
-			storage: storage as PromptsStorage,
+			storage,
 			promptType,
 			icon: storageIcons[storage],
 		};
@@ -452,7 +452,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 	 * Returns files for a specific storage/type combination from cache.
 	 * getStorageGroups must be called first to populate the cache.
 	 */
-	private async getFilesForStorageAndType(storage: PromptsStorage, promptType: PromptsType): Promise<IAICustomizationFileItem[]> {
+	private async getFilesForStorageAndType(storage: AICustomizationPromptsStorage, promptType: PromptsType): Promise<IAICustomizationFileItem[]> {
 		const cached = this.cache.get(promptType);
 
 		// For skills, use the cached skills data

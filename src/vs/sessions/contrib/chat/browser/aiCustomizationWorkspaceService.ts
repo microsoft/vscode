@@ -70,7 +70,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			joinPath(userHome, '.agents'),
 		];
 		this._cliUserFilter = {
-			sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, BUILTIN_STORAGE as PromptsStorage],
+			sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, BUILTIN_STORAGE],
 			includedUserFileRoots: this._cliUserRoots,
 		};
 
@@ -122,7 +122,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	};
 
 	private static readonly _allUserRootsFilter: IStorageSourceFilter = {
-		sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, BUILTIN_STORAGE as PromptsStorage],
+		sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, BUILTIN_STORAGE],
 	};
 
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
