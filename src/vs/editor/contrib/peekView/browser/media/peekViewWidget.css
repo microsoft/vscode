@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-editor .peekview-widget {
+	box-shadow: var(--vscode-shadow-hover);
+}
+
 .monaco-editor .peekview-widget .head {
 	box-sizing: border-box;
 	display: flex;

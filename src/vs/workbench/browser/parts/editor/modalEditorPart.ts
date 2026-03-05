@@ -7,7 +7,6 @@ import './media/modalEditorPart.css';
 import { $, addDisposableListener, append, EventHelper, EventType, hide, isHTMLElement, show } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -27,7 +26,6 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext } from '../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, Verbosity } from '../../../common/editor.js';
 import { ResourceLabel } from '../../labels.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -37,12 +35,55 @@ import { CLOSE_MODAL_EDITOR_COMMAND_ID, MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MO
 import { IModalEditorNavigation, IModalEditorPartOptions } from '../../../../platform/editor/common/editor.js';
 
 const defaultModalEditorAllowableCommands = new Set([
+
+	// Application
 	'workbench.action.quit',
 	'workbench.action.reloadWindow',
-	'workbench.action.closeActiveEditor',
-	'workbench.action.closeAllEditors',
+	'workbench.action.toggleFullScreen',
+
+	// Quick access
+	'workbench.action.gotoSymbol',
+	'workbench.action.gotoLine',
+
+	// Zoom
+	'workbench.action.zoomIn',
+	'workbench.action.zoomOut',
+	'workbench.action.zoomReset',
+
+	// File operations
 	'workbench.action.files.save',
 	'workbench.action.files.saveAll',
+	'workbench.action.files.revert',
+
+	// Close editors
+	'workbench.action.closeActiveEditor',
+	'workbench.action.closeAllEditors',
+	'workbench.action.closeEditorsInGroup',
+	'workbench.action.closeUnmodifiedEditors',
+
+	// Settings
+	'workbench.action.openSettings',
+	'workbench.action.openSettings2',
+	'workbench.action.openSettingsJson',
+	'workbench.action.openGlobalSettings',
+	'workbench.action.openApplicationSettingsJson',
+	'workbench.action.openRawDefaultSettings',
+	'workbench.action.openWorkspaceSettings',
+	'workbench.action.openWorkspaceSettingsFile',
+	'workbench.action.openFolderSettings',
+	'workbench.action.openFolderSettingsFile',
+	'workbench.action.openRemoteSettings',
+	'workbench.action.openRemoteSettingsFile',
+	'workbench.action.openAccessibilitySettings',
+	'workbench.action.configureLanguageBasedSettings',
+
+	// Keybindings
+	'workbench.action.openGlobalKeybindings',
+	'workbench.action.openDefaultKeybindingsFile',
+	'workbench.action.openGlobalKeybindingsFile',
+	'workbench.action.openKeyboardLayoutPicker',
+
+	// Modal editor
 	CLOSE_MODAL_EDITOR_COMMAND_ID,
 	MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID,
 	MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID,
@@ -66,7 +107,7 @@ export class ModalEditorPart {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IHostService private readonly hostService: IHostService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 
@@ -87,18 +128,18 @@ export class ModalEditorPart {
 			}
 		}));
 
+		let useModalMode = this.configurationService.getValue<string>('workbench.editor.useModal');
+		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.editor.useModal')) {
+				useModalMode = this.configurationService.getValue<string>('workbench.editor.useModal');
+			}
+		}));
+
 		disposables.add(addDisposableListener(modalElement, EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 
-			// Close on Escape
-			if (event.equals(KeyCode.Escape)) {
-				EventHelper.stop(event, true);
-
-				editorPart.close();
-			}
-
-			// Prevent unsupported commands (not in sessions windows)
-			else if (!this.environmentService.isSessionsWindow) {
+			// Prevent unsupported commands unless all editors open in modal
+			if (useModalMode !== 'all') {
 				const resolved = this.keybindingService.softDispatch(event, this.layoutService.mainContainer);
 				if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
 					if (
@@ -119,7 +160,6 @@ export class ModalEditorPart {
 			role: 'dialog',
 			'aria-modal': 'true',
 			'aria-labelledby': titleId,
-			tabIndex: -1
 		});
 		shadowElement.appendChild(editorPartContainer);
 
@@ -230,6 +270,12 @@ export class ModalEditorPart {
 			editorPart.toggleMaximized();
 		}));
 
+		// Focus active editor when clicking into the title area with no other click target
+		disposables.add(addDisposableListener(headerElement, EventType.CLICK, e => {
+			EventHelper.stop(e);
+
+			editorPart.activeGroup.focus();
+		}));
 
 		// Layout the modal editor part
 		const layoutModal = () => {
@@ -270,8 +316,8 @@ export class ModalEditorPart {
 		this.hostService.setWindowDimmed(mainWindow, true);
 		disposables.add(toDisposable(() => this.hostService.setWindowDimmed(mainWindow, false)));
 
-		// Focus the modal
-		editorPartContainer.focus();
+		// Focus
+		editorPart.activeGroup.focus();
 
 		return {
 			part: editorPart,

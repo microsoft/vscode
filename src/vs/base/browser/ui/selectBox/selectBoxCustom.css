@@ -7,7 +7,7 @@
 	display: none;
 	box-sizing: border-box;
 	border-radius: var(--vscode-cornerRadius-large);
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-lg);
 }
 
 .monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown * {

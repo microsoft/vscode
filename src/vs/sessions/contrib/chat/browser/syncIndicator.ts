@@ -7,6 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -24,6 +25,7 @@ export class SyncIndicator extends Disposable {
 	private _repository: IGitRepository | undefined;
 	private _selectedBranch: string | undefined;
 	private _visible = true;
+	private _syncing = false;
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _stateDisposables = this._register(new DisposableStore());
@@ -81,13 +83,13 @@ export class SyncIndicator extends Disposable {
 
 		this._renderDisposables.add(dom.addDisposableListener(button, dom.EventType.CLICK, (e) => {
 			dom.EventHelper.stop(e, true);
-			this.commandService.executeCommand(GIT_SYNC_COMMAND, this._repository?.rootUri);
+			this._executeSyncCommand();
 		}));
 
 		this._renderDisposables.add(dom.addDisposableListener(button, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
-				this.commandService.executeCommand(GIT_SYNC_COMMAND, this._repository?.rootUri);
+				this._executeSyncCommand();
 			}
 		}));
 
@@ -100,6 +102,20 @@ export class SyncIndicator extends Disposable {
 	setVisible(visible: boolean): void {
 		this._visible = visible;
 		this._update();
+	}
+
+	private async _executeSyncCommand(): Promise<void> {
+		if (this._syncing) {
+			return;
+		}
+		this._syncing = true;
+		this._update();
+		try {
+			await this.commandService.executeCommand(GIT_SYNC_COMMAND, this._repository?.rootUri);
+		} finally {
+			this._syncing = false;
+			this._update();
+		}
 	}
 
 	private _getAheadBehind(): { ahead: number; behind: number } | undefined {
@@ -132,7 +148,7 @@ export class SyncIndicator extends Disposable {
 		}
 
 		const counts = this._getAheadBehind();
-		if (!counts || !this._visible) {
+		if ((!counts && !this._syncing) || !this._visible) {
 			this._slotElement.style.display = 'none';
 			return;
 		}
@@ -140,24 +156,26 @@ export class SyncIndicator extends Disposable {
 		this._slotElement.style.display = '';
 
 		dom.clearNode(this._buttonElement);
-		dom.append(this._buttonElement, renderIcon(Codicon.sync));
+		dom.append(this._buttonElement, renderIcon(this._syncing ? ThemeIcon.modify(Codicon.sync, 'spin') : Codicon.sync));
 
-		const parts: string[] = [];
-		if (counts.behind > 0) {
-			parts.push(`${counts.behind}↓`);
-		}
-		if (counts.ahead > 0) {
-			parts.push(`${counts.ahead}↑`);
-		}
+		if (counts) {
+			const parts: string[] = [];
+			if (counts.behind > 0) {
+				parts.push(`${counts.behind}↓`);
+			}
+			if (counts.ahead > 0) {
+				parts.push(`${counts.ahead}↑`);
+			}
 
-		const label = dom.append(this._buttonElement, dom.$('span.sessions-chat-dropdown-label'));
-		label.textContent = parts.join('\u00a0');
+			const label = dom.append(this._buttonElement, dom.$('span.sessions-chat-dropdown-label'));
+			label.textContent = parts.join('\u00a0');
+		}
 
 		this._buttonElement.title = localize(
 			'syncIndicator.tooltip',
 			"Synchronize Changes ({0} to pull, {1} to push)",
-			counts.behind,
-			counts.ahead,
+			counts?.behind ?? 0,
+			counts?.ahead ?? 0,
 		);
 	}
 }

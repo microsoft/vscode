@@ -47,6 +47,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _remoteEnvDetails: IRemoteAgentEnvironment | null = null;
 	private _appRoot: string;
 	private _os: OperatingSystem = OS;
+	private _defaultWritePaths: string[] = ['~/.npm'];
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -105,8 +106,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}
 		// Use ELECTRON_RUN_AS_NODE=1 to make Electron executable behave as Node.js
 		// TMPDIR must be set as environment variable before the command
-		// Use -c to pass the command string directly (like sh -c), avoiding argument parsing issues
-		const wrappedCommand = `PATH="$PATH:${dirname(this._rgPath)}" TMPDIR="${this._tempDir.path}" "${this._execPath}" "${this._srtPath}" --settings "${this._sandboxConfigPath}" -c "${command}"`;
+		// Quote shell arguments so the wrapped command cannot break out of the outer shell.
+		const wrappedCommand = `PATH="$PATH:${dirname(this._rgPath)}" TMPDIR="${this._tempDir.path}" "${this._execPath}" "${this._srtPath}" --settings "${this._sandboxConfigPath}" -c ${this._quoteShellArgument(command)}`;
 		if (this._remoteEnvDetails) {
 			return `${wrappedCommand}`;
 		}
@@ -128,6 +129,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			this._needsForceUpdateConfigFile = false;
 		}
 		return this._sandboxConfigPath;
+	}
+
+	private _quoteShellArgument(value: string): string {
+		return `'${value.replace(/'/g, `'\\''`)}'`;
 	}
 
 	private async _resolveSrtPath(): Promise<void> {
@@ -159,6 +164,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				? this._configurationService.getValue<{ denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }>(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem) ?? {}
 				: {};
 			const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
+			const defaultAllowWrite = [...this._defaultWritePaths];
+			const linuxAllowWrite = [...new Set([...defaultAllowWrite, ...(linuxFileSystemSetting.allowWrite ?? [])])];
+			const macAllowWrite = [...new Set([...defaultAllowWrite, ...(macFileSystemSetting.allowWrite ?? [])])];
 
 			let allowedDomains = networkSetting.allowedDomains ?? [];
 			if (networkSetting.allowTrustedDomains) {
@@ -172,7 +180,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				},
 				filesystem: {
 					denyRead: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyRead : linuxFileSystemSetting.denyRead,
-					allowWrite: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.allowWrite : linuxFileSystemSetting.allowWrite,
+					allowWrite: this._os === OperatingSystem.Macintosh ? macAllowWrite : linuxAllowWrite,
 					denyWrite: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyWrite : linuxFileSystemSetting.denyWrite,
 				}
 			};
@@ -198,6 +206,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			} else {
 				const environmentService = this._environmentService as IEnvironmentService & { tmpDir?: URI };
 				this._tempDir = environmentService.tmpDir;
+			}
+			if (this._tempDir) {
+				this._defaultWritePaths.push(this._tempDir.path);
 			}
 			if (!this._tempDir) {
 				this._logService.warn('TerminalSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');

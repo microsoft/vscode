@@ -11,7 +11,7 @@ import { match } from '../../../../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
-import { relativePath } from '../../../../../../../base/common/resources.js';
+import { basename, relativePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
@@ -40,8 +40,8 @@ import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry 
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage, Target } from '../../../../common/promptSyntax/service/promptsService.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
+import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -50,7 +50,7 @@ import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../servic
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
 import { IRemoteAgentService } from '../../../../../../services/remote/common/remoteAgentService.js';
 import { ChatModeKind } from '../../../../common/constants.js';
-import { HookType } from '../../../../common/promptSyntax/hookSchema.js';
+import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyService, IContextKeyChangeEvent } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
@@ -794,6 +794,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -850,6 +851,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local },
 				},
@@ -925,6 +927,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -943,6 +946,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1013,6 +1017,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1031,6 +1036,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1049,6 +1055,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1126,6 +1133,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/copilot-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1146,6 +1154,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1165,6 +1174,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent2.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1176,6 +1186,7 @@ suite('PromptsService', () => {
 				'Claude tools and models must be mapped to VS Code equivalents; non-Claude agents must remain unchanged.',
 			);
 		});
+
 
 		test('agents with .md extension should be recognized, except README.md', async () => {
 			const rootFolderName = 'custom-agents-md-extension';
@@ -1220,6 +1231,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
 					source: { storage: PromptsStorage.local }
 				}
@@ -1290,6 +1302,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/restricted-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1308,6 +1321,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/no-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1326,6 +1340,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/full-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -3504,6 +3519,7 @@ suite('PromptsService', () => {
 			return {
 				plugin: {
 					uri: URI.file(path),
+					label: basename(URI.file(path)),
 					enabled,
 					setEnabled: () => { },
 					remove: () => { },

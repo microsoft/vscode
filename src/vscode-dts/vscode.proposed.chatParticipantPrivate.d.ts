@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 14
+// version: 15
 
 declare module 'vscode' {
 
@@ -115,6 +115,13 @@ declare module 'vscode' {
 		 * The request ID of the parent request that invoked this subagent.
 		 */
 		readonly parentRequestId?: string;
+
+		/**
+		 * The permission level for tool auto-approval in this request.
+		 * - `'autoApprove'`: Auto-approve all tool calls and retry on errors.
+		 * - `'autopilot'`: Everything autoApprove does plus continues until the task is done.
+		 */
+		readonly permissionLevel?: string;
 
 		/**
 		 * Whether any hooks are enabled for this request.
