@@ -456,7 +456,7 @@ function appendEditorToolItem(primary: ICommandAction, when: ContextKeyExpressio
 		MenuRegistry.appendMenuItem(MenuId.CompactWindowEditorTitle, item);
 	}
 	if (enableInModalMode) {
-		MenuRegistry.appendMenuItem(MenuId.ModalEditorTitle, item);
+		MenuRegistry.appendMenuItem(MenuId.ModalEditorEditorTitle, item);
 	}
 }
 

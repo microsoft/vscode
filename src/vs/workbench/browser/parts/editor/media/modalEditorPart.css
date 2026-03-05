@@ -145,10 +145,6 @@
 			margin: 0 4px;
 			background-color: var(--vscode-titleBar-activeForeground);
 			opacity: 0.3;
-
-			&.hidden {
-				display: none;
-			}
 		}
 	}
 }

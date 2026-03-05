@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/modalEditorPart.css';
-import { $, addDisposableListener, append, EventHelper, EventType, hide, isHTMLElement, show } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventType, hide, isHTMLElement, setVisibility, show } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -245,13 +245,13 @@ export class ModalEditorPart {
 			editorActionsDisposables.clear();
 
 			const editorActions = editorPart.activeGroup.createEditorActions(editorActionsDisposables, MenuId.ModalEditorEditorTitle);
-			editorActionsDisposables.add(editorActions.onDidChange?.(() => updateEditorActions()));
+			editorActionsDisposables.add(editorActions.onDidChange(() => updateEditorActions()));
 
 			const { primary, secondary } = editorActions.actions;
 			editorActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
 
 			const hasActions = primary.length > 0 || secondary.length > 0;
-			editorActionsSeparator.classList.toggle('hidden', !hasActions);
+			setVisibility(hasActions, editorActionsSeparator);
 		};
 		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => updateEditorActions()));
 

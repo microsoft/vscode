@@ -579,7 +579,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 		}
 
-		// Modal group: override `preserveFocus` to move focus into the modal there is nothing to preserve if this is the first modal editor
+		// Modal group: override `preserveFocus` to move focus into the modal because there is nothing to preserve if this is the first modal editor
 		if (
 			options?.preserveFocus &&
 			this.editorGroupService.activeModalEditorPart?.groups.some(modalGroup => modalGroup.id === group.id) &&
