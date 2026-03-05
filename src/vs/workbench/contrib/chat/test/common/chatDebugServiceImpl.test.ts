@@ -333,6 +333,8 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(clearedSessions.length, 1, 'Clear event should fire on first invocation');
 
 			// Second invocation clears provider events from first invocation
+			await service.invokeProviders(sessionGeneric);
+			assert.strictEqual(clearedSessions.length, 2, 'Clear event should fire on second invocation');
 			assert.strictEqual(clearedSessions[1].toString(), sessionGeneric.toString());
 		});
 
