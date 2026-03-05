@@ -29,7 +29,7 @@ import { IPromptsService, PromptsStorage, IAgentSkill, IPromptPath } from '../..
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { agentIcon, extensionIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon, userIcon, workspaceIcon, builtinIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { AICustomizationItemMenuId } from './aiCustomizationTreeView.js';
-import { AICustomizationManagementSection, BUILTIN_STORAGE } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { AICustomizationManagementSection, AICustomizationPromptsStorage, BUILTIN_STORAGE } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
@@ -234,7 +234,7 @@ class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileI
  */
 interface ICachedTypeData {
 	skills?: IAgentSkill[];
-	files?: Map<PromptsStorage, readonly IPromptPath[]>;
+	files?: Map<string, readonly IPromptPath[]>;
 }
 
 /**
@@ -377,7 +377,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			const extensionItems = allItems.filter(item => item.storage === PromptsStorage.extension);
 			const builtinItems = allItems.filter(item => item.storage === BUILTIN_STORAGE);
 
-			cached.files = new Map<PromptsStorage, readonly IPromptPath[]>([
+			cached.files = new Map<string, readonly IPromptPath[]>([
 				[PromptsStorage.local, workspaceItems],
 				[PromptsStorage.user, userItems],
 				[PromptsStorage.extension, extensionItems],
@@ -413,7 +413,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 	/**
 	 * Creates a group item with consistent structure.
 	 */
-	private createGroupItem(promptType: PromptsType, storage: PromptsStorage, count: number): IAICustomizationGroupItem {
+	private createGroupItem(promptType: PromptsType, storage: AICustomizationPromptsStorage, count: number): IAICustomizationGroupItem {
 		const storageLabels: Record<string, string> = {
 			[PromptsStorage.local]: localize('workspaceWithCount', "Workspace ({0})", count),
 			[PromptsStorage.user]: localize('userWithCount', "User ({0})", count),
@@ -442,7 +442,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			type: 'group',
 			id: `group-${promptType}-${storageSuffixes[storage]}`,
 			label: storageLabels[storage],
-			storage,
+			storage: storage as PromptsStorage,
 			promptType,
 			icon: storageIcons[storage],
 		};
