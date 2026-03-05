@@ -1173,6 +1173,12 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	focusOnInput(): void;
 
 	/**
+	 * Reveals and focuses a specific item in the tree.
+	 * @param element The item to reveal and focus.
+	 */
+	reveal(element: T): void;
+
+	/**
 	 * Focus a particular item in the list. Used internally for keyboard navigation.
 	 * @param focus The focus behavior.
 	 */

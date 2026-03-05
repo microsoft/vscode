@@ -104,7 +104,6 @@
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button {
 	height: 26px;
 	padding: 4px 14px;
-	border-radius: 4px;
 	font-size: 12px;
 	line-height: 18px;
 }
@@ -112,6 +111,29 @@
 /* Primary button grows to fill available space */
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button:not(.secondary) {
 	flex: 1;
+}
+
+/* ButtonWithDropdown container grows to fill available space */
+.changes-view-body .chat-editing-session-actions.outside-card .monaco-button-dropdown {
+	flex: 1;
+	display: flex;
+}
+
+.changes-view-body .chat-editing-session-actions.outside-card .monaco-button-dropdown > .monaco-button {
+	flex: 1;
+	box-sizing: border-box;
+}
+
+.changes-view-body .chat-editing-session-actions.outside-card .monaco-button-dropdown > .monaco-button-dropdown-separator {
+	flex: 0;
+}
+
+.changes-view-body .chat-editing-session-actions.outside-card .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	flex: 0 0 auto;
+	padding: 4px;
+	width: auto;
+	min-width: 0;
+	border-radius: 0px 4px 4px 0px;
 }
 
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button.secondary.monaco-text-button.codicon {
@@ -134,6 +156,10 @@
 .changes-view-body .chat-editing-session-actions .monaco-button.secondary.monaco-text-button {
 	background-color: var(--vscode-button-secondaryBackground);
 	color: var(--vscode-button-secondaryForeground);
+}
+
+.changes-view-body .chat-editing-session-actions.outside-card .monaco-button-dropdown > .monaco-button.secondary.monaco-text-button {
+	border-radius: 4px 0px 0px 4px;
 }
 
 .changes-view-body .chat-editing-session-actions .monaco-button.secondary:hover {

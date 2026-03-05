@@ -32,7 +32,6 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
-import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import './media/chatThinkingContent.css';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 
@@ -501,6 +500,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			height: viewportHeight,
 			scrollHeight: contentHeight
 		});
+
+		// Re-evaluate hover feedback as content grows past the max height,
+		// reusing the already-measured contentHeight to avoid an extra layout read.
+		this.updateDropdownClickability(contentHeight);
 	}
 
 	private scrollToBottom(): void {
@@ -652,8 +655,17 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		return !(!strippedContent || strippedContent === titleToCompare);
 	}
 
-	private updateDropdownClickability(): void {
-		const allowExpansion = this.shouldAllowExpansion();
+	private updateDropdownClickability(knownContentHeight?: number): void {
+		let allowExpansion = this.shouldAllowExpansion();
+
+		// don't allow feedback on fixed scrolling before reaching max height.
+		if (allowExpansion && this.fixedScrollingMode && !this.streamingCompleted && !this.element.isComplete && this.wrapper) {
+			const contentHeight = knownContentHeight ?? this.wrapper.scrollHeight;
+			if (contentHeight <= THINKING_SCROLL_MAX_HEIGHT) {
+				allowExpansion = false;
+			}
+		}
+
 		if (!allowExpansion && this.isExpanded()) {
 			this.setExpanded(false);
 		}
@@ -958,7 +970,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 			const response = await this.languageModelsService.sendChatRequest(
 				models[0],
-				new ExtensionIdentifier('core'),
+				undefined,
 				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
 				{},
 				cts.token

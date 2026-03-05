@@ -40,12 +40,12 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IVariableReference } from '../../common/chatModes.js';
 import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { ChatConfiguration, isAutoApproveLevel } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { IChatModel, IChatRequestModel } from '../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { chatSessionResourceToId } from '../../common/model/chatUri.js';
-import { HookType } from '../../common/promptSyntax/hookSchema.js';
+import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, IExternalPreToolUseHookResult, ILanguageModelToolsService, IPreparedToolInvocation, isToolSet, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolResultInputOutputDetails, IToolSet, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolInvocationPresentation, toolMatchesModel, ToolSet, ToolSetForModel, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
 import { getToolConfirmationAlert } from '../accessibility/chatAccessibilityProvider.js';
@@ -61,7 +61,7 @@ interface ITrackedCall {
 	store: IDisposable;
 }
 
-const enum AutoApproveStorageKeys {
+export const enum AutoApproveStorageKeys {
 	GlobalAutoApproveOptIn = 'chat.tools.global.autoApprove.optIn'
 }
 
@@ -109,6 +109,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	/** Pending tool calls in the streaming phase, keyed by toolCallId */
 	private readonly _pendingToolCalls = new Map<string, ChatToolInvocation>();
+
+	/** Deduplicates _checkGlobalAutoApprove calls within this window */
+	private _pendingGlobalAutoApproveCheck: Promise<boolean> | undefined;
 
 	private readonly _isAgentModeEnabled: IObservable<boolean>;
 
@@ -638,7 +641,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			this.ensureToolDetails(dto, toolResult, tool.data);
 
 			const afterExecuteState = await toolInvocation?.didExecuteTool(toolResult, undefined, () =>
-				this.shouldAutoConfirmPostExecution(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, dto.context?.sessionResource));
+				this.shouldAutoConfirmPostExecution(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, dto.context?.sessionResource, dto.chatRequestId));
 
 			if (toolInvocation && afterExecuteState?.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 				const postConfirm = await IChatToolInvocation.awaitPostConfirmation(toolInvocation, token);
@@ -788,7 +791,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		// No hook decision - use normal auto-confirm logic
-		const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, sessionResource);
+		const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, sessionResource, dto.chatRequestId);
 		return { autoConfirmed, preparedInvocation };
 	}
 
@@ -993,6 +996,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 	}
 
+	/**
+	 * Returns true if enterprise policy has explicitly disabled the global auto-approve setting.
+	 * When this is the case, Bypass Approvals and Autopilot permission levels should not auto-approve tools.
+	 */
+	private _isAutoApprovePolicyRestricted(): boolean {
+		const inspected = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
+		return inspected.policyValue === false;
+	}
+
 	private getEligibleForAutoApprovalSpecialCase(toolData: IToolData): string | undefined {
 		if (toolData.id === 'vscode_fetchWebPage_internal') {
 			return 'fetch';
@@ -1037,10 +1049,20 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return true;
 	}
 
-	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined): Promise<ConfirmedReason | undefined> {
+	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined): Promise<ConfirmedReason | undefined> {
 		const tool = this._tools.get(toolId);
 		if (!tool) {
 			return undefined;
+		}
+
+		// Auto-Approve All permission level bypasses all tool confirmations,
+		// unless enterprise policy has explicitly disabled global auto-approve.
+		if (chatSessionResource) {
+			const model = this._chatService.getSession(chatSessionResource);
+			const request = model?.getRequests().at(-1);
+			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel) && !this._isAutoApprovePolicyRestricted()) {
+				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
+			}
 		}
 
 		if (!this.isToolEligibleForAutoApproval(tool.data)) {
@@ -1074,7 +1096,17 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
-	private async shouldAutoConfirmPostExecution(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined): Promise<ConfirmedReason | undefined> {
+	private async shouldAutoConfirmPostExecution(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined): Promise<ConfirmedReason | undefined> {
+		// Auto-Approve All permission level bypasses all post-execution confirmations,
+		// unless enterprise policy has explicitly disabled global auto-approve.
+		if (chatSessionResource) {
+			const model = this._chatService.getSession(chatSessionResource);
+			const request = model?.getRequests().at(-1);
+			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel) && !this._isAutoApprovePolicyRestricted()) {
+				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
+			}
+		}
+
 		if (this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove) && await this._checkGlobalAutoApprove()) {
 			return { type: ToolConfirmKind.Setting, id: ChatConfiguration.GlobalAutoApprove };
 		}
@@ -1092,34 +1124,68 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return true;
 		}
 
-		const promptResult = await this._dialogService.prompt({
-			type: Severity.Warning,
-			message: localize('autoApprove2.title', 'Enable global auto approve?'),
-			buttons: [
-				{
-					label: localize('autoApprove2.button.enable', 'Enable'),
-					run: () => true
-				},
-				{
-					label: localize('autoApprove2.button.disable', 'Disable'),
-					run: () => false
-				},
-			],
-			custom: {
-				icon: Codicon.warning,
-				markdownDetails: [{
-					markdown: new MarkdownString(globalAutoApproveDescription.value, { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }),
-				}],
-			}
-		});
-
-		if (promptResult.result !== true) {
-			await this._configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, false);
-			return false;
+		if (this._pendingGlobalAutoApproveCheck) {
+			return this._pendingGlobalAutoApproveCheck;
 		}
 
-		this._storageService.store(AutoApproveStorageKeys.GlobalAutoApproveOptIn, true, StorageScope.APPLICATION, StorageTarget.USER);
-		return true;
+		this._pendingGlobalAutoApproveCheck = this._doCheckGlobalAutoApprove();
+		try {
+			return await this._pendingGlobalAutoApproveCheck;
+		} finally {
+			this._pendingGlobalAutoApproveCheck = undefined;
+		}
+	}
+
+	private async _doCheckGlobalAutoApprove(): Promise<boolean> {
+		const store = new DisposableStore();
+		try {
+			// Dismiss the dialog automatically if another window stores the
+			// opt-in flag, avoiding duplicate approval prompts.
+			const cts = new CancellationTokenSource();
+			store.add(cts);
+			store.add(this._storageService.onDidChangeValue(StorageScope.APPLICATION, AutoApproveStorageKeys.GlobalAutoApproveOptIn, store)(() => {
+				if (this._storageService.getBoolean(AutoApproveStorageKeys.GlobalAutoApproveOptIn, StorageScope.APPLICATION, false)) {
+					cts.cancel();
+				}
+			}));
+
+			const promptResult = await this._dialogService.prompt({
+				type: Severity.Warning,
+				message: localize('autoApprove2.title', 'Enable global auto approve?'),
+				buttons: [
+					{
+						label: localize('autoApprove2.button.enable', 'Enable'),
+						run: () => true
+					},
+					{
+						label: localize('autoApprove2.button.disable', 'Disable'),
+						run: () => false
+					},
+				],
+				custom: {
+					icon: Codicon.warning,
+					markdownDetails: [{
+						markdown: new MarkdownString(globalAutoApproveDescription.value, { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }),
+					}],
+				},
+				token: cts.token,
+			});
+
+			// If cancelled by cross-window approval, treat as approved
+			if (cts.token.isCancellationRequested) {
+				return true;
+			}
+
+			if (promptResult.result !== true) {
+				await this._configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, false);
+				return false;
+			}
+
+			this._storageService.store(AutoApproveStorageKeys.GlobalAutoApproveOptIn, true, StorageScope.APPLICATION, StorageTarget.USER);
+			return true;
+		} finally {
+			store.dispose();
+		}
 	}
 
 	private cleanupCallDisposables(requestId: string | undefined, store: DisposableStore): void {
@@ -1149,7 +1215,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		// Clean up any pending tool calls that belong to this request
 		for (const [toolCallId, invocation] of this._pendingToolCalls) {
 			if (invocation.chatRequestId === requestId) {
-				invocation.cancelFromStreaming(ToolConfirmKind.Skipped);
 				this._pendingToolCalls.delete(toolCallId);
 			}
 		}
