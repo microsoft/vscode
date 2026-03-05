@@ -191,7 +191,6 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 	private readonly _tracker: TipEligibilityTracker;
 	private readonly _createSlashCommandsUsageTracker: CreateSlashCommandsUsageTracker;
-	private _yoloModeEverEnabled: boolean;
 	private _thinkingPhrasesEverModified: boolean;
 	private _tipsHiddenForSession = false;
 	private readonly _tipCommandListener = this._register(new MutableDisposable());
@@ -232,25 +231,6 @@ export class ChatTipService extends Disposable implements IChatTipService {
 				this._tracker.recordCommandExecuted(slashCommandTrackingId);
 			}
 		}));
-
-		// Track whether yolo mode was ever enabled
-		this._yoloModeEverEnabled = this._storageService.getBoolean(ChatTipStorageKeys.YoloModeEverEnabled, StorageScope.APPLICATION, false);
-		if (!this._yoloModeEverEnabled && this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
-			this._yoloModeEverEnabled = true;
-			this._storageService.store(ChatTipStorageKeys.YoloModeEverEnabled, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		}
-		if (!this._yoloModeEverEnabled) {
-			const configListener = this._register(new MutableDisposable());
-			configListener.value = this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
-					if (this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
-						this._yoloModeEverEnabled = true;
-						this._storageService.store(ChatTipStorageKeys.YoloModeEverEnabled, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-						configListener.clear();
-					}
-				}
-			});
-		}
 
 		this._thinkingPhrasesEverModified = this._storageService.getBoolean(ChatTipStorageKeys.ThinkingPhrasesEverModified, StorageScope.APPLICATION, false);
 		if (!this._thinkingPhrasesEverModified && this._isSettingModified(ChatConfiguration.ThinkingPhrases)) {
@@ -713,17 +693,6 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 		if (this._tracker.isExcluded(tip)) {
 			return false;
-		}
-		if (tip.id === 'tip.yoloMode') {
-			if (this._yoloModeEverEnabled) {
-				this._logService.debug('#ChatTips: tip excluded because yolo mode was previously enabled', tip.id);
-				return false;
-			}
-			const inspected = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
-			if (inspected.policyValue === false) {
-				this._logService.debug('#ChatTips: tip excluded because policy restricts auto-approve', tip.id);
-				return false;
-			}
 		}
 		if (tip.id === 'tip.thinkingPhrases' && this._thinkingPhrasesEverModified) {
 			this._logService.debug('#ChatTips: tip excluded because thinking phrases setting was previously modified', tip.id);
