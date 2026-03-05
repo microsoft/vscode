@@ -35,7 +35,6 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 	constructor(
 		workspaceIdentifier: IWorkspaceIdentifier,
 		private readonly uriIdentityService: IUriIdentityService,
-		private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.workspace = new Workspace(workspaceIdentifier.id, [], false, workspaceIdentifier.configPath, uri => uriIdentityService.extUri.ignorePathCasing(uri));
@@ -53,8 +52,13 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 		return WorkbenchState.WORKSPACE;
 	}
 
+	private _configurationService: IConfigurationService | undefined;
+	setConfigurationService(configurationService: IConfigurationService) {
+		this._configurationService = configurationService;
+	}
+
 	hasWorkspaceData(): boolean {
-		return this.configurationService.getValue('sessions.workspace.sendWorkspaceDataToExtHost') === true;
+		return this._configurationService?.getValue('sessions.workspace.sendWorkspaceDataToExtHost') === true;
 	}
 
 	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
@@ -159,7 +163,8 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 
 		// Update workspace
 		const workspaceIdentifier = getWorkspaceIdentifier(this.workspace.configuration!);
-		this.workspace = new Workspace(workspaceIdentifier.id, newFolders, false, workspaceIdentifier.configPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
+		const workspace = new Workspace(workspaceIdentifier.id, newFolders, false, workspaceIdentifier.configPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
+		this.workspace.update(workspace);
 
 		// Fire did change event
 		this._onDidChangeWorkspaceFolders.fire(changes);
