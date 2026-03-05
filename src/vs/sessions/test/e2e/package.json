@@ -5,6 +5,7 @@
 	"description": "Automated E2E tests for the Agent Sessions window using playwright-cli",
 	"scripts": {
 		"serve": "node ../../../../../scripts/code-sessions-web.js --port 9222 --skip-welcome",
+		"serve:mock": "node ../../../../../scripts/code-sessions-web.js --port 9222 --skip-welcome --mock",
 		"generate": "node generate.cjs",
 		"test": "node test.cjs"
 	},

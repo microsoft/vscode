@@ -90,10 +90,12 @@ function getSnapshot() {
 // Server management
 // ---------------------------------------------------------------------------
 
-function startServer(port) {
+function startServer(port, { mock = false } = {}) {
+	const args = ['--no-open', '--port', String(port)];
+	if (mock) { args.push('--mock'); }
 	const server = cp.spawn(process.execPath, [
 		path.join(APP_ROOT, 'scripts', 'code-sessions-web.js'),
-		'--no-open', '--port', String(port),
+		...args,
 	], {
 		cwd: APP_ROOT,
 		stdio: ['ignore', 'pipe', 'pipe'],

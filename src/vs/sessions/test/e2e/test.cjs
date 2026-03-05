@@ -129,7 +129,7 @@ async function main() {
 
 	// Start web server
 	console.log(`Starting sessions web server on port ${PORT}…`);
-	const server = startServer(PORT);
+	const server = startServer(PORT, { mock: true });
 	await waitForServer(`http://localhost:${PORT}/`, 30_000);
 	console.log('Server ready.\n');
 

@@ -15,7 +15,7 @@ const APP_ROOT = path.join(__dirname, '..');
 
 async function main() {
 	const args = minimist(process.argv.slice(2), {
-		boolean: ['help', 'no-open', 'skip-welcome'],
+		boolean: ['help', 'no-open', 'skip-welcome', 'mock'],
 		string: ['host', 'port'],
 	});
 
@@ -24,7 +24,9 @@ async function main() {
 			'./scripts/code-sessions-web.sh [options]\n' +
 			'  --host <host>   Host to bind to (default: localhost)\n' +
 			'  --port <port>   Port to bind to (default: 8081)\n' +
-			'  --no-open       Do not open browser automatically\n'
+			'  --no-open       Do not open browser automatically\n' +
+			'  --skip-welcome  Skip the sessions welcome overlay\n' +
+			'  --mock          Load mock extension for E2E testing\n'
 		);
 		return;
 	}
@@ -50,7 +52,7 @@ async function main() {
 		// Serve the sessions workbench HTML at the root
 		if (url.pathname === '/' || url.pathname === '/index.html') {
 			res.writeHead(200, { 'Content-Type': 'text/html' });
-			res.end(getSessionsHTML(HOST, PORT, cssModules));
+			res.end(getSessionsHTML(HOST, PORT, cssModules, args['mock']));
 			return;
 		}
 
@@ -95,7 +97,7 @@ async function main() {
 	process.on('SIGTERM', () => { server.close(); process.exit(0); });
 }
 
-function getSessionsHTML(host, port, cssModules) {
+function getSessionsHTML(host, port, cssModules, useMock) {
 	const baseUrl = `http://${host}:${port}`;
 	const fileRoot = `${baseUrl}/out`;
 
@@ -111,6 +113,11 @@ function getSessionsHTML(host, port, cssModules) {
 		imports[cssUrl] = `data:application/javascript;base64,${encoded}`;
 	}
 	const importMapJson = JSON.stringify({ imports }, null, 2);
+
+	// When --mock is passed, load the E2E mock extension
+	const additionalBuiltinExtensions = useMock
+		? `additionalBuiltinExtensions: [{ scheme: 'http', authority: '${host}:${port}', path: '/src/vs/sessions/test/e2e/extensions/sessions-e2e-mock' }],`
+		: '';
 
 	return `<!DOCTYPE html>
 <html>
@@ -137,6 +144,7 @@ ${importMapJson}
 				nameLong: 'Sessions (Web)',
 				enableTelemetry: false,
 			},
+			${additionalBuiltinExtensions}
 			workspaceProvider: {
 				workspace: undefined,
 				open: async () => false,
