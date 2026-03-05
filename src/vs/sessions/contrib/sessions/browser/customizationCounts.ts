@@ -7,10 +7,14 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isEqualOrParent } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAICustomizationWorkspaceService, applyStorageSourceFilter, IStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { parseHooksFromFile } from '../../../../workbench/contrib/chat/common/promptSyntax/hookCompatibility.js';
+import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { parse as parseJSONC } from '../../../../base/common/jsonc.js';
 
 export interface ISourceCounts {
 	readonly workspace: number;
@@ -45,6 +49,7 @@ export async function getSourceCounts(
 	filter: IStorageSourceFilter,
 	workspaceContextService: IWorkspaceContextService,
 	workspaceService: IAICustomizationWorkspaceService,
+	fileService?: IFileService,
 ): Promise<ISourceCounts> {
 	const items: { storage: PromptsStorage; uri: URI }[] = [];
 
@@ -88,6 +93,28 @@ export async function getSourceCounts(
 				uri: file.uri,
 			});
 		}
+	} else if (promptType === PromptsType.hook && fileService) {
+		// Must match loadItems: parse individual hooks from each file
+		const hookFiles = await promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
+		const activeRoot = workspaceService.getActiveProjectRoot();
+		for (const hookFile of hookFiles) {
+			try {
+				const content = await fileService.readFile(hookFile.uri);
+				const json = parseJSONC(content.value.toString());
+				const { hooks } = parseHooksFromFile(hookFile.uri, json, activeRoot, '');
+				if (hooks.size > 0) {
+					for (const [, entry] of hooks) {
+						for (let i = 0; i < entry.hooks.length; i++) {
+							items.push({ storage: hookFile.storage, uri: hookFile.uri });
+						}
+					}
+				} else {
+					items.push({ storage: hookFile.storage, uri: hookFile.uri });
+				}
+			} catch {
+				items.push({ storage: hookFile.storage, uri: hookFile.uri });
+			}
+		}
 	} else {
 		// hooks and anything else: uses listPromptFiles
 		const files = await promptsService.listPromptFiles(promptType, CancellationToken.None);
@@ -110,6 +137,7 @@ export async function getCustomizationTotalCount(
 	mcpService: IMcpService,
 	workspaceService: IAICustomizationWorkspaceService,
 	workspaceContextService: IWorkspaceContextService,
+	agentPluginService?: IAgentPluginService,
 ): Promise<number> {
 	const types: PromptsType[] = [PromptsType.agent, PromptsType.skill, PromptsType.instructions, PromptsType.prompt, PromptsType.hook];
 	const results = await Promise.all(types.map(type => {
@@ -117,5 +145,6 @@ export async function getCustomizationTotalCount(
 		return getSourceCounts(promptsService, type, filter, workspaceContextService, workspaceService)
 			.then(counts => getSourceCountsTotal(counts, filter));
 	}));
-	return results.reduce((sum, n) => sum + n, 0) + mcpService.servers.get().length;
+	const pluginCount = agentPluginService?.allPlugins.get().length ?? 0;
+	return results.reduce((sum, n) => sum + n, 0) + mcpService.servers.get().length + pluginCount;
 }

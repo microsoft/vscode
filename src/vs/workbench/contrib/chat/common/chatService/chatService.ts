@@ -14,7 +14,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
-import { HookTypeValue } from '../promptSyntax/hookSchema.js';
+import { HookTypeValue } from '../promptSyntax/hookTypes.js';
 import { ISelection } from '../../../../../editor/common/core/selection.js';
 import { Command, Location, TextEdit } from '../../../../../editor/common/languages.js';
 import { FileType } from '../../../../../platform/files/common/files.js';
@@ -1452,8 +1452,6 @@ export interface IChatService {
 	transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void>;
 
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
-
-	readonly edits2Enabled: boolean;
 
 	readonly requestInProgressObs: IObservable<boolean>;
 

@@ -12,7 +12,7 @@ import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
-import { IToolData, IToolSet, isToolSet } from '../tools/languageModelToolsService.js';
+import { IToolAndToolSetEnablementMap, IToolData, IToolSet, isToolSet } from '../tools/languageModelToolsService.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
@@ -37,11 +37,16 @@ export class ChatRequestParser {
 	) { }
 
 	parseChatRequest(sessionResource: URI, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context?: IChatParserContext): IParsedChatRequest {
-		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionResource); // must access this list before any async calls
+		const selectedToolAndToolSets = this.variableService.getSelectedToolAndToolSets(sessionResource);
+		return this.parseChatRequestWithReferences(references, selectedToolAndToolSets, message, location, context);
+	}
+
+	parseChatRequestWithReferences(references: ReadonlyArray<IDynamicVariable>, selectedToolAndToolSets: IToolAndToolSetEnablementMap, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context?: IChatParserContext): IParsedChatRequest {
+		const parts: IParsedChatRequestPart[] = [];
 		const toolsByName = new Map<string, IToolData>();
 		const toolSetsByName = new Map<string, IToolSet>();
-		for (const [entry, enabled] of this.variableService.getSelectedToolAndToolSets(sessionResource)) {
+		for (const [entry, enabled] of selectedToolAndToolSets) {
 			if (enabled) {
 				if (isToolSet(entry)) {
 					toolSetsByName.set(entry.referenceName, entry);

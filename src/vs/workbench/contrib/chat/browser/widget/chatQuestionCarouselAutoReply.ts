@@ -13,7 +13,6 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatQuestion, IChatQuestionCarousel } from '../../common/chatService/chatService.js';
@@ -191,7 +190,7 @@ export class ChatQuestionCarouselAutoReply extends Disposable {
 		const prompt = this.buildPrompt(carousel, requestMessageText, false);
 		const response = await this.languageModelsService.sendChatRequest(
 			modelId,
-			new ExtensionIdentifier('core'),
+			undefined,
 			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
 			{},
 			token,
@@ -205,7 +204,7 @@ export class ChatQuestionCarouselAutoReply extends Disposable {
 		const retryPrompt = this.buildPrompt(carousel, requestMessageText, true);
 		const retryResponse = await this.languageModelsService.sendChatRequest(
 			modelId,
-			new ExtensionIdentifier('core'),
+			undefined,
 			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: retryPrompt }] }],
 			{},
 			token,

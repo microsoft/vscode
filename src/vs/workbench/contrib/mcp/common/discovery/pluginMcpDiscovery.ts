@@ -8,7 +8,6 @@ import { Disposable, DisposableResourceMap } from '../../../../../base/common/li
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { basename } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
@@ -61,7 +60,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 		const collectionId = `plugin.${plugin.uri}`;
 		return this._mcpRegistry.registerCollection({
 			id: collectionId,
-			label: `${basename(plugin.uri)} (Agent Plugin)`,
+			label: `${plugin.label} (Agent Plugin)`,
 			remoteAuthority: plugin.uri.scheme === Schemas.vscodeRemote ? plugin.uri.authority : null,
 			configTarget: ConfigurationTarget.USER,
 			scope: StorageScope.PROFILE,
@@ -101,6 +100,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 				env: config.env ? { ...config.env } : {},
 				envFile: config.envFile,
 				cwd: config.cwd,
+				sandbox: undefined,
 			};
 		}
 
