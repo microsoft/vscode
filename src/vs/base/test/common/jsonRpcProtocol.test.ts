@@ -39,7 +39,7 @@ suite('JsonRpcProtocol', () => {
 		const requestPromise = protocol.sendRequest<string>({ method: 'echo', params: { value: 'ok' } });
 		const outgoingRequest = sentMessages[0] as IJsonRpcRequest;
 
-		await protocol.handleMessage({
+		const replies = await protocol.handleMessage({
 			jsonrpc: '2.0',
 			id: outgoingRequest.id,
 			result: 'done'
@@ -47,6 +47,7 @@ suite('JsonRpcProtocol', () => {
 
 		const result = await requestPromise;
 		assert.strictEqual(result, 'done');
+		assert.deepStrictEqual(replies, []);
 	});
 
 	test('sendRequest rejects on error response', async () => {
@@ -107,20 +108,22 @@ suite('JsonRpcProtocol', () => {
 	test('handleRequest responds with method not found without handler', async () => {
 		const { protocol, sentMessages } = createProtocol();
 
-		await protocol.handleMessage({
+		const replies = await protocol.handleMessage({
 			jsonrpc: '2.0',
 			id: 7,
 			method: 'unknown'
 		});
 
-		assert.deepStrictEqual(sentMessages, [{
+		const expected = [{
 			jsonrpc: '2.0',
 			id: 7,
 			error: {
 				code: -32601,
 				message: 'Method not found: unknown'
 			}
-		}]);
+		}];
+		assert.deepStrictEqual(sentMessages, expected);
+		assert.deepStrictEqual(replies, expected);
 	});
 
 	test('handleRequest responds with result and passes cancellation token', async () => {
@@ -134,7 +137,7 @@ suite('JsonRpcProtocol', () => {
 			}
 		});
 
-		await protocol.handleMessage({
+		const replies = await protocol.handleMessage({
 			jsonrpc: '2.0',
 			id: 9,
 			method: 'compute'
@@ -142,11 +145,13 @@ suite('JsonRpcProtocol', () => {
 
 		assert.ok(receivedToken);
 		assert.strictEqual(wasCanceledDuringHandler, false);
-		assert.deepStrictEqual(sentMessages, [{
+		const expected = [{
 			jsonrpc: '2.0',
 			id: 9,
 			result: 'compute:ok'
-		}]);
+		}];
+		assert.deepStrictEqual(sentMessages, expected);
+		assert.deepStrictEqual(replies, expected);
 	});
 
 	test('handleRequest serializes JsonRpcError', async () => {
@@ -225,8 +230,9 @@ suite('JsonRpcProtocol', () => {
 		assert.deepStrictEqual(sequence, ['request:start']);
 
 		gate.complete();
-		await handlingPromise;
+		const replies = await handlingPromise;
 
 		assert.deepStrictEqual(sequence, ['request:start', 'request:end', 'notification']);
+		assert.deepStrictEqual(replies, [{ jsonrpc: '2.0', id: 1, result: true }]);
 	});
 });

@@ -122,15 +122,20 @@ export class JsonRpcProtocol extends Disposable {
 		}) as Promise<T>;
 	}
 
-	public async handleMessage(message: JsonRpcMessage | JsonRpcMessage[]): Promise<void> {
+	public async handleMessage(message: JsonRpcMessage | JsonRpcMessage[]): Promise<JsonRpcMessage[]> {
 		if (Array.isArray(message)) {
+			const replies: JsonRpcMessage[] = [];
 			for (const single of message) {
-				await this._handleMessage(single);
+				const reply = await this._handleMessage(single);
+				if (reply) {
+					replies.push(reply);
+				}
 			}
-			return;
+			return replies;
 		}
 
-		await this._handleMessage(message);
+		const reply = await this._handleMessage(message);
+		return reply ? [reply] : [];
 	}
 
 	public cancelPendingRequest(id: JsonRpcId): void {
@@ -152,22 +157,25 @@ export class JsonRpcProtocol extends Disposable {
 		}
 	}
 
-	private async _handleMessage(message: JsonRpcMessage): Promise<void> {
+	private async _handleMessage(message: JsonRpcMessage): Promise<JsonRpcMessage | undefined> {
 		if (isJsonRpcResponse(message)) {
 			if (hasKey(message, { result: true })) {
 				this._handleResult(message);
 			} else {
 				this._handleError(message);
 			}
+			return undefined;
 		}
 
 		if (isJsonRpcRequest(message)) {
-			await this._handleRequest(message);
+			return this._handleRequest(message);
 		}
 
 		if (isJsonRpcNotification(message)) {
 			this._handlers.handleNotification?.(message);
 		}
+
+		return undefined;
 	}
 
 	private _handleResult(response: IJsonRpcSuccessResponse): void {
@@ -192,17 +200,18 @@ export class JsonRpcProtocol extends Disposable {
 		}
 	}
 
-	private async _handleRequest(request: IJsonRpcRequest): Promise<void> {
+	private async _handleRequest(request: IJsonRpcRequest): Promise<JsonRpcMessage> {
 		if (!this._handlers.handleRequest) {
-			this._send({
+			const response: JsonRpcMessage = {
 				jsonrpc: '2.0',
 				id: request.id,
 				error: {
 					code: JsonRpcProtocol.MethodNotFound,
 					message: `Method not found: ${request.method}`,
 				}
-			});
-			return;
+			};
+			this._send(response);
+			return response;
 		}
 
 		const cts = new CancellationTokenSource();
@@ -211,14 +220,17 @@ export class JsonRpcProtocol extends Disposable {
 		try {
 			const resultOrThenable = this._handlers.handleRequest(request, cts.token);
 			const result = isThenable(resultOrThenable) ? await resultOrThenable : resultOrThenable;
-			this._send({
+			const response: JsonRpcMessage = {
 				jsonrpc: '2.0',
 				id: request.id,
 				result,
-			});
+			};
+			this._send(response);
+			return response;
 		} catch (error) {
+			let response: JsonRpcMessage;
 			if (error instanceof JsonRpcError) {
-				this._send({
+				response = {
 					jsonrpc: '2.0',
 					id: request.id,
 					error: {
@@ -226,17 +238,19 @@ export class JsonRpcProtocol extends Disposable {
 						message: error.message,
 						data: error.data,
 					}
-				});
+				};
 			} else {
-				this._send({
+				response = {
 					jsonrpc: '2.0',
 					id: request.id,
 					error: {
 						code: JsonRpcProtocol.InternalError,
 						message: error instanceof Error ? error.message : 'Internal error',
 					}
-				});
+				};
 			}
+			this._send(response);
+			return response;
 		} finally {
 			cts.dispose(true);
 		}
