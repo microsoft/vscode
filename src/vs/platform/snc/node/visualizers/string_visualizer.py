@@ -286,6 +286,8 @@ def char_to_regex_literal(char: str) -> str:
         return r'\t'
     elif char == '\r':
         return r'\r'
+    elif char == "'":
+        return "\\'"
     else:
         return re.escape(char)
 

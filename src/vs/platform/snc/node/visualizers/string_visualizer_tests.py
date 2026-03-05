@@ -63,6 +63,7 @@ from string_visualizer import (
     synthesize_fuzzy_pattern,
     find_available_variable_name,
     _count_matches,
+    char_to_regex_literal,
     DC1, DC2, DC3, DC4,  # Sentinel characters
     _render_transform_preview,
 )
@@ -3178,6 +3179,66 @@ class TestSearchBoxEnterGeneratesCode(unittest.TestCase):
         suggest_name, expr = commands[0]
         self.assertEqual(suggest_name, "x_matches")
         self.assertIn("list(re.finditer(r'hello'", expr)
+
+
+class TestSingleQuoteEscaping(unittest.TestCase):
+    """Single quotes in regex literal segments must be escaped for r'' strings."""
+
+    def test_char_to_regex_literal_escapes_single_quote(self):
+        self.assertEqual(char_to_regex_literal("'"), "\\'")
+
+    def test_literal_selection_with_single_quote_stores_escaped(self):
+        value = "it's here"
+        model = init_model(value)
+        source_code = 'x = "it\'s here"'
+        source_line = 1
+
+        model, _ = update(make_mouse_down_event(2, top_half=True),
+                         source_code, source_line, model, value)
+        model, _ = update(make_mouse_move_event(5),
+                         source_code, source_line, model, value)
+        model, _ = update(make_mouse_up_event(5),
+                         source_code, source_line, model, value)
+
+        self.assertEqual(model['search'], "/it\\'s/")
+
+    def test_enter_with_single_quote_generates_valid_raw_string(self):
+        value = "it's here"
+        model = init_model(value)
+        source_code = 'x = "it\'s here"'
+        source_line = 1
+
+        model, _ = update(make_mouse_down_event(2, top_half=True),
+                         source_code, source_line, model, value)
+        model, _ = update(make_mouse_move_event(5),
+                         source_code, source_line, model, value)
+        model, _ = update(make_mouse_up_event(5),
+                         source_code, source_line, model, value)
+
+        model, commands = update(make_key_down_event('Enter'),
+                                source_code, source_line, model, value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("r'it\\'s'", expr)
+
+    def test_backspace_with_single_quote_generates_valid_raw_string(self):
+        value = "it's here"
+        model = init_model(value)
+        source_code = 'x = "it\'s here"'
+        source_line = 1
+
+        model, _ = update(make_mouse_down_event(2, top_half=True),
+                         source_code, source_line, model, value)
+        model, _ = update(make_mouse_move_event(5),
+                         source_code, source_line, model, value)
+        model, _ = update(make_mouse_up_event(5),
+                         source_code, source_line, model, value)
+
+        model, commands = update(make_key_down_event('Backspace', meta_key=True),
+                                source_code, source_line, model, value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("r'it\\'s'", expr)
 
 
 class TestFindAvailableVariableName(unittest.TestCase):
