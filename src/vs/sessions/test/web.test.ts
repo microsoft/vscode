@@ -180,11 +180,13 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 				this._register(this.chatSessionsService.registerChatSessionContentProvider(scheme, {
 					async provideChatSessionContent(sessionResource, _token) {
 						console.log(`[Sessions Web Test] Creating mock chat session for ${sessionResource.toString()}`);
-						const emitter = new Emitter<void>();
+						const disposeEmitter = new Emitter<void>();
+						const isComplete = observableValue('isComplete', false);
 						return {
 							sessionResource,
 							history: [],
-							onWillDispose: emitter.event,
+							isCompleteObs: isComplete,
+							onWillDispose: disposeEmitter.event,
 							async requestHandler(request, progress, _history, _token) {
 								console.log(`[Sessions Web Test] Session request: "${request.message}"`);
 								const responseText = getMockResponse(request.message);
@@ -192,8 +194,10 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 									kind: 'markdownContent',
 									content: { value: responseText, isTrusted: false, supportThemeIcons: false, supportHtml: false },
 								}]);
+								// Signal completion so the spinner stops
+								isComplete.set(true, undefined);
 							},
-							dispose() { emitter.fire(); emitter.dispose(); },
+							dispose() { disposeEmitter.fire(); disposeEmitter.dispose(); },
 						};
 					},
 				}));
