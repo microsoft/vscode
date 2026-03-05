@@ -26,7 +26,7 @@ import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
-import { createDebugEventsAttachment } from '../chatSlashCommands.js';
+import { createDebugEventsAttachment } from '../chatDebug/chatDebugAttachment.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';

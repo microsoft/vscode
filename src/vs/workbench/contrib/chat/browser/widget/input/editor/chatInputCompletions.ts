@@ -65,7 +65,7 @@ import { resizeImage } from '../../../chatImageUtils.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../../common/chatDebugService.js';
-import { createDebugEventsAttachment } from '../../../chatSlashCommands.js';
+import { createDebugEventsAttachment } from '../../../chatDebug/chatDebugAttachment.js';
 import { getPromptFileType } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 
 /**

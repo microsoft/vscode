@@ -29,7 +29,7 @@ import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem, LogsViewMode } f
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
 import { ChatDebugDetailPanel } from './chatDebugDetailPanel.js';
 import { IChatWidgetService } from '../chat.js';
-import { createDebugEventsAttachment } from '../chatSlashCommands.js';
+import { createDebugEventsAttachment } from './chatDebugAttachment.js';
 
 const $ = DOM.$;
 
