@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -20,10 +22,15 @@ export class PluginInstallService implements IPluginInstallService {
 		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
 	async installPlugin(plugin: IMarketplacePlugin): Promise<void> {
+		if (!await this._ensureMarketplaceTrusted(plugin)) {
+			return;
+		}
+
 		const kind = plugin.sourceDescriptor.kind;
 
 		if (kind === PluginSourceKind.RelativePath) {
@@ -59,6 +66,31 @@ export class PluginInstallService implements IPluginInstallService {
 			return this._pluginRepositoryService.getPluginInstallUri(plugin);
 		}
 		return this._pluginRepositoryService.getPluginSourceInstallUri(plugin.sourceDescriptor);
+	}
+
+	// --- Trust gate -------------------------------------------------------------
+
+	private async _ensureMarketplaceTrusted(plugin: IMarketplacePlugin): Promise<boolean> {
+		if (this._pluginMarketplaceService.isMarketplaceTrusted(plugin.marketplaceReference)) {
+			return true;
+		}
+
+		const { confirmed } = await this._dialogService.confirm({
+			type: 'question',
+			message: localize('trustMarketplace', "Trust Plugins from '{0}'?", plugin.marketplaceReference.displayLabel),
+			detail: localize('trustMarketplaceDetail', "Plugins can run code on your machine. Only install plugins from sources you trust.\n\nSource: {0}", plugin.marketplaceReference.rawValue),
+			primaryButton: localize({ key: 'trustAndInstall', comment: ['&& denotes a mnemonic'] }, "&&Trust"),
+			custom: {
+				icon: Codicon.shield,
+			},
+		});
+
+		if (!confirmed) {
+			return false;
+		}
+
+		this._pluginMarketplaceService.trustMarketplace(plugin.marketplaceReference);
+		return true;
 	}
 
 	// --- Relative-path source (existing git-based flow) -----------------------

@@ -62,6 +62,10 @@ suite('PluginInstallService', () => {
 		terminalCompletes: boolean;
 		pullRepositoryCalls: { marketplace: IMarketplaceReference; options?: IPullRepositoryOptions }[];
 		updatePluginSourceCalls: { plugin: IMarketplacePlugin; options?: IPullRepositoryOptions }[];
+		/** Whether the marketplace is already trusted */
+		marketplaceTrusted: boolean;
+		/** Canonical IDs that were trusted via trustMarketplace() */
+		trustedMarketplaces: string[];
 	}
 
 	function createDefaults(): MockState {
@@ -78,6 +82,8 @@ suite('PluginInstallService', () => {
 			terminalCompletes: true,
 			pullRepositoryCalls: [],
 			updatePluginSourceCalls: [],
+			marketplaceTrusted: true,
+			trustedMarketplaces: [],
 		};
 	}
 
@@ -237,6 +243,10 @@ suite('PluginInstallService', () => {
 			addInstalledPlugin: (uri: URI, plugin: IMarketplacePlugin) => {
 				state.addedPlugins.push({ uri: uri.toString(), plugin });
 			},
+			isMarketplaceTrusted: () => state.marketplaceTrusted,
+			trustMarketplace: (ref: IMarketplaceReference) => {
+				state.trustedMarketplaces.push(ref.canonicalId);
+			},
 		} as unknown as IPluginMarketplaceService);
 
 		const service = instantiationService.createInstance(PluginInstallService);
@@ -347,6 +357,8 @@ suite('PluginInstallService', () => {
 			instantiationService.stub(IProgressService, { withProgress: async (_o: unknown, cb: () => Promise<unknown>) => cb() } as unknown as IProgressService);
 			instantiationService.stub(ILogService, new NullLogService());
 			instantiationService.stub(IPluginMarketplaceService, { addInstalledPlugin: () => { } } as unknown as IPluginMarketplaceService);
+			instantiationService.stub(IPluginMarketplaceService, 'isMarketplaceTrusted', () => true);
+			instantiationService.stub(IPluginMarketplaceService, 'trustMarketplace', () => { });
 			const svc = instantiationService.createInstance(PluginInstallService);
 
 			const plugin = createPlugin({
@@ -669,6 +681,70 @@ suite('PluginInstallService', () => {
 
 			assert.strictEqual(state.terminalCommands.length, 1);
 			assert.ok(state.terminalCommands[0].includes('pip'));
+		});
+	});
+
+	// =========================================================================
+	// installPlugin — marketplace trust
+	// =========================================================================
+
+	suite('installPlugin — marketplace trust', () => {
+
+		test('skips trust prompt when marketplace is already trusted', async () => {
+			const { service, state } = createService({ marketplaceTrusted: true });
+			const plugin = createPlugin({
+				source: 'plugins/myPlugin',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/myPlugin' },
+			});
+
+			await service.installPlugin(plugin);
+
+			assert.strictEqual(state.addedPlugins.length, 1);
+			assert.strictEqual(state.trustedMarketplaces.length, 0, 'should not re-trust');
+		});
+
+		test('shows trust prompt and installs when user confirms', async () => {
+			const { service, state } = createService({ marketplaceTrusted: false, dialogConfirmResult: true });
+			const plugin = createPlugin({
+				source: 'plugins/myPlugin',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/myPlugin' },
+			});
+
+			await service.installPlugin(plugin);
+
+			assert.strictEqual(state.trustedMarketplaces.length, 1);
+			assert.strictEqual(state.addedPlugins.length, 1);
+		});
+
+		test('does not install when user declines trust', async () => {
+			const { service, state } = createService({ marketplaceTrusted: false, dialogConfirmResult: false });
+			const plugin = createPlugin({
+				source: 'plugins/myPlugin',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/myPlugin' },
+			});
+
+			await service.installPlugin(plugin);
+
+			assert.strictEqual(state.trustedMarketplaces.length, 0);
+			assert.strictEqual(state.addedPlugins.length, 0);
+		});
+
+		test('trust prompt applies to all source kinds', async () => {
+			const { service, state } = createService({ marketplaceTrusted: false, dialogConfirmResult: false });
+
+			const kinds: IPluginSourceDescriptor[] = [
+				{ kind: PluginSourceKind.RelativePath, path: 'p' },
+				{ kind: PluginSourceKind.GitHub, repo: 'owner/repo' },
+				{ kind: PluginSourceKind.GitUrl, url: 'https://example.com/repo.git' },
+				{ kind: PluginSourceKind.Npm, package: 'my-pkg' },
+				{ kind: PluginSourceKind.Pip, package: 'my-pkg' },
+			];
+
+			for (const sourceDescriptor of kinds) {
+				await service.installPlugin(createPlugin({ sourceDescriptor }));
+			}
+
+			assert.strictEqual(state.addedPlugins.length, 0, 'no plugins should be installed when trust is declined');
 		});
 	});
 });
