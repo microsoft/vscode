@@ -40,6 +40,7 @@ import { ChatRequestHooks, IHookCommand, parseSubagentHooksFromYaml } from '../h
 import { HookType } from '../hookTypes.js';
 import { HookSourceFormat, getHookSourceFormat, parseHooksFromFile } from '../hookCompatibility.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { getTarget, mapClaudeModels, mapClaudeTools } from '../languageProviders/promptFileAttributes.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
@@ -173,6 +174,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IPathService private readonly pathService: IPathService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -223,6 +225,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				this.getFileLocatorEvent(PromptsType.hook),
 				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(PromptsConfig.USE_CHAT_HOOKS) || e.affectsConfiguration(PromptsConfig.USE_CLAUDE_HOOKS)),
 				this._onDidPluginHooksChange.event,
+				this.workspaceTrustService.onDidChangeTrust,
 			)
 		));
 
@@ -1242,6 +1245,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private async computeHooks(token: CancellationToken): Promise<IConfiguredHooksInfo | undefined> {
 		const useChatHooks = this.configurationService.getValue(PromptsConfig.USE_CHAT_HOOKS);
 		if (!useChatHooks) {
+			return undefined;
+		}
+
+		if (!this.workspaceTrustService.isWorkspaceTrusted()) {
 			return undefined;
 		}
 
