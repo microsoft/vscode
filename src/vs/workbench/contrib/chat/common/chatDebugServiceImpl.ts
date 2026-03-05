@@ -28,6 +28,11 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	private readonly _onDidClearProviderEvents = this._register(new Emitter<URI>());
 	readonly onDidClearProviderEvents: Event<URI> = this._onDidClearProviderEvents.event;
 
+	private readonly _onDidMarkSessionForTroubleshoot = this._register(new Emitter<URI>());
+	readonly onDidMarkSessionForTroubleshoot: Event<URI> = this._onDidMarkSessionForTroubleshoot.event;
+
+	private readonly _troubleshootSessions = new ResourceMap<boolean>();
+
 	private readonly _providers = new Set<IChatDebugLogProvider>();
 	private readonly _invocationCts = new ResourceMap<CancellationTokenSource>();
 
@@ -207,6 +212,17 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		}
 		this._size = write;
 		this._onDidClearProviderEvents.fire(sessionResource);
+	}
+
+	markSessionForTroubleshoot(sessionResource: URI): void {
+		if (!this._troubleshootSessions.has(sessionResource)) {
+			this._troubleshootSessions.set(sessionResource, true);
+			this._onDidMarkSessionForTroubleshoot.fire(sessionResource);
+		}
+	}
+
+	isSessionMarkedForTroubleshoot(sessionResource: URI): boolean {
+		return this._troubleshootSessions.has(sessionResource);
 	}
 
 	async resolveEvent(eventId: string): Promise<IChatDebugResolvedEventContent | undefined> {

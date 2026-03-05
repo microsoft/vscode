@@ -66,11 +66,14 @@ export class ChatSlashCommandsContribution extends Disposable {
 	) {
 		super();
 
-		const troubleshootSessions = new Set<string>();
 		const hasTroubleshootDataKey = ChatContextKeys.chatSessionHasTroubleshootData.bindTo(this.contextKeyService);
 		this._store.add(chatWidgetService.onDidChangeFocusedSession(() => {
 			const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
-			hasTroubleshootDataKey.set(!!sessionResource && troubleshootSessions.has(sessionResource.toString()));
+			hasTroubleshootDataKey.set(!!sessionResource && chatDebugService.isSessionMarkedForTroubleshoot(sessionResource));
+			languageModelToolsService.flushToolUpdates();
+		}));
+		this._store.add(chatDebugService.onDidMarkSessionForTroubleshoot(() => {
+			hasTroubleshootDataKey.set(true);
 			languageModelToolsService.flushToolUpdates();
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
@@ -147,10 +150,6 @@ export class ChatSlashCommandsContribution extends Disposable {
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
 		}, async (prompt, _progress, _history, _location, sessionResource, _token, options) => {
-			troubleshootSessions.add(sessionResource.toString());
-			hasTroubleshootDataKey.set(true);
-			languageModelToolsService.flushToolUpdates();
-
 			const attachedContext: IChatRequestVariableEntry[] = [
 				await createDebugEventsAttachment(sessionResource, chatDebugService)
 			];
@@ -432,6 +431,7 @@ export async function createDebugEventsAttachment(
 	sessionResource: URI,
 	chatDebugService: IChatDebugService
 ): Promise<IChatRequestVariableEntry> {
+	chatDebugService.markSessionForTroubleshoot(sessionResource);
 	await chatDebugService.invokeProviders(sessionResource);
 	const events = chatDebugService.getEvents(sessionResource);
 	const summary = events.length > 0
