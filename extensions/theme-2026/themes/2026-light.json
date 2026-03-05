@@ -116,7 +116,7 @@
 		"editorLineNumber.foreground": "#606060",
 		"editorLineNumber.activeForeground": "#202020",
 		"editorCursor.foreground": "#202020",
-		"editor.selectionBackground": "#0069CC1A",
+		"editor.selectionBackground": "#0069CC40",
 		"editor.inactiveSelectionBackground": "#0069CC1A",
 		"editor.selectionHighlightBackground": "#0069CC15",
 		"editor.wordHighlightBackground": "#0069CC26",
