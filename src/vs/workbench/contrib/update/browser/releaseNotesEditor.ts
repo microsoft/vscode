@@ -33,6 +33,7 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { SimpleSettingRenderer } from '../../markdown/browser/markdownSettingRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { parse as parseYaml } from '../../../../base/common/yaml.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { dirname } from '../../../../base/common/resources.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
@@ -789,8 +790,12 @@ export function isInsidersReleaseNotes(text: string): boolean {
 	if (text.startsWith('---')) {
 		const end = text.indexOf('\n---', 3);
 		if (end !== -1) {
-			const frontmatter = text.substring(0, end + 4);
-			return /^ProductEdition:\s*Insiders\s*$/m.test(frontmatter);
+			const frontmatter = text.substring(3, end);
+			const parsed = parseYaml(frontmatter);
+			if (parsed?.type === 'map') {
+				const field = parsed.properties.find(p => p.key.value === 'ProductEdition');
+				return field?.value.type === 'scalar' && field.value.value === 'Insiders';
+			}
 		}
 	}
 	return false;
