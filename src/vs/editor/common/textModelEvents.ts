@@ -315,20 +315,10 @@ export class ModelRawLineChanged {
 	 * The new line number the old one is mapped to (after the change was applied).
 	 */
 	public readonly lineNumberPostEdit: number;
-	/**
-	 * The new value of the line.
-	 */
-	public readonly detail: string;
-	/**
-	 * The injected text on the line.
-	 */
-	public readonly lineNumberPostEdit: number;
 
-	constructor(lineNumber: number, lineNumberPostEdit: number, detail: string, injectedText: LineInjectedText[] | null) {
+	constructor(lineNumber: number, lineNumberPostEdit: number) {
 		this.lineNumber = lineNumber;
 		this.lineNumberPostEdit = lineNumberPostEdit;
-		this.detail = detail;
-		this.injectedText = injectedText;
 	}
 }
 
@@ -394,11 +384,6 @@ export class ModelRawLinesDeleted {
 	 */
 	public readonly fromLineNumber: number;
 	/**
-	 * The count of deleted lines.
-	 */
-	public readonly count: number;
-
-	/**
 	 * At what line the deletion stopped (inclusive).
 	 */
 	public readonly toLineNumber: number;
@@ -444,24 +429,11 @@ export class ModelRawLinesInserted {
 	public get toLineNumberPostEdit(): number {
 		return this.fromLineNumberPostEdit + this.count - 1;
 	}
-	/**
-	 * The count of inserted lines.
-	 */
-	public readonly count: number;
 
-	/**
-	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
-	 */
-	public get toLineNumber(): number {
-		return this.fromLineNumber + this.count - 1;
-	}
-
-	constructor(fromLineNumber: number, fromLineNumberPostEdit: number, count: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
-		this.injectedTexts = injectedTexts;
+	constructor(fromLineNumber: number, fromLineNumberPostEdit: number, count: number) {
 		this.fromLineNumber = fromLineNumber;
 		this.fromLineNumberPostEdit = fromLineNumberPostEdit;
 		this.count = count;
-		this.detail = detail;
 	}
 }
 

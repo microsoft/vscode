@@ -171,8 +171,7 @@ function mapChange(change: ModelRawChange): unknown {
 	} else if (change.changeType === RawContentChangedType.LinesDeleted) {
 		return {
 			kind: 'linesDeleted',
-			fromLineNumber: change.fromLineNumber,
-			count: change.count,
+			fromLineNumber: change.fromLineNumber
 		};
 	} else if (change.changeType === RawContentChangedType.EOLChanged) {
 		return {

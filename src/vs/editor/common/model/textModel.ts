@@ -1547,9 +1547,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					rawContentChanges.push(
 						new ModelRawLineChanged(
 							editLineNumber,
-							currentEditLineNumber,
-							this.getLineContent(currentEditLineNumber),
-							decorationsInCurrentLine
+							currentEditLineNumber
 						));
 				}
 
@@ -1569,9 +1567,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					rawContentChanges.push(
 						new ModelRawLinesInserted(
 							spliceLineNumber + 1,
-							startLineNumber + insertingLinesCnt,
-							newLines,
-							injectedTexts
+							fromLineNumber,
+							cnt
 						)
 					);
 				}
@@ -1633,7 +1630,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private _onDidChangeInjectedText(affectedInjectedTextLines: Set<number> | null): void {
 		if (affectedInjectedTextLines && affectedInjectedTextLines.size > 0) {
 			const affectedLines = Array.from(affectedInjectedTextLines);
-			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber)));
+			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, lineNumber));
 			this._onDidChangeContentOrInjectedText(new ModelInjectedTextChangedEvent(lineChangeEvents));
 		}
 	}
@@ -1857,11 +1854,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return decs;
 	}
 
-	private _getInjectedTextInLine(lineNumber: number): LineInjectedText[] {
+	public getLineInjectedText(lineNumber: number): LineInjectedText[] {
 		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
 		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
 
-		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, ownerId);
+		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, 0);
 		return LineInjectedText.fromDecorations(result).filter(t => t.lineNumber === lineNumber);
 	}
 
