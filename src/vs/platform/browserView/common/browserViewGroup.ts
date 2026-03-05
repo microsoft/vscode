@@ -51,9 +51,10 @@ export interface IBrowserViewGroupService {
 
 	/**
 	 * Create a new browser view group.
+	 * @param windowId The ID of the primary window the group should be associated with.
 	 * @returns The id of the newly created group.
 	 */
-	createGroup(): Promise<string>;
+	createGroup(windowId: number): Promise<string>;
 
 	/**
 	 * Destroy a browser view group.

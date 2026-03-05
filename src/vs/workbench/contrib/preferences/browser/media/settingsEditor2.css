@@ -62,6 +62,7 @@
 .settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget {
 	margin-right: 3px;
 	padding-bottom: 3px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget:empty {

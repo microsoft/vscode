@@ -34,6 +34,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { ChatModel } from '../../common/model/chatModel.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
+import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatSendResult, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -403,7 +404,7 @@ export class CreateRemoteAgentJobAction {
 				userPrompt = 'implement this.';
 			}
 
-			const attachedContext = widget.input.getAttachedAndImplicitContext(sessionResource);
+			const attachedContext = widget.input.getAttachedAndImplicitContext();
 			widget.input.acceptInput(true);
 
 			// For inline editor mode, add selection or cursor information
@@ -479,7 +480,7 @@ export class CreateRemoteAgentJobAction {
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
 
 			// Add the request to the model first
-			const parsedRequest = requestParser.parseChatRequest(sessionResource, userPrompt, ChatAgentLocation.Chat);
+			const parsedRequest = requestParser.parseChatRequestWithReferences(getDynamicVariablesForWidget(widget), getSelectedToolAndToolSetsForWidget(widget), userPrompt, ChatAgentLocation.Chat);
 			const addedRequest = chatModel.addRequest(
 				parsedRequest,
 				{ variables: attachedContext.asArray() },
