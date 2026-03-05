@@ -138,5 +138,13 @@
 				color: inherit;
 			}
 		}
+
+		.modal-editor-action-separator {
+			width: 1px;
+			height: 16px;
+			margin: 0 4px;
+			background-color: var(--vscode-titleBar-activeForeground);
+			opacity: 0.3;
+		}
 	}
 }
