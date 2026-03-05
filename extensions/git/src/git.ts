@@ -378,6 +378,7 @@ const STASH_FORMAT = '%H%n%P%n%gd%n%gs%n%at%n%ct';
 
 export interface ICloneOptions {
 	readonly parentPath: string;
+	readonly targetName?: string;
 	readonly progress: Progress<{ increment: number }>;
 	readonly recursive?: boolean;
 	readonly ref?: string;
@@ -433,14 +434,16 @@ export class Git {
 	}
 
 	async clone(url: string, options: ICloneOptions, cancellationToken?: CancellationToken): Promise<string> {
-		const baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
+		const baseFolderName = options.targetName || decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
 		let folderName = baseFolderName;
 		let folderPath = path.join(options.parentPath, folderName);
 		let count = 1;
 
-		while (count < 20 && await new Promise(c => exists(folderPath, c))) {
-			folderName = `${baseFolderName}-${count++}`;
-			folderPath = path.join(options.parentPath, folderName);
+		if (!options.targetName) {
+			while (count < 20 && await new Promise(c => exists(folderPath, c))) {
+				folderName = `${baseFolderName}-${count++}`;
+				folderPath = path.join(options.parentPath, folderName);
+			}
 		}
 
 		await mkdirp(options.parentPath);

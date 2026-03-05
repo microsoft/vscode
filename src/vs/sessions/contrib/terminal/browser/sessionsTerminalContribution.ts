@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { isEqualOrParent } from '../../../../base/common/extpath.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -14,7 +15,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
@@ -83,16 +84,17 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 		}));
 
-		// When terminals are restored on startup, ensure visibility matches active session
+		// When terminals are created externally, try to relate them to the active session
 		this._register(this._terminalService.onDidCreateInstance(instance => {
 			if (this._isCreatingTerminal || this._activeKey === undefined) {
 				return;
 			}
-			// If this instance is not tracked by us, hide it
+			// If this instance is already tracked by us, nothing to do
 			const activeIds = this._pathToInstanceIds.get(this._activeKey);
-			if (!activeIds?.has(instance.instanceId)) {
-				this._terminalService.moveToBackground(instance);
+			if (activeIds?.has(instance.instanceId)) {
+				return;
 			}
+			this._tryAdoptTerminal(instance);
 		}));
 	}
 
@@ -161,6 +163,58 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 
 	/**
+	 * Attempts to associate an externally-created terminal with the active
+	 * session by checking whether its initial cwd falls within the active
+	 * session's worktree or repository. Hides the terminal if it cannot be
+	 * related.
+	 */
+	private async _tryAdoptTerminal(instance: ITerminalInstance): Promise<void> {
+		let cwd: string | undefined;
+		try {
+			cwd = await instance.getInitialCwd();
+		} catch {
+			return;
+		}
+
+		if (instance.isDisposed) {
+			return;
+		}
+
+		const activeKey = this._activeKey;
+		if (!activeKey) {
+			return;
+		}
+
+		// Re-check tracking — the terminal may have been adopted while awaiting
+		const activeIds = this._pathToInstanceIds.get(activeKey);
+		if (activeIds?.has(instance.instanceId)) {
+			return;
+		}
+
+		const session = this._sessionsManagementService.activeSession.get();
+		if (cwd && this._isRelatedToSession(cwd, session, activeKey)) {
+			this._addInstanceToPath(activeKey, instance.instanceId);
+			this._logService.trace(`[SessionsTerminal] Adopted terminal ${instance.instanceId} with cwd ${cwd}`);
+		} else {
+			this._terminalService.moveToBackground(instance);
+		}
+	}
+
+	/**
+	 * Returns whether the given cwd falls within the active session's
+	 * worktree, repository, or the current active key (home dir fallback).
+	 */
+	private _isRelatedToSession(cwd: string, session: IActiveSessionItem | undefined, activeKey: string): boolean {
+		if (isEqualOrParent(cwd, activeKey, true)) {
+			return true;
+		}
+		if (session?.providerType === AgentSessionProviders.Background && session.repository) {
+			return isEqualOrParent(cwd, session.repository.fsPath, true);
+		}
+		return false;
+	}
+
+	/**
 	 * Hides all foreground terminals that do not belong to the given active key
 	 * and shows all background terminals that do belong to it.
 	 */
@@ -199,6 +253,32 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			this._pathToInstanceIds.delete(key);
 		}
 	}
+
+	async dumpTracking(): Promise<void> {
+		const trackedInstanceIds = new Set<number>();
+
+		console.log('[SessionsTerminal] === Tracked Terminals ===');
+		for (const [key, ids] of this._pathToInstanceIds) {
+			for (const instanceId of ids) {
+				trackedInstanceIds.add(instanceId);
+				const instance = this._terminalService.getInstanceFromId(instanceId);
+				let cwd = '<unknown>';
+				if (instance) {
+					try { cwd = await instance.getInitialCwd(); } catch { /* ignored */ }
+				}
+				console.log(`  ${instanceId} - ${cwd} - ${key}`);
+			}
+		}
+
+		console.log('[SessionsTerminal] === Untracked Terminals ===');
+		for (const instance of this._terminalService.instances) {
+			if (!trackedInstanceIds.has(instance.instanceId)) {
+				let cwd = '<unknown>';
+				try { cwd = await instance.getInitialCwd(); } catch { /* ignored */ }
+				console.log(`  ${instance.instanceId} - ${cwd}`);
+			}
+		}
+	}
 }
 
 registerWorkbenchContribution2(SessionsTerminalContribution.ID, SessionsTerminalContribution, WorkbenchPhase.AfterRestored);
@@ -231,3 +311,21 @@ class OpenSessionInTerminalAction extends Action2 {
 }
 
 registerAction2(OpenSessionInTerminalAction);
+
+class DumpTerminalTrackingAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSession.dumpTerminalTracking',
+			title: localize2('dumpTerminalTracking', "Dump Terminal Tracking"),
+			f1: true,
+		});
+	}
+
+	override async run(): Promise<void> {
+		const contribution = getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID);
+		await contribution.dumpTracking();
+	}
+}
+
+registerAction2(DumpTerminalTrackingAction);

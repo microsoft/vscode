@@ -21,6 +21,9 @@ import { inputPlaceholderForeground } from '../../../../platform/theme/common/co
 import { localize } from '../../../../nls.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../workbench/contrib/chat/common/widget/chatColors.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 
 /**
  * Static command ID used by completion items to trigger immediate slash command execution,
@@ -57,6 +60,7 @@ export class SlashCommandHandler extends Disposable {
 	private static _slashDecosRegistered = false;
 
 	private readonly _slashCommands: ISessionsSlashCommandData[] = [];
+	private _cachedPromptCommands: readonly IChatPromptSlashCommand[] = [];
 
 	constructor(
 		private readonly _editor: CodeEditorWidget,
@@ -64,15 +68,26 @@ export class SlashCommandHandler extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IAICustomizationWorkspaceService private readonly aiCustomizationWorkspaceService: IAICustomizationWorkspaceService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 		this._registerSlashCommands();
 		this._registerCompletions();
 		this._registerDecorations();
+		this._refreshPromptCommands();
+		this._register(this.promptsService.onDidChangeSlashCommands(() => this._refreshPromptCommands()));
 	}
 
 	clearInput(): void {
 		this._editor.getModel()?.setValue('');
+	}
+
+	private _refreshPromptCommands(): void {
+		this.aiCustomizationWorkspaceService.getFilteredPromptSlashCommands(CancellationToken.None).then(commands => {
+			this._cachedPromptCommands = commands;
+			this._updateDecorations();
+		}, () => { /* swallow errors from stale refresh */ });
 	}
 
 	/**
@@ -80,7 +95,7 @@ export class SlashCommandHandler extends Disposable {
 	 * Returns `true` if a command was handled.
 	 */
 	tryExecuteSlashCommand(query: string): boolean {
-		const match = query.match(/^\/(\w+)\s*(.*)/s);
+		const match = query.match(/^\/([\w\p{L}\d_\-\.:]+)\s*(.*)/su);
 		if (!match) {
 			return false;
 		}
@@ -93,6 +108,30 @@ export class SlashCommandHandler extends Disposable {
 
 		slashCommand.execute(match[2]?.trim() ?? '');
 		return true;
+	}
+
+	/**
+	 * If the query starts with a prompt/skill slash command (e.g. `/my-prompt args`),
+	 * expands it into a CLI-friendly markdown reference so the agent can locate the
+	 * file. Returns `undefined` when the query is not a prompt slash command.
+	 */
+	tryExpandPromptSlashCommand(query: string): string | undefined {
+		const match = query.match(/^\/([\w\p{L}\d_\-\.:]+)\s*(.*)/su);
+		if (!match) {
+			return undefined;
+		}
+
+		const commandName = match[1];
+		const promptCommand = this._cachedPromptCommands.find(c => c.name === commandName);
+		if (!promptCommand) {
+			return undefined;
+		}
+
+		const args = match[2]?.trim() ?? '';
+		const uri = promptCommand.promptPath.uri;
+		const typeLabel = promptCommand.promptPath.type === PromptsType.skill ? 'skill' : 'prompt file';
+		const expanded = `Use the ${typeLabel} located at [${promptCommand.name}](${uri.toString()}).`;
+		return args ? `${expanded} ${args}` : expanded;
 	}
 
 	private _registerSlashCommands(): void {
@@ -154,7 +193,7 @@ export class SlashCommandHandler extends Disposable {
 	private _updateDecorations(): void {
 		const model = this._editor.getModel();
 		const value = model?.getValue() ?? '';
-		const match = value.match(/^\/(\w+)\s?/);
+		const match = value.match(/^\/([\w\p{L}\d_\-\.:]+)\s?/u);
 
 		if (!match) {
 			this._editor.setDecorationsByType('sessions-chat', SlashCommandHandler._slashDecoType, []);
@@ -164,7 +203,8 @@ export class SlashCommandHandler extends Disposable {
 
 		const commandName = match[1];
 		const slashCommand = this._slashCommands.find(c => c.command === commandName);
-		if (!slashCommand) {
+		const promptCommand = this._cachedPromptCommands.find(c => c.name === commandName);
+		if (!slashCommand && !promptCommand) {
 			this._editor.setDecorationsByType('sessions-chat', SlashCommandHandler._slashDecoType, []);
 			this._editor.setDecorationsByType('sessions-chat', SlashCommandHandler._slashPlaceholderDecoType, []);
 			return;
@@ -179,13 +219,14 @@ export class SlashCommandHandler extends Disposable {
 
 		// Show the command description as a placeholder after the command
 		const restOfInput = value.slice(match[0].length).trim();
-		if (!restOfInput && slashCommand.detail) {
+		const detail = slashCommand?.detail ?? promptCommand?.description;
+		if (!restOfInput && detail) {
 			const placeholderCol = match[0].length + 1;
 			const placeholderDeco: IDecorationOptions[] = [{
 				range: { startLineNumber: 1, startColumn: placeholderCol, endLineNumber: 1, endColumn: model!.getLineMaxColumn(1) },
 				renderOptions: {
 					after: {
-						contentText: slashCommand.detail,
+						contentText: detail,
 						color: this._getPlaceholderColor(),
 					}
 				}
@@ -233,6 +274,44 @@ export class SlashCommandHandler extends Disposable {
 							sortText: c.sortText ?? 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text,
 							command: c.executeImmediately ? { id: SESSIONS_EXECUTE_SLASH_COMMAND_ID, title: withSlash, arguments: [this, withSlash] } : undefined,
+						};
+					})
+				};
+			}
+		}));
+
+		// Dynamic completions for individual prompt/skill files (filtered to match
+		// what the sessions customizations view shows).
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: uri.scheme, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'sessionsPromptSlashCommands',
+			triggerCharacters: ['/'],
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
+				const range = this._computeCompletionRanges(model, position, /\/[\p{L}0-9_.:-]*/gu);
+				if (!range) {
+					return null;
+				}
+
+				const textBefore = model.getValueInRange(new Range(1, 1, range.replace.startLineNumber, range.replace.startColumn));
+				if (textBefore.trim() !== '') {
+					return null;
+				}
+
+				const promptCommands = await this.aiCustomizationWorkspaceService.getFilteredPromptSlashCommands(token);
+				const userInvocable = promptCommands.filter(c => c.parsedPromptFile?.header?.userInvocable !== false);
+				if (userInvocable.length === 0) {
+					return null;
+				}
+
+				return {
+					suggestions: userInvocable.map((c, i): CompletionItem => {
+						const label = `/${c.name}`;
+						return {
+							label: { label, description: c.description },
+							insertText: `${label} `,
+							documentation: c.description,
+							range,
+							sortText: 'b'.repeat(i + 1),
+							kind: CompletionItemKind.Text,
 						};
 					})
 				};

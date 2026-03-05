@@ -51,6 +51,14 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 	} as IActiveSessionItem;
 }
 
+function makeTerminalInstance(id: number, cwd: string): ITerminalInstance {
+	return {
+		instanceId: id,
+		isDisposed: false,
+		getInitialCwd: () => Promise.resolve(cwd),
+	} as unknown as ITerminalInstance;
+}
+
 suite('SessionsTerminalContribution', () => {
 
 	const store = new DisposableStore();
@@ -102,7 +110,9 @@ suite('SessionsTerminalContribution', () => {
 			}
 			override async createTerminal(opts?: any): Promise<ITerminalInstance> {
 				const id = nextInstanceId++;
-				const instance = { instanceId: id } as ITerminalInstance;
+				const cwdUri: URI | undefined = opts?.config?.cwd;
+				const cwdStr = cwdUri?.fsPath ?? '';
+				const instance = makeTerminalInstance(id, cwdStr);
 				createdTerminals.push({ cwd: opts?.config?.cwd });
 				terminalInstances.set(id, instance);
 				onDidCreateInstance.fire(instance);
@@ -436,9 +446,10 @@ suite('SessionsTerminalContribution', () => {
 		await tick();
 
 		// Simulate a terminal being restored (e.g. on startup) that is not tracked
-		const restoredInstance = { instanceId: nextInstanceId++ } as ITerminalInstance;
+		const restoredInstance = makeTerminalInstance(nextInstanceId++, '/some/other/path');
 		terminalInstances.set(restoredInstance.instanceId, restoredInstance);
 		onDidCreateInstance.fire(restoredInstance);
+		await tick();
 
 		// The restored terminal should be moved to background
 		assert.ok(moveToBackgroundCalls.includes(restoredInstance.instanceId), 'restored terminal should be backgrounded');
@@ -446,9 +457,10 @@ suite('SessionsTerminalContribution', () => {
 
 	test('does not hide restored terminals before any session is active', async () => {
 		// Simulate a terminal being restored before any session is active
-		const restoredInstance = { instanceId: nextInstanceId++ } as ITerminalInstance;
+		const restoredInstance = makeTerminalInstance(nextInstanceId++, '/some/path');
 		terminalInstances.set(restoredInstance.instanceId, restoredInstance);
 		onDidCreateInstance.fire(restoredInstance);
+		await tick();
 
 		assert.strictEqual(moveToBackgroundCalls.length, 0, 'should not background before any session is active');
 	});
@@ -466,6 +478,64 @@ suite('SessionsTerminalContribution', () => {
 
 		assert.strictEqual(createdTerminals.length, 1, 'should not create a new terminal');
 		assert.ok(showBackgroundCalls.includes(instanceId), 'should show the backgrounded terminal');
+	});
+
+	// --- Terminal adoption ---
+
+	test('adopts externally-created terminal whose cwd matches the active worktree', async () => {
+		const worktree = URI.file('/worktree');
+		activeSessionObs.set(makeAgentSession({ worktree, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		const externalInstance = makeTerminalInstance(nextInstanceId++, worktree.fsPath);
+		terminalInstances.set(externalInstance.instanceId, externalInstance);
+		onDidCreateInstance.fire(externalInstance);
+		await tick();
+
+		assert.ok(!moveToBackgroundCalls.includes(externalInstance.instanceId), 'should not be hidden');
+		// Verify it was adopted — ensureTerminal should reuse it
+		await contribution.ensureTerminal(worktree, false);
+		assert.strictEqual(createdTerminals.length, 1, 'should reuse adopted terminal, not create a second');
+	});
+
+	test('adopts externally-created terminal whose cwd is a subdirectory of the active worktree', async () => {
+		const worktree = URI.file('/worktree');
+		activeSessionObs.set(makeAgentSession({ worktree, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		const externalInstance = makeTerminalInstance(nextInstanceId++, URI.file('/worktree/subdir').fsPath);
+		terminalInstances.set(externalInstance.instanceId, externalInstance);
+		onDidCreateInstance.fire(externalInstance);
+		await tick();
+
+		assert.ok(!moveToBackgroundCalls.includes(externalInstance.instanceId), 'subdirectory terminal should not be hidden');
+	});
+
+	test('adopts externally-created terminal whose cwd matches the session repository', async () => {
+		const worktree = URI.file('/worktree');
+		const repo = URI.file('/repo');
+		activeSessionObs.set(makeAgentSession({ worktree, repository: repo, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		const externalInstance = makeTerminalInstance(nextInstanceId++, repo.fsPath);
+		terminalInstances.set(externalInstance.instanceId, externalInstance);
+		onDidCreateInstance.fire(externalInstance);
+		await tick();
+
+		assert.ok(!moveToBackgroundCalls.includes(externalInstance.instanceId), 'terminal at repository path should not be hidden');
+	});
+
+	test('hides externally-created terminal whose cwd does not match the active session', async () => {
+		const worktree = URI.file('/worktree');
+		activeSessionObs.set(makeAgentSession({ worktree, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		const externalInstance = makeTerminalInstance(nextInstanceId++, '/unrelated/path');
+		terminalInstances.set(externalInstance.instanceId, externalInstance);
+		onDidCreateInstance.fire(externalInstance);
+		await tick();
+
+		assert.ok(moveToBackgroundCalls.includes(externalInstance.instanceId), 'unrelated terminal should be hidden');
 	});
 });
 
