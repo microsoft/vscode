@@ -639,12 +639,13 @@ function parseUriMarketplaceReference(rawValue: string): IMarketplaceReference |
 		return undefined;
 	}
 
+	const gitSuffix = '.git';
 	const sanitizedAuthority = sanitizePathSegment(uri.authority.toLowerCase());
-	const pathHasGitSuffix = normalizedPath.toLowerCase().endsWith('.git');
-	const pathWithoutGit = pathHasGitSuffix ? normalizedPath.slice(1, -4) : normalizedPath.slice(1);
+	const pathHasGitSuffix = normalizedPath.toLowerCase().endsWith(gitSuffix);
+	const pathWithoutGit = pathHasGitSuffix ? normalizedPath.slice(1, normalizedPath.length - gitSuffix.length) : normalizedPath.slice(1);
 	const pathSegments = pathWithoutGit.split('/').map(sanitizePathSegment);
 	// Always normalize the canonical path to include .git so that URLs with and without the suffix deduplicate.
-	const canonicalPath = pathHasGitSuffix ? normalizedPath.slice(1).toLowerCase() : `${normalizedPath.slice(1).toLowerCase()}.git`;
+	const canonicalPath = pathHasGitSuffix ? normalizedPath.slice(1).toLowerCase() : `${normalizedPath.slice(1).toLowerCase()}${gitSuffix}`;
 	return {
 		rawValue,
 		displayLabel: rawValue,
@@ -685,12 +686,13 @@ function parseScpMarketplaceReference(rawValue: string): IMarketplaceReference |
  * how to treat it.
  */
 function normalizeGitRepoPath(path: string): string | undefined {
+	const gitSuffix = '.git';
 	const trimmed = path.replace(/\/+/g, '/').replace(/\/+$/g, '');
 
 	const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 	// Strip .git suffix (if present) only for the purposes of validating path depth.
-	const pathWithoutGit = withLeadingSlash.toLowerCase().endsWith('.git')
-		? withLeadingSlash.slice(1, -4)
+	const pathWithoutGit = withLeadingSlash.toLowerCase().endsWith(gitSuffix)
+		? withLeadingSlash.slice(1, withLeadingSlash.length - gitSuffix.length)
 		: withLeadingSlash.slice(1);
 	if (!pathWithoutGit || !pathWithoutGit.includes('/')) {
 		return undefined;
