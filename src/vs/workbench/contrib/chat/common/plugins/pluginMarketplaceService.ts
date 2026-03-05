@@ -640,12 +640,16 @@ function parseUriMarketplaceReference(rawValue: string): IMarketplaceReference |
 	}
 
 	const sanitizedAuthority = sanitizePathSegment(uri.authority.toLowerCase());
-	const pathSegments = normalizedPath.slice(1, -4).split('/').map(sanitizePathSegment);
+	const pathHasGitSuffix = normalizedPath.toLowerCase().endsWith('.git');
+	const pathWithoutGit = pathHasGitSuffix ? normalizedPath.slice(1, -4) : normalizedPath.slice(1);
+	const pathSegments = pathWithoutGit.split('/').map(sanitizePathSegment);
+	// Always normalize the canonical path to include .git so that URLs with and without the suffix deduplicate.
+	const canonicalPath = pathHasGitSuffix ? normalizedPath.slice(1).toLowerCase() : `${normalizedPath.slice(1).toLowerCase()}.git`;
 	return {
 		rawValue,
 		displayLabel: rawValue,
 		cloneUrl: rawValue,
-		canonicalId: `git:${uri.authority.toLowerCase()}/${normalizedPath.slice(1).toLowerCase()}`,
+		canonicalId: `git:${uri.authority.toLowerCase()}/${canonicalPath}`,
 		cacheSegments: [sanitizedAuthority, ...pathSegments],
 		kind: MarketplaceReferenceKind.GitUri,
 	};
@@ -674,14 +678,20 @@ function parseScpMarketplaceReference(rawValue: string): IMarketplaceReference |
 	};
 }
 
+/**
+ * Normalizes a Git repository path and validates that it has at least two segments
+ * (i.e., at least one owner/repo pair below the root). Accepts paths with or without
+ * a `.git` suffix — the suffix is preserved in the returned value so callers can decide
+ * how to treat it.
+ */
 function normalizeGitRepoPath(path: string): string | undefined {
 	const trimmed = path.replace(/\/+/g, '/').replace(/\/+$/g, '');
-	if (!trimmed.toLowerCase().endsWith('.git')) {
-		return undefined;
-	}
 
 	const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-	const pathWithoutGit = withLeadingSlash.slice(1, -4);
+	// Strip .git suffix (if present) only for the purposes of validating path depth.
+	const pathWithoutGit = withLeadingSlash.toLowerCase().endsWith('.git')
+		? withLeadingSlash.slice(1, -4)
+		: withLeadingSlash.slice(1);
 	if (!pathWithoutGit || !pathWithoutGit.includes('/')) {
 		return undefined;
 	}
