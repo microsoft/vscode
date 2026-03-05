@@ -102,7 +102,7 @@ function executeCommand(cmd) {
 	if (cmd.startsWith('#')) { return { ok: true }; }
 
 	// Regular playwright-cli command
-	const result = runPlaywrightCli(cmd.split(/\s+/));
+	const result = runPlaywrightCli(cmd);
 	if (!result.ok) {
 		return { ok: false, message: `playwright-cli ${cmd} failed:\n${result.stderr || result.stdout}` };
 	}

@@ -111,7 +111,7 @@ function compileScenario(scenario) {
 			// Execute the commands to advance the UI state for the next step
 			for (const cmd of commands) {
 				if (cmd.startsWith('#')) { continue; }
-				const result = runPlaywrightCli(cmd.split(/\s+/));
+				const result = runPlaywrightCli(cmd);
 				if (!result.ok) {
 					console.error(`    ⚠ Command failed: ${cmd} — ${result.stderr}`);
 				}
