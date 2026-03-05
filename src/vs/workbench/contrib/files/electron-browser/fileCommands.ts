@@ -8,42 +8,45 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { sequence } from '../../../../base/common/async.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { getRemoteName, getRemoteServerRootPath } from '../../../../platform/remote/common/remoteHosts.js';
 
 // Commands
 
-export function revealResourcesInOS(resources: URI[], nativeHostService: INativeHostService, workspaceContextService: IWorkspaceContextService, remoteAuthorityResolverService: IRemoteAuthorityResolverService): void {
-	const revealUri = async (uri: URI) => {
-		const localUri = await toLocalFileUri(uri, remoteAuthorityResolverService);
+export function revealResourcesInOS(resources: URI[], nativeHostService: INativeHostService, workspaceContextService: IWorkspaceContextService): void {
+	if (resources.length) {
+		sequence(resources.map(r => async () => {
+			const localUri = toLocalFileUri(r);
+			if (localUri) {
+				nativeHostService.showItemInFolder(localUri.fsPath);
+			}
+		}));
+	} else if (workspaceContextService.getWorkspace().folders.length) {
+		const localUri = toLocalFileUri(workspaceContextService.getWorkspace().folders[0].uri);
 		if (localUri) {
 			nativeHostService.showItemInFolder(localUri.fsPath);
 		}
-	};
-
-	if (resources.length) {
-		sequence(resources.map(r => () => revealUri(r)));
-	} else if (workspaceContextService.getWorkspace().folders.length) {
-		revealUri(workspaceContextService.getWorkspace().folders[0].uri);
 	}
 }
 
 /**
  * Converts a resource URI to a local file URI.
- * For vscode-remote resources (e.g. WSL), uses the remote authority resolver
- * to obtain a canonical local file path.
+ * For WSL remote resources, constructs a UNC path (e.g. \\wsl$\Ubuntu\...).
  */
-async function toLocalFileUri(resource: URI, remoteResolver: IRemoteAuthorityResolverService): Promise<URI | undefined> {
+function toLocalFileUri(resource: URI): URI | undefined {
 	switch (resource.scheme) {
 		case Schemas.file:
 		case Schemas.vscodeUserData:
 			return resource.with({ scheme: Schemas.file });
-		case Schemas.vscodeRemote:
-			try {
-				const canonical = await remoteResolver.getCanonicalURI(resource);
-				return canonical.scheme === Schemas.file ? canonical : undefined;
-			} catch {
-				return undefined;
+		case Schemas.vscodeRemote: {
+			const remoteName = getRemoteName(resource.authority);
+			if (remoteName === 'wsl') {
+				const distro = getRemoteServerRootPath(resource.authority);
+				if (distro) {
+					return URI.from({ scheme: Schemas.file, authority: 'wsl$', path: `/${distro}${resource.path}` });
+				}
 			}
+			return undefined;
+		}
 		default:
 			return undefined;
 	}

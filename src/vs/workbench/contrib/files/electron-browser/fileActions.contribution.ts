@@ -23,7 +23,6 @@ import { SideBySideEditor, EditorResourceAccessor } from '../../../common/editor
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
 const REVEAL_IN_OS_LABEL = isWindows ? nls.localize2('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize2('revealInMac', "Reveal in Finder") : nls.localize2('openContainer', "Open Containing Folder");
@@ -39,7 +38,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	handler: (accessor: ServicesAccessor, resource: URI | object) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
-		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(IWorkspaceContextService), accessor.get(IRemoteAuthorityResolverService));
+		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(IWorkspaceContextService));
 	}
 });
 
@@ -55,7 +54,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const activeInput = editorService.activeEditor;
 		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { filterByScheme: [Schemas.file, Schemas.vscodeRemote], supportSideBySide: SideBySideEditor.PRIMARY });
 		const resources = resource ? [resource] : [];
-		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(IWorkspaceContextService), accessor.get(IRemoteAuthorityResolverService));
+		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(IWorkspaceContextService));
 	}
 });
 
