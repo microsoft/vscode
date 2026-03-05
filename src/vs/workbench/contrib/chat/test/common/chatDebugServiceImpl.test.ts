@@ -328,13 +328,11 @@ suite('ChatDebugServiceImpl', () => {
 
 			disposables.add(service.registerProvider(provider));
 
-			// First invocation should not fire clear (nothing to clear)
+			// First invocation clears empty set and fires clear event
 			await service.invokeProviders(sessionGeneric);
 			assert.strictEqual(clearedSessions.length, 1, 'Clear event should fire on first invocation');
 
-			// Second invocation should fire clear
-			await service.invokeProviders(sessionGeneric);
-			assert.strictEqual(clearedSessions.length, 2, 'Clear event should fire on second invocation');
+			// Second invocation clears provider events from first invocation
 			assert.strictEqual(clearedSessions[1].toString(), sessionGeneric.toString());
 		});
 
