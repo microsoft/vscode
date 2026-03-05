@@ -87,7 +87,7 @@ export class ChatSteerWithMessageAction extends Action2 {
 			id: ChatSteerWithMessageAction.ID,
 			title: localize2('chat.steerWithMessage', "Steer with Message"),
 			tooltip: localize('chat.steerWithMessage.tooltip', "Send this message at the next opportunity, signaling the current request to yield"),
-			icon: Codicon.arrowRight,
+			icon: Codicon.arrowUp,
 			f1: false,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
@@ -271,7 +271,7 @@ export function registerChatQueueActions(): void {
 		order: 1,
 	});
 	MenuRegistry.appendMenuItem(MenuId.ChatExecuteQueue, {
-		command: { id: ChatSteerWithMessageAction.ID, title: localize2('chat.steerWithMessage', "Steer with Message"), icon: Codicon.arrowRight },
+		command: { id: ChatSteerWithMessageAction.ID, title: localize2('chat.steerWithMessage', "Steer with Message"), icon: Codicon.arrowUp },
 		group: 'navigation',
 		order: 2,
 	});
