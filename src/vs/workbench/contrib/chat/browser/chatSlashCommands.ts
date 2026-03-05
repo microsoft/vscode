@@ -35,7 +35,7 @@ import {
 } from './tools/languageModelToolsService.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { Target } from '../common/promptSyntax/promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
@@ -144,6 +144,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: false,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
+			when: ContextKeyExpr.equals(ChatContextKeys.chatSessionHasDebugData.key, true),
 		}, async (prompt, _progress, _history, _location, sessionResource, _token, options) => {
 			troubleshootSessions.add(sessionResource.toString());
 			hasTroubleshootDataKey.set(true);
