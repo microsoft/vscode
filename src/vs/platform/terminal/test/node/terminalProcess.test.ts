@@ -132,8 +132,8 @@ function buildMultilineCommand(lineCount: number, outputFile: string): { command
 		await runMultilineTest(20);
 	});
 
-	test('large multiline command (30 lines, ~1900 bytes)', async function () {
-		this.timeout(15000);
-		await runMultilineTest(30);
+	test('large multiline command (500 lines, ~32KB)', async function () {
+		this.timeout(30000);
+		await runMultilineTest(500);
 	});
 });
