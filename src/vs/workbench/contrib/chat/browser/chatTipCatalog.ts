@@ -221,25 +221,6 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		],
 	},
 	{
-		id: 'tip.agentMode',
-		tier: ChatTipTier.Foundational,
-		priority: 10,
-		buildMessage(ctx) {
-			const label = getCommandLabel('workbench.action.chat.openEditSession');
-			const kb = formatKeybinding(ctx, 'workbench.action.chat.openEditSession');
-			return new MarkdownString(
-				localize(
-					'tip.agentMode',
-					"Try [{0}](command:workbench.action.chat.openEditSession){1} to make edits across your project and run commands.",
-					label,
-					kb
-				)
-			);
-		},
-		when: ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Agent),
-		excludeWhenModesUsed: [ChatModeKind.Agent],
-	},
-	{
 		id: 'tip.planMode',
 		tier: ChatTipTier.Foundational,
 		priority: 20,
