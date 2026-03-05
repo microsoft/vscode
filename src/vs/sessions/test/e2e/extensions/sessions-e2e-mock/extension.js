@@ -117,11 +117,11 @@ function activate(context) {
 	// 1. Mock GitHub Authentication Provider
 	context.subscriptions.push(registerMockAuth(vscode));
 
-	// 2. Mock Chat Participant
-	context.subscriptions.push(registerMockChat(vscode));
-
-	// 3. Mock File System Provider
+	// 2. Mock File System Provider
 	context.subscriptions.push(registerMockFileSystem(vscode));
+
+	// Note: Chat participant is registered via workbench contribution
+	// in web.test.ts (MockChatAgentContribution), not here.
 
 	console.log('[sessions-e2e-mock] All mocks registered');
 }

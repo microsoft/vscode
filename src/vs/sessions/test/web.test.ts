@@ -8,7 +8,7 @@ import { ILogService } from '../../platform/log/common/log.js';
 import { IBrowserMainWorkbench } from '../../workbench/browser/web.main.js';
 import { Workbench as SessionsWorkbench } from '../browser/workbench.js';
 import { SessionsBrowserMain } from '../browser/web.main.js';
-import { Event } from '../../base/common/event.js';
+import { Emitter, Event } from '../../base/common/event.js';
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { IObservable, observableValue } from '../../base/common/observable.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../workbench/services/chat/common/chatEntitlementService.js';
@@ -22,6 +22,7 @@ import { URI } from '../../base/common/uri.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/common/contributions.js';
 import { IChatProgress } from '../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionsService } from '../../workbench/contrib/chat/common/chatSessionsService.js';
 
 const MOCK_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: { id: 'github', name: 'GitHub (Mock)', enterprise: false },
@@ -119,9 +120,11 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		this.registerMockAgents();
+		this.registerMockSessionProvider();
 		this.preseedFolder();
 	}
 
@@ -164,6 +167,39 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 				console.log(`[Sessions Web Test] Registered mock agent: ${agentId}`);
 			} catch (err) {
 				console.warn(`[Sessions Web Test] Failed to register agent ${agentId}:`, err);
+			}
+		}
+	}
+
+	private registerMockSessionProvider(): void {
+		// Register a chat session content provider for the 'copilotcli' scheme.
+		// This is normally provided by the GitHub Copilot Chat extension.
+		const schemes = ['copilotcli', 'copilot-cloud-agent'];
+		for (const scheme of schemes) {
+			try {
+				this._register(this.chatSessionsService.registerChatSessionContentProvider(scheme, {
+					async provideChatSessionContent(sessionResource, _token) {
+						console.log(`[Sessions Web Test] Creating mock chat session for ${sessionResource.toString()}`);
+						const emitter = new Emitter<void>();
+						return {
+							sessionResource,
+							history: [],
+							onWillDispose: emitter.event,
+							async requestHandler(request, progress, _history, _token) {
+								console.log(`[Sessions Web Test] Session request: "${request.message}"`);
+								const responseText = getMockResponse(request.message);
+								progress([{
+									kind: 'markdownContent',
+									content: { value: responseText, isTrusted: false, supportThemeIcons: false, supportHtml: false },
+								}]);
+							},
+							dispose() { emitter.fire(); emitter.dispose(); },
+						};
+					},
+				}));
+				console.log(`[Sessions Web Test] Registered session provider for scheme: ${scheme}`);
+			} catch (err) {
+				console.warn(`[Sessions Web Test] Failed to register session provider for ${scheme}:`, err);
 			}
 		}
 	}
