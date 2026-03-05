@@ -117,20 +117,36 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 
 	static readonly ID = 'sessions.test.mockChatAgent';
 
+	private readonly _sessionItems: IChatSessionItem[] = [];
+	private readonly _itemsChangedEmitter = new Emitter<void>();
+
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
+		this._register(this._itemsChangedEmitter);
 		this.registerMockAgents();
 		this.registerMockSessionProvider();
 		this.preseedFolder();
 	}
 
+	private addSessionItem(resource: URI, message: string): void {
+		const now = Date.now();
+		this._sessionItems.push({
+			resource,
+			label: message.slice(0, 50) || 'Mock Session',
+			status: ChatSessionStatus.Completed,
+			timing: { created: now, lastRequestStarted: now, lastRequestEnded: now },
+		});
+		this._itemsChangedEmitter.fire();
+	}
+
 	private registerMockAgents(): void {
 		const agentIds = ['copilotcli', 'copilot', 'copilot-cloud-agent'];
 		const extensionId = new ExtensionIdentifier('vscode.sessions-e2e-mock');
+		const self = this;
 
 		for (const agentId of agentIds) {
 			const agentData: IChatAgentData = {
@@ -158,6 +174,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 						kind: 'markdownContent',
 						content: { value: responseText, isTrusted: false, supportThemeIcons: false, supportHtml: false },
 					}]);
+					self.addSessionItem(request.sessionResource, request.message);
 					return { metadata: { mock: true } };
 				},
 			};
@@ -172,12 +189,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private registerMockSessionProvider(): void {
-		// Register a chat session content provider for the 'copilotcli' scheme.
-		// This is normally provided by the GitHub Copilot Chat extension.
 		const schemes = ['copilotcli', 'copilot-cloud-agent'];
-		const itemsChangedEmitter = new Emitter<void>();
-		const sessionItems: IChatSessionItem[] = [];
-
 		for (const scheme of schemes) {
 			try {
 				this._register(this.chatSessionsService.registerChatSessionContentProvider(scheme, {
@@ -198,16 +210,6 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 									content: { value: responseText, isTrusted: false, supportThemeIcons: false, supportHtml: false },
 								}]);
 								isComplete.set(true, undefined);
-
-								// Add to session list
-								const now = Date.now();
-								sessionItems.push({
-									resource: sessionResource,
-									label: request.message.slice(0, 50) || 'Mock Session',
-									status: ChatSessionStatus.Completed,
-									timing: { created: now, lastRequestStarted: now, lastRequestEnded: now },
-								});
-								itemsChangedEmitter.fire();
 							},
 							dispose() { disposeEmitter.fire(); disposeEmitter.dispose(); },
 						};
@@ -215,10 +217,11 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 				}));
 
 				// Register an item controller so sessions appear in the sidebar list
+				const items = this._sessionItems;
 				this._register(this.chatSessionsService.registerChatSessionItemController(scheme, {
-					onDidChangeChatSessionItems: itemsChangedEmitter.event,
-					get items() { return sessionItems; },
-					async refresh() { /* no-op for in-memory */ },
+					onDidChangeChatSessionItems: this._itemsChangedEmitter.event,
+					get items() { return items; },
+					async refresh() { /* in-memory, no-op */ },
 				}));
 
 				console.log(`[Sessions Web Test] Registered session provider for scheme: ${scheme}`);
