@@ -25,7 +25,7 @@ export const OpenBrowserToolData: IToolData = {
 		properties: {
 			url: {
 				type: 'string',
-				description: 'The URL to open in the browser.'
+				description: 'The full URL to open in the browser.'
 			},
 		},
 		required: ['url'],
@@ -59,6 +59,9 @@ export class OpenBrowserTool implements IToolImpl {
 
 		if (!params.url) {
 			return errorResult('The "url" parameter is required.');
+		}
+		if (!URL.parse(params.url)) {
+			return errorResult('You must provide a complete, valid URL.');
 		}
 
 		const { pageId, summary } = await this.playwrightService.openPage(params.url);
