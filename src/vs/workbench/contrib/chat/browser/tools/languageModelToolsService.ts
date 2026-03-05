@@ -586,7 +586,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				dto.toolSpecificData = toolInvocation?.toolSpecificData;
 				if (preparedInvocation?.confirmationMessages?.title) {
 					if (!IChatToolInvocation.executionConfirmedOrDenied(toolInvocation) && !autoConfirmed) {
-						this.playAccessibilitySignal([toolInvocation]);
+						this.playAccessibilitySignal([toolInvocation], dto.context?.sessionResource);
 					}
 					const userConfirmed = await IChatToolInvocation.awaitConfirmation(toolInvocation, token);
 					if (userConfirmed.type === ToolConfirmKind.Denied) {
@@ -943,10 +943,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {
+	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[], chatSessionResource: URI | undefined): void {
 		const autoApproved = this._configurationService.getValue(ChatConfiguration.GlobalAutoApprove);
 		if (autoApproved) {
 			return;
+		}
+
+		// Autopilot/auto-approve permission levels auto-approve all tools, skip signal
+		if (chatSessionResource) {
+			const model = this._chatService.getSession(chatSessionResource);
+			const request = model?.getRequests().at(-1);
+			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel)) {
+				return;
+			}
 		}
 
 		// Filter out any tool invocations that have already been confirmed/denied.
