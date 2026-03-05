@@ -79,6 +79,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore> | undefined;
 	private sessionsListFindIsOpen = false;
+	private _isProgrammaticCollapseChange = false;
 
 	private readonly updateSessionsListThrottler = this._register(new Throttler());
 
@@ -197,7 +198,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const raw = this.storageService.get(AgentSessionsControl.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
 		if (raw) {
 			try {
-				state = JSON.parse(raw);
+				const parsed = JSON.parse(raw);
+				if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+					state = parsed;
+				}
 			} catch {
 				// ignore corrupt data
 			}
@@ -326,6 +330,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}));
 
 		this._register(list.onDidChangeCollapseState(e => {
+			if (this._isProgrammaticCollapseChange) {
+				return;
+			}
 			const element = e.node.element?.element;
 			if (element && isAgentSessionSection(element)) {
 				this.saveSectionCollapseState(element.section, e.node.collapsed);
@@ -438,6 +445,19 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	}
 
 	private updateSectionCollapseStates(): void {
+		if (!this.sessionsList) {
+			return;
+		}
+
+		this._isProgrammaticCollapseChange = true;
+		try {
+			this._updateSectionCollapseStatesCore();
+		} finally {
+			this._isProgrammaticCollapseChange = false;
+		}
+	}
+
+	private _updateSectionCollapseStatesCore(): void {
 		if (!this.sessionsList) {
 			return;
 		}
