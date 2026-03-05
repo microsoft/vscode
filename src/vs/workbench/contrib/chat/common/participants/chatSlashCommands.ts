@@ -41,6 +41,7 @@ export interface IChatSlashData {
 	modes?: ChatModeKind[];
 	target?: Target;
 	when?: ContextKeyExpression;
+	argumentHint?: string;
 }
 
 export interface IChatSlashFragment {

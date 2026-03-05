@@ -145,6 +145,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
 			when: ContextKeyExpr.equals(ChatContextKeys.chatSessionHasDebugData.key, true),
+			argumentHint: nls.localize('troubleshoot.hint', "Ask about internal details of this conversation"),
 		}, async (prompt, _progress, _history, _location, sessionResource, _token, options) => {
 			troubleshootSessions.add(sessionResource.toString());
 			hasTroubleshootDataKey.set(true);
@@ -248,6 +249,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: false,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
+			argumentHint: nls.localize('rename.hint', "Enter a new name"),
 			target: Target.VSCode
 		}, async (prompt, _progress, _history, _location, sessionResource) => {
 			const title = prompt.trim();

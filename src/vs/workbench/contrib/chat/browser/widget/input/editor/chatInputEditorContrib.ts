@@ -249,6 +249,23 @@ class InputEditorDecorations extends Disposable {
 				}];
 			}
 		}
+
+		const slashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
+		const onlySlashCommandAndWhitespace = slashCommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestSlashCommandPart);
+		if (onlySlashCommandAndWhitespace) {
+			const hint = slashCommandPart.slashCommand.argumentHint ?? slashCommandPart.slashCommand.detail;
+			if (hint && exactlyOneSpaceAfterPart(parsedRequest, slashCommandPart)) {
+				placeholderDecoration = [{
+					range: getRangeForPlaceholder(slashCommandPart),
+					renderOptions: {
+						after: {
+							contentText: hint,
+							color: this.getPlaceholderColor(),
+						}
+					}
+				}];
+			}
+		}
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
 	}
 
