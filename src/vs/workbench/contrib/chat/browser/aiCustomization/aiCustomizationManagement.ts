@@ -5,11 +5,20 @@
 
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 // Re-export for convenience — consumers import from this file
 export { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
+
+/**
+ * Storage type for built-in prompts shipped with the application.
+ * Defined as a cast to avoid adding a new enum value to the core
+ * PromptsStorage enum — only the AI Customization UI needs to know
+ * about this storage type.
+ */
+export const BUILTIN_STORAGE = 'builtin' as PromptsStorage;
 
 /**
  * Editor pane ID for the AI Customizations Management Editor.
