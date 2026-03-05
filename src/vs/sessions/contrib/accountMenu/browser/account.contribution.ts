@@ -254,6 +254,7 @@ export class AccountWidget extends ActionViewItem {
 		await this.updateService.quitAndInstall();
 	}
 
+
 	override onClick(): void {
 		// Handled by custom click handlers
 	}
