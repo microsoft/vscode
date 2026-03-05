@@ -41,9 +41,7 @@ type ChatTipClassification = {
 };
 
 // Re-export tracking commands for backwards compatibility
-export {
-	TipTrackingCommands,
-};
+export { TipTrackingCommands };
 /** @deprecated Use TipTrackingCommands.AttachFilesReferenceUsed */
 export const ATTACH_FILES_REFERENCE_TRACKING_COMMAND = TipTrackingCommands.AttachFilesReferenceUsed;
 /** @deprecated Use TipTrackingCommands.CreateAgentInstructionsUsed */

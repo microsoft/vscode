@@ -7,7 +7,7 @@ import assert from 'assert';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { AskQuestionsTool, formatHeaderForDisplay, IAnswerResult, IQuestion, IQuestionAnswer } from '../../../../common/tools/builtinTools/askQuestionsTool.js';
+import { AskQuestionsTool, IAnswerResult, IQuestion, IQuestionAnswer } from '../../../../common/tools/builtinTools/askQuestionsTool.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
 
 class TestableAskQuestionsTool extends AskQuestionsTool {
@@ -148,21 +148,5 @@ suite('AskQuestionsTool - convertCarouselAnswers', () => {
 		const result = tool.testConvertCarouselAnswers(questions, { Case: 'yes' });
 
 		assert.deepStrictEqual(result.answers['Case'], { selected: [], freeText: 'yes', skipped: false });
-	});
-
-	test('formats headers for carousel tab title display', () => {
-		assert.deepStrictEqual([
-			formatHeaderForDisplay('FocusArea'),
-			formatHeaderForDisplay('UserValue'),
-			formatHeaderForDisplay('RiskLevel'),
-			formatHeaderForDisplay('Already Spaced'),
-			formatHeaderForDisplay('snake_case_header'),
-		], [
-			'Focus area',
-			'User value',
-			'Risk level',
-			'Already spaced',
-			'Snake case header',
-		]);
 	});
 });

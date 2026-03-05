@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqualOrParent } from '../../../../base/common/resources.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
-import { PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand, PromptsStorage } from './promptSyntax/service/promptsService.js';
 
 export const IAICustomizationWorkspaceService = createDecorator<IAICustomizationWorkspaceService>('aiCustomizationWorkspaceService');
 
@@ -22,6 +23,7 @@ export const AICustomizationManagementSection = {
 	Prompts: 'prompts',
 	Hooks: 'hooks',
 	McpServers: 'mcpServers',
+	Plugins: 'plugins',
 	Models: 'models',
 } as const;
 
@@ -100,6 +102,15 @@ export interface IAICustomizationWorkspaceService {
 	commitFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
 
 	/**
+	 * Commits the deletion of resources that have already been removed from disk.
+	 * The URIs may point to individual files or to directories (for example, when
+	 * deleting a skill, the entire customization folder is removed). Implementations
+	 * should ensure that directory deletions are handled recursively as needed.
+	 * In sessions this stages and commits the removal in the relevant repositories.
+	 */
+	deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
+
+	/**
 	 * Launches the AI-guided creation flow for the given customization type.
 	 */
 	generateCustomization(type: PromptsType): Promise<void>;
@@ -121,4 +132,11 @@ export interface IAICustomizationWorkspaceService {
 	 * session-derived (or workspace-derived) root.
 	 */
 	clearOverrideProjectRoot(): void;
+
+	/**
+	 * Returns prompt/skill slash commands filtered through the workspace
+	 * service's storage source policy, ensuring the results match the
+	 * customizations visible in the AI Customization views.
+	 */
+	getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]>;
 }

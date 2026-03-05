@@ -44,6 +44,8 @@ export interface IAgentPluginMcpServerDefinition {
 
 export interface IAgentPlugin {
 	readonly uri: URI;
+	/** Human-readable display name for the plugin. */
+	readonly label: string;
 	readonly enabled: IObservable<boolean>;
 	setEnabled(enabled: boolean): void;
 	/** Removes this plugin from its discovery source (config or installed storage). */

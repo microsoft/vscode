@@ -385,6 +385,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		}
 
 		this._view.webContents.setZoomFactor(bounds.zoomFactor);
+		this._view.setBorderRadius(Math.round(bounds.cornerRadius * bounds.zoomFactor));
 		this._view.setBounds({
 			x: Math.round(bounds.x * bounds.zoomFactor),
 			y: Math.round(bounds.y * bounds.zoomFactor),

@@ -43,7 +43,7 @@ import { IPathService } from '../../../../services/path/common/pathService.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
-import { HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
+import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
@@ -65,6 +65,8 @@ export interface IAICustomizationListItem {
 	readonly description?: string;
 	readonly storage: PromptsStorage;
 	readonly promptType: PromptsType;
+	/** When set, overrides `storage` for display grouping purposes. */
+	readonly groupKey?: string;
 	nameMatches?: IMatch[];
 	descriptionMatches?: IMatch[];
 }
@@ -75,7 +77,7 @@ export interface IAICustomizationListItem {
 interface IGroupHeaderEntry {
 	readonly type: 'group-header';
 	readonly id: string;
-	readonly storage: PromptsStorage;
+	readonly groupKey: string;
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	readonly count: number;
@@ -311,7 +313,7 @@ export class AICustomizationListWidget extends Disposable {
 	private allItems: IAICustomizationListItem[] = [];
 	private displayEntries: IListEntry[] = [];
 	private searchQuery: string = '';
-	private readonly collapsedGroups = new Set<PromptsStorage>();
+	private readonly collapsedGroups = new Set<string>();
 	private readonly dropdownActionDisposables = this._register(new DisposableStore());
 
 	private readonly delayedFilter = new Delayer<void>(200);
@@ -723,7 +725,8 @@ export class AICustomizationListWidget extends Disposable {
 	 * Loads items for the current section.
 	 */
 	private async loadItems(): Promise<void> {
-		const promptType = sectionToPromptType(this.currentSection);
+		const section = this.currentSection;
+		const promptType = sectionToPromptType(section);
 		const items: IAICustomizationListItem[] = [];
 
 
@@ -827,6 +830,37 @@ export class AICustomizationListWidget extends Disposable {
 					});
 				}
 			}
+
+			// Also include hooks defined in agent frontmatter (not in sessions window)
+			// TODO: add this back when Copilot CLI supports this
+			const agents = !this.workspaceService.isSessionsWindow ? await this.promptsService.getCustomAgents(CancellationToken.None) : [];
+			for (const agent of agents) {
+				if (!agent.hooks) {
+					continue;
+				}
+				for (const hookType of Object.values(HookType)) {
+					const hookCommands = agent.hooks[hookType];
+					if (!hookCommands || hookCommands.length === 0) {
+						continue;
+					}
+					const hookMeta = HOOK_METADATA[hookType];
+					for (let i = 0; i < hookCommands.length; i++) {
+						const hook = hookCommands[i];
+						const cmdLabel = formatHookCommandLabel(hook, OS);
+						const truncatedCmd = cmdLabel.length > 60 ? cmdLabel.substring(0, 57) + '...' : cmdLabel;
+						items.push({
+							id: `${agent.uri.toString()}#hook:${hookType}[${i}]`,
+							uri: agent.uri,
+							name: hookMeta?.label ?? hookType,
+							filename: basename(agent.uri),
+							description: `${agent.name}: ${truncatedCmd || localize('hookUnset', "(unset)")}`,
+							storage: agent.source.storage,
+							groupKey: 'agents',
+							promptType,
+						});
+					}
+				}
+			}
 		} else {
 			// For instructions, fetch prompt files and group by storage
 			const promptFiles = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
@@ -886,6 +920,10 @@ export class AICustomizationListWidget extends Disposable {
 		// Sort items by name
 		items.sort((a, b) => a.name.localeCompare(b.name));
 
+		if (this.currentSection !== section) {
+			return; // section changed while loading
+		}
+
 		this.allItems = items;
 		this.filterItems();
 		this._onDidChangeItemCount.fire(items.length);
@@ -940,15 +978,17 @@ export class AICustomizationListWidget extends Disposable {
 		// Group items by storage
 		const promptType = sectionToPromptType(this.currentSection);
 		const visibleSources = new Set(this.workspaceService.getStorageSourceFilter(promptType).sources);
-		const groups: { storage: PromptsStorage; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] = [
-			{ storage: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
-			{ storage: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
-			{ storage: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
-			{ storage: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
-		].filter(g => visibleSources.has(g.storage));
+		const groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] = [
+			{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
+			{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
+			{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
+			{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
+			{ groupKey: 'agents', label: localize('agentsGroup', "Agents"), icon: agentIcon, description: localize('agentsGroupDescription', "Hooks defined in agent files."), items: [] },
+		].filter(g => visibleSources.has(g.groupKey as PromptsStorage) || g.groupKey === 'agents');
 
 		for (const item of matchedItems) {
-			const group = groups.find(g => g.storage === item.storage);
+			const key = item.groupKey ?? item.storage;
+			const group = groups.find(g => g.groupKey === key);
 			if (group) {
 				group.items.push(item);
 			}
@@ -967,12 +1007,12 @@ export class AICustomizationListWidget extends Disposable {
 				continue;
 			}
 
-			const collapsed = this.collapsedGroups.has(group.storage);
+			const collapsed = this.collapsedGroups.has(group.groupKey);
 
 			this.displayEntries.push({
 				type: 'group-header',
-				id: `group-${group.storage}`,
-				storage: group.storage,
+				id: `group-${group.groupKey}`,
+				groupKey: group.groupKey,
 				label: group.label,
 				icon: group.icon,
 				count: group.items.length,
@@ -997,10 +1037,10 @@ export class AICustomizationListWidget extends Disposable {
 	 * Toggles the collapsed state of a group.
 	 */
 	private toggleGroup(entry: IGroupHeaderEntry): void {
-		if (this.collapsedGroups.has(entry.storage)) {
-			this.collapsedGroups.delete(entry.storage);
+		if (this.collapsedGroups.has(entry.groupKey)) {
+			this.collapsedGroups.delete(entry.groupKey);
 		} else {
-			this.collapsedGroups.add(entry.storage);
+			this.collapsedGroups.add(entry.groupKey);
 		}
 		this.filterItems();
 	}

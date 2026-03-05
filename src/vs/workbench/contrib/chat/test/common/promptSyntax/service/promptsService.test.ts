@@ -11,7 +11,7 @@ import { match } from '../../../../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
-import { relativePath } from '../../../../../../../base/common/resources.js';
+import { basename, relativePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
@@ -794,6 +794,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -850,6 +851,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local },
 				},
@@ -925,6 +927,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -943,6 +946,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1013,6 +1017,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1031,6 +1036,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1049,6 +1055,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1126,6 +1133,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/copilot-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1146,6 +1154,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1165,6 +1174,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent2.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1221,6 +1231,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
 					source: { storage: PromptsStorage.local }
 				}
@@ -1291,6 +1302,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/restricted-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1309,6 +1321,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/no-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1327,6 +1340,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/full-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -3505,6 +3519,7 @@ suite('PromptsService', () => {
 			return {
 				plugin: {
 					uri: URI.file(path),
+					label: basename(URI.file(path)),
 					enabled,
 					setEnabled: () => { },
 					remove: () => { },

@@ -239,6 +239,7 @@ suite('Workbench - MCP - Registry', () => {
 				env: {},
 				envFile: undefined,
 				cwd: '/test',
+				sandbox: undefined
 			}
 		};
 	});
@@ -301,6 +302,7 @@ suite('Workbench - MCP - Registry', () => {
 				},
 				envFile: undefined,
 				cwd: '/test',
+				sandbox: undefined
 			},
 			variableReplacement: {
 				section: 'mcp',
@@ -402,6 +404,7 @@ suite('Workbench - MCP - Registry', () => {
 				env: {},
 				envFile: undefined,
 				cwd: '/test',
+				sandbox: undefined
 			},
 		};
 
@@ -726,6 +729,7 @@ suite('Workbench - MCP - Registry', () => {
 					env: {},
 					envFile: undefined,
 					cwd: '/test',
+					sandbox: undefined
 				}
 			};
 		}
