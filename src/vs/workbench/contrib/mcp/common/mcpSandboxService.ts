@@ -22,6 +22,7 @@ import { IRemoteAgentService } from '../../../services/remote/common/remoteAgent
 import { IMcpSandboxConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IMcpPotentialSandboxBlock, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from './mcpTypes.js';
 
+
 export const IMcpSandboxService = createDecorator<IMcpSandboxService>('mcpSandboxService');
 
 export interface IMcpSandboxService {
@@ -87,7 +88,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 			this._logService.trace(`McpSandboxService: Launching with config target ${configTarget}`);
 			const launchDetails = await this._resolveSandboxLaunchDetails(configTarget, remoteAuthority, launch.sandbox, launch.cwd);
 			const sandboxArgs = this._getSandboxCommandArgs(launch.command, launch.args, launchDetails.sandboxConfigPath);
-			const sandboxEnv = this._getSandboxEnvVariables(launch.env, launchDetails.tempDir, launchDetails.rgPath, remoteAuthority);
+			const sandboxEnv = await this._getSandboxEnvVariables(launch.env, launchDetails.tempDir, launchDetails.rgPath, remoteAuthority);
 			if (launchDetails.srtPath) {
 				if (launchDetails.execPath) {
 					return {
@@ -272,13 +273,13 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		return undefined; // Use Electron executable as the default exec path for local development, which will run the sandbox runtime wrapper with Electron in node mode. For remote, we need to specify the node executable to ensure it runs with Node.js.
 	}
 
-	private _getSandboxEnvVariables(baseEnv: McpServerTransportStdio['env'], tempDir: URI | undefined, rgPath: string | undefined, remoteAuthority?: string): McpServerTransportStdio['env'] {
+	private async _getSandboxEnvVariables(baseEnv: McpServerTransportStdio['env'], tempDir: URI | undefined, rgPath: string | undefined, remoteAuthority?: string): Promise<McpServerTransportStdio['env']> {
 		let env: McpServerTransportStdio['env'] = { ...baseEnv };
 		if (tempDir) {
 			env = { ...env, TMPDIR: tempDir.path, SRT_DEBUG: 'true' };
 		}
 		if (rgPath) {
-			env = { ...env, PATH: `${dirname(rgPath)}` };
+			env = { ...env, PATH: env['PATH'] ? `${env['PATH']}${await this._getPathDelimiter(remoteAuthority)}${dirname(rgPath)}` : dirname(rgPath) };
 		}
 		if (!remoteAuthority) {
 			// Add any remote-specific environment variables here
@@ -393,6 +394,11 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 	private _pathJoin = (os: OperatingSystem, ...segments: string[]) => {
 		const path = os === OperatingSystem.Windows ? win32 : posix;
 		return path.join(...segments);
+	};
+
+	private _getPathDelimiter = async (remoteAuthority?: string) => {
+		const os = await this._getOperatingSystem(remoteAuthority);
+		return os === OperatingSystem.Windows ? win32.delimiter : posix.delimiter;
 	};
 
 }
