@@ -336,9 +336,13 @@ export class BrowserEditor extends EditorPane {
 		this._browserContainer.tabIndex = 0; // make focusable
 		this._browserContainerWrapper.appendChild(this._browserContainer);
 
+		// Create additional wrapper around placeholder contents for applying border radius clipping.
+		const placeholderContents = $('.browser-placeholder-contents');
+		this._browserContainer.appendChild(placeholderContents);
+
 		// Create placeholder screenshot (background placeholder when WebContentsView is hidden)
 		this._placeholderScreenshot = $('.browser-placeholder-screenshot');
-		this._browserContainer.appendChild(this._placeholderScreenshot);
+		placeholderContents.appendChild(this._placeholderScreenshot);
 
 		// Create overlay pause container (hidden by default via CSS)
 		this._overlayPauseContainer = $('.browser-overlay-paused');
@@ -348,16 +352,16 @@ export class BrowserEditor extends EditorPane {
 		overlayPauseMessage.appendChild(this._overlayPauseHeading);
 		overlayPauseMessage.appendChild(this._overlayPauseDetail);
 		this._overlayPauseContainer.appendChild(overlayPauseMessage);
-		this._browserContainer.appendChild(this._overlayPauseContainer);
+		placeholderContents.appendChild(this._overlayPauseContainer);
 
 		// Create error container (hidden by default)
 		this._errorContainer = $('.browser-error-container');
 		this._errorContainer.style.display = 'none';
-		this._browserContainer.appendChild(this._errorContainer);
+		placeholderContents.appendChild(this._errorContainer);
 
 		// Create welcome container (shown when no URL is loaded)
 		this._welcomeContainer = this.createWelcomeContainer();
-		this._browserContainer.appendChild(this._welcomeContainer);
+		placeholderContents.appendChild(this._welcomeContainer);
 
 		this._register(addDisposableListener(this._browserContainer, EventType.FOCUS, (event) => {
 			// When the browser container gets focus, make sure the browser view also gets focused.
@@ -399,7 +403,7 @@ export class BrowserEditor extends EditorPane {
 
 		this._storageScopeContext.set(this._model.storageScope);
 		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
-		this._updateSharingState();
+		this._updateSharingState(true);
 
 		// Update find widget with new model
 		this._findWidget.rawValue?.setModel(this._model);
@@ -411,10 +415,10 @@ export class BrowserEditor extends EditorPane {
 
 		// Listen for sharing state changes on the model
 		this._inputDisposables.add(this._model.onDidChangeSharedWithAgent(() => {
-			this._updateSharingState();
+			this._updateSharingState(false);
 		}));
 		this._inputDisposables.add(watchForAgentSharingContextChanges(this.contextKeyService)(() => {
-			this._updateSharingState();
+			this._updateSharingState(false);
 		}));
 
 		// Initialize UI state and context keys from model
@@ -661,11 +665,12 @@ export class BrowserEditor extends EditorPane {
 		return this._model?.url;
 	}
 
-	private _updateSharingState(): void {
+	private _updateSharingState(isInitialState: boolean): void {
 		const sharingEnabled = this.contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext);
 		const isShared = sharingEnabled && !!this._model && this._model.sharedWithAgent;
 
-		this._browserContainerWrapper.classList.toggle('shared', isShared);
+		this._browserContainer.classList.toggle('animate', !isInitialState);
+		this._browserContainer.classList.toggle('shared', isShared);
 		this._navigationBar.setShared(isShared);
 	}
 
@@ -1182,13 +1187,16 @@ export class BrowserEditor extends EditorPane {
 			this.checkOverlays();
 
 			const containerRect = this._browserContainer.getBoundingClientRect();
+			const cornerRadius = this.window.getComputedStyle(this._browserContainer).borderTopLeftRadius ?? '0';
+
 			void this._model.layout({
 				windowId: this.group.windowId,
 				x: containerRect.left,
 				y: containerRect.top,
 				width: containerRect.width,
 				height: containerRect.height,
-				zoomFactor: getZoomFactor(this.window)
+				zoomFactor: getZoomFactor(this.window),
+				cornerRadius: parseFloat(cornerRadius)
 			});
 		}
 	}

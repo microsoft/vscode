@@ -584,7 +584,7 @@ export class ModelPickerWidget extends Disposable {
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
-			minWidth: 300,
+			minWidth: 200,
 		};
 		const previouslyFocusedElement = dom.getActiveElement();
 
@@ -655,9 +655,7 @@ export class ModelPickerWidget extends Disposable {
 			domChildren.push(this._badgeIcon);
 		}
 
-		if (!this._hideChevrons?.get()) {
-			domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
-		}
+		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(this._domNode, ...domChildren);
 

@@ -15,10 +15,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { getGitHubRemoteFileDisplayName } from '../../fileTreeView/browser/githubFileSystemProvider.js';
+import { Queue } from '../../../../base/common/async.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.workspaceFolderManagement';
+	private queue = this._register(new Queue<void>());
 
 	constructor(
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
@@ -30,7 +32,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		super();
 		this._register(autorun(reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			this.updateWorkspaceFoldersForSession(activeSession);
+			this.queue.queue(() => this.updateWorkspaceFoldersForSession(activeSession));
 		}));
 	}
 
@@ -66,7 +68,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		if (session.worktree) {
 			return {
 				uri: session.worktree,
-				name: session.repository ? `${this.uriIdentityService.extUri.basename(session.repository)} (worktree)` : undefined
+				name: session.repository ? `${this.uriIdentityService.extUri.basename(session.repository)} (${this.uriIdentityService.extUri.basename(session.worktree)})` : this.uriIdentityService.extUri.basename(session.worktree)
 			};
 		}
 

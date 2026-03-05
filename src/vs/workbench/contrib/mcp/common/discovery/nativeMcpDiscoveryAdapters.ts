@@ -49,6 +49,7 @@ export async function claudeConfigToServerDefinition(idPrefix: string, contents:
 			env: server.env || {},
 			envFile: undefined,
 			cwd: cwd?.fsPath,
+			sandbox: undefined
 		};
 
 		return {

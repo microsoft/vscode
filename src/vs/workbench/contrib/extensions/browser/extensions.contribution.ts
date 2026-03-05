@@ -1896,17 +1896,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
-			id: 'workbench.extensions.action.resetStronglyRecommendedIgnoreState',
-			title: localize2('workbench.extensions.action.resetStronglyRecommendedIgnoreState', "Reset Strongly Recommended Extensions Ignore State"),
-			category: EXTENSIONS_CATEGORY,
-			menu: {
-				id: MenuId.CommandPalette,
-				when: WorkbenchStateContext.notEqualsTo('empty'),
-			},
-			run: async (accessor: ServicesAccessor) => accessor.get(IExtensionRecommendationNotificationService).resetStronglyRecommendedIgnoreState()
-		});
-
-		this.registerExtensionAction({
 			id: ConfigureWorkspaceRecommendedExtensionsAction.ID,
 			title: { value: ConfigureWorkspaceRecommendedExtensionsAction.LABEL, original: 'Configure Recommended Extensions (Workspace)' },
 			category: EXTENSIONS_CATEGORY,

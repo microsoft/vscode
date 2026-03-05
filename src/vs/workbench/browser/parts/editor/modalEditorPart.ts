@@ -26,7 +26,6 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext } from '../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, Verbosity } from '../../../common/editor.js';
 import { ResourceLabel } from '../../labels.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -65,7 +64,7 @@ export class ModalEditorPart {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IHostService private readonly hostService: IHostService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 
@@ -86,11 +85,18 @@ export class ModalEditorPart {
 			}
 		}));
 
+		let useModalMode = this.configurationService.getValue<string>('workbench.editor.useModal');
+		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.editor.useModal')) {
+				useModalMode = this.configurationService.getValue<string>('workbench.editor.useModal');
+			}
+		}));
+
 		disposables.add(addDisposableListener(modalElement, EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 
-			// Prevent unsupported commands (not in sessions windows)
-			if (!this.environmentService.isSessionsWindow) {
+			// Prevent unsupported commands unless all editors open in modal
+			if (useModalMode !== 'all') {
 				const resolved = this.keybindingService.softDispatch(event, this.layoutService.mainContainer);
 				if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
 					if (

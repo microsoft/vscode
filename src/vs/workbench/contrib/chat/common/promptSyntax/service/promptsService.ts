@@ -226,6 +226,11 @@ export interface ICustomAgent {
 	readonly agents?: readonly string[];
 
 	/**
+	 * Lifecycle hooks scoped to this subagent.
+	 */
+	readonly hooks?: ChatRequestHooks;
+
+	/**
 	 * Where the agent was loaded from.
 	 */
 	readonly source: IAgentSource;
@@ -418,6 +423,11 @@ export interface IPromptsService extends IDisposable {
 	readonly onDidChangeCustomAgents: Event<void>;
 
 	/**
+	 * Event that is triggered when the list of instruction files changes.
+	 */
+	readonly onDidChangeInstructions: Event<void>;
+
+	/**
 	 * Finds all available custom agents
 	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
@@ -482,6 +492,11 @@ export interface IPromptsService extends IDisposable {
 	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
 	findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined>;
+
+	/**
+	 * Event that is triggered when the list of skills changes.
+	 */
+	readonly onDidChangeSkills: Event<void>;
 
 	/**
 	 * Gets detailed discovery information for a prompt type.

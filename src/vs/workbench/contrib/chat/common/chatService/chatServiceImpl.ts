@@ -53,7 +53,7 @@ import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../langua
 import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
-import { ChatRequestHooks } from '../promptSyntax/hookSchema.js';
+import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -959,6 +959,20 @@ export class ChatService extends Disposable implements IChatService {
 				this.logService.warn('[ChatService] Failed to collect hooks:', error);
 			}
 
+			// Merge hooks from the selected custom agent's frontmatter (if any)
+			const agentName = options?.modeInfo?.modeInstructions?.name;
+			if (agentName) {
+				try {
+					const agents = await this.promptsService.getCustomAgents(token, model.sessionResource);
+					const customAgent = agents.find(a => a.name === agentName);
+					if (customAgent?.hooks) {
+						collectedHooks = mergeHooks(collectedHooks, customAgent.hooks);
+					}
+				} catch (error) {
+					this.logService.warn('[ChatService] Failed to collect agent hooks:', error);
+				}
+			}
+
 			const stopWatch = new StopWatch(false);
 			store.add(token.onCancellationRequested(() => {
 				this.trace('sendRequest', `Request for session ${model.sessionResource} was cancelled`);
@@ -1024,6 +1038,7 @@ export class ChatService extends Disposable implements IChatService {
 							userSelectedModelId: options?.userSelectedModelId,
 							userSelectedTools: options?.userSelectedTools?.get(),
 							modeInstructions: options?.modeInfo?.modeInstructions,
+							permissionLevel: options?.modeInfo?.permissionLevel,
 							editedFileEvents: request.editedFileEvents,
 							hooks: collectedHooks,
 							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
@@ -1180,6 +1195,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					shouldProcessPending = !rawResult.errorDetails && !token.isCancellationRequested;
 					request.response?.complete();
+
 					if (agentOrCommandFollowups) {
 						agentOrCommandFollowups.then(followups => {
 							model.setFollowups(request!, followups);

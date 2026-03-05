@@ -15,7 +15,6 @@ import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../notebook/common/notebookContext
 
 export const enum InlineChatConfigKeys {
 	FinishOnType = 'inlineChat.finishOnType',
-	HoldToSpeech = 'inlineChat.holdToSpeech',
 	/** @deprecated do not read on client */
 	EnableV2 = 'inlineChat.enableV2',
 	notebookAgent = 'inlineChat.notebookAgent',
@@ -31,11 +30,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		[InlineChatConfigKeys.FinishOnType]: {
 			description: localize('finishOnType', "Whether to finish an inline chat session when typing outside of changed regions."),
 			default: false,
-			type: 'boolean'
-		},
-		[InlineChatConfigKeys.HoldToSpeech]: {
-			description: localize('holdToSpeech', "Whether holding the inline chat keybinding will automatically enable speech recognition."),
-			default: true,
 			type: 'boolean'
 		},
 		[InlineChatConfigKeys.EnableV2]: {

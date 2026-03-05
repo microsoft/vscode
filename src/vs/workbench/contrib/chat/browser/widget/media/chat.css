@@ -822,11 +822,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 }
 
-/* Context usage widget container - positioned in the bottom toolbar */
-.interactive-session .chat-input-toolbars .chat-context-usage-container {
+/* Context usage widget container - positioned in the secondary toolbar below input */
+.interactive-session .chat-input-toolbars .chat-context-usage-container,
+.interactive-session .chat-secondary-toolbar .chat-context-usage-container {
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
+	margin-left: auto;
+	order: 1;
+}
+
+/* When context usage is inside the toolbars (compact mode), keep the ordering */
+.interactive-session .chat-input-toolbars .chat-context-usage-container {
 	order: 1;
 }
 
@@ -1330,6 +1337,86 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-top: 4px;
 }
 
+/* Secondary toolbar below the input box */
+.interactive-session .chat-secondary-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 4px 0 5px;
+}
+
+.interactive-session .chat-secondary-toolbar:empty {
+	display: none;
+}
+
+.interactive-session .chat-secondary-toolbar > .chat-secondary-input-toolbar {
+	overflow: hidden;
+	min-width: 0px;
+	color: var(--vscode-icon-foreground);
+
+	.monaco-action-bar .action-item .codicon {
+		color: var(--vscode-icon-foreground);
+	}
+
+	.chat-input-picker-item {
+		min-width: 0px;
+		overflow: hidden;
+
+		.action-label {
+			min-width: 0px;
+			overflow: hidden;
+			position: relative;
+
+			.chat-input-picker-label {
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+
+			span + .chat-input-picker-label {
+				margin-left: 2px;
+			}
+
+			.codicon {
+				font-size: 12px;
+			}
+		}
+
+		.codicon {
+			flex-shrink: 0;
+		}
+	}
+}
+
+.interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label {
+	height: 16px;
+	padding: 3px 0px 3px 6px;
+	display: flex;
+	align-items: center;
+	color: var(--vscode-icon-foreground);
+}
+
+.interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label.warning {
+	color: var(--vscode-problemsWarningIcon-foreground);
+}
+
+.interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label.warning .codicon {
+	color: var(--vscode-problemsWarningIcon-foreground) !important;
+}
+
+.interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label.info {
+	color: var(--vscode-problemsInfoIcon-foreground);
+}
+
+.interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label.info .codicon {
+	color: var(--vscode-problemsInfoIcon-foreground) !important;
+}
+
+.monaco-workbench .interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label .codicon-chevron-down {
+	font-size: 10px;
+	margin-left: 4px;
+	opacity: 0.75;
+}
+
 .interactive-session .chat-input-toolbars :not(.responsive.chat-input-toolbar) .actions-container:first-child {
 	margin-right: auto;
 }
@@ -1421,6 +1508,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-icon-foreground);
 }
 
+/* Keep hover background while picker dropdown is open */
+.interactive-session .chat-input-toolbar .action-label[aria-expanded="true"],
+.interactive-session .chat-secondary-toolbar .action-label[aria-expanded="true"] {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
 /* When chevrons are hidden and only showing an icon (no label), size to 22x22 with centered icon */
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.hide-chevrons:not(:has(.chat-input-picker-label)),
 .interactive-session .chat-input-toolbar .chat-input-picker-item.hide-chevrons .action-label:not(:has(.chat-input-picker-label)),
@@ -1439,25 +1532,32 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-/* When chevrons are hidden but label is still shown (e.g. model picker), use equal padding */
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.hide-chevrons:has(.chat-input-picker-label),
-.interactive-session .chat-input-toolbar .chat-input-picker-item.hide-chevrons .action-label:has(.chat-input-picker-label),
-.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.hide-chevrons:has(.chat-input-picker-label) {
-	padding: 3px 7px;
-}
 
 /* Hide the tools button when the toolbar is in collapsed state */
 .interactive-session .chat-input-toolbar:has(.hide-chevrons) .action-item:has(.codicon-settings) {
 	display: none;
 }
 
-.monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
-.monaco-workbench .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down {
-	font-size: 12px;
-	margin-left: 2px;
+/* Add context button icon sizing */
+.interactive-session .chat-input-toolbar .action-item:has(.codicon-add) .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
-.interactive-session .chat-input-toolbars .monaco-action-bar .actions-container {
+.interactive-session .chat-input-toolbar .action-item:has(.codicon-add) .codicon-add {
+	font-size: 14px;
+}
+
+.monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
+.monaco-workbench .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down {
+	font-size: 10px;
+	margin-left: 4px;
+	opacity: 0.75;
+}
+
+.interactive-session .chat-input-toolbars .monaco-action-bar .actions-container,
+.interactive-session .chat-secondary-toolbar .monaco-action-bar .actions-container {
 	display: flex;
 	gap: 4px;
 }
@@ -1669,7 +1769,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part {
 	margin: 0px 12px;
-	padding: 4px 0 12px 0px;
+	padding: 4px 0 4px 0px;
 	display: flex;
 	flex-direction: column;
 	gap: 4px;

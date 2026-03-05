@@ -54,6 +54,7 @@ export enum ChatConfiguration {
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	ChatCustomizationMenuEnabled = 'chat.customizationsMenu.enabled',
+	AutopilotEnabled = 'chat.autopilot.enabled',
 }
 
 /**
@@ -74,6 +75,26 @@ export function validateChatMode(mode: unknown): ChatModeKind | undefined {
 		default:
 			return undefined;
 	}
+}
+
+/**
+ * The permission level controlling tool auto-approval behavior.
+ */
+export enum ChatPermissionLevel {
+	/** Use existing auto-approve settings */
+	Default = 'default',
+	/** Auto-approve all tool calls, auto-retry on error */
+	AutoApprove = 'autoApprove',
+	/** Everything AutoApprove does plus an internal stop hook that continues until the task is done */
+	Autopilot = 'autopilot'
+}
+
+/**
+ * Returns true if the permission level enables auto-approval of all tool calls.
+ * Both {@link ChatPermissionLevel.AutoApprove} and {@link ChatPermissionLevel.Autopilot} enable auto-approval.
+ */
+export function isAutoApproveLevel(level: ChatPermissionLevel | undefined): boolean {
+	return level === ChatPermissionLevel.AutoApprove || level === ChatPermissionLevel.Autopilot;
 }
 
 export function isChatMode(mode: unknown): mode is ChatModeKind {

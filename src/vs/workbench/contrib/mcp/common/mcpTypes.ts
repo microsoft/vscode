@@ -138,8 +138,6 @@ export interface McpServerDefinition {
 	readonly staticMetadata?: McpServerStaticMetadata;
 	/** Indicates if the sandbox is enabled for this server. */
 	readonly sandboxEnabled?: boolean;
-	/** Sandbox configuration to apply for this server. */
-	readonly sandbox?: IMcpSandboxConfiguration;
 
 
 	readonly presentation?: {
@@ -173,7 +171,6 @@ export namespace McpServerDefinition {
 		readonly variableReplacement?: McpServerDefinitionVariableReplacement.Serialized;
 		readonly staticMetadata?: McpServerStaticMetadata;
 		readonly sandboxEnabled?: boolean;
-		readonly sandbox?: IMcpSandboxConfiguration;
 	}
 
 	export function toSerialized(def: McpServerDefinition): McpServerDefinition.Serialized {
@@ -188,7 +185,6 @@ export namespace McpServerDefinition {
 			staticMetadata: def.staticMetadata,
 			launch: McpServerLaunch.fromSerialized(def.launch),
 			sandboxEnabled: def.sandboxEnabled,
-			sandbox: def.sandboxEnabled ? def.sandbox : undefined,
 			variableReplacement: def.variableReplacement ? McpServerDefinitionVariableReplacement.fromSerialized(def.variableReplacement) : undefined,
 		};
 	}
@@ -202,8 +198,8 @@ export namespace McpServerDefinition {
 			&& objectsEqual(a.presentation, b.presentation)
 			&& objectsEqual(a.variableReplacement, b.variableReplacement)
 			&& objectsEqual(a.devMode, b.devMode)
-			&& a.sandboxEnabled === b.sandboxEnabled
-			&& objectsEqual(a.sandbox, b.sandbox);
+			&& a.sandboxEnabled === b.sandboxEnabled;
+
 	}
 }
 
@@ -519,6 +515,7 @@ export interface McpServerTransportStdio {
 	readonly args: readonly string[];
 	readonly env: Record<string, string | number | null>;
 	readonly envFile: string | undefined;
+	readonly sandbox: IMcpSandboxConfiguration | undefined;
 }
 
 export interface McpServerTransportHTTPAuthentication {
@@ -551,7 +548,7 @@ export type McpServerLaunch =
 export namespace McpServerLaunch {
 	export type Serialized =
 		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][]; authentication?: McpServerTransportHTTPAuthentication }
-		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined };
+		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined; sandbox: IMcpSandboxConfiguration | undefined };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
 		return launch;
@@ -569,6 +566,7 @@ export namespace McpServerLaunch {
 					args: launch.args,
 					env: launch.env,
 					envFile: launch.envFile,
+					sandbox: launch.sandbox
 				};
 		}
 	}
