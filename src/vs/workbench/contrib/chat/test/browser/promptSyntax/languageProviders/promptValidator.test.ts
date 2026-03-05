@@ -41,6 +41,7 @@ suite('PromptValidator', () => {
 
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
+		testConfigService.setUserConfiguration('chat.useCustomAgentHooks', true);
 		instaService = workbenchInstantiationService({
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
 			configurationService: () => testConfigService
