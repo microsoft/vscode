@@ -212,16 +212,33 @@ export class SnoozeInlineCompletion extends Action2 {
 	private async getDurationFromUser(quickInputService: IQuickInputService, storageService: IStorageService): Promise<number | undefined> {
 		const lastSelectedDuration = storageService.getNumber(LAST_SNOOZE_DURATION_KEY, StorageScope.PROFILE, 300_000);
 
-		const CUSTOM_SENTINEL = -1;
-		const items: (IQuickPickItem & { value: number })[] = [
+		const predefinedItems: (IQuickPickItem & { value: number })[] = [
 			{ label: localize('snooze.1minute', "1 minute"), id: '1', value: 60_000 },
 			{ label: localize('snooze.5minutes', "5 minutes"), id: '5', value: 300_000 },
 			{ label: localize('snooze.10minutes', "10 minutes"), id: '10', value: 600_000 },
 			{ label: localize('snooze.15minutes', "15 minutes"), id: '15', value: 900_000 },
 			{ label: localize('snooze.30minutes', "30 minutes"), id: '30', value: 1_800_000 },
 			{ label: localize('snooze.60minutes', "60 minutes"), id: '60', value: 3_600_000 },
-			{ label: localize('snooze.custom', "Custom..."), id: 'custom', value: CUSTOM_SENTINEL },
 		];
+
+		let items = predefinedItems;
+		if (lastSelectedDuration > 0 && !predefinedItems.some(item => item.value === lastSelectedDuration)) {
+			const minutes = lastSelectedDuration / 60_000;
+			const customItem: IQuickPickItem & { value: number } = {
+				label: localize('snooze.lastCustom', "{0} minutes (Last used)", minutes),
+				id: 'last-custom',
+				value: lastSelectedDuration,
+				description: localize('snooze.lastUsed', "Last used custom duration"),
+			};
+			const index = predefinedItems.findIndex(item => item.value > lastSelectedDuration);
+			if (index === -1) {
+				items = [...predefinedItems, customItem];
+			} else {
+				items = [...predefinedItems.slice(0, index), customItem, ...predefinedItems.slice(index)];
+			}
+		}
+
+		items.push({ label: localize('snooze.custom', "Custom..."), id: 'custom', value: -1 });
 
 		const picked = await quickInputService.pick(items, {
 			placeHolder: localize('snooze.placeholder', "Select snooze duration for Inline Suggestions"),
@@ -229,7 +246,7 @@ export class SnoozeInlineCompletion extends Action2 {
 		});
 
 		if (picked) {
-			if (picked.value === CUSTOM_SENTINEL) {
+			if (picked.id === 'custom') {
 				return this.getCustomDurationFromUser(quickInputService, storageService);
 			}
 			storageService.store(LAST_SNOOZE_DURATION_KEY, picked.value, StorageScope.PROFILE, StorageTarget.USER);

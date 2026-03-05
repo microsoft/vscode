@@ -709,14 +709,8 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 		updateIntervalTimer();
 
-		disposables.add(button.onDidClick(async () => {
-			if (this.inlineCompletionsService.isSnoozing()) {
-				// Extend by 5 min when already snoozing
-				this.inlineCompletionsService.snooze();
-			} else {
-				// Show the duration picker when starting a new snooze
-				await this.commandService.executeCommand('editor.action.inlineSuggest.snooze');
-			}
+		disposables.add(button.onDidClick(() => {
+			this.inlineCompletionsService.snooze();
 			update(isEnabled());
 		}));
 
