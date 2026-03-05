@@ -20,6 +20,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { CDPBrowserProxy } from '../common/cdp/proxy.js';
 import { IntegratedBrowserOpenSource, logBrowserOpen } from '../common/browserViewTelemetry.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { localize } from '../../../nls.js';
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import { ITextEditorOptions } from '../../editor/common/editor.js';
@@ -92,16 +93,35 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return view;
 	}
 
-	private async openNew(url: string, session: BrowserSession | undefined, options: ITextEditorOptions, source: IntegratedBrowserOpenSource): Promise<ICDPTarget> {
+	private async openNew(
+		url: string,
+		{
+			session,
+			windowId,
+			editorOptions,
+			source
+		}: {
+			session: BrowserSession | undefined;
+			windowId: number | undefined;
+			editorOptions: ITextEditorOptions;
+			source: IntegratedBrowserOpenSource;
+		}
+	): Promise<ICDPTarget> {
 		const targetId = generateUuid();
 		const view = this.createBrowserView(targetId, session || BrowserSession.getOrCreateEphemeral(targetId));
+
+		const window = windowId !== undefined ? this.windowsMainService.getWindowById(windowId) : this.windowsMainService.getFocusedWindow();
+		if (!window) {
+			throw new Error(`Window ${windowId} not found`);
+		}
+
 
 		logBrowserOpen(this.telemetryService, source);
 
 		// Request the workbench to open the editor
-		this.windowsMainService.sendToFocused('vscode:runAction', {
+		window.sendWhenReady('vscode:runAction', CancellationToken.None, {
 			id: '_workbench.open',
-			args: [BrowserViewUri.forUrl(url, targetId), [undefined, options], undefined]
+			args: [BrowserViewUri.forUrl(url, targetId), [undefined, editorOptions], undefined]
 		});
 
 		return view;
@@ -180,9 +200,15 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this.browserViews.values();
 	}
 
-	async createTarget(url: string, browserContextId?: string): Promise<ICDPTarget> {
+	async createTarget(url: string, browserContextId?: string, windowId?: number): Promise<ICDPTarget> {
 		const browserSession = browserContextId ? BrowserSession.get(browserContextId) : undefined;
-		return this.openNew(url, browserSession, { preserveFocus: true }, 'cdpCreated');
+
+		return this.openNew(url, {
+			session: browserSession,
+			windowId,
+			editorOptions: { preserveFocus: true },
+			source: 'cdpCreated'
+		});
 	}
 
 	async activateTarget(target: ICDPTarget): Promise<void> {
@@ -394,7 +420,14 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		if (params.linkURL) {
 			menu.append(new MenuItem({
 				label: localize('browser.contextMenu.openLinkInNewTab', 'Open Link in New Tab'),
-				click: () => { void this.openNew(params.linkURL, view.session, { preserveFocus: true, inactive: true }, 'browserLinkBackground'); }
+				click: () => {
+					void this.openNew(params.linkURL, {
+						session: view.session,
+						windowId: view.getWindow()?.id,
+						editorOptions: { preserveFocus: true, inactive: true },
+						source: 'browserLinkBackground'
+					});
+				}
 			}));
 			menu.append(new MenuItem({
 				label: localize('browser.contextMenu.openLinkInExternalBrowser', 'Open Link in External Browser'),
@@ -418,7 +451,14 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			}
 			menu.append(new MenuItem({
 				label: localize('browser.contextMenu.openImageInNewTab', 'Open Image in New Tab'),
-				click: () => { void this.openNew(params.srcURL!, view.session, { preserveFocus: true, inactive: true }, 'browserLinkBackground'); }
+				click: () => {
+					void this.openNew(params.srcURL!, {
+						session: view.session,
+						windowId: view.getWindow()?.id,
+						editorOptions: { preserveFocus: true, inactive: true },
+						source: 'browserLinkBackground'
+					});
+				}
 			}));
 			menu.append(new MenuItem({
 				label: localize('browser.contextMenu.copyImage', 'Copy Image'),

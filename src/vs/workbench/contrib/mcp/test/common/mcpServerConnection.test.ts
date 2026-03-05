@@ -108,7 +108,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 				args: [],
 				env: {},
 				envFile: undefined,
-				cwd: '/test'
+				cwd: '/test',
+				sandbox: undefined
 			}
 		};
 	});

@@ -166,7 +166,7 @@
 	align-items: center;
 	gap: 8px;
 	flex-shrink: 0;
-	margin: 6px 0px;
+	padding: 6px 0;
 }
 
 .ai-customization-list-widget .list-search-container,
@@ -556,6 +556,7 @@
 /* Content container visibility */
 .ai-customization-management-editor .prompts-content-container,
 .ai-customization-management-editor .mcp-content-container,
+.ai-customization-management-editor .plugin-content-container,
 .ai-customization-management-editor .models-content-container {
 	height: 100%;
 	display: flex;
@@ -570,6 +571,18 @@
 }
 
 .ai-customization-management-editor .mcp-detail-editor-container {
+	flex: 1;
+	overflow: hidden;
+}
+
+/* Embedded plugin detail view */
+.ai-customization-management-editor .plugin-detail-container {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.ai-customization-management-editor .plugin-detail-editor-container {
 	flex: 1;
 	overflow: hidden;
 }

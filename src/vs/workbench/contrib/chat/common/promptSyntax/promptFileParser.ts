@@ -10,7 +10,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { parse, YamlNode, YamlParseError } from '../../../../../base/common/yaml.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { PositionOffsetTransformer } from '../../../../../editor/common/core/text/positionToOffsetImpl.js';
-import { Target } from './service/promptsService.js';
 
 export class PromptFileParser {
 	constructor() {
@@ -85,19 +84,7 @@ export namespace PromptHeaderAttributes {
 	export const userInvokable = 'user-invokable';
 	export const userInvocable = 'user-invocable';
 	export const disableModelInvocation = 'disable-model-invocation';
-}
-
-export namespace GithubPromptHeaderAttributes {
-	export const mcpServers = 'mcp-servers';
-	export const github = 'github';
-}
-
-export namespace ClaudeHeaderAttributes {
-	export const disallowedTools = 'disallowedTools';
-}
-
-export function isTarget(value: unknown): value is Target {
-	return value === Target.VSCode || value === Target.GitHubCopilot || value === Target.Claude || value === Target.Undefined;
+	export const hooks = 'hooks';
 }
 
 export class PromptHeader {
@@ -329,6 +316,20 @@ export class PromptHeader {
 
 	public get disableModelInvocation(): boolean | undefined {
 		return this.getBooleanAttribute(PromptHeaderAttributes.disableModelInvocation);
+	}
+
+	/**
+	 * Gets the raw 'hooks' attribute value from the header.
+	 * Returns the YAML map value if present, or undefined. The caller is
+	 * responsible for converting this to `ChatRequestHooks` via
+	 * {@link parseSubagentHooksFromYaml}.
+	 */
+	public get hooksRaw(): IMapValue | undefined {
+		const attr = this._parsedHeader.attributes.find(a => a.key === PromptHeaderAttributes.hooks);
+		if (attr?.value.type === 'map') {
+			return attr.value;
+		}
+		return undefined;
 	}
 
 	private getBooleanAttribute(key: string): boolean | undefined {

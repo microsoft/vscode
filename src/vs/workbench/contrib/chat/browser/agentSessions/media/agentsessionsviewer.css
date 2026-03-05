@@ -253,12 +253,11 @@
 		}
 		.agent-session-approval-row {
 			display: none;
-			align-items: center;
+			align-items: flex-end;
 			gap: 8px;
 			margin-top: 4px;
 			padding: 4px 8px;
 			box-sizing: border-box;
-			height: 36px; /* 36px + 4px margin-top = APPROVAL_ROW_HEIGHT (40px) */
 			border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
 			border-radius: 4px;
 			background-color: var(--vscode-editor-background);
@@ -344,5 +343,27 @@
 
 	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-section-label {
 		color: var(--vscode-list-inactiveSelectionForeground);
+	}
+
+	.agent-sessions-empty-filter-message {
+		padding: 8px 12px;
+		font-size: 12px;
+		color: var(--vscode-descriptionForeground);
+
+		.reset-filter-link {
+			color: var(--vscode-textLink-foreground);
+			cursor: pointer;
+			text-decoration: none;
+
+			&:hover {
+				text-decoration: underline;
+			}
+
+			&:focus-visible {
+				text-decoration: underline;
+				outline: 1px solid var(--vscode-focusBorder);
+				outline-offset: 1px;
+			}
+		}
 	}
 }

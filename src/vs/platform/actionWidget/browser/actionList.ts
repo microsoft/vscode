@@ -369,6 +369,12 @@ export interface IActionListOptions {
 	 */
 	readonly minWidth?: number;
 
+	/**
+	 * When true, descriptions are rendered as subtext below the title
+	 * instead of inline to the right.
+	 */
+	readonly descriptionBelow?: boolean;
+
 
 
 	/**
@@ -383,7 +389,7 @@ export class ActionList<T> extends Disposable {
 
 	private readonly _list: List<IActionListItem<T>>;
 
-	private readonly _actionLineHeight = 24;
+	private readonly _actionLineHeight: number;
 	private readonly _headerLineHeight = 24;
 	private readonly _separatorLineHeight = 8;
 
@@ -431,6 +437,10 @@ export class ActionList<T> extends Disposable {
 		super();
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
+		if (this._options?.descriptionBelow) {
+			this.domNode.classList.add('description-below');
+		}
+		this._actionLineHeight = this._options?.descriptionBelow ? 48 : 24;
 
 		// Initialize collapsed sections
 		if (this._options?.collapsedByDefault) {
