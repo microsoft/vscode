@@ -689,6 +689,17 @@ suite('ChatTipService', () => {
 		assert.ok(tip.content.value.includes('Restore Checkpoint'));
 	});
 
+	test('tip.mermaid uses sentence punctuation in display text', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+
+		const tip = findTipById(service, 'tip.mermaid');
+
+		assert.ok(tip);
+		assert.ok(tip.content.value.includes('flow chart. It can render Mermaid diagrams directly in chat.'));
+		assert.ok(!tip.content.value.includes('flow chart; it can render Mermaid diagrams directly in chat.'));
+	});
+
 	function createMockPromptsService(
 		agentInstructions: IResolvedAgentFile[] = [],
 		promptInstructions: IPromptPath[] = [],

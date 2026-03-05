@@ -338,7 +338,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
-				localize('tip.mermaid', "Ask the agent to draw an architectural diagram or flow chart; it can render Mermaid diagrams directly in chat.")
+				localize('tip.mermaid', "Ask the agent to draw an architectural diagram or flow chart. It can render Mermaid diagrams directly in chat.")
 			);
 		},
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
