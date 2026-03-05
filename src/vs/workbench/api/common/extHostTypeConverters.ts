@@ -3607,6 +3607,7 @@ export namespace ChatRequestModeInstructions {
 	export function to(mode: IChatRequestModeInstructions | undefined): vscode.ChatRequestModeInstructions | undefined {
 		if (mode) {
 			return {
+				uri: URI.revive(mode.uri),
 				name: mode.name,
 				content: mode.content,
 				toolReferences: ChatLanguageModelToolReferences.to(mode.toolReferences),
