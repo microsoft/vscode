@@ -1,6 +1,6 @@
 {
 	"scenario": "Scenario: Repository picker opens when submitting without a repo",
-	"generatedAt": "2026-03-05T19:00:53.780Z",
+	"generatedAt": "2026-03-05T19:06:20.696Z",
 	"steps": [
 		{
 			"description": "Click button \"Cloud\"",
