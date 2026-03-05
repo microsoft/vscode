@@ -889,6 +889,17 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'workspaceValue');
 	}));
 
+	test('workspace settings ignore extends outside configuration folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const workspaceFolder = workspaceService.getWorkspace().folders[0].uri;
+		const settingsFolder = joinPath(workspaceFolder, '.vscode');
+		await fileService.createFolder(settingsFolder);
+		await fileService.writeFile(joinPath(workspaceFolder, 'shared-settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "sharedValue" }'));
+		await fileService.writeFile(joinPath(settingsFolder, 'settings.json'), VSBuffer.fromString('{ "extends": "../shared-settings.json" }'));
+
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'isSet');
+	}));
+
 	test('workspace settings react to extended settings changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const settingsFolder = joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode');
 		const baseSettingsResource = joinPath(settingsFolder, 'base-settings.json');

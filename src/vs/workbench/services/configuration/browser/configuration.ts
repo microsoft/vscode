@@ -422,19 +422,37 @@ class FileServiceBasedConfiguration extends Disposable {
 	}
 
 	private resolveExtendsResource(settingsResource: URI, extendsRef: string): URI | undefined {
+		const trimmedRef = extendsRef.trim();
+		if (!trimmedRef) {
+			return undefined;
+		}
+
+		const baseDir = this.uriIdentityService.extUri.dirname(settingsResource);
+		let candidate: URI | undefined;
+
 		try {
-			const parsed = URI.parse(extendsRef);
+			const parsed = URI.parse(trimmedRef);
 			if (parsed.scheme) {
-				return parsed;
+				candidate = parsed;
 			}
 		} catch {
 		}
 
-		if (!extendsRef.trim()) {
+		if (!candidate) {
+			candidate = this.uriIdentityService.extUri.resolvePath(baseDir, trimmedRef);
+		}
+
+		if (candidate.scheme !== baseDir.scheme || candidate.authority !== baseDir.authority) {
+			this.logService.trace(`Ignoring extends reference '${extendsRef}' from '${settingsResource.toString()}' because it has a different scheme or authority.`);
 			return undefined;
 		}
 
-		return this.uriIdentityService.extUri.resolvePath(this.uriIdentityService.extUri.dirname(settingsResource), extendsRef);
+		if (!this.uriIdentityService.extUri.isEqualOrParent(candidate, baseDir)) {
+			this.logService.trace(`Ignoring extends reference '${extendsRef}' from '${settingsResource.toString()}' because it resolves outside the configuration folder.`);
+			return undefined;
+		}
+
+		return candidate;
 	}
 
 	private async readExtendsContent(resource: URI): Promise<string | undefined> {
