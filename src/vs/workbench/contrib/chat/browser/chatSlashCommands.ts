@@ -19,7 +19,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IChatAgentService } from '../common/participants/chatAgents.js';
 import { IChatDebugEvent, IChatDebugService } from '../common/chatDebugService.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
-import { ChatRequestQueueKind, IChatService } from '../common/chatService/chatService.js';
+import { IChatService } from '../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
@@ -36,12 +36,8 @@ import {
 	globalAutoApproveDescription,
 } from './tools/languageModelToolsService.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
-import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { Target } from '../common/promptSyntax/promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { IChatWidgetService } from './chat.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
 
@@ -54,28 +50,14 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 		@IChatService chatService: IChatService,
-		@IChatDebugService chatDebugService: IChatDebugService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IDialogService dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
-		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
-		const hasTroubleshootDataKey = ChatContextKeys.chatSessionHasTroubleshootData.bindTo(this.contextKeyService);
-		this._store.add(chatWidgetService.onDidChangeFocusedSession(() => {
-			const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
-			hasTroubleshootDataKey.set(!!sessionResource && chatDebugService.isSessionMarkedForTroubleshoot(sessionResource));
-			languageModelToolsService.flushToolUpdates();
-		}));
-		this._store.add(chatDebugService.onDidMarkSessionForTroubleshoot(() => {
-			hasTroubleshootDataKey.set(true);
-			languageModelToolsService.flushToolUpdates();
-		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'clear',
 			detail: nls.localize('clear', "Start a new chat and archive the current one"),
@@ -142,24 +124,6 @@ export class ChatSlashCommandsContribution extends Disposable {
 				await commandService.executeCommand('github.copilot.debug.showChatLogView');
 			}));
 		}
-		this._store.add(slashCommandService.registerSlashCommand({
-			command: 'troubleshoot',
-			detail: nls.localize('troubleshoot', "Troubleshoot with a snapshot of debug events from the conversation so far (run again to refresh)"),
-			sortText: 'z3_troubleshoot',
-			executeImmediately: false,
-			silent: true,
-			locations: [ChatAgentLocation.Chat],
-		}, async (prompt, _progress, _history, _location, sessionResource, _token, options) => {
-			const attachedContext: IChatRequestVariableEntry[] = [
-				await createDebugEventsAttachment(sessionResource, chatDebugService)
-			];
-
-			chatService.sendRequest(sessionResource, prompt, {
-				...options,
-				queue: ChatRequestQueueKind.Queued,
-				attachedContext,
-			});
-		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'agents',
 			detail: nls.localize('agents', "Configure custom agents"),

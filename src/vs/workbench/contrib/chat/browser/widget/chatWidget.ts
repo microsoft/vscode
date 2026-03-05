@@ -290,6 +290,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _sessionIsEmptyContextKey: IContextKey<boolean>;
 	private readonly _hasPendingRequestsContextKey: IContextKey<boolean>;
 	private readonly _sessionHasDebugDataContextKey: IContextKey<boolean>;
+	private readonly _sessionHasTroubleshootDataContextKey: IContextKey<boolean>;
 	private _attachmentCapabilities: IChatAgentAttachmentCapabilities = supportsAllAttachments;
 
 	private readonly viewModelDisposables = this._register(new DisposableStore());
@@ -404,11 +405,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._sessionIsEmptyContextKey = ChatContextKeys.chatSessionIsEmpty.bindTo(this.contextKeyService);
 		this._hasPendingRequestsContextKey = ChatContextKeys.hasPendingRequests.bindTo(this.contextKeyService);
 		this._sessionHasDebugDataContextKey = ChatContextKeys.chatSessionHasDebugData.bindTo(this.contextKeyService);
+		this._sessionHasTroubleshootDataContextKey = ChatContextKeys.chatSessionHasTroubleshootData.bindTo(this.contextKeyService);
 
 		this._register(this.chatDebugService.onDidAddEvent(e => {
 			const sessionResource = this.viewModel?.sessionResource;
 			if (sessionResource && e.sessionResource.toString() === sessionResource.toString()) {
 				this._sessionHasDebugDataContextKey.set(true);
+			}
+		}));
+		this._register(this.chatDebugService.onDidMarkSessionForTroubleshoot(sessionResource => {
+			if (this.viewModel?.sessionResource && sessionResource.toString() === this.viewModel.sessionResource.toString()) {
+				this._sessionHasTroubleshootDataContextKey.set(true);
+				this.toolsService.flushToolUpdates();
 			}
 		}));
 
@@ -1978,6 +1986,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		this._sessionIsEmptyContextKey.set(model.getRequests().length === 0);
 		this._sessionHasDebugDataContextKey.set(this.chatDebugService.getEvents(model.sessionResource).length > 0);
+		this._sessionHasTroubleshootDataContextKey.set(this.chatDebugService.isSessionMarkedForTroubleshoot(model.sessionResource));
+		if (this._sessionHasTroubleshootDataContextKey.get()) {
+			this.toolsService.flushToolUpdates();
+		}
 		let lastSteeringCount = 0;
 		const updatePendingRequestKeys = (announceSteering: boolean) => {
 			const pendingRequests = model.getPendingRequests();

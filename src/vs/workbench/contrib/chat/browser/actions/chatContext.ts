@@ -26,6 +26,8 @@ import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
+import { createDebugEventsAttachment } from '../chatSlashCommands.js';
+import { IChatDebugService } from '../../common/chatDebugService.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -54,6 +56,7 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(DebugEventsSnapshotContextValuePick)));
 	}
 }
 
@@ -283,5 +286,25 @@ class ScreenshotContextValuePick implements IChatContextValueItem {
 	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
 		const blob = await this._hostService.getScreenshot();
 		return blob && convertBufferToScreenshotVariable(blob);
+	}
+}
+
+class DebugEventsSnapshotContextValuePick implements IChatContextValueItem {
+
+	readonly type = 'valuePick';
+	readonly icon = Codicon.output;
+	readonly label = localize('chatContext.debugEventsSnapshot', 'Debug Events Snapshot');
+	readonly ordinal = -600;
+
+	constructor(
+		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
+	) { }
+
+	async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry | undefined> {
+		const sessionResource = widget.viewModel?.sessionResource;
+		if (!sessionResource) {
+			return undefined;
+		}
+		return createDebugEventsAttachment(sessionResource, this._chatDebugService);
 	}
 }
