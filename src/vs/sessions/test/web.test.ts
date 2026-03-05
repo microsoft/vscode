@@ -21,7 +21,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../platform/sto
 import { URI } from '../../base/common/uri.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/common/contributions.js';
-import { IChatProgress } from '../../workbench/contrib/chat/common/chatService.js';
+import { IChatProgress } from '../../workbench/contrib/chat/common/chatService/chatService.js';
 
 const MOCK_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: { id: 'github', name: 'GitHub (Mock)', enterprise: false },
