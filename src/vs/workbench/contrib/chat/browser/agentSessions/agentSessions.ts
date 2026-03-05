@@ -60,7 +60,7 @@ export function getAgentSessionProviderName(provider: AgentSessionProviders): st
 		case AgentSessionProviders.Growth:
 			return 'Growth';
 		case AgentSessionProviders.AgentHostCopilot:
-			return localize('chat.session.providerLabel.agentHost', "Agent Host - Copilot");
+			return 'Agent Host - Copilot';
 	}
 }
 
@@ -133,7 +133,7 @@ export function getAgentSessionProviderDescription(provider: AgentSessionProvide
 		case AgentSessionProviders.Growth:
 			return localize('chat.session.providerDescription.growth', "Learn about Copilot features.");
 		case AgentSessionProviders.AgentHostCopilot:
-			return localize('chat.session.providerDescription.agentHost', "Run a Copilot SDK agent in a dedicated process.");
+			return 'Run a Copilot SDK agent in a dedicated process.';
 	}
 }
 
