@@ -40,18 +40,6 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.sendKeybindings()));
 	}
 
-	private sendKeybindings(): void {
-		const keybindings: { [commandId: string]: string } = Object.create(null);
-		for (const commandId of browserViewContextMenuCommands) {
-			const binding = this.keybindingService.lookupKeybinding(commandId);
-			const accelerator = binding?.getElectronAccelerator();
-			if (accelerator) {
-				keybindings[commandId] = accelerator;
-			}
-		}
-		void this._browserViewService.updateKeybindings(keybindings);
-	}
-
 	async getOrCreateBrowserViewModel(id: string): Promise<IBrowserViewModel> {
 		return this._getBrowserViewModel(id, true);
 	}
@@ -92,5 +80,17 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		});
 
 		return model;
+	}
+
+	private sendKeybindings(): void {
+		const keybindings: { [commandId: string]: string } = Object.create(null);
+		for (const commandId of browserViewContextMenuCommands) {
+			const binding = this.keybindingService.lookupKeybinding(commandId);
+			const accelerator = binding?.getElectronAccelerator();
+			if (accelerator) {
+				keybindings[commandId] = accelerator;
+			}
+		}
+		void this._browserViewService.updateKeybindings(keybindings);
 	}
 }

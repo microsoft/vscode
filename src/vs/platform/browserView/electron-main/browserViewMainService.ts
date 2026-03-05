@@ -24,6 +24,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { localize } from '../../../nls.js';
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import { ITextEditorOptions } from '../../editor/common/editor.js';
+import { htmlAttributeEncodeValue } from '../../../base/common/strings.js';
 
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
@@ -63,68 +64,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
 	) {
 		super();
-	}
-
-	/**
-	 * Create a browser view backed by the given {@link BrowserSession}.
-	 */
-	private createBrowserView(id: string, browserSession: BrowserSession, options?: Electron.WebContentsViewConstructorOptions): BrowserView {
-		if (this.browserViews.has(id)) {
-			throw new Error(`Browser view with id ${id} already exists`);
-		}
-
-		const view = this.instantiationService.createInstance(
-			BrowserView,
-			id,
-			browserSession,
-			// Recursive factory for nested windows (child views share the same session)
-			(childOptions) => this.createBrowserView(generateUuid(), browserSession, childOptions),
-			(v, params) => this.showContextMenu(v, params),
-			options
-		);
-		this.browserViews.set(id, view);
-
-		this._onTargetCreated.fire(view);
-		Event.once(view.onDidClose)(() => {
-			this._onTargetDestroyed.fire(view);
-			this.browserViews.deleteAndDispose(id);
-		});
-
-		return view;
-	}
-
-	private async openNew(
-		url: string,
-		{
-			session,
-			windowId,
-			editorOptions,
-			source
-		}: {
-			session: BrowserSession | undefined;
-			windowId: number | undefined;
-			editorOptions: ITextEditorOptions;
-			source: IntegratedBrowserOpenSource;
-		}
-	): Promise<ICDPTarget> {
-		const targetId = generateUuid();
-		const view = this.createBrowserView(targetId, session || BrowserSession.getOrCreateEphemeral(targetId));
-
-		const window = windowId !== undefined ? this.windowsMainService.getWindowById(windowId) : this.windowsMainService.getFocusedWindow();
-		if (!window) {
-			throw new Error(`Window ${windowId} not found`);
-		}
-
-
-		logBrowserOpen(this.telemetryService, source);
-
-		// Request the workbench to open the editor
-		window.sendWhenReady('vscode:runAction', CancellationToken.None, {
-			id: '_workbench.open',
-			args: [BrowserViewUri.forUrl(url, targetId), [undefined, editorOptions], undefined]
-		});
-
-		return view;
 	}
 
 	async getOrCreateBrowserView(id: string, scope: BrowserViewStorageScope, workspaceId?: string): Promise<IBrowserViewState> {
@@ -406,6 +345,68 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		this._keybindings = keybindings;
 	}
 
+	/**
+	 * Create a browser view backed by the given {@link BrowserSession}.
+	 */
+	private createBrowserView(id: string, browserSession: BrowserSession, options?: Electron.WebContentsViewConstructorOptions): BrowserView {
+		if (this.browserViews.has(id)) {
+			throw new Error(`Browser view with id ${id} already exists`);
+		}
+
+		const view = this.instantiationService.createInstance(
+			BrowserView,
+			id,
+			browserSession,
+			// Recursive factory for nested windows (child views share the same session)
+			(childOptions) => this.createBrowserView(generateUuid(), browserSession, childOptions),
+			(v, params) => this.showContextMenu(v, params),
+			options
+		);
+		this.browserViews.set(id, view);
+
+		this._onTargetCreated.fire(view);
+		Event.once(view.onDidClose)(() => {
+			this._onTargetDestroyed.fire(view);
+			this.browserViews.deleteAndDispose(id);
+		});
+
+		return view;
+	}
+
+	private async openNew(
+		url: string,
+		{
+			session,
+			windowId,
+			editorOptions,
+			source
+		}: {
+			session: BrowserSession | undefined;
+			windowId: number | undefined;
+			editorOptions: ITextEditorOptions;
+			source: IntegratedBrowserOpenSource;
+		}
+	): Promise<ICDPTarget> {
+		const targetId = generateUuid();
+		const view = this.createBrowserView(targetId, session || BrowserSession.getOrCreateEphemeral(targetId));
+
+		const window = windowId !== undefined ? this.windowsMainService.getWindowById(windowId) : this.windowsMainService.getFocusedWindow();
+		if (!window) {
+			throw new Error(`Window ${windowId} not found`);
+		}
+
+
+		logBrowserOpen(this.telemetryService, source);
+
+		// Request the workbench to open the editor
+		window.sendWhenReady('vscode:runAction', CancellationToken.None, {
+			id: '_workbench.open',
+			args: [BrowserViewUri.forUrl(url, targetId), [undefined, editorOptions], undefined]
+		});
+
+		return view;
+	}
+
 	private showContextMenu(view: BrowserView, params: Electron.ContextMenuParams): void {
 		const win = view.getWindow();
 		if (!win) {
@@ -439,7 +440,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				click: () => {
 					clipboard.write({
 						text: params.linkURL,
-						html: `<a href="${encodeURI(params.linkURL)}">${escapeHtmlText(params.linkText || params.linkURL)}</a>`
+						html: `<a href="${encodeURI(params.linkURL)}">${htmlAttributeEncodeValue(params.linkText || params.linkURL)}</a>`
 					});
 				}
 			}));
@@ -475,6 +476,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			menu.append(new MenuItem({ role: 'copy', enabled: params.editFlags.canCopy }));
 			menu.append(new MenuItem({ role: 'paste', enabled: params.editFlags.canPaste }));
 			menu.append(new MenuItem({ role: 'pasteAndMatchStyle', enabled: params.editFlags.canPaste }));
+			menu.append(new MenuItem({ role: 'selectAll', enabled: params.editFlags.canSelectAll }));
 		} else if (params.selectionText) {
 			menu.append(new MenuItem({ role: 'copy' }));
 		}
@@ -513,17 +515,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			window: win,
 			x: viewBounds.x + params.x,
 			y: viewBounds.y + params.y,
-			frame: params.frame ?? undefined,
 			sourceType: params.menuSourceType
 		});
 	}
-}
-
-function escapeHtmlText(str: string): string {
-	return str
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;')
-		.replace(/'/g, '&#39;');
 }
