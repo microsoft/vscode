@@ -16,6 +16,7 @@ import { agentSessionContainsResource, editingEntriesContainResource } from '../
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -117,6 +118,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
@@ -330,10 +332,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 				);
 			}
 		} else {
-			// This should not normally happen, but if the widget isn't found, wait a bit to give it a chance to initialize before submitting.
+			this._logService.error('[AgentFeedback] addFeedbackAndSubmit: no chat widget found for session, feedback may not be submitted correctly', sessionResource.toString());
 			await new Promise(resolve => setTimeout(resolve, 100));
 		}
 
-		await this._commandService.executeCommand('agentFeedbackEditor.action.submit');
+		try {
+			await this._commandService.executeCommand('agentFeedbackEditor.action.submit');
+		} catch (err) {
+			this._logService.error('[AgentFeedback] Failed to execute submit feedback command', err);
+		}
 	}
 }
