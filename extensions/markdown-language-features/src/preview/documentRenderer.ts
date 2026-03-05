@@ -149,8 +149,12 @@ export class MdDocumentRenderer {
 			return href;
 		}
 
-		if (href.startsWith('http:') || href.startsWith('https:') || href.startsWith('file:')) {
+		if (href.startsWith('http:') || href.startsWith('https:')) {
 			return href;
+		}
+
+		if (href.startsWith('file:')) {
+			return resourceProvider.asWebviewUri(vscode.Uri.parse(href)).toString();
 		}
 
 		// Assume it must be a local file

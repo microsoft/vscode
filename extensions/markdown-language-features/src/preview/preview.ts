@@ -400,6 +400,21 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			baseRoots.push(uri.Utils.dirname(this._resource));
 		}
 
+		// Add parent directories for any absolute paths in markdown.styles so the
+		// webview is allowed to load CSS files that live outside the workspace.
+		const config = this._previewConfigurations.loadAndCacheConfiguration(this._resource);
+		for (const style of config.styles) {
+			try {
+				if (style.startsWith('file:')) {
+					baseRoots.push(uri.Utils.dirname(vscode.Uri.parse(style)));
+				} else if (style.startsWith('/') || /^[a-z]:\\/i.test(style)) {
+					baseRoots.push(uri.Utils.dirname(vscode.Uri.file(style)));
+				}
+			} catch {
+				// noop
+			}
+		}
+
 		return baseRoots;
 	}
 
