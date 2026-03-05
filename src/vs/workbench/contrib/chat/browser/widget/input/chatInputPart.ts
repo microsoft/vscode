@@ -1946,10 +1946,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (e.currentSessionResource && newSessionType !== this._currentSessionType) {
 				this._currentSessionType = newSessionType;
 				this.initSelectedModel();
+				this.checkModelInSessionPool();
 			}
-
-			// Validate that the current model belongs to the new session's pool
-			this.checkModelInSessionPool();
 
 			// For contributed sessions with history, pre-select the model
 			// from the last request so the user resumes with the same model.
