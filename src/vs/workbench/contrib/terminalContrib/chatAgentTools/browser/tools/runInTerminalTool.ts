@@ -673,8 +673,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (inspected.policyValue === false) {
 			return false;
 		}
-		// Check the live widget picker level (handles mid-session switches)
-		const widget = this._chatWidgetService.getWidgetBySessionResource(chatSessionResource);
+		// Check the live widget picker level (handles mid-session switches).
+		// Fall back to lastFocusedWidget if the session-specific widget isn't found
+		// (e.g., widget was backgrounded or URI mismatch).
+		const widget = this._chatWidgetService.getWidgetBySessionResource(chatSessionResource)
+			?? this._chatWidgetService.lastFocusedWidget;
 		if (widget && isAutoApproveLevel(widget.input.currentModeInfo.permissionLevel)) {
 			return true;
 		}

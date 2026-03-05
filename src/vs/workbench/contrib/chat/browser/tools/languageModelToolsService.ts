@@ -1016,8 +1016,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return inspected.policyValue === false;
 	}
 
+	/**
+	 * Returns true if the session's current (live) permission picker level is auto-approve.
+	 * This checks the widget's current state, not what was stamped on the request,
+	 * so switching to Autopilot mid-session takes effect immediately.
+	 */
 	private _isSessionLiveAutoApproveLevel(chatSessionResource: URI): boolean {
-		const widget = this._chatWidgetService.getWidgetBySessionResource(chatSessionResource);
+		const widget = this._chatWidgetService.getWidgetBySessionResource(chatSessionResource)
+			?? this._chatWidgetService.lastFocusedWidget;
 		return !!widget && isAutoApproveLevel(widget.input.currentModeInfo.permissionLevel);
 	}
 
