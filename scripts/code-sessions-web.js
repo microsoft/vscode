@@ -147,7 +147,7 @@ ${importMapJson}
 			${additionalBuiltinExtensions}
 			workspaceProvider: {
 				workspace: ${useMock
-					? `{ folderUri: URI.parse('github-remote-file://mock-repo/') }`
+					? `{ folderUri: URI.parse('mock-fs://mock-repo/') }`
 					: 'undefined'},
 				open: async () => false,
 				payload: [['isSessionsWindow', 'true']],

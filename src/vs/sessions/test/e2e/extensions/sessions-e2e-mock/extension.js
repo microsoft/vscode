@@ -290,8 +290,8 @@ function registerMockFileSystem(vscode) {
 		},
 	};
 
-	console.log('[sessions-e2e-mock] Registering mock file system for github-remote-file://');
-	return vscode.workspace.registerFileSystemProvider('github-remote-file', provider, {
+	console.log('[sessions-e2e-mock] Registering mock file system for mock-fs://');
+	return vscode.workspace.registerFileSystemProvider('mock-fs', provider, {
 		isCaseSensitive: true,
 	});
 }
