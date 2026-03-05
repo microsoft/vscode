@@ -137,7 +137,7 @@ ${importMapJson}
 </head>
 <body aria-label="">
 	<script type="module">
-		import { create, URI } from '${fileRoot}/vs/sessions/${useMock ? 'test/e2e/sessions.web.test.internal' : 'sessions.web.main.internal'}.js';
+		import { create, URI } from '${fileRoot}/vs/sessions/${useMock ? 'test/sessions.web.test.internal' : 'sessions.web.main.internal'}.js';
 		create(document.body, {
 			productConfiguration: {
 				nameShort: 'Sessions (Web)',

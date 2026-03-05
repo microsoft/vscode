@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IBrowserMainWorkbench } from '../../../../workbench/browser/web.main.js';
-import { Workbench as SessionsWorkbench } from '../../browser/workbench.js';
-import { SessionsBrowserMain } from '../../browser/web.main.js';
-import { Event } from '../../../../base/common/event.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
-import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IDefaultAccount, IDefaultAccountAuthenticationProvider, ICopilotTokenInfo, IPolicyData } from '../../../../base/common/defaultAccount.js';
+import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { IBrowserMainWorkbench } from '../../workbench/browser/web.main.js';
+import { Workbench as SessionsWorkbench } from '../browser/workbench.js';
+import { SessionsBrowserMain } from '../browser/web.main.js';
+import { Event } from '../../base/common/event.js';
+import { CancellationToken } from '../../base/common/cancellation.js';
+import { IObservable, observableValue } from '../../base/common/observable.js';
+import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../workbench/services/chat/common/chatEntitlementService.js';
+import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccount, IDefaultAccountAuthenticationProvider, ICopilotTokenInfo, IPolicyData } from '../../base/common/defaultAccount.js';
 
 const MOCK_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: { id: 'github', name: 'GitHub (Mock)', enterprise: false },

@@ -1990,14 +1990,14 @@ export default tseslint.config(
 					]
 				},
 				{
-					'target': 'src/vs/sessions/test/e2e/sessions.web.test.internal.ts',
+					'target': 'src/vs/sessions/test/sessions.web.test.internal.ts',
 					'layer': 'browser',
 					'restrictions': [
 						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
 						'vs/sessions/~',
-						'vs/sessions/test/e2e/**',
+						'vs/sessions/test/**',
 						'vs/sessions/contrib/*/~',
 						'vs/workbench/~',
 						'vs/workbench/browser/**',
@@ -2007,14 +2007,14 @@ export default tseslint.config(
 					]
 				},
 				{
-					'target': 'src/vs/sessions/test/e2e/{web.test.ts,web.test.factory.ts}',
+					'target': 'src/vs/sessions/test/{web.test.ts,web.test.factory.ts}',
 					'layer': 'browser',
 					'restrictions': [
 						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
 						'vs/sessions/~',
-						'vs/sessions/test/e2e/**',
+						'vs/sessions/test/**',
 						'vs/sessions/contrib/*/~',
 						'vs/workbench/~',
 						'vs/workbench/browser/**',
