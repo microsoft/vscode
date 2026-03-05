@@ -57,14 +57,16 @@
 	max-width: none;
 }
 
-.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button.account-widget-update-button-ready {
+.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button.account-widget-update-button-ready[aria-disabled="true"],
+.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button.account-widget-update-button-ready.disabled {
 	background-color: var(--vscode-button-background) !important;
 	color: var(--vscode-button-foreground) !important;
 	opacity: 1 !important;
 	cursor: default !important;
 }
 
-.account-widget-update .account-widget-update-button.account-widget-update-button-ready {
+.account-widget-update .account-widget-update-button.account-widget-update-button-ready[aria-disabled="true"],
+.account-widget-update .account-widget-update-button.account-widget-update-button-ready.disabled {
 	background-color: var(--vscode-button-background) !important;
 	color: var(--vscode-button-foreground) !important;
 	opacity: 1 !important;
