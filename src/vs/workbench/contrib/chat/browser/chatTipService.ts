@@ -488,6 +488,11 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			}
 
 			if (!this._isEligible(this._shownTip, contextKeyService)) {
+				if (this._tracker.isExcluded(this._shownTip)) {
+					this.hideTip();
+					return undefined;
+				}
+
 				const nextTip = this._findNextEligibleTip(this._shownTip.id, contextKeyService);
 				if (nextTip) {
 					this._shownTip = nextTip;
@@ -496,6 +501,9 @@ export class ChatTipService extends Disposable implements IChatTipService {
 					this._onDidNavigateTip.fire(tip);
 					return tip;
 				}
+
+				this.hideTip();
+				return undefined;
 			}
 			return this._createTip(this._shownTip);
 		}
