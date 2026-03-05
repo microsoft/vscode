@@ -64,7 +64,7 @@ import { IChatRequestVariableEntry } from '../../common/attachments/chatVariable
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { MarkHelpfulActionId, MarkUnhelpfulActionId } from '../actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
@@ -107,7 +107,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ChatHookContentPart } from './chatContentParts/chatHookContentPart.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
-import { HookType } from '../../common/promptSyntax/hookSchema.js';
+import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { ChatQuestionCarouselAutoReply } from './chatQuestionCarouselAutoReply.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
@@ -1777,7 +1777,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'markdownContent') {
 				return this.renderMarkdown(content, templateData, context);
 			} else if (content.kind === 'references') {
-				if (isResponseVM(context.element) && context.element.model.request?.modeInfo?.modeId === ChatModeKind.Agent) {
+				// Only show references for chat participants, not agents
+				if (isResponseVM(context.element) && context.element.agent?.isDefault && !context.element.agent.modes.includes(ChatModeKind.Ask)) {
 					return this.renderNoContent(other => other.kind === content.kind);
 				}
 				return this.renderContentReferencesListData(content, undefined, context, templateData);
@@ -2178,8 +2179,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// Remove from pending carousels
 			this.removeCarouselFromTracking(context, part);
 
-			// Clear from input part (always clear on submit, no response check needed)
-			widget?.input.clearQuestionCarousel();
+			// Clear from input part (clear only the submitted carousel by its key)
+			const carouselKey = carousel.resolveId ?? `${responseId}_${context.contentIndex}`;
+			widget?.input.clearQuestionCarousel(undefined, carouselKey);
 		};
 
 		// If carousel is already used or response is complete/canceled, render summary inline in the list
@@ -2333,7 +2335,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		void this._autoReply.shouldAutoReply().then(shouldAutoReply => {
-			if (!shouldAutoReply) {
+			// always autoreply in autopilot mode.
+			const isAutopilot = isResponseVM(context.element) && context.element.model.request?.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot;
+			if (!shouldAutoReply && !isAutopilot) {
 				// Roll back the in-progress mark if auto-reply is not enabled.
 				if (stableKey) {
 					this._autoRepliedQuestionCarousels.delete(stableKey);

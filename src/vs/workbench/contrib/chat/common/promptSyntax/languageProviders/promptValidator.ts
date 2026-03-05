@@ -15,18 +15,23 @@ import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
 import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
-import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
-import { GithubPromptHeaderAttributes, ISequenceValue, IHeaderAttribute, IScalarValue, parseCommaSeparatedList, ParsedPromptFile, PromptHeader, PromptHeaderAttributes, IValue } from '../promptFileParser.js';
+import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes.js';
+import { ISequenceValue, IHeaderAttribute, IScalarValue, parseCommaSeparatedList, ParsedPromptFile, PromptHeader, IValue, PromptHeaderAttributes } from '../promptFileParser.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { IPromptsService, Target } from '../service/promptsService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { AGENTS_SOURCE_FOLDER, isInClaudeAgentsFolder, isInClaudeRulesFolder, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { AGENTS_SOURCE_FOLDER, CLAUDE_AGENTS_SOURCE_FOLDER, isInClaudeRulesFolder, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { dirname } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { HOOKS_BY_TARGET } from '../hookTypes.js';
+import { PromptsConfig } from '../config/config.js';
+import { GithubPromptHeaderAttributes } from './promptFileAttributes.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -37,7 +42,8 @@ export class PromptValidator {
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IPromptsService private readonly promptsService: IPromptsService
+		@IPromptsService private readonly promptsService: IPromptsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -189,6 +195,9 @@ export class PromptValidator {
 				this.validateUserInvokable(attributes, report);
 				this.validateDisableModelInvocation(attributes, report);
 				this.validateTools(attributes, ChatModeKind.Agent, target, report);
+				if (this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)) {
+					this.validateHooks(attributes, target, report);
+				}
 				if (isVSCodeOrDefaultTarget(target)) {
 					this.validateModel(attributes, ChatModeKind.Agent, report);
 					this.validateHandoffs(attributes, report);
@@ -211,11 +220,21 @@ export class PromptValidator {
 	}
 
 	private checkForInvalidArguments(attributes: IHeaderAttribute[], promptType: PromptsType, target: Target, report: (markers: IMarkerData) => void): void {
-		const validAttributeNames = getValidAttributeNames(promptType, true, target);
+		let validAttributeNames = getValidAttributeNames(promptType, true, target);
+		if (!this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)) {
+			validAttributeNames = validAttributeNames.filter(name => name !== PromptHeaderAttributes.hooks);
+		}
+		const useCustomAgentHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS);
 		const validGithubCopilotAttributeNames = new Lazy(() => new Set(getValidAttributeNames(promptType, false, Target.GitHubCopilot)));
 		for (const attribute of attributes) {
 			if (!validAttributeNames.includes(attribute.key)) {
-				const supportedNames = new Lazy(() => getValidAttributeNames(promptType, false, target).sort().join(', '));
+				const supportedNames = new Lazy(() => {
+					let names = getValidAttributeNames(promptType, false, target);
+					if (!useCustomAgentHooks) {
+						names = names.filter(name => name !== PromptHeaderAttributes.hooks);
+					}
+					return names.sort().join(', ');
+				});
 				switch (promptType) {
 					case PromptsType.prompt:
 						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
@@ -543,6 +562,119 @@ export class PromptValidator {
 		}
 	}
 
+	private validateHooks(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.hooks);
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'map') {
+			report(toMarker(localize('promptValidator.hooksMustBeMap', "The 'hooks' attribute must be a map of hook event types to command arrays."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+		const validHookNames = new Set(Object.keys(HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined]));
+		for (const prop of attribute.value.properties) {
+			if (!validHookNames.has(prop.key.value)) {
+				report(toMarker(localize('promptValidator.unknownHookType', "Unknown hook event type '{0}'. Supported: {1}.", prop.key.value, Array.from(validHookNames).join(', ')), prop.key.range, MarkerSeverity.Warning));
+			}
+			if (prop.value.type !== 'sequence') {
+				report(toMarker(localize('promptValidator.hookValueMustBeArray', "Hook event '{0}' must have an array of command objects as its value.", prop.key.value), prop.value.range, MarkerSeverity.Error));
+				continue;
+			}
+			for (const item of prop.value.items) {
+				this.validateHookCommand(item, target, report);
+			}
+		}
+	}
+
+	private validateHookCommand(item: IValue, target: Target, report: (markers: IMarkerData) => void): void {
+		if (item.type !== 'map') {
+			report(toMarker(localize('promptValidator.hookCommandMustBeObject', "Each hook command must be an object."), item.range, MarkerSeverity.Error));
+			return;
+		}
+
+		// Detect nested matcher format: { matcher?: "...", hooks: [{ type: 'command', command: '...' }] }
+		const hooksProperty = item.properties.find(p => p.key.value === 'hooks');
+		if (hooksProperty) {
+			// Validate that only known matcher properties are present
+			for (const prop of item.properties) {
+				if (prop.key.value !== 'hooks' && prop.key.value !== 'matcher') {
+					report(toMarker(localize('promptValidator.unknownMatcherProperty', "Unknown property '{0}' in hook matcher.", prop.key.value), prop.key.range, MarkerSeverity.Warning));
+				}
+			}
+			if (hooksProperty.value.type !== 'sequence') {
+				report(toMarker(localize('promptValidator.nestedHooksMustBeArray', "The 'hooks' property in a matcher must be an array of command objects."), hooksProperty.value.range, MarkerSeverity.Error));
+				return;
+			}
+			for (const nestedItem of hooksProperty.value.items) {
+				this.validateHookCommand(nestedItem, target, report);
+			}
+			return;
+		}
+
+		const isCopilotCli = target === Target.GitHubCopilot;
+
+		// Determine valid and command-providing properties based on target
+		const validCommandFields = isCopilotCli
+			? new Set(['bash', 'powershell'])
+			: new Set(['command', 'windows', 'linux', 'osx', 'bash', 'powershell']);
+
+		const validProperties = isCopilotCli
+			? new Set(['type', 'bash', 'powershell', 'cwd', 'env', 'timeoutSec'])
+			: new Set(['type', 'command', 'windows', 'linux', 'osx', 'bash', 'powershell', 'cwd', 'env', 'timeout']);
+
+		let hasType = false;
+		let hasCommandField = false;
+
+		for (const prop of item.properties) {
+			const key = prop.key.value;
+
+			if (!validProperties.has(key)) {
+				report(toMarker(localize('promptValidator.unknownHookProperty', "Unknown property '{0}' in hook command.", key), prop.key.range, MarkerSeverity.Warning));
+			}
+
+			if (key === 'type') {
+				hasType = true;
+				if (prop.value.type !== 'scalar' || prop.value.value !== 'command') {
+					report(toMarker(localize('promptValidator.hookTypeMustBeCommand', "The 'type' property in a hook command must be 'command'."), prop.value.range, MarkerSeverity.Error));
+				}
+			} else if (validCommandFields.has(key)) {
+				hasCommandField = true;
+				if (prop.value.type !== 'scalar' || prop.value.value.trim().length === 0) {
+					report(toMarker(localize('promptValidator.hookCommandFieldMustBeNonEmptyString', "The '{0}' property in a hook command must be a non-empty string.", key), prop.value.range, MarkerSeverity.Error));
+				}
+			} else if (key === 'cwd') {
+				if (prop.value.type !== 'scalar') {
+					report(toMarker(localize('promptValidator.hookCwdMustBeString', "The 'cwd' property in a hook command must be a string."), prop.value.range, MarkerSeverity.Error));
+				}
+			} else if (key === 'env') {
+				if (prop.value.type !== 'map') {
+					report(toMarker(localize('promptValidator.hookEnvMustBeMap', "The 'env' property in a hook command must be a map of string values."), prop.value.range, MarkerSeverity.Error));
+				} else {
+					for (const envProp of prop.value.properties) {
+						if (envProp.value.type !== 'scalar') {
+							report(toMarker(localize('promptValidator.hookEnvValueMustBeString', "Environment variable '{0}' must have a string value.", envProp.key.value), envProp.value.range, MarkerSeverity.Error));
+						}
+					}
+				}
+			} else if (key === 'timeout' || key === 'timeoutSec') {
+				if (prop.value.type !== 'scalar' || isNaN(Number(prop.value.value))) {
+					report(toMarker(localize('promptValidator.hookTimeoutMustBeNumber', "The '{0}' property in a hook command must be a number.", key), prop.value.range, MarkerSeverity.Error));
+				}
+			}
+		}
+
+		if (!hasType) {
+			report(toMarker(localize('promptValidator.hookMissingType', "Hook command is missing required property 'type'."), item.range, MarkerSeverity.Error));
+		}
+		if (!hasCommandField) {
+			if (isCopilotCli) {
+				report(toMarker(localize('promptValidator.hookMissingCopilotCommand', "Hook command must specify at least one of 'bash' or 'powershell'."), item.range, MarkerSeverity.Error));
+			} else {
+				report(toMarker(localize('promptValidator.hookMissingCommand', "Hook command must specify at least one of 'command', 'windows', 'linux', or 'osx'."), item.range, MarkerSeverity.Error));
+			}
+		}
+	}
+
 	private validateHandoffs(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
 		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.handOffs);
 		if (!attribute) {
@@ -759,7 +891,7 @@ function isTrueOrFalse(value: IValue): boolean {
 const allAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
-	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.userInvokable, PromptHeaderAttributes.disableModelInvocation, GithubPromptHeaderAttributes.github],
+	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.hooks, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.userInvokable, PromptHeaderAttributes.disableModelInvocation, GithubPromptHeaderAttributes.github],
 	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.userInvokable, PromptHeaderAttributes.disableModelInvocation],
 	[PromptsType.hook]: [], // hooks are JSON files, not markdown with YAML frontmatter
 };
@@ -844,6 +976,8 @@ export function getAttributeDescription(attributeName: string, promptType: Promp
 					return localize('promptHeader.agent.infer', 'Controls visibility of the agent.');
 				case PromptHeaderAttributes.agents:
 					return localize('promptHeader.agent.agents', 'One or more agents that this agent can use as subagents. Use \'*\' to specify all available agents.');
+				case PromptHeaderAttributes.hooks:
+					return localize('promptHeader.agent.hooks', 'Lifecycle hooks scoped to this agent. Define hooks that run only while this agent is active.');
 				case PromptHeaderAttributes.userInvocable:
 					return localize('promptHeader.agent.userInvocable', 'Whether the agent can be selected and invoked by users in the UI.');
 				case PromptHeaderAttributes.disableModelInvocation:
@@ -1022,7 +1156,8 @@ export function isVSCodeOrDefaultTarget(target: Target): boolean {
 export function getTarget(promptType: PromptsType, header: PromptHeader | URI): Target {
 	const uri = header instanceof URI ? header : header.uri;
 	if (promptType === PromptsType.agent) {
-		if (isInClaudeAgentsFolder(uri)) {
+		const parentDir = dirname(uri);
+		if (parentDir.path.endsWith(`/${CLAUDE_AGENTS_SOURCE_FOLDER}`)) {
 			return Target.Claude;
 		}
 		if (!(header instanceof URI)) {

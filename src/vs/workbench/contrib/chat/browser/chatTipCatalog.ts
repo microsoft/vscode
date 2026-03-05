@@ -123,15 +123,11 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		id: 'tip.switchToAuto',
 		tier: ChatTipTier.Foundational,
 		priority: 0,
-		buildMessage(ctx) {
-			const label = getCommandLabel('workbench.action.chat.openModelPicker');
-			const kb = formatKeybinding(ctx, 'workbench.action.chat.openModelPicker');
+		buildMessage(_ctx) {
 			return new MarkdownString(
 				localize(
 					'tip.switchToAuto',
-					"Using gpt-4.1? Try switching to [{0}](command:workbench.action.chat.openModelPicker){1} for better coding performance.",
-					label,
-					kb
+					"Using GPT-4.1? Try switching to [Auto](command:workbench.action.chat.openModelPicker) in the model picker for better coding performance."
 				)
 			);
 		},
@@ -225,25 +221,6 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		],
 	},
 	{
-		id: 'tip.agentMode',
-		tier: ChatTipTier.Foundational,
-		priority: 10,
-		buildMessage(ctx) {
-			const label = getCommandLabel('workbench.action.chat.openEditSession');
-			const kb = formatKeybinding(ctx, 'workbench.action.chat.openEditSession');
-			return new MarkdownString(
-				localize(
-					'tip.agentMode',
-					"Try [{0}](command:workbench.action.chat.openEditSession){1} to make edits across your project and run commands.",
-					label,
-					kb
-				)
-			);
-		},
-		when: ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Agent),
-		excludeWhenModesUsed: [ChatModeKind.Agent],
-	},
-	{
 		id: 'tip.planMode',
 		tier: ChatTipTier.Foundational,
 		priority: 20,
@@ -293,7 +270,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
-				localize('tip.undoChanges', "Select \"Restore Checkpoint\" to undo changes after that point in the chat conversation.")
+				localize('tip.undoChanges', "Hover a previous request and select \"Restore Checkpoint\" to undo changes after that point in the chat conversation.")
 			);
 		},
 		when: ContextKeyExpr.and(
@@ -338,26 +315,6 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		],
 	},
 	{
-		id: 'tip.yoloMode',
-		tier: ChatTipTier.Qol,
-		buildMessage() {
-			return new MarkdownString(
-				localize(
-					'tip.yoloMode',
-					"Enable [{0}](command:workbench.action.openSettings?%5B%22{1}%22%5D) to give the agent full control without manual confirmation.",
-					'auto approve',
-					ChatConfiguration.GlobalAutoApprove
-				)
-			);
-		},
-		when: ContextKeyExpr.and(
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-			ContextKeyExpr.notEquals('config.chat.tools.global.autoApprove', true),
-		),
-		excludeWhenSettingsChanged: [ChatConfiguration.GlobalAutoApprove],
-		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
-	},
-	{
 		id: 'tip.agenticBrowser',
 		tier: ChatTipTier.Qol,
 		buildMessage() {
@@ -381,7 +338,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
-				localize('tip.mermaid', "Ask the agent to draw an architectural diagram or flow chart; it can render Mermaid diagrams directly in chat.")
+				localize('tip.mermaid', "Ask the agent to draw an architectural diagram or flow chart. It can render Mermaid diagrams directly in chat.")
 			);
 		},
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),

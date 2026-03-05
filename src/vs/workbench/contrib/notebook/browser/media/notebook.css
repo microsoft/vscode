@@ -299,6 +299,7 @@
 	display: block;
 	position: absolute;
 	pointer-events: none;
+	box-shadow: inset var(--vscode-shadow-sm);
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-insertion-indicator-top {
@@ -383,9 +384,10 @@
 
 .notebookOverlay .monaco-list-row .cell-title-toolbar {
 	border-radius: var(--vscode-cornerRadius-medium);
+	box-shadow: var(--vscode-shadow-sm);
+	background-color: var(--vscode-editorWidget-background);
 }
 
-.notebookOverlay .monaco-list-row .cell-title-toolbar,
 .notebookOverlay .monaco-list-row.cell-drag-image,
 .notebookOverlay .cell-bottom-toolbar-container .action-item,
 .notebookOverlay .cell-list-top-cell-toolbar-container .action-item {

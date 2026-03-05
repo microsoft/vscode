@@ -11,7 +11,7 @@ import { toAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -49,6 +49,7 @@ import { EnhancedModelPickerActionItem } from '../../../../workbench/contrib/cha
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
@@ -56,7 +57,7 @@ import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 import { FolderPicker } from './folderPicker.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { IsolationModePicker, SessionTargetPicker } from './sessionTargetPicker.js';
+import { IsolationMode, IsolationModePicker, SessionTargetPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { SyncIndicator } from './syncIndicator.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
@@ -74,6 +75,14 @@ import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } 
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
+
+interface IDraftState extends IChatModelInputState {
+	target?: AgentSessionProviders;
+	isolationMode?: IsolationMode;
+	branch?: string;
+	folderUri?: string;
+	repo?: string;
+}
 
 // #region --- Chat Welcome Widget ---
 
@@ -152,6 +161,16 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	// Slash commands
 	private _slashCommandHandler: SlashCommandHandler | undefined;
 
+	// Input state
+	private _draftState: IDraftState | undefined = {
+		inputText: '',
+		attachments: [],
+		mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent },
+		selectedModel: undefined,
+		selections: [],
+		contrib: {}
+	};
+
 	// Input history
 	private readonly _history: ChatHistoryNavigator;
 	private _historyNavigationBackwardsEnablement!: IHistoryNavigationContext['historyNavigationBackwardsEnablement'];
@@ -166,10 +185,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IGitService private readonly gitService: IGitService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
@@ -190,6 +209,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._isolationModePicker.setVisible(isLocal);
 			this._branchPicker.setVisible(isLocal);
 			this._syncIndicator.setVisible(isLocal);
+			this._updateDraftState();
 			this._focusEditor();
 		}));
 
@@ -200,20 +220,43 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		this._register(this._branchPicker.onDidChange((branch) => {
 			this._syncIndicator.setBranch(branch);
+			this._updateDraftState();
 			this._focusEditor();
 		}));
 
-		this._register(this._folderPicker.onDidSelectFolder(() => {
+		this._register(this._folderPicker.onDidSelectFolder(async (folderUri) => {
+			const trusted = await this._requestFolderTrust(folderUri);
+			if (trusted) {
+				this._newSession.value?.setRepoUri(folderUri);
+			}
+			this._updateDraftState();
 			this._focusEditor();
 		}));
 
-		this._register(this._isolationModePicker.onDidChange(() => {
+		this._register(this._isolationModePicker.onDidChange((mode) => {
+			this._branchPicker.setVisible(mode === 'worktree');
+			this._syncIndicator.setVisible(mode === 'worktree');
+			this._updateDraftState();
 			this._focusEditor();
+		}));
+
+		this._register(this._repoPicker.onDidSelectRepo(() => {
+			this._updateDraftState();
 		}));
 
 		// When language models change (e.g., extension activates), reinitialize if no model selected
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
 			this._initDefaultModel();
+		}));
+
+		// Update input state when attachments or model change
+		this._register(this._contextAttachments.onDidChangeContext(() => {
+			this._updateDraftState();
+			this._focusEditor();
+		}));
+		this._register(autorun(reader => {
+			this._currentLanguageModel.read(reader);
+			this._updateDraftState();
 		}));
 	}
 
@@ -261,11 +304,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._branchPicker.render(branchContainer);
 		this._syncIndicator.render(branchContainer);
 
-		// Set initial visibility based on default target
+		// Set initial visibility based on default target and isolation mode
 		const isLocal = this._targetPicker.selectedTarget === AgentSessionProviders.Background;
+		const isWorktree = this._isolationModePicker.isolationMode === 'worktree';
 		this._isolationModePicker.setVisible(isLocal);
-		this._branchPicker.setVisible(isLocal);
-		this._syncIndicator.setVisible(isLocal);
+		this._branchPicker.setVisible(isLocal && isWorktree);
+		this._syncIndicator.setVisible(isLocal && isWorktree);
 
 		// Render target buttons & extension pickers
 		this._renderOptionGroupPickers();
@@ -290,7 +334,16 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private async _createNewSession(): Promise<void> {
 		const target = this._targetPicker.selectedTarget;
-		const defaultRepoUri = this._folderPicker.selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
+		let defaultRepoUri = this._folderPicker.selectedFolderUri;
+
+		// For local targets, request workspace trust before creating the session
+		if (target === AgentSessionProviders.Background && defaultRepoUri) {
+			const trusted = await this._requestFolderTrust(defaultRepoUri);
+			if (!trusted) {
+				defaultRepoUri = undefined;
+			}
+		}
+
 		const resource = getResourceForNewChatSession({
 			type: target,
 			position: this._options.sessionPosition ?? ChatSessionPosition.Sidebar,
@@ -308,15 +361,15 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _setNewSession(session: INewSession): void {
 		this._newSession.value = session;
 
-		// Wire pickers to the new session
+		// Wire pickers to the new session and disconnect inactive ones
 		const target = this._targetPicker.selectedTarget;
 		if (target === AgentSessionProviders.Background) {
-			this._folderPicker.setNewSession(session);
 			this._isolationModePicker.setNewSession(session);
 			this._branchPicker.setNewSession(session);
-		}
-
-		if (target === AgentSessionProviders.Cloud) {
+			this._repoPicker.setNewSession(undefined);
+		} else {
+			this._isolationModePicker.setNewSession(undefined);
+			this._branchPicker.setNewSession(undefined);
 			this._repoPicker.setNewSession(session);
 		}
 
@@ -517,6 +570,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._slashCommandHandler = this._register(this.instantiationService.createInstance(SlashCommandHandler, this._editor));
 
 		this._register(this._editor.onDidChangeModelContent(() => {
+			this._updateDraftState();
 			this._updateSendButtonState();
 		}));
 	}
@@ -545,7 +599,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const target = this._targetPicker.selectedTarget;
 
 		if (target === AgentSessionProviders.Background) {
-			return this._folderPicker.selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
+			return this._folderPicker.selectedFolderUri;
 		}
 
 		// For cloud targets, use the repo picker's selection
@@ -848,9 +902,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		if (this._history.isAtStart()) {
 			return;
 		}
-		const state = this._getInputState();
-		if (state.inputText || state.attachments.length) {
-			this._history.overlay(state);
+		if (this._draftState?.inputText || this._draftState?.attachments.length) {
+			this._history.overlay(this._draftState);
 		}
 		this._navigateHistory(true);
 	}
@@ -859,21 +912,26 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		if (this._history.isAtEnd()) {
 			return;
 		}
-		const state = this._getInputState();
-		if (state.inputText || state.attachments.length) {
-			this._history.overlay(state);
+		if (this._draftState?.inputText || this._draftState?.attachments.length) {
+			this._history.overlay(this._draftState);
 		}
 		this._navigateHistory(false);
 	}
 
-	private _getInputState(): IChatModelInputState {
-		return {
+	private _updateDraftState(): void {
+		const attachments = [...this._contextAttachments.attachments];
+		this._draftState = {
 			inputText: this._editor?.getModel()?.getValue() ?? '',
-			attachments: [...this._contextAttachments.attachments],
+			attachments,
 			mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent },
 			selectedModel: this._currentLanguageModel.get(),
 			selections: this._editor?.getSelections() ?? [],
 			contrib: {},
+			target: this._targetPicker.selectedTarget,
+			isolationMode: this._isolationModePicker.isolationMode,
+			branch: this._branchPicker.selectedBranch,
+			folderUri: this._folderPicker.selectedFolderUri?.toString(),
+			repo: this._repoPicker.selectedRepo,
 		};
 	}
 
@@ -907,7 +965,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	private async _send(options?: { openNewAfterSend?: boolean }): Promise<void> {
-		const query = this._editor.getModel()?.getValue().trim();
+		let query = this._editor.getModel()?.getValue().trim();
 		const session = this._newSession.value;
 		if (!query || !session || this._sending) {
 			return;
@@ -927,12 +985,20 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			return;
 		}
 
+		// Expand prompt/skill slash commands into a CLI-friendly reference
+		const expanded = this._slashCommandHandler?.tryExpandPromptSlashCommand(query);
+		if (expanded) {
+			query = expanded;
+		}
+
 		session.setQuery(query);
 		session.setAttachedContext(
 			this._contextAttachments.attachments.length > 0 ? [...this._contextAttachments.attachments] : undefined
 		);
 
-		this._history.append(this._getInputState());
+		if (this._draftState) {
+			this._history.append(this._draftState);
+		}
 		this._clearDraftState();
 
 		this._sending = true;
@@ -940,22 +1006,23 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._updateSendButtonState();
 		this._updateInputLoadingState();
 
-		this.sessionsManagementService.sendRequestForNewSession(
-			session.resource,
-			options?.openNewAfterSend ? { openNewSessionView: true } : undefined
-		).then(() => {
-			// Release ref without disposing - the service owns disposal
-			this._newSession.clearAndLeak();
+
+		try {
+			await this.sessionsManagementService.sendRequestForNewSession(
+				session.resource,
+				options?.openNewAfterSend ? { openNewSessionView: true } : undefined
+			);
 			this._newSessionListener.clear();
 			this._contextAttachments.clear();
-		}, e => {
+		} catch (e) {
 			this.logService.error('Failed to send request:', e);
-		}).finally(() => {
-			this._sending = false;
-			this._editor.updateOptions({ readOnly: false });
-			this._updateSendButtonState();
-			this._updateInputLoadingState();
-		});
+		}
+
+
+		this._sending = false;
+		this._editor.updateOptions({ readOnly: false });
+		this._updateSendButtonState();
+		this._updateInputLoadingState();
 	}
 
 	/**
@@ -976,6 +1043,23 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		} else {
 			this._repoPicker.showPicker();
 		}
+	}
+
+	private async _requestFolderTrust(folderUri: URI): Promise<boolean> {
+		const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
+			uri: folderUri,
+			message: localize('trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+		});
+		if (!trusted) {
+			this._folderPicker.removeFromRecents(folderUri);
+			const previousFolderUri = this._newSession.value?.repoUri;
+			if (previousFolderUri) {
+				this._folderPicker.setSelectedFolder(previousFolderUri);
+			} else {
+				this._folderPicker.clearSelection();
+			}
+		}
+		return !!trusted;
 	}
 
 
@@ -1001,10 +1085,23 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 					this._currentLanguageModel.set(model, undefined);
 				}
 			}
+			if (draft.isolationMode) {
+				this._isolationModePicker.setPreferredIsolationMode(draft.isolationMode);
+				this._isolationModePicker.setIsolationMode(draft.isolationMode);
+			}
+			if (draft.branch) {
+				this._branchPicker.setPreferredBranch(draft.branch);
+			}
+			if (draft.folderUri) {
+				try { this._folderPicker.setSelectedFolder(URI.parse(draft.folderUri)); } catch { /* ignore */ }
+			}
+			if (draft.repo) {
+				this._repoPicker.setSelectedRepo(draft.repo);
+			}
 		}
 	}
 
-	private _getDraftState(): (IChatModelInputState & { target?: AgentSessionProviders }) | undefined {
+	private _getDraftState(): IDraftState | undefined {
 		const raw = this.storageService.get(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE);
 		if (!raw) {
 			return undefined;
@@ -1017,20 +1114,19 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	private _clearDraftState(): void {
+		this._draftState = undefined;
 		this.storageService.remove(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE);
 	}
 
 	saveState(): void {
-		const inputState = this._getInputState();
-		const state = {
-			...inputState,
-			attachments: inputState.attachments.map(IChatRequestVariableEntry.toExport),
-			target: this._targetPicker.selectedTarget,
-		};
-		this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		if (this._draftState) {
+			const state = {
+				...this._draftState,
+				attachments: this._draftState.attachments.map(IChatRequestVariableEntry.toExport),
+			};
+			this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
 	}
-
-	// --- Layout ---
 
 	layout(_height: number, _width: number): void {
 		this._editor?.layout();
@@ -1117,6 +1213,11 @@ export class NewChatViewPane extends ViewPane {
 
 	override saveState(): void {
 		this._widget?.saveState();
+	}
+
+	override dispose(): void {
+		this._widget?.saveState();
+		super.dispose();
 	}
 }
 

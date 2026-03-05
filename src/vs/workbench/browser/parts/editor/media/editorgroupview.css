@@ -5,6 +5,52 @@
 
 /* Container */
 
+/* Editor depth shadows - the ::after pseudo-element draws inset shadows on each edge,
+ * creating the illusion that sidebar, panel, and auxiliarybar float above it. */
+.monaco-workbench.vs .part.editor {
+	position: relative;
+}
+
+.monaco-workbench.vs .part.editor::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	z-index: 10;
+	box-shadow:
+		inset var(--vscode-shadow-depth-x),
+		inset calc(-1 * 5px) 0 10px -4px rgba(0, 0, 0, 0.04),
+		inset 0 calc(-1 * 5px) 10px -4px rgba(0, 0, 0, 0.05);
+}
+
+/* When sidebar is on the right, flip the stronger shadow to the right edge */
+.monaco-workbench.sidebar-right.vs .part.editor::after {
+	box-shadow:
+		inset 5px 0 10px -4px rgba(0, 0, 0, 0.04),
+		inset calc(-1 * 5px) 0 10px -4px rgba(0, 0, 0, 0.05),
+		inset 0 calc(-1 * 5px) 10px -4px rgba(0, 0, 0, 0.05);
+}
+
+/* Panel positions: strengthen the shadow on whichever edge faces the panel */
+.monaco-workbench.panel-position-left.vs .part.editor::after {
+	box-shadow:
+		inset var(--vscode-shadow-depth-x),
+		inset calc(-1 * 5px) 0 10px -4px rgba(0, 0, 0, 0.04);
+}
+
+.monaco-workbench.panel-position-right.vs .part.editor::after {
+	box-shadow:
+		inset 5px 0 10px -4px rgba(0, 0, 0, 0.04),
+		inset calc(-1 * 5px) 0 10px -4px rgba(0, 0, 0, 0.05);
+}
+
+.monaco-workbench.panel-position-top.vs .part.editor::after {
+	box-shadow:
+		inset var(--vscode-shadow-depth-x),
+		inset calc(-1 * 5px) 0 10px -4px rgba(0, 0, 0, 0.04),
+		inset 0 var(--vscode-shadow-depth-y);
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container {
 	height: 100%;
 }

@@ -43,6 +43,9 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 		if (!params.url) {
 			return errorResult('The "url" parameter is required.');
 		}
+		if (!URL.parse(params.url)) {
+			return errorResult('You must provide a complete, valid URL.');
+		}
 
 		logBrowserOpen(this.telemetryService, 'chatTool');
 

@@ -44,7 +44,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { asCssVariable, asCssVariableWithDefault, badgeBackground, badgeForeground, contrastBorder, editorForeground, inputBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, editorForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -801,9 +801,6 @@ export class SettingsEditor2 extends EditorPane {
 		this.controlsElement = DOM.append(this.searchContainer, DOM.$('.search-container-widgets'));
 
 		this.countElement = DOM.append(this.controlsElement, DOM.$('.settings-count-widget.monaco-count-badge.long'));
-		this.countElement.style.backgroundColor = asCssVariable(badgeBackground);
-		this.countElement.style.color = asCssVariable(badgeForeground);
-		this.countElement.style.border = `1px solid ${asCssVariableWithDefault(contrastBorder, asCssVariable(inputBackground))}`;
 
 		this.searchInputActionBar = this._register(new ActionBar(this.controlsElement, {
 			actionViewItemProvider: (action, options) => {
