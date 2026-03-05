@@ -1,6 +1,6 @@
 {
 	"scenario": "Scenario: Repository picker opens when submitting without a repo",
-	"generatedAt": "2026-03-05T18:53:35.310Z",
+	"generatedAt": "2026-03-05T19:00:53.780Z",
 	"steps": [
 		{
 			"description": "Click button \"Cloud\"",
@@ -25,7 +25,7 @@
 			"description": "Verify the repository picker dropdown is visible",
 			"commands": [
 				"snapshot",
-				"# ASSERT_VISIBLE: Pick Repository"
+				"# ASSERT_VISIBLE: Repository Picker"
 			]
 		}
 	]

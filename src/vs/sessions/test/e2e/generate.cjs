@@ -183,6 +183,7 @@ async function main() {
 
 		const compiled = compileScenario(scenario);
 		const outPath = commandsPathForScenario(scenario.filePath);
+		fs.mkdirSync(path.dirname(outPath), { recursive: true });
 		fs.writeFileSync(outPath, JSON.stringify(compiled, null, '\t') + '\n');
 		console.log(`  ✓ Saved: ${outPath}`);
 	}

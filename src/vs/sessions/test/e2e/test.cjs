@@ -35,11 +35,13 @@ const BASE_URL = `http://localhost:${PORT}/?skip-sessions-welcome`;
 // ---------------------------------------------------------------------------
 
 function discoverCommandFiles(filter) {
-	return fs.readdirSync(SCENARIOS_DIR)
+	const compiledDir = path.join(SCENARIOS_DIR, 'compiled');
+	if (!fs.existsSync(compiledDir)) { return []; }
+	return fs.readdirSync(compiledDir)
 		.filter(f => f.endsWith('.commands.json'))
 		.filter(f => !filter || f.includes(filter))
 		.sort()
-		.map(f => path.join(SCENARIOS_DIR, f));
+		.map(f => path.join(compiledDir, f));
 }
 
 // ---------------------------------------------------------------------------

@@ -20,14 +20,15 @@ For each `.scenario.md` file, the generate script:
 3. Sends each natural-language step + snapshot to **Copilot CLI**, which returns
    the exact `playwright-cli` commands (e.g. `click e43`, `type "hello"`)
 4. Executes the commands to advance the UI state for the next step
-5. Writes the compiled commands to a `.commands.json` file next to the scenario
+5. Writes the compiled commands to a `.commands.json` file in the `scenarios/compiled/` folder
 
 ```
 scenarios/
 ├── 01-repo-picker-on-submit.scenario.md       ← human-written
-├── 01-repo-picker-on-submit.commands.json      ← agent-generated
 ├── 02-cloud-disables-add-run-action.scenario.md
-└── 02-cloud-disables-add-run-action.commands.json
+└── compiled/
+    ├── 01-repo-picker-on-submit.commands.json  ← agent-generated
+    └── 02-cloud-disables-add-run-action.commands.json
 ```
 
 The `.commands.json` files are **committed to git** — they're the deterministic
@@ -60,9 +61,10 @@ e2e/
 ├── package.json              # npm scripts: generate, test
 ├── scenarios/
 │   ├── 01-repo-picker-on-submit.scenario.md
-│   ├── 01-repo-picker-on-submit.commands.json
 │   ├── 02-cloud-disables-add-run-action.scenario.md
-│   └── 02-cloud-disables-add-run-action.commands.json
+│   └── compiled/
+│       ├── 01-repo-picker-on-submit.commands.json
+│       └── 02-cloud-disables-add-run-action.commands.json
 ├── .gitignore
 └── README.md
 ```

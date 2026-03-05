@@ -124,7 +124,9 @@ async function waitForServer(url, timeoutMs) {
 // ---------------------------------------------------------------------------
 
 function commandsPathForScenario(scenarioPath) {
-	return scenarioPath.replace(/\.scenario\.md$/, '.commands.json');
+	const dir = path.join(path.dirname(scenarioPath), 'compiled');
+	const name = path.basename(scenarioPath, '.scenario.md') + '.commands.json';
+	return path.join(dir, name);
 }
 
 module.exports = {
