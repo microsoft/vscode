@@ -904,8 +904,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.selectedToolsModel.resetSessionEnablementState();
 		this._chatSessionIsEmpty = chatSessionIsEmpty;
 
-		// Reset permission level to default on new sessions
-		if (chatSessionIsEmpty) {
+		// Reset permission level on new sessions, unless global auto-approve is on
+		if (chatSessionIsEmpty && !this.configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
 			this._currentPermissionLevel.set(ChatPermissionLevel.Default, undefined);
 			this.permissionLevelKey.set(ChatPermissionLevel.Default);
 			this.permissionWidget?.refresh();

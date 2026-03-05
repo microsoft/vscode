@@ -18,7 +18,25 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import Severity from '../../../../../../base/common/severity.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
+
+// Track whether warnings have been shown this VS Code session
+const shownWarnings = new Set<ChatPermissionLevel>();
+
+function hasShownElevatedWarning(level: ChatPermissionLevel): boolean {
+	if (shownWarnings.has(level)) {
+		return true;
+	}
+	// Autopilot is stricter than AutoApprove, so confirming Autopilot
+	// implies the user already accepted the AutoApprove risks.
+	if (level === ChatPermissionLevel.AutoApprove && shownWarnings.has(ChatPermissionLevel.Autopilot)) {
+		return true;
+	}
+	return false;
+}
 
 export interface IPermissionPickerDelegate {
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
@@ -35,6 +53,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		const isAutoApprovePolicyRestricted = () => configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 		const isAutopilotEnabled = () => configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
@@ -47,6 +66,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: 'chat.permissions.default',
 						label: localize('permissions.default', "Default Approvals"),
+						description: localize('permissions.default.subtext', "Copilot uses your configured settings"),
 						icon: ThemeIcon.fromId(Codicon.shield.id),
 						checked: currentLevel === ChatPermissionLevel.Default,
 						tooltip: '',
@@ -65,6 +85,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: 'chat.permissions.autoApprove',
 						label: localize('permissions.autoApprove', "Bypass Approvals"),
+						description: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
 						icon: ThemeIcon.fromId(Codicon.warning.id),
 						checked: currentLevel === ChatPermissionLevel.AutoApprove,
 						enabled: !policyRestricted,
@@ -76,6 +97,32 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 							position: pickerOptions.hoverPosition
 						},
 						run: async () => {
+							if (!hasShownElevatedWarning(ChatPermissionLevel.AutoApprove)) {
+								const result = await this.dialogService.prompt({
+									type: Severity.Warning,
+									message: localize('permissions.autoApprove.warning.title', "Enable Bypass Approvals?"),
+									buttons: [
+										{
+											label: localize('permissions.autoApprove.warning.confirm', "Enable"),
+											run: () => true
+										},
+										{
+											label: localize('permissions.autoApprove.warning.cancel', "Cancel"),
+											run: () => false
+										},
+									],
+									custom: {
+										icon: Codicon.warning,
+										markdownDetails: [{
+											markdown: new MarkdownString(localize('permissions.autoApprove.warning.detail', "Bypass Approvals will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls.")),
+										}],
+									},
+								});
+								if (result.result !== true) {
+									return;
+								}
+								shownWarnings.add(ChatPermissionLevel.AutoApprove);
+							}
 							delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
 							if (this.element) {
 								this.renderLabel(this.element);
@@ -88,6 +135,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: 'chat.permissions.autopilot',
 						label: localize('permissions.autopilot', "Autopilot (Preview)"),
+						description: localize('permissions.autopilot.subtext', "Copilot handles it from start to finish"),
 						icon: ThemeIcon.fromId(Codicon.rocket.id),
 						checked: currentLevel === ChatPermissionLevel.Autopilot,
 						enabled: !policyRestricted,
@@ -99,6 +147,32 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 							position: pickerOptions.hoverPosition
 						},
 						run: async () => {
+							if (!hasShownElevatedWarning(ChatPermissionLevel.Autopilot)) {
+								const result = await this.dialogService.prompt({
+									type: Severity.Warning,
+									message: localize('permissions.autopilot.warning.title', "Enable Autopilot?"),
+									buttons: [
+										{
+											label: localize('permissions.autopilot.warning.confirm', "Enable"),
+											run: () => true
+										},
+										{
+											label: localize('permissions.autopilot.warning.cancel', "Cancel"),
+											run: () => false
+										},
+									],
+									custom: {
+										icon: Codicon.rocket,
+										markdownDetails: [{
+											markdown: new MarkdownString(localize('permissions.autopilot.warning.detail', "Autopilot will auto-approve all tool calls and continue working autonomously until the task is complete. The agent will make decisions on your behalf without asking for confirmation.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.")),
+										}],
+									},
+								});
+								if (result.result !== true) {
+									return;
+								}
+								shownWarnings.add(ChatPermissionLevel.Autopilot);
+							}
 							delegate.setPermissionLevel(ChatPermissionLevel.Autopilot);
 							if (this.element) {
 								this.renderLabel(this.element);
@@ -113,6 +187,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		super(action, {
 			actionProvider,
 			reporter: { id: 'ChatPermissionPicker', name: 'ChatPermissionPicker', includeOptions: true },
+			listOptions: { descriptionBelow: true, minWidth: 232 },
 		}, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 	}
 

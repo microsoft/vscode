@@ -6,12 +6,13 @@
 import { Action } from '../../../../base/common/actions.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { revive } from '../../../../base/common/marshalling.js';
-import { dirname, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
+import { dirname, isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -19,6 +20,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import type { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
+import { IPluginSource } from '../common/plugins/pluginSource.js';
+import { GitHubPluginSource, GitUrlPluginSource, NpmPluginSource, PipPluginSource, RelativePathPluginSource } from './pluginSources.js';
 
 const MARKETPLACE_INDEX_STORAGE_KEY = 'chat.plugins.marketplaces.index.v1';
 
@@ -34,17 +37,37 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 	private readonly _cacheRoot: URI;
 	private readonly _marketplaceIndex = new Lazy<Map<string, IMarketplaceIndexEntry>>(() => this._loadMarketplaceIndex());
+	private readonly _pluginSources: ReadonlyMap<PluginSourceKind, IPluginSource>;
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService private readonly _fileService: IFileService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		this._cacheRoot = joinPath(environmentService.cacheHome, 'agentPlugins');
+
+		// Build per-kind source repository map via instantiation service so
+		// each repository can inject its own dependencies.
+		this._pluginSources = new Map<PluginSourceKind, IPluginSource>([
+			[PluginSourceKind.RelativePath, new RelativePathPluginSource()],
+			[PluginSourceKind.GitHub, instantiationService.createInstance(GitHubPluginSource)],
+			[PluginSourceKind.GitUrl, instantiationService.createInstance(GitUrlPluginSource)],
+			[PluginSourceKind.Npm, instantiationService.createInstance(NpmPluginSource)],
+			[PluginSourceKind.Pip, instantiationService.createInstance(PipPluginSource)],
+		]);
+	}
+
+	getPluginSource(kind: PluginSourceKind): IPluginSource {
+		const repo = this._pluginSources.get(kind);
+		if (!repo) {
+			throw new Error(`No source repository registered for kind '${kind}'`);
+		}
+		return repo;
 	}
 
 	getRepositoryUri(marketplace: IMarketplaceReference, marketplaceType?: MarketplaceType): URI {
@@ -214,176 +237,74 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	}
 
 	getPluginSourceInstallUri(sourceDescriptor: IPluginSourceDescriptor): URI {
-		switch (sourceDescriptor.kind) {
-			case PluginSourceKind.RelativePath:
-				throw new Error('Use getPluginInstallUri() for relative-path sources');
-			case PluginSourceKind.GitHub: {
-				const [owner, repo] = sourceDescriptor.repo.split('/');
-				return joinPath(this._cacheRoot, 'github.com', owner, repo, ...this._getSourceRevisionCacheSuffix(sourceDescriptor));
-			}
-			case PluginSourceKind.GitUrl: {
-				const segments = this._gitUrlCacheSegments(sourceDescriptor.url, sourceDescriptor.ref, sourceDescriptor.sha);
-				return joinPath(this._cacheRoot, ...segments);
-			}
-			case PluginSourceKind.Npm:
-				return joinPath(this._cacheRoot, 'npm', sanitizePackageName(sourceDescriptor.package), 'node_modules', sourceDescriptor.package);
-			case PluginSourceKind.Pip:
-				return joinPath(this._cacheRoot, 'pip', sanitizePackageName(sourceDescriptor.package));
-		}
+		return this.getPluginSource(sourceDescriptor.kind).getInstallUri(this._cacheRoot, sourceDescriptor);
 	}
 
 	async ensurePluginSource(plugin: IMarketplacePlugin, options?: IEnsureRepositoryOptions): Promise<URI> {
-		const descriptor = plugin.sourceDescriptor;
-		switch (descriptor.kind) {
-			case PluginSourceKind.RelativePath:
-				return this.ensureRepository(plugin.marketplaceReference, options);
-			case PluginSourceKind.GitHub: {
-				const cloneUrl = `https://github.com/${descriptor.repo}.git`;
-				const repoDir = this.getPluginSourceInstallUri(descriptor);
-				const repoExists = await this._fileService.exists(repoDir);
-				if (repoExists) {
-					await this._checkoutPluginSourceRevision(repoDir, descriptor, options?.failureLabel ?? descriptor.repo);
-					return repoDir;
-				}
-				const progressTitle = options?.progressTitle ?? localize('cloningPluginSource', "Cloning plugin source '{0}'...", descriptor.repo);
-				const failureLabel = options?.failureLabel ?? descriptor.repo;
-				await this._cloneRepository(repoDir, cloneUrl, progressTitle, failureLabel, descriptor.ref);
-				await this._checkoutPluginSourceRevision(repoDir, descriptor, failureLabel);
-				return repoDir;
-			}
-			case PluginSourceKind.GitUrl: {
-				const repoDir = this.getPluginSourceInstallUri(descriptor);
-				const repoExists = await this._fileService.exists(repoDir);
-				if (repoExists) {
-					await this._checkoutPluginSourceRevision(repoDir, descriptor, options?.failureLabel ?? descriptor.url);
-					return repoDir;
-				}
-				const progressTitle = options?.progressTitle ?? localize('cloningPluginSourceUrl', "Cloning plugin source '{0}'...", descriptor.url);
-				const failureLabel = options?.failureLabel ?? descriptor.url;
-				await this._cloneRepository(repoDir, descriptor.url, progressTitle, failureLabel, descriptor.ref);
-				await this._checkoutPluginSourceRevision(repoDir, descriptor, failureLabel);
-				return repoDir;
-			}
-			case PluginSourceKind.Npm: {
-				// npm/pip install directories are managed by the install service.
-				// Return the expected install URI without performing installation.
-				return joinPath(this._cacheRoot, 'npm', sanitizePackageName(descriptor.package));
-			}
-			case PluginSourceKind.Pip: {
-				return joinPath(this._cacheRoot, 'pip', sanitizePackageName(descriptor.package));
-			}
+		const repo = this.getPluginSource(plugin.sourceDescriptor.kind);
+		if (plugin.sourceDescriptor.kind === PluginSourceKind.RelativePath) {
+			return this.ensureRepository(plugin.marketplaceReference, options);
 		}
+		return repo.ensure(this._cacheRoot, plugin, options);
 	}
 
 	async updatePluginSource(plugin: IMarketplacePlugin, options?: IPullRepositoryOptions): Promise<void> {
-		const descriptor = plugin.sourceDescriptor;
-		if (descriptor.kind !== PluginSourceKind.GitHub && descriptor.kind !== PluginSourceKind.GitUrl) {
+		const repo = this.getPluginSource(plugin.sourceDescriptor.kind);
+		if (plugin.sourceDescriptor.kind === PluginSourceKind.RelativePath) {
+			return this.pullRepository(plugin.marketplaceReference, options);
+		}
+		return repo.update(this._cacheRoot, plugin, options);
+	}
+
+	async cleanupPluginSource(plugin: IMarketplacePlugin): Promise<void> {
+		const repo = this.getPluginSource(plugin.sourceDescriptor.kind);
+		const cleanupDir = repo.getCleanupTarget(this._cacheRoot, plugin.sourceDescriptor);
+		if (!cleanupDir) {
 			return;
 		}
-
-		const repoDir = this.getPluginSourceInstallUri(descriptor);
-		const repoExists = await this._fileService.exists(repoDir);
-		if (!repoExists) {
-			this._logService.warn(`[AgentPluginRepositoryService] Cannot update plugin '${options?.pluginName ?? plugin.name}': source repository not cloned`);
-			return;
-		}
-
-		const updateLabel = options?.pluginName ?? plugin.name;
-		const failureLabel = options?.failureLabel ?? updateLabel;
 
 		try {
-			await this._progressService.withProgress(
-				{
-					location: ProgressLocation.Notification,
-					title: localize('updatingPluginSource', "Updating plugin '{0}'...", updateLabel),
-					cancellable: false,
-				},
-				async () => {
-					await this._commandService.executeCommand('git.openRepository', repoDir.fsPath);
-					if (descriptor.sha) {
-						await this._commandService.executeCommand('git.fetch', repoDir.fsPath);
-					} else {
-						await this._commandService.executeCommand('_git.pull', repoDir.fsPath);
-					}
-					await this._checkoutPluginSourceRevision(repoDir, descriptor, failureLabel);
+			const exists = await this._fileService.exists(cleanupDir);
+			if (exists) {
+				await this._fileService.del(cleanupDir, { recursive: true });
+				this._logService.info(`[${plugin.sourceDescriptor.kind}] Removed plugin cache: ${cleanupDir.toString()}`);
+			}
+		} catch (err) {
+			this._logService.warn(`[${plugin.sourceDescriptor.kind}] Failed to remove plugin cache '${cleanupDir.toString()}':`, err);
+		}
+
+		try {
+			// Prune empty parent directories up to (but not including) the cache root
+			// so we don't leave dangling owner/authority folders behind.
+			await this._pruneEmptyParents(cleanupDir);
+		} catch (err) {
+			this._logService.warn(`[${plugin.sourceDescriptor.kind}] Failed to cleanup plugin source:`, err);
+		}
+	}
+
+	/**
+	 * Walk from {@link child}'s parent toward {@link _cacheRoot}, removing
+	 * each directory that is empty. Stops as soon as a non-empty directory
+	 * is found or the cache root is reached. Only operates on descendants
+	 * of the cache root — returns immediately for paths outside it.
+	 */
+	private async _pruneEmptyParents(child: URI): Promise<void> {
+		if (!isEqualOrParent(child, this._cacheRoot)) {
+			return;
+		}
+		let current = dirname(child);
+		while (isEqualOrParent(current, this._cacheRoot) && !isEqual(current, this._cacheRoot)) {
+			try {
+				const stat = await this._fileService.resolve(current);
+				if (stat.children && stat.children.length > 0) {
+					break;
 				}
-			);
-		} catch (err) {
-			this._logService.error(`[AgentPluginRepositoryService] Failed to update plugin source ${updateLabel}:`, err);
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: localize('pullPluginSourceFailed', "Failed to update plugin '{0}': {1}", failureLabel, err?.message ?? String(err)),
-				actions: {
-					primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
-						this._commandService.executeCommand('git.showOutput');
-					})],
-				},
-			});
-		}
-	}
-
-	private _gitUrlCacheSegments(url: string, ref?: string, sha?: string): string[] {
-		try {
-			const parsed = URI.parse(url);
-			const authority = (parsed.authority || 'unknown').replace(/[\\/:*?"<>|]/g, '_').toLowerCase();
-			const pathPart = parsed.path.replace(/^\/+/, '').replace(/\.git$/i, '').replace(/\/+$/g, '');
-			const segments = pathPart.split('/').map(s => s.replace(/[\\/:*?"<>|]/g, '_'));
-			return [authority, ...segments, ...this._getSourceRevisionCacheSuffix(ref, sha)];
-		} catch {
-			return ['git', url.replace(/[\\/:*?"<>|]/g, '_'), ...this._getSourceRevisionCacheSuffix(ref, sha)];
-		}
-	}
-
-	private _getSourceRevisionCacheSuffix(descriptorOrRef: IPluginSourceDescriptor | string | undefined, sha?: string): string[] {
-		if (typeof descriptorOrRef === 'object' && descriptorOrRef) {
-			if (descriptorOrRef.kind === PluginSourceKind.GitHub || descriptorOrRef.kind === PluginSourceKind.GitUrl) {
-				return this._getSourceRevisionCacheSuffix(descriptorOrRef.ref, descriptorOrRef.sha);
+				await this._fileService.del(current);
+			} catch {
+				break;
 			}
-			return [];
-		}
-
-		const ref = descriptorOrRef;
-		if (sha) {
-			return [`sha_${sanitizePackageName(sha)}`];
-		}
-		if (ref) {
-			return [`ref_${sanitizePackageName(ref)}`];
-		}
-		return [];
-	}
-
-	private async _checkoutPluginSourceRevision(repoDir: URI, descriptor: IPluginSourceDescriptor, failureLabel: string): Promise<void> {
-		if (descriptor.kind !== PluginSourceKind.GitHub && descriptor.kind !== PluginSourceKind.GitUrl) {
-			return;
-		}
-
-		if (!descriptor.sha && !descriptor.ref) {
-			return;
-		}
-
-		try {
-			if (descriptor.sha) {
-				await this._commandService.executeCommand('_git.checkout', repoDir.fsPath, descriptor.sha, true);
-				return;
-			}
-
-			await this._commandService.executeCommand('_git.checkout', repoDir.fsPath, descriptor.ref);
-		} catch (err) {
-			this._logService.error(`[AgentPluginRepositoryService] Failed to checkout plugin source revision for ${failureLabel}:`, err);
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: localize('checkoutPluginSourceFailed', "Failed to checkout plugin '{0}' to requested revision: {1}", failureLabel, err?.message ?? String(err)),
-				actions: {
-					primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
-						this._commandService.executeCommand('git.showOutput');
-					})],
-				},
-			});
-			throw err;
+			current = dirname(current);
 		}
 	}
-}
 
-function sanitizePackageName(name: string): string {
-	return name.replace(/[\\/:*?"<>|]/g, '_');
 }
