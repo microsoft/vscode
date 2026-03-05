@@ -24,6 +24,7 @@ import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
  */
 export class WhitespaceOverlay extends DynamicViewOverlay {
 
+	private readonly PADDING_BOTTOM = 3;
 	private readonly _context: ViewContext;
 	private _options: WhitespaceOptions;
 	private _selection: Selection[];
@@ -211,7 +212,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 				continue;
 			}
 			const fontInfo = this._context.viewModel.getFontAtPosition(new Position(lineNumber, charIndex + 1));
-			const cy = lineHeight - fontInfo.fontHeight / 2;
+			const cy = lineHeight - fontInfo.fontHeight / 2 - this.PADDING_BOTTOM;
 
 			if (USE_SVG) {
 				maxLeft = Math.max(maxLeft, visibleRange.left);
