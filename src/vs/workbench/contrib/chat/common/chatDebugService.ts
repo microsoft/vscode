@@ -126,6 +126,11 @@ export interface IChatDebugService extends IDisposable {
 	readonly onDidAddEvent: Event<IChatDebugEvent>;
 
 	/**
+	 * Fired when provider events are cleared for a session (before re-invoking providers).
+	 */
+	readonly onDidClearProviderEvents: Event<URI>;
+
+	/**
 	 * Log a generic event to the debug service.
 	 */
 	log(sessionResource: URI, name: string, details?: string, level?: ChatDebugLogLevel, options?: { id?: string; category?: string; parentEventId?: string }): void;

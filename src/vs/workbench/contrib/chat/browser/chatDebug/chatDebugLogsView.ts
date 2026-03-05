@@ -395,6 +395,13 @@ export class ChatDebugLogsView extends Disposable {
 				this.refreshList();
 			}
 		});
+		// Reload events when provider events are cleared (before re-invoking providers)
+		this._register(this.chatDebugService.onDidClearProviderEvents(sessionResource => {
+			if (!this.currentSessionResource || sessionResource.toString() === this.currentSessionResource.toString()) {
+				this.events = [...this.chatDebugService.getEvents(this.currentSessionResource || undefined)];
+				this.refreshList();
+			}
+		}));
 		this.updateBreadcrumb();
 		this.trackSessionState();
 	}

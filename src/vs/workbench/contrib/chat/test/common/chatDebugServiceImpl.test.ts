@@ -312,6 +312,32 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(firstToken.isCancellationRequested, true);
 		});
 
+		test('should fire onDidClearProviderEvents when clearing provider events', async () => {
+			const clearedSessions: URI[] = [];
+			disposables.add(service.onDidClearProviderEvents(sessionResource => clearedSessions.push(sessionResource)));
+
+			const provider: IChatDebugLogProvider = {
+				provideChatDebugLog: async (sessionResource) => [{
+					kind: 'generic',
+					sessionResource,
+					created: new Date(),
+					name: 'provider-event',
+					level: ChatDebugLogLevel.Info,
+				}],
+			};
+
+			disposables.add(service.registerProvider(provider));
+
+			// First invocation should not fire clear (nothing to clear)
+			await service.invokeProviders(sessionGeneric);
+			assert.strictEqual(clearedSessions.length, 1, 'Clear event should fire on first invocation');
+
+			// Second invocation should fire clear
+			await service.invokeProviders(sessionGeneric);
+			assert.strictEqual(clearedSessions.length, 2, 'Clear event should fire on second invocation');
+			assert.strictEqual(clearedSessions[1].toString(), sessionGeneric.toString());
+		});
+
 		test('should not cancel invocations for different sessions', async () => {
 			const tokens: Map<string, CancellationToken> = new Map();
 
