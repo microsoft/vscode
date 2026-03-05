@@ -89,24 +89,53 @@ class MockDefaultAccountService implements IDefaultAccountService {
 }
 
 // ---------------------------------------------------------------------------
-// Mock chat responses
+// Mock chat responses and file changes
 // ---------------------------------------------------------------------------
 
-function getMockResponse(message: string): string {
-	if (/build|compile/i.test(message)) {
-		return [
-			'I\'ll help you build the project. Here are the changes:\n',
-			'```typescript\n// src/build.ts\nimport { main } from "./index";\n\nasync function build() {\n\tconsole.log("Building...");\n\tmain();\n\tconsole.log("Build complete!");\n}\n\nbuild();\n```\n',
-			'I\'ve created a new build script.',
-		].join('\n');
+interface MockResponse {
+	text: string;
+	fileEdits?: { uri: URI; content: string }[];
+}
+
+function getMockResponseWithEdits(message: string): MockResponse {
+	if (/build|compile|create/i.test(message)) {
+		return {
+			text: 'I\'ll help you build the project. Here are the changes:',
+			fileEdits: [
+				{
+					uri: URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/src/build.ts' }),
+					content: 'import { main } from "./index";\n\nasync function build() {\n\tconsole.log("Building...");\n\tmain();\n\tconsole.log("Build complete!");\n}\n\nbuild();\n',
+				},
+				{
+					uri: URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/src/config.ts' }),
+					content: 'export const config = {\n\toutput: "./dist",\n\tminify: true,\n};\n',
+				},
+				{
+					uri: URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/package.json' }),
+					content: '{\n\t"name": "mock-repo",\n\t"version": "1.0.0",\n\t"scripts": {\n\t\t"build": "node src/build.ts"\n\t}\n}\n',
+				},
+			],
+		};
 	}
 	if (/fix|bug/i.test(message)) {
-		return 'I found the issue and applied the fix. The input validation has been added.';
+		return {
+			text: 'I found the issue and applied the fix. The input validation has been added.',
+			fileEdits: [
+				{
+					uri: URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/src/utils.ts' }),
+					content: 'export function add(a: number, b: number): number {\n\tif (typeof a !== "number" || typeof b !== "number") {\n\t\tthrow new TypeError("Both arguments must be numbers");\n\t}\n\treturn a + b;\n}\n',
+				},
+			],
+		};
 	}
-	if (/explain/i.test(message)) {
-		return 'This project has a simple structure with a main entry point and utility functions.';
+	if (/explain|describe/i.test(message)) {
+		return {
+			text: 'This project has a simple structure with a main entry point and utility functions.',
+		};
 	}
-	return 'I understand your request. Let me work on that.\n\n1. Review the codebase\n2. Make changes\n3. Run tests';
+	return {
+		text: 'I understand your request. Let me work on that.\n\n1. Review the codebase\n2. Make changes\n3. Run tests',
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -133,7 +162,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 		this.preseedFolder();
 	}
 
-	private addSessionItem(resource: URI, message: string, responseText: string): void {
+	private addSessionItem(resource: URI, message: string, responseText: string, changesCount?: number): void {
 		const key = resource.toString();
 		const now = Date.now();
 
@@ -157,6 +186,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 				label: message.slice(0, 50) || 'Mock Session',
 				status: ChatSessionStatus.Completed,
 				timing: { created: now, lastRequestStarted: now, lastRequestEnded: now },
+				...(changesCount ? { changes: { files: changesCount, insertions: changesCount * 8, deletions: changesCount * 2 } } : {}),
 			});
 		}
 		this._itemsChangedEmitter.fire();
@@ -188,12 +218,31 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 			const agentImpl: IChatAgentImplementation = {
 				async invoke(request, progress: (parts: IChatProgress[]) => void, _history, _token) {
 					console.log(`[Sessions Web Test] Mock agent "${agentId}" invoked: "${request.message}"`);
-					const responseText = getMockResponse(request.message);
+					const response = getMockResponseWithEdits(request.message);
+
+					// Stream the text response
 					progress([{
 						kind: 'markdownContent',
-						content: { value: responseText, isTrusted: false, supportThemeIcons: false, supportHtml: false },
+						content: { value: response.text, isTrusted: false, supportThemeIcons: false, supportHtml: false },
 					}]);
-					self.addSessionItem(request.sessionResource, request.message, responseText);
+
+					// Stream file edits if any
+					if (response.fileEdits) {
+						for (const edit of response.fileEdits) {
+							progress([{
+								kind: 'textEdit',
+								uri: edit.uri,
+								edits: [{
+									range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+									text: edit.content,
+								}],
+								done: true,
+							}]);
+						}
+						console.log(`[Sessions Web Test] Emitted ${response.fileEdits.length} file edits`);
+					}
+
+					self.addSessionItem(request.sessionResource, request.message, response.text, response.fileEdits?.length);
 					return { metadata: { mock: true } };
 				},
 			};
@@ -226,11 +275,21 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 							onWillDispose: disposeEmitter.event,
 							async requestHandler(request, progress, _history, _token) {
 								console.log(`[Sessions Web Test] Session request: "${request.message}"`);
-								const responseText = getMockResponse(request.message);
+								const response = getMockResponseWithEdits(request.message);
 								progress([{
 									kind: 'markdownContent',
-									content: { value: responseText, isTrusted: false, supportThemeIcons: false, supportHtml: false },
+									content: { value: response.text, isTrusted: false, supportThemeIcons: false, supportHtml: false },
 								}]);
+								if (response.fileEdits) {
+									for (const edit of response.fileEdits) {
+										progress([{
+											kind: 'textEdit',
+											uri: edit.uri,
+											edits: [{ range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, text: edit.content }],
+											done: true,
+										}]);
+									}
+								}
 								isComplete.set(true, undefined);
 							},
 							dispose() { disposeEmitter.fire(); disposeEmitter.dispose(); },
