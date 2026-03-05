@@ -49,6 +49,7 @@ import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, IExternalPreToolUseHookResult, ILanguageModelToolsService, IPreparedToolInvocation, isToolSet, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolResultInputOutputDetails, IToolSet, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolInvocationPresentation, toolMatchesModel, ToolSet, ToolSetForModel, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
 import { getToolConfirmationAlert } from '../accessibility/chatAccessibilityProvider.js';
+import { IChatWidgetService } from '../chat.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -129,6 +130,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		@IStorageService private readonly _storageService: IStorageService,
 		@ILanguageModelToolsConfirmationService private readonly _confirmationService: ILanguageModelToolsConfirmationService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -953,7 +955,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (chatSessionResource) {
 			const model = this._chatService.getSession(chatSessionResource);
 			const request = model?.getRequests().at(-1);
-			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel)) {
+			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel) || this._isSessionLiveAutoApproveLevel(chatSessionResource)) {
 				return;
 			}
 		}
@@ -1014,6 +1016,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return inspected.policyValue === false;
 	}
 
+	private _isSessionLiveAutoApproveLevel(chatSessionResource: URI): boolean {
+		const widget = this._chatWidgetService.getWidgetBySessionResource(chatSessionResource);
+		return !!widget && isAutoApproveLevel(widget.input.currentModeInfo.permissionLevel);
+	}
+
 	private getEligibleForAutoApprovalSpecialCase(toolData: IToolData): string | undefined {
 		if (toolData.id === 'vscode_fetchWebPage_internal') {
 			return 'fetch';
@@ -1066,10 +1073,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		// Auto-Approve All permission level bypasses all tool confirmations,
 		// unless enterprise policy has explicitly disabled global auto-approve.
-		if (chatSessionResource) {
+		// Check both the request-stamped level AND the live picker level so that
+		// switching to Autopilot mid-session takes effect immediately.
+		if (chatSessionResource && !this._isAutoApprovePolicyRestricted()) {
 			const model = this._chatService.getSession(chatSessionResource);
 			const request = model?.getRequests().at(-1);
-			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel) && !this._isAutoApprovePolicyRestricted()) {
+			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel) || this._isSessionLiveAutoApproveLevel(chatSessionResource)) {
 				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
 			}
 		}
@@ -1108,10 +1117,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private async shouldAutoConfirmPostExecution(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined): Promise<ConfirmedReason | undefined> {
 		// Auto-Approve All permission level bypasses all post-execution confirmations,
 		// unless enterprise policy has explicitly disabled global auto-approve.
-		if (chatSessionResource) {
+		// Check both the request-stamped level AND the live picker level.
+		if (chatSessionResource && !this._isAutoApprovePolicyRestricted()) {
 			const model = this._chatService.getSession(chatSessionResource);
 			const request = model?.getRequests().at(-1);
-			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel) && !this._isAutoApprovePolicyRestricted()) {
+			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel) || this._isSessionLiveAutoApproveLevel(chatSessionResource)) {
 				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
 			}
 		}

@@ -666,15 +666,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	/**
 	 * Returns true if the chat session's permission level (Autopilot/Bypass Approvals)
 	 * auto-approves all tool calls, unless enterprise policy restricts it.
+	 * Checks both the request-stamped level and the live picker level.
 	 */
 	private _isSessionAutoApproveLevel(chatSessionResource: URI): boolean {
-		const model = this._chatService.getSession(chatSessionResource);
-		const request = model?.getRequests().at(-1);
-		if (!isAutoApproveLevel(request?.modeInfo?.permissionLevel)) {
+		const inspected = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
+		if (inspected.policyValue === false) {
 			return false;
 		}
-		const inspected = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
-		return inspected.policyValue !== false;
+		// Check the live widget picker level (handles mid-session switches)
+		const widget = this._chatWidgetService.getWidgetBySessionResource(chatSessionResource);
+		if (widget && isAutoApproveLevel(widget.input.currentModeInfo.permissionLevel)) {
+			return true;
+		}
+		// Fall back to the request-stamped level
+		const model = this._chatService.getSession(chatSessionResource);
+		const request = model?.getRequests().at(-1);
+		return isAutoApproveLevel(request?.modeInfo?.permissionLevel);
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
