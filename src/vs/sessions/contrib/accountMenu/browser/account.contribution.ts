@@ -23,7 +23,7 @@ import { IAction } from '../../../../base/common/actions.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disabled, DisablementReason, IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { DisablementReason, IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { UpdateHoverWidget } from './updateHoverWidget.js';
