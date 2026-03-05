@@ -28,7 +28,7 @@ import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AgentSessionsPicker } from './agentSessionsPicker.js';
-import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { ActiveEditorContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -712,6 +712,7 @@ export class OpenAgentSessionInEditorGroupAction extends BaseOpenAgentSessionAct
 			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
+				when: IsSessionsWindowContext.negate(),
 				order: 1,
 				group: 'navigation'
 			}
@@ -745,6 +746,7 @@ export class OpenAgentSessionInNewEditorGroupAction extends BaseOpenAgentSession
 			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
+				when: IsSessionsWindowContext.negate(),
 				order: 2,
 				group: 'navigation'
 			}
