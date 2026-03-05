@@ -154,7 +154,6 @@ export class AccountWidget extends ActionViewItem {
 			this.showAccountMenu(this.accountButton!.element);
 		}));
 
-		this.viewItemDisposables.add(this.updateButton.onDidClick(() => this.update()));
 	}
 
 	private showAccountMenu(anchor: HTMLElement): void {
@@ -196,15 +195,9 @@ export class AccountWidget extends ActionViewItem {
 
 		this.updateButton.element.classList.remove('hidden');
 		this.updateButton.element.style.backgroundImage = '';
-		this.updateButton.enabled = state.type === StateType.Ready;
-		this.updateButton.label = this.getUpdateProgressMessage(state.type);
-
-		if (state.type === StateType.Ready) {
-			this.updateButton.element.classList.add('account-widget-update-button-ready');
-			return;
-		}
-
-		this.updateButton.element.classList.remove('account-widget-update-button-ready');
+		this.updateButton.element.classList.add('account-widget-update-button-ready');
+		this.updateButton.enabled = false;
+		this.updateButton.label = localize('updateInVSCode', "Update in VS Code");
 	}
 
 	private shouldHideUpdateButton(type: StateType): boolean {
@@ -220,28 +213,6 @@ export class AccountWidget extends ActionViewItem {
 			this.updateButton.element.classList.remove('account-widget-update-button-ready');
 		}
 	}
-
-	private getUpdateProgressMessage(type: StateType): string {
-		switch (type) {
-			case StateType.Ready:
-				return localize('update', "Update");
-			case StateType.AvailableForDownload:
-			case StateType.Downloading:
-			case StateType.Overwriting:
-				return localize('downloadingUpdate', "Downloading...");
-			case StateType.Downloaded:
-				return localize('installingUpdate', "Installing...");
-			case StateType.Updating:
-				return localize('updatingApp', "Updating...");
-			default:
-				return localize('updating', "Updating...");
-		}
-	}
-
-	private async update(): Promise<void> {
-		await this.updateService.quitAndInstall();
-	}
-
 
 	override onClick(): void {
 		// Handled by custom click handlers

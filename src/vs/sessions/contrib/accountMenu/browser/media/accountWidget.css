@@ -60,11 +60,15 @@
 .monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button.account-widget-update-button-ready {
 	background-color: var(--vscode-button-background) !important;
 	color: var(--vscode-button-foreground) !important;
+	opacity: 1 !important;
+	cursor: default !important;
 }
 
 .account-widget-update .account-widget-update-button.account-widget-update-button-ready {
 	background-color: var(--vscode-button-background) !important;
 	color: var(--vscode-button-foreground) !important;
+	opacity: 1 !important;
+	cursor: default !important;
 }
 
 .monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button.account-widget-update-button-ready:hover {
