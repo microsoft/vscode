@@ -107,7 +107,7 @@ export class ChatContextUsageDetails extends Disposable {
 			this.formatTokenCount(usedTokens, 1),
 			this.formatTokenCount(totalContextWindow, 0)
 		);
-		this.percentageLabel.textContent = `${percentage.toFixed(0)}%`;
+		this.percentageLabel.textContent = localize('quotaDisplay', "{0}%", percentage.toFixed(0));
 
 		// Update progress bar
 		this.progressFill.style.width = `${Math.min(100, percentage)}%`;
