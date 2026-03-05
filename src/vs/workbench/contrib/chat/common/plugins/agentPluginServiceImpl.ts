@@ -5,6 +5,7 @@
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
+import { untildify } from '../../../../../base/common/labels.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { cloneAndChange } from '../../../../../base/common/objects.js';
@@ -33,6 +34,7 @@ import { parseClaudeHooks } from '../promptSyntax/hookClaudeCompat.js';
 import { parseCopilotHooks } from '../promptSyntax/hookCompatibility.js';
 import { IHookCommand } from '../promptSyntax/hookSchema.js';
 import { agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from './agentPluginService.js';
+import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
 
 const COMMAND_FILE_SUFFIX = '.md';
@@ -415,6 +417,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 
 		const plugin: PluginEntry = {
 			uri,
+			label: fromMarketplace?.name ?? basename(uri),
 			enabled,
 			setEnabled: setEnabledCallback,
 			remove: removeCallback,
@@ -699,7 +702,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 
 export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
 
-	private readonly _pluginPathsConfig: IObservable<Record<string, boolean>>;
+	private readonly _pluginLocationsConfig: IObservable<Record<string, boolean>>;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -711,13 +714,13 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(fileService, pathService, logService, instantiationService);
-		this._pluginPathsConfig = observableConfigValue<Record<string, boolean>>(ChatConfiguration.PluginPaths, {}, _configurationService);
+		this._pluginLocationsConfig = observableConfigValue<Record<string, boolean>>(ChatConfiguration.PluginLocations, {}, _configurationService);
 	}
 
 	public override start(): void {
 		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
 		this._register(autorun(reader => {
-			this._pluginPathsConfig.read(reader);
+			this._pluginLocationsConfig.read(reader);
 			scheduler.schedule();
 		}));
 		scheduler.schedule();
@@ -725,14 +728,15 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 
 	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
 		const sources: IPluginSource[] = [];
-		const config = this._pluginPathsConfig.get();
+		const config = this._pluginLocationsConfig.get();
+		const userHome = await this._getUserHome();
 
 		for (const [path, enabled] of Object.entries(config)) {
 			if (!path.trim()) {
 				continue;
 			}
 
-			const resources = this._resolvePluginPath(path.trim());
+			const resources = this._resolvePluginPath(path.trim(), userHome);
 			for (const resource of resources) {
 				let stat;
 				try {
@@ -762,11 +766,23 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		return sources;
 	}
 
+	private async _getUserHome(): Promise<string> {
+		const userHome = await this._pathService.userHome();
+		return userHome.scheme === 'file' ? userHome.fsPath : userHome.path;
+	}
+
 	/**
-	 * Resolves a plugin path to one or more resource URIs. Absolute paths are
-	 * used directly; relative paths are resolved against each workspace folder.
+	 * Resolves a plugin path to one or more resource URIs. Supports:
+	 * - Absolute paths (used directly)
+	 * - Tilde paths (expanded to user home directory)
+	 * - Relative paths (resolved against each workspace folder)
 	 */
-	private _resolvePluginPath(path: string): URI[] {
+	private _resolvePluginPath(path: string, userHome: string): URI[] {
+		if (path.startsWith('~')) {
+			path = untildify(path, userHome);
+		}
+
+		// Handle absolute paths
 		if (win32.isAbsolute(path) || posix.isAbsolute(path)) {
 			return [URI.file(path)];
 		}
@@ -781,7 +797,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	 * writing to the most specific config target where the key is defined.
 	 */
 	private _updatePluginPathEnabled(configKey: string, value: boolean): void {
-		const inspected = this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.PluginPaths);
+		const inspected = this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.PluginLocations);
 
 		// Walk from most specific to least specific to find where this key is defined
 		const targets = [
@@ -797,7 +813,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 			const mapping = getConfigValueInTarget(inspected, target);
 			if (mapping && Object.prototype.hasOwnProperty.call(mapping, configKey)) {
 				this._configurationService.updateValue(
-					ChatConfiguration.PluginPaths,
+					ChatConfiguration.PluginLocations,
 					{ ...mapping, [configKey]: value },
 					target,
 				);
@@ -808,18 +824,18 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		// Key not found in any target; write to USER_LOCAL as default
 		const current = getConfigValueInTarget(inspected, ConfigurationTarget.USER_LOCAL) ?? {};
 		this._configurationService.updateValue(
-			ChatConfiguration.PluginPaths,
+			ChatConfiguration.PluginLocations,
 			{ ...current, [configKey]: value },
 			ConfigurationTarget.USER_LOCAL,
 		);
 	}
 
 	/**
-	 * Removes a plugin path from `chat.plugins.paths` in the most specific
+	 * Removes a plugin path from `chat.pluginLocations` in the most specific
 	 * config target where the key is defined.
 	 */
 	private _removePluginPath(configKey: string): void {
-		const inspected = this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.PluginPaths);
+		const inspected = this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.PluginLocations);
 
 		const targets = [
 			ConfigurationTarget.WORKSPACE_FOLDER,
@@ -836,7 +852,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 				const updated = { ...mapping };
 				delete updated[configKey];
 				this._configurationService.updateValue(
-					ChatConfiguration.PluginPaths,
+					ChatConfiguration.PluginLocations,
 					updated,
 					target,
 				);
@@ -850,6 +866,7 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 
 	constructor(
 		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
+		@IAgentPluginRepositoryService private readonly _pluginRepositoryService: IAgentPluginRepositoryService,
 		@IFileService fileService: IFileService,
 		@IPathService pathService: IPathService,
 		@ILogService logService: ILogService,
@@ -890,7 +907,17 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 				enabled: entry.enabled,
 				fromMarketplace: entry.plugin,
 				setEnabled: (value: boolean) => this._pluginMarketplaceService.setInstalledPluginEnabled(entry.pluginUri, value),
-				remove: () => this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri),
+				remove: () => {
+					// Always remove the metadata entry first so the plugin
+					// disappears from the UI immediately.
+					this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri);
+					// For non-marketplace (direct-source) plugins, also clean up the
+					// on-disk cache. This is best-effort — failures are logged but
+					// do not block removal.
+					this._pluginRepositoryService.cleanupPluginSource(entry.plugin).catch(error => {
+						this._logService.error('[MarketplaceAgentPluginDiscovery] Failed to clean up plugin source', error);
+					});
+				},
 			});
 		}
 

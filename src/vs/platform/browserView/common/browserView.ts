@@ -14,6 +14,7 @@ export interface IBrowserViewBounds {
 	width: number;
 	height: number;
 	zoomFactor: number;
+	cornerRadius: number;
 }
 
 export interface IBrowserViewCaptureScreenshotOptions {
@@ -204,8 +205,9 @@ export interface IBrowserViewService {
 	/**
 	 * Reload the current page
 	 * @param id The browser view identifier
+	 * @param hard Whether to do a hard reload (bypassing cache)
 	 */
-	reload(id: string): Promise<void>;
+	reload(id: string, hard?: boolean): Promise<void>;
 
 	/**
 	 * Toggle developer tools for the browser view.

@@ -63,7 +63,7 @@
 }
 
 .monaco-workbench .terminal-editor .terminal-wrapper {
-	background-color: var(--vscode-terminal-background, var(--vscode-editorPane-background));
+	background-color: var(--vscode-editor-background);
 }
 .monaco-workbench .terminal-editor .terminal-wrapper,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {

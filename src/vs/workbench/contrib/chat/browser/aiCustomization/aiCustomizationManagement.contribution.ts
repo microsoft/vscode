@@ -6,7 +6,6 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -31,11 +30,12 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { basename, dirname } from '../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, isMacintosh } from '../../../../../base/common/platform.js';
 
@@ -119,6 +119,16 @@ function extractStorage(context: AICustomizationContext): PromptsStorage | undef
 	return context.storage;
 }
 
+/**
+ * Extracts prompt type from context.
+ */
+function extractPromptType(context: AICustomizationContext): PromptsType | undefined {
+	if (URI.isUri(context) || typeof context === 'string') {
+		return undefined;
+	}
+	return context.promptType;
+}
+
 // Open file action
 const OPEN_AI_CUSTOMIZATION_MGMT_FILE_ID = 'aiCustomizationManagement.openFile';
 registerAction2(class extends Action2 {
@@ -193,8 +203,11 @@ registerAction2(class extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 
 		const uri = extractURI(context);
-		const fileName = basename(uri);
 		const storage = extractStorage(context);
+		const promptType = extractPromptType(context);
+		const isSkill = promptType === PromptsType.skill;
+		// For skills, use the parent folder name since skills are structured as <skillname>/SKILL.md.
+		const fileName = isSkill ? basename(dirname(uri)) : basename(uri);
 
 		// Extension and plugin files cannot be deleted
 		if (storage === PromptsStorage.extension || storage === PromptsStorage.plugin) {
@@ -206,15 +219,30 @@ registerAction2(class extends Action2 {
 		}
 
 		// Confirm deletion
+		const message = isSkill
+			? localize('confirmDeleteSkill', "Are you sure you want to delete skill '{0}' and its folder?", fileName)
+			: localize('confirmDelete', "Are you sure you want to delete '{0}'?", fileName);
 		const confirmation = await dialogService.confirm({
-			message: localize('confirmDelete', "Are you sure you want to delete '{0}'?", fileName),
+			message,
 			detail: localize('confirmDeleteDetail', "This action cannot be undone."),
 			primaryButton: localize('delete', "Delete"),
 			type: 'warning',
 		});
 
 		if (confirmation.confirmed) {
-			await fileService.del(uri, { useTrash: true });
+			// For skills, delete the parent folder (e.g. .github/skills/my-skill/)
+			// since each skill is a folder containing SKILL.md.
+			const deleteTarget = isSkill ? dirname(uri) : uri;
+			await fileService.del(deleteTarget, { useTrash: true, recursive: isSkill });
+
+			// Commit the deletion to git (sessions: main repo + worktree)
+			if (storage === PromptsStorage.local) {
+				const workspaceService = accessor.get(IAICustomizationWorkspaceService);
+				const projectRoot = workspaceService.getActiveProjectRoot();
+				if (projectRoot) {
+					await workspaceService.deleteFiles(projectRoot, [deleteTarget]);
+				}
+			}
 		}
 	}
 });
@@ -289,26 +317,6 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			}
 		}));
 
-		// Toggle Debug Panel in AI Customizations Editor
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: AICustomizationManagementCommands.ToggleDebug,
-					title: localize2('toggleDebugPanel', "Customizations Debug"),
-					category: Categories.Developer,
-					f1: true,
-				});
-			}
-
-			async run(accessor: ServicesAccessor): Promise<void> {
-				const editorService = accessor.get(IEditorService);
-				const pane = editorService.activeEditorPane;
-				if (pane instanceof AICustomizationManagementEditor) {
-					const report = await (pane as AICustomizationManagementEditor).generateDebugReport();
-					await editorService.openEditor({ resource: undefined, contents: report, options: { pinned: false } });
-				}
-			}
-		}));
 	}
 }
 

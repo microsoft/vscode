@@ -116,6 +116,11 @@ export namespace PromptsConfig {
 	export const USE_CLAUDE_HOOKS = 'chat.useClaudeHooks';
 
 	/**
+	 * Configuration key for enabling hooks defined in custom agent frontmatter.
+	 */
+	export const USE_CUSTOM_AGENT_HOOKS = 'chat.useCustomAgentHooks';
+
+	/**
 	 * Configuration key for enabling stronger skill adherence prompt (experimental).
 	 */
 	export const USE_SKILL_ADHERENCE_PROMPT = 'chat.experimental.useSkillAdherencePrompt';

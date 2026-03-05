@@ -54,9 +54,9 @@ import { createFileIconThemableTreeContainerScope } from '../../../../workbench/
 import { IActivityService, NumberBadge } from '../../../../workbench/services/activity/common/activity.js';
 import { IEditorService, MODAL_GROUP, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 
 const $ = dom.$;
 
@@ -125,17 +125,33 @@ function buildTreeChildren(items: IChangesFileItem[]): IObjectTreeElement<Change
 	const root: FolderNode = { name: '', uri: URI.file('/'), children: new Map(), files: [] };
 
 	for (const item of items) {
-		const dirPath = dirname(item.uri.path);
-		const segments = dirPath.split('/').filter(Boolean);
+		const fullDirPath = dirname(item.uri.path);
+
+		// For github-remote-file URIs, strip the /{owner}/{repo}/{ref} prefix
+		// so the tree shows repo-relative paths instead of internal URI segments.
+		let displayDirPath = fullDirPath;
+		let uriBasePrefix = '';
+		if (item.uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			const parts = fullDirPath.split('/').filter(Boolean);
+			if (parts.length >= 3) {
+				uriBasePrefix = '/' + parts.slice(0, 3).join('/');
+				displayDirPath = '/' + parts.slice(3).join('/');
+			} else {
+				uriBasePrefix = '/' + parts.join('/');
+				displayDirPath = '/';
+			}
+		}
+
+		const segments = displayDirPath.split('/').filter(Boolean);
 
 		let current = root;
-		let currentPath = '';
+		let currentFullPath = uriBasePrefix;
 		for (const segment of segments) {
-			currentPath += '/' + segment;
+			currentFullPath += '/' + segment;
 			if (!current.children.has(segment)) {
 				current.children.set(segment, {
 					name: segment,
-					uri: item.uri.with({ path: currentPath }),
+					uri: item.uri.with({ path: currentFullPath }),
 					children: new Map(),
 					files: []
 				});
@@ -237,7 +253,6 @@ export class ChangesViewPane extends ViewPane {
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -544,18 +559,23 @@ export class ChangesViewPane extends ViewPane {
 				return files > 0;
 			}));
 
-			// Check if a PR exists when the active session changes
+			// Set context key for PR state from session metadata
+			const hasOpenPullRequestKey = scopedContextKeyService.createKey<boolean>('sessions.hasOpenPullRequest', false);
 			this.renderDisposables.add(autorun(reader => {
 				const sessionResource = activeSessionResource.read(reader);
+				sessionsChangedSignal.read(reader);
 				if (sessionResource) {
 					const metadata = this.agentSessionsService.getSession(sessionResource)?.metadata;
-					this.commandService.executeCommand('github.checkOpenPullRequest', sessionResource, metadata).catch(() => { /* ignore */ });
+					hasOpenPullRequestKey.set(!!metadata?.pullRequestUrl);
+				} else {
+					hasOpenPullRequestKey.set(false);
 				}
 			}));
 
 			this.renderDisposables.add(autorun(reader => {
 				const { isSessionMenu, added, removed } = topLevelStats.read(reader);
 				const sessionResource = activeSessionResource.read(reader);
+				sessionsChangedSignal.read(reader); // Re-evaluate when session metadata changes (e.g. pullRequestUrl)
 				const menuId = isSessionMenu ? MenuId.ChatEditingSessionChangesToolbar : MenuId.ChatEditingWidgetToolbar;
 
 				reader.store.add(scopedInstantiationService.createInstance(
@@ -564,6 +584,7 @@ export class ChangesViewPane extends ViewPane {
 					menuId,
 					{
 						telemetrySource: 'changesView',
+						disableWhileRunning: isSessionMenu,
 						menuOptions: isSessionMenu && sessionResource
 							? { args: [sessionResource, this.agentSessionsService.getSession(sessionResource)?.metadata] }
 							: { shouldForwardArgs: true },
@@ -574,12 +595,6 @@ export class ChangesViewPane extends ViewPane {
 									{ supportHtml: true }
 								);
 								return { showIcon: true, showLabel: true, isSecondary: true, customClass: 'working-set-diff-stats', customLabel: diffStatsLabel };
-							}
-							if (action.id === 'github.createPullRequest' || action.id === 'github.openPullRequest') {
-								return { showIcon: true, showLabel: true, isSecondary: true, customClass: 'flex-grow' };
-							}
-							if (action.id === 'chatEditing.applyToParentRepo') {
-								return { showIcon: true, showLabel: false, isSecondary: true };
 							}
 							if (action.id === 'chatEditing.synchronizeChanges') {
 								return { showIcon: true, showLabel: true, isSecondary: true };
@@ -661,11 +676,9 @@ export class ChangesViewPane extends ViewPane {
 					},
 					compressionEnabled: true,
 					twistieAdditionalCssClass: (e: unknown) => {
-						if (this.viewMode === ChangesViewMode.List) {
-							return 'force-no-twistie';
-						}
-						// In tree mode, hide twistie for file items (they are never collapsible)
-						return isChangesFileItem(e as ChangesTreeElement) ? 'force-no-twistie' : undefined;
+						return this.viewMode === ChangesViewMode.List
+							? 'force-no-twistie'
+							: undefined;
 					},
 				}
 			);
@@ -674,6 +687,9 @@ export class ChangesViewPane extends ViewPane {
 		// Register tree event handlers
 		if (this.tree) {
 			const tree = this.tree;
+
+			// Re-layout when collapse state changes so the card height adjusts
+			this.renderDisposables.add(tree.onDidChangeContentHeight(() => this.layoutTree()));
 
 			const openFileItem = (item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean) => {
 				const { uri: modifiedFileUri, originalUri, isDeletion } = item;

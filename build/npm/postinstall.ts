@@ -8,7 +8,7 @@ import path from 'path';
 import * as os from 'os';
 import * as child_process from 'child_process';
 import { dirs } from './dirs.ts';
-import { root, stateFile, computeState, isUpToDate } from './installStateHash.ts';
+import { root, stateFile, stateContentsFile, computeState, computeContents, isUpToDate } from './installStateHash.ts';
 
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const rootNpmrcConfigKeys = getNpmrcConfigKeys(path.join(root, '.npmrc'));
@@ -287,6 +287,7 @@ async function main() {
 	child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
 
 	fs.writeFileSync(stateFile, JSON.stringify(_state));
+	fs.writeFileSync(stateContentsFile, JSON.stringify(computeContents()));
 }
 
 main().catch(err => {

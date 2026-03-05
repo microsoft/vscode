@@ -16,7 +16,6 @@ import { ChatAgentLocation } from '../../../common/constants.js';
 export class MockChatService implements IChatService {
 	chatModels: IObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
 	requestInProgressObs = observableValue('name', false);
-	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
 	editingSessions = [];
 	transferredSessionResource: URI | undefined;
