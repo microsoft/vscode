@@ -7,9 +7,9 @@ import { OperatingSystem, OS } from '../../../base/common/platform.js';
 import { IShellLaunchConfig, TerminalShellType, PosixShellType, WindowsShellType, GeneralShellType } from './terminal.js';
 
 /**
- * Aggressively escape non-windows paths to prepare for being sent to a shell. This will do some
- * escaping inaccurately to be careful about possible script injection via the file path. For
- * example, we're trying to prevent this sort of attack: `/foo/file$(echo evil)`.
+ * Escape non-windows paths to prepare for being sent to a shell. Paths are wrapped in
+ * single quotes to prevent shell expansion. Special characters are preserved literally
+ * within the quotes. When a path contains both quote types, shell-specific escaping is used.
  */
 export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType): string {
 	let newPath = path;
@@ -41,7 +41,7 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 			break;
 		case PosixShellType.Fish:
 			escapeConfig = {
-				bothQuotes: (path) => `"${path.replace(/"/g, '\\"')}"`,
+				bothQuotes: (path) => `"${path.replace(/"/g, '\\"').replace(/\$/g, '\\$')}"`,
 				singleQuotes: (path) => `'${path.replace(/'/g, '\\\'')}'`,
 				noSingleQuotes: (path) => `'${path}'`
 			};
@@ -50,7 +50,7 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 			// PowerShell should be handled separately in preparePathForShell
 			// but if we get here, use PowerShell escaping
 			escapeConfig = {
-				bothQuotes: (path) => `"${path.replace(/"/g, '`"')}"`,
+				bothQuotes: (path) => '"' + path.replace(/`/g, '``').replace(/"/g, '`"').replace(/\$/g, '`$') + '"',
 				singleQuotes: (path) => `'${path.replace(/'/g, '\'\'')}'`,
 				noSingleQuotes: (path) => `'${path}'`
 			};
@@ -64,10 +64,6 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 			};
 			break;
 	}
-
-	// Remove dangerous characters except single and double quotes, which we'll escape properly
-	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<]/g;
-	newPath = newPath.replace(bannedChars, '');
 
 	// Apply shell-specific escaping based on quote content
 	if (newPath.includes('\'') && newPath.includes('"')) {
