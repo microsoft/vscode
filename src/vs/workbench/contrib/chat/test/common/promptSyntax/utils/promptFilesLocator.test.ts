@@ -2366,6 +2366,69 @@ suite('PromptFilesLocator', () => {
 		});
 	});
 
+	suite('instructions', () => {
+		testT('finds instructions files in subdirectories of .github/instructions', async () => {
+			const locator = await createPromptsLocator(
+				{
+					'.github/instructions': true,
+					'.claude/rules': false,
+					'~/.copilot/instructions': false,
+				},
+				['/Users/legomushroom/repos/vscode'],
+				[
+					{
+						name: '/Users/legomushroom/repos/vscode',
+						children: [
+							{
+								name: '.github/instructions',
+								children: [
+									{
+										name: 'root.instructions.md',
+										contents: 'root instructions',
+									},
+									{
+										name: 'frontend',
+										children: [
+											{
+												name: 'react.instructions.md',
+												contents: 'react instructions',
+											},
+											{
+												name: 'css.instructions.md',
+												contents: 'css instructions',
+											},
+										],
+									},
+									{
+										name: 'backend',
+										children: [
+											{
+												name: 'api.instructions.md',
+												contents: 'api instructions',
+											},
+										],
+									},
+								],
+							},
+						],
+					},
+				],
+			);
+
+			assertOutcome(
+				await locator.listFiles(PromptsType.instructions, PromptsStorage.local, CancellationToken.None),
+				[
+					'/Users/legomushroom/repos/vscode/.github/instructions/root.instructions.md',
+					'/Users/legomushroom/repos/vscode/.github/instructions/frontend/react.instructions.md',
+					'/Users/legomushroom/repos/vscode/.github/instructions/frontend/css.instructions.md',
+					'/Users/legomushroom/repos/vscode/.github/instructions/backend/api.instructions.md',
+				],
+				'Must find instructions files recursively in subdirectories of .github/instructions.',
+			);
+			await locator.disposeAsync();
+		});
+	});
+
 	suite('skills', () => {
 		suite('findAgentSkills', () => {
 			testT('finds skill files in configured locations', async () => {

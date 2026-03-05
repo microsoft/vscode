@@ -28,6 +28,7 @@ import { ChatDebugEventRenderer, ChatDebugEventDelegate, ChatDebugEventTreeRende
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem, LogsViewMode } from './chatDebugTypes.js';
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
 import { ChatDebugDetailPanel } from './chatDebugDetailPanel.js';
+import { IChatWidgetService } from '../chat.js';
 
 const $ = DOM.$;
 
@@ -70,6 +71,7 @@ export class ChatDebugLogsView extends Disposable {
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		this.container = DOM.append(parent, $('.chat-debug-logs'));
@@ -104,7 +106,7 @@ export class ChatDebugLogsView extends Disposable {
 			new ServiceCollection([IContextKeyService, scopedContextKeyService])
 		));
 		this.filterWidget = this._register(childInstantiationService.createInstance(FilterWidget, {
-			placeholder: localize('chatDebug.search', "Filter (e.g. text, !exclude)"),
+			placeholder: localize('chatDebug.search', "Filter (e.g. text, !exclude, before:YYYY-MM-DDTHH:MM:SS)"),
 			ariaLabel: localize('chatDebug.filterAriaLabel', "Filter debug events"),
 		}));
 
@@ -118,6 +120,23 @@ export class ChatDebugLogsView extends Disposable {
 
 		const filterContainer = DOM.append(this.headerContainer, $('.viewpane-filter-container'));
 		filterContainer.appendChild(this.filterWidget.element);
+
+		// Troubleshoot button
+		const troubleshootButton = this._register(new Button(this.headerContainer, { ...defaultButtonStyles, secondary: true, title: localize('chatDebug.troubleshoot', "Add snapshot to Chat") }));
+		troubleshootButton.element.classList.add('chat-debug-troubleshoot-button', 'monaco-text-button');
+		DOM.append(troubleshootButton.element, $(`span${ThemeIcon.asCSSSelector(Codicon.chatSparkle)}`));
+		this._register(troubleshootButton.onDidClick(async () => {
+			if (!this.currentSessionResource) {
+				return;
+			}
+			const widget = await this.chatWidgetService.openSession(this.currentSessionResource);
+			if (widget) {
+				const value = '/troubleshoot ';
+				widget.inputEditor.setValue(value);
+				widget.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
+				widget.focusInput();
+			}
+		}));
 
 		this._register(this.filterWidget.onDidChangeFilterText(text => {
 			this.filterState.setTextFilter(text);
@@ -241,6 +260,10 @@ export class ChatDebugLogsView extends Disposable {
 		this.currentSessionResource = sessionResource;
 	}
 
+	setFilterText(text: string): void {
+		this.filterWidget.setFilterText(text);
+	}
+
 	show(): void {
 		DOM.show(this.container);
 		this.loadEvents();
@@ -297,8 +320,11 @@ export class ChatDebugLogsView extends Disposable {
 			return this.filterState.isKindVisible(e.kind, category);
 		});
 
-		// Filter by text search
-		const filterText = this.filterState.textFilter;
+		// Filter by timestamp (before:/after: syntax)
+		filtered = filtered.filter(e => this.filterState.isTimestampVisible(e.created));
+
+		// Filter by text search (excluding before:/after: tokens)
+		const filterText = this.filterState.textFilterWithoutTimestamps;
 		if (filterText) {
 			const terms = filterText.split(/\s*,\s*/).filter(t => t.length > 0);
 			const includeTerms = terms.filter(t => !t.startsWith('!')).map(t => t.trim());

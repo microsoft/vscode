@@ -124,13 +124,15 @@ class AgenticPromptFilesLocator extends PromptFilesLocator {
 /**
  * Returns the subfolder name under ~/.copilot/ for a given customization type.
  * Used to determine the CLI-accessible user creation target.
+ *
+ * Prompts are a VS Code concept and use the standard profile promptsHome,
+ * so they are intentionally excluded here.
  */
 function getCliUserSubfolder(type: PromptsType): string | undefined {
 	switch (type) {
 		case PromptsType.instructions: return 'instructions';
 		case PromptsType.skill: return 'skills';
 		case PromptsType.agent: return 'agents';
-		case PromptsType.prompt: return 'prompts';
 		default: return undefined;
 	}
 }

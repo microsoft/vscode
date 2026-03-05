@@ -22,11 +22,12 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { getModeNameForTelemetry, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/requestParser/chatParserTypes.js';
 import { ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatService } from '../../common/chatService/chatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { isInClaudeAgentsFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
@@ -185,8 +186,19 @@ const requestInProgressOrPendingToolCall = ContextKeyExpr.or(
 	ChatContextKeys.Editing.hasToolConfirmation,
 	ChatContextKeys.Editing.hasQuestionCarousel,
 );
+const requestInProgressWithoutInput = ContextKeyExpr.and(
+	ChatContextKeys.requestInProgress,
+	ChatContextKeys.inputHasText.negate(),
+);
+const pendingToolCall = ContextKeyExpr.or(
+	ChatContextKeys.Editing.hasToolConfirmation,
+	ContextKeyExpr.and(ChatContextKeys.Editing.hasQuestionCarousel, ChatContextKeys.inputHasText.negate()),
+);
+const noQuestionCarouselOrHasInput = ContextKeyExpr.or(
+	ChatContextKeys.Editing.hasQuestionCarousel.negate(),
+	ChatContextKeys.inputHasText,
+);
 const whenNotInProgress = ChatContextKeys.requestInProgress.negate();
-const whenNoRequestOrPendingToolCall = requestInProgressOrPendingToolCall!.negate();
 
 export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
@@ -195,7 +207,7 @@ export class ChatSubmitAction extends SubmitAction {
 		const menuCondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasText,
-			whenNoRequestOrPendingToolCall,
+			whenNotInProgress,
 			ChatContextKeys.chatSessionOptionsValid,
 		);
 
@@ -224,9 +236,10 @@ export class ChatSubmitAction extends SubmitAction {
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
-						whenNoRequestOrPendingToolCall,
+						whenNotInProgress,
 						menuCondition,
 						ChatContextKeys.withinEditSessionDiff.negate(),
+						noQuestionCarouselOrHasInput,
 					),
 					group: 'navigation',
 					alt: {
@@ -240,7 +253,7 @@ export class ChatSubmitAction extends SubmitAction {
 					order: 4,
 					when: ContextKeyExpr.and(
 						ContextKeyExpr.or(ctxHasEditorModification.negate(), ChatContextKeys.inputHasText),
-						whenNoRequestOrPendingToolCall,
+						whenNotInProgress,
 						ChatContextKeys.requestInProgress.negate(),
 						menuCondition
 					),
@@ -440,6 +453,44 @@ export class OpenModelPickerAction extends Action2 {
 		}
 	}
 }
+
+export class OpenPermissionPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openPermissionPicker';
+
+	constructor() {
+		super({
+			id: OpenPermissionPickerAction.ID,
+			title: localize2('interactive.openPermissionPicker.label', "Open Permission Picker"),
+			tooltip: localize('setPermissionLevel', "Set Permissions"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: {
+				id: MenuId.ChatInputSecondary,
+				order: 10,
+				group: 'navigation',
+				when:
+					ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+						ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask),
+						ChatContextKeys.inQuickChat.negate(),
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						IsSessionsWindowContext.negate(),
+					)
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		if (widget) {
+			widget.input.openPermissionPicker();
+		}
+	}
+}
+
 export class OpenModePickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.openModePicker';
 
@@ -508,6 +559,18 @@ export class OpenSessionTargetPickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
+						ChatContextKeys.chatSessionIsEmpty,
+						IsSessionsWindowContext),
+					group: 'navigation',
+				},
+				{
+					id: MenuId.ChatInputSecondary,
+					order: 0,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+						ChatContextKeys.inQuickChat.negate(),
+						IsSessionsWindowContext.negate(),
 						ChatContextKeys.chatSessionIsEmpty),
 					group: 'navigation',
 				},
@@ -543,7 +606,19 @@ export class OpenDelegationPickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.chatSessionIsEmpty.negate()),
+						ChatContextKeys.chatSessionIsEmpty.negate(),
+						IsSessionsWindowContext),
+					group: 'navigation',
+				},
+				{
+					id: MenuId.ChatInputSecondary,
+					order: 0.5,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+						ChatContextKeys.inQuickChat.negate(),
+						ChatContextKeys.chatSessionIsEmpty.negate(),
+						IsSessionsWindowContext.negate()),
 					group: 'navigation',
 				},
 			]
@@ -576,7 +651,18 @@ export class OpenWorkspacePickerAction extends Action2 {
 					order: 0.6,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.inAgentSessionsWelcome,
-						ChatContextKeys.chatSessionType.isEqualTo('local')
+						ChatContextKeys.chatSessionType.isEqualTo('local'),
+						IsSessionsWindowContext
+					),
+					group: 'navigation',
+				},
+				{
+					id: MenuId.ChatInputSecondary,
+					order: 0.6,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.inAgentSessionsWelcome,
+						ChatContextKeys.chatSessionType.isEqualTo('local'),
+						IsSessionsWindowContext.negate()
 					),
 					group: 'navigation',
 				},
@@ -594,7 +680,7 @@ export class ChatSessionPrimaryPickerAction extends Action2 {
 	constructor() {
 		super({
 			id: ChatSessionPrimaryPickerAction.ID,
-			title: localize2('interactive.openChatSessionPrimaryPicker.label', "Open Model Picker"),
+			title: localize2('interactive.openChatSessionPrimaryPicker.label', "Open Primary Session Picker"),
 			category: CHAT_CATEGORY,
 			f1: false,
 			precondition: ChatContextKeys.enabled,
@@ -657,7 +743,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 
 	constructor() {
 		const notInProgressOrEditing = ContextKeyExpr.and(
-			ContextKeyExpr.or(whenNoRequestOrPendingToolCall, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
+			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.QueueOrSteer)
 		);
 
@@ -681,7 +767,8 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 					order: 4,
 					when: ContextKeyExpr.and(
 						notInProgressOrEditing,
-						menuCondition),
+						menuCondition,
+						noQuestionCarouselOrHasInput),
 					group: 'navigation',
 					alt: {
 						id: 'workbench.action.chat.sendToNewChat',
@@ -839,8 +926,7 @@ export class CancelAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
-					requestInProgressOrPendingToolCall,
-					ChatContextKeys.inputHasText.negate(),
+					ContextKeyExpr.or(requestInProgressWithoutInput, pendingToolCall),
 					ChatContextKeys.remoteJobCreating.negate(),
 					ChatContextKeys.currentlyEditing.negate(),
 				),
@@ -954,6 +1040,7 @@ export function registerChatExecuteActions() {
 	registerAction2(ToggleChatModeAction);
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
+	registerAction2(OpenPermissionPickerAction);
 	registerAction2(OpenModePickerAction);
 	registerAction2(OpenSessionTargetPickerAction);
 	registerAction2(OpenDelegationPickerAction);
