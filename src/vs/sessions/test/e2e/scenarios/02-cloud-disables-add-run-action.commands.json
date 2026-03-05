@@ -1,0 +1,18 @@
+{
+	"scenario": "Scenario: Switching to Cloud target disables the Add Run Action button",
+	"generatedAt": "2026-03-05T18:53:59.549Z",
+	"steps": [
+		{
+			"description": "Click button \"Cloud\"",
+			"commands": [
+				"click e143"
+			]
+		},
+		{
+			"description": "Click button \"Local\"",
+			"commands": [
+				"click e141"
+			]
+		}
+	]
+}

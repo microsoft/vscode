@@ -1,0 +1,32 @@
+{
+	"scenario": "Scenario: Repository picker opens when submitting without a repo",
+	"generatedAt": "2026-03-05T18:53:35.310Z",
+	"steps": [
+		{
+			"description": "Click button \"Cloud\"",
+			"commands": [
+				"click e143"
+			]
+		},
+		{
+			"description": "Type \"build the project\" in the chat input",
+			"commands": [
+				"click e157",
+				"type \"build the project\""
+			]
+		},
+		{
+			"description": "Press Enter to submit",
+			"commands": [
+				"press Enter"
+			]
+		},
+		{
+			"description": "Verify the repository picker dropdown is visible",
+			"commands": [
+				"snapshot",
+				"# ASSERT_VISIBLE: Pick Repository"
+			]
+		}
+	]
+}
