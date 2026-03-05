@@ -33,12 +33,6 @@
 	font-weight: 600;
 }
 
-/* Separator */
-.chat-context-usage-details hr {
-	margin-top: 8px;
-	margin-bottom: 8px;
-}
-
 /* Quota indicator — matching ChatStatusDashboard */
 .chat-context-usage-details .quota-indicator .quota-label {
 	display: flex;
