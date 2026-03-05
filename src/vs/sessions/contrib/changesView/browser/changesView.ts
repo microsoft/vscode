@@ -560,7 +560,7 @@ export class ChangesViewPane extends ViewPane {
 			}));
 
 			// Set context key for PR state from session metadata
-			const hasOpenPullRequestKey = scopedContextKeyService.createKey<boolean>('github.copilot.chat.copilotCLI.hasOpenPullRequest', false);
+			const hasOpenPullRequestKey = scopedContextKeyService.createKey<boolean>('sessions.hasOpenPullRequest', false);
 			this.renderDisposables.add(autorun(reader => {
 				const sessionResource = activeSessionResource.read(reader);
 				sessionsChangedSignal.read(reader);
