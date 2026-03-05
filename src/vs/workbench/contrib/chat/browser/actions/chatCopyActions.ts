@@ -64,12 +64,6 @@ export function registerChatCopyActions() {
 						group: 'copy',
 					},
 					{
-						id: MenuId.ChatMessageTitle,
-						group: 'navigation',
-						order: 5,
-						when: ChatContextKeys.responseIsFiltered.negate(),
-					},
-					{
 						id: MenuId.ChatMessageFooter,
 						group: 'navigation',
 						order: 1,

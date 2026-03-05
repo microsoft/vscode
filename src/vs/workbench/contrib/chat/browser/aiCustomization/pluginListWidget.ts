@@ -795,7 +795,7 @@ export class PluginListWidget extends Disposable {
 
 	layout(height: number, width: number): void {
 		const sectionFooterHeight = this.sectionHeader.offsetHeight || 0;
-		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 40;
+		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 52;
 		const backLinkHeight = this.browseMode ? (this.backLink.offsetHeight || 28) : 0;
 		const listHeight = height - sectionFooterHeight - searchBarHeight - backLinkHeight;
 

@@ -154,6 +154,10 @@ export interface IPluginMarketplaceService {
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void;
 	removeInstalledPlugin(pluginUri: URI): void;
 	setInstalledPluginEnabled(pluginUri: URI, enabled: boolean): void;
+	/** Returns whether the given marketplace has been explicitly trusted by the user. */
+	isMarketplaceTrusted(ref: IMarketplaceReference): boolean;
+	/** Records that the user trusts the given marketplace, persisted permanently. */
+	trustMarketplace(ref: IMarketplaceReference): void;
 }
 
 /**
@@ -209,10 +213,21 @@ const installedPluginsMemento = observableMemento<readonly IStoredInstalledPlugi
 	},
 });
 
+const trustedMarketplacesMemento = observableMemento<readonly string[]>({
+	defaultValue: [],
+	key: 'chat.plugins.trustedMarketplaces.v1',
+	toStorage: value => JSON.stringify(value),
+	fromStorage: value => {
+		const parsed = JSON.parse(value);
+		return Array.isArray(parsed) ? parsed : [];
+	},
+});
+
 export class PluginMarketplaceService extends Disposable implements IPluginMarketplaceService {
 	declare readonly _serviceBrand: undefined;
 	private readonly _gitHubMarketplaceCache = new Lazy<Map<string, IGitHubMarketplaceCacheEntry>>(() => this._loadPersistedGitHubMarketplaceCache());
 	private readonly _installedPluginsStore: ObservableMemento<readonly IStoredInstalledPlugin[]>;
+	private readonly _trustedMarketplacesStore: ObservableMemento<readonly string[]>;
 
 	readonly onDidChangeMarketplaces: Event<void>;
 
@@ -230,6 +245,10 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 		this._installedPluginsStore = this._register(
 			installedPluginsMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, _storageService)
+		);
+
+		this._trustedMarketplacesStore = this._register(
+			trustedMarketplacesMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, _storageService)
 		);
 
 		this.installedPlugins = this._installedPluginsStore.map(s =>
@@ -454,6 +473,17 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			current.map(e => isEqual(e.pluginUri, pluginUri) ? { ...e, enabled } : e),
 			undefined,
 		);
+	}
+
+	isMarketplaceTrusted(ref: IMarketplaceReference): boolean {
+		return this._trustedMarketplacesStore.get().includes(ref.canonicalId);
+	}
+
+	trustMarketplace(ref: IMarketplaceReference): void {
+		const current = this._trustedMarketplacesStore.get();
+		if (!current.includes(ref.canonicalId)) {
+			this._trustedMarketplacesStore.set([...current, ref.canonicalId], undefined);
+		}
 	}
 
 	private async _fetchFromClonedRepo(reference: IMarketplaceReference, token: CancellationToken): Promise<IMarketplacePlugin[]> {

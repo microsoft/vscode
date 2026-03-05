@@ -184,18 +184,6 @@
         }
       ],
       "chat/input/editing/sessionApplyActions": [
-        {
-          "command": "github.createPullRequest",
-          "group": "navigation",
-          "order": 1,
-          "when": "isSessionsWindow && agentSessionHasChanges && chatSessionType == copilotcli && !github.hasOpenPullRequest"
-        },
-        {
-          "command": "github.openPullRequest",
-          "group": "navigation",
-          "order": 1,
-          "when": "isSessionsWindow && agentSessionHasChanges && chatSessionType == copilotcli && github.hasOpenPullRequest"
-        }
       ]
     },
     "configuration": [

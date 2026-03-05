@@ -23,6 +23,7 @@ import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../..
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 
 /**
  * Static command ID used by completion items to trigger immediate slash command execution,
@@ -128,7 +129,8 @@ export class SlashCommandHandler extends Disposable {
 
 		const args = match[2]?.trim() ?? '';
 		const uri = promptCommand.promptPath.uri;
-		const expanded = `Use the prompt file located at [${promptCommand.name}](${uri.toString()}).`;
+		const typeLabel = promptCommand.promptPath.type === PromptsType.skill ? 'skill' : 'prompt file';
+		const expanded = `Use the ${typeLabel} located at [${promptCommand.name}](${uri.toString()}).`;
 		return args ? `${expanded} ${args}` : expanded;
 	}
 
