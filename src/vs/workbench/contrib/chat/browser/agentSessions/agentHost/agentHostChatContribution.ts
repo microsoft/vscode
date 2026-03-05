@@ -79,7 +79,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			registry.registerChannel({
 				id: AgentHostContribution._outputChannelId,
 				label: 'Agent Host IPC',
-				log: true,
+				log: false,
+				languageId: 'log',
 			});
 			this._isChannelRegistered = true;
 			this._outputChannel = undefined; // force re-fetch
