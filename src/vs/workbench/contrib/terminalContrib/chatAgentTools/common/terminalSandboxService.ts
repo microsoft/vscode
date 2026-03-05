@@ -47,7 +47,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _remoteEnvDetails: IRemoteAgentEnvironment | null = null;
 	private _appRoot: string;
 	private _os: OperatingSystem = OS;
-	private readonly _defaultWritePaths: readonly string[] = ['/tmp', '~/.npm'];
+	private _defaultWritePaths: string[] = ['~/.npm'];
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -206,6 +206,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			} else {
 				const environmentService = this._environmentService as IEnvironmentService & { tmpDir?: URI };
 				this._tempDir = environmentService.tmpDir;
+			}
+			if (this._tempDir) {
+				this._defaultWritePaths.push(this._tempDir.path);
 			}
 			if (!this._tempDir) {
 				this._logService.warn('TerminalSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
