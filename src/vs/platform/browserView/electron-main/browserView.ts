@@ -11,15 +11,16 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId } from '../common/browserView.js';
 import { EVENT_KEY_CODE_MAP, KeyCode, KeyMod, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
-import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
+import { ICodeWindow } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
-import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { isMacintosh } from '../../../base/common/platform.js';
 import { BrowserViewUri } from '../common/browserViewUri.js';
 import { BrowserViewDebugger } from './browserViewDebugger.js';
 import { ILogService } from '../../log/common/log.js';
 import { ICDPTarget, ICDPConnection, CDPTargetInfo } from '../common/cdp/types.js';
 import { BrowserSession } from './browserSession.js';
+import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
+import { hasKey } from '../../../base/common/types.js';
 
 /** Key combinations that are used in system-level shortcuts. */
 const nativeShortcuts = new Set([
@@ -47,7 +48,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	private _lastUserGestureTimestamp: number = -Infinity;
 
 	private _debugger: BrowserViewDebugger;
-	private _window: IBaseWindow | undefined;
+	private _window: ICodeWindow | IAuxiliaryWindow | undefined;
 	private _isSendingKeyEvent = false;
 	private _isDisposed = false;
 
@@ -381,7 +382,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	 */
 	layout(bounds: IBrowserViewBounds): void {
 		if (this._window?.win?.id !== bounds.windowId) {
-			const newWindow = this.windowById(bounds.windowId);
+			const newWindow = this._windowById(bounds.windowId);
 			if (newWindow) {
 				this._window?.win?.contentView.removeChildView(this._view);
 				this._window = newWindow;
@@ -581,10 +582,19 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	}
 
 	/**
-	 * Get the parent window for this view, if any.
+	 * Get the hosting Electron window for this view, if any.
+	 * This can be an auxiliary window, depending on where the view is currently hosted.
 	 */
-	getWindow(): Electron.BrowserWindow | null {
-		return this._window?.win ?? null;
+	getElectronWindow(): Electron.BrowserWindow | undefined {
+		return this._window?.win ?? undefined;
+	}
+
+	/**
+	 * Get the main code window hosting this browser view, if any. This is used for routing commands from the browser view to the correct window.
+	 * If the browser view is hosted in an auxiliary window, this will return the parent code window of that auxiliary window.
+	 */
+	getTopCodeWindow(): ICodeWindow | undefined {
+		return this._window && hasKey(this._window, { parentId: true }) ? this._codeWindowById(this._window.parentId) : undefined;
 	}
 
 	// ============ ICDPTarget implementation ============
@@ -674,11 +684,11 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		return true;
 	}
 
-	private windowById(windowId: number | undefined): ICodeWindow | IAuxiliaryWindow | undefined {
-		return this.codeWindowById(windowId) ?? this.auxiliaryWindowById(windowId);
+	private _windowById(windowId: number | undefined): ICodeWindow | IAuxiliaryWindow | undefined {
+		return this._codeWindowById(windowId) ?? this._auxiliaryWindowById(windowId);
 	}
 
-	private codeWindowById(windowId: number | undefined): ICodeWindow | undefined {
+	private _codeWindowById(windowId: number | undefined): ICodeWindow | undefined {
 		if (typeof windowId !== 'number') {
 			return undefined;
 		}
@@ -686,7 +696,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		return this.windowsMainService.getWindowById(windowId);
 	}
 
-	private auxiliaryWindowById(windowId: number | undefined): IAuxiliaryWindow | undefined {
+	private _auxiliaryWindowById(windowId: number | undefined): IAuxiliaryWindow | undefined {
 		if (typeof windowId !== 'number') {
 			return undefined;
 		}

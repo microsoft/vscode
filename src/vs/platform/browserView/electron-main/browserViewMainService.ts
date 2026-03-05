@@ -408,7 +408,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	private showContextMenu(view: BrowserView, params: Electron.ContextMenuParams): void {
-		const win = view.getWindow();
+		const win = view.getElectronWindow();
 		if (!win) {
 			return;
 		}
@@ -424,7 +424,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				click: () => {
 					void this.openNew(params.linkURL, {
 						session: view.session,
-						windowId: view.getWindow()?.id,
+						windowId: view.getTopCodeWindow()?.id,
 						editorOptions: { preserveFocus: true, inactive: true },
 						source: 'browserLinkBackground'
 					});
@@ -455,7 +455,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				click: () => {
 					void this.openNew(params.srcURL!, {
 						session: view.session,
-						windowId: view.getWindow()?.id,
+						windowId: view.getTopCodeWindow()?.id,
 						editorOptions: { preserveFocus: true, inactive: true },
 						source: 'browserLinkBackground'
 					});
