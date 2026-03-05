@@ -152,12 +152,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this._skipAllButton = skipAllButton;
 		}
 
-		const isSingleQuestion = this.carousel.questions.length === 1;
-
-		if (!isSingleQuestion && this._closeButtonContainer) {
-			this.domNode.insertBefore(this._closeButtonContainer, this._questionContainer!);
-		}
-
 		// Register event listeners
 		if (this._skipAllButton) {
 			interactiveStore.add(this._skipAllButton.onDidClick(() => this.ignore()));
@@ -578,9 +572,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		headerRow.appendChild(titleRow);
 
-		// For single-question carousels, add close button inside the title row
-		const isSingleQuestion = this.carousel.questions.length === 1;
-		if (isSingleQuestion && this._closeButtonContainer) {
+		// Always keep the close button in the title row so it does not overlap content.
+		if (this._closeButtonContainer) {
 			titleRow.appendChild(this._closeButtonContainer);
 		}
 
@@ -599,6 +592,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const inputScrollableNode = inputScrollable.getDomNode();
 		inputScrollableNode.classList.add('chat-question-input-scrollable');
 		this._questionContainer.appendChild(inputScrollableNode);
+
+		const isSingleQuestion = this.carousel.questions.length === 1;
 
 		// Render footer before first layout so the scrollable area is measured against
 		// its final available height and does not visibly resize twice.
