@@ -1232,7 +1232,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
 			const call = agentHostService.sendMessageCalls[0];
 			assert.deepStrictEqual(call.attachments, [
-				{ type: 'file', path: '/workspace/test.ts', displayName: 'test.ts' },
+				{ type: 'file', path: URI.file('/workspace/test.ts').fsPath, displayName: 'test.ts' },
 			]);
 		});
 
@@ -1260,7 +1260,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
 			assert.deepStrictEqual(agentHostService.sendMessageCalls[0].attachments, [
-				{ type: 'directory', path: '/workspace/src', displayName: 'src' },
+				{ type: 'directory', path: URI.file('/workspace/src').fsPath, displayName: 'src' },
 			]);
 		});
 
@@ -1288,7 +1288,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
 			assert.deepStrictEqual(agentHostService.sendMessageCalls[0].attachments, [
-				{ type: 'selection', path: '/workspace/foo.ts', displayName: 'selection' },
+				{ type: 'selection', path: URI.file('/workspace/foo.ts').fsPath, displayName: 'selection' },
 			]);
 		});
 
@@ -1372,8 +1372,8 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
 			assert.deepStrictEqual(agentHostService.sendMessageCalls[0].attachments, [
-				{ type: 'file', path: '/workspace/a.ts', displayName: 'a.ts' },
-				{ type: 'directory', path: '/workspace/lib', displayName: 'lib' },
+				{ type: 'file', path: URI.file('/workspace/a.ts').fsPath, displayName: 'a.ts' },
+				{ type: 'directory', path: URI.file('/workspace/lib').fsPath, displayName: 'lib' },
 			]);
 		});
 
