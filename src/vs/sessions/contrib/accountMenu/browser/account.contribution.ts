@@ -23,7 +23,7 @@ import { IAction } from '../../../../base/common/actions.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { Disabled, DisablementReason, IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { UpdateHoverWidget } from './updateHoverWidget.js';
@@ -154,6 +154,7 @@ export class AccountWidget extends ActionViewItem {
 			this.showAccountMenu(this.accountButton!.element);
 		}));
 
+		this.viewItemDisposables.add(this.updateButton.onDidClick(() => this.update()));
 	}
 
 	private showAccountMenu(anchor: HTMLElement): void {
@@ -187,6 +188,18 @@ export class AccountWidget extends ActionViewItem {
 		}
 
 		const state = this.updateService.state;
+
+		// Special case: updates are disabled because we're running as an embedded/sessions app.
+		// Show a non-interactive hint to update via VS Code instead.
+		if (state.type === StateType.Disabled && (state as Disabled).reason === DisablementReason.EmbeddedApp) {
+			this.updateButton.element.classList.remove('hidden');
+			this.updateButton.element.style.backgroundImage = '';
+			this.updateButton.element.classList.add('account-widget-update-button-ready');
+			this.updateButton.enabled = false;
+			this.updateButton.label = localize('updateInVSCode', "Update in VS Code");
+			return;
+		}
+
 		if (this.shouldHideUpdateButton(state.type)) {
 			this.clearUpdateButtonStyling();
 			this.updateButton.element.classList.add('hidden');
@@ -195,9 +208,15 @@ export class AccountWidget extends ActionViewItem {
 
 		this.updateButton.element.classList.remove('hidden');
 		this.updateButton.element.style.backgroundImage = '';
-		this.updateButton.element.classList.add('account-widget-update-button-ready');
-		this.updateButton.enabled = false;
-		this.updateButton.label = localize('updateInVSCode', "Update in VS Code");
+		this.updateButton.enabled = state.type === StateType.Ready;
+		this.updateButton.label = this.getUpdateProgressMessage(state.type);
+
+		if (state.type === StateType.Ready) {
+			this.updateButton.element.classList.add('account-widget-update-button-ready');
+			return;
+		}
+
+		this.updateButton.element.classList.remove('account-widget-update-button-ready');
 	}
 
 	private shouldHideUpdateButton(type: StateType): boolean {
@@ -212,6 +231,27 @@ export class AccountWidget extends ActionViewItem {
 			this.updateButton.element.style.backgroundImage = '';
 			this.updateButton.element.classList.remove('account-widget-update-button-ready');
 		}
+	}
+
+	private getUpdateProgressMessage(type: StateType): string {
+		switch (type) {
+			case StateType.Ready:
+				return localize('update', "Update");
+			case StateType.AvailableForDownload:
+			case StateType.Downloading:
+			case StateType.Overwriting:
+				return localize('downloadingUpdate', "Downloading...");
+			case StateType.Downloaded:
+				return localize('installingUpdate', "Installing...");
+			case StateType.Updating:
+				return localize('updatingApp', "Updating...");
+			default:
+				return localize('updating', "Updating...");
+		}
+	}
+
+	private async update(): Promise<void> {
+		await this.updateService.quitAndInstall();
 	}
 
 	override onClick(): void {
