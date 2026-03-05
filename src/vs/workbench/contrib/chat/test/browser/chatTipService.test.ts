@@ -25,7 +25,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { MockLanguageModelToolsService } from '../common/tools/mockLanguageModelToolsService.js';
-import { ChatTipTier } from '../../browser/chatTipCatalog.js';
+import { ChatTipTier, TIP_CATALOG } from '../../browser/chatTipCatalog.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatService } from '../../common/chatService/chatService.js';
@@ -234,7 +234,7 @@ suite('ChatTipService', () => {
 		let tip = service.getWelcomeTip(contextKeyService);
 		assert.ok(tip);
 
-		for (let i = 0; i < 20 && tip?.id !== 'tip.init'; i++) {
+		for (let i = 0; i < TIP_CATALOG.length && tip?.id !== 'tip.init'; i++) {
 			tip = service.navigateToNextTip();
 		}
 
@@ -269,7 +269,7 @@ suite('ChatTipService', () => {
 		let tip = service.getWelcomeTip(contextKeyService);
 		assert.ok(tip);
 
-		for (let i = 0; i < 20 && tip?.id !== 'tip.init'; i++) {
+		for (let i = 0; i < TIP_CATALOG.length && tip?.id !== 'tip.init'; i++) {
 			tip = service.navigateToNextTip();
 		}
 
@@ -284,7 +284,7 @@ suite('ChatTipService', () => {
 			},
 		});
 
-		for (let i = 0; i < 20; i++) {
+		for (let i = 0; i < TIP_CATALOG.length; i++) {
 			tip = service.navigateToNextTip();
 			if (!tip) {
 				break;
@@ -303,7 +303,7 @@ suite('ChatTipService', () => {
 		let tip = service.getWelcomeTip(contextKeyService);
 		assert.ok(tip);
 
-		for (let i = 0; i < 20 && tip?.id !== 'tip.init'; i++) {
+		for (let i = 0; i < TIP_CATALOG.length && tip?.id !== 'tip.init'; i++) {
 			tip = service.navigateToNextTip();
 		}
 
@@ -312,7 +312,7 @@ suite('ChatTipService', () => {
 
 		service.recordSlashCommandUsage('init');
 
-		for (let i = 0; i < 20; i++) {
+		for (let i = 0; i < TIP_CATALOG.length; i++) {
 			tip = service.navigateToNextTip();
 			if (!tip) {
 				break;

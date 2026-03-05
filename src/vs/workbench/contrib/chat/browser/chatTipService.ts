@@ -236,8 +236,6 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			const slashCommandTrackingId = this._getSlashCommandTrackingId(message);
 			if (slashCommandTrackingId) {
 				this._tracker.recordCommandExecuted(slashCommandTrackingId);
-				this.hideTip();
-				return;
 			}
 
 			this._hideShownTipIfNowIneligible();
@@ -331,7 +329,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 
 		this._tracker.recordCommandExecuted(trackingId);
-		this.hideTip();
+		this._hideShownTipIfNowIneligible();
 	}
 
 	resetSession(): void {
