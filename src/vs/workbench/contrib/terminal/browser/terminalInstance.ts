@@ -36,6 +36,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
+import { IKeyboardLayoutService } from '../../../../platform/keyboardLayout/common/keyboardLayout.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -394,6 +395,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IKeyboardLayoutService private readonly _keyboardLayoutService: IKeyboardLayoutService,
 	) {
 		super();
 
@@ -1116,7 +1118,36 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				return false;
 			}
 
-			const standardKeyboardEvent = new StandardKeyboardEvent(event);
+			// Workaround for Chromium 142+ regression where numpad keys report
+			// key: "Unidentified" (chromium issue 405793116). Fix the key property
+			// so xterm.js (especially the Kitty keyboard protocol handler) can
+			// correctly identify numpad keys and generate proper escape sequences.
+			let keyboardEventForDispatch: KeyboardEvent = event;
+			if (event.key === 'Unidentified' && event.code.startsWith('Numpad')) {
+				const fixedKey = this._resolveNumpadKey(event);
+				if (fixedKey) {
+					// Patch the original event so xterm.js sees the corrected key
+					// when it processes the event after this handler returns.
+					Object.defineProperty(event, 'key', { value: fixedKey, configurable: true });
+					// Create a derived KeyboardEvent with the corrected key for
+					// local dispatch, avoiding reliance on the mutation above.
+					keyboardEventForDispatch = new KeyboardEvent(event.type, {
+						key: fixedKey,
+						code: event.code,
+						location: event.location,
+						ctrlKey: event.ctrlKey,
+						shiftKey: event.shiftKey,
+						altKey: event.altKey,
+						metaKey: event.metaKey,
+						repeat: event.repeat,
+						isComposing: event.isComposing,
+						bubbles: event.bubbles,
+						cancelable: event.cancelable
+					});
+				}
+			}
+
+			const standardKeyboardEvent = new StandardKeyboardEvent(keyboardEventForDispatch);
 			const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
 
 			// Respect chords if the allowChords setting is set and it's not Escape. Escape is
@@ -2033,6 +2064,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	}
 
+	private _resolveNumpadKey(event: KeyboardEvent): string | undefined {
+		const mapping = this._keyboardLayoutService.getRawKeyboardMapping();
+		const decimalValue = mapping?.['NumpadDecimal']?.value;
+		return resolveNumpadKey(event.code, event.getModifierState('NumLock'), decimalValue);
+	}
+
 	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
 		const labelParts: string[] = [];
 		if (xterm && xterm.textarea) {
@@ -2801,6 +2838,56 @@ export function parseExitResult(
 	}
 
 	return { code, message };
+}
+
+/**
+ * Maps a numpad KeyboardEvent.code to the correct key value.
+ * Workaround for Chromium 142+ regression (chromium issue 405793116)
+ * where numpad keys report key: "Unidentified".
+ *
+ * @param code The KeyboardEvent.code (must start with 'Numpad')
+ * @param numLockOn Whether NumLock is active
+ * @param numpadDecimalValue Locale-aware decimal character from the keyboard layout
+ */
+export function resolveNumpadKey(code: string, numLockOn: boolean, numpadDecimalValue?: string): string | undefined {
+	const suffix = code.slice(6); // Remove 'Numpad' prefix
+
+	// Operator keys produce the same key regardless of NumLock state
+	switch (suffix) {
+		case 'Add': return '+';
+		case 'Subtract': return '-';
+		case 'Multiply': return '*';
+		case 'Divide': return '/';
+		case 'Enter': return 'Enter';
+		case 'Equal': return '=';
+	}
+
+	if (numLockOn) {
+		// NumLock ON: digit keys produce numbers
+		if (suffix >= '0' && suffix <= '9') {
+			return suffix;
+		}
+		if (suffix === 'Decimal') {
+			return numpadDecimalValue ?? '.';
+		}
+	} else {
+		// NumLock OFF: digit keys produce navigation keys
+		switch (suffix) {
+			case '0': return 'Insert';
+			case '1': return 'End';
+			case '2': return 'ArrowDown';
+			case '3': return 'PageDown';
+			case '4': return 'ArrowLeft';
+			case '5': return 'Clear';
+			case '6': return 'ArrowRight';
+			case '7': return 'Home';
+			case '8': return 'ArrowUp';
+			case '9': return 'PageUp';
+			case 'Decimal': return 'Delete';
+		}
+	}
+
+	return undefined;
 }
 
 
