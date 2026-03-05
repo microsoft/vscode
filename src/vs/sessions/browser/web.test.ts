@@ -8,7 +8,7 @@ import { ILogService } from '../../platform/log/common/log.js';
 import { IBrowserMainWorkbench } from '../../workbench/browser/web.main.js';
 import { Workbench as SessionsWorkbench } from './workbench.js';
 import { SessionsBrowserMain } from './web.main.js';
-import { Emitter, Event } from '../../base/common/event.js';
+import { Event } from '../../base/common/event.js';
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { IObservable, observableValue } from '../../base/common/observable.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../workbench/services/chat/common/chatEntitlementService.js';
