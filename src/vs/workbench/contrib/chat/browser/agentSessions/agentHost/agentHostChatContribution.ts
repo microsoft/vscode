@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentHostService, AgentHostEnabledSettingId, IAgentDescriptor } from '../../../../../../platform/agent/common/agentService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
