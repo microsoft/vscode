@@ -22,7 +22,7 @@ import { URI } from '../../base/common/uri.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/common/contributions.js';
 import { IChatProgress } from '../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService, IChatSessionItem, ChatSessionStatus } from '../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService, IChatSessionItem, ChatSessionStatus, IChatSessionHistoryItem } from '../../workbench/contrib/chat/common/chatSessionsService.js';
 
 const MOCK_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: { id: 'github', name: 'GitHub (Mock)', enterprise: false },
@@ -119,6 +119,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 
 	private readonly _sessionItems: IChatSessionItem[] = [];
 	private readonly _itemsChangedEmitter = new Emitter<void>();
+	private readonly _sessionHistory = new Map<string, IChatSessionHistoryItem[]>();
 
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
@@ -132,14 +133,32 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 		this.preseedFolder();
 	}
 
-	private addSessionItem(resource: URI, message: string): void {
+	private addSessionItem(resource: URI, message: string, responseText: string): void {
+		const key = resource.toString();
 		const now = Date.now();
-		this._sessionItems.push({
-			resource,
-			label: message.slice(0, 50) || 'Mock Session',
-			status: ChatSessionStatus.Completed,
-			timing: { created: now, lastRequestStarted: now, lastRequestEnded: now },
-		});
+
+		// Store conversation history for this session
+		if (!this._sessionHistory.has(key)) {
+			this._sessionHistory.set(key, []);
+		}
+		this._sessionHistory.get(key)!.push(
+			{ type: 'request', prompt: message, participant: 'copilot' },
+			{ type: 'response', parts: [{ kind: 'markdownContent', content: { value: responseText, isTrusted: false, supportThemeIcons: false, supportHtml: false } }], participant: 'copilot' },
+		);
+
+		// Add or update session in list
+		const existing = this._sessionItems.find(s => s.resource.toString() === key);
+		if (existing) {
+			existing.timing.lastRequestStarted = now;
+			existing.timing.lastRequestEnded = now;
+		} else {
+			this._sessionItems.push({
+				resource,
+				label: message.slice(0, 50) || 'Mock Session',
+				status: ChatSessionStatus.Completed,
+				timing: { created: now, lastRequestStarted: now, lastRequestEnded: now },
+			});
+		}
 		this._itemsChangedEmitter.fire();
 	}
 
@@ -174,7 +193,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 						kind: 'markdownContent',
 						content: { value: responseText, isTrusted: false, supportThemeIcons: false, supportHtml: false },
 					}]);
-					self.addSessionItem(request.sessionResource, request.message);
+					self.addSessionItem(request.sessionResource, request.message, responseText);
 					return { metadata: { mock: true } };
 				},
 			};
@@ -190,16 +209,19 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 
 	private registerMockSessionProvider(): void {
 		const schemes = ['copilotcli', 'copilot-cloud-agent'];
+		const self = this;
 		for (const scheme of schemes) {
 			try {
 				this._register(this.chatSessionsService.registerChatSessionContentProvider(scheme, {
 					async provideChatSessionContent(sessionResource, _token) {
-						console.log(`[Sessions Web Test] Creating mock chat session for ${sessionResource.toString()}`);
+						const key = sessionResource.toString();
+						const history = self._sessionHistory.get(key) ?? [];
+						console.log(`[Sessions Web Test] Opening session ${key} (${history.length} history items)`);
 						const disposeEmitter = new Emitter<void>();
-						const isComplete = observableValue('isComplete', false);
+						const isComplete = observableValue('isComplete', history.length > 0);
 						return {
 							sessionResource,
-							history: [],
+							history,
 							isCompleteObs: isComplete,
 							onWillDispose: disposeEmitter.event,
 							async requestHandler(request, progress, _history, _token) {
