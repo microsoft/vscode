@@ -15,7 +15,7 @@ const APP_ROOT = path.join(__dirname, '..');
 
 async function main() {
 	const args = minimist(process.argv.slice(2), {
-		boolean: ['help', 'no-open'],
+		boolean: ['help', 'no-open', 'skip-welcome'],
 		string: ['host', 'port'],
 	});
 
@@ -86,7 +86,8 @@ async function main() {
 	server.listen(PORT, HOST, () => {
 		console.log(`\n  Sessions Web running at: http://${HOST}:${PORT}/\n`);
 		if (!args['no-open'] && args.open !== false) {
-			open.default(`http://${HOST}:${PORT}/`);
+			const query = args['skip-welcome'] ? '?skip-sessions-welcome' : '';
+			open.default(`http://${HOST}:${PORT}/${query}`);
 		}
 	});
 

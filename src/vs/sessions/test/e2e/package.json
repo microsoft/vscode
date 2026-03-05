@@ -4,6 +4,7 @@
 	"private": true,
 	"description": "Automated E2E tests for the Agent Sessions window using playwright-cli",
 	"scripts": {
+		"serve": "node ../../../../../scripts/code-sessions-web.js --port 9222 --skip-welcome",
 		"generate": "node generate.cjs",
 		"test": "node test.cjs"
 	},
