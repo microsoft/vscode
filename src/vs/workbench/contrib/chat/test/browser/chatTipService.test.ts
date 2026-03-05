@@ -677,6 +677,18 @@ suite('ChatTipService', () => {
 		assert.ok(storageService.get('chat.tip.dismissed', StorageScope.APPLICATION), 'Expected dismissed tips to migrate to application storage');
 	});
 
+	test('tip.undoChanges describes where to find restore checkpoint', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+
+		const tip = findTipById(service, 'tip.undoChanges');
+
+		assert.ok(tip);
+		assert.ok(tip.content.value.includes('Hover a previous request'));
+		assert.ok(tip.content.value.includes('Restore Checkpoint'));
+	});
+
 	function createMockPromptsService(
 		agentInstructions: IResolvedAgentFile[] = [],
 		promptInstructions: IPromptPath[] = [],

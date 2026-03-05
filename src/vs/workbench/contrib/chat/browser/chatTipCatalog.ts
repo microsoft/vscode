@@ -270,7 +270,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
-				localize('tip.undoChanges', "Select \"Restore Checkpoint\" to undo changes after that point in the chat conversation.")
+				localize('tip.undoChanges', "Hover a previous request and select \"Restore Checkpoint\" to undo changes after that point in the chat conversation.")
 			);
 		},
 		when: ContextKeyExpr.and(
