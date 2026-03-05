@@ -81,6 +81,7 @@ enum LayoutClasses {
 	PANEL_HIDDEN = 'nopanel',
 	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
 	CHATBAR_HIDDEN = 'nochatbar',
+	STATUSBAR_HIDDEN = 'nostatusbar',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized'
 }
@@ -893,6 +894,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			!this.partVisibility.panel ? LayoutClasses.PANEL_HIDDEN : undefined,
 			!this.partVisibility.auxiliaryBar ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.partVisibility.chatBar ? LayoutClasses.CHATBAR_HIDDEN : undefined,
+			LayoutClasses.STATUSBAR_HIDDEN, // sessions window never has a status bar
 			this.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined
 		]);
 	}

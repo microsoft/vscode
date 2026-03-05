@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
+import { basename, extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -17,7 +17,6 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { INewSession } from './newSession.js';
 
 const STORAGE_KEY_LAST_FOLDER = 'agentSessions.lastPickedFolder';
 const STORAGE_KEY_RECENT_FOLDERS = 'agentSessions.recentlyPickedFolders';
@@ -27,6 +26,7 @@ const FILTER_THRESHOLD = 10;
 interface IFolderItem {
 	readonly uri: URI;
 	readonly label: string;
+	readonly checked?: boolean;
 }
 
 /**
@@ -42,21 +42,12 @@ export class FolderPicker extends Disposable {
 
 	private _selectedFolderUri: URI | undefined;
 	private _recentlyPickedFolders: URI[] = [];
-	private _newSession: INewSession | undefined;
 
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 
 	get selectedFolderUri(): URI | undefined {
 		return this._selectedFolderUri;
-	}
-
-	/**
-	 * Sets the pending session that this picker writes to.
-	 * When the user selects a folder, it calls `setRepoUri` on the session.
-	 */
-	setNewSession(session: INewSession | undefined): void {
-		this._newSession = session;
 	}
 
 	constructor(
@@ -161,7 +152,7 @@ export class FolderPicker extends Disposable {
 	}
 
 	/**
-	 * Programmatically set the selected folder.
+	 * Programmatically set the selected folder (e.g. restoring draft state).
 	 */
 	setSelectedFolder(folderUri: URI): void {
 		this._selectFolder(folderUri);
@@ -180,7 +171,6 @@ export class FolderPicker extends Disposable {
 		this._addToRecentlyPickedFolders(folderUri);
 		this.storageService.store(STORAGE_KEY_LAST_FOLDER, folderUri.toString(), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._updateTriggerLabel(this._triggerElement);
-		this._newSession?.setRepoUri(folderUri);
 		this._onDidSelectFolder.fire(folderUri);
 	}
 
@@ -218,40 +208,32 @@ export class FolderPicker extends Disposable {
 
 	private _buildItems(currentFolderUri: URI | undefined): IActionListItem<IFolderItem>[] {
 		const seenUris = new Set<string>();
-		if (currentFolderUri) {
-			seenUris.add(currentFolderUri.toString());
-		}
 
 		const items: IActionListItem<IFolderItem>[] = [];
 
-		// Currently selected folder (shown first, checked)
+		// Collect all folders (current + recently picked), deduplicated and sorted by name
+		const allFolders: { uri: URI; label: string }[] = [];
 		if (currentFolderUri) {
-			items.push({
-				kind: ActionListItemKind.Action,
-				label: basename(currentFolderUri),
-				group: { title: '', icon: Codicon.folder },
-				item: { uri: currentFolderUri, label: basename(currentFolderUri) },
-			});
+			seenUris.add(currentFolderUri.toString());
+			allFolders.push({ uri: currentFolderUri, label: basename(currentFolderUri) });
 		}
-
-		// Recently picked folders (sorted by name)
-		const dedupedFolders: { uri: URI; label: string }[] = [];
 		for (const folderUri of this._recentlyPickedFolders) {
 			const key = folderUri.toString();
 			if (seenUris.has(key)) {
 				continue;
 			}
 			seenUris.add(key);
-			dedupedFolders.push({ uri: folderUri, label: basename(folderUri) });
+			allFolders.push({ uri: folderUri, label: basename(folderUri) });
 		}
-		dedupedFolders.sort((a, b) => a.label.localeCompare(b.label));
-		for (const folder of dedupedFolders) {
+		allFolders.sort((a, b) => extUriBiasedIgnorePathCase.compare(a.uri, b.uri));
+		for (const folder of allFolders) {
+			const isCurrent = currentFolderUri && isEqual(folder.uri, currentFolderUri);
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: folder.label,
 				group: { title: '', icon: Codicon.folder },
-				item: { uri: folder.uri, label: folder.label },
-				onRemove: () => this._removeFolder(folder.uri),
+				item: { uri: folder.uri, label: folder.label, checked: isCurrent || false },
+				...(!isCurrent ? { onRemove: () => this._removeFolder(folder.uri) } : {}),
 			});
 		}
 
@@ -276,6 +258,20 @@ export class FolderPicker extends Disposable {
 		});
 
 		return items;
+	}
+
+	/**
+	 * Removes a folder from the recently picked list and storage.
+	 */
+	removeFromRecents(folderUri: URI): void {
+		this._recentlyPickedFolders = this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri));
+		this.storageService.store(STORAGE_KEY_RECENT_FOLDERS, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
+		// If this was the last picked folder, clear it
+		if (this._selectedFolderUri && isEqual(this._selectedFolderUri, folderUri)) {
+			this._selectedFolderUri = undefined;
+			this.storageService.remove(STORAGE_KEY_LAST_FOLDER, StorageScope.PROFILE);
+			this._updateTriggerLabel(this._triggerElement);
+		}
 	}
 
 	private _removeFolder(folderUri: URI): void {

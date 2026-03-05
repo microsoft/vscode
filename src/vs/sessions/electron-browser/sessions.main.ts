@@ -15,7 +15,7 @@ import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService }
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILoggerService, ILogService, LogLevel } from '../../platform/log/common/log.js';
 import { NativeWorkbenchStorageService } from '../../workbench/services/storage/electron-browser/storageService.js';
-import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier, reviveIdentifier } from '../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier, reviveIdentifier, IWorkspaceIdentifier } from '../../platform/workspace/common/workspace.js';
 import { IWorkbenchConfigurationService } from '../../workbench/services/configuration/common/configuration.js';
 import { IStorageService } from '../../platform/storage/common/storage.js';
 import { Disposable } from '../../base/common/lifecycle.js';
@@ -67,6 +67,7 @@ import { NativeMenubarControl } from '../../workbench/electron-browser/parts/tit
 import { IWorkspaceEditingService } from '../../workbench/services/workspaces/common/workspaceEditing.js';
 import { ConfigurationService } from '../services/configuration/browser/configurationService.js';
 import { SessionsWorkspaceContextService } from '../services/workspace/browser/workspaceContextService.js';
+import { getWorkspaceIdentifier } from '../../workbench/services/workspaces/browser/workspaces.js';
 
 export class SessionsMain extends Disposable {
 
@@ -291,21 +292,21 @@ export class SessionsMain extends Disposable {
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-		// Workspace
-		const workspaceContextService = new SessionsWorkspaceContextService(uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(userDataProfilesService.profilesHome), 'agent-sessions.code-workspace'), uriIdentityService);
-		serviceCollection.set(IWorkspaceContextService, workspaceContextService);
-		serviceCollection.set(IWorkspaceEditingService, workspaceContextService);
+		const workspaceIdentifier = getWorkspaceIdentifier(uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(userDataProfilesService.profilesHome), 'agent-sessions.code-workspace'));
 
-		const [configurationService, storageService] = await Promise.all([
-			this.createConfigurationService(userDataProfileService, fileService, logService, policyService).then(service => {
+		const [{ configurationService, workspaceContextService }, storageService] = await Promise.all([
+			this.createWorkspaceAndConfigurationService(workspaceIdentifier, userDataProfileService, uriIdentityService, fileService, logService, policyService).then(services => {
 
 				// Configuration
-				serviceCollection.set(IWorkbenchConfigurationService, service);
+				serviceCollection.set(IWorkbenchConfigurationService, services.configurationService);
+				// Workspace
+				serviceCollection.set(IWorkspaceContextService, services.workspaceContextService);
+				serviceCollection.set(IWorkspaceEditingService, services.workspaceContextService);
 
-				return service;
+				return services;
 			}),
 
-			this.createStorageService(workspaceContextService.getWorkspace(), environmentService, userDataProfileService, userDataProfilesService, mainProcessService).then(service => {
+			this.createStorageService(workspaceIdentifier, environmentService, userDataProfileService, userDataProfilesService, mainProcessService).then(service => {
 
 				// Storage
 				serviceCollection.set(IStorageService, service);
@@ -343,20 +344,23 @@ export class SessionsMain extends Disposable {
 		return { serviceCollection, logService, storageService, configurationService };
 	}
 
-	private async createConfigurationService(
+	private async createWorkspaceAndConfigurationService(
+		workspaceIdentifier: IWorkspaceIdentifier,
 		userDataProfileService: IUserDataProfileService,
+		uriIdentityService: IUriIdentityService,
 		fileService: FileService,
 		logService: ILogService,
 		policyService: IPolicyService
-	): Promise<ConfigurationService> {
+	): Promise<{ configurationService: ConfigurationService; workspaceContextService: SessionsWorkspaceContextService }> {
 		const configurationService = new ConfigurationService(userDataProfileService.currentProfile.settingsResource, fileService, policyService, logService);
 		try {
 			await configurationService.initialize();
-			return configurationService;
 		} catch (error) {
 			onUnexpectedError(error);
-			return configurationService;
 		}
+
+		const workspaceContextService = new SessionsWorkspaceContextService(workspaceIdentifier, uriIdentityService, configurationService);
+		return { configurationService, workspaceContextService };
 	}
 
 	private async createStorageService(workspace: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, userDataProfilesService: IUserDataProfilesService, mainProcessService: IMainProcessService): Promise<NativeWorkbenchStorageService> {

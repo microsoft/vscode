@@ -14,10 +14,13 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
+import { getGitHubRemoteFileDisplayName } from '../../fileTreeView/browser/githubFileSystemProvider.js';
+import { Queue } from '../../../../base/common/async.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.workspaceFolderManagement';
+	private queue = this._register(new Queue<void>());
 
 	constructor(
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
@@ -29,7 +32,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		super();
 		this._register(autorun(reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			this.updateWorkspaceFoldersForSession(activeSession);
+			this.queue.queue(() => this.updateWorkspaceFoldersForSession(activeSession));
 		}));
 	}
 
@@ -73,11 +76,12 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 			if (session.providerType === AgentSessionProviders.Background) {
 				return { uri: session.repository };
 			}
-			// if (session.providerType === AgentSessionProviders.Cloud) {
-			// 	return {
-			// 		uri: session.repository
-			// 	};
-			// }
+			if (session.providerType === AgentSessionProviders.Cloud) {
+				return {
+					uri: session.repository,
+					name: getGitHubRemoteFileDisplayName(session.repository),
+				};
+			}
 		}
 
 		return undefined;

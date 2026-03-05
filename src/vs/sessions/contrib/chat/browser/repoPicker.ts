@@ -271,7 +271,7 @@ export class RepoPicker extends Disposable {
 	}
 
 	private _setRepo(repo: IRepoItem): void {
-		this._newSession?.setRepoUri(URI.parse(`${GITHUB_REMOTE_FILE_SCHEME}://github/${repo.id}`));
+		this._newSession?.setRepoUri(URI.parse(`${GITHUB_REMOTE_FILE_SCHEME}://github/${repo.id}/HEAD`));
 	}
 
 }

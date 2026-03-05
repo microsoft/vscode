@@ -10,82 +10,9 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { isAbsolute } from '../../../../../base/common/path.js';
 import { untildify } from '../../../../../base/common/labels.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
-
-/**
- * Enum of available hook types that can be configured in hooks .json
- */
-export enum HookType {
-	SessionStart = 'SessionStart',
-	UserPromptSubmit = 'UserPromptSubmit',
-	PreToolUse = 'PreToolUse',
-	PostToolUse = 'PostToolUse',
-	PreCompact = 'PreCompact',
-	SubagentStart = 'SubagentStart',
-	SubagentStop = 'SubagentStop',
-	Stop = 'Stop',
-}
-
-/**
- * Maps Copilot CLI hook type names to our abstract HookType.
- * Copilot CLI uses camelCase names.
- */
-export const COPILOT_CLI_HOOK_TYPE_MAP = {
-	'sessionStart': HookType.SessionStart,
-	'userPromptSubmitted': HookType.UserPromptSubmit,
-	'preToolUse': HookType.PreToolUse,
-	'postToolUse': HookType.PostToolUse,
-} as const satisfies Record<string, HookType>;
-
-/**
- * String literal type derived from HookType enum values.
- */
-export type HookTypeValue = `${HookType}`;
-
-/**
- * Metadata for hook types including localized labels and descriptions
- */
-export const HOOK_TYPES = [
-	{
-		id: HookType.SessionStart,
-		label: nls.localize('hookType.sessionStart.label', "Session Start"),
-		description: nls.localize('hookType.sessionStart.description', "Executed when a new agent session begins.")
-	},
-	{
-		id: HookType.UserPromptSubmit,
-		label: nls.localize('hookType.userPromptSubmit.label', "User Prompt Submit"),
-		description: nls.localize('hookType.userPromptSubmit.description', "Executed when the user submits a prompt to the agent.")
-	},
-	{
-		id: HookType.PreToolUse,
-		label: nls.localize('hookType.preToolUse.label', "Pre-Tool Use"),
-		description: nls.localize('hookType.preToolUse.description', "Executed before the agent uses any tool.")
-	},
-	{
-		id: HookType.PostToolUse,
-		label: nls.localize('hookType.postToolUse.label', "Post-Tool Use"),
-		description: nls.localize('hookType.postToolUse.description', "Executed after a tool completes execution successfully.")
-	},
-	{
-		id: HookType.PreCompact,
-		label: nls.localize('hookType.preCompact.label', "Pre-Compact"),
-		description: nls.localize('hookType.preCompact.description', "Executed before the agent compacts the conversation context.")
-	},
-	{
-		id: HookType.SubagentStart,
-		label: nls.localize('hookType.subagentStart.label', "Subagent Start"),
-		description: nls.localize('hookType.subagentStart.description', "Executed when a subagent is started.")
-	},
-	{
-		id: HookType.SubagentStop,
-		label: nls.localize('hookType.subagentStop.label', "Subagent Stop"),
-		description: nls.localize('hookType.subagentStop.description', "Executed when a subagent stops.")
-	},
-	{
-		id: HookType.Stop,
-		label: nls.localize('hookType.stop.label', "Stop"),
-		description: nls.localize('hookType.stop.description', "Executed when the agent stops.")
-	}
-] as const;
+import { HookType, HOOKS_BY_TARGET, HOOK_METADATA } from './hookTypes.js';
+import { Target } from './promptTypes.js';
+import { IValue, IMapValue } from './promptFileParser.js';
 
 /**
  * A single hook command configuration.
@@ -116,22 +43,52 @@ export interface IHookCommand {
  * Collected hooks for a chat request, organized by hook type.
  * This is passed to the extension host so it knows what hooks are available.
  */
-export interface IChatRequestHooks {
-	readonly [HookType.SessionStart]?: readonly IHookCommand[];
-	readonly [HookType.UserPromptSubmit]?: readonly IHookCommand[];
-	readonly [HookType.PreToolUse]?: readonly IHookCommand[];
-	readonly [HookType.PostToolUse]?: readonly IHookCommand[];
-	readonly [HookType.PreCompact]?: readonly IHookCommand[];
-	readonly [HookType.SubagentStart]?: readonly IHookCommand[];
-	readonly [HookType.SubagentStop]?: readonly IHookCommand[];
-	readonly [HookType.Stop]?: readonly IHookCommand[];
+export type ChatRequestHooks = {
+	readonly [K in HookType]?: readonly IHookCommand[];
+};
+
+/**
+ * Merges two sets of hooks by concatenating the command arrays for each hook type.
+ * Additional hooks are appended after the base hooks.
+ */
+export function mergeHooks(base: ChatRequestHooks | undefined, additional: ChatRequestHooks): ChatRequestHooks {
+	if (!base) {
+		return additional;
+	}
+
+	const result: Partial<Record<HookType, readonly IHookCommand[]>> = { ...base };
+	for (const hookType of Object.values(HookType)) {
+		const baseArr = base[hookType];
+		const additionalArr = additional[hookType];
+		if (additionalArr && additionalArr.length > 0) {
+			result[hookType] = baseArr ? [...baseArr, ...additionalArr] : additionalArr;
+		}
+	}
+	return result as ChatRequestHooks;
 }
+
+/**
+ * Descriptions for hook command fields, used by both the JSON schema and the hover provider.
+ */
+export const HOOK_COMMAND_FIELD_DESCRIPTIONS: Record<string, string> = {
+	type: nls.localize('hook.type', 'Must be "command".'),
+	command: nls.localize('hook.command', 'The command to execute. This is the default cross-platform command.'),
+	windows: nls.localize('hook.windows', 'Windows-specific command. If specified and running on Windows, this overrides the "command" field.'),
+	linux: nls.localize('hook.linux', 'Linux-specific command. If specified and running on Linux, this overrides the "command" field.'),
+	osx: nls.localize('hook.osx', 'macOS-specific command. If specified and running on macOS, this overrides the "command" field.'),
+	bash: nls.localize('hook.bash', 'Bash command for Linux and macOS.'),
+	powershell: nls.localize('hook.powershell', 'PowerShell command for Windows.'),
+	cwd: nls.localize('hook.cwd', 'Working directory for the script (relative to repository root).'),
+	env: nls.localize('hook.env', 'Additional environment variables that are merged with the existing environment.'),
+	timeout: nls.localize('hook.timeout', 'Maximum execution time in seconds (default: 30).'),
+	timeoutSec: nls.localize('hook.timeoutSec', 'Maximum execution time in seconds (default: 10).'),
+};
 
 /**
  * JSON Schema for GitHub Copilot hook configuration files.
  * Hooks enable executing custom shell commands at strategic points in an agent's workflow.
  */
-const hookCommandSchema: IJSONSchema = {
+const vscodeHookCommandSchema: IJSONSchema = {
 	type: 'object',
 	additionalProperties: true,
 	required: ['type'],
@@ -148,83 +105,63 @@ const hookCommandSchema: IJSONSchema = {
 		type: {
 			type: 'string',
 			enum: ['command'],
-			description: nls.localize('hook.type', 'Must be "command".')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.type
 		},
 		command: {
 			type: 'string',
-			description: nls.localize('hook.command', 'The command to execute. This is the default cross-platform command.')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.command
 		},
 		windows: {
 			type: 'string',
-			description: nls.localize('hook.windows', 'Windows-specific command. If specified and running on Windows, this overrides the "command" field.')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.windows
 		},
 		linux: {
 			type: 'string',
-			description: nls.localize('hook.linux', 'Linux-specific command. If specified and running on Linux, this overrides the "command" field.')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.linux
 		},
 		osx: {
 			type: 'string',
-			description: nls.localize('hook.osx', 'macOS-specific command. If specified and running on macOS, this overrides the "command" field.')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.osx
 		},
 		cwd: {
 			type: 'string',
-			description: nls.localize('hook.cwd', 'Working directory for the script (relative to repository root).')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.cwd
 		},
 		env: {
 			type: 'object',
 			additionalProperties: { type: 'string' },
-			description: nls.localize('hook.env', 'Additional environment variables that are merged with the existing environment.')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.env
 		},
 		timeout: {
 			type: 'number',
 			default: 30,
-			description: nls.localize('hook.timeout', 'Maximum execution time in seconds (default: 30).')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.timeout
 		}
 	}
 };
 
 const hookArraySchema: IJSONSchema = {
 	type: 'array',
-	items: hookCommandSchema
+	items: vscodeHookCommandSchema
 };
 
 /**
- * Hook properties for the VS Code / PascalCase format.
+ * Builds JSON Schema hook properties for a given target by looking up
+ * the hook keys from HOOKS_BY_TARGET and descriptions from HOOK_METADATA.
  */
-const vscodeHookProperties: { [key in HookType]: IJSONSchema } = {
-	SessionStart: {
-		...hookArraySchema,
-		description: nls.localize('hookFile.sessionStart', 'Executed when a new agent session begins. Use to initialize environments, log session starts, validate project state, or set up temporary resources.')
-	},
-	UserPromptSubmit: {
-		...hookArraySchema,
-		description: nls.localize('hookFile.userPromptSubmit', 'Executed when the user submits a prompt to the agent. Use to log user requests for auditing and usage analysis.')
-	},
-	PreToolUse: {
-		...hookArraySchema,
-		description: nls.localize('hookFile.preToolUse', 'Executed before the agent uses any tool. This is the most powerful hook as it can approve or deny tool executions. Use to block dangerous commands, enforce security policies, require approval for sensitive operations, or log tool usage.')
-	},
-	PostToolUse: {
-		...hookArraySchema,
-		description: nls.localize('hookFile.postToolUse', 'Executed after a tool completes execution successfully. Use to log execution results, track usage statistics, generate audit trails, or monitor performance.')
-	},
-	PreCompact: {
-		...hookArraySchema,
-		description: nls.localize('hookFile.preCompact', 'Executed before the agent compacts the conversation context. Use to save conversation state, export important information, or prepare for context reduction.')
-	},
-	SubagentStart: {
-		...hookArraySchema,
-		description: nls.localize('hookFile.subagentStart', 'Executed when a subagent is started. Use to log subagent spawning, track nested agent usage, or initialize subagent-specific resources.')
-	},
-	SubagentStop: {
-		...hookArraySchema,
-		description: nls.localize('hookFile.subagentStop', 'Executed when a subagent stops. Use to log subagent completion, cleanup subagent resources, or aggregate subagent results.')
-	},
-	Stop: {
-		...hookArraySchema,
-		description: nls.localize('hookFile.stop', 'Executed when the agent session stops. Use to cleanup resources, generate final reports, or send completion notifications.')
-	}
-};
+function buildHookProperties(target: Target, arraySchema: IJSONSchema): Record<string, IJSONSchema> {
+	return Object.fromEntries(
+		Object.entries(HOOKS_BY_TARGET[target]).map(([key, hookType]) => [
+			key,
+			{ ...arraySchema, description: HOOK_METADATA[hookType]?.description }
+		])
+	);
+}
+
+/**
+ * Hook properties for the VS Code format.
+ */
+const vscodeHookProperties: Record<string, IJSONSchema> = buildHookProperties(Target.VSCode, hookArraySchema);
 
 /**
  * Hook command schema for the Copilot CLI format.
@@ -243,29 +180,29 @@ const copilotCliHookCommandSchema: IJSONSchema = {
 		type: {
 			type: 'string',
 			enum: ['command'],
-			description: nls.localize('hook.type', 'Must be "command".')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.type
 		},
 		bash: {
 			type: 'string',
-			description: nls.localize('hook.bash', 'Bash command for Linux and macOS.')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.bash
 		},
 		powershell: {
 			type: 'string',
-			description: nls.localize('hook.powershell', 'PowerShell command for Windows.')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.powershell
 		},
 		cwd: {
 			type: 'string',
-			description: nls.localize('hook.cwd', 'Working directory for the script (relative to repository root).')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.cwd
 		},
 		env: {
 			type: 'object',
 			additionalProperties: { type: 'string' },
-			description: nls.localize('hook.env', 'Additional environment variables that are merged with the existing environment.')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.env
 		},
 		timeoutSec: {
 			type: 'number',
 			default: 10,
-			description: nls.localize('hook.timeoutSec', 'Maximum execution time in seconds (default: 10).')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.timeoutSec
 		}
 	}
 };
@@ -276,27 +213,9 @@ const copilotCliHookArraySchema: IJSONSchema = {
 };
 
 /**
- * Hook properties for the Copilot CLI / camelCase format.
- * Maps from the Copilot CLI hook type names defined in COPILOT_CLI_HOOK_TYPE_MAP.
+ * Hook properties for the Copilot CLI format.
  */
-const copilotCliHookProperties: { [key in keyof typeof COPILOT_CLI_HOOK_TYPE_MAP]: IJSONSchema } = {
-	sessionStart: {
-		...copilotCliHookArraySchema,
-		description: nls.localize('hookFile.cli.sessionStart', 'Executed when a new agent session begins.')
-	},
-	userPromptSubmitted: {
-		...copilotCliHookArraySchema,
-		description: nls.localize('hookFile.cli.userPromptSubmitted', 'Executed when the user submits a prompt to the agent.')
-	},
-	preToolUse: {
-		...copilotCliHookArraySchema,
-		description: nls.localize('hookFile.cli.preToolUse', 'Executed before the agent uses any tool. Can approve or deny tool executions.')
-	},
-	postToolUse: {
-		...copilotCliHookArraySchema,
-		description: nls.localize('hookFile.cli.postToolUse', 'Executed after a tool completes execution successfully.')
-	},
-};
+const copilotCliHookProperties: Record<string, IJSONSchema> = buildHookProperties(Target.GitHubCopilot, copilotCliHookArraySchema);
 
 export const hookFileSchema: IJSONSchema = {
 	$schema: 'http://json-schema.org/draft-07/schema#',
@@ -368,11 +287,6 @@ export const hookFileSchema: IJSONSchema = {
  * URI for the hook schema registration.
  */
 export const HOOK_SCHEMA_URI = 'vscode://schemas/hooks';
-
-/**
- * Glob pattern for hook files.
- */
-export const HOOK_FILE_GLOB = '.github/hooks/*.json';
 
 /**
  * Normalizes a raw hook type identifier to the canonical HookType enum value.
@@ -567,4 +481,156 @@ export function resolveHookCommand(raw: Record<string, unknown>, workspaceRootUr
 		...(normalized.env && { env: normalized.env }),
 		...(normalized.timeout !== undefined && { timeout: normalized.timeout }),
 	};
+}
+
+/**
+ * Helper to extract hook commands from an item that could be:
+ * 1. A direct command object: { type: 'command', command: '...' }
+ * 2. A nested structure with matcher (Claude style): { matcher: '...', hooks: [{ type: 'command', command: '...' }] }
+ *
+ * This allows Copilot format to handle Claude-style entries if pasted.
+ * Also handles Claude's leniency where 'type' field can be omitted.
+ */
+export function extractHookCommandsFromItem(
+	item: unknown,
+	workspaceRootUri: URI | undefined,
+	userHome: string
+): IHookCommand[] {
+	if (!item || typeof item !== 'object') {
+		return [];
+	}
+
+	const itemObj = item as Record<string, unknown>;
+	const commands: IHookCommand[] = [];
+
+	// Check for nested hooks with matcher (Claude style): { matcher: "...", hooks: [...] }
+	const nestedHooks = itemObj.hooks;
+	if (nestedHooks !== undefined && Array.isArray(nestedHooks)) {
+		for (const nestedHook of nestedHooks) {
+			if (!nestedHook || typeof nestedHook !== 'object') {
+				continue;
+			}
+			const normalized = normalizeForResolve(nestedHook as Record<string, unknown>);
+			const resolved = resolveHookCommand(normalized, workspaceRootUri, userHome);
+			if (resolved) {
+				commands.push(resolved);
+			}
+		}
+	} else {
+		// Direct command object
+		const normalized = normalizeForResolve(itemObj);
+		const resolved = resolveHookCommand(normalized, workspaceRootUri, userHome);
+		if (resolved) {
+			commands.push(resolved);
+		}
+	}
+
+	return commands;
+}
+
+/**
+ * Normalizes a hook command object for resolving.
+ * Claude format allows omitting the 'type' field, treating it as 'command'.
+ * This ensures compatibility when Claude-style hooks are pasted into Copilot format.
+ */
+function normalizeForResolve(raw: Record<string, unknown>): Record<string, unknown> {
+	// If type is missing or already 'command', ensure it's set to 'command'
+	if (raw.type === undefined || raw.type === 'command') {
+		return { ...raw, type: 'command' };
+	}
+	return raw;
+}
+
+/**
+ * Converts an {@link IValue} YAML AST node into a plain JavaScript value
+ * (string, array, or object) suitable for passing to hook parsing helpers.
+ */
+function yamlValueToPlain(value: IValue): unknown {
+	switch (value.type) {
+		case 'scalar':
+			return value.value;
+		case 'sequence':
+			return value.items.map(yamlValueToPlain);
+		case 'map': {
+			const obj: Record<string, unknown> = {};
+			for (const prop of value.properties) {
+				obj[prop.key.value] = yamlValueToPlain(prop.value);
+			}
+			return obj;
+		}
+	}
+}
+
+/**
+ * Parses hooks from a subagent's YAML frontmatter `hooks` attribute.
+ *
+ * Supports two formats for hook entries:
+ *
+ * 1. **Direct command** (our format, without matcher):
+ * ```yaml
+ * hooks:
+ *   PreToolUse:
+ *     - type: command
+ *       command: "./scripts/validate.sh"
+ * ```
+ *
+ * 2. **Nested with matcher** (Claude Code format):
+ * ```yaml
+ * hooks:
+ *   PreToolUse:
+ *     - matcher: "Bash"
+ *       hooks:
+ *         - type: command
+ *           command: "./scripts/validate.sh"
+ * ```
+ *
+ * @param hooksMap The raw YAML map value from the `hooks` frontmatter attribute.
+ * @param workspaceRootUri Workspace root for resolving relative `cwd` paths.
+ * @param userHome User home directory path for tilde expansion.
+ * @param target The agent's target, used to resolve hook type names correctly.
+ * @returns Resolved hooks organized by hook type, ready for use in {@link ChatRequestHooks}.
+ */
+export function parseSubagentHooksFromYaml(
+	hooksMap: IMapValue,
+	workspaceRootUri: URI | undefined,
+	userHome: string,
+	target: Target = Target.Undefined,
+): ChatRequestHooks {
+	const result: Record<string, IHookCommand[]> = {};
+	const targetHookMap = HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined];
+
+	for (const prop of hooksMap.properties) {
+		const hookTypeName = prop.key.value;
+
+		// Resolve hook type name using the target's own map first, then fall back to canonical names
+		const hookType = targetHookMap[hookTypeName] ?? toHookType(hookTypeName);
+		if (!hookType) {
+			continue;
+		}
+
+		// The value must be a sequence (array of hook entries)
+		if (prop.value.type !== 'sequence') {
+			continue;
+		}
+
+		const commands: IHookCommand[] = [];
+
+		for (const item of prop.value.items) {
+			// Convert the YAML AST node to a plain object so the existing
+			// extractHookCommandsFromItem helper can handle both direct
+			// commands and nested matcher structures.
+			const plainItem = yamlValueToPlain(item);
+			const extracted = extractHookCommandsFromItem(plainItem, workspaceRootUri, userHome);
+			commands.push(...extracted);
+		}
+
+		if (commands.length > 0) {
+			if (!result[hookType]) {
+				result[hookType] = [];
+			}
+			result[hookType].push(...commands);
+		}
+	}
+
+	return result as ChatRequestHooks;
 }

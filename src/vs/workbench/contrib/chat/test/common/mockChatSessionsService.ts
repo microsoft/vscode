@@ -13,7 +13,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from '../../commo
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItem, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
-import { Target } from '../../common/promptSyntax/service/promptsService.js';
+import { Target } from '../../common/promptSyntax/promptTypes.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
 	_serviceBrand: undefined;
@@ -161,8 +161,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return provider.provideChatSessionContent(sessionResource, token);
 	}
 
-	async canResolveChatSession(chatSessionResource: URI): Promise<boolean> {
-		return this.contentProviders.has(chatSessionResource.scheme);
+	async canResolveChatSession(sessionType: string): Promise<boolean> {
+		return this.contentProviders.has(sessionType);
 	}
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined {

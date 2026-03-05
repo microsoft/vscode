@@ -7,7 +7,6 @@ import './media/modalEditorPart.css';
 import { $, addDisposableListener, append, EventHelper, EventType, hide, isHTMLElement, show } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -90,15 +89,8 @@ export class ModalEditorPart {
 		disposables.add(addDisposableListener(modalElement, EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 
-			// Close on Escape
-			if (event.equals(KeyCode.Escape)) {
-				EventHelper.stop(event, true);
-
-				editorPart.close();
-			}
-
 			// Prevent unsupported commands (not in sessions windows)
-			else if (!this.environmentService.isSessionsWindow) {
+			if (!this.environmentService.isSessionsWindow) {
 				const resolved = this.keybindingService.softDispatch(event, this.layoutService.mainContainer);
 				if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
 					if (
@@ -119,7 +111,6 @@ export class ModalEditorPart {
 			role: 'dialog',
 			'aria-modal': 'true',
 			'aria-labelledby': titleId,
-			tabIndex: -1
 		});
 		shadowElement.appendChild(editorPartContainer);
 
@@ -230,6 +221,12 @@ export class ModalEditorPart {
 			editorPart.toggleMaximized();
 		}));
 
+		// Focus active editor when clicking into the title area with no other click target
+		disposables.add(addDisposableListener(headerElement, EventType.CLICK, e => {
+			EventHelper.stop(e);
+
+			editorPart.activeGroup.focus();
+		}));
 
 		// Layout the modal editor part
 		const layoutModal = () => {
@@ -270,8 +267,8 @@ export class ModalEditorPart {
 		this.hostService.setWindowDimmed(mainWindow, true);
 		disposables.add(toDisposable(() => this.hostService.setWindowDimmed(mainWindow, false)));
 
-		// Focus the modal
-		editorPartContainer.focus();
+		// Focus
+		editorPart.activeGroup.focus();
 
 		return {
 			part: editorPart,

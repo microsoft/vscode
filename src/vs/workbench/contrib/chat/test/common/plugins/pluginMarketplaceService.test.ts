@@ -15,7 +15,7 @@ import { IStorageService, InMemoryStorageService } from '../../../../../../platf
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, parseMarketplaceReference, parseMarketplaceReferences } from '../../../common/plugins/pluginMarketplaceService.js';
+import { MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource } from '../../../common/plugins/pluginMarketplaceService.js';
 
 suite('PluginMarketplaceService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -142,6 +142,7 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 			description: 'A test plugin',
 			version: '2.0.0',
 			source: 'plugins/my-plugin',
+			sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/my-plugin' } as const,
 			marketplace: marketplaceRef.displayLabel,
 			marketplaceReference: marketplaceRef,
 			marketplaceType: MarketplaceType.Copilot,
@@ -163,5 +164,154 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 		const service = createService();
 		const result = service.getMarketplacePluginMetadata(URI.file('/any/path'));
 		assert.strictEqual(result, undefined);
+	});
+});
+
+suite('parsePluginSource', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const logContext = {
+		pluginName: 'test',
+		logService: new NullLogService(),
+		logPrefix: '[test]',
+	};
+
+	test('parses string source as RelativePath', () => {
+		const result = parsePluginSource('./my-plugin', undefined, logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.RelativePath, path: 'my-plugin' });
+	});
+
+	test('parses string source with pluginRoot', () => {
+		const result = parsePluginSource('sub', 'plugins', logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.RelativePath, path: 'plugins/sub' });
+	});
+
+	test('parses undefined source as RelativePath using pluginRoot', () => {
+		const result = parsePluginSource(undefined, 'root', logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.RelativePath, path: 'root' });
+	});
+
+	test('parses empty string source as RelativePath using pluginRoot', () => {
+		const result = parsePluginSource('', 'base', logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.RelativePath, path: 'base' });
+	});
+
+	test('returns undefined for empty source without pluginRoot', () => {
+		assert.strictEqual(parsePluginSource('', undefined, logContext), undefined);
+	});
+
+	test('parses github object source', () => {
+		const result = parsePluginSource({ source: 'github', repo: 'owner/repo' }, undefined, logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: undefined, sha: undefined });
+	});
+
+	test('parses github object source with ref and sha', () => {
+		const result = parsePluginSource({ source: 'github', repo: 'owner/repo', ref: 'v2.0.0', sha: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0' }, undefined, logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'v2.0.0', sha: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0' });
+	});
+
+	test('returns undefined for github source missing repo', () => {
+		assert.strictEqual(parsePluginSource({ source: 'github' }, undefined, logContext), undefined);
+	});
+
+	test('returns undefined for github source with invalid repo format', () => {
+		assert.strictEqual(parsePluginSource({ source: 'github', repo: 'owner' }, undefined, logContext), undefined);
+	});
+
+	test('returns undefined for github source with invalid sha', () => {
+		assert.strictEqual(parsePluginSource({ source: 'github', repo: 'owner/repo', sha: 'abc123' }, undefined, logContext), undefined);
+	});
+
+	test('parses url object source', () => {
+		const result = parsePluginSource({ source: 'url', url: 'https://gitlab.com/team/plugin.git' }, undefined, logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.GitUrl, url: 'https://gitlab.com/team/plugin.git', ref: undefined, sha: undefined });
+	});
+
+	test('returns undefined for url source missing url field', () => {
+		assert.strictEqual(parsePluginSource({ source: 'url' }, undefined, logContext), undefined);
+	});
+
+	test('returns undefined for url source not ending in .git', () => {
+		assert.strictEqual(parsePluginSource({ source: 'url', url: 'https://gitlab.com/team/plugin' }, undefined, logContext), undefined);
+	});
+
+	test('parses npm object source', () => {
+		const result = parsePluginSource({ source: 'npm', package: '@acme/claude-plugin' }, undefined, logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.Npm, package: '@acme/claude-plugin', version: undefined, registry: undefined });
+	});
+
+	test('parses npm object source with version and registry', () => {
+		const result = parsePluginSource({ source: 'npm', package: '@acme/claude-plugin', version: '2.1.0', registry: 'https://npm.example.com' }, undefined, logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.Npm, package: '@acme/claude-plugin', version: '2.1.0', registry: 'https://npm.example.com' });
+	});
+
+	test('returns undefined for npm source missing package', () => {
+		assert.strictEqual(parsePluginSource({ source: 'npm' }, undefined, logContext), undefined);
+	});
+
+	test('returns undefined for npm source with non-string version', () => {
+		assert.strictEqual(parsePluginSource({ source: 'npm', package: '@acme/claude-plugin', version: 123 } as never, undefined, logContext), undefined);
+	});
+
+	test('parses pip object source', () => {
+		const result = parsePluginSource({ source: 'pip', package: 'my-plugin' }, undefined, logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.Pip, package: 'my-plugin', version: undefined, registry: undefined });
+	});
+
+	test('parses pip object source with version and registry', () => {
+		const result = parsePluginSource({ source: 'pip', package: 'my-plugin', version: '1.0.0', registry: 'https://pypi.example.com' }, undefined, logContext);
+		assert.deepStrictEqual(result, { kind: PluginSourceKind.Pip, package: 'my-plugin', version: '1.0.0', registry: 'https://pypi.example.com' });
+	});
+
+	test('returns undefined for pip source missing package', () => {
+		assert.strictEqual(parsePluginSource({ source: 'pip' }, undefined, logContext), undefined);
+	});
+
+	test('returns undefined for pip source with non-string registry', () => {
+		assert.strictEqual(parsePluginSource({ source: 'pip', package: 'my-plugin', registry: 42 } as never, undefined, logContext), undefined);
+	});
+
+	test('returns undefined for unknown source kind', () => {
+		assert.strictEqual(parsePluginSource({ source: 'unknown' }, undefined, logContext), undefined);
+	});
+
+	test('returns undefined for object source without source discriminant', () => {
+		assert.strictEqual(parsePluginSource({ package: 'test' } as never, undefined, logContext), undefined);
+	});
+});
+
+suite('getPluginSourceLabel', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('formats relative path', () => {
+		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.RelativePath, path: 'plugins/foo' }), 'plugins/foo');
+	});
+
+	test('formats empty relative path', () => {
+		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.RelativePath, path: '' }), '.');
+	});
+
+	test('formats github source', () => {
+		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.GitHub, repo: 'owner/repo' }), 'owner/repo');
+	});
+
+	test('formats url source', () => {
+		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.GitUrl, url: 'https://example.com/repo.git' }), 'https://example.com/repo.git');
+	});
+
+	test('formats npm source without version', () => {
+		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.Npm, package: '@acme/plugin' }), '@acme/plugin');
+	});
+
+	test('formats npm source with version', () => {
+		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.Npm, package: '@acme/plugin', version: '1.0.0' }), '@acme/plugin@1.0.0');
+	});
+
+	test('formats pip source without version', () => {
+		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.Pip, package: 'my-plugin' }), 'my-plugin');
+	});
+
+	test('formats pip source with version', () => {
+		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.Pip, package: 'my-plugin', version: '2.0' }), 'my-plugin==2.0');
 	});
 });
