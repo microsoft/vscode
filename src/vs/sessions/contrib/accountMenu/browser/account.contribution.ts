@@ -196,6 +196,10 @@ export class AccountWidget extends ActionViewItem {
 			this.updateButton.element.classList.add('account-widget-update-button-ready');
 			this.updateButton.enabled = false;
 			this.updateButton.label = localize('updateInVSCode', "Update from VS Code");
+			// Ensure any rich hover is not shown in this non-interactive hint state.
+			this.hoverService.hideHover();
+			// Provide a simple, accurate tooltip explaining how to update.
+			this.updateButton.element.title = localize('updateInVSCodeHover', "Updates are managed by VS Code. To update, open this workspace in VS Code.");
 			return;
 		}
 
