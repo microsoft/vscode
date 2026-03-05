@@ -78,9 +78,6 @@ export class ChatContextUsageDetails extends Disposable {
 
 		// Actions section with hr, header, and button bar
 		this.actionsSection = this.domNode.appendChild($('.actions-section'));
-		// this.actionsSection.appendChild($('hr'));
-		// const actionsHeader = this.actionsSection.appendChild($('div.header'));
-		// actionsHeader.textContent = localize('actions', "Actions");
 		const buttonBarContainer = this.actionsSection.appendChild($('.button-bar-container'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchButtonBar, buttonBarContainer, MenuId.ChatContextUsageActions, {
 			toolbarOptions: {
