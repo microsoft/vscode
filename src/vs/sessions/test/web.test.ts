@@ -22,7 +22,7 @@ import { URI } from '../../base/common/uri.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/common/contributions.js';
 import { IChatProgress } from '../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService } from '../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService, IChatSessionItem, ChatSessionStatus } from '../../workbench/contrib/chat/common/chatSessionsService.js';
 
 const MOCK_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: { id: 'github', name: 'GitHub (Mock)', enterprise: false },
@@ -175,6 +175,9 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 		// Register a chat session content provider for the 'copilotcli' scheme.
 		// This is normally provided by the GitHub Copilot Chat extension.
 		const schemes = ['copilotcli', 'copilot-cloud-agent'];
+		const itemsChangedEmitter = new Emitter<void>();
+		const sessionItems: IChatSessionItem[] = [];
+
 		for (const scheme of schemes) {
 			try {
 				this._register(this.chatSessionsService.registerChatSessionContentProvider(scheme, {
@@ -194,13 +197,30 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 									kind: 'markdownContent',
 									content: { value: responseText, isTrusted: false, supportThemeIcons: false, supportHtml: false },
 								}]);
-								// Signal completion so the spinner stops
 								isComplete.set(true, undefined);
+
+								// Add to session list
+								const now = Date.now();
+								sessionItems.push({
+									resource: sessionResource,
+									label: request.message.slice(0, 50) || 'Mock Session',
+									status: ChatSessionStatus.Completed,
+									timing: { created: now, lastRequestStarted: now, lastRequestEnded: now },
+								});
+								itemsChangedEmitter.fire();
 							},
 							dispose() { disposeEmitter.fire(); disposeEmitter.dispose(); },
 						};
 					},
 				}));
+
+				// Register an item controller so sessions appear in the sidebar list
+				this._register(this.chatSessionsService.registerChatSessionItemController(scheme, {
+					onDidChangeChatSessionItems: itemsChangedEmitter.event,
+					get items() { return sessionItems; },
+					async refresh() { /* no-op for in-memory */ },
+				}));
+
 				console.log(`[Sessions Web Test] Registered session provider for scheme: ${scheme}`);
 			} catch (err) {
 				console.warn(`[Sessions Web Test] Failed to register session provider for ${scheme}:`, err);
