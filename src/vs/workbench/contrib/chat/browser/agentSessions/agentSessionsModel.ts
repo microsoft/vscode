@@ -13,6 +13,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { safeStringify } from '../../../../../base/common/objects.js';
+import { basename } from '../../../../../base/common/path.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -162,18 +163,49 @@ export const enum AgentSessionSection {
 
 	// Capped Grouping
 	More = 'more',
+
+	// Folder Grouping
+	Folder = 'folder',
+	FolderMore = 'folder-more',
+	Other = 'other',
 }
 
 export interface IAgentSessionSection {
 	readonly section: AgentSessionSection;
 	readonly label: string;
 	readonly sessions: IAgentSession[];
+	readonly folderPath?: string;
 }
 
 export function isAgentSessionSection(obj: unknown): obj is IAgentSessionSection {
 	const candidate = obj as IAgentSessionSection;
 
 	return typeof candidate.section === 'string' && Array.isArray(candidate.sessions);
+}
+
+export function isFolderSection(section: IAgentSessionSection): boolean {
+	return section.section === AgentSessionSection.Folder || section.section === AgentSessionSection.Other;
+}
+
+/**
+ * Extracts the folder path from session metadata.
+ * Checks `workingDirectoryPath`, `repositoryPath`, and `worktreePath` in order.
+ */
+export function getAgentSessionFolderPath(session: IAgentSession): string | undefined {
+	const metadata = session.metadata;
+	if (!metadata) {
+		return undefined;
+	}
+
+	const folderPath = (metadata.workingDirectoryPath ?? metadata.repositoryPath ?? metadata.worktreePath) as string | undefined;
+	return typeof folderPath === 'string' ? folderPath : undefined;
+}
+
+/**
+ * Returns a display label for a folder path, using the last path segment.
+ */
+export function getAgentSessionFolderLabel(folderPath: string): string {
+	return basename(folderPath) || folderPath;
 }
 
 export interface IMarshalledAgentSessionContext {

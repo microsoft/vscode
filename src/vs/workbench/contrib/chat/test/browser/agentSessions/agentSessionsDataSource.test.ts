@@ -108,6 +108,7 @@ suite('AgentSessionsDataSource', () => {
 		hasChanges: boolean;
 		startTime: number;
 		endTime: number;
+		metadata: { [key: string]: unknown };
 	}> = {}): IAgentSession {
 		const now = Date.now();
 		return {
@@ -123,6 +124,7 @@ suite('AgentSessionsDataSource', () => {
 				lastRequestStarted: undefined,
 			},
 			changes: overrides.hasChanges ? { files: 1, insertions: 10, deletions: 5 } : undefined,
+			metadata: overrides.metadata,
 			isArchived: () => overrides.isArchived ?? false,
 			setArchived: () => { },
 			isRead: () => overrides.isRead ?? true,
@@ -493,6 +495,169 @@ suite('AgentSessionsDataSource', () => {
 			const sections = getSectionsFromResult(result);
 			assert.strictEqual(sections.length, 1);
 			assert.strictEqual(sections[0].section, AgentSessionSection.More);
+			assert.strictEqual(sections[0].sessions.length, 2);
+		});
+	});
+
+	suite('folder grouping', () => {
+
+		test('groups sessions by folder path from metadata', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', startTime: now, metadata: { workingDirectoryPath: '/home/user/projectA' } }),
+				createMockSession({ id: '2', startTime: now - ONE_DAY, metadata: { workingDirectoryPath: '/home/user/projectA' } }),
+				createMockSession({ id: '3', startTime: now - 2 * ONE_DAY, metadata: { workingDirectoryPath: '/home/user/projectB' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Folder });
+			const sorter = createMockSorter();
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+
+			assert.strictEqual(result.length, 2);
+			const sections = getSectionsFromResult(result);
+			assert.strictEqual(sections.length, 2);
+			assert.strictEqual(sections[0].section, AgentSessionSection.Folder);
+			assert.strictEqual(sections[0].label, 'projectA');
+			assert.strictEqual(sections[0].sessions.length, 2);
+			assert.strictEqual(sections[1].section, AgentSessionSection.Folder);
+			assert.strictEqual(sections[1].label, 'projectB');
+			assert.strictEqual(sections[1].sessions.length, 1);
+		});
+
+		test('sessions without folder metadata go into Other section', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', startTime: now, metadata: { workingDirectoryPath: '/home/user/projectA' } }),
+				createMockSession({ id: '2', startTime: now - ONE_DAY }),
+				createMockSession({ id: '3', startTime: now - 2 * ONE_DAY }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Folder });
+			const sorter = createMockSorter();
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+
+			assert.strictEqual(result.length, 2);
+			const sections = getSectionsFromResult(result);
+			assert.strictEqual(sections[0].section, AgentSessionSection.Folder);
+			assert.strictEqual(sections[0].label, 'projectA');
+			assert.strictEqual(sections[1].section, AgentSessionSection.Other);
+			assert.strictEqual(sections[1].sessions.length, 2);
+		});
+
+		test('folder sections cap at 3 sessions with FolderMore sub-section', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', startTime: now, metadata: { workingDirectoryPath: '/home/user/project' } }),
+				createMockSession({ id: '2', startTime: now - ONE_DAY, metadata: { workingDirectoryPath: '/home/user/project' } }),
+				createMockSession({ id: '3', startTime: now - 2 * ONE_DAY, metadata: { workingDirectoryPath: '/home/user/project' } }),
+				createMockSession({ id: '4', startTime: now - 3 * ONE_DAY, metadata: { workingDirectoryPath: '/home/user/project' } }),
+				createMockSession({ id: '5', startTime: now - 4 * ONE_DAY, metadata: { workingDirectoryPath: '/home/user/project' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Folder });
+			const sorter = createMockSorter();
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+
+			// Root should have 1 folder section
+			assert.strictEqual(result.length, 1);
+			const folderSection = getSectionsFromResult(result)[0];
+			assert.strictEqual(folderSection.section, AgentSessionSection.Folder);
+			assert.strictEqual(folderSection.sessions.length, 5);
+
+			// Folder section children: 3 sessions + 1 FolderMore
+			const folderChildren = Array.from(dataSource.getChildren(folderSection));
+			assert.strictEqual(folderChildren.length, 4);
+
+			const folderMoreSections = getSectionsFromResult(folderChildren);
+			assert.strictEqual(folderMoreSections.length, 1);
+			assert.strictEqual(folderMoreSections[0].section, AgentSessionSection.FolderMore);
+			assert.strictEqual(folderMoreSections[0].sessions.length, 2);
+		});
+
+		test('folder sections with 3 or fewer sessions have no FolderMore', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', startTime: now, metadata: { workingDirectoryPath: '/home/user/project' } }),
+				createMockSession({ id: '2', startTime: now - ONE_DAY, metadata: { workingDirectoryPath: '/home/user/project' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Folder });
+			const sorter = createMockSorter();
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+			const folderSection = getSectionsFromResult(result)[0];
+
+			const folderChildren = Array.from(dataSource.getChildren(folderSection));
+			assert.strictEqual(folderChildren.length, 2);
+			assert.strictEqual(getSectionsFromResult(folderChildren).length, 0);
+		});
+
+		test('uses repositoryPath as fallback for folder', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', startTime: now, metadata: { repositoryPath: '/home/user/repo' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Folder });
+			const sorter = createMockSorter();
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+
+			const sections = getSectionsFromResult(result);
+			assert.strictEqual(sections.length, 1);
+			assert.strictEqual(sections[0].label, 'repo');
+			assert.strictEqual(sections[0].folderPath, '/home/user/repo');
+		});
+
+		test('uses worktreePath as fallback for folder', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', startTime: now, metadata: { worktreePath: '/home/user/worktree' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Folder });
+			const sorter = createMockSorter();
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+
+			const sections = getSectionsFromResult(result);
+			assert.strictEqual(sections.length, 1);
+			assert.strictEqual(sections[0].label, 'worktree');
+			assert.strictEqual(sections[0].folderPath, '/home/user/worktree');
+		});
+
+		test('all sessions without metadata creates only Other section', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', startTime: now }),
+				createMockSession({ id: '2', startTime: now - ONE_DAY }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Folder });
+			const sorter = createMockSorter();
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+
+			assert.strictEqual(result.length, 1);
+			const sections = getSectionsFromResult(result);
+			assert.strictEqual(sections[0].section, AgentSessionSection.Other);
 			assert.strictEqual(sections[0].sessions.length, 2);
 		});
 	});

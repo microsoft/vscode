@@ -14,7 +14,7 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
+import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, getAgentSessionFolderLabel, getAgentSessionFolderPath, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel, isFolderSection, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -786,6 +786,24 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		// Sessions	section
 		else if (isAgentSessionSection(element)) {
+
+			// Folder sections cap at 3 sessions + optional "More" sub-section
+			if (isFolderSection(element)) {
+				const topSessions = element.sessions.slice(0, AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT);
+				const moreSessions = element.sessions.slice(AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT);
+
+				if (moreSessions.length > 0) {
+					return [...topSessions, {
+						section: AgentSessionSection.FolderMore,
+						label: AgentSessionSectionLabels[AgentSessionSection.FolderMore],
+						sessions: moreSessions,
+						folderPath: element.folderPath,
+					}];
+				}
+
+				return topSessions;
+			}
+
 			return element.sessions;
 		}
 
@@ -804,6 +822,8 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			}
 
 			return this.groupSessionsCapped(sortedSessions);
+		} else if (this.filter?.groupResults?.() === AgentSessionsGrouping.Folder) {
+			return this.groupSessionsByFolder(sortedSessions);
 		} else {
 			return this.groupSessionsByDate(sortedSessions);
 		}
@@ -847,15 +867,57 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		return result;
 	}
+
+	private groupSessionsByFolder(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
+		const folderGroups = new Map<string, IAgentSession[]>();
+		const otherSessions: IAgentSession[] = [];
+
+		for (const session of sortedSessions) {
+			const folderPath = getAgentSessionFolderPath(session);
+			if (folderPath) {
+				let group = folderGroups.get(folderPath);
+				if (!group) {
+					group = [];
+					folderGroups.set(folderPath, group);
+				}
+				group.push(session);
+			} else {
+				otherSessions.push(session);
+			}
+		}
+
+		const result: AgentSessionListItem[] = [];
+
+		for (const [folderPath, sessions] of folderGroups) {
+			result.push({
+				section: AgentSessionSection.Folder,
+				label: getAgentSessionFolderLabel(folderPath),
+				sessions,
+				folderPath,
+			});
+		}
+
+		if (otherSessions.length > 0) {
+			result.push({
+				section: AgentSessionSection.Other,
+				label: AgentSessionSectionLabels[AgentSessionSection.Other],
+				sessions: otherSessions,
+			});
+		}
+
+		return result;
+	}
 }
 
-export const AgentSessionSectionLabels = {
+export const AgentSessionSectionLabels: Record<string, string> = {
 	[AgentSessionSection.Today]: localize('agentSessions.todaySection', "Today"),
 	[AgentSessionSection.Yesterday]: localize('agentSessions.yesterdaySection', "Yesterday"),
 	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last 7 days"),
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
 	[AgentSessionSection.More]: localize('agentSessions.moreSection', "More"),
+	[AgentSessionSection.FolderMore]: localize('agentSessions.folderMoreSection', "More"),
+	[AgentSessionSection.Other]: localize('agentSessions.otherSection', "Other"),
 };
 
 const DAY_THRESHOLD = 24 * 60 * 60 * 1000;
@@ -926,6 +988,9 @@ export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSe
 
 	getId(element: IAgentSessionsModel | AgentSessionListItem): string {
 		if (isAgentSessionSection(element)) {
+			if (element.folderPath) {
+				return `section-${element.section}-${element.folderPath}`;
+			}
 			return `section-${element.section}`;
 		}
 

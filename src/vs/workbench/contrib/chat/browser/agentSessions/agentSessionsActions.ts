@@ -365,6 +365,31 @@ export class MarkAgentSessionSectionReadAction extends Action2 {
 	}
 }
 
+export class NewSessionForFolderSectionAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSessionSection.newSession',
+			title: localize2('newSessionForFolder', "New Session"),
+			icon: Codicon.plus,
+			menu: [{
+				id: MenuId.AgentSessionSectionToolbar,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.or(
+					ChatContextKeys.agentSessionSection.isEqualTo(AgentSessionSection.Folder),
+					ChatContextKeys.agentSessionSection.isEqualTo(AgentSessionSection.Other),
+				),
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, _context?: IAgentSessionSection): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		commandService.executeCommand(ACTION_ID_NEW_CHAT);
+	}
+}
+
 //#endregion
 
 //#region Session Actions

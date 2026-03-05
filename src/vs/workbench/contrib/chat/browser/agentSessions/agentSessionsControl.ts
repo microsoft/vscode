@@ -179,6 +179,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				if (element.section === AgentSessionSection.More && !this.options.filter.getExcludes().read) {
 					return true; // More section is always collapsed unless only showing unread
 				}
+				if (element.section === AgentSessionSection.FolderMore) {
+					return true; // FolderMore section is always collapsed
+				}
 				if (element.section === AgentSessionSection.Archived && this.options.filter.getExcludes().archived) {
 					return true; // Archived section is collapsed when archived are excluded
 				}
@@ -418,6 +421,19 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				case AgentSessionSection.More: {
 					if (child.collapsed && this.sessionsListFindIsOpen) {
 						this.sessionsList.expand(child.element); // always expand when find is open
+					}
+					break;
+				}
+				case AgentSessionSection.Folder:
+				case AgentSessionSection.Other: {
+					// Handle nested FolderMore sections within folder groups
+					for (const folderChild of child.children) {
+						if (isAgentSessionSection(folderChild.element) &&
+							folderChild.element.section === AgentSessionSection.FolderMore) {
+							if (folderChild.collapsed && this.sessionsListFindIsOpen) {
+								this.sessionsList.expand(folderChild.element);
+							}
+						}
 					}
 					break;
 				}
