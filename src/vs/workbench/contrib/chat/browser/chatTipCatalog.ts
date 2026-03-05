@@ -315,26 +315,6 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		],
 	},
 	{
-		id: 'tip.yoloMode',
-		tier: ChatTipTier.Qol,
-		buildMessage() {
-			return new MarkdownString(
-				localize(
-					'tip.yoloMode',
-					"Enable [{0}](command:workbench.action.openSettings?%5B%22{1}%22%5D) to give the agent full control without manual confirmation.",
-					'auto approve',
-					ChatConfiguration.GlobalAutoApprove
-				)
-			);
-		},
-		when: ContextKeyExpr.and(
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-			ContextKeyExpr.notEquals('config.chat.tools.global.autoApprove', true),
-		),
-		excludeWhenSettingsChanged: [ChatConfiguration.GlobalAutoApprove],
-		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
-	},
-	{
 		id: 'tip.agenticBrowser',
 		tier: ChatTipTier.Qol,
 		buildMessage() {
