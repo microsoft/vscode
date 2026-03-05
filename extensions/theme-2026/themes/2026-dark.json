@@ -5,7 +5,7 @@
 	"type": "dark",
 	"colors": {
 		"foreground": "#bfbfbf",
-		"disabledForeground": "#666666",
+		"disabledForeground": "#555555",
 		"errorForeground": "#f48771",
 		"descriptionForeground": "#8C8C8C",
 		"icon.foreground": "#8C8C8C",
@@ -110,7 +110,7 @@
 		"editorLineNumber.foreground": "#858889",
 		"editorLineNumber.activeForeground": "#BBBEBF",
 		"editorCursor.foreground": "#BBBEBF",
-		"editor.selectionBackground": "#27678280",
+		"editor.selectionBackground": "#276782dd",
 		"editor.inactiveSelectionBackground": "#27678260",
 		"editor.selectionHighlightBackground": "#27678260",
 		"editor.wordHighlightBackground": "#27678250",

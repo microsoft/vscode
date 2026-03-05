@@ -21,6 +21,9 @@ import { localize } from '../../../../../../nls.js';
 import { formatArrayValue, getQuotePreference } from '../utils/promptEditHelper.js';
 import { HOOKS_BY_TARGET, HOOK_METADATA } from '../hookTypes.js';
 import { HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../hookSchema.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { PromptsConfig } from '../config/config.js';
 
 export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	/**
@@ -38,6 +41,8 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 	}
 
@@ -138,6 +143,9 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 
 		const target = getTarget(promptType, header);
 		const attributesToPropose = new Set(getValidAttributeNames(promptType, false, target));
+		if (!this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)) {
+			attributesToPropose.delete(PromptHeaderAttributes.hooks);
+		}
 		for (const attr of header.attributes) {
 			attributesToPropose.delete(attr.key);
 		}
@@ -215,8 +223,8 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				if (value.type === 'sequence') {
 					// if the position is inside the tools metadata, we provide tool name completions
 					const getValues = async () => {
-						if (target === Target.GitHubCopilot) {
-							// for GitHub Copilot agent files, we only suggest the known set of tools that are supported by GitHub Copilot, instead of all tools that the user has defined, because many tools won't work with GitHub Copilot and it would be frustrating for users to select a tool that doesn't work
+						if (target === Target.GitHubCopilot || this.environmentService.isSessionsWindow) {
+							// for GitHub Copilot targets and the Sessions Window, we only suggest the known set of tools that are supported by GitHub Copilot, instead of all tools that the user has defined, because many tools won't work in these contexts and it would be frustrating for users to select a tool that doesn't work
 							return knownGithubCopilotTools;
 						} else if (target === Target.Claude) {
 							return knownClaudeTools;
