@@ -25,6 +25,7 @@ from string_visualizer import (
     RepetitionInput,
     FirstMatchToggle,
     CaseSensitiveToggle,
+    CaptureGroupsToggle,
     ActionButtonClick,
     CopyToClipboard,
     compute_internal_length,
@@ -43,6 +44,10 @@ from string_visualizer import (
     get_search_flags,
     is_first_match_mode,
     is_case_insensitive,
+    is_capture_groups_mode,
+    ensure_all_groups,
+    append_segment_to_regex,
+    canonicalize_regex,
     is_regex_search,
     is_string_search,
     is_backtick_search,
@@ -5156,6 +5161,249 @@ class TestCaseSensitiveToggleRendering(unittest.TestCase):
 
 
 # =============================================================================
+# Capture Groups Toggle Tests
+# =============================================================================
+
+def make_capture_groups_toggle_event() -> dict:
+    """Create a CaptureGroupsToggle event dict."""
+    return {
+        'pythonEventStr': repr(CaptureGroupsToggle()),
+        'eventJSON': {},
+    }
+
+
+class TestIsCaptureGroupsMode(unittest.TestCase):
+    """Test the is_capture_groups_mode flag checker."""
+
+    def test_c_flag_present(self):
+        self.assertTrue(is_capture_groups_mode('/hello/c'))
+
+    def test_c_flag_absent(self):
+        self.assertFalse(is_capture_groups_mode('/hello/'))
+
+    def test_c_with_other_flags(self):
+        self.assertTrue(is_capture_groups_mode('/hello/1ic'))
+
+    def test_none_returns_false(self):
+        self.assertFalse(is_capture_groups_mode(None))
+
+    def test_no_flags(self):
+        self.assertFalse(is_capture_groups_mode('/hello/'))
+
+
+class TestEnsureAllGroups(unittest.TestCase):
+    """Test the ensure_all_groups function."""
+
+    def test_ungrouped_becomes_grouped(self):
+        """Canonical /hello.*world/ becomes /(hello)(.*)(world)/."""
+        self.assertEqual(ensure_all_groups('/hello.*world/'), '/(hello)(.*)(world)/')
+
+    def test_already_grouped_unchanged(self):
+        """Already fully-grouped regex is unchanged."""
+        self.assertEqual(ensure_all_groups('/(hello)(.*)(world)/'), '/(hello)(.*)(world)/')
+
+    def test_single_literal(self):
+        """Single literal gets grouped."""
+        self.assertEqual(ensure_all_groups('/hello/'), '/(hello)/')
+
+    def test_preserves_flags(self):
+        """Flags are preserved after re-grouping."""
+        self.assertEqual(ensure_all_groups('/hello.*world/1i'), '/(hello)(.*)(world)/1i')
+
+    def test_preserves_c_flag(self):
+        """The c flag is preserved."""
+        self.assertEqual(ensure_all_groups('/hello.*world/c'), '/(hello)(.*)(world)/c')
+
+    def test_none_returns_none(self):
+        self.assertIsNone(ensure_all_groups(None))
+
+    def test_non_regex_returns_unchanged(self):
+        """Non-regex search strings pass through unchanged."""
+        self.assertEqual(ensure_all_groups("'hello'"), "'hello'")
+
+    def test_adjacent_literals_grouped(self):
+        """Adjacent literals that canonicalize normally get fully grouped."""
+        result = ensure_all_groups('/(hello)(world)/')
+        self.assertEqual(result, '/(hello)(world)/')
+
+
+class TestCaptureGroupsToggle(unittest.TestCase):
+    """Test the CaptureGroupsToggle event."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_toggle_on_adds_c_flag_and_groups(self):
+        """Toggling on adds 'c' flag and fully groups the pattern."""
+        self.model['search'] = '/hello.*world/'
+        model, _ = update(make_capture_groups_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertIn('c', get_search_flags(model['search']))
+        self.assertEqual(model['search'], '/(hello)(.*)(world)/c')
+
+    def test_toggle_off_removes_c_flag_and_canonicalizes(self):
+        """Toggling off removes 'c' flag and re-canonicalizes."""
+        self.model['search'] = '/(hello)(.*)(world)/c'
+        model, _ = update(make_capture_groups_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertNotIn('c', get_search_flags(model['search']))
+        self.assertEqual(model['search'], '/hello.*world/')
+
+    def test_toggle_preserves_other_flags(self):
+        """Toggling c preserves existing i and 1 flags."""
+        self.model['search'] = '/hello/1i'
+        model, _ = update(make_capture_groups_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], '/(hello)/1ic')
+
+    def test_toggle_off_preserves_other_flags(self):
+        """Toggling c off preserves i and 1 flags."""
+        self.model['search'] = '/(hello)/1ic'
+        model, _ = update(make_capture_groups_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], '/hello/1i')
+
+    def test_toggle_with_no_search_does_nothing(self):
+        model, _ = update(make_capture_groups_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertIsNone(model['search'])
+
+    def test_toggle_saves_undo(self):
+        self.model['search'] = '/hello/'
+        model, _ = update(make_capture_groups_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertIn('/hello/', model['undoHistory'])
+
+    def test_double_toggle_roundtrip(self):
+        self.model['search'] = '/hello.*world/'
+        model, _ = update(make_capture_groups_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], '/(hello)(.*)(world)/c')
+        model, _ = update(make_capture_groups_toggle_event(),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['search'], '/hello.*world/')
+
+
+class TestCaptureGroupsToggleRendering(unittest.TestCase):
+    """Test that the '(Cap)(Grps)' toggle renders in the search box."""
+
+    def test_button_present(self):
+        model = init_model("hello")
+        output = visualize("hello", model, None, None)
+        self.assertIn('CaptureGroupsToggle', output)
+
+    def test_button_hidden_when_small(self):
+        model = init_model("hello")
+        output = visualize("hello", model, None, None, small=True)
+        self.assertNotIn('(Cap)', output)
+
+
+class TestCaptureGroupsFlagAwareSegmentFunctions(unittest.TestCase):
+    """Test that segment manipulation functions properly handle postfix flags."""
+
+    def test_append_segment_preserves_flags(self):
+        """append_segment_to_regex with flags doesn't corrupt the pattern."""
+        result = append_segment_to_regex('/hello/1i', 'literal', 'world')
+        self.assertIn('hello', result)
+        self.assertIn('world', result)
+        self.assertIn('1i', get_search_flags(result))
+        inner = get_regex_inner_pattern(result)
+        self.assertNotIn('/', inner)
+
+    def test_append_segment_with_c_flag_groups_all(self):
+        """append_segment_to_regex with 'c' flag produces fully-grouped result."""
+        result = append_segment_to_regex('/hello/c', 'fuzzy', '.*')
+        self.assertIn('c', get_search_flags(result))
+        inner = get_regex_inner_pattern(result)
+        self.assertTrue(inner.startswith('('), f"Expected grouped inner, got: {inner}")
+
+    def test_replace_segment_pattern_preserves_flags(self):
+        """replace_segment_pattern with flags doesn't corrupt the pattern."""
+        result = replace_segment_pattern('/(hello)(\\s*)/1i', 0, r'\d')
+        self.assertIn('1i', get_search_flags(result))
+        inner = get_regex_inner_pattern(result)
+        self.assertNotIn('/', inner)
+
+    def test_replace_segment_repetition_preserves_flags(self):
+        """replace_segment_repetition with flags doesn't corrupt the pattern."""
+        result = replace_segment_repetition('/(hello)(\\s*)/1i', 1, '+')
+        self.assertIn('1i', get_search_flags(result))
+        inner = get_regex_inner_pattern(result)
+        self.assertNotIn('/', inner)
+
+    def test_resize_literal_preserves_flags(self):
+        """resize_literal_segment with flags doesn't corrupt the pattern."""
+        value = "hello world"
+        result = resize_literal_segment('/(hello)/1i', 0, value, 2, 7)
+        self.assertIn('1i', get_search_flags(result))
+        inner = get_regex_inner_pattern(result)
+        self.assertNotIn('/', inner)
+
+    def test_canonicalize_preserves_adjacent_literal_groups_with_c_flag(self):
+        """When c flag is on, all groups are kept after canonicalize."""
+        result = append_segment_to_regex('/(hello)(.*)/c', 'literal', 'world')
+        self.assertIn('c', get_search_flags(result))
+        inner = get_regex_inner_pattern(result)
+        self.assertEqual(inner.count('('), inner.count(')'))
+        self.assertTrue(inner.startswith('('))
+
+
+class TestCaptureGroupsCodeGeneration(unittest.TestCase):
+    """Test that code generation preserves groups when 'c' flag is on."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_enter_with_c_flag_preserves_groups_in_code(self):
+        """Enter with 'c' flag generates code with capture groups."""
+        self.model['search'] = '/(hello)(.*)(world)/c'
+        model, commands = update(make_key_down_event('Enter'),
+                                self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn('(hello)', expr)
+        self.assertIn('(world)', expr)
+
+    def test_enter_without_c_flag_strips_groups(self):
+        """Enter without 'c' flag strips capture groups from code."""
+        self.model['search'] = '/(hello)(.*)(world)/'
+        model, commands = update(make_key_down_event('Enter'),
+                                self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("hello.*world", expr)
+        self.assertNotIn('(hello)', expr)
+
+
+class TestCaptureGroupsBuildPreviewRegex(unittest.TestCase):
+    """Test that build_preview_regex respects the 'c' flag."""
+
+    def test_selection_with_c_flag_produces_grouped_regex(self):
+        """When 'c' is in the current search flags, new selections keep all groups."""
+        value = "hello world"
+        model = init_model(value)
+        source = "x = 'hello world'"
+
+        model['search'] = '/(hello)/c'
+        end_idx = get_last_segment_end_internal_idx(model['search'], value)
+
+        model, _ = update(make_mouse_down_event(end_idx, top_half=False),
+                          source, 1, model, value)
+        model, _ = update(make_mouse_up_event(end_idx),
+                          source, 1, model, value)
+
+        self.assertIn('c', get_search_flags(model['search']))
+        inner = get_regex_inner_pattern(model['search'])
+        self.assertTrue(inner.startswith('('), f"Expected grouped, got: {inner}")
+
+
+# =============================================================================
 # String Search Tests
 # =============================================================================
 
@@ -6143,6 +6391,13 @@ class TestReplaceBoxVisualize(unittest.TestCase):
         html = visualize(self.value, model, None, None, max_width=400)
         self.assertIn('ReplaceBoxInput', html)
 
+    def test_replace_input_has_target_class(self):
+        """Replace input has snc-replace-input class for snc-add-target."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        html = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('class="snc-replace-input"', html)
+
     def test_replace_box_preserves_value(self):
         """Replace input preserves the current replace_text value."""
         model = init_model(self.value)
@@ -6933,17 +7188,58 @@ class TestActionButtonRendering(unittest.TestCase):
         html_output = visualize(self.value, model, None, None, max_width=400, small=True)
         self.assertNotIn('ActionButtonClick', html_output)
 
-    def test_get_label_changes_to_transform(self):
-        """Button label changes from 'Get' to 'Transform' in replace mode."""
+    def test_get_label_changes_to_map_in_replace_mode(self):
+        """Button label changes from 'Find Matches' to 'Map Matches' in replace mode."""
         model = init_model(self.value)
         model['search'] = '/hello/'
         html_get = visualize(self.value, model, None, None, max_width=400)
-        self.assertIn('Get', html_get)
+        self.assertIn('Find Matches', html_get)
 
         model['replace_visible'] = True
         model['replace_text'] = "'world'"
         html_transform = visualize(self.value, model, None, None, max_width=400)
-        self.assertIn('Transform', html_transform)
+        self.assertIn('Map Matches', html_transform)
+
+    def test_first_match_mode_labels(self):
+        """In first-match mode, buttons show singular labels."""
+        model = init_model(self.value)
+        model['search'] = '/hello/1'
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('Find First Match', html_output)
+        self.assertIn('Replace First', html_output)
+        self.assertIn('Delete First', html_output)
+
+    def test_all_mode_labels(self):
+        """Without first-match flag, buttons show plural labels."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('Find Matches', html_output)
+        self.assertIn('Replace All', html_output)
+        self.assertIn('Delete All', html_output)
+
+    def test_loop_disabled_in_first_match_mode(self):
+        """Loop button is disabled in first-match mode."""
+        model = init_model(self.value)
+        model['search'] = '/hello/1'
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('Loop', html_output)
+        # Loop action should exist but be disabled (opacity: 0.35)
+        import re as re_mod
+        loop_match = re_mod.search(r"action=&#x27;loop&#x27;.*?style=\"(.*?)\"", html_output)
+        self.assertIsNotNone(loop_match)
+        self.assertIn('opacity: 0.35', loop_match.group(1))
+
+    def test_loop_enabled_in_all_mode(self):
+        """Loop button is enabled in find-all mode."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        # Both action and copy buttons for loop - check the action button doesn't have disabled style
+        import re as re_mod
+        loop_match = re_mod.search(r"action=&#x27;loop&#x27;.*?style=\"(.*?)\"", html_output)
+        self.assertIsNotNone(loop_match)
+        self.assertNotIn('opacity: 0.35', loop_match.group(1))
 
     def test_replace_button_grayed_when_no_replace(self):
         """Replace button has low opacity when not in replace mode."""
@@ -7120,7 +7416,7 @@ class TestActionButtonRendering(unittest.TestCase):
 # =============================================================================
 
 class TestTransformPreview(unittest.TestCase):
-    """Test the live preview below the Transform or Replace input."""
+    """Test the live preview below the Map/replace/filter matches input."""
 
     def setUp(self):
         self.value = "hello world hello"
@@ -7246,6 +7542,105 @@ class TestTransformPreview(unittest.TestCase):
         html_output = visualize(self.value, self.model, None, eis, max_width=400)
         import html as html_mod
         self.assertIn(html_mod.escape(repr('REPLACED')), html_output)
+
+
+class TestTransformPreviewCaptureGroups(unittest.TestCase):
+    """Test that capture groups show ^[1], ^[2] etc. in the transform preview."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.eis = lambda _c: eval(_c)
+
+    def test_groups_shown_when_regex_has_groups(self):
+        """Preview shows ^[1], ^[2] etc. when the regex has capture groups."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        model['search'] = '/(hello)(.*)(world)/'
+        result = _render_transform_preview(model, self.value, self.eis)
+        self.assertIn('^[1]', result)
+        self.assertIn('^[2]', result)
+        self.assertIn('^[3]', result)
+
+    def test_groups_shown_with_c_flag(self):
+        """Preview shows ^[1] etc. when 'c' flag makes groups explicit."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        model['search'] = '/(hello)(.*)(world)/c'
+        result = _render_transform_preview(model, self.value, self.eis)
+        self.assertIn('^[1]', result)
+        self.assertIn('^[2]', result)
+        self.assertIn('^[3]', result)
+
+    def test_no_groups_for_ungrouped_regex(self):
+        """Preview does not show ^[1] when regex has no capture groups."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        model['search'] = '/hello/'
+        result = _render_transform_preview(model, self.value, self.eis)
+        self.assertIn('^[0]', result)
+        self.assertNotIn('^[1]', result)
+
+    def test_group_values_are_correct(self):
+        """The group preview values should match actual captured text."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        model['search'] = '/(hello)( )(world)/'
+        result = _render_transform_preview(model, self.value, self.eis)
+        import html as html_mod
+        self.assertIn(html_mod.escape(repr('hello')), result)
+        self.assertIn(html_mod.escape(repr(' ')), result)
+        self.assertIn(html_mod.escape(repr('world')), result)
+
+    def test_preview_spans_have_add_at_cursor(self):
+        """All preview expression spans should have snc-add-at-cursor and snc-add-target."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        model['search'] = '/(hello)(.*)(world)/'
+        result = _render_transform_preview(model, self.value, self.eis)
+        self.assertIn('snc-add-at-cursor="^[0]"', result)
+        self.assertIn('snc-add-at-cursor="^[1]"', result)
+        self.assertIn('snc-add-at-cursor="^.start()"', result)
+        self.assertIn('snc-add-at-cursor="^.end()"', result)
+        self.assertIn('snc-add-target=".snc-replace-input"', result)
+
+    def test_no_groups_still_has_add_at_cursor(self):
+        """Preview spans have snc-add-at-cursor even without capture groups."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        model['search'] = '/hello/'
+        result = _render_transform_preview(model, self.value, self.eis)
+        self.assertIn('snc-add-at-cursor="^[0]"', result)
+        self.assertIn('snc-add-at-cursor="^.start()"', result)
+
+    def test_index_slice_preview_has_add_at_cursor(self):
+        """Index/slice preview ^ span has snc-add-at-cursor."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        model['search'] = '0'
+        result = _render_transform_preview(model, self.value, self.eis)
+        self.assertIn('snc-add-at-cursor="^"', result)
+
+    def test_transform_preview_uses_capture_groups(self):
+        """Transform ^[2] should resolve correctly when groups exist."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        model['search'] = '/(hello)( )(world)/'
+        model['replace_text'] = '^[2]'
+        result = _render_transform_preview(model, self.value, self.eis)
+        import html as html_mod
+        self.assertIn(html_mod.escape(repr(' ')), result)
+        self.assertNotIn('no such group', result)
+
+    def test_transform_preview_group_expr_no_error(self):
+        """Transform using ^[1].upper() should not error when groups exist."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        model['search'] = '/(hello)( )(world)/'
+        model['replace_text'] = '^[1].upper()'
+        result = _render_transform_preview(model, self.value, self.eis)
+        import html as html_mod
+        self.assertIn(html_mod.escape(repr('HELLO')), result)
+        self.assertNotIn('no such group', result)
 
 
 # =============================================================================

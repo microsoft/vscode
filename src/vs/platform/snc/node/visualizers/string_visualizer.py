@@ -142,6 +142,10 @@ class CaseSensitiveToggle:
     pass
 
 @dataclass(frozen=True, slots=True)
+class CaptureGroupsToggle:
+    pass
+
+@dataclass(frozen=True, slots=True)
 class ActionButtonClick:
     action: str  # 'get_transform', 'replace', 'delete', 'loop', 'any', 'all', 'if_any', 'if_all', 'count', 'filter', 'split'
     copy: bool   # True → CopyToClipboard, False → NewCode
@@ -829,7 +833,8 @@ def append_segment_to_regex(current_regex: str | None, segment_type: str, text: 
     Append a new segment to the regex pattern.
 
     The result is canonicalized: literal segments are ungrouped unless
-    adjacent to another literal segment.
+    adjacent to another literal segment.  Postfix flags (i, 1, c, etc.)
+    are preserved and the 'c' flag keeps all groups.
 
     Args:
         current_regex: Current regex pattern with / delimiters (canonical form) or None
@@ -840,13 +845,12 @@ def append_segment_to_regex(current_regex: str | None, segment_type: str, text: 
         Canonicalized regex pattern with the segment appended, e.g., "/hello(.*)/"
     """
     if current_regex is None:
-        # Start fresh with empty pattern
         inner_pattern = ""
+        flags = ""
     else:
-        # Extract inner pattern (strip / delimiters)
-        inner_pattern = current_regex[1:-1]
+        inner_pattern = get_regex_inner_pattern(current_regex) or ""
+        flags = get_search_flags(current_regex)
 
-    # Add the new segment as a capturing group
     if segment_type == 'literal':
         regex_parts = [char_to_regex_literal(char) for char in text]
         new_segment = f"({''.join(regex_parts)})"
@@ -855,6 +859,9 @@ def append_segment_to_regex(current_regex: str | None, segment_type: str, text: 
 
     result = canonicalize_regex(f"/{inner_pattern}{new_segment}/")
     assert result is not None
+    result = result + flags
+    if 'c' in flags:
+        result = ensure_all_groups(result)
     return result
 
 
@@ -864,7 +871,7 @@ def prepend_segment_to_regex(current_regex: str | None, segment_type: str, text:
 
     Similar to append_segment_to_regex but inserts at the start.
     Used when extending selections from the left side.
-    The result is canonicalized.
+    The result is canonicalized.  Postfix flags are preserved.
 
     Args:
         current_regex: Current regex pattern with / delimiters (canonical form) or None
@@ -875,13 +882,12 @@ def prepend_segment_to_regex(current_regex: str | None, segment_type: str, text:
         Canonicalized regex pattern with the segment prepended.
     """
     if current_regex is None:
-        # Start fresh with empty pattern
         inner_pattern = ""
+        flags = ""
     else:
-        # Extract inner pattern (strip / delimiters)
-        inner_pattern = current_regex[1:-1]
+        inner_pattern = get_regex_inner_pattern(current_regex) or ""
+        flags = get_search_flags(current_regex)
 
-    # Add the new segment as a capturing group
     if segment_type == 'literal':
         regex_parts = [char_to_regex_literal(char) for char in text]
         new_segment = f"({''.join(regex_parts)})"
@@ -890,6 +896,9 @@ def prepend_segment_to_regex(current_regex: str | None, segment_type: str, text:
 
     result = canonicalize_regex(f"/{new_segment}{inner_pattern}/")
     assert result is not None
+    result = result + flags
+    if 'c' in flags:
+        result = ensure_all_groups(result)
     return result
 
 
@@ -899,6 +908,7 @@ def insert_segment_at_position(current_regex: str | None, position: int, segment
 
     Used when clicking inside a fuzzy segment to split/anchor it. The position
     determines where in the regex the new segment goes to maintain text order.
+    Postfix flags are preserved.
 
     Args:
         current_regex: Current regex pattern with / delimiters (e.g., "/(.*)world/") or None
@@ -912,21 +922,18 @@ def insert_segment_at_position(current_regex: str | None, position: int, segment
     if current_regex is None:
         return append_segment_to_regex(None, segment_type, text)
 
-    # Build the new segment content (without group parens)
     if segment_type == 'literal':
         regex_parts = [char_to_regex_literal(char) for char in text]
         new_segment_text = ''.join(regex_parts)
     else:  # fuzzy
         new_segment_text = text if text else '.*'
 
-    # Parse all segments (splitting ungrouped fuzzy/literal for correct indexing)
-    inner_pattern = current_regex[1:-1]
+    inner_pattern = get_regex_inner_pattern(current_regex) or ""
+    flags = get_search_flags(current_regex)
     segments = parse_all_segments(inner_pattern)
 
-    # Create the new segment
     new_seg = {'text': new_segment_text, 'is_grouped': True}
 
-    # Insert at the specified position
     if position <= 0:
         segments.insert(0, new_seg)
     elif position >= len(segments):
@@ -934,10 +941,12 @@ def insert_segment_at_position(current_regex: str | None, position: int, segment
     else:
         segments.insert(position, new_seg)
 
-    # Rebuild as fully-grouped, then canonicalize
     fully_grouped = '/' + ''.join(f"({s['text']})" for s in segments) + '/'
     result = canonicalize_regex(fully_grouped)
     assert result is not None
+    result = result + flags
+    if 'c' in flags:
+        result = ensure_all_groups(result)
     return result
 
 
@@ -967,6 +976,7 @@ def replace_segment_pattern(selection_regex: str, segment_index: int, new_char_c
     Replace the character class of a specific segment, preserving its quantifier.
 
     Used when selecting a different fuzzy pattern from the dropdown.
+    Postfix flags are preserved.
 
     Args:
         selection_regex: Current regex with / delimiters (canonical form)
@@ -978,21 +988,22 @@ def replace_segment_pattern(selection_regex: str, segment_index: int, new_char_c
         New regex pattern with the segment's character class replaced,
         but its quantifier preserved (canonicalized).
     """
-    inner_pattern = selection_regex[1:-1]
+    inner_pattern = get_regex_inner_pattern(selection_regex) or ""
+    flags = get_search_flags(selection_regex)
 
-    # Parse all segments (splitting ungrouped fuzzy/literal for correct indexing)
     segments = parse_all_segments(inner_pattern)
 
-    # Replace the specified segment, preserving its quantifier
     if 0 <= segment_index < len(segments):
         old_text = segments[segment_index]['text']
         _, quantifier = extract_quantifier(old_text)
         segments[segment_index] = {'text': f'{new_char_class}{quantifier}', 'is_grouped': True}
 
-    # Rebuild as fully-grouped, then canonicalize
     fully_grouped = '/' + ''.join(f"({s['text']})" for s in segments) + '/'
     result = canonicalize_regex(fully_grouped)
     assert result is not None
+    result = result + flags
+    if 'c' in flags:
+        result = ensure_all_groups(result)
     return result
 
 
@@ -1029,9 +1040,9 @@ def replace_segment_repetition(selection_regex: str, segment_index: int, new_qua
     """
     Replace the quantifier of a specific segment, preserving its base pattern.
 
-    For single-atom patterns (., \s, [a-z], single char), the quantifier is applied directly.
-    For multi-atom patterns (hello, \nhello), wraps in (?:...) when adding a quantifier,
-    and unwraps when removing.
+    For single-atom patterns (., \\s, [a-z], single char), the quantifier is applied directly.
+    For multi-atom patterns (hello, \\nhello), wraps in (?:...) when adding a quantifier,
+    and unwraps when removing.  Postfix flags are preserved.
 
     Args:
         selection_regex: Current regex with / delimiters (canonical form)
@@ -1043,7 +1054,8 @@ def replace_segment_repetition(selection_regex: str, segment_index: int, new_qua
         New regex pattern with the segment's quantifier replaced,
         but its base pattern preserved (canonicalized).
     """
-    inner_pattern = selection_regex[1:-1]
+    inner_pattern = get_regex_inner_pattern(selection_regex) or ""
+    flags = get_search_flags(selection_regex)
 
     segments = parse_all_segments(inner_pattern)
 
@@ -1051,16 +1063,13 @@ def replace_segment_repetition(selection_regex: str, segment_index: int, new_qua
         old_text = segments[segment_index]['text']
         base, _ = extract_quantifier(old_text)
 
-        # Unwrap (?:...) if present to get the raw base pattern
         raw_base = base
         if raw_base.startswith('(?:') and raw_base.endswith(')'):
             raw_base = raw_base[3:-1]
 
         if new_quantifier == '':
-            # No quantifier - use raw base directly (unwrap any (?:...) group)
             new_text = raw_base
         else:
-            # Need quantifier - check if raw base needs a (?:...) wrapper
             if _is_single_atom(raw_base):
                 new_text = f'{raw_base}{new_quantifier}'
             else:
@@ -1068,10 +1077,12 @@ def replace_segment_repetition(selection_regex: str, segment_index: int, new_qua
 
         segments[segment_index] = {'text': new_text, 'is_grouped': True}
 
-    # Rebuild as fully-grouped, then canonicalize
     fully_grouped = '/' + ''.join(f"({s['text']})" for s in segments) + '/'
     result = canonicalize_regex(fully_grouped)
     assert result is not None
+    result = result + flags
+    if 'c' in flags:
+        result = ensure_all_groups(result)
     return result
 
 
@@ -1082,9 +1093,7 @@ def resize_literal_segment(selection_regex: str, segment_index: int, string_valu
 
     Extracts text from string_value at the given internal indices, converts each
     character to its regex literal form, and replaces the specified segment's content.
-
-    Handles both grouped (e.g., "/(hello)/") and ungrouped canonical form
-    (e.g., "/hello/", "/hello.*world/").
+    Postfix flags are preserved.
 
     Args:
         selection_regex: Regex with / delimiters, e.g., "/(hello)/" or "/hello/"
@@ -1097,26 +1106,22 @@ def resize_literal_segment(selection_regex: str, segment_index: int, string_valu
         New regex pattern with the segment resized, or original if range is empty.
     """
     if new_end <= new_start:
-        return selection_regex  # Can't make empty
+        return selection_regex
 
-    # Extract text from internal indices
     text = extract_by_internal_indices(string_value, new_start, new_end)
 
-    # Convert to regex literal
     regex_parts = [char_to_regex_literal(char) for char in text]
     new_content = ''.join(regex_parts)
 
-    # Parse all segments (handles both grouped and ungrouped canonical form)
-    inner_pattern = selection_regex[1:-1]
+    inner_pattern = get_regex_inner_pattern(selection_regex) or ""
+    flags = get_search_flags(selection_regex)
     segments = parse_all_segments(inner_pattern)
 
     if not segments or segment_index >= len(segments):
         return selection_regex
 
-    # Replace the specified segment's text, preserving its grouped/ungrouped status
     segments[segment_index]['text'] = new_content
 
-    # Rebuild the regex, preserving each segment's grouping
     parts = []
     for seg in segments:
         if seg['is_grouped']:
@@ -1124,7 +1129,10 @@ def resize_literal_segment(selection_regex: str, segment_index: int, string_valu
         else:
             parts.append(seg['text'])
 
-    return f"/{''.join(parts)}/"
+    result = f"/{''.join(parts)}/" + flags
+    if 'c' in flags:
+        result = ensure_all_groups(result)
+    return result
 
 
 # Valid string literal prefixes (lowercase); checked case-insensitively
@@ -1297,6 +1305,11 @@ def is_first_match_mode(search: str | None) -> bool:
 def is_case_insensitive(search: str | None) -> bool:
     """Check if the search is case-insensitive ('i' in postfix flags)."""
     return 'i' in get_search_flags(search)
+
+
+def is_capture_groups_mode(search: str | None) -> bool:
+    """Check if the search has capture groups preserved ('c' in postfix flags)."""
+    return 'c' in get_search_flags(search)
 
 
 def get_regex_inner_pattern(search: str | None) -> str | None:
@@ -1878,6 +1891,22 @@ def canonicalize_regex(selection_regex: str | None) -> str | None:
             parts.append(seg['text'])
 
     return f"/{''.join(parts)}/"
+
+
+def ensure_all_groups(regex: str | None) -> str | None:
+    """Convert a regex to fully-grouped form, preserving postfix flags.
+
+    Every segment (literal and fuzzy) gets wrapped in a capturing group.
+    Non-regex inputs pass through unchanged.
+    """
+    if regex is None or not is_regex_search(regex):
+        return regex
+    inner = get_regex_inner_pattern(regex)
+    if not inner:
+        return regex
+    flags = get_search_flags(regex)
+    grouped = _to_fully_grouped_inner(inner)
+    return f'/{grouped}/' + flags
 
 
 def _to_fully_grouped_inner(inner_pattern: str) -> str:
@@ -2652,20 +2681,25 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope, max_width=Non
     def btn_group(label: str, action: str, enabled: bool = True, title: str = '', extra_btn_style: str = '') -> str:
         return f'<span>{action_btn(label, action, enabled, title, extra_btn_style)}{copy_btn(action, enabled)}</span>'
 
+    first = is_first_match_mode(selection_regex) if has_search else False
+
     # Build button groups
     parts = []
 
     # 1. Get/Transform + Copy
     if has_replace:
-        parts.append(btn_group('Transform \u23ce', 'get_transform', has_search, 'Transform: map expression over matches (Enter)'))
+        lbl = 'Map First Match \u23ce' if first else 'Map Matches \u23ce'
+        parts.append(btn_group(lbl, 'get_transform', has_search, 'Map expression over matches (Enter)'))
     else:
-        parts.append(btn_group('Get \u23ce', 'get_transform', has_search, 'Get list of matches (Enter)'))
+        lbl = 'Find First Match \u23ce' if first else 'Find Matches \u23ce'
+        parts.append(btn_group(lbl, 'get_transform', has_search, 'Find matches (Enter)'))
 
     # 2. Replace + Copy (grayed out when not in replace mode)
-    parts.append(btn_group('Replace \u2318R', 'replace', has_search and has_replace, 'Replace matches (\u2318R)'))
+    replace_lbl = 'Replace First \u2318R' if first else 'Replace All \u2318R'
+    parts.append(btn_group(replace_lbl, 'replace', has_search and has_replace, 'Replace matches (\u2318R)'))
 
-    # 3. Loop + Copy
-    parts.append(btn_group('Loop', 'loop', has_search, 'For loop over matches'))
+    # 3. Loop + Copy (disabled in first-match mode)
+    parts.append(btn_group('Loop', 'loop', has_search and not first, 'For loop over matches'))
 
     # 4. ? dropdown button
     open_dropdown = model.get('openDropdown') if model else None
@@ -2727,7 +2761,8 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope, max_width=Non
     parts.append(q_btn)
 
     # 5. Delete + Copy
-    parts.append(btn_group('Delete \u2318\u232b', 'delete', has_search, 'Delete matches (\u2318\u232b)'))
+    delete_lbl = 'Delete First \u2318\u232b' if first else 'Delete All \u2318\u232b'
+    parts.append(btn_group(delete_lbl, 'delete', has_search, 'Delete matches (\u2318\u232b)'))
 
     # 6. Split + Copy
     parts.append(btn_group('Split', 'split', has_search, 'Split string at matches'))
@@ -2824,8 +2859,36 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
             'line-height: 16px;'
             'user-select: none;'
         )
-        # Index/slice searches force 1st on and disable Aa
+        # Index/slice searches force 1st on and disable Aa / (Cap)(Grps)
         idx_slice = is_index_or_slice_search(selection_regex, eval_in_scope)
+
+        # "(Cap)(Grps)" toggle: on = capture groups preserved, off = only adjacent literal groups
+        cap_groups_on = is_capture_groups_mode(selection_regex)
+        cg_event = repr(CaptureGroupsToggle())
+        if idx_slice:
+            cap_groups_toggle_html = (
+                f'<span'
+                f' style="'
+                f'background: transparent;'
+                f'color: #555;'
+                f'border: 1px solid #2a2a2a;'
+                f'opacity: 0.5;'
+                f'{toggle_btn_style}'
+                f'"'
+                f'>(Cap)(Grps)</span>'
+            )
+        else:
+            cap_groups_toggle_html = (
+                f'<span snc-mouse-down="{html.escape(cg_event)}"'
+                f' class="snc-hoverable"'
+                f' style="'
+                f'background: {"#264f78" if cap_groups_on else "transparent"};'
+                f'color: {"#ccc" if cap_groups_on else "#8C8C8C"};'
+                f'border: 1px solid {"#aaa" if cap_groups_on else "#3c3c3c"};'
+                f'{toggle_btn_style}'
+                f'"'
+                f'>(Cap)(Grps)</span>'
+            )
 
         # "Aa" toggle: on (highlighted) = case-sensitive (default), off = case-insensitive
         # Dimmed and non-interactive for index/slice
@@ -2873,6 +2936,7 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
         )
         toggles_html = (
             f'<span style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%);">'
+            f'{cap_groups_toggle_html}'
             f'{case_toggle_html}'
             f'{first_match_toggle_html}'
             f'</span>'
@@ -2901,10 +2965,10 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
             replace_input_event = "lambda e: ReplaceBoxInput(value=e.get('value', ''))"
             replace_box_html = (
                 f'<div style="margin-top: 4px;">'
-                f'<input type="text" tabindex="0"'
+                f'<input type="text" tabindex="0" class="snc-replace-input"'
                 f' snc-input="{html.escape(replace_input_event)}"'
                 f' value="{html.escape(replace_text_value)}"'
-                f' placeholder="Transform or Replace"'
+                f' placeholder="Map/replace/filter matches"'
                 f' spellcheck="false"'
                 f' style="'
                 f'background: #1e1e1e;'
@@ -2941,7 +3005,7 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
             f'color: #dcdcaa;'
             f'border: 1px solid #3c3c3c;'
             f'border-radius: 10px;'
-            f'padding: 2px 55px 2px 20px;'
+            f'padding: 2px 115px 2px 20px;'
             f'font-family: inherit;'
             f'font-size: 12px;'
             f'outline: none;'
@@ -3217,6 +3281,21 @@ def _trunc_repr(val, max_len=30) -> str:
     return r
 
 
+def _preview_chip(expr: str, val_repr: str, target: str = '.snc-replace-input') -> str:
+    """Render a single clickable preview chip: expr => value.
+
+    The snc-add-at-cursor attribute tells the front-end to insert `expr`
+    at the cursor position in the input matched by snc-add-target (a CSS selector).
+    """
+    lbl = 'color: #dcdcaa; cursor: pointer;'
+    return (
+        f'<span style="display: inline-block; margin-right: 2em;">'
+        f'<span class="snc-hoverable" style="{lbl}" snc-add-at-cursor="{html.escape(expr)}" snc-add-target="{html.escape(target)}">{html.escape(expr)}</span>'
+        f' \u21d2 {val_repr}'
+        f'</span>'
+    )
+
+
 def _render_transform_preview(model: dict, value: str, eval_in_scope) -> str:
     """Render a live preview of match metadata and transform result using the first match.
 
@@ -3225,6 +3304,9 @@ def _render_transform_preview(model: dict, value: str, eval_in_scope) -> str:
 
     For index/slice searches, ^ is the matched string (not a match object),
     so the preview shows ^ => 'str' instead of ^[0], ^.start(), ^.end().
+
+    When the regex has capture groups, shows ^[1], ^[2], etc. alongside ^[0].
+    All expression chips are clickable (snc-add-at-cursor) to insert into the replace box.
     """
     if not model.get('replace_visible', False):
         return ''
@@ -3240,8 +3322,7 @@ def _render_transform_preview(model: dict, value: str, eval_in_scope) -> str:
             return ''
 
         m_repr = html.escape(_trunc_repr(matched_str))
-        lbl = 'color: #dcdcaa;'
-        row1 = f'<span style="display: inline-block; margin-right: 2em;"><span style="{lbl}">^</span> \u21d2 {m_repr}</span>'
+        row1 = _preview_chip('^', m_repr)
 
         result_str = ''
         replace_text = model.get('replace_text')
@@ -3276,12 +3357,34 @@ def _render_transform_preview(model: dict, value: str, eval_in_scope) -> str:
     mstart = html.escape(_trunc_repr(m.start()))
     mend = html.escape(_trunc_repr(m.end()))
 
-    lbl = 'color: #dcdcaa;'
     row1 = (
-        f'<span style="display: inline-block; margin-right: 2em;"><span style="{lbl}">^[0]</span> \u21d2 {m0}</span>'
-        f'<span style="display: inline-block; margin-right: 2em;"><span style="{lbl}">^.start()</span> \u21d2 {mstart}</span>'
-        f'<span style="display: inline-block; margin-right: 2em;"><span style="{lbl}">^.end()</span> \u21d2 {mend}</span>'
+        _preview_chip('^[0]', m0)
+        + _preview_chip('^.start()', mstart)
+        + _preview_chip('^.end()', mend)
     )
+
+    # Show capture group previews when the inner pattern has groups.
+    # Also produce grouped_match for the transform evaluation so that
+    # expressions like ^[2] resolve against the real capture groups.
+    group_chips = ''
+    grouped_match = None
+    if is_regex_search(selection_regex):
+        inner = get_regex_inner_pattern(selection_regex)
+        if inner:
+            ci = is_case_insensitive(selection_regex)
+            flags = re.M | (re.I if ci else 0)
+            try:
+                grouped_match = re.search(inner, value, flags=flags)
+                if grouped_match and grouped_match.lastindex:
+                    for i in range(1, grouped_match.lastindex + 1):
+                        g = grouped_match.group(i)
+                        if g is not None:
+                            g_repr = html.escape(_trunc_repr(g))
+                            group_chips += _preview_chip(f'^[{i}]', g_repr)
+            except Exception:
+                grouped_match = None
+
+    transform_match = grouped_match if grouped_match is not None else m
 
     result_str = ''
     replace_text = model.get('replace_text')
@@ -3295,7 +3398,7 @@ def _render_transform_preview(model: dict, value: str, eval_in_scope) -> str:
 
         try:
             transform_fn = eval_in_scope(f"(lambda _mtch: {replace_expr})")
-            result = transform_fn(m)
+            result = transform_fn(transform_match)
             result_str = html.escape(_trunc_repr(result))
         except Exception as e:
             result_str = html.escape(str(e))
@@ -3303,7 +3406,7 @@ def _render_transform_preview(model: dict, value: str, eval_in_scope) -> str:
 
     return (
         f'<div style="margin-top: 2px; color: #8C8C8C; white-space: normal;">'
-        f'<div style="font-size: 7px; filter: saturate(0.75); opacity: 0.75;">First match: {row1}</div>'
+        f'<div style="font-size: 7px; filter: saturate(0.75); opacity: 0.75;">First match: {row1}{group_chips}</div>'
         f'{row2}'
         f'</div>'
     )
@@ -3475,7 +3578,10 @@ def _get_search_context(model: dict, source_code: str, source_line: int) -> dict
     regex_pattern = None
     if not is_str and not is_expr:
         inner_pattern = get_regex_inner_pattern(selection_regex)
-        regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
+        if is_capture_groups_mode(selection_regex):
+            regex_pattern = inner_pattern or ""
+        else:
+            regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
 
     # Build flags strings
     if is_str or is_expr:
@@ -4082,6 +4188,22 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
             current_regex = model.get('search')
             if current_regex:
                 new_regex = _toggle_search_flag(current_regex, 'i')
+                model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
+                model['redoHistory'] = []
+                model['search'] = new_regex
+
+        case CaptureGroupsToggle():
+            current_regex = model.get('search')
+            if current_regex:
+                new_regex = _toggle_search_flag(current_regex, 'c')
+                turning_on = 'c' in get_search_flags(new_regex)
+                if turning_on:
+                    new_regex = ensure_all_groups(new_regex)
+                else:
+                    inner = get_regex_inner_pattern(new_regex)
+                    flags = get_search_flags(new_regex)
+                    if inner and is_regex_search(new_regex):
+                        new_regex = canonicalize_regex(f'/{inner}/') + flags
                 model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
                 model['redoHistory'] = []
                 model['search'] = new_regex

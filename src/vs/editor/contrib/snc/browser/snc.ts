@@ -104,6 +104,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 
 
 		this._register(dom.addDisposableListener(this.domNode, 'mousedown', (ev: MouseEvent) => {
+			if (this.handleAddAtCursor(ev)) { return; }
 			this.dispatch_mouse_python_event('snc-mouse-down', ev);
 		}));
 		this._register(dom.addDisposableListener(this.domNode, 'mousemove', (ev: MouseEvent) => {
@@ -242,6 +243,45 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 			}
 			el = el.parentElement;
 		}
+	}
+
+	/**
+	 * Handle click on an element with snc-add-at-cursor.
+	 * Reads snc-add-target (a CSS selector) to find the target input,
+	 * inserts the snc-add-at-cursor value at the cursor position,
+	 * then fires an input event so the Python model updates.
+	 * Returns true if the event was handled.
+	 */
+	private handleAddAtCursor(ev: MouseEvent): boolean {
+		if (!ev.target) { return false; }
+		let el: Element | null = (ev.target as Node).nodeType === Node.ELEMENT_NODE
+			? (ev.target as Element)
+			: (ev.target as Node).parentElement;
+
+		while (el && el !== this.domNode) {
+			const textToInsert = el.getAttribute('snc-add-at-cursor');
+			if (textToInsert !== null) {
+				const targetSelector = el.getAttribute('snc-add-target');
+				if (!targetSelector) { return false; }
+				const targetInput = this.domNode.querySelector(targetSelector) as HTMLInputElement | null;
+				if (targetInput) {
+					const start = targetInput.selectionStart ?? targetInput.value.length;
+					const end = targetInput.selectionEnd ?? start;
+					const before = targetInput.value.slice(0, start);
+					const after = targetInput.value.slice(end);
+					targetInput.value = before + textToInsert + after;
+					const newCursor = start + textToInsert.length;
+					targetInput.setSelectionRange(newCursor, newCursor);
+					targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+					targetInput.focus();
+				}
+				ev.preventDefault();
+				ev.stopPropagation();
+				return true;
+			}
+			el = el.parentElement;
+		}
+		return false;
 	}
 
 	getId(): string {
