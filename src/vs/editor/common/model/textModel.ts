@@ -1854,11 +1854,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return decs;
 	}
 
-	public getLineInjectedText(lineNumber: number): LineInjectedText[] {
+	public getLineInjectedText(lineNumber: number, ownerId: number = 0): LineInjectedText[] {
 		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
 		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
 
-		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, 0);
+		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, ownerId);
 		return LineInjectedText.fromDecorations(result).filter(t => t.lineNumber === lineNumber);
 	}
 
