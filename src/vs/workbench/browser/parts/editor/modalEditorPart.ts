@@ -259,9 +259,9 @@ export class ModalEditorPart {
 			} else {
 				label.element.clear();
 			}
-
-			editorPart.notifyActiveEditorChanged();
 		}));
+
+		disposables.add(Event.runAndSubscribe(modalEditorService.onDidEditorsChange, () => editorPart.notifyEditoraChanged()));
 
 		// Handle double-click on header to toggle maximize
 		disposables.add(addDisposableListener(headerElement, EventType.DBLCLICK, e => {
@@ -385,14 +385,14 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 			enablePreview: true,
 			closeEmptyGroups: true,
 			tabActionCloseVisibility: editorCount > 1,
-			editorActionsLocation: 'default',
+			editorActionsLocation: 'hidden',
 			tabHeight: 'default',
 			wrapTabs: false,
 			allowDropIntoGroup: false
 		});
 	}
 
-	notifyActiveEditorChanged(): void {
+	notifyEditoraChanged(): void {
 		this.enforceModalPartOptions();
 	}
 
