@@ -32,8 +32,9 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	private _initPromise: Promise<void> | undefined;
 
 	constructor(
-		@IBrowserViewGroupRemoteService private readonly browserViewGroupRemoteService: IBrowserViewGroupRemoteService,
-		@ILogService private readonly logService: ILogService,
+		private readonly windowId: number,
+		private readonly browserViewGroupRemoteService: IBrowserViewGroupRemoteService,
+		private readonly logService: ILogService,
 	) {
 		super();
 		this._pages = this._register(new PlaywrightPageManager(logService));
@@ -76,7 +77,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		this._initPromise = (async () => {
 			try {
 				this.logService.debug('[PlaywrightService] Creating browser view group');
-				const group = await this.browserViewGroupRemoteService.createGroup();
+				const group = await this.browserViewGroupRemoteService.createGroup(this.windowId);
 
 				this.logService.debug('[PlaywrightService] Connecting to browser via CDP');
 				const playwright = await import('playwright-core');

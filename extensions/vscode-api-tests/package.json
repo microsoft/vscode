@@ -9,6 +9,7 @@
     "authSession",
     "environmentPower",
     "chatParticipantPrivate",
+    "chatPromptFiles",
     "chatProvider",
     "contribStatusBarItems",
     "contribViewsRemote",
@@ -145,6 +146,11 @@
         {
           "id": "test.treeId",
           "name": "test-tree",
+          "when": "never"
+        },
+        {
+          "id": "test.treeSwitchUpdate",
+          "name": "test-tree-switch-update",
           "when": "never"
         }
       ]

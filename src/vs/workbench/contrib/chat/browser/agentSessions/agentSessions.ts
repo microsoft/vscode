@@ -7,7 +7,7 @@ import { localize } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+
 import { IChatSessionTiming } from '../../common/chatService/chatService.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -42,18 +42,12 @@ export function getAgentSessionProvider(sessionResource: URI | string): AgentSes
 	}
 }
 
-/**
- * Observable holding the display name for the background agent session provider.
- * Updated via experiment treatment to allow A/B testing of the display name.
- */
-export const backgroundAgentDisplayName = observableValue<string>('backgroundAgentDisplayName', localize('chat.session.providerLabel.background', "Background"));
-
 export function getAgentSessionProviderName(provider: AgentSessionProviders): string {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 			return localize('chat.session.providerLabel.local', "Local");
 		case AgentSessionProviders.Background:
-			return backgroundAgentDisplayName.get();
+			return localize('chat.session.providerLabel.background', "Copilot CLI");
 		case AgentSessionProviders.Cloud:
 			return localize('chat.session.providerLabel.cloud', "Cloud");
 		case AgentSessionProviders.Claude:

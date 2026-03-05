@@ -20,7 +20,7 @@
 	background: rgba(0, 0, 0, 0.3);
 
 	.modal-editor-shadow {
-		box-shadow: 0 4px 32px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.2));
+		box-shadow: var(--vscode-shadow-xl);
 		border-radius: 8px;
 		overflow: hidden;
 	}

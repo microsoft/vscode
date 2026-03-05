@@ -2,7 +2,7 @@ src/**
 !src/common/config.json
 out/**
 build/**
-esbuild*.mts
+extension.webpack.config.js
 tsconfig*.json
 package-lock.json
 testWorkspace/**

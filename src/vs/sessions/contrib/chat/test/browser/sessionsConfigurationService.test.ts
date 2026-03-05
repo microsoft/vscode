@@ -396,6 +396,54 @@ suite('SessionsConfigurationService', () => {
 		assert.strictEqual(createdTerminals[1].name, 'test');
 	});
 
+	test('runTask appends args to shell command', async () => {
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		const task: ITaskEntry = { label: 'build', type: 'shell', command: 'dotnet', args: ['build', '--configuration', 'Release'], inSessions: true };
+
+		await service.runTask(task, session);
+
+		assert.strictEqual(sentCommands.length, 1);
+		assert.strictEqual(sentCommands[0].command, 'dotnet build --configuration Release');
+	});
+
+	test('runTask appends args to npm task', async () => {
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		const task: ITaskEntry = { label: 'test', type: 'npm', script: 'test', args: ['--', '--coverage'], inSessions: true };
+
+		await service.runTask(task, session);
+
+		assert.strictEqual(sentCommands.length, 1);
+		assert.strictEqual(sentCommands[0].command, 'npm run test -- --coverage');
+	});
+
+	test('runTask resolves CommandString objects in args', async () => {
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		const task: ITaskEntry = {
+			label: 'build', type: 'shell', command: 'gcc',
+			args: [
+				{ value: '-o', quoting: 'escape' as const },
+				'output.exe',
+				'main.c',
+			],
+			inSessions: true
+		};
+
+		await service.runTask(task, session);
+
+		assert.strictEqual(sentCommands.length, 1);
+		assert.strictEqual(sentCommands[0].command, 'gcc -o output.exe main.c');
+	});
+
+	test('runTask sends only command when args is empty', async () => {
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		const task: ITaskEntry = { label: 'build', type: 'shell', command: 'make', args: [], inSessions: true };
+
+		await service.runTask(task, session);
+
+		assert.strictEqual(sentCommands.length, 1);
+		assert.strictEqual(sentCommands[0].command, 'make');
+	});
+
 	test('runTask creates different terminals for same command in different worktrees', async () => {
 		const wt1 = URI.parse('file:///worktree1');
 		const wt2 = URI.parse('file:///worktree2');
