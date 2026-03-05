@@ -35,12 +35,55 @@ import { CLOSE_MODAL_EDITOR_COMMAND_ID, MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MO
 import { IModalEditorNavigation, IModalEditorPartOptions } from '../../../../platform/editor/common/editor.js';
 
 const defaultModalEditorAllowableCommands = new Set([
+
+	// Application
 	'workbench.action.quit',
 	'workbench.action.reloadWindow',
-	'workbench.action.closeActiveEditor',
-	'workbench.action.closeAllEditors',
+	'workbench.action.toggleFullScreen',
+
+	// Quick access
+	'workbench.action.gotoSymbol',
+	'workbench.action.gotoLine',
+
+	// Zoom
+	'workbench.action.zoomIn',
+	'workbench.action.zoomOut',
+	'workbench.action.zoomReset',
+
+	// File operations
 	'workbench.action.files.save',
 	'workbench.action.files.saveAll',
+	'workbench.action.files.revert',
+
+	// Close editors
+	'workbench.action.closeActiveEditor',
+	'workbench.action.closeAllEditors',
+	'workbench.action.closeEditorsInGroup',
+	'workbench.action.closeUnmodifiedEditors',
+
+	// Settings
+	'workbench.action.openSettings',
+	'workbench.action.openSettings2',
+	'workbench.action.openSettingsJson',
+	'workbench.action.openGlobalSettings',
+	'workbench.action.openApplicationSettingsJson',
+	'workbench.action.openRawDefaultSettings',
+	'workbench.action.openWorkspaceSettings',
+	'workbench.action.openWorkspaceSettingsFile',
+	'workbench.action.openFolderSettings',
+	'workbench.action.openFolderSettingsFile',
+	'workbench.action.openRemoteSettings',
+	'workbench.action.openRemoteSettingsFile',
+	'workbench.action.openAccessibilitySettings',
+	'workbench.action.configureLanguageBasedSettings',
+
+	// Keybindings
+	'workbench.action.openGlobalKeybindings',
+	'workbench.action.openDefaultKeybindingsFile',
+	'workbench.action.openGlobalKeybindingsFile',
+	'workbench.action.openKeyboardLayoutPicker',
+
+	// Modal editor
 	CLOSE_MODAL_EDITOR_COMMAND_ID,
 	MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID,
 	MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID,
