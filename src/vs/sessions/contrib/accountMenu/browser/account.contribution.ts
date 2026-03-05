@@ -193,7 +193,6 @@ export class AccountWidget extends ActionViewItem {
 		// Show a non-interactive hint to update via VS Code instead.
 		if (state.type === StateType.Disabled && state.reason === DisablementReason.EmbeddedApp) {
 			this.updateButton.element.classList.remove('hidden');
-			this.updateButton.element.style.backgroundImage = '';
 			this.updateButton.element.classList.add('account-widget-update-button-ready');
 			this.updateButton.enabled = false;
 			this.updateButton.label = localize('updateInVSCode', "Update from VS Code");
