@@ -123,7 +123,19 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 
 		// Find the next edit operation that would be applied...
 		const nextOperation = operations.find(op => op.epoch >= currentEpoch);
-		const nextCheckpoint = nextOperation && checkpoints.find(op => op.epoch > nextOperation.epoch);
+
+		// When there are no more operations, advance one request at a time
+		// by finding the next request-start checkpoint boundary.
+		if (!nextOperation) {
+			const nextRequestStart = checkpoints.find(cp => cp.epoch >= currentEpoch && cp.undoStopId === undefined);
+			if (!nextRequestStart) {
+				return maxEncounteredEpoch + 1;
+			}
+			const requestAfter = checkpoints.find(cp => cp.epoch > nextRequestStart.epoch && cp.undoStopId === undefined);
+			return requestAfter ? requestAfter.epoch : (maxEncounteredEpoch + 1);
+		}
+
+		const nextCheckpoint = checkpoints.find(op => op.epoch > nextOperation.epoch);
 
 		// And figure out where we're going if we're navigating across request
 		// 1. If there is no next request or if the next target checkpoint is in

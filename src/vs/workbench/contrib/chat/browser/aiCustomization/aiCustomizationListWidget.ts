@@ -1155,7 +1155,7 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	layout(height: number, width: number): void {
 		const sectionFooterHeight = this.sectionHeader.offsetHeight || 0;
-		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 40;
+		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 52;
 		const listHeight = height - sectionFooterHeight - searchBarHeight;
 
 		this.searchInput.layout();

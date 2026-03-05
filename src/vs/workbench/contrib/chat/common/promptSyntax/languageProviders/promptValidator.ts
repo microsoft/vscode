@@ -21,6 +21,7 @@ import { Disposable, DisposableStore, toDisposable } from '../../../../../../bas
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_AGENTS_SOURCE_FOLDER, isInClaudeRulesFolder, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
@@ -29,6 +30,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { dirname } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { HOOKS_BY_TARGET } from '../hookTypes.js';
+import { PromptsConfig } from '../config/config.js';
 import { GithubPromptHeaderAttributes } from './promptFileAttributes.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
@@ -40,7 +42,8 @@ export class PromptValidator {
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IPromptsService private readonly promptsService: IPromptsService
+		@IPromptsService private readonly promptsService: IPromptsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -192,7 +195,9 @@ export class PromptValidator {
 				this.validateUserInvokable(attributes, report);
 				this.validateDisableModelInvocation(attributes, report);
 				this.validateTools(attributes, ChatModeKind.Agent, target, report);
-				this.validateHooks(attributes, target, report);
+				if (this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)) {
+					this.validateHooks(attributes, target, report);
+				}
 				if (isVSCodeOrDefaultTarget(target)) {
 					this.validateModel(attributes, ChatModeKind.Agent, report);
 					this.validateHandoffs(attributes, report);
@@ -215,11 +220,21 @@ export class PromptValidator {
 	}
 
 	private checkForInvalidArguments(attributes: IHeaderAttribute[], promptType: PromptsType, target: Target, report: (markers: IMarkerData) => void): void {
-		const validAttributeNames = getValidAttributeNames(promptType, true, target);
+		let validAttributeNames = getValidAttributeNames(promptType, true, target);
+		if (!this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)) {
+			validAttributeNames = validAttributeNames.filter(name => name !== PromptHeaderAttributes.hooks);
+		}
+		const useCustomAgentHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS);
 		const validGithubCopilotAttributeNames = new Lazy(() => new Set(getValidAttributeNames(promptType, false, Target.GitHubCopilot)));
 		for (const attribute of attributes) {
 			if (!validAttributeNames.includes(attribute.key)) {
-				const supportedNames = new Lazy(() => getValidAttributeNames(promptType, false, target).sort().join(', '));
+				const supportedNames = new Lazy(() => {
+					let names = getValidAttributeNames(promptType, false, target);
+					if (!useCustomAgentHooks) {
+						names = names.filter(name => name !== PromptHeaderAttributes.hooks);
+					}
+					return names.sort().join(', ');
+				});
 				switch (promptType) {
 					case PromptsType.prompt:
 						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
