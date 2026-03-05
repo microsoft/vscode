@@ -830,6 +830,19 @@
 	flex-shrink: 0;
 }
 
+.mcp-gallery-item.extension-list-item {
+	padding: 6px 8px 6px 16px;
+}
+
+.mcp-gallery-item.extension-list-item > .details > .footer {
+	display: flex;
+	align-items: center;
+}
+
+.mcp-gallery-item.extension-list-item .mcp-gallery-action {
+	margin-left: auto;
+}
+
 .mcp-gallery-item .mcp-gallery-install-button {
 	font-size: 11px;
 	padding: 2px 10px;
