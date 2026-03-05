@@ -64,6 +64,20 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			this._onActiveSessionChanged(session);
 		}));
 
+		// Hide restored terminals from a previous window session that don't
+		// belong to the current active session. These arrive asynchronously
+		// during reconnection and would otherwise flash in the foreground.
+		this._register(this._terminalService.onDidCreateInstance(instance => {
+			if (instance.shellLaunchConfig.attachPersistentProcess && this._activeKey) {
+				instance.getInitialCwd().then(cwd => {
+					if (cwd.toLowerCase() !== this._activeKey) {
+						this._terminalService.moveToBackground(instance);
+						this._logService.trace(`[SessionsTerminal] Hid restored terminal ${instance.instanceId} (cwd: ${cwd})`);
+					}
+				});
+			}
+		}));
+
 		// When a session is archived, close all terminals for its worktree
 		this._register(this._agentSessionsService.model.onDidChangeSessionArchivedState(session => {
 			if (session.isArchived()) {
