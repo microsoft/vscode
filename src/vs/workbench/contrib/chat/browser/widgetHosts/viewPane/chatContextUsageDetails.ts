@@ -52,20 +52,19 @@ export class ChatContextUsageDetails extends Disposable {
 
 		this.domNode = $('.chat-context-usage-details');
 
-		// Using same structure as ChatUsageWidget quota items
-		this.quotaItem = this.domNode.appendChild($('.quota-item'));
+		// Quota indicator — using same structure as ChatStatusDashboard
+		this.quotaItem = this.domNode.appendChild($('.quota-indicator'));
 
-		// Header row with label
-		const quotaItemHeader = this.quotaItem.appendChild($('.quota-item-header'));
-		const quotaItemLabel = quotaItemHeader.appendChild($('.quota-item-label'));
-		quotaItemLabel.textContent = localize('contextWindow', "Context Window");
+		// Header row
+		const header = this.domNode.insertBefore($('div.header'), this.quotaItem);
+		header.textContent = localize('contextWindow', "Context Window");
 
-		// Token count and percentage row (on same line)
-		const tokenRow = this.quotaItem.appendChild($('.token-row'));
-		this.tokenCountLabel = tokenRow.appendChild($('.token-count-label'));
-		this.percentageLabel = tokenRow.appendChild($('.quota-item-value'));
+		// Quota label row with token count + percentage
+		const quotaLabel = this.quotaItem.appendChild($('.quota-label'));
+		this.tokenCountLabel = quotaLabel.appendChild($('span'));
+		this.percentageLabel = quotaLabel.appendChild($('span.quota-value'));
 
-		// Progress bar - using same structure as chat usage widget
+		// Progress bar
 		const progressBar = this.quotaItem.appendChild($('.quota-bar'));
 		this.progressFill = progressBar.appendChild($('.quota-bit'));
 
@@ -73,15 +72,12 @@ export class ChatContextUsageDetails extends Disposable {
 		this.tokenDetailsContainer = this.domNode.appendChild($('.token-details-container'));
 
 		// Warning message (shown when usage is high)
-		this.warningMessage = this.domNode.appendChild($('.warning-message'));
+		this.warningMessage = this.domNode.appendChild($('div.description'));
 		this.warningMessage.textContent = localize('qualityWarning', "Quality may decline as limit nears.");
 		this.warningMessage.style.display = 'none';
 
-		// Actions section with header, separator, and button bar
+		// Actions section with button bar
 		this.actionsSection = this.domNode.appendChild($('.actions-section'));
-		this.actionsSection.appendChild($('.separator'));
-		const actionsHeader = this.actionsSection.appendChild($('.actions-header'));
-		actionsHeader.textContent = localize('actions', "Actions");
 		const buttonBarContainer = this.actionsSection.appendChild($('.button-bar-container'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchButtonBar, buttonBarContainer, MenuId.ChatContextUsageActions, {
 			toolbarOptions: {
@@ -104,14 +100,14 @@ export class ChatContextUsageDetails extends Disposable {
 	update(data: IChatContextUsageData): void {
 		const { percentage, usedTokens, totalContextWindow, promptTokenDetails } = data;
 
-		// Update token count and percentage on same line
+		// Update token count and percentage
 		this.tokenCountLabel.textContent = localize(
 			'tokenCount',
 			"{0} / {1} tokens",
 			this.formatTokenCount(usedTokens, 1),
 			this.formatTokenCount(totalContextWindow, 0)
 		);
-		this.percentageLabel.textContent = `• ${percentage.toFixed(0)}%`;
+		this.percentageLabel.textContent = localize('quotaDisplay', "{0}%", percentage.toFixed(0));
 
 		// Update progress bar
 		this.progressFill.style.width = `${Math.min(100, percentage)}%`;
