@@ -844,7 +844,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const action = toAction({ id: optionGroup.id, label: optionGroup.name, run: () => { } });
 		const widget = this.instantiationService.createInstance(
 			optionGroup.searchable ? SearchableOptionPickerActionItem : ChatSessionPickerActionItem,
-			action, initialState, itemDelegate
+			action, initialState, itemDelegate, undefined
 		);
 
 		this._toolbarPickerDisposables.add(widget);
