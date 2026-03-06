@@ -201,23 +201,26 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.WINDOW,
 			order: 100
 		},
-		'workbench.browser.sendElementsToChat': {
+		'workbench.browser.sendElementsToChat.enabled': {
 			default: true,
 			description: localize('browser.sendElementsToChat', "Controls whether elements can be sent to chat from the Simple Browser."),
 			type: 'boolean',
-			tags: ['preview']
+			tags: ['preview'],
+			order: 200
 		},
 		'workbench.browser.sendElementsToChat.attachCSS': {
 			default: true,
-			markdownDescription: localize('browser.sendElementsToChat.attachCSS', "Controls whether CSS of the selected element will be added to the chat. {0} must be enabled.", '`#workbench.browser.sendElementsToChat#`'),
+			markdownDescription: localize('browser.sendElementsToChat.attachCSS', "Controls whether CSS of the selected element will be added to the chat. {0} must be enabled.", '`#workbench.browser.sendElementsToChat.enabled#`'),
 			type: 'boolean',
-			tags: ['preview']
+			tags: ['preview'],
+			order: 210
 		},
 		'workbench.browser.sendElementsToChat.attachImages': {
 			default: true,
-			markdownDescription: localize('browser.sendElementsToChat.attachImages', "Controls whether a screenshot of the selected element will be added to the chat. {0} must be enabled.", '`#workbench.browser.sendElementsToChat#`'),
+			markdownDescription: localize('browser.sendElementsToChat.attachImages', "Controls whether a screenshot of the selected element will be added to the chat. {0} must be enabled.", '`#workbench.browser.sendElementsToChat.enabled#`'),
 			type: 'boolean',
-			tags: ['experimental']
+			tags: ['preview'],
+			order: 220
 		}
 	}
 });
@@ -229,7 +232,7 @@ Registry.as<IConfigurationMigrationRegistry>(ConfigurationMigrationExtensions.Co
 			migrateFn: (value: unknown) => {
 				const result: ConfigurationKeyValuePairs = [['chat.sendElementsToChat.enabled', { value: undefined }]];
 				if (value !== undefined) {
-					result.push(['workbench.browser.sendElementsToChat', { value }]);
+					result.push(['workbench.browser.sendElementsToChat.enabled', { value }]);
 				}
 				return result;
 			}

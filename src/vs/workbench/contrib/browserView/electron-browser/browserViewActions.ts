@@ -254,7 +254,7 @@ class AddElementToChatAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.addElementToChat';
 
 	constructor() {
-		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.workbench.browser.sendElementsToChat', true));
+		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.workbench.browser.sendElementsToChat.enabled', true));
 		super({
 			id: AddElementToChatAction.ID,
 			title: localize2('browser.addElementToChatAction', 'Add Element to Chat'),
@@ -291,7 +291,7 @@ class AddConsoleLogsToChatAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.addConsoleLogsToChat';
 
 	constructor() {
-		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.workbench.browser.sendElementsToChat', true));
+		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.workbench.browser.sendElementsToChat.enabled', true));
 		super({
 			id: AddConsoleLogsToChatAction.ID,
 			title: localize2('browser.addConsoleLogsToChatAction', 'Add Console Logs to Chat'),

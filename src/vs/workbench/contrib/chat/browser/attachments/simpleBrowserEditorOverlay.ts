@@ -71,8 +71,8 @@ class SimpleBrowserOverlayWidget {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		this._showStore.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.browser.sendElementsToChat')) {
-				if (this.configurationService.getValue('workbench.browser.sendElementsToChat')) {
+			if (e.affectsConfiguration('workbench.browser.sendElementsToChat.enabled')) {
+				if (this.configurationService.getValue('workbench.browser.sendElementsToChat.enabled')) {
 					this.showElement(this._domNode);
 				} else {
 					this.hideElement(this._domNode);
@@ -230,7 +230,7 @@ class SimpleBrowserOverlayWidget {
 		}));
 
 		this._showStore.add(addDisposableListener(configure.element, 'click', () => {
-			this._preferencesService.openSettings({ jsonEditor: false, query: '@id:workbench.browser.sendElementsToChat,workbench.browser.sendElementsToChat.attachCSS,workbench.browser.sendElementsToChat.attachImages' });
+			this._preferencesService.openSettings({ jsonEditor: false, query: '@id:workbench.browser.sendElementsToChat.enabled,workbench.browser.sendElementsToChat.attachCSS,workbench.browser.sendElementsToChat.attachImages' });
 		}));
 	}
 
@@ -450,7 +450,7 @@ class SimpleBrowserOverlayController {
 
 		// Observe chat enabled state and sendElementsToChat configuration
 		const chatEnabledObs = observableContextKey<boolean>(ChatContextKeys.enabled.key, this.contextKeyService);
-		const sendElementsEnabledObs = observableConfigValue<boolean>('workbench.browser.sendElementsToChat', true, this.configurationService);
+		const sendElementsEnabledObs = observableConfigValue<boolean>('workbench.browser.sendElementsToChat.enabled', true, this.configurationService);
 
 		this._store.add(autorun(r => {
 
