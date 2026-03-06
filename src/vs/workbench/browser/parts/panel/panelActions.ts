@@ -184,7 +184,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	submenu: MenuId.PanelPositionMenu,
 	title: localize('positionPanel', "Panel Position"),
 	group: '3_workbench_layout_move',
-	order: 4
+	order: 4,
+	when: PanelDialogModeContext.negate()
 });
 
 PositionPanelActionConfigs.forEach((positionPanelAction, index) => {
@@ -219,7 +220,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	submenu: MenuId.PanelAlignmentMenu,
 	title: localize('alignPanel', "Align Panel"),
 	group: '3_workbench_layout_move',
-	order: 5
+	order: 5,
+	when: PanelDialogModeContext.negate()
 });
 
 AlignPanelActionConfigs.forEach(alignPanelAction => {
@@ -272,7 +274,11 @@ registerAction2(class extends SwitchCompositeViewAction {
 	}
 });
 
-const panelMaximizationSupportedWhen = ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), ContextKeyExpr.and(PanelPositionContext.notEqualsTo('bottom'), PanelPositionContext.notEqualsTo('top')));
+const panelMaximizationSupportedWhen = ContextKeyExpr.or(
+	PanelDialogModeContext,
+	PanelAlignmentContext.isEqualTo('center'),
+	ContextKeyExpr.and(PanelPositionContext.notEqualsTo('bottom'), PanelPositionContext.notEqualsTo('top'))
+);
 
 registerAction2(class extends Action2 {
 	constructor() {
