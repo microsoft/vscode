@@ -201,9 +201,10 @@ suite('AnthropicModelProvider', () => {
 							refresh_in: 1800, endpoints: {}, sku: 'test',
 						});
 					}
+					// 400 is not retryable -- should fail immediately
 					return Promise.resolve({
-						ok: false, status: 429, statusText: 'Too Many Requests',
-						text: async () => 'Rate limit exceeded',
+						ok: false, status: 400, statusText: 'Bad Request',
+						text: async () => 'Invalid request body',
 					});
 				},
 				fetchWithPagination() { return Promise.resolve([]); },
@@ -211,7 +212,7 @@ suite('AnthropicModelProvider', () => {
 			const tokenService = new CopilotTokenService(log2, fetcher);
 			tokenService.setGitHubToken('test');
 			const provider = new AnthropicModelProvider('claude-sonnet-4-20250514', tokenService, log2);
-			await assert.rejects(() => collectChunks(provider), /Anthropic API error: 429/);
+			await assert.rejects(() => collectChunks(provider), /Anthropic API error: 400/);
 		});
 	});
 

@@ -117,6 +117,7 @@ export async function* runAgentLoop(
 		let assistantParts: IAssistantContentPart[];
 		let responseText: string;
 		let responseEvents: AgentLoopEvent[];
+		let responseProviderMetadata: Record<string, unknown> | undefined;
 
 		// Retry loop for post-response middleware requesting retries
 		while (true) {
@@ -138,6 +139,7 @@ export async function* runAgentLoop(
 			assistantParts = accumulated.parts;
 			responseText = accumulated.text;
 			responseEvents = accumulated.events;
+			responseProviderMetadata = accumulated.providerMetadata;
 
 			// -- Post-response middleware -----------------------------------------
 			const hasToolCalls = assistantParts.some(p => p.type === 'tool-call');
@@ -162,7 +164,10 @@ export async function* runAgentLoop(
 		yield { type: 'model-call-complete', modelIdentity: config.modelIdentity, turn, durationMs };
 
 		// -- Build assistant message -------------------------------------------
-		const providerMetadata = extractProviderMetadata(assistantParts);
+		const thinkingMetadata = extractProviderMetadata(assistantParts);
+		const providerMetadata = thinkingMetadata || responseProviderMetadata
+			? { ...thinkingMetadata, ...responseProviderMetadata }
+			: undefined;
 		const assistantMessage = createAssistantMessage(
 			assistantParts,
 			config.modelIdentity,
@@ -202,6 +207,7 @@ interface IAccumulatedResponse {
 	readonly parts: IAssistantContentPart[];
 	readonly text: string;
 	readonly events: AgentLoopEvent[];
+	readonly providerMetadata: Record<string, unknown> | undefined;
 }
 
 /**
@@ -221,6 +227,7 @@ async function accumulateResponse(
 	const parts: IAssistantContentPart[] = [];
 	const events: AgentLoopEvent[] = [];
 	let fullText = '';
+	let accumulatedMetadata: Record<string, unknown> | undefined;
 
 	// Track in-progress tool calls for argument accumulation
 	const pendingToolCalls = new Map<string, { toolName: string; argumentChunks: string[] }>();
@@ -292,7 +299,11 @@ async function accumulateResponse(
 				break;
 			}
 			case 'provider-metadata': {
-				// Provider metadata is attached to the assistant message
+				// Accumulate provider metadata for attachment to the assistant message
+				if (!accumulatedMetadata) {
+					accumulatedMetadata = {};
+				}
+				Object.assign(accumulatedMetadata, chunk.metadata);
 				break;
 			}
 		}
@@ -312,7 +323,7 @@ async function accumulateResponse(
 		parts.push({ type: 'text', text: fullText });
 	}
 
-	return { parts, text: fullText, events };
+	return { parts, text: fullText, events, providerMetadata: accumulatedMetadata };
 }
 
 /**

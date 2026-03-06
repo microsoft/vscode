@@ -26,6 +26,9 @@ import { ILogService } from '../../log/common/log.js';
 
 const ANTHROPIC_BETA_HEADERS = 'interleaved-thinking-2025-05-14,context-management-2025-06-27,advanced-tool-use-2025-11-20';
 const DEFAULT_MAX_TOKENS = 16384;
+const MAX_RETRIES = 3;
+const INITIAL_RETRY_DELAY_MS = 1000;
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 529]);
 
 // -- Wire format types --------------------------------------------------------
 
@@ -183,33 +186,65 @@ export class AnthropicModelProvider implements IModelProvider {
 		const disposable = token.onCancellationRequested(() => abortController.abort());
 
 		try {
-			// Use CAPIClient.makeRequest for proper URL routing and header injection.
-			// CAPIClient routes ChatMessages -> {capiBaseUrl}/v1/messages and adds
-			// standard headers (session ID, machine ID, integration ID, API version).
-			const response = await this._tokenService.makeRequest<Response>(
-				{
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${copilotToken.token}`,
-						'Content-Type': 'application/json',
-						'anthropic-beta': ANTHROPIC_BETA_HEADERS,
+			// Retry loop with exponential backoff for transient errors
+			let lastError: Error | undefined;
+			for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+
+				if (attempt > 0) {
+					const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+					this._logService.info(`[Anthropic] Retrying after ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES + 1})`);
+					await new Promise(resolve => setTimeout(resolve, delay));
+				}
+
+				// Use CAPIClient.makeRequest for proper URL routing and header injection.
+				const response = await this._tokenService.makeRequest<Response>(
+					{
+						method: 'POST',
+						headers: {
+							'Authorization': `Bearer ${copilotToken.token}`,
+							'Content-Type': 'application/json',
+							'anthropic-beta': ANTHROPIC_BETA_HEADERS,
+						},
+						body: JSON.stringify(body),
+						signal: abortController.signal,
 					},
-					body: JSON.stringify(body),
-					signal: abortController.signal,
-				},
-				{ type: CAPIRequestType.ChatMessages },
-			);
+					{ type: CAPIRequestType.ChatMessages },
+				);
 
-			if (!response.ok) {
-				const errorBody = await response.text().catch(() => '');
-				throw new Error(`Anthropic API error: ${response.status} ${response.statusText}${errorBody ? ` - ${errorBody}` : ''}`);
+				if (!response.ok) {
+					const errorBody = await response.text().catch(() => '');
+					const statusCode = response.status;
+
+					if (RETRYABLE_STATUS_CODES.has(statusCode) && attempt < MAX_RETRIES) {
+						// Check for Retry-After header
+						const retryAfter = response.headers?.get?.('retry-after');
+						if (retryAfter) {
+							const retryAfterMs = parseInt(retryAfter, 10) * 1000;
+							if (!isNaN(retryAfterMs) && retryAfterMs > 0) {
+								this._logService.info(`[Anthropic] Rate limited, waiting ${retryAfterMs}ms (Retry-After header)`);
+								await new Promise(resolve => setTimeout(resolve, retryAfterMs));
+							}
+						}
+						lastError = new Error(`Anthropic API error: ${statusCode} ${response.statusText}${errorBody ? ` - ${errorBody}` : ''}`);
+						continue;
+					}
+
+					throw new Error(`Anthropic API error: ${statusCode} ${response.statusText}${errorBody ? ` - ${errorBody}` : ''}`);
+				}
+
+				if (!response.body) {
+					throw new Error('Anthropic API returned no response body');
+				}
+
+				yield* this._parseSSEStream(response.body, token);
+				return; // Success -- exit retry loop
 			}
 
-			if (!response.body) {
-				throw new Error('Anthropic API returned no response body');
-			}
-
-			yield* this._parseSSEStream(response.body, token);
+			// All retries exhausted
+			throw lastError ?? new Error('Anthropic API request failed after retries');
 		} finally {
 			disposable.dispose();
 		}
