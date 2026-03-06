@@ -63,7 +63,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IHistoryService } from '../../../../../services/history/common/history.js';
 import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
 import { isNumber, isString } from '../../../../../../base/common/types.js';
-import { ChatConfiguration } from '../../../../chat/common/constants.js';
+import { ChatConfiguration, isAutoApproveLevel } from '../../../../chat/common/constants.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
 import { clamp } from '../../../../../../base/common/numbers.js';
@@ -644,8 +644,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 
+		// Check if the session's permission level (Autopilot/Bypass Approvals) auto-approves all tools.
+		// When active, skip terminal confirmation entirely since the user has opted into full auto-approval.
+		const isSessionAutoApproved = chatSessionResource && this._isSessionAutoApproveLevel(chatSessionResource);
+
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
-		const shouldShowConfirmation = !isFinalAutoApproved || context.forceConfirmationReason !== undefined;
+		const shouldShowConfirmation = (!isFinalAutoApproved && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
 		const confirmationMessages = shouldShowConfirmation ? {
 			title: confirmationTitle,
 			message: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", args.explanation, args.goal)),
@@ -657,6 +661,30 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			confirmationMessages,
 			toolSpecificData,
 		};
+	}
+
+	/**
+	 * Returns true if the chat session's permission level (Autopilot/Bypass Approvals)
+	 * auto-approves all tool calls, unless enterprise policy restricts it.
+	 * Checks both the request-stamped level and the live picker level.
+	 */
+	private _isSessionAutoApproveLevel(chatSessionResource: URI): boolean {
+		const inspected = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
+		if (inspected.policyValue === false) {
+			return false;
+		}
+		// Check the live widget picker level (handles mid-session switches).
+		// Fall back to lastFocusedWidget if the session-specific widget isn't found
+		// (e.g., widget was backgrounded or URI mismatch).
+		const widget = this._chatWidgetService.getWidgetBySessionResource(chatSessionResource)
+			?? this._chatWidgetService.lastFocusedWidget;
+		if (widget && isAutoApproveLevel(widget.input.currentModeInfo.permissionLevel)) {
+			return true;
+		}
+		// Fall back to the request-stamped level
+		const model = this._chatService.getSession(chatSessionResource);
+		const request = model?.getRequests().at(-1);
+		return isAutoApproveLevel(request?.modeInfo?.permissionLevel);
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {

@@ -30,6 +30,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'git.detectWorktrees': false,
 		'git.showProgress': false,
 
+		'github.copilot.enable': {
+			'markdown': true,
+			'plaintext': true,
+		},
+
 		'github.copilot.chat.claudeCode.enabled': true,
 		'github.copilot.chat.cli.branchSupport.enabled': true,
 		'github.copilot.chat.languageContext.typescript.enabled': true,
@@ -40,6 +45,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 
 		'terminal.integrated.initialHint': false,
 
+		'workbench.editor.doubleClickTabToToggleEditorGroupSizes': 'maximize',
 		'workbench.editor.restoreEditors': false,
 		'workbench.startupEditor': 'none',
 		'workbench.tips.enabled': false,

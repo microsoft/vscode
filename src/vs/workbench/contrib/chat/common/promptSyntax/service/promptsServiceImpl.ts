@@ -40,6 +40,7 @@ import { ChatRequestHooks, IHookCommand, parseSubagentHooksFromYaml } from '../h
 import { HookType } from '../hookTypes.js';
 import { HookSourceFormat, getHookSourceFormat, parseHooksFromFile } from '../hookCompatibility.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { getTarget, mapClaudeModels, mapClaudeTools } from '../languageProviders/promptFileAttributes.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
@@ -173,6 +174,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IPathService private readonly pathService: IPathService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -193,7 +195,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const modelChangeEvent = this._register(new ModelChangeTracker(this.modelService)).onDidPromptChange;
 		this.cachedCustomAgents = this._register(new CachedPromise(
 			(token) => this.computeCustomAgents(token),
-			() => Event.any(this.getFileLocatorEvent(PromptsType.agent), Event.filter(modelChangeEvent, e => e.promptType === PromptsType.agent), this._onDidContributedWhenChange.event)
+			() => Event.any(
+				this.getFileLocatorEvent(PromptsType.agent),
+				Event.filter(modelChangeEvent, e => e.promptType === PromptsType.agent),
+				this._onDidContributedWhenChange.event,
+				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)),
+			)
 		));
 
 		this.cachedSlashCommands = this._register(new CachedPromise(
@@ -218,6 +225,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				this.getFileLocatorEvent(PromptsType.hook),
 				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(PromptsConfig.USE_CHAT_HOOKS) || e.affectsConfiguration(PromptsConfig.USE_CLAUDE_HOOKS)),
 				this._onDidPluginHooksChange.event,
+				this.workspaceTrustService.onDidChangeTrust,
 			)
 		));
 
@@ -742,8 +750,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 				// Parse hooks from the frontmatter if present
 				let hooks: ChatRequestHooks | undefined;
+				const useCustomAgentHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS);
 				const hooksRaw = ast.header.hooksRaw;
-				if (hooksRaw) {
+				if (useCustomAgentHooks && hooksRaw) {
 					const hookWorkspaceFolder = this.workspaceService.getWorkspaceFolder(uri) ?? defaultFolder;
 					const workspaceRootUri = hookWorkspaceFolder?.uri;
 					hooks = parseSubagentHooksFromYaml(hooksRaw, workspaceRootUri, userHome, target);
@@ -1239,6 +1248,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return undefined;
 		}
 
+		if (!this.workspaceTrustService.isWorkspaceTrusted()) {
+			return undefined;
+		}
+
 		const useClaudeHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CLAUDE_HOOKS);
 		const hookFiles = await this.listPromptFiles(PromptsType.hook, token);
 
@@ -1623,6 +1636,19 @@ export class PromptsService extends Disposable implements IPromptsService {
 			const storage = promptPath.storage;
 			const extensionId = promptPath.extension?.identifier?.value;
 			const name = basename(uri);
+
+			// Ignored if workspace is untrusted
+			if (!this.workspaceTrustService.isWorkspaceTrusted()) {
+				files.push({
+					uri: promptPath.uri,
+					storage: promptPath.storage,
+					status: 'skipped',
+					skipReason: 'workspace-untrusted',
+					name: basename(promptPath.uri),
+					extensionId: promptPath.extension?.identifier?.value,
+				});
+				continue;
+			}
 
 			// Skip Claude hooks when the setting is disabled
 			if (getHookSourceFormat(uri) === HookSourceFormat.Claude && useClaudeHooks === false) {

@@ -127,7 +127,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.switchToAuto',
-					"Using gpt-4.1? Try switching to [Auto](command:workbench.action.chat.openModelPicker) in the model picker for better coding performance."
+					"Using GPT-4.1? Try switching to [Auto](command:workbench.action.chat.openModelPicker \"Open Model Picker\") in the model picker for better coding performance."
 				)
 			);
 		},
@@ -142,7 +142,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.init',
-					"Use [{0}](command:{1}){2} to generate or update a workspace instructions file for AI coding agents.",
+					"Use [{0}](command:{1} \"Run /init\"){2} to generate or update a workspace instructions file for AI coding agents.",
 					'/init',
 					GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,
 					kb
@@ -163,7 +163,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.createPrompt',
-					"Use [{0}](command:{1}){2} to generate a reusable prompt file with the agent.",
+					"Use [{0}](command:{1} \"Run /create-prompt\"){2} to generate a reusable prompt file with the agent.",
 					'/create-prompt',
 					GENERATE_PROMPT_COMMAND_ID,
 					kb
@@ -185,7 +185,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.createAgent',
-					"Use [{0}](command:{1}){2} to scaffold a custom agent for your workflow.",
+					"Use [{0}](command:{1} \"Run /create-agent\"){2} to scaffold a custom agent for your workflow.",
 					'/create-agent',
 					GENERATE_AGENT_COMMAND_ID,
 					kb
@@ -207,7 +207,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.createSkill',
-					"Use [{0}](command:{1}){2} to create a skill the agent can load when relevant.",
+					"Use [{0}](command:{1} \"Run /create-skill\"){2} to create a skill the agent can load when relevant.",
 					'/create-skill',
 					GENERATE_SKILL_COMMAND_ID,
 					kb
@@ -221,25 +221,6 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		],
 	},
 	{
-		id: 'tip.agentMode',
-		tier: ChatTipTier.Foundational,
-		priority: 10,
-		buildMessage(ctx) {
-			const label = getCommandLabel('workbench.action.chat.openEditSession');
-			const kb = formatKeybinding(ctx, 'workbench.action.chat.openEditSession');
-			return new MarkdownString(
-				localize(
-					'tip.agentMode',
-					"Try [{0}](command:workbench.action.chat.openEditSession){1} to make edits across your project and run commands.",
-					label,
-					kb
-				)
-			);
-		},
-		when: ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Agent),
-		excludeWhenModesUsed: [ChatModeKind.Agent],
-	},
-	{
 		id: 'tip.planMode',
 		tier: ChatTipTier.Foundational,
 		priority: 20,
@@ -248,7 +229,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.planMode',
-					"Try the [{0}](command:workbench.action.chat.openPlan){1} to research and plan before implementing changes.",
+					"Try the [{0}](command:workbench.action.chat.openPlan \"Start Plan Mode\"){1} to research and plan before implementing changes.",
 					'Plan agent',
 					kb
 				)
@@ -289,7 +270,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
-				localize('tip.undoChanges', "Select \"Restore Checkpoint\" to undo changes after that point in the chat conversation.")
+				localize('tip.undoChanges', "Hover a previous request and select \"Restore Checkpoint\" to undo changes after that point in the chat conversation.")
 			);
 		},
 		when: ContextKeyExpr.and(
@@ -320,7 +301,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.forkConversation',
-					"Use [{0}](command:{1}){2} to branch the conversation. Explore a different approach without losing the original context.",
+					"Use [{0}](command:{1} \"Run /fork\"){2} to branch the conversation. Explore a different approach without losing the original context.",
 					'/fork',
 					INSERT_FORK_CONVERSATION_COMMAND_ID,
 					kb
@@ -334,33 +315,13 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		],
 	},
 	{
-		id: 'tip.yoloMode',
-		tier: ChatTipTier.Qol,
-		buildMessage() {
-			return new MarkdownString(
-				localize(
-					'tip.yoloMode',
-					"Enable [{0}](command:workbench.action.openSettings?%5B%22{1}%22%5D) to give the agent full control without manual confirmation.",
-					'auto approve',
-					ChatConfiguration.GlobalAutoApprove
-				)
-			);
-		},
-		when: ContextKeyExpr.and(
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-			ContextKeyExpr.notEquals('config.chat.tools.global.autoApprove', true),
-		),
-		excludeWhenSettingsChanged: [ChatConfiguration.GlobalAutoApprove],
-		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
-	},
-	{
 		id: 'tip.agenticBrowser',
 		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
 				localize(
 					'tip.agenticBrowser',
-					"Enable [{0}](command:workbench.action.openSettings?%5B%22workbench.browser.enableChatTools%22%5D) to let the agent open and interact with pages in the Integrated Browser.",
+					"Enable [{0}](command:workbench.action.openSettings?%5B%22workbench.browser.enableChatTools%22%5D \"Open Settings\") to let the agent open and interact with pages in the Integrated Browser.",
 					'agentic browser integration'
 				)
 			);
@@ -377,7 +338,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
-				localize('tip.mermaid', "Ask the agent to draw an architectural diagram or flow chart; it can render Mermaid diagrams directly in chat.")
+				localize('tip.mermaid', "Ask the agent to draw an architectural diagram or flow chart. It can render Mermaid diagrams directly in chat.")
 			);
 		},
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
@@ -401,7 +362,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.thinkingPhrases',
-					"Customize the loading messages shown while the agent works with [{0}](command:workbench.action.openSettings?%5B%22{1}%22%5D).",
+					"Customize the loading messages shown while the agent works with [{0}](command:workbench.action.openSettings?%5B%22{1}%22%5D \"Open Settings\").",
 					'thinking phrases',
 					ChatConfiguration.ThinkingPhrases
 				)

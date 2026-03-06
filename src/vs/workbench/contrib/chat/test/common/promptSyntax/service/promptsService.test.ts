@@ -35,7 +35,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../../services/environ
 import { IFilesConfigurationService } from '../../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
 import { toUserDataProfile } from '../../../../../../../platform/userDataProfile/common/userDataProfile.js';
-import { TestContextService, TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestUserDataProfileService, TestWorkspaceTrustManagementService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
@@ -54,6 +54,7 @@ import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyService, IContextKeyChangeEvent } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -65,6 +66,7 @@ suite('PromptsService', () => {
 	let fileService: IFileService;
 	let testPluginsObservable: ISettableObservable<readonly IAgentPlugin[]>;
 	let testAllPluginsObservable: ISettableObservable<readonly IAgentPlugin[]>;
+	let workspaceTrustService: TestWorkspaceTrustManagementService;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
@@ -165,6 +167,9 @@ suite('PromptsService', () => {
 		});
 
 		instaService.stub(IContextKeyService, new MockContextKeyService());
+
+		workspaceTrustService = disposables.add(new TestWorkspaceTrustManagementService());
+		instaService.stub(IWorkspaceTrustManagementService, workspaceTrustService);
 
 		testPluginsObservable = observableValue<readonly IAgentPlugin[]>('testPlugins', []);
 		testAllPluginsObservable = observableValue<readonly IAgentPlugin[]>('testAllPlugins', []);
@@ -3632,6 +3637,88 @@ suite('PromptsService', () => {
 			const after = await service.getHooks(CancellationToken.None);
 			assert.ok(after, 'Expected hooks result after plugin update');
 			assert.deepStrictEqual(after.hooks[HookType.PreToolUse], [{ type: 'command', command: 'echo after' }]);
+		});
+
+		test('returns undefined when workspace is untrusted', async function () {
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/test-workspace')));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, { [HOOKS_SOURCE_FOLDER]: true });
+
+			await mockFiles(fileService, [
+				{
+					path: '/test-workspace/.github/hooks/my-hook.json',
+					contents: [
+						JSON.stringify({
+							hooks: {
+								[HookType.PreToolUse]: [
+									{ type: 'command', command: 'echo test' },
+								],
+							},
+						}),
+					],
+				},
+			]);
+
+			// Trusted workspace should return hooks
+			const trustedResult = await service.getHooks(CancellationToken.None);
+			assert.ok(trustedResult, 'Expected hooks when workspace is trusted');
+			assert.strictEqual(trustedResult.hooks[HookType.PreToolUse]?.length, 1);
+
+			// Untrusted workspace should return undefined
+			await workspaceTrustService.setWorkspaceTrust(false);
+			const untrustedResult = await service.getHooks(CancellationToken.None);
+			assert.strictEqual(untrustedResult, undefined, 'Expected undefined hooks when workspace is untrusted');
+
+			// Re-trusting should return hooks again
+			await workspaceTrustService.setWorkspaceTrust(true);
+			const reTrustedResult = await service.getHooks(CancellationToken.None);
+			assert.ok(reTrustedResult, 'Expected hooks after workspace becomes trusted again');
+			assert.strictEqual(reTrustedResult.hooks[HookType.PreToolUse]?.length, 1);
+		});
+
+		test('discovery info marks hooks as skipped when workspace is untrusted', async function () {
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/test-workspace')));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, { [HOOKS_SOURCE_FOLDER]: true });
+
+			await mockFiles(fileService, [
+				{
+					path: '/test-workspace/.github/hooks/my-hook.json',
+					contents: [
+						JSON.stringify({
+							hooks: {
+								[HookType.PreToolUse]: [
+									{ type: 'command', command: 'echo test' },
+								],
+							},
+						}),
+					],
+				},
+			]);
+
+			await workspaceTrustService.setWorkspaceTrust(false);
+			const discoveryInfo = await service.getPromptDiscoveryInfo(PromptsType.hook, CancellationToken.None);
+			assert.strictEqual(discoveryInfo.files.length, 1, 'Expected one discovery result');
+			assert.strictEqual(discoveryInfo.files[0].status, 'skipped');
+			assert.strictEqual(discoveryInfo.files[0].skipReason, 'workspace-untrusted');
+		});
+
+		test('suppresses plugin hooks when workspace is untrusted', async function () {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, {});
+
+			const { plugin } = createTestPlugin('/plugins/test-plugin', [{
+				type: HookType.PreToolUse,
+				originalId: 'plugin-pre-tool-use',
+				hooks: [{ type: 'command', command: 'echo from-plugin' }],
+			}]);
+
+			testPluginsObservable.set([plugin], undefined);
+			testAllPluginsObservable.set([plugin], undefined);
+
+			await workspaceTrustService.setWorkspaceTrust(false);
+			const result = await service.getHooks(CancellationToken.None);
+			assert.strictEqual(result, undefined, 'Expected undefined hooks when workspace is untrusted, even with plugin hooks');
 		});
 	});
 });

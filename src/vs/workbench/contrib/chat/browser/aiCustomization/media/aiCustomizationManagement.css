@@ -166,7 +166,7 @@
 	align-items: center;
 	gap: 8px;
 	flex-shrink: 0;
-	margin: 6px 0px;
+	padding: 6px 0;
 }
 
 .ai-customization-list-widget .list-search-container,
@@ -828,6 +828,19 @@
 
 .mcp-gallery-item .mcp-gallery-action {
 	flex-shrink: 0;
+}
+
+.mcp-gallery-item.extension-list-item {
+	padding: 6px 8px 6px 16px;
+}
+
+.mcp-gallery-item.extension-list-item > .details > .footer {
+	display: flex;
+	align-items: center;
+}
+
+.mcp-gallery-item.extension-list-item .mcp-gallery-action {
+	margin-left: auto;
 }
 
 .mcp-gallery-item .mcp-gallery-install-button {

@@ -14,10 +14,11 @@ import { MockScopableContextKeyService } from '../../../../../platform/keybindin
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { MODAL_GROUP, MODAL_GROUP_TYPE } from '../../common/editorService.js';
+import { IEditorService, MODAL_GROUP, MODAL_GROUP_TYPE } from '../../common/editorService.js';
 import { findGroup } from '../../common/editorGroupFinder.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { EditorService } from '../../browser/editorService.js';
 
 suite('Modal Editor Group', () => {
 
@@ -641,6 +642,24 @@ suite('Modal Editor Group', () => {
 		// Close modal
 		modalPart.close();
 		assert.strictEqual(parts.activeModalEditorPart, undefined);
+	});
+
+	test('openEditor with MODAL_GROUP ignores preserveFocus', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
+		instantiationService.stub(IEditorService, editorService);
+
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const pane = await editorService.openEditor(input, { pinned: true, preserveFocus: true }, MODAL_GROUP);
+
+		assert.ok(pane);
+		assert.strictEqual(pane.options?.preserveFocus, false);
+
+		parts.activeModalEditorPart?.close();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

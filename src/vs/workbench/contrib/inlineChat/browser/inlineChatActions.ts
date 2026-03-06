@@ -91,11 +91,11 @@ export class StartSessionAction extends Action2 {
 				logService.debug(`[EditorAction2] NOT running command because its precondition is FALSE`, this.desc.id, this.desc.precondition?.serialize());
 				return;
 			}
-			return this._runEditorCommand(editorAccessor, editor, ...args);
+			return this.#runEditorCommand(editorAccessor, editor, ...args);
 		});
 	}
 
-	private async _runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]) {
+	async #runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]) {
 
 		const configServce = accessor.get(IConfigurationService);
 
@@ -239,7 +239,7 @@ export class FixDiagnosticsAction extends AbstractInlineChatAction {
 			id: 'inlineChat.fixDiagnostics',
 			title: localize2('fix', 'Fix'),
 			icon: Codicon.editSparkle,
-			precondition: ContextKeyExpr.and(inlineChatContextKey, CTX_FIX_DIAGNOSTICS_ENABLED, EditorContextKeys.selectionHasDiagnostics, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.negate()),
+			precondition: ContextKeyExpr.and(CTX_FIX_DIAGNOSTICS_ENABLED, EditorContextKeys.selectionHasDiagnostics, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.negate()),
 			menu: [{
 				id: MenuId.InlineChatEditorAffordance,
 				group: '1_quickfix',
@@ -255,18 +255,22 @@ export class FixDiagnosticsAction extends AbstractInlineChatAction {
 	}
 
 	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: unknown[]): void {
+		ctrl.inputWidget.hide();
 		ctrl.run({ autoSend: true, attachDiagnostics: true });
 	}
 }
 
 class KeepOrUndoSessionAction extends AbstractInlineChatAction {
 
-	constructor(private readonly _keep: boolean, desc: IAction2Options) {
+	readonly #keep: boolean;
+
+	constructor(keep: boolean, desc: IAction2Options) {
 		super(desc);
+		this.#keep = keep;
 	}
 
 	override async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, editor: ICodeEditor, ..._args: unknown[]): Promise<void> {
-		if (this._keep) {
+		if (this.#keep) {
 			await ctrl.acceptSession();
 		} else {
 			await ctrl.rejectSession();

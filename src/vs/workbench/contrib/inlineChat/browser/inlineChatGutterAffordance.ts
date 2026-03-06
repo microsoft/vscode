@@ -26,8 +26,8 @@ import { IUserInteractionService } from '../../../../platform/userInteraction/br
 
 export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
 
-	private readonly _onDidRunAction = this._store.add(new Emitter<string>());
-	readonly onDidRunAction: Event<string> = this._onDidRunAction.event;
+	readonly #onDidRunAction = this._store.add(new Emitter<string>());
+	readonly onDidRunAction: Event<string> = this.#onDidRunAction.event;
 
 	constructor(
 		myEditorObs: ObservableCodeEditor,
@@ -108,6 +108,6 @@ export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
 		this._store.add(menu);
 
 
-		this._store.add(this.onDidCloseWithCommand(commandId => this._onDidRunAction.fire(commandId)));
+		this._store.add(this.onDidCloseWithCommand(commandId => this.#onDidRunAction.fire(commandId)));
 	}
 }

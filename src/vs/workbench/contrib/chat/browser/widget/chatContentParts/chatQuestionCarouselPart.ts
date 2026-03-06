@@ -152,12 +152,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this._skipAllButton = skipAllButton;
 		}
 
-		const isSingleQuestion = this.carousel.questions.length === 1;
-
-		if (!isSingleQuestion && this._closeButtonContainer) {
-			this.domNode.insertBefore(this._closeButtonContainer, this._questionContainer!);
-		}
-
 		// Register event listeners
 		if (this._skipAllButton) {
 			interactiveStore.add(this._skipAllButton.onDidClick(() => this.ignore()));
@@ -331,6 +325,17 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return;
 		}
 
+		// Clear stale size constraints first so this step can shrink after
+		// navigating from a taller question.
+		if (scrollableNode.style.height !== '' || scrollableNode.style.maxHeight !== '') {
+			scrollableNode.style.height = '';
+			scrollableNode.style.maxHeight = '';
+		}
+		if (scrollableContent.style.height !== '' || scrollableContent.style.maxHeight !== '') {
+			scrollableContent.style.height = '';
+			scrollableContent.style.maxHeight = '';
+		}
+
 		// Use the flex-resolved container height (constrained by CSS max-height)
 		// instead of window.innerHeight, so the scroll viewport tracks actual chat space.
 		const maxContainerHeight = this._questionContainer.clientHeight;
@@ -345,12 +350,19 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			.reduce((sum, child) => sum + (child as HTMLElement).offsetHeight, 0);
 
 		const availableScrollableHeight = Math.floor(maxContainerHeight - contentVerticalPadding - nonScrollableContentHeight);
-		const constrainedScrollableHeight = Math.max(0, availableScrollableHeight);
+
+		const contentScrollableHeight = scrollableContent.scrollHeight;
+		const constrainedScrollableHeight = Math.max(0, Math.min(availableScrollableHeight, contentScrollableHeight));
 		const constrainedScrollableHeightPx = `${constrainedScrollableHeight}px`;
+
+		// Constrain wrapper + content so no stale flex sizing survives between steps.
+		if (scrollableNode.style.height !== constrainedScrollableHeightPx || scrollableNode.style.maxHeight !== constrainedScrollableHeightPx) {
+			scrollableNode.style.height = constrainedScrollableHeightPx;
+			scrollableNode.style.maxHeight = constrainedScrollableHeightPx;
+		}
 
 		// Constrain the content element (DomScrollableElement._element) so that
 		// scanDomNode sees clientHeight < scrollHeight and enables scrolling.
-		// The wrapper inherits the same constraint via CSS flex.
 		if (scrollableContent.style.height !== constrainedScrollableHeightPx || scrollableContent.style.maxHeight !== constrainedScrollableHeightPx) {
 			scrollableContent.style.height = constrainedScrollableHeightPx;
 			scrollableContent.style.maxHeight = constrainedScrollableHeightPx;
@@ -560,9 +572,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		headerRow.appendChild(titleRow);
 
-		// For single-question carousels, add close button inside the title row
-		const isSingleQuestion = this.carousel.questions.length === 1;
-		if (isSingleQuestion && this._closeButtonContainer) {
+		// Always keep the close button in the title row so it does not overlap content.
+		if (this._closeButtonContainer) {
 			titleRow.appendChild(this._closeButtonContainer);
 		}
 
@@ -582,6 +593,16 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		inputScrollableNode.classList.add('chat-question-input-scrollable');
 		this._questionContainer.appendChild(inputScrollableNode);
 
+		const isSingleQuestion = this.carousel.questions.length === 1;
+
+		// Render footer before first layout so the scrollable area is measured against
+		// its final available height and does not visibly resize twice.
+		if (!isSingleQuestion) {
+			this.renderFooter();
+		} else {
+			this.renderSingleQuestionFooter();
+		}
+
 		let relayoutScheduled = false;
 		const relayoutScheduler = questionRenderStore.add(new MutableDisposable());
 		const scheduleLayoutInputScrollable = () => {
@@ -600,20 +621,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		questionRenderStore.add(inputResizeObserver.observe(inputScrollableNode));
 		questionRenderStore.add(inputResizeObserver.observe(inputContainer));
 		scheduleLayoutInputScrollable();
-		this.layoutInputScrollable(inputScrollable);
 		questionRenderStore.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
 			inputContainer.scrollTop = 0;
 			inputContainer.scrollLeft = 0;
 			inputScrollable.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
 			inputScrollable.scanDomNode();
 		}));
-
-		// Render footer for multi-question carousels or single-question carousels.
-		if (!isSingleQuestion) {
-			this.renderFooter();
-		} else {
-			this.renderSingleQuestionFooter();
-		}
 
 		// Update aria-label to reflect the current question
 		this._updateAriaLabel();
