@@ -11,6 +11,7 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { AgentHostIpcChannels } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
+import { NativeAgent } from '../../agent2/node/nativeAgent.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { parseArgs, OPTIONS } from '../../environment/node/argv.js';
 import { getLogLevel } from '../../log/common/log.js';
@@ -52,6 +53,7 @@ function startAgentHost(): void {
 	try {
 		agentService = new AgentService(logService);
 		agentService.registerProvider(new CopilotAgent(logService));
+		agentService.registerProvider(new NativeAgent(logService));
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		throw err;
