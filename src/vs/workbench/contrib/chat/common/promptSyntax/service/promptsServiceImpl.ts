@@ -1637,6 +1637,19 @@ export class PromptsService extends Disposable implements IPromptsService {
 			const extensionId = promptPath.extension?.identifier?.value;
 			const name = basename(uri);
 
+			// Ignored if workspace is untrusted
+			if (!this.workspaceTrustService.isWorkspaceTrusted()) {
+				files.push({
+					uri: promptPath.uri,
+					storage: promptPath.storage,
+					status: 'skipped',
+					skipReason: 'workspace-untrusted',
+					name: basename(promptPath.uri),
+					extensionId: promptPath.extension?.identifier?.value,
+				});
+				continue;
+			}
+
 			// Skip Claude hooks when the setting is disabled
 			if (getHookSourceFormat(uri) === HookSourceFormat.Claude && useClaudeHooks === false) {
 				files.push({
