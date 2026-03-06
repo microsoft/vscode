@@ -6,11 +6,12 @@
 /**
  * Integration test for the local agent loop with real CAPI model calls.
  *
- * This test is gated on the `GITHUB_TOKEN` environment variable. When set,
- * it makes a real HTTP request to the GitHub Copilot API, exchanges the token
- * for a Copilot JWT, and sends a simple prompt to verify the full stack works.
+ * Supports the same credential sources as the copilot-chat extension:
+ *   - VSCODE_COPILOT_CHAT_TOKEN: base64-encoded pre-minted Copilot JWT (skips exchange)
+ *   - GITHUB_OAUTH_TOKEN: GitHub OAuth token (exchanged for Copilot JWT)
+ *   - GITHUB_PAT: GitHub PAT (exchanged for Copilot JWT)
  *
- * Run with: GITHUB_TOKEN=<token> ./scripts/test.sh --run src/vs/platform/agent2/test/node/agentLoop.integrationTest.ts
+ * Run with: GITHUB_OAUTH_TOKEN=<token> ./scripts/test.sh --run src/vs/platform/agent2/test/node/agentLoop.integrationTest.ts
  */
 
 import assert from 'assert';
@@ -27,9 +28,46 @@ function findEvents<K extends keyof IAgentLoopEventMap>(events: AgentLoopEvent[]
 	return events.filter(e => e.type === type) as IAgentLoopEventMap[K][];
 }
 
-// Only run this suite when GITHUB_TOKEN is set
-const GITHUB_TOKEN = process.env['GITHUB_TOKEN'];
-const describer = GITHUB_TOKEN ? suite : suite.skip;
+/**
+ * Resolves integration test credentials using the same env var conventions
+ * as the copilot-chat extension's test infrastructure.
+ */
+function resolveTestAuth(apiService: CopilotApiService): Promise<boolean> {
+	// Priority 1: Pre-minted Copilot JWT (base64-encoded token envelope)
+	const preMinted = process.env['VSCODE_COPILOT_CHAT_TOKEN'];
+	if (preMinted) {
+		try {
+			const decoded = Buffer.from(preMinted, 'base64').toString('utf8');
+			const tokenInfo = JSON.parse(decoded) as {
+				token: string;
+				endpoints?: { api?: string; telemetry?: string; proxy?: string };
+				sku?: string;
+			};
+			return apiService.setCopilotToken(tokenInfo.token, tokenInfo.endpoints, tokenInfo.sku).then(() => true);
+		} catch {
+			return Promise.resolve(false);
+		}
+	}
+
+	// Priority 2: GitHub OAuth token (goes through exchange)
+	const oauthToken = process.env['GITHUB_OAUTH_TOKEN'];
+	if (oauthToken) {
+		apiService.setGitHubToken(oauthToken);
+		return Promise.resolve(true);
+	}
+
+	// Priority 3: GitHub PAT (goes through exchange)
+	const pat = process.env['GITHUB_PAT'];
+	if (pat) {
+		apiService.setGitHubToken(pat);
+		return Promise.resolve(true);
+	}
+
+	return Promise.resolve(false);
+}
+
+const hasAuth = !!(process.env['VSCODE_COPILOT_CHAT_TOKEN'] || process.env['GITHUB_OAUTH_TOKEN'] || process.env['GITHUB_PAT']);
+const describer = hasAuth ? suite : suite.skip;
 
 describer('Agent Loop Integration (real CAPI)', function () {
 	// Allow enough time for real HTTP calls
@@ -41,9 +79,12 @@ describer('Agent Loop Integration (real CAPI)', function () {
 	let tokenService: CopilotApiService;
 	let provider: AnthropicModelProvider;
 
-	setup(() => {
+	setup(async () => {
 		tokenService = new CopilotApiService(log);
-		tokenService.setGitHubToken(GITHUB_TOKEN!);
+		const resolved = await resolveTestAuth(tokenService);
+		if (!resolved) {
+			throw new Error('No auth credentials available');
+		}
 		provider = new AnthropicModelProvider('claude-sonnet-4-20250514', tokenService, log);
 	});
 

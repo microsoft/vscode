@@ -65,6 +65,37 @@
 - [ ] Full model discovery (GET /models endpoint)
 - [ ] Provider metadata passthrough (accumulate provider-metadata chunks)
 
+## P2a -- CAPI Parity (from code review)
+
+These items bring the local agent's API usage in line with the copilot-chat extension's
+CAPI integration. Required for production correctness and server feature utilization.
+
+### Messages API (Anthropic)
+- [ ] Deferred tool loading and tool search tool support (CAPI server feature)
+- [ ] Context editing / cache-control semantics on tool results and content blocks
+- [ ] Trailing-assistant-prefill guard (prevent invalid trailing assistant messages)
+- [ ] Handle server tool search result events in SSE stream parser
+
+### Responses API (OpenAI)
+- [ ] Stateful conversation via `previous_response_id` chaining (avoid rebuilding every turn)
+- [ ] Context management compaction (server-side, with `compact_threshold`)
+- [ ] Truncation control (`truncation: 'auto' | 'disabled'`)
+- [ ] Reasoning settings (`reasoning.effort`, `reasoning.summary`)
+- [ ] Encrypted reasoning inclusion (`include: reasoning.encrypted_content`)
+- [ ] Round-trip opaque Responses state through `providerMetadata` (phase, compaction items, stateful markers)
+- [ ] Handle finalized output-item-done events and stateful markers from `response.completed`
+
+### Endpoint Selection
+- [ ] Select endpoint based on model metadata `supported_endpoints` instead of name prefixes
+- [ ] Respect `model_picker_enabled` and model capabilities from the CAPI `/models` response
+
+### Domain / Enterprise
+- [ ] Propagate enterprise URL through CAPIClient `updateDomains`
+- [ ] Keep CAPI domains synchronized with config state changes (not just initial token exchange)
+
+### Debug / Observability
+- [ ] Expose model request/response data in VS Code's Agent Debug Panel via IPC
+
 ## P3 -- Advanced / Future
 
 - [ ] Concurrent sub-agents

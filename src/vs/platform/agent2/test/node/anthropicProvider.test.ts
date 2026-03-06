@@ -82,7 +82,7 @@ function createMockSetup(sseEvents: string[], options?: { captureBody?: (body: s
 		},
 	};
 
-	const tokenService = new CopilotApiService(log, fetcher);
+	const tokenService = new CopilotApiService(log, undefined, fetcher);
 	tokenService.setGitHubToken('test-github-token');
 	const provider = new AnthropicModelProvider('claude-sonnet-4-20250514', tokenService, log);
 	return { tokenService, provider };
@@ -220,7 +220,7 @@ suite('AnthropicModelProvider', () => {
 				},
 				fetchWithPagination() { return Promise.resolve([]); },
 			};
-			const tokenService = new CopilotApiService(log2, fetcher);
+			const tokenService = new CopilotApiService(log2, undefined, fetcher);
 			tokenService.setGitHubToken('test');
 			const provider = new AnthropicModelProvider('claude-sonnet-4-20250514', tokenService, log2);
 			await assert.rejects(() => collectChunks(provider), /Anthropic API error: 400/);
@@ -362,7 +362,7 @@ suite('AnthropicModelProvider', () => {
 				fetchWithPagination() { return Promise.resolve([]); },
 			};
 
-			const tokenService = new CopilotApiService(log2, fetcher);
+			const tokenService = new CopilotApiService(log2, undefined, fetcher);
 			tokenService.setGitHubToken('test');
 			const provider = new AnthropicModelProvider('claude-sonnet-4-20250514', tokenService, log2);
 

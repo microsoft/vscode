@@ -18,6 +18,16 @@ import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
 
+/**
+ * Identity data to pass to the agent host process via environment variables.
+ */
+export interface IAgentHostIdentity {
+	readonly sessionId: string;
+	readonly machineId: string;
+	readonly version: string;
+	readonly quality: string;
+}
+
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
 
 	private utilityProcess: UtilityProcess | undefined = undefined;
@@ -28,6 +38,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 	readonly onWillShutdown = this._onWillShutdown.event;
 
 	constructor(
+		private readonly _identity: IAgentHostIdentity,
 		@IEnvironmentMainService private readonly _environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly _logService: ILogService,
@@ -64,6 +75,10 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 				VSCODE_ESM_ENTRYPOINT: 'vs/platform/agent/node/agentHostMain',
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true',
+				VSCODE_AGENT_SESSION_ID: this._identity.sessionId,
+				VSCODE_AGENT_MACHINE_ID: this._identity.machineId,
+				VSCODE_AGENT_VERSION: this._identity.version,
+				VSCODE_AGENT_QUALITY: this._identity.quality,
 			}
 		});
 

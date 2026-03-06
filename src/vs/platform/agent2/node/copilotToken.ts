@@ -168,6 +168,21 @@ const TOKEN_REFRESH_MARGIN_SECONDS = 60;
 const GITHUB_API_VERSION = '2025-04-01';
 
 /**
+ * Identity information for the CAPI client. Passed to the constructor
+ * so the client identifies itself correctly for routing and telemetry.
+ */
+export interface ICopilotApiIdentity {
+	/** Stable session ID (should persist for the lifetime of a VS Code window). */
+	readonly sessionId: string;
+	/** Stable machine identifier (should persist across sessions). */
+	readonly machineId: string;
+	/** VS Code version string (e.g., '1.111.0'). */
+	readonly vscodeVersion: string;
+	/** Build type: 'dev' for OSS/dev builds, 'prod' for stable/insiders. */
+	readonly buildType: 'dev' | 'prod';
+}
+
+/**
  * Unified service for making authenticated requests to the Copilot API.
  *
  * Model providers should use {@link sendModelRequest} to make model calls --
@@ -181,12 +196,20 @@ export class CopilotApiService {
 	private _capiClient: ICAPIClient | undefined;
 	private _capiClientPromise: Promise<ICAPIClient> | undefined;
 	private readonly _fetcherService: ICAPIFetcherService | undefined;
+	private readonly _identity: ICopilotApiIdentity;
 
 	constructor(
 		private readonly _logService: ILogService,
+		identity?: ICopilotApiIdentity,
 		fetcherService?: ICAPIFetcherService,
 	) {
 		this._fetcherService = fetcherService;
+		this._identity = identity ?? {
+			sessionId: generateUuid(),
+			machineId: generateUuid(),
+			vscodeVersion: '1.111.0',
+			buildType: 'dev',
+		};
 	}
 
 	private async _ensureCAPIClient(): Promise<ICAPIClient> {
@@ -204,11 +227,11 @@ export class CopilotApiService {
 			this._capiClient = new ClientCtor(
 				{
 					name: 'vscode.agent-host',
-					sessionId: generateUuid(),
-					machineId: generateUuid(),
-					vscodeVersion: '1.111.0', // TODO: get from product service
+					sessionId: this._identity.sessionId,
+					machineId: this._identity.machineId,
+					vscodeVersion: this._identity.vscodeVersion,
 					version: '1.0.0',
-					buildType: 'dev',
+					buildType: this._identity.buildType,
 				},
 				undefined, // license (undefined for dev builds)
 				this._fetcherService,
@@ -298,6 +321,43 @@ export class CopilotApiService {
 			this._refreshPromise = undefined;
 			this._logService.info('[CopilotApi] GitHub token updated');
 		}
+	}
+
+	/**
+	 * Sets a pre-minted Copilot JWT directly, bypassing the GitHub token
+	 * exchange. Used when `VSCODE_COPILOT_CHAT_TOKEN` provides a base64-
+	 * encoded token envelope for test/automation scenarios.
+	 *
+	 * @param copilotJwt - The Copilot JWT to use for API requests.
+	 * @param endpoints - Optional endpoint overrides from the token envelope.
+	 * @param sku - Optional SKU from the token envelope.
+	 */
+	async setCopilotToken(
+		copilotJwt: string,
+		endpoints?: { api?: string; telemetry?: string; proxy?: string },
+		sku?: string,
+	): Promise<void> {
+		this._cachedToken = {
+			token: copilotJwt,
+			expiresAt: (Date.now() / 1000) + 3600,
+		};
+		// Mark that we have a github token so _getToken doesn't throw
+		this._githubToken = 'pre-minted';
+
+		// Update CAPI domains if endpoint info was provided
+		if (endpoints || sku) {
+			const client = await this._ensureCAPIClient();
+			client.updateDomains({
+				endpoints: {
+					api: endpoints?.api,
+					telemetry: endpoints?.telemetry,
+					proxy: endpoints?.proxy,
+				},
+				sku: sku ?? '',
+			}, undefined);
+		}
+
+		this._logService.info('[CopilotApi] Pre-minted Copilot token set');
 	}
 
 	// ---- Token management (private) ----------------------------------------

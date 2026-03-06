@@ -61,7 +61,7 @@ suite('CopilotApiService', () => {
 			return { ok: true, status: 200, statusText: 'OK', body: null, text: async () => '' };
 		});
 
-		const service = new CopilotApiService(log, fetcher);
+		const service = new CopilotApiService(log, undefined, fetcher);
 		service.setGitHubToken('gh-token-abc');
 
 		await service.sendModelRequest(
@@ -82,7 +82,7 @@ suite('CopilotApiService', () => {
 			return { ok: true, status: 200, statusText: 'OK', body: null, text: async () => '' };
 		});
 
-		const service = new CopilotApiService(log, fetcher);
+		const service = new CopilotApiService(log, undefined, fetcher);
 		service.setGitHubToken('gh-token');
 
 		await service.sendModelRequest({}, { type: 'ChatMessages' }, undefined, CancellationToken.None);
@@ -96,7 +96,7 @@ suite('CopilotApiService', () => {
 			return { ok: true, status: 200, statusText: 'OK', body: null, text: async () => '' };
 		});
 
-		const service = new CopilotApiService(log, fetcher);
+		const service = new CopilotApiService(log, undefined, fetcher);
 
 		service.setGitHubToken('gh-token-1');
 		await service.sendModelRequest({}, { type: 'ChatMessages' }, undefined, CancellationToken.None);
@@ -109,7 +109,7 @@ suite('CopilotApiService', () => {
 
 	test('throws when no GitHub token is set', async () => {
 		const { fetcher } = createMockFetcherService();
-		const service = new CopilotApiService(log, fetcher);
+		const service = new CopilotApiService(log, undefined, fetcher);
 
 		await assert.rejects(
 			() => service.sendModelRequest({}, { type: 'ChatMessages' }, undefined, CancellationToken.None),
@@ -124,7 +124,7 @@ suite('CopilotApiService', () => {
 			return { ok: true, status: 200, statusText: 'OK', json: async () => ({ data: [] }), text: async () => '{"data":[]}' };
 		});
 
-		const service = new CopilotApiService(log, fetcher);
+		const service = new CopilotApiService(log, undefined, fetcher);
 		service.setGitHubToken('gh-token');
 
 		await service.sendRequest({ type: 'Models' }, undefined, CancellationToken.None);
@@ -144,7 +144,7 @@ suite('CopilotApiService', () => {
 			return { ok: true, status: 200, statusText: 'OK', json: async () => expectedResponse, text: async () => JSON.stringify(expectedResponse) };
 		});
 
-		const service = new CopilotApiService(log, fetcher);
+		const service = new CopilotApiService(log, undefined, fetcher);
 		service.setGitHubToken('gh-token');
 
 		const result = await service.sendRequest<{ data: { id: string }[] }>({ type: 'Models' }, undefined, CancellationToken.None);
@@ -158,7 +158,7 @@ suite('CopilotApiService', () => {
 			return { ok: false, status: 401, statusText: 'Unauthorized', json: async () => ({}), text: async () => 'auth required' };
 		});
 
-		const service = new CopilotApiService(log, fetcher);
+		const service = new CopilotApiService(log, undefined, fetcher);
 		service.setGitHubToken('gh-token');
 
 		await assert.rejects(
@@ -176,7 +176,7 @@ suite('CopilotApiService', () => {
 			return { ok: true, status: 200, statusText: 'OK', body: null, text: async () => '' };
 		});
 
-		const service = new CopilotApiService(log, fetcher);
+		const service = new CopilotApiService(log, undefined, fetcher);
 		service.setGitHubToken('gh-token');
 
 		// Caller only provides extra headers, NOT auth

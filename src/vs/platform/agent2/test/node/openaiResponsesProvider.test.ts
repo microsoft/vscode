@@ -66,7 +66,7 @@ function createMockSetup(sseEvents: string[]) {
 		fetchWithPagination() { return Promise.resolve([]); },
 	};
 
-	const apiService = new CopilotApiService(log, fetcher);
+	const apiService = new CopilotApiService(log, undefined, fetcher);
 	apiService.setGitHubToken('test-github-token');
 	const provider = new OpenAIResponsesProvider('gpt-4o', apiService, log);
 	return { provider, log };
