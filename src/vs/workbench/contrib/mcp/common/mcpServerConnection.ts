@@ -162,15 +162,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 			};
 		}
 
-		if (/\b(?:EAI_AGAIN|ENOTFOUND)\b/i.test(message)) {
-			return {
-				kind: 'network',
-				message,
-				host: this._extractSandboxHost(message),
-			};
-		}
-
-		if (/(?:\b(?:EACCES|EPERM|ENOENT|fail(?:ed|ure)?)\b|not accessible)/i.test(message)) {
+		if (/(?:\b(?:EACCES|EPERM|ENOENT|EROFS|fail(?:ed|ure)?)\b|not accessible |read only)/i.test(message)) {
 			return {
 				kind: 'filesystem',
 				message,
