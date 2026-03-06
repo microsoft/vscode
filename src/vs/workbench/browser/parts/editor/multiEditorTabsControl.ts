@@ -373,15 +373,17 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return;
 				}
 
-				// Update the dropEffect to "copy" if there is no local data to be dragged because
-				// in that case we can only copy the data into and not move it from its source
-				if (!this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
-					if (e.dataTransfer) {
-						e.dataTransfer.dropEffect = 'copy';
-					}
-				}
+				this.updateDropEffect(e);
 
 				this.updateDropFeedback(tabsContainer, true, e);
+			},
+
+			onDragOver: e => {
+				if (e.target !== tabsContainer || !this.isSupportedDropTransfer(e)) {
+					return;
+				}
+
+				this.updateDropEffect(e);
 			},
 
 			onDragLeave: e => {
@@ -1129,18 +1131,22 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return;
 				}
 
-				// Update the dropEffect to "copy" if there is no local data to be dragged because
-				// in that case we can only copy the data into and not move it from its source
-				if (!this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
-					if (e.dataTransfer) {
-						e.dataTransfer.dropEffect = 'copy';
-					}
-				}
+				this.updateDropEffect(e);
 
 				this.updateDropFeedback(tab, true, e, tabIndex);
 			},
 
 			onDragOver: (e, dragDuration) => {
+				if (!this.isSupportedDropTransfer(e)) {
+					if (e.dataTransfer) {
+						e.dataTransfer.dropEffect = 'none';
+					}
+
+					return;
+				}
+
+				this.updateDropEffect(e);
+
 				if (dragDuration >= MultiEditorTabsControl.DRAG_OVER_OPEN_TAB_THRESHOLD) {
 					const draggedOverTab = this.tabsModel.getEditorByIndex(tabIndex);
 					if (draggedOverTab && this.tabsModel.activeEditor !== draggedOverTab) {
@@ -1219,6 +1225,29 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		return false;
+	}
+
+	private updateDropEffect(e: DragEvent): void {
+		if (!e.dataTransfer) {
+			return;
+		}
+
+		const draggedGroups = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype);
+		if (Array.isArray(draggedGroups) && draggedGroups.length > 0) {
+			e.dataTransfer.dropEffect = this.isMoveOperation(e, draggedGroups[0].identifier) ? 'move' : 'copy';
+
+			return;
+		}
+
+		const draggedEditors = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
+		if (Array.isArray(draggedEditors) && draggedEditors.length > 0) {
+			const { groupId, editor } = draggedEditors[0].identifier;
+			e.dataTransfer.dropEffect = this.isMoveOperation(e, groupId, editor) ? 'move' : 'copy';
+
+			return;
+		}
+
+		e.dataTransfer.dropEffect = 'copy';
 	}
 
 	private updateDropFeedback(element: HTMLElement, isDND: boolean, e: DragEvent, tabIndex?: number): void {
