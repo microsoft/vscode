@@ -8,11 +8,19 @@
  *
  * Translates between the internal conversation format and the Anthropic
  * Messages API wire format, handles SSE streaming, and manages auth
- * via the {@link CopilotTokenService}.
+ * via the {@link CopilotApiService}.
  *
- * Wire format reference: https://docs.anthropic.com/en/api/messages
+ * Wire format types are imported from the `@anthropic-ai/sdk` package.
  */
 
+import type {
+	ContentBlockParam,
+	MessageCreateParams,
+	MessageParam,
+	RawMessageStreamEvent,
+	Tool,
+	ToolResultBlockParam,
+} from '@anthropic-ai/sdk/resources/messages/messages.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { ISSEEvent, SSEParser } from '../../../base/common/sseParser.js';
@@ -29,135 +37,6 @@ const DEFAULT_MAX_TOKENS = 16384;
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY_MS = 1000;
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 529]);
-
-// -- Wire format types --------------------------------------------------------
-
-interface IAnthropicTextBlock {
-	readonly type: 'text';
-	readonly text: string;
-}
-
-interface IAnthropicThinkingBlock {
-	readonly type: 'thinking';
-	readonly thinking: string;
-	readonly signature: string;
-}
-
-interface IAnthropicRedactedThinkingBlock {
-	readonly type: 'redacted_thinking';
-	readonly data: string;
-}
-
-interface IAnthropicToolUseBlock {
-	readonly type: 'tool_use';
-	readonly id: string;
-	readonly name: string;
-	readonly input: Record<string, unknown>;
-}
-
-interface IAnthropicToolResultBlock {
-	readonly type: 'tool_result';
-	readonly tool_use_id: string;
-	readonly content: string;
-	readonly is_error?: boolean;
-}
-
-type IAnthropicContentBlock =
-	| IAnthropicTextBlock
-	| IAnthropicThinkingBlock
-	| IAnthropicRedactedThinkingBlock
-	| IAnthropicToolUseBlock
-	| IAnthropicToolResultBlock;
-
-interface IAnthropicMessage {
-	readonly role: 'user' | 'assistant';
-	readonly content: readonly IAnthropicContentBlock[];
-}
-
-interface IAnthropicTool {
-	readonly name: string;
-	readonly description: string;
-	readonly input_schema: Record<string, unknown>;
-}
-
-interface IAnthropicRequestBody {
-	readonly model: string;
-	readonly messages: readonly IAnthropicMessage[];
-	readonly system?: readonly IAnthropicTextBlock[];
-	readonly stream: true;
-	readonly max_tokens: number;
-	readonly tools?: readonly IAnthropicTool[];
-	readonly temperature?: number;
-	readonly top_p?: number;
-	readonly thinking?: {
-		readonly type: 'enabled' | 'adaptive';
-		readonly budget_tokens?: number;
-	};
-}
-
-// -- SSE event payloads -------------------------------------------------------
-
-interface IMessageStartPayload {
-	readonly type: 'message_start';
-	readonly message: {
-		readonly id: string;
-		readonly model: string;
-		readonly usage: {
-			readonly input_tokens: number;
-			readonly output_tokens: number;
-			readonly cache_read_input_tokens?: number;
-			readonly cache_creation_input_tokens?: number;
-		};
-	};
-}
-
-interface IContentBlockStartPayload {
-	readonly type: 'content_block_start';
-	readonly index: number;
-	readonly content_block: {
-		readonly type: 'text' | 'tool_use' | 'thinking';
-		readonly text?: string;
-		readonly id?: string;
-		readonly name?: string;
-	};
-}
-
-interface IContentBlockDeltaPayload {
-	readonly type: 'content_block_delta';
-	readonly index: number;
-	readonly delta: {
-		readonly type: 'text_delta' | 'input_json_delta' | 'thinking_delta' | 'signature_delta';
-		readonly text?: string;
-		readonly partial_json?: string;
-		readonly thinking?: string;
-		readonly signature?: string;
-	};
-}
-
-interface IContentBlockStopPayload {
-	readonly type: 'content_block_stop';
-	readonly index: number;
-}
-
-interface IMessageDeltaPayload {
-	readonly type: 'message_delta';
-	readonly delta: {
-		readonly stop_reason: string;
-	};
-	readonly usage: {
-		readonly output_tokens: number;
-	};
-}
-
-type IAnthropicSSEPayload =
-	| IMessageStartPayload
-	| IContentBlockStartPayload
-	| IContentBlockDeltaPayload
-	| IContentBlockStopPayload
-	| IMessageDeltaPayload
-	| { readonly type: 'message_stop' }
-	| { readonly type: 'ping' }
-	| { readonly type: 'error'; readonly error: { readonly message: string } };
 
 // -- Provider -----------------------------------------------------------------
 
@@ -181,66 +60,57 @@ export class AnthropicModelProvider implements IModelProvider {
 
 		this._logService.debug('[Anthropic] Sending request', { model: this._modelId, messageCount: messages.length, toolCount: tools.length });
 
-		const abortController = new AbortController();
-		const disposable = token.onCancellationRequested(() => abortController.abort());
-
-		try {
-			// Retry loop with exponential backoff for transient errors
-			let lastError: Error | undefined;
-			for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-				if (token.isCancellationRequested) {
-					throw new CancellationError();
-				}
-
-				if (attempt > 0) {
-					const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
-					this._logService.info(`[Anthropic] Retrying after ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES + 1})`);
-					await new Promise(resolve => setTimeout(resolve, delay));
-				}
-
-				// Auth and URL routing are handled by CopilotApiService.
-				// We only provide the body and model-specific headers.
-				const response = await this._apiService.sendModelRequest(
-					body,
-					{ type: CAPIRequestType.ChatMessages },
-					{ 'anthropic-beta': ANTHROPIC_BETA_HEADERS },
-					abortController.signal,
-					token,
-				);
-
-				if (!response.ok) {
-					const errorBody = await response.text().catch(() => '');
-					const statusCode = response.status;
-
-					if (RETRYABLE_STATUS_CODES.has(statusCode) && attempt < MAX_RETRIES) {
-						const retryAfter = response.headers?.get?.('retry-after');
-						if (retryAfter) {
-							const retryAfterMs = parseInt(retryAfter, 10) * 1000;
-							if (!isNaN(retryAfterMs) && retryAfterMs > 0) {
-								this._logService.info(`[Anthropic] Rate limited, waiting ${retryAfterMs}ms (Retry-After header)`);
-								await new Promise(resolve => setTimeout(resolve, retryAfterMs));
-							}
-						}
-						lastError = new Error(`Anthropic API error: ${statusCode} ${response.statusText}${errorBody ? ` - ${errorBody}` : ''}`);
-						continue;
-					}
-
-					throw new Error(`Anthropic API error: ${statusCode} ${response.statusText}${errorBody ? ` - ${errorBody}` : ''}`);
-				}
-
-				if (!response.body) {
-					throw new Error('Anthropic API returned no response body');
-				}
-
-				yield* this._parseSSEStream(response.body, token);
-				return; // Success -- exit retry loop
+		// Retry loop with exponential backoff for transient errors
+		let lastError: Error | undefined;
+		for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
 			}
 
-			// All retries exhausted
-			throw lastError ?? new Error('Anthropic API request failed after retries');
-		} finally {
-			disposable.dispose();
+			if (attempt > 0) {
+				const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+				this._logService.info(`[Anthropic] Retrying after ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES + 1})`);
+				await new Promise(resolve => setTimeout(resolve, delay));
+			}
+
+			// Auth, URL routing, and cancellation are handled by CopilotApiService.
+			const response = await this._apiService.sendModelRequest(
+				body,
+				{ type: CAPIRequestType.ChatMessages },
+				{ 'anthropic-beta': ANTHROPIC_BETA_HEADERS },
+				token,
+			);
+
+			if (!response.ok) {
+				const errorBody = await response.text().catch(() => '');
+				const statusCode = response.status;
+
+				if (RETRYABLE_STATUS_CODES.has(statusCode) && attempt < MAX_RETRIES) {
+					const retryAfter = response.headers?.get?.('retry-after');
+					if (retryAfter) {
+						const retryAfterMs = parseInt(retryAfter, 10) * 1000;
+						if (!isNaN(retryAfterMs) && retryAfterMs > 0) {
+							this._logService.info(`[Anthropic] Rate limited, waiting ${retryAfterMs}ms (Retry-After header)`);
+							await new Promise(resolve => setTimeout(resolve, retryAfterMs));
+						}
+					}
+					lastError = new Error(`Anthropic API error: ${statusCode} ${response.statusText}${errorBody ? ` - ${errorBody}` : ''}`);
+					continue;
+				}
+
+				throw new Error(`Anthropic API error: ${statusCode} ${response.statusText}${errorBody ? ` - ${errorBody}` : ''}`);
+			}
+
+			if (!response.body) {
+				throw new Error('Anthropic API returned no response body');
+			}
+
+			yield* this._parseSSEStream(response.body, token);
+			return; // Success -- exit retry loop
 		}
+
+		// All retries exhausted
+		throw lastError ?? new Error('Anthropic API request failed after retries');
 	}
 
 	async listModels(): Promise<readonly IModelInfo[]> {
@@ -265,8 +135,8 @@ export class AnthropicModelProvider implements IModelProvider {
 		messages: readonly IConversationMessage[],
 		tools: readonly IAgentToolDefinition[],
 		config: IModelRequestConfig,
-	): IAnthropicRequestBody {
-		const body: IAnthropicRequestBody = {
+	): MessageCreateParams {
+		const body: MessageCreateParams = {
 			model: this._modelId,
 			messages: this._translateMessages(messages),
 			system: [{ type: 'text', text: systemPrompt }],
@@ -279,7 +149,7 @@ export class AnthropicModelProvider implements IModelProvider {
 		return body;
 	}
 
-	private _buildThinkingConfig(config: IModelRequestConfig): { thinking?: IAnthropicRequestBody['thinking'] } {
+	private _buildThinkingConfig(config: IModelRequestConfig): { thinking?: MessageCreateParams['thinking'] } {
 		const effort = config.reasoningEffort;
 		if (!effort) {
 			return {};
@@ -299,8 +169,8 @@ export class AnthropicModelProvider implements IModelProvider {
 		};
 	}
 
-	private _translateMessages(messages: readonly IConversationMessage[]): readonly IAnthropicMessage[] {
-		const result: IAnthropicMessage[] = [];
+	private _translateMessages(messages: readonly IConversationMessage[]): MessageParam[] {
+		const result: MessageParam[] = [];
 
 		for (const msg of messages) {
 			switch (msg.role) {
@@ -325,8 +195,8 @@ export class AnthropicModelProvider implements IModelProvider {
 		return result;
 	}
 
-	private _translateAssistantMessage(msg: IAssistantMessage): IAnthropicMessage {
-		const content: IAnthropicContentBlock[] = [];
+	private _translateAssistantMessage(msg: IAssistantMessage): MessageParam {
+		const content: ContentBlockParam[] = [];
 		for (const part of msg.content) {
 			switch (part.type) {
 				case 'text':
@@ -352,11 +222,11 @@ export class AnthropicModelProvider implements IModelProvider {
 		return { role: 'assistant', content };
 	}
 
-	private _appendToolResult(result: IAnthropicMessage[], msg: IToolResultMessage): void {
+	private _appendToolResult(result: MessageParam[], msg: IToolResultMessage): void {
 		// Anthropic expects tool results as user messages with tool_result content blocks.
 		// If the previous message is already a user message, append to it;
 		// otherwise create a new user message.
-		const toolResultBlock: IAnthropicToolResultBlock = {
+		const toolResultBlock: ToolResultBlockParam = {
 			type: 'tool_result',
 			tool_use_id: msg.toolCallId,
 			content: msg.content,
@@ -366,7 +236,7 @@ export class AnthropicModelProvider implements IModelProvider {
 		const last = result[result.length - 1];
 		if (last && last.role === 'user') {
 			// Append to existing user message (mutable cast in translation layer)
-			(last.content as IAnthropicContentBlock[]).push(toolResultBlock);
+			(last.content as ContentBlockParam[]).push(toolResultBlock);
 		} else {
 			result.push({
 				role: 'user',
@@ -375,7 +245,7 @@ export class AnthropicModelProvider implements IModelProvider {
 		}
 	}
 
-	private _translateTool(tool: IAgentToolDefinition): IAnthropicTool {
+	private _translateTool(tool: IAgentToolDefinition): Tool {
 		return {
 			name: tool.name,
 			description: tool.description,
@@ -425,12 +295,24 @@ export class AnthropicModelProvider implements IModelProvider {
 				return;
 			}
 
-			let payload: IAnthropicSSEPayload;
+			let parsed: { type: string };
 			try {
-				payload = JSON.parse(sseEvent.data) as IAnthropicSSEPayload;
+				parsed = JSON.parse(sseEvent.data) as { type: string };
 			} catch {
 				return; // Skip malformed events
 			}
+
+			// Handle non-standard events that aren't in the SDK's RawMessageStreamEvent union
+			if (parsed.type === 'error') {
+				const errorPayload = parsed as { type: 'error'; error: { message: string } };
+				pushEvent(new Error(`Anthropic stream error: ${errorPayload.error.message}`));
+				return;
+			}
+			if (parsed.type === 'ping') {
+				return; // Ignore keepalive
+			}
+
+			const payload = parsed as RawMessageStreamEvent;
 
 			switch (payload.type) {
 				case 'message_start': {
@@ -439,8 +321,8 @@ export class AnthropicModelProvider implements IModelProvider {
 						type: 'usage',
 						inputTokens: usage.input_tokens,
 						outputTokens: usage.output_tokens,
-						cacheReadTokens: usage.cache_read_input_tokens,
-						cacheCreationTokens: usage.cache_creation_input_tokens,
+						cacheReadTokens: usage.cache_read_input_tokens ?? undefined,
+						cacheCreationTokens: usage.cache_creation_input_tokens ?? undefined,
 					});
 					break;
 				}
@@ -531,12 +413,6 @@ export class AnthropicModelProvider implements IModelProvider {
 					pushEvent(null); // End of stream
 					break;
 				}
-				case 'error': {
-					pushEvent(new Error(`Anthropic stream error: ${payload.error.message}`));
-					break;
-				}
-				case 'ping':
-					break; // Ignore keepalive
 			}
 		});
 

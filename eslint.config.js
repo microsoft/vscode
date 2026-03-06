@@ -1456,6 +1456,7 @@ export default tseslint.config(
 					// - electron-main
 					'when': 'hasNode',
 					'allow': [
+						'@anthropic-ai/**',
 						'@github/copilot-sdk',
 						'@parcel/watcher',
 						'@vscode/copilot-api',

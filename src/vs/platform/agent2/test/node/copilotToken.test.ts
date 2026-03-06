@@ -68,7 +68,6 @@ suite('CopilotApiService', () => {
 			{ model: 'test', messages: [] },
 			{ type: 'ChatMessages' },
 			{ 'anthropic-beta': 'test-beta' },
-			undefined,
 			CancellationToken.None,
 		);
 
@@ -86,8 +85,8 @@ suite('CopilotApiService', () => {
 		const service = new CopilotApiService(log, fetcher);
 		service.setGitHubToken('gh-token');
 
-		await service.sendModelRequest({}, { type: 'ChatMessages' }, undefined, undefined, CancellationToken.None);
-		await service.sendModelRequest({}, { type: 'ChatMessages' }, undefined, undefined, CancellationToken.None);
+		await service.sendModelRequest({}, { type: 'ChatMessages' }, undefined, CancellationToken.None);
+		await service.sendModelRequest({}, { type: 'ChatMessages' }, undefined, CancellationToken.None);
 
 		assert.strictEqual(getTokenFetchCount(), 1, 'Should only exchange token once');
 	});
@@ -100,10 +99,10 @@ suite('CopilotApiService', () => {
 		const service = new CopilotApiService(log, fetcher);
 
 		service.setGitHubToken('gh-token-1');
-		await service.sendModelRequest({}, { type: 'ChatMessages' }, undefined, undefined, CancellationToken.None);
+		await service.sendModelRequest({}, { type: 'ChatMessages' }, undefined, CancellationToken.None);
 
 		service.setGitHubToken('gh-token-2');
-		await service.sendModelRequest({}, { type: 'ChatMessages' }, undefined, undefined, CancellationToken.None);
+		await service.sendModelRequest({}, { type: 'ChatMessages' }, undefined, CancellationToken.None);
 
 		assert.strictEqual(getTokenFetchCount(), 2, 'Should exchange token twice');
 	});
@@ -113,7 +112,7 @@ suite('CopilotApiService', () => {
 		const service = new CopilotApiService(log, fetcher);
 
 		await assert.rejects(
-			() => service.sendModelRequest({}, { type: 'ChatMessages' }, undefined, undefined, CancellationToken.None),
+			() => service.sendModelRequest({}, { type: 'ChatMessages' }, undefined, CancellationToken.None),
 			/No GitHub token/,
 		);
 	});
@@ -185,7 +184,6 @@ suite('CopilotApiService', () => {
 			{ prompt: 'test' },
 			{ type: 'ChatCompletions' },
 			{ 'X-Custom': 'value' },
-			undefined,
 			CancellationToken.None,
 		);
 

@@ -229,32 +229,37 @@ export class CopilotApiService {
 	 * @param body - The JSON request body (will be stringified).
 	 * @param requestType - The CAPI request type for URL routing.
 	 * @param extraHeaders - Additional headers (e.g., anthropic-beta).
-	 * @param signal - AbortSignal for cancellation.
-	 * @param cancellationToken - VS Code cancellation token for token exchange.
+	 * @param cancellationToken - VS Code cancellation token for cancellation.
 	 * @returns The raw Response from the API.
 	 */
 	async sendModelRequest(
 		body: unknown,
 		requestType: ICAPIRequestMetadata,
 		extraHeaders?: Record<string, string>,
-		signal?: AbortSignal,
 		cancellationToken?: CancellationToken,
 	): Promise<Response> {
 		const token = await this._getToken(cancellationToken ?? CancellationToken.None);
 		const client = await this._ensureCAPIClient();
 
-		const options: ICAPIFetchOptions = {
-			method: 'POST',
-			headers: {
-				'Authorization': `Bearer ${token.token}`,
-				'Content-Type': 'application/json',
-				...extraHeaders,
-			},
-			body: JSON.stringify(body),
-			signal,
-		};
+		const abortController = new AbortController();
+		const disposable = cancellationToken?.onCancellationRequested(() => abortController.abort());
 
-		return client.makeRequest<Response>(options, requestType);
+		try {
+			const options: ICAPIFetchOptions = {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${token.token}`,
+					'Content-Type': 'application/json',
+					...extraHeaders,
+				},
+				body: JSON.stringify(body),
+				signal: abortController.signal,
+			};
+
+			return await client.makeRequest<Response>(options, requestType);
+		} finally {
+			disposable?.dispose();
+		}
 	}
 
 	/**
