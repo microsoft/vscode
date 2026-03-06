@@ -2033,7 +2033,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (this.isDialogMode) {
 			this.setPanelDialogHidden(hidden, panelPart);
 		} else {
-			this.setPanelPinnedHidden(hidden, wasHidden, isPanelMaximized, skipLayout);
+			this.setPanelDockHidden(hidden, wasHidden, isPanelMaximized, skipLayout);
 		}
 
 		panelPart.setVisible(!hidden);
@@ -2060,7 +2060,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private setPanelPinnedHidden(hidden: boolean, wasHidden: boolean, isPanelMaximized: boolean, skipLayout?: boolean): void {
+	private setPanelDockHidden(hidden: boolean, wasHidden: boolean, isPanelMaximized: boolean, skipLayout?: boolean): void {
 		// Unmaximize before hiding to prevent conflict with setEditorHidden
 		if (hidden && isPanelMaximized) {
 			this.toggleMaximizedPanel();
@@ -2242,12 +2242,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	togglePanelMode(): void {
-		this.setPanelMode(this.getPanelMode() === PanelMode.Pinned ? PanelMode.Dialog : PanelMode.Pinned);
+		this.setPanelMode(this.getPanelMode() === PanelMode.Dock ? PanelMode.Dialog : PanelMode.Dock);
 	}
 
 	setPanelMode(mode: PanelMode): void {
 		if (mode === this.getPanelMode()) {
 			return;
+		}
+
+		// Exit maximized state before switching modes.
+		// When panel is maximized in docked mode, the editor is hidden. Switching to dialog mode
+		// while editor is hidden would leave the workbench in an invalid visual state with no
+		// background content. Similarly, switching from maximized dialog back to docked mode
+		// requires the editor to be visible for proper grid layout restoration.
+		// Must happen before mode change so isPanelMaximized() uses the correct code path.
+		if (this.isPanelMaximized()) {
+			this.toggleMaximizedPanel();
 		}
 
 		const panelPart = this.getPart(Parts.PANEL_PART);
@@ -2278,8 +2288,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			this.layoutPanelDialog();
 		} else {
-			// Dialog → Pinned: restore panel into the grid
-			this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_MODE, PanelMode.Pinned);
+			// Dialog → Dock: restore panel into the grid
+			this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_MODE, PanelMode.Dock);
 			this.mainContainer.classList.remove(LayoutClasses.PANEL_DIALOG_OPEN, LayoutClasses.PANEL_DIALOG_MAXIMIZED);
 
 			// Move panel back to original parent
@@ -3148,7 +3158,7 @@ const LayoutStateKeys = {
 	PANEL_ALIGNMENT: new RuntimeStateKey<PanelAlignment>('panel.alignment', StorageScope.PROFILE, StorageTarget.USER, 'center'),
 
 	// Panel Mode
-	PANEL_MODE: new RuntimeStateKey<PanelMode>('panel.mode', StorageScope.WORKSPACE, StorageTarget.MACHINE, PanelMode.Pinned),
+	PANEL_MODE: new RuntimeStateKey<PanelMode>('panel.mode', StorageScope.WORKSPACE, StorageTarget.MACHINE, PanelMode.Dock),
 
 	// Part Visibility
 	ACTIVITYBAR_HIDDEN: new RuntimeStateKey<boolean>('activityBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false, true),

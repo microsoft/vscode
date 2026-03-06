@@ -432,9 +432,9 @@ export class MoveSecondarySideBarToPanelAction extends MoveViewsBetweenPanelsAct
 registerAction2(MoveSidePanelToPanelAction);
 registerAction2(MoveSecondarySideBarToPanelAction);
 
-// --- Toggle Panel Mode (Pinned/Dialog)
+// --- Toggle Panel Mode (Dock/Dialog)
 
-const unpinIcon = registerIcon('panel-unpin', Codicon.pinned, localize('unpinPanelIcon', 'Icon to unpin the panel from the grid.'));
+const undockIcon = registerIcon('panel-undock', Codicon.pinned, localize('undockPanelIcon', 'Icon to undock the panel from the grid.'));
 
 registerAction2(class TogglePanelModeAction extends Action2 {
 
@@ -448,7 +448,7 @@ registerAction2(class TogglePanelModeAction extends Action2 {
 			f1: true,
 			toggled: {
 				condition: PanelDialogModeContext,
-				title: localize('pinPanel', "Pin Panel"),
+				title: localize('dockPanel', "Dock Panel"),
 			},
 			menu: [{
 				id: MenuId.PanelTitle,
@@ -461,7 +461,7 @@ registerAction2(class TogglePanelModeAction extends Action2 {
 				order: 1,
 				when: PanelDialogModeContext
 			}],
-			icon: unpinIcon,
+			icon: undockIcon,
 		});
 	}
 

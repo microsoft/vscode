@@ -85,7 +85,7 @@ export const enum PanelMode {
 	/**
 	 * Panel is docked in the workbench grid (traditional behavior).
 	 */
-	Pinned = 'pinned',
+	Dock = 'dock',
 
 	/**
 	 * Panel floats as a dialog overlay above the workbench.

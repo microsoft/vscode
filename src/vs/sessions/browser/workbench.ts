@@ -1286,7 +1286,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	}
 
 	getPanelMode(): PanelMode {
-		return PanelMode.Pinned; // Sessions workbench only supports pinned mode
+		return PanelMode.Dock; // Sessions workbench only supports dock mode
 	}
 
 	setPanelMode(_mode: PanelMode): void {
