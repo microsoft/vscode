@@ -1706,9 +1706,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.initialized = true;
 
 			// Layout dialog panel if in dialog mode
-			if (this.getPanelMode() === PanelMode.Dialog && this.isVisible(Parts.PANEL_PART)) {
 				this.layoutPanelDialog();
-			}
 
 			// Emit as event
 			this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
@@ -2026,110 +2024,82 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const isPanelMaximized = this.isPanelMaximized();
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, hidden);
+		this.mainContainer.classList.toggle(LayoutClasses.PANEL_HIDDEN, hidden);
 
-		// Handle visibility based on panel mode
 		const panelPart = this.getPart(Parts.PANEL_PART);
 
-		if (this.getPanelMode() === PanelMode.Dialog) {
-			// Dialog mode: manage CSS classes and overlay
-			if (hidden) {
-				this.mainContainer.classList.add(LayoutClasses.PANEL_HIDDEN);
-				this.mainContainer.classList.remove(LayoutClasses.PANEL_DIALOG_OPEN);
-				this.mainContainer.classList.remove(LayoutClasses.PANEL_DIALOG_MAXIMIZED);
-			} else {
-				this.mainContainer.classList.remove(LayoutClasses.PANEL_HIDDEN);
-				this.mainContainer.classList.add(LayoutClasses.PANEL_DIALOG_OPEN);
-				// Restore maximized state from state model
-				if (this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED)) {
-					this.mainContainer.classList.add(LayoutClasses.PANEL_DIALOG_MAXIMIZED);
-				}
-				this.ensurePanelDialogOverlay();
-			}
-
-			// Move panel element between overlay and original parent
-			if (!hidden && this.panelDialogOverlay) {
-				if (panelPart.element.parentElement !== this.panelDialogOverlay) {
-					this.panelDialogOverlay.appendChild(panelPart.element);
-				}
-			} else if (hidden && this.panelDialogOriginalParent) {
-				if (panelPart.element.parentElement !== this.panelDialogOriginalParent) {
-					this.panelDialogOriginalParent.appendChild(panelPart.element);
-				}
-			}
+		if (this.isDialogMode) {
+			this.setPanelDialogHidden(hidden, panelPart);
 		} else {
-			// Pinned mode: manage grid visibility
-			const panelOpensMaximized = this.panelOpensMaximized();
-
-			// Adjust CSS
-			if (hidden) {
-				this.mainContainer.classList.add(LayoutClasses.PANEL_HIDDEN);
-			} else {
-				this.mainContainer.classList.remove(LayoutClasses.PANEL_HIDDEN);
-			}
-
-			// If maximized and in process of hiding, unmaximize FIRST before
-			// changing visibility to prevent conflict with setEditorHidden
-			// which would force panel visible again (fixes #281772)
-			if (hidden && isPanelMaximized) {
-				this.toggleMaximizedPanel();
-			}
-
-			// Propagate layout changes to grid
-			this.workbenchGrid.setViewVisible(this.panelPartView, !hidden);
-
-			// Don't proceed if we have already done this before
-			if (wasHidden !== hidden) {
-				// If in process of showing, toggle whether or not panel is maximized
-				if (!hidden) {
-					if (!skipLayout && isPanelMaximized !== panelOpensMaximized) {
-						this.toggleMaximizedPanel();
-					}
-				} else {
-					// If in process of hiding, remember whether the panel is maximized or not
-					this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, isPanelMaximized);
-				}
-			}
+			this.setPanelPinnedHidden(hidden, wasHidden, isPanelMaximized, skipLayout);
 		}
 
-		// Notify the panel part of visibility
 		panelPart.setVisible(!hidden);
+		this.handlePanelVisibilityChange(hidden, skipLayout);
 
-		// If panel part becomes hidden, also hide the current active panel if any
+		if (!hidden) {
+			this.layoutPanelDialog();
+		}
+	}
+
+	private setPanelDialogHidden(hidden: boolean, panelPart: Part): void {
+		this.mainContainer.classList.toggle(LayoutClasses.PANEL_DIALOG_OPEN, !hidden);
+		if (hidden) {
+			this.mainContainer.classList.remove(LayoutClasses.PANEL_DIALOG_MAXIMIZED);
+		} else {
+			if (this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED)) {
+				this.mainContainer.classList.add(LayoutClasses.PANEL_DIALOG_MAXIMIZED);
+			}
+			this.ensurePanelDialogOverlay();
+		}
+		const targetParent = hidden ? this.panelDialogOriginalParent : this.panelDialogOverlay;
+		if (targetParent && panelPart.element.parentElement !== targetParent) {
+			targetParent.appendChild(panelPart.element);
+		}
+	}
+
+	private setPanelPinnedHidden(hidden: boolean, wasHidden: boolean, isPanelMaximized: boolean, skipLayout?: boolean): void {
+		// Unmaximize before hiding to prevent conflict with setEditorHidden
+		if (hidden && isPanelMaximized) {
+			this.toggleMaximizedPanel();
+		}
+
+		this.workbenchGrid.setViewVisible(this.panelPartView, !hidden);
+
+		if (wasHidden !== hidden) {
+			if (!hidden) {
+				const panelOpensMaximized = this.panelOpensMaximized();
+				if (!skipLayout && isPanelMaximized !== panelOpensMaximized) {
+					this.toggleMaximizedPanel();
+				}
+			} else {
+				this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, isPanelMaximized);
+			}
+		}
+	}
+
+	private handlePanelVisibilityChange(hidden: boolean, skipLayout?: boolean): void {
 		let focusEditor = false;
+
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
 			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Panel);
-			if (
-				!isIOS &&						// do not auto focus on iOS (https://github.com/microsoft/vscode/issues/127832)
-				!this.isAuxiliaryBarMaximized()	// do not auto focus when auxiliary bar is maximized
-			) {
+			if (!isIOS && !this.isAuxiliaryBarMaximized()) {
 				focusEditor = true;
 			}
-		}
-
-		// If panel part becomes visible, show last active panel or default panel
-		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
+		} else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
 			let panelToOpen: string | undefined = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Panel);
-
-			// verify that the panel we try to open has views before we default to it
-			// otherwise fall back to any view that has views still refs #111463
 			if (!panelToOpen || !this.hasViews(panelToOpen)) {
 				panelToOpen = this.viewDescriptorService
 					.getViewContainersByLocation(ViewContainerLocation.Panel)
 					.find(viewContainer => this.hasViews(viewContainer.id))?.id;
 			}
-
 			if (panelToOpen) {
 				this.openViewContainer(ViewContainerLocation.Panel, panelToOpen, !skipLayout);
 			}
 		}
 
-		// Layout dialog if in dialog mode
-		if (this.getPanelMode() === PanelMode.Dialog && !hidden) {
-			this.layoutPanelDialog();
-		}
-
 		if (focusEditor) {
-			this.editorGroupService.mainPart.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
+			this.editorGroupService.mainPart.activeGroup.focus();
 		}
 	}
 
@@ -2211,30 +2181,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	isPanelMaximized(): boolean {
-		// In dialog mode, check the dialog maximized CSS class
-		if (this.getPanelMode() === PanelMode.Dialog) {
+		if (this.isDialogMode) {
 			return this.isPanelDialogMaximized();
 		}
-
-		// In pinned mode, check traditional grid-based maximization
 		return (
-			this.getPanelAlignment() === 'center' || 	// the workbench grid currently prevents us from supporting panel
-			!isHorizontal(this.getPanelPosition())		// maximization with non-center panel alignment
+			this.getPanelAlignment() === 'center' ||
+			!isHorizontal(this.getPanelPosition())
 		) && !this.isVisible(Parts.EDITOR_PART, mainWindow) && !this.isAuxiliaryBarMaximized();
 	}
 
 	toggleMaximizedPanel(): void {
-		// In dialog mode, toggle the dialog between its default size and full workbench size
-		if (this.getPanelMode() === PanelMode.Dialog) {
-			const isMaximized = this.isPanelDialogMaximized();
-			this.mainContainer.classList.toggle(LayoutClasses.PANEL_DIALOG_MAXIMIZED, !isMaximized);
-			this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, !isMaximized);
-			this.layoutPanelFromOverlay();
-			// Fire event to update context keys
-			this._onDidChangePartVisibility.fire({
-				partId: Parts.PANEL_PART,
-				visible: true
-			});
+		if (this.isDialogMode) {
+			const maximize = !this.isPanelDialogMaximized();
+			this.mainContainer.classList.toggle(LayoutClasses.PANEL_DIALOG_MAXIMIZED, maximize);
+			this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, maximize);
+			this.layoutPanelDialog();
+			this._onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: true });
 			return;
 		}
 
@@ -2265,6 +2227,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	//#region Panel Dialog Mode
 
+	private get isDialogMode(): boolean {
+		return this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_MODE) === PanelMode.Dialog;
+	}
+
 	private isPanelDialogMaximized(): boolean {
 		return this.mainContainer.classList.contains(LayoutClasses.PANEL_DIALOG_MAXIMIZED);
 	}
@@ -2287,29 +2253,21 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (mode === PanelMode.Dialog) {
 			// Save current state before transitioning
 			this.panelDialogSavedAlignment = this.getPanelAlignment();
-
-			// Store the state
+			this.panelDialogOriginalParent = panelPart.element.parentElement ?? undefined;
 			this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_MODE, PanelMode.Dialog);
 
-			// Save original parent for restoration later
-			this.panelDialogOriginalParent = panelPart.element.parentElement ?? undefined;
-
-			// If panel is visible in grid, save its size and hide from grid (but don't hide the panel itself)
+			// If panel is visible in grid, save its size and hide from grid
 			if (this.isVisible(Parts.PANEL_PART) && this.workbenchGrid) {
 				this.panelDialogSavedSize = this.workbenchGrid.getViewSize(this.panelPartView);
 				this.workbenchGrid.setViewVisible(this.panelPartView, false);
 			}
 
-			// Add dialog CSS class and set up overlay
+			// Set up overlay and move panel into it
 			this.mainContainer.classList.add(LayoutClasses.PANEL_DIALOG_OPEN);
 			this.ensurePanelDialogOverlay();
+			this.panelDialogOverlay?.appendChild(panelPart.element);
 
-			// Move panel element into the overlay
-			if (this.panelDialogOverlay && panelPart.element.parentElement !== this.panelDialogOverlay) {
-				this.panelDialogOverlay.appendChild(panelPart.element);
-			}
-
-			// Make sure panel is visible and layout
+			// Make sure panel is visible
 			if (!this.isVisible(Parts.PANEL_PART)) {
 				this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, false);
 				this.mainContainer.classList.remove(LayoutClasses.PANEL_HIDDEN);
@@ -2319,19 +2277,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		} else {
 			// Dialog → Pinned: restore panel into the grid
 			this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_MODE, PanelMode.Pinned);
-			this.mainContainer.classList.remove(LayoutClasses.PANEL_DIALOG_OPEN);
-			this.mainContainer.classList.remove(LayoutClasses.PANEL_DIALOG_MAXIMIZED);
+			this.mainContainer.classList.remove(LayoutClasses.PANEL_DIALOG_OPEN, LayoutClasses.PANEL_DIALOG_MAXIMIZED);
 
 			// Move panel back to original parent
-			if (this.panelDialogOriginalParent && panelPart.element.parentElement !== this.panelDialogOriginalParent) {
-				this.panelDialogOriginalParent.appendChild(panelPart.element);
-			}
+			this.panelDialogOriginalParent?.appendChild(panelPart.element);
 
-			// If panel should be visible, show it in the grid
+			// If panel should be visible, show it in the grid and restore size
 			if (!this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) && this.workbenchGrid) {
 				this.workbenchGrid.setViewVisible(this.panelPartView, true);
-
-				// Restore saved size if available
 				if (this.panelDialogSavedSize) {
 					this.workbenchGrid.resizeView(this.panelPartView, this.panelDialogSavedSize);
 				}
@@ -2378,33 +2331,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private layoutPanelDialog(): void {
-		if (!this.panelDialogOverlay) {
+		if (!this.panelDialogOverlay || !this.isDialogMode) {
 			return;
 		}
-
 		const panelPart = this.getPart(Parts.PANEL_PART);
-		const isMaximized = this.isPanelDialogMaximized();
-
-		if (isMaximized) {
-			// Full size of the safe area
-			panelPart.layout(
-				this.panelDialogSafeArea?.clientWidth ?? this._mainContainerDimension.width,
-				this.panelDialogSafeArea?.clientHeight ?? this._mainContainerDimension.height,
-				0,
-				0
-			);
-		} else {
-			// Default centered dialog size
-			const dialogWidth = Math.min(900, Math.floor(this._mainContainerDimension.width * 0.8));
-			const dialogHeight = Math.min(600, Math.floor(this._mainContainerDimension.height * 0.7));
-			panelPart.layout(dialogWidth, dialogHeight, 0, 0);
-		}
-	}
-
-	private layoutPanelFromOverlay(): void {
-		if (this.getPanelMode() === PanelMode.Dialog && this.isVisible(Parts.PANEL_PART)) {
-			this.layoutPanelDialog();
-		}
+		const [width, height] = this.isPanelDialogMaximized()
+			? [this.panelDialogSafeArea?.clientWidth ?? this._mainContainerDimension.width,
+			   this.panelDialogSafeArea?.clientHeight ?? this._mainContainerDimension.height]
+			: [Math.min(900, Math.floor(this._mainContainerDimension.width * 0.8)),
+			   Math.min(600, Math.floor(this._mainContainerDimension.height * 0.7))];
+		panelPart.layout(width, height, 0, 0);
 	}
 
 	//#endregion
