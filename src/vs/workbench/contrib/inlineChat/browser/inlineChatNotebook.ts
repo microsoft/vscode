@@ -14,7 +14,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 
 export class InlineChatNotebookContribution {
 
-	private readonly _store = new DisposableStore();
+	readonly #store = new DisposableStore();
 
 	constructor(
 		@IInlineChatSessionService sessionService: IInlineChatSessionService,
@@ -22,7 +22,7 @@ export class InlineChatNotebookContribution {
 		@INotebookEditorService notebookEditorService: INotebookEditorService,
 	) {
 
-		this._store.add(sessionService.onWillStartSession(newSessionEditor => {
+		this.#store.add(sessionService.onWillStartSession(newSessionEditor => {
 			const candidate = CellUri.parse(newSessionEditor.getModel().uri);
 			if (!candidate) {
 				return;
@@ -51,6 +51,6 @@ export class InlineChatNotebookContribution {
 	}
 
 	dispose(): void {
-		this._store.dispose();
+		this.#store.dispose();
 	}
 }

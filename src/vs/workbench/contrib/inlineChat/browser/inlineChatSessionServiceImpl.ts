@@ -41,55 +41,58 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 	declare _serviceBrand: undefined;
 
-	private readonly _store = new DisposableStore();
-	private readonly _sessions = new ResourceMap<IInlineChatSession2>();
+	readonly #store = new DisposableStore();
+	readonly #sessions = new ResourceMap<IInlineChatSession2>();
 
-	private readonly _onWillStartSession = this._store.add(new Emitter<IActiveCodeEditor>());
-	readonly onWillStartSession: Event<IActiveCodeEditor> = this._onWillStartSession.event;
+	readonly #onWillStartSession = this.#store.add(new Emitter<IActiveCodeEditor>());
+	readonly onWillStartSession: Event<IActiveCodeEditor> = this.#onWillStartSession.event;
 
-	private readonly _onDidChangeSessions = this._store.add(new Emitter<this>());
-	readonly onDidChangeSessions: Event<this> = this._onDidChangeSessions.event;
+	readonly #onDidChangeSessions = this.#store.add(new Emitter<this>());
+	readonly onDidChangeSessions: Event<this> = this.#onDidChangeSessions.event;
+
+	readonly #chatService: IChatService;
 
 	constructor(
-		@IChatService private readonly _chatService: IChatService,
+		@IChatService chatService: IChatService,
 		@IChatAgentService chatAgentService: IChatAgentService,
 	) {
+		this.#chatService = chatService;
 		// Listen for agent changes and dispose all sessions when there is no agent
 		const agentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline));
-		this._store.add(autorun(r => {
+		this.#store.add(autorun(r => {
 			const agent = agentObs.read(r);
 			if (!agent) {
 				// No agent available, dispose all sessions
-				dispose(this._sessions.values());
-				this._sessions.clear();
+				dispose(this.#sessions.values());
+				this.#sessions.clear();
 			}
 		}));
 	}
 
 	dispose() {
-		this._store.dispose();
+		this.#store.dispose();
 	}
 
 
 	createSession(editor: IActiveCodeEditor): IInlineChatSession2 {
 		const uri = editor.getModel().uri;
 
-		if (this._sessions.has(uri)) {
+		if (this.#sessions.has(uri)) {
 			throw new Error('Session already exists');
 		}
 
-		this._onWillStartSession.fire(editor);
+		this.#onWillStartSession.fire(editor);
 
-		const chatModelRef = this._chatService.startNewLocalSession(ChatAgentLocation.EditorInline, { canUseTools: false /* SEE https://github.com/microsoft/vscode/issues/279946 */ });
+		const chatModelRef = this.#chatService.startNewLocalSession(ChatAgentLocation.EditorInline, { canUseTools: false /* SEE https://github.com/microsoft/vscode/issues/279946 */ });
 		const chatModel = chatModelRef.object;
 		chatModel.startEditingSession(false);
 
 		const store = new DisposableStore();
 		store.add(toDisposable(() => {
-			this._chatService.cancelCurrentRequestForSession(chatModel.sessionResource, 'inlineChatSession');
+			this.#chatService.cancelCurrentRequestForSession(chatModel.sessionResource, 'inlineChatSession');
 			chatModel.editingSession?.reject();
-			this._sessions.delete(uri);
-			this._onDidChangeSessions.fire(this);
+			this.#sessions.delete(uri);
+			this.#onDidChangeSessions.fire(this);
 		}));
 		store.add(chatModelRef);
 
@@ -104,7 +107,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			if (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected) {
 				const response = chatModel.getRequests().at(-1)?.response;
 				if (response) {
-					this._chatService.notifyUserAction({
+					this.#chatService.notifyUserAction({
 						sessionResource: response.session.sessionResource,
 						requestId: response.requestId,
 						agentId: response.agent?.id,
@@ -138,16 +141,16 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			editingSession: chatModel.editingSession!,
 			dispose: store.dispose.bind(store)
 		};
-		this._sessions.set(uri, result);
-		this._onDidChangeSessions.fire(this);
+		this.#sessions.set(uri, result);
+		this.#onDidChangeSessions.fire(this);
 		return result;
 	}
 
 	getSessionByTextModel(uri: URI): IInlineChatSession2 | undefined {
-		let result = this._sessions.get(uri);
+		let result = this.#sessions.get(uri);
 		if (!result) {
 			// no direct session, try to find an editing session which has a file entry for the uri
-			for (const [_, candidate] of this._sessions) {
+			for (const [_, candidate] of this.#sessions) {
 				const entry = candidate.editingSession.getEntry(uri);
 				if (entry) {
 					result = candidate;
@@ -159,7 +162,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	}
 
 	getSessionBySessionUri(sessionResource: URI): IInlineChatSession2 | undefined {
-		for (const session of this._sessions.values()) {
+		for (const session of this.#sessions.values()) {
 			if (isEqual(session.chatModel.sessionResource, sessionResource)) {
 				return session;
 			}
@@ -172,11 +175,11 @@ export class InlineChatEnabler {
 
 	static Id = 'inlineChat.enabler';
 
-	private readonly _ctxHasProvider2: IContextKey<boolean>;
-	private readonly _ctxHasNotebookProvider: IContextKey<boolean>;
-	private readonly _ctxPossible: IContextKey<boolean>;
+	readonly #ctxHasProvider2: IContextKey<boolean>;
+	readonly #ctxHasNotebookProvider: IContextKey<boolean>;
+	readonly #ctxPossible: IContextKey<boolean>;
 
-	private readonly _store = new DisposableStore();
+	readonly #store = new DisposableStore();
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -184,41 +187,41 @@ export class InlineChatEnabler {
 		@IEditorService editorService: IEditorService,
 		@IConfigurationService configService: IConfigurationService,
 	) {
-		this._ctxHasProvider2 = CTX_INLINE_CHAT_HAS_AGENT2.bindTo(contextKeyService);
-		this._ctxHasNotebookProvider = CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT.bindTo(contextKeyService);
-		this._ctxPossible = CTX_INLINE_CHAT_POSSIBLE.bindTo(contextKeyService);
+		this.#ctxHasProvider2 = CTX_INLINE_CHAT_HAS_AGENT2.bindTo(contextKeyService);
+		this.#ctxHasNotebookProvider = CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT.bindTo(contextKeyService);
+		this.#ctxPossible = CTX_INLINE_CHAT_POSSIBLE.bindTo(contextKeyService);
 
 		const agentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline));
 		const notebookAgentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.Notebook));
 		const notebookAgentConfigObs = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configService);
 
-		this._store.add(autorun(r => {
+		this.#store.add(autorun(r => {
 			const agent = agentObs.read(r);
 			if (!agent) {
-				this._ctxHasProvider2.reset();
+				this.#ctxHasProvider2.reset();
 			} else {
-				this._ctxHasProvider2.set(true);
+				this.#ctxHasProvider2.set(true);
 			}
 		}));
 
-		this._store.add(autorun(r => {
-			this._ctxHasNotebookProvider.set(notebookAgentConfigObs.read(r) && !!notebookAgentObs.read(r));
+		this.#store.add(autorun(r => {
+			this.#ctxHasNotebookProvider.set(notebookAgentConfigObs.read(r) && !!notebookAgentObs.read(r));
 		}));
 
 		const updateEditor = () => {
 			const ctrl = editorService.activeEditorPane?.getControl();
 			const isCodeEditorLike = isCodeEditor(ctrl) || isDiffEditor(ctrl) || isCompositeEditor(ctrl);
-			this._ctxPossible.set(isCodeEditorLike);
+			this.#ctxPossible.set(isCodeEditorLike);
 		};
 
-		this._store.add(editorService.onDidActiveEditorChange(updateEditor));
+		this.#store.add(editorService.onDidActiveEditorChange(updateEditor));
 		updateEditor();
 	}
 
 	dispose() {
-		this._ctxPossible.reset();
-		this._ctxHasProvider2.reset();
-		this._store.dispose();
+		this.#ctxPossible.reset();
+		this.#ctxHasProvider2.reset();
+		this.#store.dispose();
 	}
 }
 
@@ -229,7 +232,7 @@ export class InlineChatEscapeToolContribution extends Disposable {
 
 	static readonly DONT_ASK_AGAIN_KEY = 'inlineChat.dontAskMoveToPanelChat';
 
-	private static readonly _data: IToolData = {
+	static readonly #data: IToolData = {
 		id: 'inline_chat_exit',
 		source: ToolDataSource.Internal,
 		canBeReferencedInPrompt: false,
@@ -251,7 +254,7 @@ export class InlineChatEscapeToolContribution extends Disposable {
 
 		super();
 
-		this._store.add(lmTools.registerTool(InlineChatEscapeToolContribution._data, {
+		this._store.add(lmTools.registerTool(InlineChatEscapeToolContribution.#data, {
 			invoke: async (invocation, _tokenCountFn, _progress, _token) => {
 
 				const sessionResource = invocation.context?.sessionResource;

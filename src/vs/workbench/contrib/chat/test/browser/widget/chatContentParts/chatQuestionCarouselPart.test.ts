@@ -132,6 +132,23 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(stepIndicator?.textContent?.includes('1'));
 			assert.ok(stepIndicator?.textContent?.includes('3'));
 		});
+
+		test('renders close button in title row for multi-question carousels', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+			createWidget(carousel);
+
+			const titleRow = widget.domNode.querySelector('.chat-question-title-row');
+			assert.ok(titleRow, 'title row should exist');
+
+			const closeContainer = titleRow?.querySelector('.chat-question-close-container');
+			assert.ok(closeContainer, 'close button container should be rendered in the title row');
+
+			const directChildCloseContainer = widget.domNode.querySelector(':scope > .chat-question-close-container');
+			assert.strictEqual(directChildCloseContainer, null, 'close button container should not be positioned as a direct child of the carousel container');
+		});
 	});
 
 	suite('Question Types', () => {
