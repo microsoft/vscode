@@ -24,7 +24,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
 import { ChatModel, IChatModel } from '../../../common/model/chatModel.js';
 import { IChatService, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
 import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet, IToolResultTextPart } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -83,13 +83,13 @@ function registerToolForTest(service: LanguageModelToolsService, store: any, id:
 	};
 }
 
-function stubGetSession(chatService: MockChatService, sessionId: string, options?: { requestId?: string; capture?: { invocation?: any } }): IChatModel {
+function stubGetSession(chatService: MockChatService, sessionId: string, options?: { requestId?: string; capture?: { invocation?: any }; modeInfo?: { permissionLevel?: ChatPermissionLevel } }): IChatModel {
 	const requestId = options?.requestId ?? 'requestId';
 	const capture = options?.capture;
 	const fakeModel = {
 		sessionId,
 		sessionResource: LocalChatSessionUri.forSession(sessionId),
-		getRequests: () => [{ id: requestId, modelId: 'test-model' }],
+		getRequests: () => [{ id: requestId, modelId: 'test-model', modeInfo: options?.modeInfo }],
 	} as ChatModel;
 	chatService.addSession(fakeModel);
 	chatService.appendProgress = (request, progress) => {
@@ -1451,6 +1451,144 @@ suite('LanguageModelToolsService', () => {
 		// Verify the tool completed and no accessibility signal was played
 		assert.strictEqual(result.content[0].value, 'auto approved');
 		assert.strictEqual(testAccessibilitySignalService.signalPlayedCalls.length, 0, 'accessibility signal should not be played when auto-approve is enabled');
+	});
+
+	test('autopilot permission level bypasses global auto-approve check', async () => {
+		// When autopilot is on, tools should auto-approve without needing global auto-approve enabled
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			configureServices: config => {
+				config.setUserConfiguration('chat.tools.global.autoApprove', false); // Global OFF
+			}
+		});
+
+		const tool = registerToolForTest(testService, store, 'autopilotTool', {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Confirm?', message: 'Should be auto-approved by autopilot' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'autopilot approved' }] })
+		});
+
+		const sessionId = 'test-autopilot';
+		stubGetSession(testChatService, sessionId, {
+			requestId: 'req1',
+			modeInfo: { permissionLevel: ChatPermissionLevel.Autopilot },
+		});
+
+		// Tool should be auto-approved even though global auto-approve is off
+		const result = await testService.invokeTool(
+			tool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result.content[0].value, 'autopilot approved');
+	});
+
+	test('autopilot finds correct request by chatRequestId', async () => {
+		// When chatRequestId is provided, the exact request should be matched
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			configureServices: config => {
+				config.setUserConfiguration('chat.tools.global.autoApprove', false);
+			}
+		});
+
+		const tool = registerToolForTest(testService, store, 'autopilotIdTool', {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Confirm?', message: 'Test' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'found by id' }] })
+		});
+
+		const sessionId = 'test-autopilot-id';
+		const fakeModel = {
+			sessionId,
+			sessionResource: LocalChatSessionUri.forSession(sessionId),
+			getRequests: () => [
+				{ id: 'req-old', modelId: 'test-model', modeInfo: undefined },
+				{ id: 'req-autopilot', modelId: 'test-model', modeInfo: { permissionLevel: ChatPermissionLevel.Autopilot } },
+			],
+		} as ChatModel;
+		testChatService.addSession(fakeModel);
+
+		const dto = tool.makeDto({ test: 1 }, { sessionId });
+		dto.chatRequestId = 'req-autopilot';
+
+		const result = await testService.invokeTool(dto, async () => 0, CancellationToken.None);
+		assert.strictEqual(result.content[0].value, 'found by id');
+	});
+
+	test('autopilot auto-approves terminal tool with confirmation messages', async () => {
+		// Terminal tools always return confirmationMessages when their own auto-approve is off.
+		// In autopilot mode, shouldAutoConfirm should still auto-approve the tool.
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			configureServices: config => {
+				config.setUserConfiguration('chat.tools.global.autoApprove', false);
+			}
+		});
+
+		const tool = registerToolForTest(testService, store, 'terminalTool', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Run shell command?',
+					message: 'echo hello',
+				},
+				toolSpecificData: {
+					kind: 'terminal' as const,
+					terminalToolSessionId: 'test',
+					terminalCommandId: 'cmd-1',
+					commandLine: { original: 'echo hello' },
+					language: 'sh',
+				},
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'terminal executed' }] })
+		});
+
+		const sessionId = 'test-autopilot-terminal';
+		stubGetSession(testChatService, sessionId, {
+			requestId: 'req1',
+			modeInfo: { permissionLevel: ChatPermissionLevel.Autopilot },
+		});
+
+		// Terminal tool should be auto-approved by autopilot even without terminal auto-approve enabled
+		const result = await testService.invokeTool(
+			tool.makeDto({ command: 'echo hello', explanation: 'test', goal: 'test', isBackground: false }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result.content[0].value, 'terminal executed');
+	});
+
+	test('bypass approvals auto-approves terminal tool with confirmation messages', async () => {
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			configureServices: config => {
+				config.setUserConfiguration('chat.tools.global.autoApprove', false);
+			}
+		});
+
+		const tool = registerToolForTest(testService, store, 'terminalToolBypass', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Run shell command?',
+					message: 'ls -la',
+				},
+				toolSpecificData: {
+					kind: 'terminal' as const,
+					terminalToolSessionId: 'test',
+					terminalCommandId: 'cmd-2',
+					commandLine: { original: 'ls -la' },
+					language: 'sh',
+				},
+			}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'bypass executed' }] })
+		});
+
+		const sessionId = 'test-bypass-terminal';
+		stubGetSession(testChatService, sessionId, {
+			requestId: 'req1',
+			modeInfo: { permissionLevel: ChatPermissionLevel.AutoApprove },
+		});
+
+		const result = await testService.invokeTool(
+			tool.makeDto({ command: 'ls -la', explanation: 'test', goal: 'test', isBackground: false }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result.content[0].value, 'bypass executed');
 	});
 
 	test('shouldAutoConfirm with basic configuration', async () => {
