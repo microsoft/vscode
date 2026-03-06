@@ -126,7 +126,7 @@ async function waitForServer(url, timeoutMs) {
 // ---------------------------------------------------------------------------
 
 function commandsPathForScenario(scenarioPath) {
-	const dir = path.join(path.dirname(scenarioPath), 'compiled');
+	const dir = path.join(path.dirname(scenarioPath), 'generated');
 	const name = path.basename(scenarioPath, '.scenario.md') + '.commands.json';
 	return path.join(dir, name);
 }
