@@ -22,7 +22,7 @@ import { URI } from '../../base/common/uri.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/common/contributions.js';
 import { IChatProgress } from '../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService, IChatSessionItem, ChatSessionStatus, IChatSessionHistoryItem } from '../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService, IChatSessionItem, IChatSessionFileChange, ChatSessionStatus, IChatSessionHistoryItem } from '../../workbench/contrib/chat/common/chatSessionsService.js';
 
 const MOCK_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: { id: 'github', name: 'GitHub (Mock)', enterprise: false },
@@ -162,7 +162,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 		this.preseedFolder();
 	}
 
-	private addSessionItem(resource: URI, message: string, responseText: string, changesCount?: number): void {
+	private addSessionItem(resource: URI, message: string, responseText: string, fileEdits?: { uri: URI; content: string }[]): void {
 		const key = resource.toString();
 		const now = Date.now();
 
@@ -175,18 +175,28 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 			{ type: 'response', parts: [{ kind: 'markdownContent', content: { value: responseText, isTrusted: false, supportThemeIcons: false, supportHtml: false } }], participant: 'copilot' },
 		);
 
+		// Build detailed file changes if any
+		const changes: IChatSessionFileChange[] | undefined = fileEdits?.map(edit => ({
+			modifiedUri: edit.uri,
+			insertions: edit.content.split('\n').length,
+			deletions: 0,
+		}));
+
 		// Add or update session in list
 		const existing = this._sessionItems.find(s => s.resource.toString() === key);
 		if (existing) {
 			existing.timing.lastRequestStarted = now;
 			existing.timing.lastRequestEnded = now;
+			if (changes) {
+				(existing as any).changes = changes;
+			}
 		} else {
 			this._sessionItems.push({
 				resource,
 				label: message.slice(0, 50) || 'Mock Session',
 				status: ChatSessionStatus.Completed,
 				timing: { created: now, lastRequestStarted: now, lastRequestEnded: now },
-				...(changesCount ? { changes: { files: changesCount, insertions: changesCount * 8, deletions: changesCount * 2 } } : {}),
+				...(changes ? { changes } : {}),
 			});
 		}
 		this._itemsChangedEmitter.fire();
@@ -242,7 +252,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 						console.log(`[Sessions Web Test] Emitted ${response.fileEdits.length} file edits`);
 					}
 
-					self.addSessionItem(request.sessionResource, request.message, response.text, response.fileEdits?.length);
+					self.addSessionItem(request.sessionResource, request.message, response.text, response.fileEdits);
 					return { metadata: { mock: true } };
 				},
 			};
