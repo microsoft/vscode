@@ -24,9 +24,10 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
-import { TestContextService, TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestUserDataProfileService, TestWorkspaceTrustManagementService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatRequestVariableSet, isPromptFileVariableEntry, isPromptTextVariableEntry, toFileVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, getFilePath, InstructionsCollectionEvent } from '../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
@@ -180,6 +181,8 @@ suite('ComputeAutomaticInstructions', () => {
 		});
 
 		instaService.stub(IContextKeyService, new MockContextKeyService());
+
+		instaService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 
 		instaService.stub(IAgentPluginService, {
 			plugins: observableValue('testPlugins', []),
