@@ -5,19 +5,23 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Action } from '../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
 import { getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
 
 export interface INextPromptSelection {
 	readonly handoff: IHandOff;
 	readonly agentId?: string;
+	readonly withAutopilot?: boolean;
 }
 
 export class ChatSuggestNextWidget extends Disposable {
@@ -36,7 +40,8 @@ export class ChatSuggestNextWidget extends Disposable {
 
 	constructor(
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.domNode = this.createSuggestNextWidget();
@@ -95,6 +100,14 @@ export class ChatSuggestNextWidget extends Disposable {
 		for (const handoff of handoffs) {
 			const promptButton = this.createPromptButton(handoff);
 			this.promptsContainer.appendChild(promptButton);
+		}
+
+		// Add an "with Autopilot" button for the first send-able handoff when autopilot is enabled
+		const isAutopilotEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
+		const sendableHandoff = handoffs.find(h => h.send);
+		if (isAutopilotEnabled && sendableHandoff) {
+			const autopilotButton = this.createAutopilotButton(sendableHandoff);
+			this.promptsContainer.appendChild(autopilotButton);
 		}
 
 		this.domNode.style.display = 'flex';
@@ -218,6 +231,52 @@ export class ChatSuggestNextWidget extends Disposable {
 		// Store disposables for this button so they can be disposed when the button is removed
 		this.buttonDisposables.set(button, disposables);
 
+		return button;
+	}
+
+	/**
+	 * Creates an "... with Autopilot" button that triggers the handoff and switches to Autopilot mode.
+	 */
+	private createAutopilotButton(handoff: IHandOff): HTMLElement {
+		const disposables = new DisposableStore();
+
+		const handoffLabel = handoff.label;
+		const getCurrentHandoff = (): IHandOff | undefined => {
+			const currentHandoffs = this._currentMode?.handOffs?.get();
+			return currentHandoffs?.find(h => h.label === handoffLabel) ?? handoff;
+		};
+
+		const button = dom.$('.chat-welcome-view-suggested-prompt');
+		button.setAttribute('tabindex', '0');
+		button.setAttribute('role', 'button');
+
+		const label = localize('chat.suggestNext.withAutopilot', '{0} with Autopilot', handoff.label);
+		button.setAttribute('aria-label', label);
+
+		// Icon + title
+		const iconElement = dom.append(button, dom.$('.chat-welcome-view-suggested-prompt-icon'));
+		iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.rocket));
+		const titleElement = dom.append(button, dom.$('.chat-welcome-view-suggested-prompt-title'));
+		titleElement.textContent = label;
+
+		disposables.add(dom.addDisposableListener(button, 'click', () => {
+			const currentHandoff = getCurrentHandoff();
+			if (currentHandoff) {
+				this._onDidSelectPrompt.fire({ handoff: currentHandoff, withAutopilot: true });
+			}
+		}));
+
+		disposables.add(dom.addDisposableListener(button, 'keydown', (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				const currentHandoff = getCurrentHandoff();
+				if (currentHandoff) {
+					this._onDidSelectPrompt.fire({ handoff: currentHandoff, withAutopilot: true });
+				}
+			}
+		}));
+
+		this.buttonDisposables.set(button, disposables);
 		return button;
 	}
 

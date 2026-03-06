@@ -673,8 +673,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
 		}));
-		this._register(this.chatSuggestNextWidget.onDidSelectPrompt(({ handoff, agentId }) => {
-			this.handleNextPromptSelection(handoff, agentId);
+		this._register(this.chatSuggestNextWidget.onDidSelectPrompt(({ handoff, agentId, withAutopilot }) => {
+			this.handleNextPromptSelection(handoff, agentId, withAutopilot);
 		}));
 
 		if (renderInputOnTop) {
@@ -1196,6 +1196,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const shouldShow = currentMode && handoffs && handoffs.length > 0;
 
 		if (shouldShow) {
+			// In Autopilot mode, automatically trigger the first send-able handoff
+			// instead of showing the buttons and waiting for user interaction.
+			if (this.input.currentModeInfo.permissionLevel === ChatPermissionLevel.Autopilot) {
+				const autoHandoff = handoffs.find(h => h.send);
+				if (autoHandoff) {
+					this.logService.info(`[ChatWidget] Autopilot: auto-triggering handoff "${autoHandoff.label}"`);
+					this.handleNextPromptSelection(autoHandoff);
+					return;
+				}
+			}
+
 			// Log telemetry only when widget transitions from hidden to visible
 			const wasHidden = this.chatSuggestNextWidget.domNode.style.display === 'none';
 			this.chatSuggestNextWidget.render(currentMode);
@@ -1216,9 +1227,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private handleNextPromptSelection(handoff: IHandOff, agentId?: string): void {
+	private handleNextPromptSelection(handoff: IHandOff, agentId?: string, withAutopilot?: boolean): void {
 		// Hide the widget after selection
 		this.chatSuggestNextWidget.hide();
+
+		// Switch to Autopilot permission level if requested
+		if (withAutopilot) {
+			this.inputPart.setPermissionLevel(ChatPermissionLevel.Autopilot);
+		}
 
 		const promptToUse = handoff.prompt;
 
