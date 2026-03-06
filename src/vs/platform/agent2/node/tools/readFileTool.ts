@@ -51,7 +51,10 @@ export class ReadFileTool implements IAgentTool {
 		if (!isAbsolute(filePath)) {
 			const normalizedResolved = normalize(resolvedPath);
 			const normalizedWorkDir = normalize(context.workingDirectory);
-			if (!normalizedResolved.startsWith(normalizedWorkDir)) {
+			// Ensure the work dir ends with separator to prevent prefix collisions
+			// (e.g., /repo/project must not match /repo/project2/...)
+			const workDirPrefix = normalizedWorkDir.endsWith('/') ? normalizedWorkDir : normalizedWorkDir + '/';
+			if (!normalizedResolved.startsWith(workDirPrefix) && normalizedResolved !== normalizedWorkDir) {
 				return { content: 'Error: Path traversal outside working directory is not allowed.', isError: true };
 			}
 		}

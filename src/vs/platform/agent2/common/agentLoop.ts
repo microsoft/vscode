@@ -56,6 +56,8 @@ export interface IAgentLoopConfig {
 	readonly middleware?: readonly IMiddleware[];
 	/** Maximum number of model-call/tool-execution iterations. */
 	readonly maxIterations?: number;
+	/** Working directory for tool execution. */
+	readonly workingDirectory?: string;
 }
 
 // -- Core loop ----------------------------------------------------------------
@@ -80,6 +82,7 @@ export async function* runAgentLoop(
 	const middleware = config.middleware ?? [];
 	const toolMap = buildToolMap(config.tools);
 	const toolDefinitions = config.tools.map(t => toToolDefinition(t));
+	const scratchpad = new Map<string, unknown>();
 	let currentMessages = [...messages];
 	let turn = 0;
 
@@ -105,6 +108,7 @@ export async function* runAgentLoop(
 		let retryCount = 0;
 		let assistantParts: IAssistantContentPart[];
 		let responseText: string;
+		let responseEvents: AgentLoopEvent[];
 
 		// Retry loop for post-response middleware requesting retries
 		while (true) {
@@ -118,17 +122,14 @@ export async function* runAgentLoop(
 				requestMessages,
 				requestTools,
 				config.requestConfig ?? {},
+				config.modelIdentity,
 				token,
 				turn,
 			);
 
-			// Yield all streaming events
-			for (const event of accumulated.events) {
-				yield event;
-			}
-
 			assistantParts = accumulated.parts;
 			responseText = accumulated.text;
+			responseEvents = accumulated.events;
 
 			// -- Post-response middleware -----------------------------------------
 			const hasToolCalls = assistantParts.some(p => p.type === 'tool-call');
@@ -142,6 +143,11 @@ export async function* runAgentLoop(
 				continue;
 			}
 			break;
+		}
+
+		// Only yield events from the final (non-retried) attempt
+		for (const event of responseEvents) {
+			yield event;
 		}
 
 		const durationMs = Date.now() - startTime;
@@ -169,7 +175,7 @@ export async function* runAgentLoop(
 		}
 
 		// -- Execute tool calls -----------------------------------------------
-		const toolResults = yield* executeToolCalls(toolCalls, toolMap, middleware, config, token, turn);
+		const toolResults = yield* executeToolCalls(toolCalls, toolMap, middleware, config, scratchpad, token, turn);
 		currentMessages = [...currentMessages, ...toolResults];
 	}
 
@@ -200,6 +206,7 @@ async function accumulateResponse(
 	messages: readonly IConversationMessage[],
 	tools: readonly IAgentToolDefinition[],
 	config: IModelRequestConfig,
+	modelIdentity: IModelIdentity,
 	token: CancellationToken,
 	turn: number,
 ): Promise<IAccumulatedResponse> {
@@ -271,7 +278,7 @@ async function accumulateResponse(
 					reasoningTokens: chunk.reasoningTokens,
 					cacheReadTokens: chunk.cacheReadTokens,
 					cacheCreationTokens: chunk.cacheCreationTokens,
-					modelIdentity: { provider: '', modelId: '' }, // Will be set by caller
+					modelIdentity,
 					turn,
 				});
 				break;
@@ -302,53 +309,62 @@ async function accumulateResponse(
 
 /**
  * Executes tool calls, respecting readOnly flags for parallelism.
- * Read-only tools run in parallel; mutating tools run sequentially.
+ *
+ * Preserves the original order of tool calls from the model. Contiguous
+ * read-only tools are batched and executed in parallel; mutating tools
+ * are always executed sequentially.
  */
 async function* executeToolCalls(
 	toolCalls: readonly IToolCallPart[],
 	toolMap: ReadonlyMap<string, IAgentTool>,
 	middleware: readonly IMiddleware[],
 	config: IAgentLoopConfig,
+	scratchpad: Map<string, unknown>,
 	token: CancellationToken,
 	turn: number,
 ): AsyncGenerator<AgentLoopEvent, IConversationMessage[]> {
 	const results: IConversationMessage[] = [];
 
-	// Separate read-only and mutating tool calls
-	const readOnlyCalls: IToolCallPart[] = [];
-	const mutatingCalls: IToolCallPart[] = [];
-	for (const tc of toolCalls) {
-		const tool = toolMap.get(tc.toolName);
-		if (tool?.readOnly) {
-			readOnlyCalls.push(tc);
-		} else {
-			mutatingCalls.push(tc);
-		}
-	}
-
-	// Execute read-only tools in parallel
-	if (readOnlyCalls.length > 0) {
-		const parallelResults = await Promise.all(
-			readOnlyCalls.map(tc => executeSingleTool(tc, toolMap, middleware, config, token, turn)),
-		);
-		for (const pr of parallelResults) {
-			for (const evt of pr.events) {
-				yield evt;
-			}
-			results.push(pr.result);
-		}
-	}
-
-	// Execute mutating tools sequentially
-	for (const tc of mutatingCalls) {
+	// Process tool calls in order, batching contiguous read-only calls
+	let i = 0;
+	while (i < toolCalls.length) {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const tr = await executeSingleTool(tc, toolMap, middleware, config, token, turn);
-		for (const evt of tr.events) {
-			yield evt;
+
+		const tc = toolCalls[i];
+		const tool = toolMap.get(tc.toolName);
+
+		if (tool?.readOnly) {
+			// Collect contiguous read-only calls for parallel execution
+			const batch: IToolCallPart[] = [];
+			while (i < toolCalls.length) {
+				const batchTool = toolMap.get(toolCalls[i].toolName);
+				if (!batchTool?.readOnly) {
+					break;
+				}
+				batch.push(toolCalls[i]);
+				i++;
+			}
+
+			const parallelResults = await Promise.all(
+				batch.map(btc => executeSingleTool(btc, toolMap, middleware, config, scratchpad, token, turn)),
+			);
+			for (const pr of parallelResults) {
+				for (const evt of pr.events) {
+					yield evt;
+				}
+				results.push(pr.result);
+			}
+		} else {
+			// Mutating tool: execute sequentially
+			const tr = await executeSingleTool(tc, toolMap, middleware, config, scratchpad, token, turn);
+			for (const evt of tr.events) {
+				yield evt;
+			}
+			results.push(tr.result);
+			i++;
 		}
-		results.push(tr.result);
 	}
 
 	return results;
@@ -364,6 +380,7 @@ async function executeSingleTool(
 	toolMap: ReadonlyMap<string, IAgentTool>,
 	middleware: readonly IMiddleware[],
 	config: IAgentLoopConfig,
+	scratchpad: Map<string, unknown>,
 	token: CancellationToken,
 	turn: number,
 ): Promise<IToolExecutionResult> {
@@ -420,8 +437,8 @@ async function executeSingleTool(
 		try {
 			const toolResult = await tool.execute(preResult.arguments, {
 				token,
-				workingDirectory: config.requestConfig?.providerOptions?.['workingDirectory'] as string ?? '',
-				scratchpad: new Map(),
+				workingDirectory: config.workingDirectory ?? '',
+				scratchpad,
 			});
 			resultContent = toolResult.content;
 			isError = toolResult.isError ?? false;

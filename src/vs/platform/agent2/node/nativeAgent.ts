@@ -34,7 +34,8 @@ import {
 import { IAgentLoopConfig, runAgentLoop } from '../common/agentLoop.js';
 import {
 	createUserMessage,
-	IAssistantContentPart,
+	getAssistantText,
+	getToolCalls,
 	IConversationMessage,
 	IModelIdentity,
 } from '../common/conversation.js';
@@ -57,6 +58,10 @@ interface INativeSession {
 	readonly workingDirectory: string;
 	readonly messages: IConversationMessage[];
 	readonly history: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[];
+	/** Tracks active tool calls so we have args at completion time. */
+	readonly activeToolCalls: Map<string, { toolName: string; args: Record<string, unknown> }>;
+	/** Current assistant message ID for correlating delta events. */
+	currentAssistantMessageId: string | undefined;
 	readonly startTime: number;
 	modifiedTime: number;
 	cts: CancellationTokenSource;
@@ -79,8 +84,6 @@ export class NativeAgent extends Disposable implements IAgent {
 	private readonly _sessionState = new Map<string, INativeSession>();
 	private readonly _tokenService: CopilotTokenService;
 	private readonly _tools: readonly IAgentTool[];
-	/** Tracks active tool calls so we have args at completion time. */
-	private readonly _activeToolCalls = new Map<string, { toolName: string; args: Record<string, unknown> }>();
 
 	constructor(
 		private readonly _logService: ILogService,
@@ -139,6 +142,8 @@ export class NativeAgent extends Disposable implements IAgent {
 			workingDirectory,
 			messages: [],
 			history: [],
+			activeToolCalls: new Map(),
+			currentAssistantMessageId: undefined,
 			startTime: Date.now(),
 			modifiedTime: Date.now(),
 			cts,
@@ -246,9 +251,7 @@ export class NativeAgent extends Disposable implements IAgent {
 			modelIdentity,
 			systemPrompt: DEFAULT_SYSTEM_PROMPT,
 			tools: [...this._tools],
-			requestConfig: {
-				providerOptions: { workingDirectory: session.workingDirectory },
-			},
+			workingDirectory: session.workingDirectory,
 			middleware: this._buildMiddleware(),
 		};
 
@@ -279,44 +282,43 @@ export class NativeAgent extends Disposable implements IAgent {
 
 	private _processEvent(event: AgentLoopEvent, session: INativeSession): void {
 		switch (event.type) {
+			case 'model-call-start': {
+				// Allocate a message ID for correlating delta events
+				session.currentAssistantMessageId = generateUuid();
+				break;
+			}
 			case 'assistant-delta': {
 				this._onDidSessionProgress.fire({
 					type: 'delta',
 					session: session.uri,
-					messageId: generateUuid(),
+					messageId: session.currentAssistantMessageId ?? generateUuid(),
 					content: event.text,
 				});
 				break;
 			}
 			case 'assistant-message': {
 				const msg = event.message;
-				const text = msg.content
-					.filter(p => p.type === 'text')
-					.map(p => (p as { text: string }).text)
-					.join('');
+				const text = getAssistantText(msg);
 
 				// Add the assistant message to conversation history
 				session.messages.push(msg);
 
-				const toolRequests = msg.content
-					.filter(p => p.type === 'tool-call')
-					.map(p => {
-						const tc = p as IAssistantContentPart & { type: 'tool-call'; toolCallId: string; toolName: string; arguments: Record<string, unknown> };
-						return {
-							toolCallId: tc.toolCallId,
-							name: tc.toolName,
-							arguments: JSON.stringify(tc.arguments),
-						};
-					});
+				const calls = getToolCalls(msg);
+				const toolRequests = calls.map(tc => ({
+					toolCallId: tc.toolCallId,
+					name: tc.toolName,
+					arguments: JSON.stringify(tc.arguments),
+				}));
 
 				session.history.push({
 					type: 'message',
 					session: session.uri,
 					role: 'assistant',
-					messageId: generateUuid(),
+					messageId: session.currentAssistantMessageId ?? generateUuid(),
 					content: text,
 					toolRequests: toolRequests.length > 0 ? toolRequests : undefined,
 				});
+				session.currentAssistantMessageId = undefined;
 				break;
 			}
 			case 'reasoning-delta': {
@@ -334,8 +336,8 @@ export class NativeAgent extends Disposable implements IAgent {
 				const toolKind = getToolKind(event.toolName);
 				const language = getShellLanguage(event.toolName);
 
-				// Track so we have args at completion time
-				this._activeToolCalls.set(event.toolCallId, { toolName: event.toolName, args: event.arguments });
+				// Track so we have args at completion time (per-session)
+				session.activeToolCalls.set(event.toolCallId, { toolName: event.toolName, args: event.arguments });
 
 				const startEvent: IAgentToolStartEvent = {
 					type: 'tool_start',
@@ -353,8 +355,8 @@ export class NativeAgent extends Disposable implements IAgent {
 				break;
 			}
 			case 'tool-complete': {
-				const tracked = this._activeToolCalls.get(event.toolCallId);
-				this._activeToolCalls.delete(event.toolCallId);
+				const tracked = session.activeToolCalls.get(event.toolCallId);
+				session.activeToolCalls.delete(event.toolCallId);
 				const toolArgs = tracked?.args ?? {};
 				const pastTenseMessage = getPastTenseMessage(event.toolName, toolArgs);
 
