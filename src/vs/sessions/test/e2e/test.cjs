@@ -35,7 +35,7 @@ const BASE_URL = `http://localhost:${PORT}/?skip-sessions-welcome`;
 // ---------------------------------------------------------------------------
 
 function discoverCommandFiles(filter) {
-	const compiledDir = path.join(SCENARIOS_DIR, 'compiled');
+	const compiledDir = path.join(SCENARIOS_DIR, 'generated');
 	if (!fs.existsSync(compiledDir)) { return []; }
 	return fs.readdirSync(compiledDir)
 		.filter(f => f.endsWith('.commands.json'))
