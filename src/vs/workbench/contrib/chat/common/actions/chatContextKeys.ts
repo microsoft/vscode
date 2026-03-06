@@ -23,7 +23,8 @@ export namespace ChatContextKeys {
 
 	export const enum EditingRequestType {
 		Sent = 's',
-		QueueOrSteer = 'qs',
+		Queue = 'q',
+		Steer = 'st',
 	}
 	export const editingRequestType = new RawContextKey<EditingRequestType | undefined>('chatEditingSentRequest', undefined, { type: 'string', description: localize('chatEditingSentRequest', "The type of the current editing request.") });
 
