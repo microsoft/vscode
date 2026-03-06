@@ -7,12 +7,11 @@ description: |
   edit-build-debug cycle.
 
 architectures:
-  - build-on: amd64
-    run-on: @@ARCHITECTURE@@
+  - @@ARCHITECTURE@@
 
 grade: stable
 confinement: classic
-base: core20
+base: core22
 compression: lzo
 
 parts:
@@ -27,10 +26,9 @@ parts:
       - libatspi2.0-0
       - libcairo2
       - libcanberra-gtk3-module
-      - libcurl3-gnutls
-      - libcurl3-nss
       - libcurl4
       - libegl1
+      - librsvg2-common
       - libdrm2
       - libgbm1
       - libgl1
@@ -51,6 +49,7 @@ parts:
       - libxss1
       - locales-all
       - packagekit-gtk3-module
+      - shared-mime-info
       - xdg-utils
     prime:
       - -usr/share/doc
@@ -59,18 +58,18 @@ parts:
       - -usr/share/lintian
       - -usr/share/man
     override-build: |
-      snapcraftctl build
-      patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/x86_64-linux-gnu:$ORIGIN:/snap/core20/current/lib/x86_64-linux-gnu' $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler
+      cp -a . "$SNAPCRAFT_PART_INSTALL"
+      patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/@@DEB_ARCHITECTURE@@:$ORIGIN:/snap/core22/current/lib/@@DEB_ARCHITECTURE@@' $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler
       chmod 0755 $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome-sandbox
   cleanup:
     after:
       - code
     plugin: nil
     build-snaps:
-      - core20
+      - core22
     override-prime: |
       set -eux
-      for snap in "core20"; do
+      for snap in "core22"; do
         cd "/snap/$snap/current" && find . -type f,l -exec rm -f "$SNAPCRAFT_PRIME/{}" \;
       done
       patchelf --print-rpath $SNAPCRAFT_PRIME/usr/share/@@NAME@@/chrome_crashpad_handler

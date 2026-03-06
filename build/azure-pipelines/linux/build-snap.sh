@@ -20,4 +20,4 @@ case $VSCODE_ARCH in
   x64) SNAPCRAFT_TARGET_ARGS="" ;;
   *) SNAPCRAFT_TARGET_ARGS="--target-arch $VSCODE_ARCH" ;;
 esac
-(cd $SNAP_ROOT/code-* && sudo --preserve-env snapcraft snap $SNAPCRAFT_TARGET_ARGS --output "$SNAP_PATH")
+(cd $SNAP_ROOT/code-* && sudo --preserve-env snapcraft pack $SNAPCRAFT_TARGET_ARGS --destructive-mode --output "$SNAP_PATH")
