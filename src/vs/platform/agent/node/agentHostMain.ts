@@ -52,7 +52,7 @@ function startAgentHost(): void {
 	let agentService: AgentService;
 	try {
 		agentService = new AgentService(logService);
-		agentService.registerProvider(new CopilotAgent(logService));
+		// agentService.registerProvider(new CopilotAgent(logService)); // Temporarily disabled -- conflicts with locally installed Copilot CLI
 		agentService.registerProvider(new NativeAgent(logService));
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
