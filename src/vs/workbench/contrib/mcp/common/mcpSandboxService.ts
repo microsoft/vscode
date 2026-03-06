@@ -87,7 +87,9 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		if (await this.isEnabled(serverDef, remoteAuthority)) {
 			this._logService.trace(`McpSandboxService: Launching with config target ${configTarget}`);
 			const launchDetails = await this._resolveSandboxLaunchDetails(configTarget, remoteAuthority, launch.sandbox, launch.cwd);
-			const sandboxArgs = this._getSandboxCommandArgs(launch.command, launch.args, launchDetails.sandboxConfigPath);
+			const quotedCommand = this._quoteShellArgument(launch.command);
+			const quotedArgs = launch.args.map(arg => this._quoteShellArgument(arg));
+			const sandboxArgs = this._getSandboxCommandArgs(quotedCommand, quotedArgs, launchDetails.sandboxConfigPath);
 			const sandboxEnv = await this._getSandboxEnvVariables(launch.env, launchDetails.tempDir, launchDetails.rgPath, remoteAuthority);
 			if (launchDetails.srtPath) {
 				if (launchDetails.execPath) {
@@ -294,6 +296,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		const result: string[] = [];
 		if (sandboxConfigPath) {
 			result.push('--settings', sandboxConfigPath);
+			result.push('--');
 		}
 		result.push(command, ...args);
 		return result;
@@ -400,5 +403,9 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		const os = await this._getOperatingSystem(remoteAuthority);
 		return os === OperatingSystem.Windows ? win32.delimiter : posix.delimiter;
 	};
+
+	private _quoteShellArgument(value: string): string {
+		return `'${value.replace(/'/g, `'\\''`)}'`;
+	}
 
 }
