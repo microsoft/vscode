@@ -326,9 +326,6 @@ export class ChangesViewPane extends ViewPane {
 		this.activeSessionFileCountObs = this.createActiveSessionFileCountObservable();
 		this.activeSessionHasChangesObs = this.activeSessionFileCountObs.map(fileCount => fileCount > 0).recomputeInitiallyAndOnChange(this._store);
 
-		// Setup badge tracking
-		this.registerBadgeTracking();
-
 		// Set chatSessionType on the view's context key service so ViewTitle
 		// menu items can use it in their `when` clauses. Update reactively
 		// when the active session changes.
@@ -336,15 +333,6 @@ export class ChangesViewPane extends ViewPane {
 		this._register(autorun(reader => {
 			const activeSession = this.activeSession.read(reader);
 			viewSessionTypeKey.set(activeSession?.sessionType ?? '');
-		}));
-	}
-
-	private registerBadgeTracking(): void {
-		// Update badge when file count changes
-		this._register(autorun(reader => {
-			const fileCount = this.activeSessionFileCountObs.read(reader);
-			const repositoryChangesCount = this.activeSessionRepositoryChangesObs.read(reader);
-			this.updateBadge(fileCount + (repositoryChangesCount ? repositoryChangesCount.length : 0));
 		}));
 	}
 
@@ -576,8 +564,15 @@ export class ChangesViewPane extends ViewPane {
 			const sessionFiles = sessionFilesObs.read(reader);
 			const repositoryFiles = this.activeSessionRepositoryChangesObs.read(reader) ?? [];
 
-			return [...editEntries, ...sessionFiles, ...repositoryFiles]
-				.sort((a, b) => extUriBiasedIgnorePathCase.compare(a.uri, b.uri));
+			const resources = new Set();
+			const entries: IChangesFileItem[] = [];
+			for (const item of [...editEntries, ...sessionFiles, ...repositoryFiles]) {
+				if (!resources.has(item.uri.fsPath)) {
+					resources.add(item.uri.fsPath);
+					entries.push(item);
+				}
+			}
+			return entries.sort((a, b) => extUriBiasedIgnorePathCase.compare(a.uri, b.uri));
 		});
 
 		// Calculate stats from combined entries
@@ -697,6 +692,11 @@ export class ChangesViewPane extends ViewPane {
 			dom.setVisibility(hasEntries, this.contentContainer!);
 			dom.setVisibility(hasEntries, this.actionsContainer!);
 			dom.setVisibility(!hasEntries, this.welcomeContainer!);
+		}));
+
+		// Update badge when file count changes
+		this.renderDisposables.add(autorun(reader => {
+			this.updateBadge(topLevelStats.read(reader).files);
 		}));
 
 		// Update summary text (line counts only, file count is shown in badge)
