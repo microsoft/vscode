@@ -110,6 +110,7 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		this._buffer.fill(undefined);
 		this._head = 0;
 		this._size = 0;
+		this._debugDataAttachedSessions.clear();
 	}
 
 	registerProvider(provider: IChatDebugLogProvider): IDisposable {
@@ -188,6 +189,7 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 			cts.dispose();
 			this._invocationCts.delete(sessionResource);
 		}
+		this._debugDataAttachedSessions.delete(sessionResource);
 	}
 
 	private _clearProviderEvents(sessionResource: URI): void {

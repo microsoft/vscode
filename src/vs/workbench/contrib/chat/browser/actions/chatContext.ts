@@ -57,9 +57,12 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 			hasAttachedDebugDataKey.set(!!sessionResource && chatDebugService.hasAttachedDebugData(sessionResource));
 			languageModelToolsService.flushToolUpdates();
 		}));
-		this._store.add(chatDebugService.onDidAttachDebugData(() => {
-			hasAttachedDebugDataKey.set(true);
-			languageModelToolsService.flushToolUpdates();
+		this._store.add(chatDebugService.onDidAttachDebugData(sessionResource => {
+			const focusedSession = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+			if (focusedSession && focusedSession.toString() === sessionResource.toString()) {
+				hasAttachedDebugDataKey.set(true);
+				languageModelToolsService.flushToolUpdates();
+			}
 		}));
 
 		// ###############################################################################################

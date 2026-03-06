@@ -70,11 +70,11 @@ export async function createDebugEventsAttachment(
 	const events = chatDebugService.getEvents(sessionResource);
 	const summary = events.length > 0
 		? formatDebugEventsForContext(events)
-		: nls.localize('troubleshoot.noEvents', "No debug events found for this conversation.");
+		: nls.localize('debugEventsSnapshot.noEvents', "No debug events found for this conversation.");
 
 	return {
 		id: 'chatDebugEvents',
-		name: nls.localize('troubleshoot.contextName', "Debug Events Snapshot"),
+		name: nls.localize('debugEventsSnapshot.contextName', "Debug Events Snapshot"),
 		icon: Codicon.output,
 		kind: 'debugEvents',
 		snapshotTime: Date.now(),
