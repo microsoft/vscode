@@ -18,6 +18,10 @@ export interface IValidationError {
 	readonly message: string;
 }
 
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /**
  * Validates a value against a JSON Schema. Returns an array of validation
  * errors, or an empty array if the value is valid.
@@ -42,14 +46,12 @@ export function validateSchema(
 	}
 
 	// Object property checks
-	if (expectedType === 'object' && typeof value === 'object' && value !== null && !Array.isArray(value)) {
-		const obj = value as Record<string, unknown>;
-
+	if (expectedType === 'object' && isObjectRecord(value)) {
 		// Required properties
 		const required = schema['required'];
 		if (Array.isArray(required)) {
 			for (const key of required) {
-				if (typeof key === 'string' && !Object.prototype.hasOwnProperty.call(obj, key)) {
+				if (typeof key === 'string' && !Object.prototype.hasOwnProperty.call(value, key)) {
 					errors.push({
 						path: path ? `${path}.${key}` : key,
 						message: `Missing required property "${key}"`,
@@ -60,13 +62,13 @@ export function validateSchema(
 
 		// Property schemas
 		const properties = schema['properties'];
-		if (typeof properties === 'object' && properties !== null) {
-			const propsObj = properties as Record<string, unknown>;
-			for (const [key, propSchema] of Object.entries(propsObj)) {
-				if (Object.prototype.hasOwnProperty.call(obj, key) && typeof propSchema === 'object' && propSchema !== null) {
+		if (isObjectRecord(properties)) {
+			for (const key of Object.keys(properties)) {
+				const propSchema = properties[key];
+				if (Object.prototype.hasOwnProperty.call(value, key) && isObjectRecord(propSchema)) {
 					const propErrors = validateSchema(
-						obj[key],
-						propSchema as Record<string, unknown>,
+						value[key],
+						propSchema,
 						path ? `${path}.${key}` : key,
 					);
 					errors.push(...propErrors);
@@ -78,11 +80,11 @@ export function validateSchema(
 	// Array item checks
 	if (expectedType === 'array' && Array.isArray(value)) {
 		const itemsSchema = schema['items'];
-		if (typeof itemsSchema === 'object' && itemsSchema !== null) {
+		if (isObjectRecord(itemsSchema)) {
 			for (let i = 0; i < value.length; i++) {
 				const itemErrors = validateSchema(
 					value[i],
-					itemsSchema as Record<string, unknown>,
+					itemsSchema,
 					`${path}[${i}]`,
 				);
 				errors.push(...itemErrors);

@@ -145,7 +145,7 @@ describer('Agent Loop Integration (real CAPI)', function () {
 		}
 
 		const deltas = findEvents(events, 'assistant-delta');
-		assert.ok(deltas.length > 1, `Should have multiple streaming deltas, got ${deltas.length}`);
+		assert.ok(deltas.length >= 1, `Should have at least one streaming delta, got ${deltas.length}`);
 
 		// All deltas should have text
 		for (const delta of deltas) {

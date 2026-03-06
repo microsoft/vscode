@@ -55,7 +55,7 @@ export function createSubAgentTool(
 			},
 			required: ['task'],
 		},
-		readOnly: true, // Sub-agent tools don't directly mutate the filesystem
+		readOnly: false, // Sub-agents may contain mutating tools
 		async execute(args: Record<string, unknown>, context: IToolContext): Promise<IToolResult> {
 			const task = args['task'];
 			if (typeof task !== 'string' || !task) {

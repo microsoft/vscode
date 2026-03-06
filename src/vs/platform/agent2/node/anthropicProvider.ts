@@ -19,7 +19,7 @@ import { ISSEEvent, SSEParser } from '../../../base/common/sseParser.js';
 import { IAssistantMessage, IConversationMessage, IToolResultMessage } from '../common/conversation.js';
 import { IModelInfo, IModelProvider, IModelRequestConfig, ModelResponseChunk } from '../common/modelProvider.js';
 import { IAgentToolDefinition } from '../common/tools.js';
-import { CopilotTokenService } from './copilotToken.js';
+import { CAPIRequestType, CopilotTokenService } from './copilotToken.js';
 import { ILogService } from '../../log/common/log.js';
 
 // -- Configuration ------------------------------------------------------------
@@ -165,7 +165,6 @@ export class AnthropicModelProvider implements IModelProvider {
 		private readonly _modelId: string,
 		private readonly _tokenService: CopilotTokenService,
 		private readonly _logService: ILogService,
-		private readonly _fetch: typeof globalThis.fetch = globalThis.fetch.bind(globalThis),
 	) { }
 
 	async *sendRequest(
@@ -184,19 +183,21 @@ export class AnthropicModelProvider implements IModelProvider {
 		const disposable = token.onCancellationRequested(() => abortController.abort());
 
 		try {
-			const response = await this._fetch(
-				`${copilotToken.apiBaseUrl}/v1/messages`,
+			// Use CAPIClient.makeRequest for proper URL routing and header injection.
+			// CAPIClient routes ChatMessages -> {capiBaseUrl}/v1/messages and adds
+			// standard headers (session ID, machine ID, integration ID, API version).
+			const response = await this._tokenService.makeRequest<Response>(
 				{
 					method: 'POST',
 					headers: {
 						'Authorization': `Bearer ${copilotToken.token}`,
 						'Content-Type': 'application/json',
 						'anthropic-beta': ANTHROPIC_BETA_HEADERS,
-						'X-GitHub-Api-Version': '2025-10-01',
 					},
 					body: JSON.stringify(body),
 					signal: abortController.signal,
 				},
+				{ type: CAPIRequestType.ChatMessages },
 			);
 
 			if (!response.ok) {

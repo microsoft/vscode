@@ -1458,6 +1458,7 @@ export default tseslint.config(
 					'allow': [
 						'@github/copilot-sdk',
 						'@parcel/watcher',
+						'@vscode/copilot-api',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',
 						'@vscode/ripgrep',
