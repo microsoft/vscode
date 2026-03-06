@@ -305,28 +305,12 @@ export class ChatDebugEditor extends EditorPane {
 		super.setEditorVisible(visible);
 		if (visible) {
 			this.telemetryService.publicLog2<{}, ChatDebugPanelOpenedClassification>('chatDebugPanelOpened');
-			// Note: do NOT read this.options here. When the editor becomes
-			// visible via openEditor(), setEditorVisible fires before
-			// setOptions, so this.options still contains stale values from
-			// the previous openEditor() call. Navigation from new options
-			// is handled entirely by setOptions → _applyNavigationOptions.
-
-			// On tab switch back, just refresh the current view.
-			// The streaming pipeline stays alive while hidden, so events
-			// continue to accumulate — no need to re-invoke providers.
-			if (this.viewState === ViewState.Home) {
-				this.homeView?.render();
-			} else if (this.viewState === ViewState.Overview) {
-				this.overviewView?.refresh();
-			} else if (this.viewState === ViewState.Logs) {
-				this.logsView?.refreshList();
-			} else if (this.viewState === ViewState.FlowChart) {
-				this.flowChartView?.refresh();
-			}
+			// Re-show the current view so it reloads events from scratch,
+			// ensuring correct ordering and no stale duplicates.
+			// Navigation from new openEditor() options is handled by
+			// setOptions → _applyNavigationOptions (fires after this).
+			this.showView(this.viewState);
 		}
-		// Don't tear down the streaming pipeline on hide — the views'
-		// onDidAddEvent listeners keep accumulating events while hidden,
-		// so switching tabs and back preserves state without duplicates.
 	}
 
 	private _applyNavigationOptions(options: IChatDebugEditorOptions): void {

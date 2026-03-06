@@ -288,6 +288,10 @@ export class ChatDebugLogsView extends Disposable {
 	}
 
 	refreshList(): void {
+		// Sort by timestamp so events from different sources (core buffer
+		// vs provider responses) are interleaved in chronological order.
+		this.events.sort((a, b) => a.created.getTime() - b.created.getTime());
+
 		let filtered = this.events;
 
 		// Filter by kind toggles (pass category for generic events so only

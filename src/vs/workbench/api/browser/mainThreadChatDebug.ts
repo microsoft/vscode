@@ -36,8 +36,8 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 				this._activeSessionResources.set(handle, sessionResource);
 
 				// Send existing core events for this session to the extension
-				// so they are captured even when the panel is opened late.
-				// Track forwarded events to avoid re-sending on subsequent calls.
+				// so they are captured for export even when the panel is
+				// opened after events have already been logged.
 				for (const event of this._chatDebugService.getEvents(sessionResource)) {
 					if (this._chatDebugService.isCoreEvent(event) && !this._forwardedCoreEvents.has(event)) {
 						this._forwardedCoreEvents.add(event);

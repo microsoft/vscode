@@ -524,7 +524,7 @@ function getEventLabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEvent['
 	const kind = effectiveKind ?? event.kind;
 	switch (kind) {
 		case 'userMessage':
-			return localize('userLabel', "User");
+			return localize('userLabel', "User Message");
 		case 'modelTurn':
 			return event.kind === 'modelTurn' ? (event.model ?? localize('modelTurnLabel', "Model Turn")) : localize('modelTurnLabel', "Model Turn");
 		case 'toolCall':
@@ -532,18 +532,7 @@ function getEventLabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEvent['
 		case 'subagentInvocation':
 			return event.kind === 'subagentInvocation' ? event.agentName : '';
 		case 'agentResponse': {
-			if (event.kind === 'agentResponse') {
-				return event.message || localize('responseLabel', "Response");
-			}
-			// Remapped generic event — extract model name from parenthesized suffix
-			// e.g. "Agent response (claude-opus-4.5)" → "claude-opus-4.5"
-			if (event.kind === 'generic') {
-				const match = /\(([^)]+)\)\s*$/.exec(event.name);
-				if (match) {
-					return match[1];
-				}
-			}
-			return localize('responseLabel', "Response");
+			return localize('agentResponseLabel', "Agent Response");
 		}
 		case 'generic':
 			return event.kind === 'generic' ? event.name : '';
@@ -588,14 +577,11 @@ function getEventSublabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEven
 		}
 		case 'userMessage':
 		case 'agentResponse': {
-			// For proper typed events, prefer the first section's content
-			// (which has the actual message text) over the `message` field
-			// (which is a short summary/name). Fall back to `message` when
-			// no sections are available. For remapped generic events, use
-			// the details property.
+			// Use the message summary as the sublabel. For remapped generic
+			// events, use the details property.
 			let text: string | undefined;
 			if (event.kind === 'userMessage' || event.kind === 'agentResponse') {
-				text = event.sections[0]?.content || event.message;
+				text = event.message;
 			} else if (event.kind === 'generic') {
 				text = event.details;
 			}
