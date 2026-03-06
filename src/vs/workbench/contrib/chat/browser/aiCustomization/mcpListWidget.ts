@@ -81,6 +81,9 @@ class McpServerItemDelegate implements IListVirtualDelegate<IMcpListEntry> {
 		if (element.type === 'group-header') {
 			return element.isFirst ? MCP_GROUP_HEADER_HEIGHT : MCP_GROUP_HEADER_HEIGHT_WITH_SEPARATOR;
 		}
+		if (element.type === 'server-item' && element.server.gallery && !element.server.local) {
+			return 62;
+		}
 		return MCP_ITEM_HEIGHT;
 	}
 
@@ -284,15 +287,16 @@ class McpGalleryItemRenderer implements IListRenderer<IMcpServerItemEntry, IMcpG
 	) { }
 
 	renderTemplate(container: HTMLElement): IMcpGalleryItemTemplateData {
-		container.classList.add('mcp-server-item', 'mcp-gallery-item');
-
-		const details = DOM.append(container, $('.mcp-server-details'));
-		const nameRow = DOM.append(details, $('.mcp-gallery-name-row'));
-		const name = DOM.append(nameRow, $('.mcp-server-name'));
-		const publisher = DOM.append(nameRow, $('.mcp-gallery-publisher'));
-		const description = DOM.append(details, $('.mcp-server-description'));
-
-		const actionContainer = DOM.append(container, $('.mcp-gallery-action'));
+		container.classList.add('mcp-server-item', 'mcp-gallery-item', 'extension-list-item');
+		const details = DOM.append(container, $('.details'));
+		const headerContainer = DOM.append(details, $('.header-container'));
+		const header = DOM.append(headerContainer, $('.header'));
+		const name = DOM.append(header, $('span.name'));
+		const description = DOM.append(details, $('.description.ellipsis'));
+		const footer = DOM.append(details, $('.footer'));
+		const publisherContainer = DOM.append(footer, $('.publisher-container'));
+		const publisher = DOM.append(publisherContainer, $('span.publisher-name'));
+		const actionContainer = DOM.append(footer, $('.mcp-gallery-action'));
 		const installButton = new Button(actionContainer, { ...defaultButtonStyles, supportIcons: true });
 		installButton.element.classList.add('mcp-gallery-install-button');
 

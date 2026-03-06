@@ -152,6 +152,7 @@
 	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
 	cursor: pointer;
 	position: relative;
+	gap: 6px;
 }
 
 .agent-feedback-widget-item:last-child {
@@ -167,12 +168,61 @@
 	color: var(--vscode-list-activeSelectionForeground);
 }
 
+.agent-feedback-widget-item-codeReview {
+	box-shadow: inset 2px 0 0 var(--vscode-editorWarning-foreground);
+}
+
+.agent-feedback-widget-item-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.agent-feedback-widget-item-meta {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	flex-wrap: wrap;
+}
+
+.agent-feedback-widget-item-actions {
+	margin-left: auto;
+	flex: 0 0 auto;
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.agent-feedback-widget-item:hover .agent-feedback-widget-item-actions {
+	opacity: 1;
+	visibility: visible;
+	pointer-events: auto;
+}
+
+.agent-feedback-widget-item-type {
+	display: inline-flex;
+	align-items: center;
+	padding: 1px 6px;
+	border-radius: 999px;
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.2px;
+	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-feedback-widget-item-codeReview .agent-feedback-widget-item-type {
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 22%, transparent);
+	color: var(--vscode-editorWarning-foreground);
+}
+
 /* Line info */
 .agent-feedback-widget-line-info {
 	font-size: 10px;
 	font-weight: 600;
 	color: var(--vscode-descriptionForeground);
-	margin-bottom: 4px;
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
 }
@@ -181,6 +231,46 @@
 .agent-feedback-widget-text {
 	color: var(--vscode-foreground);
 	word-wrap: break-word;
+}
+
+.agent-feedback-widget-suggestion {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 8px;
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 12%, transparent);
+}
+
+.agent-feedback-widget-item-codeReview .agent-feedback-widget-suggestion {
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 10%, transparent);
+}
+
+.agent-feedback-widget-suggestion-title,
+.agent-feedback-widget-suggestion-range {
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-feedback-widget-suggestion-edit {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.agent-feedback-widget-suggestion-text {
+	margin: 0;
+	padding: 6px 8px;
+	border-radius: 4px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	font-family: monospace;
+	font-size: 11px;
+	line-height: 1.45;
+	background: color-mix(in srgb, var(--vscode-editor-background) 65%, transparent);
 }
 
 /* Gutter decoration for range indicator on hover */
