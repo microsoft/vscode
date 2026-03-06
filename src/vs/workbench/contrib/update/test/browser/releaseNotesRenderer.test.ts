@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import assert from 'assert';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
@@ -11,7 +12,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { SimpleSettingRenderer } from '../../../markdown/browser/markdownSettingRenderer.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
-import { renderReleaseNotesMarkdown } from '../../browser/releaseNotesEditor.js';
+import { isInsidersReleaseNotes, renderReleaseNotesMarkdown } from '../../browser/releaseNotesEditor.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 
@@ -101,5 +102,32 @@ Navigation End -->
 		const content = `Here is a setting: \`setting(${testSettingId}:on)\` and another \`setting(${testSettingId}:off)\``;
 		const result = await renderReleaseNotesMarkdown(content, extensionService, languageService, instantiationService.createInstance(SimpleSettingRenderer));
 		await assertSnapshot(result.toString());
+	});
+});
+
+suite('isInsidersReleaseNotes', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns true when front-matter has ProductEdition: Insiders', () => {
+		const text = '---\nProductEdition: Insiders\nOrder: 1\n---\n\n# February 2026 (version 1.110)\n\nsome content';
+		assert.strictEqual(isInsidersReleaseNotes(text), true);
+	});
+
+	test('returns false when front-matter has ProductEdition: Stable', () => {
+		const text = '---\nProductEdition: Stable\nOrder: 1\n---\n\n# January 2026 (version 1.97)\n\nsome content';
+		assert.strictEqual(isInsidersReleaseNotes(text), false);
+	});
+
+	test('returns false when front-matter lacks ProductEdition field', () => {
+		const text = '---\nOrder: 1\n---\n\n# January 2026 (version 1.97)\n\nsome content';
+		assert.strictEqual(isInsidersReleaseNotes(text), false);
+	});
+
+	test('returns false when no front-matter even if heading contains Insiders', () => {
+		assert.strictEqual(isInsidersReleaseNotes('# February 2026 Insiders (version 1.110)\n\nsome content'), false);
+	});
+
+	test('returns false for empty string', () => {
+		assert.strictEqual(isInsidersReleaseNotes(''), false);
 	});
 });
