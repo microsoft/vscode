@@ -2018,6 +2018,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return; // Return if not initialized fully (https://github.com/microsoft/vscode/issues/105480)
 		}
 
+		// In dialog mode, panel visibility is managed separately from the grid
+		if (this.isDialogMode) {
+			return;
+		}
+
 		if (!hidden && this.setAuxiliaryBarMaximized(false) && this.isVisible(Parts.PANEL_PART)) {
 			return; // return: leaving maximised auxiliary bar made this part visible
 		}
@@ -2546,8 +2551,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	//#endregion
 
 	private panelOpensMaximized(): boolean {
-		if (this.getPanelAlignment() !== 'center' && isHorizontal(this.getPanelPosition())) {
-			return false; // The workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
+		// The workbench grid prevents panel maximization with non-center alignment in horizontal position.
+		// Dialog mode has no grid constraints, so this limitation doesn't apply.
+		if (!this.isDialogMode && this.getPanelAlignment() !== 'center' && isHorizontal(this.getPanelPosition())) {
+			return false;
 		}
 
 		const panelOpensMaximized = partOpensMaximizedFromString(this.configurationService.getValue<string>(WorkbenchLayoutSettings.PANEL_OPENS_MAXIMIZED));
