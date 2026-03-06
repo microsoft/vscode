@@ -37,13 +37,12 @@ import {
 	getAssistantText,
 	getToolCalls,
 	IConversationMessage,
-	IModelIdentity,
 } from '../common/conversation.js';
 import { AgentLoopEvent } from '../common/events.js';
 import { IAgentTool } from '../common/tools.js';
 import { IMiddleware } from '../common/middleware.js';
-import { AnthropicModelProvider } from './anthropicProvider.js';
 import { CAPIRequestType, CopilotApiService, ICAPIModelsResponse } from './copilotToken.js';
+import { createAnthropicFactory, ModelProviderService } from './modelProviderService.js';
 import { AllowAllPolicy, PermissionMiddleware } from './middleware/permissionMiddleware.js';
 import { ContextWindowMiddleware } from './middleware/contextWindow.js';
 import { ToolOutputTruncationMiddleware } from './middleware/toolOutputTruncation.js';
@@ -84,6 +83,7 @@ export class LocalAgent extends Disposable implements IAgent {
 	private readonly _sessions = this._register(new DisposableMap<string, CancellationTokenSource>());
 	private readonly _sessionState = new Map<string, ILocalSession>();
 	private readonly _apiService: CopilotApiService;
+	private readonly _modelProviderService: ModelProviderService;
 	private readonly _tools: readonly IAgentTool[];
 
 	constructor(
@@ -91,6 +91,8 @@ export class LocalAgent extends Disposable implements IAgent {
 	) {
 		super();
 		this._apiService = new CopilotApiService(_logService);
+		this._modelProviderService = new ModelProviderService();
+		this._modelProviderService.registerFactory(createAnthropicFactory(this._apiService, _logService));
 		this._tools = [new ReadFileTool(), new BashTool()];
 	}
 
@@ -263,12 +265,7 @@ export class LocalAgent extends Disposable implements IAgent {
 	}
 
 	private async _runLoop(session: ILocalSession): Promise<void> {
-		const modelIdentity: IModelIdentity = { provider: 'anthropic', modelId: session.model };
-		const modelProvider = new AnthropicModelProvider(
-			session.model,
-			this._apiService,
-			this._logService,
-		);
+		const { provider: modelProvider, identity: modelIdentity } = this._modelProviderService.resolve(session.model);
 
 		const config: IAgentLoopConfig = {
 			modelProvider,
