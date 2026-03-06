@@ -6,12 +6,21 @@
 /**
  * Integration test for the local agent loop with real CAPI model calls.
  *
- * Supports the same credential sources as the copilot-chat extension:
+ * These tests are OPT-IN: they only run when VSCODE_AGENT_INTEGRATION_TEST=1
+ * is set. They are never run in CI or by default.
+ *
+ * Credentials are auto-loaded from the sibling vscode-copilot-chat repo's
+ * .env file (../vscode-copilot-chat/.env relative to the vscode repo root).
+ * That file is created by running `npm run setup` or `npm run get_token`
+ * in the copilot-chat repo. You can also set the env vars directly.
+ *
+ * Supported credential sources (checked in order):
  *   - VSCODE_COPILOT_CHAT_TOKEN: base64-encoded pre-minted Copilot JWT (skips exchange)
  *   - GITHUB_OAUTH_TOKEN: GitHub OAuth token (exchanged for Copilot JWT)
  *   - GITHUB_PAT: GitHub PAT (exchanged for Copilot JWT)
  *
- * Run with: GITHUB_OAUTH_TOKEN=<token> ./scripts/test.sh --run src/vs/platform/agent2/test/node/agentLoop.integrationTest.ts
+ * Run with:
+ *   VSCODE_AGENT_INTEGRATION_TEST=1 ./scripts/test.sh --run src/vs/platform/agent2/test/node/agentLoop.integrationTest.ts
  */
 
 import assert from 'assert';
@@ -72,8 +81,13 @@ function findWorkspaceRoot(): string {
 	return process.cwd();
 }
 
-const vscodeRoot = findWorkspaceRoot();
-loadDotEnv(join(vscodeRoot, '..', 'vscode-copilot-chat', '.env'));
+// Only load credentials and run tests when explicitly opted in
+const isOptedIn = process.env['VSCODE_AGENT_INTEGRATION_TEST'] === '1';
+
+if (isOptedIn) {
+	const vscodeRoot = findWorkspaceRoot();
+	loadDotEnv(join(vscodeRoot, '..', 'vscode-copilot-chat', '.env'));
+}
 
 /**
  * Resolves integration test credentials using the same env var conventions
@@ -113,7 +127,7 @@ function resolveTestAuth(apiService: CopilotApiService): Promise<boolean> {
 	return Promise.resolve(false);
 }
 
-const hasAuth = !!(process.env['VSCODE_COPILOT_CHAT_TOKEN'] || process.env['GITHUB_OAUTH_TOKEN'] || process.env['GITHUB_PAT']);
+const hasAuth = isOptedIn && !!(process.env['VSCODE_COPILOT_CHAT_TOKEN'] || process.env['GITHUB_OAUTH_TOKEN'] || process.env['GITHUB_PAT']);
 const describer = hasAuth ? suite : suite.skip;
 
 describer('Agent Loop Integration (real CAPI)', function () {
