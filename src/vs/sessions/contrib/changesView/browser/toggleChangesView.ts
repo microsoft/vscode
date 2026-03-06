@@ -110,7 +110,7 @@ export class ToggleChangesViewContribution extends Disposable {
 
 	private syncAuxiliaryBarVisibility(hasChanges: boolean): void {
 		if (hasChanges) {
-			this.viewsService.openView(CHANGES_VIEW_ID, true);
+			this.viewsService.openView(CHANGES_VIEW_ID, false);
 		} else {
 			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 		}

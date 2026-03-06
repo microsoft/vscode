@@ -82,10 +82,10 @@ import { InlineChatConfigKeys } from '../../../../inlineChat/common/inlineChat.j
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
-import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes.js';
+import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatQuestionCarousel, IChatService, IChatSessionContext } from '../../../common/chatService/chatService.js';
 import { agentOptionId, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, validateChatMode } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isAutoApproveLevel, validateChatMode } from '../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../../../common/model/chatModel.js';
@@ -436,6 +436,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			kind: this.currentModeKind,
 			isBuiltin: mode.isBuiltin,
 			modeInstructions: modeInstructions ? {
+				uri: mode.uri?.get(),
 				name: mode.name.get(),
 				content: modeInstructions.content,
 				toolReferences: this.toolService.toToolReferences(modeInstructions.toolReferences),
@@ -443,6 +444,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				isBuiltin: mode.isBuiltin
 			} : undefined,
 			modeId: modeId,
+			modeName: getModeNameForTelemetry(mode),
 			applyCodeBlockSuggestionId: undefined,
 			permissionLevel: this._currentPermissionLevel.get(),
 		};
@@ -905,7 +907,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatSessionIsEmpty = chatSessionIsEmpty;
 
 		// Reset permission level on new sessions, unless global auto-approve is on
-		if (chatSessionIsEmpty && !this.configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
+		// or the current permission level is already auto-approve/autopilot
+		if (chatSessionIsEmpty && !this.configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove) && !isAutoApproveLevel(this._currentPermissionLevel.get())) {
 			this._currentPermissionLevel.set(ChatPermissionLevel.Default, undefined);
 			this.permissionLevelKey.set(ChatPermissionLevel.Default);
 			this.permissionWidget?.refresh();
@@ -1944,10 +1947,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (e.currentSessionResource && newSessionType !== this._currentSessionType) {
 				this._currentSessionType = newSessionType;
 				this.initSelectedModel();
+				this.checkModelInSessionPool();
 			}
-
-			// Validate that the current model belongs to the new session's pool
-			this.checkModelInSessionPool();
 
 			// For contributed sessions with history, pre-select the model
 			// from the last request so the user resumes with the same model.
@@ -3145,7 +3146,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const inputToolbarWidth = this.cachedInputToolbarWidth = this.inputActionsToolbar.getItemsWidth();
 			const executeToolbarPadding = (this.executeToolbar.getItemsLength() - 1) * toolbarItemGap;
 			const inputToolbarPadding = this.inputActionsToolbar.getItemsLength() ? (this.inputActionsToolbar.getItemsLength() - 1) * toolbarItemGap : 0;
-			const contextUsageWidth = dom.getTotalWidth(this.contextUsageWidgetContainer);
+			const contextUsageWidth = 0;// dom.getTotalWidth(this.contextUsageWidgetContainer);
 			const inputToolbarsPadding = 12; // pdading between input toolbar/execute toolbar/contextUsage.
 			return executeToolbarWidth + executeToolbarPadding + contextUsageWidth + (this.options.renderInputToolbarBelowInput ? 0 : inputToolbarWidth + inputToolbarPadding + inputToolbarsPadding);
 		};

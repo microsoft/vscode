@@ -120,11 +120,6 @@
 	}
 }
 
-/* Extra right padding when close button is absolutely positioned (multi-question) */
-.interactive-session .chat-question-carousel-container:has(> .chat-question-close-container) .chat-question-title-row {
-	padding-right: 36px;
-}
-
 /* questions list and freeform area */
 .interactive-session .chat-question-carousel-container .chat-question-input-container {
 	display: flex;
@@ -318,29 +313,6 @@
 	flex: 0 1 auto;
 	min-height: 0;
 	overscroll-behavior: contain;
-}
-
-/* close button for multi-question carousels (positioned top-right) */
-.interactive-session .chat-question-carousel-container > .chat-question-close-container {
-	position: absolute;
-	top: 6px;
-	right: 8px;
-	z-index: 1;
-
-	.monaco-button.chat-question-close {
-		min-width: 22px;
-		width: 22px;
-		height: 22px;
-		padding: 0;
-		border: none !important;
-		box-shadow: none !important;
-		background: transparent !important;
-		color: var(--vscode-icon-foreground) !important;
-	}
-
-	.monaco-button.chat-question-close:hover:not(.disabled) {
-		background: var(--vscode-toolbar-hoverBackground) !important;
-	}
 }
 
 /* footer with nav arrows, step indicator, and submit */

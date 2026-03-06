@@ -39,6 +39,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IChatWidget } from '../chat.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
 export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOptions {
 	readonly overrideStyles: IStyleOverride<IListStyles>;
@@ -78,6 +79,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore> | undefined;
 	private sessionsListFindIsOpen = false;
+	private _isProgrammaticCollapseChange = false;
 
 	private readonly updateSessionsListThrottler = this._register(new Throttler());
 
@@ -103,6 +105,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -173,9 +176,49 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}));
 	}
 
+	private static readonly SECTION_COLLAPSE_STATE_KEY = 'agentSessions.sectionCollapseState';
+
+	private getSavedCollapseState(section: AgentSessionSection): boolean | undefined {
+		const raw = this.storageService.get(AgentSessionsControl.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+		if (raw) {
+			try {
+				const state: Record<string, boolean> = JSON.parse(raw);
+				if (typeof state[section] === 'boolean') {
+					return state[section];
+				}
+			} catch {
+				// ignore corrupt data
+			}
+		}
+		return undefined;
+	}
+
+	private saveSectionCollapseState(section: AgentSessionSection, collapsed: boolean): void {
+		let state: Record<string, boolean> = {};
+		const raw = this.storageService.get(AgentSessionsControl.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+		if (raw) {
+			try {
+				const parsed = JSON.parse(raw);
+				if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+					state = parsed;
+				}
+			} catch {
+				// ignore corrupt data
+			}
+		}
+		state[section] = collapsed;
+		this.storageService.store(AgentSessionsControl.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+	}
+
 	private createList(container: HTMLElement): void {
 		const collapseByDefault = (element: unknown) => {
 			if (isAgentSessionSection(element)) {
+				// Check for persisted user preference first
+				const saved = this.getSavedCollapseState(element.section);
+				if (saved !== undefined) {
+					return saved;
+				}
+
 				if (element.section === AgentSessionSection.More && !this.options.filter.getExcludes().read) {
 					return true; // More section is always collapsed unless only showing unread
 				}
@@ -285,6 +328,16 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 			this.updateSectionCollapseStates();
 		}));
+
+		this._register(list.onDidChangeCollapseState(e => {
+			if (this._isProgrammaticCollapseChange) {
+				return;
+			}
+			const element = e.node.element?.element;
+			if (element && isAgentSessionSection(element)) {
+				this.saveSectionCollapseState(element.section, e.node.collapsed);
+			}
+		}));
 	}
 
 	private updateEmpty(isEmpty: boolean): void {
@@ -392,6 +445,19 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	}
 
 	private updateSectionCollapseStates(): void {
+		if (!this.sessionsList) {
+			return;
+		}
+
+		this._isProgrammaticCollapseChange = true;
+		try {
+			this._updateSectionCollapseStatesCore();
+		} finally {
+			this._isProgrammaticCollapseChange = false;
+		}
+	}
+
+	private _updateSectionCollapseStatesCore(): void {
 		if (!this.sessionsList) {
 			return;
 		}
