@@ -1153,10 +1153,8 @@ suite('RunInTerminalTool', () => {
 		test('should dispose all terminals associated with a single chat session when archived', () => {
 			const sessionId = 'test-session-archive';
 			const sessionResource = LocalChatSessionUri.forSession(sessionId);
-			// eslint-disable-next-line local/code-no-any-casts
-			const mockTerminal1: ITerminalInstance = { dispose: () => { /* Mock dispose */ }, processId: 33333 } as any;
-			// eslint-disable-next-line local/code-no-any-casts
-			const mockTerminal2: ITerminalInstance = { dispose: () => { /* Mock dispose */ }, processId: 44444 } as any;
+			const mockTerminal1 = { dispose: () => { /* Mock dispose */ }, processId: 33333 } as unknown as ITerminalInstance;
+			const mockTerminal2 = { dispose: () => { /* Mock dispose */ }, processId: 44444 } as unknown as ITerminalInstance;
 
 			let terminal1Disposed = false;
 			let terminal2Disposed = false;
@@ -1172,7 +1170,7 @@ suite('RunInTerminalTool', () => {
 			chatSessionArchivedEmitter.fire({
 				resource: sessionResource,
 				isArchived: () => true,
-			} as IAgentSession);
+			} as unknown as IAgentSession);
 
 			strictEqual(terminal1Disposed, true, 'Terminal 1 should have been disposed');
 			strictEqual(terminal2Disposed, true, 'Terminal 2 should have been disposed');
