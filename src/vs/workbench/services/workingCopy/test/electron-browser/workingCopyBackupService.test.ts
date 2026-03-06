@@ -50,6 +50,8 @@ const NULL_PROFILE = {
 	mcpResource: joinPath(homeDir, 'mcp.json'),
 	snippetsHome: joinPath(homeDir, 'snippets'),
 	promptsHome: joinPath(homeDir, 'prompts'),
+	skillsHome: joinPath(homeDir, 'skills'),
+	hooksHome: joinPath(homeDir, 'hooks'),
 	extensionsResource: joinPath(homeDir, 'extensions.json'),
 	cacheHome: joinPath(homeDir, 'cache')
 };
