@@ -103,7 +103,9 @@ export enum VariableKind {
 	ExecPath = 'execPath',
 	ExecInstallFolder = 'execInstallFolder',
 	PathSeparator = 'pathSeparator',
-	PathSeparatorAlias = '/'
+	PathSeparatorAlias = '/',
+	PathListSeparator = 'pathListSeparator',
+	PathListSeparatorAlias = ':'
 }
 
 export const allVariableKinds = Object.values(VariableKind).filter((value): value is VariableKind => typeof value === 'string');
