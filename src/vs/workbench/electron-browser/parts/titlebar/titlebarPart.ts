@@ -180,13 +180,13 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		) {
 
 			// Minimize
-			const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
+			const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize), { title: '' }));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, () => {
 				this.nativeHostService.minimizeWindow({ targetWindowId });
 			}));
 
 			// Restore
-			this.maxRestoreControl = append(this.windowControlsContainer, $('div.window-icon.window-max-restore'));
+			this.maxRestoreControl = append(this.windowControlsContainer, $('div.window-icon.window-max-restore', { title: '' }));
 			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async () => {
 				const maximized = await this.nativeHostService.isMaximized({ targetWindowId });
 				if (maximized) {
@@ -197,7 +197,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 			}));
 
 			// Close
-			const closeIcon = append(this.windowControlsContainer, $('div.window-icon.window-close' + ThemeIcon.asCSSSelector(Codicon.chromeClose)));
+			const closeIcon = append(this.windowControlsContainer, $('div.window-icon.window-close' + ThemeIcon.asCSSSelector(Codicon.chromeClose), { title: '' }));
 			this._register(addDisposableListener(closeIcon, EventType.CLICK, () => {
 				this.nativeHostService.closeWindow({ targetWindowId });
 			}));
