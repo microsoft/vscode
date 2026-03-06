@@ -69,13 +69,30 @@ sendRequest(system, messages, tools, config, signal) → AsyncIterable<ModelResp
 Providers handle auth, serialization, streaming, and retry. The loop doesn't know which API it's talking to.
 
 Currently implemented:
-- **Anthropic Messages API** (`AnthropicModelProvider`) - via CAPI, using SSE streaming
+- **Anthropic Messages API** (`AnthropicModelProvider`) -- via CAPI, using SSE streaming
 
 ### Tools
 
-A tool has a name, description, JSON Schema for parameters, and an execute function. Tools don't know about the loop or conversation - they receive input and return output. The loop orchestrates calling them.
+A tool has a name, description, JSON Schema for parameters, and an execute function. Tools don't know about the loop or conversation -- they receive input and return output. The loop orchestrates calling them.
 
-Tool parallelism: tools declare `readOnly` to indicate they're safe to run concurrently. The loop runs read-only tools in parallel and serializes mutating tools.
+Tool parallelism: tools declare `readOnly` to indicate they're safe to run concurrently. The loop batches contiguous read-only tools for parallel execution and serializes mutating tools, preserving the original order from the model.
+
+Dynamic tool management: the `tools` field in `IAgentLoopConfig` can be a static array or a function `() => IAgentTool[]`. When a function, it is called before each model request, allowing the caller to add/remove tools mid-loop.
+
+Currently implemented tools:
+- **ReadFileTool** (`read_file`) -- reads file contents with optional line range
+- **BashTool** (`bash`) -- executes shell commands with timeout and cancellation support
+
+### Middleware Implementations
+
+The following middleware are implemented and active:
+
+| Middleware | Hook | Description |
+|---|---|---|
+| `ContextWindowMiddleware` | `preRequest` | Estimates token usage, prunes old tool outputs when approaching context limit |
+| `PermissionMiddleware` | `preTool` | Checks tool calls against a policy (allow/deny/ask). Currently uses `AllowAllPolicy`. |
+| `ToolOutputTruncationMiddleware` | `postTool` | Truncates large tool outputs (default 50K chars) |
+| `CustomInstructionsMiddleware` | `preRequest` | Injects caller-provided instruction content |
 
 ## File Layout
 
@@ -90,16 +107,22 @@ src/vs/platform/agent2/
 │   └── tools.ts              # IAgentTool interface, ToolContext, ToolResult
 ├── node/
 │   ├── anthropicProvider.ts   # Anthropic Messages API provider
-│   ├── copilotToken.ts        # CAPI token exchange (GitHub token → Copilot JWT)
+│   ├── copilotToken.ts        # CAPI token exchange (GitHub token -> Copilot JWT)
 │   ├── nativeAgent.ts         # NativeAgent: IAgent implementation wrapping the loop
-│   ├── nativeToolDisplay.ts   # Tool name → display string mapping
+│   ├── nativeToolDisplay.ts   # Tool name -> display string mapping
+│   ├── middleware/
+│   │   ├── contextWindow.ts       # Context window management (tool output pruning)
+│   │   ├── customInstructions.ts  # Custom instruction injection
+│   │   ├── permissionMiddleware.ts # Permission system (allow/deny/ask)
+│   │   └── toolOutputTruncation.ts # Large output truncation
 │   └── tools/
 │       ├── bashTool.ts        # Bash shell tool
 │       └── readFileTool.ts    # Read file tool
 ├── test/
 │   ├── common/
 │   │   ├── agentLoop.test.ts
-│   │   └── conversation.test.ts
+│   │   ├── conversation.test.ts
+│   │   └── middleware.test.ts
 │   └── node/
 │       ├── anthropicProvider.test.ts
 │       ├── copilotToken.test.ts

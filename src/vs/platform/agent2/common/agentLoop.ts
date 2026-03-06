@@ -48,8 +48,12 @@ export interface IAgentLoopConfig {
 	readonly modelIdentity: IModelIdentity;
 	/** System-level instructions. */
 	readonly systemPrompt: string;
-	/** Available tools. */
-	readonly tools: readonly IAgentTool[];
+	/**
+	 * Available tools. Can be a static array or a function that returns the
+	 * current tool set. When a function, it is called before each model request,
+	 * enabling dynamic tool management (adding/removing tools mid-loop).
+	 */
+	readonly tools: readonly IAgentTool[] | (() => readonly IAgentTool[]);
 	/** Request configuration for the model. */
 	readonly requestConfig?: IModelRequestConfig;
 	/** Middleware chain (applied in order). */
@@ -80,8 +84,6 @@ export async function* runAgentLoop(
 ): AsyncGenerator<AgentLoopEvent> {
 	const maxIterations = config.maxIterations ?? DEFAULT_MAX_ITERATIONS;
 	const middleware = config.middleware ?? [];
-	const toolMap = buildToolMap(config.tools);
-	const toolDefinitions = config.tools.map(t => toToolDefinition(t));
 	const scratchpad = new Map<string, unknown>();
 	let currentMessages = [...messages];
 	let turn = 0;
@@ -92,6 +94,11 @@ export async function* runAgentLoop(
 		}
 
 		turn++;
+
+		// Resolve the current tool set (supports dynamic tool management)
+		const currentTools = resolveTools(config.tools);
+		const toolMap = buildToolMap(currentTools);
+		const toolDefinitions = currentTools.map(t => toToolDefinition(t));
 
 		// -- Pre-request middleware --------------------------------------------
 		const preResult = await runPreRequestMiddleware(middleware, {
@@ -483,6 +490,10 @@ function buildToolMap(tools: readonly IAgentTool[]): Map<string, IAgentTool> {
 		map.set(tool.name, tool);
 	}
 	return map;
+}
+
+function resolveTools(tools: readonly IAgentTool[] | (() => readonly IAgentTool[])): readonly IAgentTool[] {
+	return typeof tools === 'function' ? tools() : tools;
 }
 
 function toToolDefinition(tool: IAgentTool): IAgentToolDefinition {
