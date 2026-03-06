@@ -22,6 +22,7 @@ export interface IChatContextUsagePromptTokenDetail {
 
 export interface IChatContextUsageData {
 	usedTokens: number;
+	completionTokens: number;
 	totalContextWindow: number;
 	percentage: number;
 	outputBufferPercentage?: number;
@@ -111,7 +112,7 @@ export class ChatContextUsageDetails extends Disposable {
 	update(data: IChatContextUsageData): void {
 		const { percentage, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails } = data;
 
-		// Update token count and percentage
+		// Update token count and percentage — reflects actual usage only
 		this.tokenCountLabel.textContent = localize(
 			'tokenCount',
 			"{0} / {1} tokens",
@@ -120,14 +121,13 @@ export class ChatContextUsageDetails extends Disposable {
 		);
 		this.percentageLabel.textContent = localize('quotaDisplay', "{0}%", Math.min(100, percentage).toFixed(0));
 
-		// Update progress bar — prompt fill + output buffer fill
-		const promptPercentage = outputBufferPercentage !== undefined
-			? Math.max(0, Math.min(100, percentage - outputBufferPercentage))
-			: Math.max(0, Math.min(100, percentage));
-		this.progressFill.style.width = `${promptPercentage}%`;
+		// Progress bar: actual usage fill + remaining reserved output fill
+		const usageBarWidth = Math.max(0, Math.min(100, percentage));
+		this.progressFill.style.width = `${usageBarWidth}%`;
 
 		if (outputBufferPercentage !== undefined && outputBufferPercentage > 0) {
-			this.outputBufferFill.style.width = `${Math.max(0, Math.min(100 - promptPercentage, outputBufferPercentage))}%`;
+			// Clamp so the reserve never overflows the bar
+			this.outputBufferFill.style.width = `${Math.max(0, Math.min(100 - usageBarWidth, outputBufferPercentage))}%`;
 			this.outputBufferFill.style.display = '';
 			this.outputBufferLegend.style.display = '';
 		} else {
@@ -136,11 +136,13 @@ export class ChatContextUsageDetails extends Disposable {
 			this.outputBufferLegend.style.display = 'none';
 		}
 
-		// Update color classes based on usage level on the quota item
+		// Color classes based on total spoken-for percentage
+		// (actual usage + remaining reserve)
+		const effectivePercentage = percentage + (outputBufferPercentage ?? 0);
 		this.quotaItem.classList.remove('warning', 'error');
-		if (percentage >= 90) {
+		if (effectivePercentage >= 90) {
 			this.quotaItem.classList.add('error');
-		} else if (percentage >= 75) {
+		} else if (effectivePercentage >= 75) {
 			this.quotaItem.classList.add('warning');
 		}
 
