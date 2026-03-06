@@ -13,6 +13,9 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IUpdateService, State, UpdateType } from '../../../../../platform/update/common/update.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { AccountWidget } from '../../browser/account.contribution.js';
 
@@ -83,7 +86,10 @@ function renderAccountWidget(ctx: ComponentFixtureContext, state: State, account
 	const contextKeyService = instantiationService.get(IContextKeyService);
 	const hoverService = instantiationService.get(IHoverService);
 	const productService = instantiationService.get(IProductService);
-	const widget = new AccountWidget(action, {}, mockAccountService, mockUpdateService, contextMenuService, menuService, contextKeyService, hoverService, productService);
+	const openerService = instantiationService.get(IOpenerService);
+	const dialogService = instantiationService.get(IDialogService);
+	const nativeHostService = instantiationService.get(INativeHostService);
+	const widget = new AccountWidget(action, {}, mockAccountService, mockUpdateService, contextMenuService, menuService, contextKeyService, hoverService, productService, openerService, dialogService, nativeHostService);
 	ctx.disposableStore.add(widget);
 	widget.render(ctx.container);
 }
