@@ -1234,7 +1234,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return;
 		}
 
-		this._logService.debug(`RunInTerminalTool: Cleaning up ${terminalsToDispose.size} terminal(s) for disposed chat session ${chatSessionResource}`);
+		this._logService.debug(`RunInTerminalTool: Cleaning up ${terminalsToDispose.size} terminal(s) for ended chat session ${chatSessionResource}`);
 
 		this._sessionTerminalAssociations.delete(chatSessionResource);
 		this._sessionTerminalInstances.delete(chatSessionResource);
