@@ -818,8 +818,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* top padding is inside the editor widget */
 	width: 100%;
 	position: relative;
-	/* Prevent contents from covering border corner */
-	overflow: hidden;
 }
 
 /* Context usage widget container - positioned in the secondary toolbar below input */

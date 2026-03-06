@@ -68,6 +68,7 @@
 }
 
 .agent-sessions-workbench .interactive-session .interactive-input-part {
+	width: 100%;
 	max-width: 950px;
 	margin: 0 auto !important;
 	display: inherit !important;

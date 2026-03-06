@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/modalEditorPart.css';
-import { $, addDisposableListener, append, EventHelper, EventType, hide, isHTMLElement, show } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventType, hide, isHTMLElement, setVisibility, show } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -231,7 +232,30 @@ export class ModalEditorPart {
 			[IEditorService, modalEditorService]
 		)));
 
-		// Create toolbar
+		// Create editor toolbar
+		const editorActionsToolbarContainer = append(actionBarContainer, $('div.modal-editor-editor-actions'));
+		const editorActionsToolbar = disposables.add(scopedInstantiationService.createInstance(WorkbenchToolBar, editorActionsToolbarContainer, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			highlightToggledItems: true,
+		}));
+
+		const editorActionsSeparator = append(actionBarContainer, $('div.modal-editor-action-separator'));
+		const editorActionsDisposables = disposables.add(new DisposableStore());
+		const updateEditorActions = () => {
+			editorActionsDisposables.clear();
+
+			const editorActions = editorPart.activeGroup.createEditorActions(editorActionsDisposables, MenuId.ModalEditorEditorTitle);
+			editorActionsDisposables.add(editorActions.onDidChange(() => updateEditorActions()));
+
+			const { primary, secondary } = editorActions.actions;
+			editorActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
+
+			const hasActions = primary.length > 0 || secondary.length > 0;
+			setVisibility(hasActions, editorActionsSeparator);
+		};
+		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => updateEditorActions()));
+
+		// Create global toolbar
 		disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.ModalEditorTitle, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			highlightToggledItems: true,
@@ -259,8 +283,6 @@ export class ModalEditorPart {
 			} else {
 				label.element.clear();
 			}
-
-			editorPart.notifyActiveEditorChanged();
 		}));
 
 		// Handle double-click on header to toggle maximize
@@ -379,21 +401,16 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 	}
 
 	private enforceModalPartOptions(): void {
-		const editorCount = this.groups.reduce((count, group) => count + group.count, 0);
 		this.optionsDisposable.value = this.enforcePartOptions({
-			showTabs: editorCount > 1 ? 'multiple' : 'none',
+			showTabs: 'none',
 			enablePreview: true,
 			closeEmptyGroups: true,
-			tabActionCloseVisibility: editorCount > 1,
-			editorActionsLocation: 'default',
+			tabActionCloseVisibility: false,
+			editorActionsLocation: 'hidden',
 			tabHeight: 'default',
 			wrapTabs: false,
 			allowDropIntoGroup: false
 		});
-	}
-
-	notifyActiveEditorChanged(): void {
-		this.enforceModalPartOptions();
 	}
 
 	updateOptions(options?: IModalEditorPartOptions): void {

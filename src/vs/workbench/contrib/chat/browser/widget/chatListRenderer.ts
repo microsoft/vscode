@@ -657,6 +657,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			dispose(coalesce(templateData.renderedParts));
 			templateData.renderedParts = undefined;
 			dom.clearNode(templateData.value);
+		} else if (isPendingDividerVM(templateData.currentElement)) {
+			dom.clearNode(templateData.value);
 		}
 
 		// This template item is no longer in use, or having another element rendered into it,

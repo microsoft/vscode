@@ -43,7 +43,8 @@ import { MarkdownString, IMarkdownString } from '../../../../../base/common/html
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
 import { AgentSessionProviders, getAgentSessionTime } from './agentSessions.js';
 import { AgentSessionsGrouping } from './agentSessionsFilter.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
@@ -115,6 +116,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	constructor(
 		private readonly options: IAgentSessionRendererOptions,
 		private readonly _approvalModel: AgentSessionApprovalModel | undefined,
+		private readonly _activeSessionResource: IObservable<URI | undefined>,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IProductService private readonly productService: IProductService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -487,8 +489,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				}));
 
 				template.approvalButtonContainer.textContent = '';
+				const isActive = this._activeSessionResource.read(reader)?.toString() === session.element.resource.toString();
 				const button = buttonStore.add(new Button(template.approvalButtonContainer, {
 					title: localize('allowActionOnce', "Allow once"),
+					secondary: isActive,
 					...defaultButtonStyles
 				}));
 				button.label = localize('allowAction', "Allow");

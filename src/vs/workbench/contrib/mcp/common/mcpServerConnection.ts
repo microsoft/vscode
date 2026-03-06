@@ -162,15 +162,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 			};
 		}
 
-		if (/\b(?:EAI_AGAIN|ENOTFOUND)\b/i.test(message)) {
-			return {
-				kind: 'network',
-				message,
-				host: this._extractSandboxHost(message),
-			};
-		}
-
-		if (/(?:\b(?:EACCES|EPERM|ENOENT|fail(?:ed|ure)?)\b|not accessible)/i.test(message)) {
+		if (/(?:\b(?:EACCES|EPERM|ENOENT|EROFS|fail(?:ed|ure)?)\b|\bnot accessible\b|read only)/i.test(message)) {
 			return {
 				kind: 'filesystem',
 				message,
@@ -197,16 +189,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 	}
 
 	private _extractSandboxHost(value: string): string | undefined {
-		const deniedMatch = value.match(/No matching config rule, denying:\s+(.+)$/i);
-		const matchTarget = deniedMatch?.[1] ?? value;
-		const trimmed = matchTarget.trim().replace(/^["'`]+|["'`,.;]+$/g, '');
-		if (!trimmed) {
-			return undefined;
-		}
-
-		const withoutProtocol = trimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
-		const firstToken = withoutProtocol.split(/[\s/]/, 1)[0] ?? '';
-		const host = firstToken.replace(/:\d+$/, '');
-		return host || undefined;
+		const match = value.match(/No matching config rule, denying:\s+(?<host>[^:\s]+):\d+\.?$/i);
+		return match?.groups?.host;
 	}
 }

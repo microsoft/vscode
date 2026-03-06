@@ -13,9 +13,9 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IObservable, IObservableWithChange, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, IObservableWithChange, observableFromEvent, observableFromPromise, observableValue } from '../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../base/common/path.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -47,7 +47,7 @@ import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { chatEditingWidgetFileStateContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, ModifiedFileEntryState } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
@@ -57,6 +57,8 @@ import { IExtensionService } from '../../../../workbench/services/extensions/com
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
+import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
+import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 
 const $ = dom.$;
 
@@ -64,6 +66,7 @@ const $ = dom.$;
 
 export const CHANGES_VIEW_CONTAINER_ID = 'workbench.view.agentSessions.changesContainer';
 export const CHANGES_VIEW_ID = 'workbench.view.agentSessions.changes';
+const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
 
 // --- View Mode
 
@@ -87,6 +90,7 @@ interface IChangesFileItem {
 	readonly changeType: ChangeType;
 	readonly linesAdded: number;
 	readonly linesRemoved: number;
+	readonly reviewCommentCount: number;
 }
 
 interface IChangesFolderItem {
@@ -98,6 +102,8 @@ interface IChangesFolderItem {
 interface IActiveSession {
 	readonly resource: URI;
 	readonly sessionType: string;
+	readonly repository: URI | undefined;
+	readonly worktree: URI | undefined;
 }
 
 type ChangesTreeElement = IChangesFileItem | IChangesFolderItem;
@@ -227,6 +233,7 @@ export class ChangesViewPane extends ViewPane {
 	private readonly activeSession: IObservableWithChange<IActiveSession | undefined>;
 	private readonly activeSessionFileCountObs: IObservableWithChange<number>;
 	private readonly activeSessionHasChangesObs: IObservableWithChange<boolean>;
+	private readonly activeSessionRepositoryChangesObs: IObservableWithChange<IChangesFileItem[] | undefined>;
 
 	get activeSessionHasChanges(): IObservable<boolean> {
 		return this.activeSessionHasChangesObs;
@@ -253,6 +260,8 @@ export class ChangesViewPane extends ViewPane {
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
+		@IGitService private readonly gitService: IGitService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -274,15 +283,48 @@ export class ChangesViewPane extends ViewPane {
 
 			return {
 				resource: activeSession.resource,
+				repository: activeSession.repository,
+				worktree: activeSession.worktree,
 				sessionType: getChatSessionType(activeSession.resource),
 			};
 		}).recomputeInitiallyAndOnChange(this._store);
 
+		// Track active session repository changes
+		const repositoryObs = derived(reader => {
+			const activeSessionWorktree = this.activeSession.read(reader)?.worktree;
+			if (!activeSessionWorktree) {
+				return undefined;
+			}
+
+			return observableFromPromise(this.gitService.openRepository(activeSessionWorktree));
+		});
+
+		this.activeSessionRepositoryChangesObs = derived(reader => {
+			const repository = repositoryObs.read(reader)?.read(reader);
+			if (!repository) {
+				return undefined;
+			}
+
+			const state = repository.value?.state.read(reader);
+			return (state?.workingTreeChanges ?? []).map(change => {
+				const isDeletion = change.modifiedUri === undefined;
+				const isAddition = change.originalUri === undefined;
+				return {
+					type: 'file',
+					uri: change.modifiedUri ?? change.uri,
+					originalUri: change.originalUri,
+					state: ModifiedFileEntryState.Accepted,
+					isDeletion,
+					changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
+					reviewCommentCount: 0,
+					linesAdded: 0,
+					linesRemoved: 0,
+				} satisfies IChangesFileItem;
+			});
+		});
+
 		this.activeSessionFileCountObs = this.createActiveSessionFileCountObservable();
 		this.activeSessionHasChangesObs = this.activeSessionFileCountObs.map(fileCount => fileCount > 0).recomputeInitiallyAndOnChange(this._store);
-
-		// Setup badge tracking
-		this.registerBadgeTracking();
 
 		// Set chatSessionType on the view's context key service so ViewTitle
 		// menu items can use it in their `when` clauses. Update reactively
@@ -291,14 +333,6 @@ export class ChangesViewPane extends ViewPane {
 		this._register(autorun(reader => {
 			const activeSession = this.activeSession.read(reader);
 			viewSessionTypeKey.set(activeSession?.sessionType ?? '');
-		}));
-	}
-
-	private registerBadgeTracking(): void {
-		// Update badge when file count changes
-		this._register(autorun(reader => {
-			const fileCount = this.activeSessionFileCountObs.read(reader);
-			this.updateBadge(fileCount);
 		}));
 	}
 
@@ -449,6 +483,7 @@ export class ChangesViewPane extends ViewPane {
 					changeType: isDeletion ? 'deleted' : 'modified',
 					linesAdded,
 					linesRemoved,
+					reviewCommentCount: 0,
 				});
 			}
 
@@ -474,37 +509,77 @@ export class ChangesViewPane extends ViewPane {
 			return model?.changes instanceof Array ? model.changes : Iterable.empty();
 		});
 
+		const reviewCommentCountByFileObs = derived(reader => {
+			const sessionResource = activeSessionResource.read(reader);
+			const sessionChanges = [...sessionFileChangesObs.read(reader)];
+
+			if (!sessionResource || sessionChanges.length === 0) {
+				return new Map<string, number>();
+			}
+
+			const reviewFiles = getCodeReviewFilesFromSessionChanges(sessionChanges as readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[]);
+			const reviewVersion = getCodeReviewVersion(reviewFiles);
+			const reviewState = this.codeReviewService.getReviewState(sessionResource).read(reader);
+
+			if (reviewState.kind !== CodeReviewStateKind.Result || reviewState.version !== reviewVersion) {
+				return new Map<string, number>();
+			}
+
+			const result = new Map<string, number>();
+			for (const comment of reviewState.comments) {
+				const uriKey = comment.uri.toString();
+				result.set(uriKey, (result.get(uriKey) ?? 0) + 1);
+			}
+
+			return result;
+		});
+
 		// Convert session file changes to list items (cloud/background sessions)
-		const sessionFilesObs = derived(reader =>
-			[...sessionFileChangesObs.read(reader)].map((entry): IChangesFileItem => {
+		const sessionFilesObs = derived(reader => {
+			const reviewCommentCountByFile = reviewCommentCountByFileObs.read(reader);
+
+			return [...sessionFileChangesObs.read(reader)].map((entry): IChangesFileItem => {
 				const isDeletion = entry.modifiedUri === undefined;
 				const isAddition = entry.originalUri === undefined;
+				const uri = isIChatSessionFileChange2(entry)
+					? entry.modifiedUri ?? entry.uri
+					: entry.modifiedUri;
 				return {
 					type: 'file',
-					uri: isIChatSessionFileChange2(entry)
-						? entry.modifiedUri ?? entry.uri
-						: entry.modifiedUri,
+					uri,
 					originalUri: entry.originalUri,
 					state: ModifiedFileEntryState.Accepted,
 					isDeletion,
 					changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
 					linesAdded: entry.insertions,
 					linesRemoved: entry.deletions,
+					reviewCommentCount: reviewCommentCountByFile.get(uri.toString()) ?? 0,
 				};
-			})
-		);
+			});
+		});
 
 		// Combine both entry sources for display
 		const combinedEntriesObs = derived(reader => {
 			const editEntries = editSessionEntriesObs.read(reader);
 			const sessionFiles = sessionFilesObs.read(reader);
-			return [...editEntries, ...sessionFiles];
+			const repositoryFiles = this.activeSessionRepositoryChangesObs.read(reader) ?? [];
+
+			const resources = new Set();
+			const entries: IChangesFileItem[] = [];
+			for (const item of [...editEntries, ...sessionFiles, ...repositoryFiles]) {
+				if (!resources.has(item.uri.fsPath)) {
+					resources.add(item.uri.fsPath);
+					entries.push(item);
+				}
+			}
+			return entries.sort((a, b) => extUriBiasedIgnorePathCase.compare(a.uri, b.uri));
 		});
 
 		// Calculate stats from combined entries
 		const topLevelStats = derived(reader => {
 			const editEntries = editSessionEntriesObs.read(reader);
 			const sessionFiles = sessionFilesObs.read(reader);
+			const repositoryFiles = this.activeSessionRepositoryChangesObs.read(reader) ?? [];
 			const entries = combinedEntriesObs.read(reader);
 
 			let added = 0, removed = 0;
@@ -515,7 +590,7 @@ export class ChangesViewPane extends ViewPane {
 			}
 
 			const files = entries.length;
-			const isSessionMenu = editEntries.length === 0 && sessionFiles.length > 0;
+			const isSessionMenu = editEntries.length === 0 && (sessionFiles.length > 0 || repositoryFiles.length > 0);
 
 			return { files, added, removed, isSessionMenu };
 		});
@@ -596,6 +671,9 @@ export class ChangesViewPane extends ViewPane {
 								);
 								return { showIcon: true, showLabel: true, isSecondary: true, customClass: 'working-set-diff-stats', customLabel: diffStatsLabel };
 							}
+							if (action.id === RUN_SESSION_CODE_REVIEW_ACTION_ID) {
+								return { showIcon: true, showLabel: false, isSecondary: true };
+							}
 							if (action.id === 'chatEditing.synchronizeChanges') {
 								return { showIcon: true, showLabel: true, isSecondary: true };
 							}
@@ -614,6 +692,11 @@ export class ChangesViewPane extends ViewPane {
 			dom.setVisibility(hasEntries, this.contentContainer!);
 			dom.setVisibility(hasEntries, this.actionsContainer!);
 			dom.setVisibility(!hasEntries, this.welcomeContainer!);
+		}));
+
+		// Update badge when file count changes
+		this.renderDisposables.add(autorun(reader => {
+			this.updateBadge(topLevelStats.read(reader).files);
 		}));
 
 		// Update summary text (line counts only, file count is shown in badge)
@@ -859,6 +942,7 @@ interface IChangesTreeTemplate {
 	readonly templateDisposables: DisposableStore;
 	readonly toolbar: MenuWorkbenchToolBar | undefined;
 	readonly contextKeyService: IContextKeyService | undefined;
+	readonly reviewCommentsBadge: HTMLElement;
 	readonly decorationBadge: HTMLElement;
 	readonly addedSpan: HTMLElement;
 	readonly removedSpan: HTMLElement;
@@ -881,6 +965,9 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		const templateDisposables = new DisposableStore();
 		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, supportIcons: true }));
 
+		const reviewCommentsBadge = dom.$('.changes-review-comments-badge');
+		label.element.appendChild(reviewCommentsBadge);
+
 		const lineCountsContainer = $('.working-set-line-counts');
 		const addedSpan = dom.$('.working-set-lines-added');
 		const removedSpan = dom.$('.working-set-lines-removed');
@@ -901,7 +988,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 			label.element.appendChild(actionBarContainer);
 		}
 
-		return { templateDisposables, label, toolbar, contextKeyService, decorationBadge, addedSpan, removedSpan, lineCountsContainer };
+		return { templateDisposables, label, toolbar, contextKeyService, reviewCommentsBadge, decorationBadge, addedSpan, removedSpan, lineCountsContainer };
 	}
 
 	renderElement(node: ITreeNode<ChangesTreeElement, void>, _index: number, templateData: IChangesTreeTemplate): void {
@@ -933,6 +1020,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 			});
 
 			// Hide file-specific decorations for folders
+			templateData.reviewCommentsBadge.style.display = 'none';
 			templateData.decorationBadge.style.display = 'none';
 			templateData.lineCountsContainer.style.display = 'none';
 
@@ -956,6 +1044,18 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		// Show file-specific decorations
 		templateData.lineCountsContainer.style.display = '';
 		templateData.decorationBadge.style.display = '';
+
+		if (data.reviewCommentCount > 0) {
+			templateData.reviewCommentsBadge.style.display = '';
+			templateData.reviewCommentsBadge.className = 'changes-review-comments-badge';
+			templateData.reviewCommentsBadge.replaceChildren(
+				dom.$('.codicon.codicon-comment-unresolved'),
+				dom.$('span', undefined, `${data.reviewCommentCount}`)
+			);
+		} else {
+			templateData.reviewCommentsBadge.style.display = 'none';
+			templateData.reviewCommentsBadge.replaceChildren();
+		}
 
 		// Update decoration badge (A/M/D)
 		const badge = templateData.decorationBadge;
@@ -996,6 +1096,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		});
 
 		// Hide file-specific decorations for folders
+		templateData.reviewCommentsBadge.style.display = 'none';
 		templateData.decorationBadge.style.display = 'none';
 		templateData.lineCountsContainer.style.display = 'none';
 

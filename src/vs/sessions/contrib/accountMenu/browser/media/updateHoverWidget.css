@@ -8,6 +8,7 @@
 	flex-direction: column;
 	gap: 8px;
 	min-width: 200px;
+	padding: 12px 16px;
 }
 
 .sessions-update-hover-header {

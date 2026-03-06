@@ -230,6 +230,14 @@
           "group": "1_markdown"
         }
       ],
+      "modalEditor/editorTitle": [
+        {
+          "command": "markdown.showPreviewToSide",
+          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
+          "alt": "markdown.showPreview",
+          "group": "navigation"
+        }
+      ],
       "explorer/context": [
         {
           "command": "markdown.showPreview",

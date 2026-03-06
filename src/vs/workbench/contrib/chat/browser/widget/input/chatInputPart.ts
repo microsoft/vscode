@@ -381,6 +381,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatSessionPickerWidgets: Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem> = new Map();
 	private chatSessionPickerContainer: HTMLElement | undefined;
 	private _lastSessionPickerAction: MenuItemAction | undefined;
+	private _lastSessionPickerOptions: IChatInputPickerOptions | undefined;
 	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
 	private readonly _chatSessionOptionEmitters: Map<string, Emitter<IChatSessionProviderOptionItem>> = new Map();
 
@@ -838,8 +839,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Create picker widgets for all option groups available for the current session type.
 	 */
-	private createChatSessionPickerWidgets(action: MenuItemAction): (ChatSessionPickerActionItem | SearchableOptionPickerActionItem)[] {
+	private createChatSessionPickerWidgets(action: MenuItemAction, pickerOptions?: IChatInputPickerOptions): (ChatSessionPickerActionItem | SearchableOptionPickerActionItem)[] {
 		this._lastSessionPickerAction = action;
+		this._lastSessionPickerOptions = pickerOptions;
 
 		const result = this.computeVisibleOptionGroups();
 		if (!result) {
@@ -890,7 +892,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 			};
 
-			const widget = this.instantiationService.createInstance(optionGroup.searchable ? SearchableOptionPickerActionItem : ChatSessionPickerActionItem, action, initialState, itemDelegate);
+			const widget = this.instantiationService.createInstance(optionGroup.searchable ? SearchableOptionPickerActionItem : ChatSessionPickerActionItem, action, initialState, itemDelegate, pickerOptions);
 			this.chatSessionPickerWidgets.set(optionGroup.id, widget);
 			widgets.push(widget);
 		}
@@ -1720,7 +1722,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			!Array.from(visibleGroupIds).every(id => currentWidgetGroupIds.has(id));
 
 		if (needsRecreation && this._lastSessionPickerAction && this.chatSessionPickerContainer) {
-			const widgets = this.createChatSessionPickerWidgets(this._lastSessionPickerAction);
+			const widgets = this.createChatSessionPickerWidgets(this._lastSessionPickerAction, this._lastSessionPickerOptions);
 			dom.clearNode(this.chatSessionPickerContainer);
 			for (const widget of widgets) {
 				const container = dom.$('.action-item.chat-sessionPicker-item');
@@ -2021,7 +2023,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.attachedContextContainer = elements.attachedContextContainer;
 		const toolbarsContainer = elements.inputToolbars;
 		this.secondaryToolbarContainer = elements.secondaryToolbar;
-		if (this.options.isSessionsWindow) {
+		if (this.options.isSessionsWindow || this.options.renderStyle === 'compact') {
 			this.secondaryToolbarContainer.style.display = 'none';
 		}
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
@@ -2032,7 +2034,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatInputWidgetsContainer = elements.chatInputWidgetsContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
 
-		if (this.options.isSessionsWindow) {
+		if (this.options.isSessionsWindow || this.options.renderStyle === 'compact') {
 			toolbarsContainer.prepend(this.contextUsageWidgetContainer);
 		}
 
@@ -2269,7 +2271,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					// Create all pickers and return a container action view item
-					const widgets = this.createChatSessionPickerWidgets(action);
+					const widgets = this.createChatSessionPickerWidgets(action, pickerOptions);
 					if (widgets.length === 0) {
 						return new HiddenActionViewItem(action);
 					}
@@ -3147,7 +3149,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const inputToolbarWidth = this.cachedInputToolbarWidth = this.inputActionsToolbar.getItemsWidth();
 			const executeToolbarPadding = (this.executeToolbar.getItemsLength() - 1) * toolbarItemGap;
 			const inputToolbarPadding = this.inputActionsToolbar.getItemsLength() ? (this.inputActionsToolbar.getItemsLength() - 1) * toolbarItemGap : 0;
-			const contextUsageWidth = 0;// dom.getTotalWidth(this.contextUsageWidgetContainer);
+			const contextUsageWidth = dom.getTotalWidth(this.contextUsageWidgetContainer);
 			const inputToolbarsPadding = 12; // pdading between input toolbar/execute toolbar/contextUsage.
 			return executeToolbarWidth + executeToolbarPadding + contextUsageWidth + (this.options.renderInputToolbarBelowInput ? 0 : inputToolbarWidth + inputToolbarPadding + inputToolbarsPadding);
 		};

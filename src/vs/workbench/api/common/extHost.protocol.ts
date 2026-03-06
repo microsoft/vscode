@@ -2528,6 +2528,7 @@ export interface IChatUsageDto {
 	kind: 'usage';
 	promptTokens: number;
 	completionTokens: number;
+	outputBuffer?: number;
 	promptTokenDetails?: readonly { category: string; label: string; percentageOfPrompt: number }[];
 }
 
@@ -3627,8 +3628,18 @@ export interface GitRefDto {
 	readonly revision: string;
 }
 
+export interface GitChangeDto {
+	readonly uri: UriComponents;
+	readonly originalUri: UriComponents | undefined;
+	readonly modifiedUri: UriComponents | undefined;
+}
+
 export interface GitRepositoryStateDto {
 	readonly HEAD?: GitBranchDto;
+	readonly mergeChanges: readonly GitChangeDto[];
+	readonly indexChanges: readonly GitChangeDto[];
+	readonly workingTreeChanges: readonly GitChangeDto[];
+	readonly untrackedChanges: readonly GitChangeDto[];
 }
 
 export interface GitBranchDto {
