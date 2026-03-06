@@ -78,7 +78,6 @@ export class LineHeightsManager {
 	private _invalidIndex: number = Infinity;
 	private _defaultLineHeight: number;
 	private _hasPending: boolean = false;
-	private _stagedDecorationIdToLines: Map<string, CustomLine[]> = new Map();
 
 	constructor(defaultLineHeight: number, customLineHeightData: CustomLineHeightData[]) {
 		this._defaultLineHeight = defaultLineHeight;
@@ -142,35 +141,34 @@ export class LineHeightsManager {
 		if (!this._hasPending) {
 			return;
 		}
-		const commitStart = Date.now();
 		const changes = this._pendingChanges;
 		this._pendingChanges = [];
 		this._hasPending = false;
 
 		const stagedInserts: CustomLine[] = [];
+		const stagedIdMap = new ArrayMap<string, CustomLine>();
 		for (const change of changes) {
 			switch (change.kind) {
 				case PendingChangeKind.Remove:
-					this._doRemoveCustomLineHeight(change.decorationId, stagedInserts);
+					this._doRemoveCustomLineHeight(change.decorationId, stagedIdMap);
 					break;
 				case PendingChangeKind.InsertOrChange:
-					this._doInsertOrChangeCustomLineHeight(change.decorationId, change.startLineNumber, change.endLineNumber, change.lineHeight, stagedInserts);
+					this._doInsertOrChangeCustomLineHeight(change.decorationId, change.startLineNumber, change.endLineNumber, change.lineHeight, stagedInserts, stagedIdMap);
 					break;
 				case PendingChangeKind.LinesDeleted:
-					this._flushStagedDecorationChanges(stagedInserts);
+					this._flushStagedDecorationChanges(stagedInserts, stagedIdMap);
 					this._doLinesDeleted(change.fromLineNumber, change.toLineNumber);
 					break;
 				case PendingChangeKind.LinesInserted:
-					this._flushStagedDecorationChanges(stagedInserts);
-					this._doLinesInserted(change.fromLineNumber, change.toLineNumber, stagedInserts);
+					this._flushStagedDecorationChanges(stagedInserts, stagedIdMap);
+					this._doLinesInserted(change.fromLineNumber, change.toLineNumber, stagedInserts, stagedIdMap);
 					break;
 			}
 		}
-		this._flushStagedDecorationChanges(stagedInserts);
-		console.log(`[LineHeightsManager] _commit took ${Date.now() - commitStart}ms (changes: ${changes.length})`);
+		this._flushStagedDecorationChanges(stagedInserts, stagedIdMap);
 	}
 
-	private _doRemoveCustomLineHeight(decorationID: string, stagedInserts: CustomLine[]): void {
+	private _doRemoveCustomLineHeight(decorationID: string, stagedIdMap: ArrayMap<string, CustomLine>): void {
 		const customLines = this._decorationIDToCustomLine.get(decorationID);
 		if (customLines) {
 			this._decorationIDToCustomLine.delete(decorationID);
@@ -179,31 +177,28 @@ export class LineHeightsManager {
 				this._invalidIndex = Math.min(this._invalidIndex, customLine.index);
 			}
 		}
-		const stagedLines = this._stagedDecorationIdToLines.get(decorationID);
+		const stagedLines = stagedIdMap.get(decorationID);
 		if (stagedLines) {
-			this._stagedDecorationIdToLines.delete(decorationID);
+			stagedIdMap.delete(decorationID);
 			for (const line of stagedLines) {
 				line.deleted = true;
 			}
 		}
 	}
 
-	private _doInsertOrChangeCustomLineHeight(decorationId: string, startLineNumber: number, endLineNumber: number, lineHeight: number, stagedInserts: CustomLine[]): void {
-		this._doRemoveCustomLineHeight(decorationId, stagedInserts);
-		const newStagedInserts: CustomLine[] = [];
+	private _doInsertOrChangeCustomLineHeight(decorationId: string, startLineNumber: number, endLineNumber: number, lineHeight: number, stagedInserts: CustomLine[], stagedIdMap: ArrayMap<string, CustomLine>): void {
+		this._doRemoveCustomLineHeight(decorationId, stagedIdMap);
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 			const customLine = new CustomLine(decorationId, -1, lineNumber, lineHeight, 0);
 			stagedInserts.push(customLine);
-			newStagedInserts.push(customLine);
+			stagedIdMap.add(decorationId, customLine);
 		}
-		this._stagedDecorationIdToLines.set(decorationId, newStagedInserts);
 	}
 
-	private _flushStagedDecorationChanges(stagedInserts: CustomLine[]): void {
+	private _flushStagedDecorationChanges(stagedInserts: CustomLine[], stagedIdMap: ArrayMap<string, CustomLine>): void {
 		if (stagedInserts.length === 0 && this._invalidIndex === Infinity) {
 			return;
 		}
-		const flushStart = Date.now();
 		for (const pendingChange of stagedInserts) {
 			if (pendingChange.deleted) {
 				continue;
@@ -214,7 +209,7 @@ export class LineHeightsManager {
 			this._invalidIndex = Math.min(this._invalidIndex, insertionIndex);
 		}
 		stagedInserts.length = 0;
-		this._stagedDecorationIdToLines.clear();
+		stagedIdMap.clear();
 		const newDecorationIDToSpecialLine = new ArrayMap<string, CustomLine>();
 		const newOrderedSpecialLines: CustomLine[] = [];
 
@@ -265,7 +260,6 @@ export class LineHeightsManager {
 		this._orderedCustomLines = newOrderedSpecialLines;
 		this._decorationIDToCustomLine = newDecorationIDToSpecialLine;
 		this._invalidIndex = Infinity;
-		console.log(`[LineHeightsManager] _flushStagedDecorationChanges took ${Date.now() - flushStart}ms (stagedInserts: ${stagedInserts.length}, orderedLines: ${newOrderedSpecialLines.length})`);
 	}
 
 	private _doLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
@@ -372,7 +366,7 @@ export class LineHeightsManager {
 		}
 	}
 
-	private _doLinesInserted(fromLineNumber: number, toLineNumber: number, stagedInserts: CustomLine[]): void {
+	private _doLinesInserted(fromLineNumber: number, toLineNumber: number, stagedInserts: CustomLine[], stagedIdMap: ArrayMap<string, CustomLine>): void {
 		const insertCount = toLineNumber - fromLineNumber + 1;
 		const candidateStartIndexOfInsertion = this._binarySearchOverOrderedCustomLinesArray(fromLineNumber);
 		let startIndexOfInsertion: number;
@@ -425,7 +419,7 @@ export class LineHeightsManager {
 			}
 
 			for (const dec of toReAdd) {
-				this._doInsertOrChangeCustomLineHeight(dec.decorationId, dec.startLineNumber, dec.endLineNumber, dec.lineHeight, stagedInserts);
+				this._doInsertOrChangeCustomLineHeight(dec.decorationId, dec.startLineNumber, dec.endLineNumber, dec.lineHeight, stagedInserts, stagedIdMap);
 			}
 		}
 	}
@@ -488,5 +482,9 @@ class ArrayMap<K, T> {
 
 	delete(key: K): void {
 		this._map.delete(key);
+	}
+
+	clear(): void {
+		this._map.clear();
 	}
 }
