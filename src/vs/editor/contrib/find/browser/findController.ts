@@ -725,11 +725,16 @@ async function matchFindAction(editor: ICodeEditor, next: boolean): Promise<void
 	if (!controller) {
 		return;
 	}
+	const shouldCloseOnResult = editor.getOption(EditorOption.find).closeOnResult;
+	const wasFindWidgetVisible = controller.getState().isRevealed;
 
 	const runMatch = (): boolean => {
 		const result = next ? controller.moveToNextMatch() : controller.moveToPrevMatch();
 		if (result) {
 			controller.editor.pushUndoStop();
+			if (shouldCloseOnResult && wasFindWidgetVisible && controller.getState().matchesCount > 0) {
+				controller.closeFindWidget();
+			}
 			return true;
 		}
 		return false;
