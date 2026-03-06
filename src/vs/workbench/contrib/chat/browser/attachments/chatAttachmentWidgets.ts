@@ -158,6 +158,8 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		}));
 		this._register(dom.addStandardDisposableListener(this.element, dom.EventType.KEY_DOWN, e => {
 			if (e.keyCode === KeyCode.Backspace || e.keyCode === KeyCode.Delete) {
+				e.preventDefault();
+				e.stopPropagation();
 				this._onDidDelete.fire(e.browserEvent);
 			}
 		}));
