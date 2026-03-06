@@ -24,7 +24,7 @@ import { ILogService } from '../../log/common/log.js';
 
 // -- Configuration ------------------------------------------------------------
 
-const ANTHROPIC_BETA_HEADERS = 'interleaved-thinking-2025-05-14,context-management-2025-06-27,advanced-tool-use-2025-11-20';
+const ANTHROPIC_BETA_HEADERS = 'interleaved-thinking-2025-05-14';
 const DEFAULT_MAX_TOKENS = 16384;
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY_MS = 1000;
