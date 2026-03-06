@@ -139,7 +139,7 @@
 }
 
 
-.action-widget .monaco-list-row.action:not(.option-disabled) .codicon {
+.action-widget .monaco-list .monaco-list-row.action:not(.option-disabled) .codicon {
 	color: inherit;
 }
 
@@ -252,8 +252,8 @@
 	display: flex;
 }
 
-.action-widget .monaco-list-row .action-list-item-toolbar .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover{
-	background-color: var(--vscode-toolbar-hoverBackground);
+.action-widget .monaco-list-row .action-list-item-toolbar .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
+	background-color: transparent;
 }
 
 .action-widget-delegate-label {
