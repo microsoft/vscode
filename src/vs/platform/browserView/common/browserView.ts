@@ -5,6 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { URI } from '../../../base/common/uri.js';
 
 export interface IBrowserViewBounds {
 	windowId: number;
@@ -13,6 +14,7 @@ export interface IBrowserViewBounds {
 	width: number;
 	height: number;
 	zoomFactor: number;
+	cornerRadius: number;
 }
 
 export interface IBrowserViewCaptureScreenshotOptions {
@@ -33,10 +35,12 @@ export interface IBrowserViewState {
 	lastFavicon: string | undefined;
 	lastError: IBrowserViewLoadError | undefined;
 	storageScope: BrowserViewStorageScope;
+	zoomFactor: number;
 }
 
 export interface IBrowserViewNavigationEvent {
 	url: string;
+	title: string;
 	canGoBack: boolean;
 	canGoForward: boolean;
 }
@@ -80,13 +84,19 @@ export interface IBrowserViewTitleChangeEvent {
 }
 
 export interface IBrowserViewFaviconChangeEvent {
-	favicon: string;
+	favicon: string | undefined;
 }
 
+export enum BrowserNewPageLocation {
+	Foreground = 'foreground',
+	Background = 'background',
+	NewWindow = 'newWindow'
+}
 export interface IBrowserViewNewPageRequest {
-	url: string;
-	name?: string;
-	background: boolean;
+	resource: URI;
+	location: BrowserNewPageLocation;
+	// Only applicable if location is NewWindow
+	position?: { x?: number; y?: number; width?: number; height?: number };
 }
 
 export interface IBrowserViewFindInPageOptions {
@@ -109,6 +119,11 @@ export enum BrowserViewStorageScope {
 }
 
 export const ipcBrowserViewChannelName = 'browserView';
+
+/**
+ * This should match the isolated world ID defined in `preload-browserView.ts`.
+ */
+export const browserViewIsolatedWorldId = 999;
 
 export interface IBrowserViewService {
 	/**
@@ -139,6 +154,14 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	destroyBrowserView(id: string): Promise<void>;
+
+	/**
+	 * Get the state of an existing browser view by ID, or throw if it doesn't exist
+	 * @param id The browser view identifier
+	 * @return The state of the browser view for the given ID
+	 * @throws If no browser view exists for the given ID
+	 */
+	getState(id: string): Promise<IBrowserViewState>;
 
 	/**
 	 * Update the bounds of a browser view
@@ -182,8 +205,9 @@ export interface IBrowserViewService {
 	/**
 	 * Reload the current page
 	 * @param id The browser view identifier
+	 * @param hard Whether to do a hard reload (bypassing cache)
 	 */
-	reload(id: string): Promise<void>;
+	reload(id: string, hard?: boolean): Promise<void>;
 
 	/**
 	 * Toggle developer tools for the browser view.
@@ -238,6 +262,14 @@ export interface IBrowserViewService {
 	 * @param keepSelection Whether to keep the current selection
 	 */
 	stopFindInPage(id: string, keepSelection?: boolean): Promise<void>;
+
+	/**
+	 * Get the currently selected text in the browser view.
+	 * Returns immediately with empty string if the page is still loading.
+	 * @param id The browser view identifier
+	 * @returns The selected text, or empty string if no selection or page is loading
+	 */
+	getSelectedText(id: string): Promise<string>;
 
 	/**
 	 * Clear all storage data for the global browser session

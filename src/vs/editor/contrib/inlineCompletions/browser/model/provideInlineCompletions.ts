@@ -16,7 +16,7 @@ import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
-import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary, ProviderId, IInlineCompletionHint } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary, ProviderId, IInlineCompletionHint, InlineCompletionTriggerKind } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
@@ -334,6 +334,60 @@ export interface IInlineSuggestDataActionJumpTo {
 }
 
 export class InlineSuggestData {
+	public static createForTest(action: IInlineSuggestDataAction | undefined, targetUri: URI): InlineSuggestData {
+		const mockInlineCompletion: InlineCompletion = {
+			insertText: action?.kind === 'edit' ? action.insertText : '',
+			range: action?.kind === 'edit' ? action.range : undefined,
+			isInlineEdit: true,
+		};
+		const mockProvider: InlineCompletionsProvider = {
+			provideInlineCompletions: () => ({ items: [] }),
+			disposeInlineCompletions: () => { },
+		};
+		const mockSource = new InlineSuggestionList(
+			{ items: [mockInlineCompletion] },
+			[],
+			mockProvider
+		);
+		const mockContext: InlineCompletionContext = {
+			triggerKind: InlineCompletionTriggerKind.Explicit,
+			selectedSuggestionInfo: undefined,
+			requestUuid: 'test-' + Date.now(),
+			earliestShownDateTime: 0,
+			includeInlineCompletions: true,
+			includeInlineEdits: false,
+			requestIssuedDateTime: Date.now(),
+		};
+		const mockRequestInfo: InlineSuggestRequestInfo = {
+			startTime: Date.now(),
+			sku: undefined,
+			editorType: InlineCompletionEditorType.TextEditor,
+			languageId: 'plaintext',
+			availableProviders: [],
+			reason: '',
+			typingInterval: 0,
+			typingIntervalCharacterCount: 0,
+		};
+		const mockProviderRequestInfo: InlineSuggestProviderRequestInfo = {
+			startTime: Date.now(),
+			endTime: Date.now(),
+		};
+
+		return new InlineSuggestData(
+			action,
+			undefined,
+			[],
+			mockInlineCompletion,
+			mockSource,
+			mockContext,
+			true,
+			false,
+			mockRequestInfo,
+			mockProviderRequestInfo,
+			undefined
+		);
+	}
+
 	private _didShow = false;
 	private _timeUntilShown: number | undefined = undefined;
 	private _timeUntilActuallyShown: number | undefined = undefined;

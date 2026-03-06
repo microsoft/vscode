@@ -21,8 +21,8 @@ export interface IChatContextUsagePromptTokenDetail {
 }
 
 export interface IChatContextUsageData {
-	promptTokens: number;
-	maxInputTokens: number;
+	usedTokens: number;
+	totalContextWindow: number;
 	percentage: number;
 	promptTokenDetails?: readonly IChatContextUsagePromptTokenDetail[];
 }
@@ -51,22 +51,20 @@ export class ChatContextUsageDetails extends Disposable {
 		super();
 
 		this.domNode = $('.chat-context-usage-details');
-		this.domNode.setAttribute('tabindex', '0');
 
-		// Using same structure as ChatUsageWidget quota items
-		this.quotaItem = this.domNode.appendChild($('.quota-item'));
+		// Quota indicator — using same structure as ChatStatusDashboard
+		this.quotaItem = this.domNode.appendChild($('.quota-indicator'));
 
-		// Header row with label
-		const quotaItemHeader = this.quotaItem.appendChild($('.quota-item-header'));
-		const quotaItemLabel = quotaItemHeader.appendChild($('.quota-item-label'));
-		quotaItemLabel.textContent = localize('contextWindow', "Context Window");
+		// Header row
+		const header = this.domNode.insertBefore($('div.header'), this.quotaItem);
+		header.textContent = localize('contextWindow', "Context Window");
 
-		// Token count and percentage row (on same line)
-		const tokenRow = this.quotaItem.appendChild($('.token-row'));
-		this.tokenCountLabel = tokenRow.appendChild($('.token-count-label'));
-		this.percentageLabel = tokenRow.appendChild($('.quota-item-value'));
+		// Quota label row with token count + percentage
+		const quotaLabel = this.quotaItem.appendChild($('.quota-label'));
+		this.tokenCountLabel = quotaLabel.appendChild($('span'));
+		this.percentageLabel = quotaLabel.appendChild($('span.quota-value'));
 
-		// Progress bar - using same structure as chat usage widget
+		// Progress bar
 		const progressBar = this.quotaItem.appendChild($('.quota-bar'));
 		this.progressFill = progressBar.appendChild($('.quota-bit'));
 
@@ -74,15 +72,12 @@ export class ChatContextUsageDetails extends Disposable {
 		this.tokenDetailsContainer = this.domNode.appendChild($('.token-details-container'));
 
 		// Warning message (shown when usage is high)
-		this.warningMessage = this.domNode.appendChild($('.warning-message'));
+		this.warningMessage = this.domNode.appendChild($('div.description'));
 		this.warningMessage.textContent = localize('qualityWarning', "Quality may decline as limit nears.");
 		this.warningMessage.style.display = 'none';
 
-		// Actions section with header, separator, and button bar
+		// Actions section with button bar
 		this.actionsSection = this.domNode.appendChild($('.actions-section'));
-		this.actionsSection.appendChild($('.separator'));
-		const actionsHeader = this.actionsSection.appendChild($('.actions-header'));
-		actionsHeader.textContent = localize('actions', "Actions");
 		const buttonBarContainer = this.actionsSection.appendChild($('.button-bar-container'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchButtonBar, buttonBarContainer, MenuId.ChatContextUsageActions, {
 			toolbarOptions: {
@@ -103,16 +98,16 @@ export class ChatContextUsageDetails extends Disposable {
 	}
 
 	update(data: IChatContextUsageData): void {
-		const { percentage, promptTokens, maxInputTokens, promptTokenDetails } = data;
+		const { percentage, usedTokens, totalContextWindow, promptTokenDetails } = data;
 
-		// Update token count and percentage on same line
+		// Update token count and percentage
 		this.tokenCountLabel.textContent = localize(
 			'tokenCount',
 			"{0} / {1} tokens",
-			this.formatTokenCount(promptTokens, 1),
-			this.formatTokenCount(maxInputTokens, 0)
+			this.formatTokenCount(usedTokens, 1),
+			this.formatTokenCount(totalContextWindow, 0)
 		);
-		this.percentageLabel.textContent = `• ${percentage.toFixed(0)}%`;
+		this.percentageLabel.textContent = localize('quotaDisplay', "{0}%", percentage.toFixed(0));
 
 		// Update progress bar
 		this.progressFill.style.width = `${Math.min(100, percentage)}%`;
@@ -133,7 +128,10 @@ export class ChatContextUsageDetails extends Disposable {
 	}
 
 	private formatTokenCount(count: number, decimals: number): string {
-		if (count >= 1000000) {
+		// Use M when count is >= 1M, or when K representation would round to 1000K
+		const mThreshold = 1000000 - 500 * Math.pow(10, -decimals);
+
+		if (count >= mThreshold) {
 			return `${(count / 1000000).toFixed(decimals)}M`;
 		} else if (count >= 1000) {
 			return `${(count / 1000).toFixed(decimals)}K`;
@@ -173,6 +171,16 @@ export class ChatContextUsageDetails extends Disposable {
 
 		// Render each category
 		for (const [category, items] of categoryMap) {
+			// Filter out items with 0% usage
+			const visibleItems = items.filter(item => {
+				const contextRelativePercentage = (item.percentageOfPrompt / 100) * contextWindowPercentage;
+				return contextRelativePercentage >= 0.05; // Show if at least 0.1% when rounded
+			});
+
+			if (visibleItems.length === 0) {
+				continue;
+			}
+
 			const categorySection = this.tokenDetailsContainer.appendChild($('.token-category'));
 
 			// Category header
@@ -180,7 +188,7 @@ export class ChatContextUsageDetails extends Disposable {
 			categoryHeader.textContent = category;
 
 			// Category items
-			for (const item of items) {
+			for (const item of visibleItems) {
 				const itemRow = categorySection.appendChild($('.token-detail-item'));
 
 				const itemLabel = itemRow.appendChild($('.token-detail-label'));

@@ -329,7 +329,7 @@ export class TerminalChatWidget extends Disposable {
 	private async _createSession(): Promise<void> {
 		this._sessionCtor = createCancelablePromise<void>(async token => {
 			if (!this._model.value) {
-				const modelRef = this._chatService.startSession(ChatAgentLocation.Terminal);
+				const modelRef = this._chatService.startNewLocalSession(ChatAgentLocation.Terminal);
 				this._model.value = modelRef;
 				const model = modelRef.object;
 				this._inlineChatWidget.setChatModel(model);
@@ -412,7 +412,7 @@ export class TerminalChatWidget extends Disposable {
 		if (!model?.sessionResource) {
 			return;
 		}
-		this._chatService.cancelCurrentRequestForSession(model?.sessionResource);
+		this._chatService.cancelCurrentRequestForSession(model?.sessionResource, 'terminalChat');
 	}
 
 	async viewInChat(): Promise<void> {

@@ -480,6 +480,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatSessionsProvider'
 	},
 	{
+		key: 'chat/input/editing/sessionApplyActions',
+		id: MenuId.ChatEditingSessionApplySubmenu,
+		description: localize('menus.chatEditingSessionApplySubmenu', "Submenu for apply actions in the Chat Editing session changes toolbar."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
 		// TODO: rename this to something like: `chatSessions/item/inline`
 		key: 'chat/chatSessions',
 		id: MenuId.AgentSessionsContext,
@@ -503,7 +509,7 @@ const apiMenus: IAPIMenu[] = [
 	},
 	{
 		key: 'chat/editor/inlineGutter',
-		id: MenuId.ChatEditorInlineGutter,
+		id: MenuId.ChatEditorInlineMenu,
 		description: localize('menus.chatEditorInlineGutter', "The inline gutter menu in the chat editor."),
 		supportsSubmenus: false,
 		proposed: 'contribChatEditorInlineGutterMenu',
@@ -513,6 +519,12 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.ChatContextUsageActions,
 		description: localize('menus.chatContextUsageActions', "Actions in the chat context usage details popup."),
 		proposed: 'chatParticipantAdditions'
+	},
+	{
+		key: 'chat/newSession',
+		id: MenuId.ChatNewMenu,
+		description: localize('menus.chatNewSession', "The Chat new session menu."),
+		proposed: 'chatSessionsProvider'
 	},
 ];
 

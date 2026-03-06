@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as os from 'os';
 import { IntervalTimer, timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { getWindowsReleaseSync } from '../../../base/node/windowsVersion.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService, LifecycleMainPhase } from '../../lifecycle/electron-main/lifecycleMainService.js';
@@ -16,6 +20,7 @@ import { AvailableForDownload, DisablementReason, IUpdateService, State, StateTy
 
 export interface IUpdateURLOptions {
 	readonly background?: boolean;
+	readonly internalOrg?: string;
 }
 
 export function createUpdateURL(baseUpdateUrl: string, platform: string, quality: string, commit: string, options?: IUpdateURLOptions): string {
@@ -25,7 +30,38 @@ export function createUpdateURL(baseUpdateUrl: string, platform: string, quality
 		url.searchParams.set('bg', 'true');
 	}
 
+	url.searchParams.set('u', options?.internalOrg ?? 'none');
+
 	return url.toString();
+}
+
+/**
+ * Builds common headers for update requests, including those issued
+ * via Electron's auto-updater (e.g. setFeedURL({ url, headers })) and
+ * manual HTTP requests that bypass the auto-updater. The headers include
+ * OS version information which the update server uses for EOL detection.
+ *
+ * On macOS, the User-Agent includes the Darwin kernel version.
+ * On Windows, the User-Agent includes accurate Windows version from the registry.
+ */
+export function getUpdateRequestHeaders(productVersion: string): Record<string, string> | undefined {
+	if (isMacintosh) {
+		const darwinVersion = os.release();
+		return {
+			'User-Agent': `Code/${productVersion} Darwin/${darwinVersion}`
+		};
+	}
+
+	if (isWindows) {
+		const match = getWindowsReleaseSync().match(/^(\d+\.\d+)/);
+		if (match) {
+			return {
+				'User-Agent': `Code/${productVersion} Electron/${process.versions.electron} Windows NT ${match[1]}`
+			};
+		}
+	}
+
+	return undefined;
 }
 
 export type UpdateErrorClassification = {
@@ -44,7 +80,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	protected _overwrite: boolean = false;
 	private _hasCheckedForOverwriteOnQuit: boolean = false;
 	private readonly overwriteUpdatesCheckInterval = new IntervalTimer();
-	private _disableProgressiveReleases: boolean = false;
+	private _internalOrg: string | undefined = undefined;
 
 	private readonly _onStateChange = new Emitter<State>();
 	readonly onStateChange: Event<State> = this._onStateChange.event;
@@ -75,6 +111,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
 		@IProductService protected readonly productService: IProductService,
+		@IMeteredConnectionService protected readonly meteredConnectionService: IMeteredConnectionService,
 		protected readonly supportsUpdateOverwrite: boolean,
 	) {
 		lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen)
@@ -164,10 +201,15 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.doCheckForUpdates(explicit);
 	}
 
-	async downloadUpdate(): Promise<void> {
+	async downloadUpdate(explicit: boolean): Promise<void> {
 		this.logService.trace('update#downloadUpdate, state = ', this.state.type);
 
 		if (this.state.type !== StateType.AvailableForDownload) {
+			return;
+		}
+
+		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+			this.logService.info('update#downloadUpdate - skipping download because connection is metered');
 			return;
 		}
 
@@ -246,9 +288,17 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		if (isLatest === false && this._state.type === StateType.Ready) {
 			this.logService.info('update#readyStateCheck: newer update available, restarting update machinery');
-			await this.cancelPendingUpdate();
+
+			try {
+				await this.cancelPendingUpdate();
+			} catch (error) {
+				this.logService.error('update#checkForOverwriteUpdates(): failed to cancel pending update, aborting overwrite');
+				this.logService.error(error);
+				return false;
+			}
+
 			this._overwrite = true;
-			this.setState(State.Overwriting(explicit));
+			this.setState(State.Overwriting(this._state.update, explicit));
 			this.doCheckForUpdates(explicit, pendingUpdateCommit);
 			return true;
 		}
@@ -273,11 +323,16 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return undefined;
 		}
 
+		const headers = getUpdateRequestHeaders(this.productService.version);
+		this.logService.trace('update#isLatestVersion() - checking update server', { url, headers });
+
 		try {
-			const context = await this.requestService.request({ url }, token);
+			const context = await this.requestService.request({ url, headers }, token);
+			const statusCode = context.res.statusCode;
+			this.logService.trace('update#isLatestVersion() - response', { statusCode });
 			// The update server replies with 204 (No Content) when no
 			// update is available - that's all we want to know.
-			return context.res.statusCode === 204;
+			return statusCode === 204;
 
 		} catch (error) {
 			this.logService.error('update#isLatestVersion(): failed to check for updates');
@@ -290,13 +345,17 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
-	async disableProgressiveReleases(): Promise<void> {
-		this.logService.info('update#disableProgressiveReleases');
-		this._disableProgressiveReleases = true;
+	async setInternalOrg(internalOrg: string | undefined): Promise<void> {
+		if (this._internalOrg === internalOrg) {
+			return;
+		}
+
+		this.logService.info('update#setInternalOrg', internalOrg);
+		this._internalOrg = internalOrg;
 	}
 
-	protected shouldDisableProgressiveReleases(): boolean {
-		return this._disableProgressiveReleases;
+	protected getInternalOrg(): string | undefined {
+		return this._internalOrg;
 	}
 
 	protected getUpdateType(): UpdateType {

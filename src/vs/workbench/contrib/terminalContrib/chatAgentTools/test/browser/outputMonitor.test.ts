@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { detectsGenericPressAnyKeyPattern, detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsVSCodeTaskFinishMessage, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
-import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { detectsGenericPressAnyKeyPattern, detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsVSCodeTaskFinishMessage, matchTerminalPromptOption, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { IPollingResult, OutputMonitorState } from '../../browser/tools/monitoring/types.js';
+import { IExecution, IPollingResult, OutputMonitorState } from '../../browser/tools/monitoring/types.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
@@ -20,11 +19,15 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { IToolInvocationContext } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { isNumber } from '../../../../../../base/common/types.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let monitor: OutputMonitor;
-	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; instance: Pick<ITerminalInstance, 'instanceId' | 'sendText' | 'onData' | 'onDidInputData' | 'focus' | 'registerMarker' | 'onDisposed'>; sessionId: string };
+	let execution: IExecution;
 	let cts: CancellationTokenSource;
 	let instantiationService: TestInstantiationService;
 	let sendTextCalled: boolean;
@@ -46,7 +49,7 @@ suite('OutputMonitor', () => {
 				// eslint-disable-next-line local/code-no-any-casts
 				registerMarker: () => ({ id: 1 } as any)
 			},
-			sessionId: '1'
+			sessionResource: LocalChatSessionUri.forSession('1')
 		};
 		instantiationService = new TestInstantiationService();
 
@@ -74,6 +77,12 @@ suite('OutputMonitor', () => {
 			}
 		);
 		instantiationService.stub(ITerminalLogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[TerminalChatAgentToolsSettingId.AutoReplyToPrompts]: false
+		}));
+		instantiationService.stub(IChatWidgetService, {
+			getWidgetsByLocations: () => []
+		});
 		cts = new CancellationTokenSource();
 	});
 
@@ -205,6 +214,77 @@ suite('OutputMonitor', () => {
 		});
 	});
 
+	test('auto reply sends first option when model lookup is unavailable', async () => {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[TerminalChatAgentToolsSettingId.AutoReplyToPrompts]: true
+		}));
+		instantiationService.stub(ILanguageModelsService, {
+			selectLanguageModels: async () => []
+		});
+
+		const monitorCts = new CancellationTokenSource();
+		monitorCts.cancel();
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), monitorCts.token, 'test command'));
+
+		const outputMonitorWithPrivateMethod = monitor as unknown as {
+			[key: string]: ((prompt: { prompt: string; options: string[]; detectedRequestForFreeFormInput: boolean }, token: CancellationToken) => Promise<{ suggestedOption: string | { description: string; option: string }; sentToTerminal: boolean } | undefined>) | undefined;
+		};
+		const optionResult = await outputMonitorWithPrivateMethod['_selectAndHandleOption']!({
+			prompt: 'Continue?',
+			options: ['y', 'n'],
+			detectedRequestForFreeFormInput: false
+		}, CancellationToken.None);
+		await Event.toPromise(monitor.onDidFinishCommand);
+		monitorCts.dispose();
+
+		assert.strictEqual(sendTextCalled, true, 'sendText should be called when auto reply is enabled');
+		assert.strictEqual(optionResult?.sentToTerminal, true, 'option should be auto-sent');
+		assert.strictEqual(optionResult?.suggestedOption, 'y', 'first option should be used as fallback');
+	});
+
+	test('auto reply uses fallback model to derive suggested option', async () => {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[TerminalChatAgentToolsSettingId.AutoReplyToPrompts]: true
+		}));
+
+		let fallbackModelRequested = false;
+		instantiationService.stub(ILanguageModelsService, {
+			selectLanguageModels: async (selector: { id?: string }) => {
+				if (selector.id === 'copilot-fast') {
+					fallbackModelRequested = true;
+					return ['copilot-fast'];
+				}
+				return [];
+			},
+			sendChatRequest: async () => ({
+				stream: (async function* () {
+					yield { type: 'text', value: 'n' };
+				})(),
+				result: Promise.resolve(undefined)
+			})
+		});
+
+		const monitorCts = new CancellationTokenSource();
+		monitorCts.cancel();
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), monitorCts.token, 'test command'));
+
+		const outputMonitorWithPrivateMethod = monitor as unknown as {
+			[key: string]: ((prompt: { prompt: string; options: string[]; detectedRequestForFreeFormInput: boolean }, token: CancellationToken) => Promise<{ suggestedOption: string | { description: string; option: string }; sentToTerminal: boolean } | undefined>) | undefined;
+		};
+		const optionResult = await outputMonitorWithPrivateMethod['_selectAndHandleOption']!({
+			prompt: 'Continue?',
+			options: ['y', 'n'],
+			detectedRequestForFreeFormInput: false
+		}, CancellationToken.None);
+		await Event.toPromise(monitor.onDidFinishCommand);
+		monitorCts.dispose();
+
+		assert.strictEqual(fallbackModelRequested, true, 'fallback model should be requested via _getLanguageModel');
+		assert.strictEqual(sendTextCalled, true, 'sendText should be called when auto reply is enabled');
+		assert.strictEqual(optionResult?.sentToTerminal, true, 'option should be auto-sent');
+		assert.strictEqual(optionResult?.suggestedOption, 'n', 'suggested option should be derived from fallback model response');
+	});
+
 	suite('detectsInputRequiredPattern', () => {
 		test('detects yes/no confirmation prompts (pairs and variants)', () => {
 			assert.strictEqual(detectsInputRequiredPattern('Continue? (y/N) '), true);
@@ -287,6 +367,28 @@ suite('OutputMonitor', () => {
 		});
 	});
 
+	suite('matchTerminalPromptOption', () => {
+		test('matches suggested option case-insensitively', () => {
+			assert.deepStrictEqual(matchTerminalPromptOption(['Y', 'n'], 'y'), { option: 'Y', index: 0 });
+			assert.deepStrictEqual(matchTerminalPromptOption(['y', 'N'], 'n'), { option: 'N', index: 1 });
+		});
+
+		test('strips quotes and trailing punctuation', () => {
+			assert.deepStrictEqual(matchTerminalPromptOption(['Y', 'n'], '"y"'), { option: 'Y', index: 0 });
+			assert.deepStrictEqual(matchTerminalPromptOption(['yes', 'no'], 'no.'), { option: 'no', index: 1 });
+		});
+
+		test('handles bracketed options like [Y]', () => {
+			assert.deepStrictEqual(matchTerminalPromptOption(['Y', 'n'], '[y]'), { option: 'Y', index: 0 });
+			assert.deepStrictEqual(matchTerminalPromptOption(['y', 'N'], '(n)'), { option: 'N', index: 1 });
+		});
+
+		test('handles default suffixes by using first token', () => {
+			assert.deepStrictEqual(matchTerminalPromptOption(['Y', 'n'], 'Y (default)'), { option: 'Y', index: 0 });
+			assert.deepStrictEqual(matchTerminalPromptOption(['Enter'], 'Enter to continue'), { option: 'Enter', index: 0 });
+		});
+	});
+
 	suite('detectsVSCodeTaskFinishMessage', () => {
 		test('detects VS Code task completion messages', () => {
 			assert.strictEqual(detectsVSCodeTaskFinishMessage('Press any key to close the terminal.'), true);
@@ -341,5 +443,5 @@ suite('OutputMonitor', () => {
 
 });
 function createTestContext(id: string): IToolInvocationContext {
-	return { sessionId: id, sessionResource: LocalChatSessionUri.forSession(id) };
+	return { sessionResource: LocalChatSessionUri.forSession(id) };
 }

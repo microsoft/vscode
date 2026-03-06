@@ -144,7 +144,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 							if (configuredTask._label) {
 								taskNames.push(configuredTask._label);
 							} else {
-								taskNames.push(configuredTask.configures.task);
+								taskNames.push(configuredTask.configures.task as string);
 							}
 							const location = this._getTaskSource(configuredTask._source);
 							if (location) {
@@ -180,12 +180,12 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 	private _showPrompt(notificationService: INotificationService, storageService: IStorageService, openerService: IOpenerService, configurationService: IConfigurationService, taskNames: string[], locations: Map<string, URI>): Promise<boolean> {
 		return new Promise<boolean>(resolve => {
 			notificationService.prompt(Severity.Info, nls.localize('tasks.run.allowAutomatic',
-				"This workspace has tasks ({0}) defined ({1}) that run automatically when you open this workspace. Do you allow automatic tasks to run when you open this workspace?",
+				"This workspace has tasks ({0}) defined ({1}) that can launch processes automatically when you open this workspace. Do you want to allow automatic tasks to run in all trusted workspaces?",
 				taskNames.join(', '),
 				Array.from(locations.keys()).join(', ')
 			),
 				[{
-					label: nls.localize('allow', "Allow and Run"),
+					label: nls.localize('allow', "Allow"),
 					run: () => {
 						resolve(true);
 						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, 'on', ConfigurationTarget.USER);
@@ -227,7 +227,7 @@ export class ManageAutomaticTaskRunning extends Action2 {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor): Promise<any> {
+	public async run(accessor: ServicesAccessor): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const configurationService = accessor.get(IConfigurationService);
 		const allowItem: IQuickPickItem = { label: nls.localize('workbench.action.tasks.allowAutomaticTasks', "Allow Automatic Tasks") };

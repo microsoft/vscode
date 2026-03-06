@@ -80,13 +80,13 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		this._onWillStartSession.fire(editor);
 
-		const chatModelRef = this._chatService.startSession(ChatAgentLocation.EditorInline, { canUseTools: false /* SEE https://github.com/microsoft/vscode/issues/279946 */ });
+		const chatModelRef = this._chatService.startNewLocalSession(ChatAgentLocation.EditorInline, { canUseTools: false /* SEE https://github.com/microsoft/vscode/issues/279946 */ });
 		const chatModel = chatModelRef.object;
 		chatModel.startEditingSession(false);
 
 		const store = new DisposableStore();
 		store.add(toDisposable(() => {
-			this._chatService.cancelCurrentRequestForSession(chatModel.sessionResource);
+			this._chatService.cancelCurrentRequestForSession(chatModel.sessionResource, 'inlineChatSession');
 			chatModel.editingSession?.reject();
 			this._sessions.delete(uri);
 			this._onDidChangeSessions.fire(this);

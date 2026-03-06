@@ -33,6 +33,27 @@ class WorkbenchBrowserElementsService implements IBrowserElementsService {
 		@INativeBrowserElementsService private readonly simpleBrowser: INativeBrowserElementsService
 	) { }
 
+	async getConsoleLogs(locator: IBrowserTargetLocator): Promise<string | undefined> {
+		return await this.simpleBrowser.getConsoleLogs(locator);
+	}
+
+	async startConsoleSession(token: CancellationToken, locator: IBrowserTargetLocator): Promise<void> {
+		const cancelAndDetachId = cancelAndDetachIdPool++;
+		const onCancelChannel = `vscode:cancelConsoleSession${cancelAndDetachId}`;
+
+		const disposable = token.onCancellationRequested(() => {
+			ipcRenderer.send(onCancelChannel, cancelAndDetachId);
+			disposable.dispose();
+		});
+		try {
+			await this.simpleBrowser.startConsoleSession(token, locator, cancelAndDetachId);
+		} catch (error) {
+			throw new Error('Failed to start console session', { cause: error });
+		} finally {
+			disposable.dispose();
+		}
+	}
+
 	async startDebugSession(token: CancellationToken, locator: IBrowserTargetLocator): Promise<void> {
 		const cancelAndDetachId = cancelAndDetachIdPool++;
 		const onCancelChannel = `vscode:cancelCurrentSession${cancelAndDetachId}`;
@@ -44,8 +65,9 @@ class WorkbenchBrowserElementsService implements IBrowserElementsService {
 		try {
 			await this.simpleBrowser.startDebugSession(token, locator, cancelAndDetachId);
 		} catch (error) {
+			throw new Error('No debug session target found', { cause: error });
+		} finally {
 			disposable.dispose();
-			throw new Error('No debug session target found', error);
 		}
 	}
 

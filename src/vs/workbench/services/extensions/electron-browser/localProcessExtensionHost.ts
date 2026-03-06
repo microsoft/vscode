@@ -249,8 +249,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 
 		// Catch all output coming from the extension host process
 		type Output = { data: string; format: string[] };
-		const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.onStdout);
-		const onStderr = this._handleProcessOutputStream(this._extensionHostProcess.onStderr);
+		const onStdout = this._register(this._handleProcessOutputStream(this._extensionHostProcess.onStdout));
+		const onStderr = this._register(this._handleProcessOutputStream(this._extensionHostProcess.onStderr));
 		const onOutput = Event.any(
 			Event.map(onStdout.event, o => ({ data: `%c${o}`, format: [''] })),
 			Event.map(onStderr.event, o => ({ data: `%c${o}`, format: ['color: red'] }))
@@ -488,15 +488,15 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
-				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions
+				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions,
+				isSessionsWindow: this._environmentService.isSessionsWindow
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: workspace.configuration ?? undefined,
 				id: workspace.id,
 				name: this._labelService.getWorkspaceLabel(workspace),
 				isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false,
-				transient: workspace.transient,
-				isAgentSessionsWorkspace: workspace.isAgentSessionsWorkspace
+				transient: workspace.transient
 			},
 			remote: {
 				authority: this._environmentService.remoteAuthority,

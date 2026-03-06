@@ -12,6 +12,7 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import { safeStringify } from '../../../../../base/common/objects.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -20,6 +21,8 @@ import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
@@ -151,7 +154,6 @@ interface IAgentSessionState {
 export const enum AgentSessionSection {
 
 	// Default Grouping (by date)
-	InProgress = 'inProgress',
 	Today = 'today',
 	Yesterday = 'yesterday',
 	Week = 'week',
@@ -395,7 +397,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -424,10 +428,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	private registerListeners(): void {
 
-		// Sessions changes
-		this._register(this.chatSessionsService.onDidChangeItemsProviders(({ chatSessionType: provider }) => this.resolve(provider)));
+		// Sessions updates
+		this._register(this.chatSessionsService.onDidChangeItemsProviders(({ chatSessionType }) => this.resolve(chatSessionType)));
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.resolve(undefined)));
-		this._register(this.chatSessionsService.onDidChangeSessionItems(provider => this.resolve(provider)));
+		this._register(this.chatSessionsService.onDidChangeSessionItems(({ chatSessionType }) => this.updateItems([chatSessionType], CancellationToken.None)));
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.resolve(undefined)));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this.resolve(undefined)));
 
 		// State
 		this._register(this.storageService.onWillSaveState(() => {
@@ -467,12 +473,21 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		const providersToResolve = Array.from(this.providersToResolve);
 		this.providersToResolve.clear();
 
+		const providerFilter = providersToResolve.includes(undefined) ? undefined : coalesce(providersToResolve);
+
+		await this.chatSessionsService.refreshChatSessionItems(providerFilter, token);
+		await this.updateItems(providerFilter, token);
+	}
+
+	/**
+	 * Update the sessions by fetching from the service. This does not trigger an explicit refresh
+	 */
+	private async updateItems(providerFilter: readonly string[] | undefined, token: CancellationToken): Promise<void> {
 		const mapSessionContributionToType = new Map<string, IChatSessionsExtensionPoint>();
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
 
-		const providerFilter = providersToResolve.includes(undefined) ? undefined : coalesce(providersToResolve);
 		const providerResults = await this.chatSessionsService.getChatSessionItems(providerFilter, token);
 
 		const resolvedProviders = new Set<string>();
@@ -515,6 +530,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					archived: session.archived,
 					timing: session.timing,
 					changes: normalizedChanges,
+					metadata: session.metadata,
 				}));
 			}
 		}
@@ -669,6 +685,8 @@ interface ISerializedAgentSession {
 
 	readonly archived: boolean | undefined;
 
+	readonly metadata: { [key: string]: unknown } | undefined;
+
 	readonly timing: {
 		readonly created: number;
 		readonly lastRequestStarted?: number;
@@ -719,9 +737,10 @@ class AgentSessionsCache {
 			timing: session.timing,
 
 			changes: session.changes,
+			metadata: session.metadata
 		} satisfies ISerializedAgentSession));
 
-		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, safeStringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	loadCachedSessions(): IInternalAgentSessionData[] {
@@ -760,6 +779,7 @@ class AgentSessionsCache {
 					insertions: change.insertions,
 					deletions: change.deletions,
 				})) : session.changes,
+				metadata: session.metadata,
 			}));
 		} catch {
 			return []; // invalid data in storage, fallback to empty sessions list

@@ -10,16 +10,16 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IURLService } from '../../../../../platform/url/common/url.js';
-import { DEFAULT_EDITOR_ASSOCIATION, IEditorPane } from '../../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, isEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IJSONEditingService } from '../../../configuration/common/jsonEditing.js';
 import { TestJSONEditingService } from '../../../configuration/test/common/testServices.js';
+import { IEditorService, PreferredGroup } from '../../../editor/common/editorService.js';
 import { PreferencesService } from '../../browser/preferencesService.js';
 import { IPreferencesService, ISettingsEditorOptions } from '../../common/preferences.js';
 import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
-import { TestRemoteAgentService, ITestInstantiationService, workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService } from '../../../../test/browser/workbenchTestServices.js';
-import { IEditorGroupsService } from '../../../editor/common/editorGroupsService.js';
+import { TestRemoteAgentService, ITestInstantiationService, workbenchInstantiationService, TestEditorService } from '../../../../test/browser/workbenchTestServices.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
-import { SettingsEditor2Input } from '../../common/preferencesEditorInput.js';
 
 suite('PreferencesService', () => {
 	let testInstantiationService: ITestInstantiationService;
@@ -30,17 +30,18 @@ suite('PreferencesService', () => {
 	setup(() => {
 		testInstantiationService = workbenchInstantiationService({}, disposables);
 
-		class TestOpenEditorGroupView extends TestEditorGroupView {
-			lastOpenEditorOptions: any;
-			override openEditor(_editor: SettingsEditor2Input, options?: IEditorOptions): Promise<IEditorPane> {
-				lastOpenEditorOptions = options;
-				_editor.dispose();
-				return Promise.resolve(undefined!);
+		class TestPreferencesEditorService extends TestEditorService {
+			override async openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | PreferredGroup, group?: PreferredGroup): Promise<undefined> {
+				lastOpenEditorOptions = optionsOrGroup as IEditorOptions;
+				// openEditor takes ownership of the input
+				if (isEditorInput(editor)) {
+					editor.dispose();
+				}
+				return undefined;
 			}
 		}
 
-		const testEditorGroupService = new TestEditorGroupsService([new TestOpenEditorGroupView(0)]);
-		testInstantiationService.stub(IEditorGroupsService, testEditorGroupService);
+		testInstantiationService.stub(IEditorService, disposables.add(new TestPreferencesEditorService()));
 		testInstantiationService.stub(IJSONEditingService, TestJSONEditingService);
 		testInstantiationService.stub(IRemoteAgentService, TestRemoteAgentService);
 		testInstantiationService.stub(ICommandService, TestCommandService);

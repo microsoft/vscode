@@ -71,10 +71,11 @@ export type ChatRequestToolReferenceEntry = IChatRequestToolEntry | IChatRequest
 
 export interface StringChatContextValue {
 	value?: string;
-	name: string;
+	name?: string;
 	modelDescription?: string;
-	icon: ThemeIcon;
+	icon?: ThemeIcon;
 	uri: URI;
+	resourceUri?: URI;
 	tooltip?: IMarkdownString;
 	/**
 	 * Command ID to execute when this context item is clicked.
@@ -96,8 +97,9 @@ export interface IChatRequestStringVariableEntry extends IBaseChatRequestVariabl
 	readonly kind: 'string';
 	readonly value: string | undefined;
 	readonly modelDescription?: string;
-	readonly icon: ThemeIcon;
+	readonly icon?: ThemeIcon;
 	readonly uri: URI;
+	readonly resourceUri?: URI;
 	readonly tooltip?: IMarkdownString;
 	/**
 	 * Command ID to execute when this context item is clicked.
@@ -220,8 +222,19 @@ export interface IDiagnosticVariableEntry extends IBaseChatRequestVariableEntry,
 	readonly kind: 'diagnostic';
 }
 
+export interface IElementAncestorData {
+	readonly tagName: string;
+	readonly id?: string;
+	readonly classNames?: string[];
+}
+
 export interface IElementVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'element';
+	readonly ancestors?: IElementAncestorData[];
+	readonly attributes?: Record<string, string>;
+	readonly computedStyles?: Record<string, string>;
+	readonly dimensions?: { readonly top: number; readonly left: number; readonly width: number; readonly height: number };
+	readonly innerText?: string;
 }
 
 export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry {
@@ -284,13 +297,34 @@ export interface IDebugVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly type?: string;
 }
 
+export interface IAgentFeedbackVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'agentFeedback';
+	readonly sessionResource: URI;
+	readonly feedbackItems: ReadonlyArray<{
+		readonly id: string;
+		readonly text: string;
+		readonly resourceUri: URI;
+		readonly range: IRange;
+		readonly codeSelection?: string;
+	}>;
+}
+
+export interface IChatRequestDebugEventsVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'debugEvents';
+	/** Timestamp when the debug events were snapshotted. */
+	readonly snapshotTime: number;
+	/** The session resource these debug events belong to. */
+	readonly sessionResource: URI;
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
-	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry;
+	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry | IAgentFeedbackVariableEntry
+	| IChatRequestDebugEventsVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -359,6 +393,10 @@ export function isDebugVariableEntry(obj: IChatRequestVariableEntry): obj is IDe
 	return obj.kind === 'debugVariable';
 }
 
+export function isAgentFeedbackVariableEntry(obj: IChatRequestVariableEntry): obj is IAgentFeedbackVariableEntry {
+	return obj.kind === 'agentFeedback';
+}
+
 export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
 	return obj.kind === 'paste';
 }
@@ -421,9 +459,12 @@ export function isStringImplicitContextValue(value: unknown): value is StringCha
 		typeof asStringImplicitContextValue === 'object' &&
 		asStringImplicitContextValue !== null &&
 		(typeof asStringImplicitContextValue.value === 'string' || typeof asStringImplicitContextValue.value === 'undefined') &&
-		typeof asStringImplicitContextValue.name === 'string' &&
-		ThemeIcon.isThemeIcon(asStringImplicitContextValue.icon) &&
-		URI.isUri(asStringImplicitContextValue.uri)
+		(typeof asStringImplicitContextValue.name === 'string' || typeof asStringImplicitContextValue.name === 'undefined') &&
+		(asStringImplicitContextValue.resourceUri === undefined || URI.isUri(asStringImplicitContextValue.resourceUri)) &&
+		(typeof asStringImplicitContextValue.name === 'string' || URI.isUri(asStringImplicitContextValue.resourceUri)) &&
+		(asStringImplicitContextValue.icon === undefined || ThemeIcon.isThemeIcon(asStringImplicitContextValue.icon)) &&
+		URI.isUri(asStringImplicitContextValue.uri) &&
+		typeof asStringImplicitContextValue.handle === 'number'
 	);
 }
 

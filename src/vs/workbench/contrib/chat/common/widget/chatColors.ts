@@ -7,6 +7,15 @@ import { Color, RGBA } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
 import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 
+// This color intentionally matches commandCenter.background but is separate so that it
+// doesn't get overridden when debugging (the debug toolbar overrides commandCenter.background).
+// This allows themes to customize it while maintaining independence from debug mode changes.
+export const agentStatusIndicatorBackground = registerColor(
+	'agentStatusIndicator.background',
+	{ dark: Color.white.transparent(0.05), light: Color.black.transparent(0.05), hcDark: null, hcLight: null },
+	localize('agentStatusIndicator.background', 'Background color of the agent status indicator in the titlebar.')
+);
+
 export const chatRequestBorder = registerColor(
 	'chat.requestBorder',
 	{ dark: new Color(new RGBA(255, 255, 255, 0.10)), light: new Color(new RGBA(0, 0, 0, 0.10)), hcDark: contrastBorder, hcLight: contrastBorder, },

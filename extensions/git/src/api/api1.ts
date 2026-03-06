@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, SourceControlHistoryItemDetailsProvider, GitErrorCodes, CloneOptions, CommitShortStat, DiffChange, Worktree, RepositoryKind, RepositoryAccessDetails } from './git';
+import type { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, LogOptions, APIState, CommitOptions, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, SourceControlHistoryItemDetailsProvider, CloneOptions, CommitShortStat, DiffChange, Worktree, RepositoryKind, RepositoryAccessDetails } from './git';
+import { ForcePushMode, GitErrorCodes, RefType, Status } from './git.constants';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
 import { combinedDisposable, filterEvent, mapEvent } from '../util';
 import { toGitUri } from '../uri';
@@ -321,6 +320,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.mergeAbort();
 	}
 
+	rebase(branch: string): Promise<void> {
+		return this.#repository.rebase(branch);
+	}
+
 	createStash(options?: { message?: string; includeUntracked?: boolean; staged?: boolean }): Promise<void> {
 		return this.#repository.createStash(options?.message, options?.includeUntracked, options?.staged);
 	}
@@ -347,6 +350,10 @@ export class ApiRepository implements Repository {
 
 	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void> {
 		return this.#repository.migrateChanges(sourceRepositoryPath, options);
+	}
+
+	generateRandomBranchName(): Promise<string | undefined> {
+		return this.#repository.generateRandomBranchName();
 	}
 }
 
@@ -460,7 +467,7 @@ export class ApiImpl implements API {
 			return null;
 		}
 
-		await this.#model.openRepository(root.fsPath);
+		await this.#model.openRepository(root.fsPath, true, true);
 		return this.getRepository(root) || null;
 	}
 

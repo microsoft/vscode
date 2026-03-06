@@ -4,16 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WebContentsView, webContents } from 'electron';
+import { FileAccess } from '../../../base/common/network.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId } from '../common/browserView.js';
 import { EVENT_KEY_CODE_MAP, KeyCode, KeyMod, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { isMacintosh } from '../../../base/common/platform.js';
+import { BrowserViewUri } from '../common/browserViewUri.js';
+import { BrowserViewDebugger } from './browserViewDebugger.js';
+import { ILogService } from '../../log/common/log.js';
+import { ICDPTarget, ICDPConnection, CDPTargetInfo } from '../common/cdp/types.js';
+import { BrowserSession } from './browserSession.js';
 
 /** Key combinations that are used in system-level shortcuts. */
 const nativeShortcuts = new Set([
@@ -31,16 +37,19 @@ const nativeShortcuts = new Set([
  * Represents a single browser view instance with its WebContentsView and all associated logic.
  * This class encapsulates all operations and events for a single browser view.
  */
-export class BrowserView extends Disposable {
+export class BrowserView extends Disposable implements ICDPTarget {
 	private readonly _view: WebContentsView;
 	private readonly _faviconRequestCache = new Map<string, Promise<string>>();
 
 	private _lastScreenshot: VSBuffer | undefined = undefined;
 	private _lastFavicon: string | undefined = undefined;
 	private _lastError: IBrowserViewLoadError | undefined = undefined;
+	private _lastUserGestureTimestamp: number = -Infinity;
 
+	private _debugger: BrowserViewDebugger;
 	private _window: IBaseWindow | undefined;
 	private _isSendingKeyEvent = false;
+	private _isDisposed = false;
 
 	private readonly _onDidNavigate = this._register(new Emitter<IBrowserViewNavigationEvent>());
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent> = this._onDidNavigate.event;
@@ -76,45 +85,78 @@ export class BrowserView extends Disposable {
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 
 	constructor(
-		private readonly viewSession: Electron.Session,
-		private readonly storageScope: BrowserViewStorageScope,
+		public readonly id: string,
+		public readonly session: BrowserSession,
+		createChildView: (options?: Electron.WebContentsViewConstructorOptions) => BrowserView,
+		options: Electron.WebContentsViewConstructorOptions | undefined,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
 		const webPreferences: Electron.WebPreferences & { type: ReturnType<Electron.WebContents['getType']> } = {
+			...options?.webPreferences,
+
 			nodeIntegration: false,
 			contextIsolation: true,
 			sandbox: true,
 			webviewTag: false,
-			session: viewSession,
+			session: this.session.electronSession,
+			preload: FileAccess.asFileUri('vs/platform/browserView/electron-browser/preload-browserView.js').fsPath,
 
 			// TODO@kycutler: Remove this once https://github.com/electron/electron/issues/42578 is fixed
 			type: 'browserView'
 		};
 
-		this._view = new WebContentsView({ webPreferences });
+		this._view = new WebContentsView({
+			webPreferences,
+			// Passing an `undefined` webContents triggers an error in Electron.
+			...(options?.webContents ? { webContents: options.webContents } : {})
+		});
 		this._view.setBackgroundColor('#FFFFFF');
 
 		this._view.webContents.setWindowOpenHandler((details) => {
-			// For new tab requests, fire event for workbench to handle
-			if (details.disposition === 'background-tab' || details.disposition === 'foreground-tab') {
-				this._onDidRequestNewPage.fire({
-					url: details.url,
-					name: details.frameName || undefined,
-					background: details.disposition === 'background-tab'
-				});
-				return { action: 'deny' }; // Deny the default browser behavior since we're handling it
+			const location = (() => {
+				switch (details.disposition) {
+					case 'background-tab': return BrowserNewPageLocation.Background;
+					case 'foreground-tab': return BrowserNewPageLocation.Foreground;
+					case 'new-window': return BrowserNewPageLocation.NewWindow;
+					default: return undefined;
+				}
+			})();
+
+			if (!location || !this.consumePopupPermission(location)) {
+				// Eventually we may want to surface this. For now, just silently block it.
+				return { action: 'deny' };
 			}
 
-			// Deny other requests like new windows.
-			return { action: 'deny' };
+			return {
+				action: 'allow',
+				createWindow: (options) => {
+					const childView = createChildView(options);
+					const resource = BrowserViewUri.forUrl(details.url, childView.id);
+
+					// Fire event for the workbench to open this view
+					this._onDidRequestNewPage.fire({
+						resource,
+						location,
+						position: { x: options.x, y: options.y, width: options.width, height: options.height }
+					});
+
+					// Return the webContents so Electron can complete the window.open() call
+					return childView.webContents;
+				}
+			};
 		});
 
 		this._view.webContents.on('destroyed', () => {
-			this._onDidClose.fire();
+			this.dispose();
 		});
+
+		this._debugger = new BrowserViewDebugger(this, this.logService);
+
+		this._register(session.acquire());
 
 		this.setupEventListeners();
 	}
@@ -133,41 +175,37 @@ export class BrowserView extends Disposable {
 
 		// Favicon events
 		webContents.on('page-favicon-updated', async (_event, favicons) => {
-			if (!favicons || favicons.length === 0) {
-				return;
-			}
-
-			const found = favicons.find(f => this._faviconRequestCache.get(f));
-			if (found) {
-				// already have a cached request for this favicon, use it
-				this._lastFavicon = await this._faviconRequestCache.get(found)!;
-				this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
-				return;
-			}
-
 			// try each url in order until one works
 			for (const url of favicons) {
-				const request = (async () => {
-					const response = await webContents.session.fetch(url, {
-						cache: 'force-cache'
-					});
-					const type = await response.headers.get('content-type');
-					const buffer = await response.arrayBuffer();
+				if (!this._faviconRequestCache.has(url)) {
+					this._faviconRequestCache.set(url, (async () => {
+						const response = await webContents.session.fetch(url, {
+							cache: 'force-cache'
+						});
+						if (!response.ok) {
+							throw new Error(`Failed to fetch favicon: ${response.status} ${response.statusText}`);
+						}
+						const type = await response.headers.get('content-type');
+						const buffer = await response.arrayBuffer();
 
-					return `data:${type};base64,${Buffer.from(buffer).toString('base64')}`;
-				})();
-
-				this._faviconRequestCache.set(url, request);
+						return `data:${type};base64,${Buffer.from(buffer).toString('base64')}`;
+					})());
+				}
 
 				try {
-					this._lastFavicon = await request;
+					this._lastFavicon = await this._faviconRequestCache.get(url)!;
 					this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
-					// On success, leave the promise in the cache and stop looping
+					// On success, stop searching
 					return;
 				} catch (e) {
-					this._faviconRequestCache.delete(url);
-					// On failure, try the next one
+					// On failure, just try the next one
 				}
+			}
+
+			// If we searched all favicons and none worked, clear the favicon
+			if (this._lastFavicon) {
+				this._lastFavicon = undefined;
+				this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
 			}
 		});
 
@@ -179,6 +217,7 @@ export class BrowserView extends Disposable {
 		const fireNavigationEvent = () => {
 			this._onDidNavigate.fire({
 				url: webContents.getURL(),
+				title: webContents.getTitle(),
 				canGoBack: webContents.navigationHistory.canGoBack(),
 				canGoForward: webContents.navigationHistory.canGoForward()
 			});
@@ -211,6 +250,7 @@ export class BrowserView extends Disposable {
 				fireLoadingEvent(false);
 				this._onDidNavigate.fire({
 					url: validatedURL,
+					title: '',
 					canGoBack: webContents.navigationHistory.canGoBack(),
 					canGoForward: webContents.navigationHistory.canGoForward()
 				});
@@ -250,6 +290,20 @@ export class BrowserView extends Disposable {
 			}
 		});
 
+		// Track user gestures for popup blocking logic.
+		// Roughly based on https://html.spec.whatwg.org/multipage/interaction.html#tracking-user-activation.
+		webContents.on('input-event', (_event, input) => {
+			switch (input.type) {
+				case 'rawKeyDown':
+				case 'keyDown':
+				case 'mouseDown':
+				case 'pointerDown':
+				case 'pointerUp':
+				case 'touchEnd':
+					this._lastUserGestureTimestamp = Date.now();
+			}
+		});
+
 		// For now, always prevent sites from blocking unload.
 		// In the future we may want to show a dialog to ask the user,
 		// with heavy restrictions regarding interaction and repeated prompts.
@@ -266,6 +320,22 @@ export class BrowserView extends Disposable {
 				finalUpdate: result.finalUpdate
 			});
 		});
+	}
+
+	private consumePopupPermission(location: BrowserNewPageLocation): boolean {
+		switch (location) {
+			case BrowserNewPageLocation.Foreground:
+			case BrowserNewPageLocation.Background:
+				return true;
+			case BrowserNewPageLocation.NewWindow:
+				// Each user gesture allows one popup window within 1 second
+				if (this._lastUserGestureTimestamp > Date.now() - 1000) {
+					this._lastUserGestureTimestamp = -Infinity;
+					return true;
+				}
+
+				return false;
+		}
 	}
 
 	get webContents(): Electron.WebContents {
@@ -289,7 +359,8 @@ export class BrowserView extends Disposable {
 			lastScreenshot: this._lastScreenshot,
 			lastFavicon: this._lastFavicon,
 			lastError: this._lastError,
-			storageScope: this.storageScope
+			storageScope: this.session.storageScope,
+			zoomFactor: webContents.getZoomFactor()
 		};
 	}
 
@@ -314,6 +385,7 @@ export class BrowserView extends Disposable {
 		}
 
 		this._view.webContents.setZoomFactor(bounds.zoomFactor);
+		this._view.setBorderRadius(Math.round(bounds.cornerRadius * bounds.zoomFactor));
 		this._view.setBounds({
 			x: Math.round(bounds.x * bounds.zoomFactor),
 			y: Math.round(bounds.y * bounds.zoomFactor),
@@ -374,8 +446,12 @@ export class BrowserView extends Disposable {
 	/**
 	 * Reload the current page
 	 */
-	reload(): void {
-		this._view.webContents.reload();
+	reload(hard?: boolean): void {
+		if (hard) {
+			this._view.webContents.reloadIgnoringCache();
+		} else {
+			this._view.webContents.reload();
+		}
 	}
 
 	/**
@@ -440,13 +516,6 @@ export class BrowserView extends Disposable {
 	}
 
 	/**
-	 * Set the zoom factor of this view
-	 */
-	async setZoomFactor(zoomFactor: number): Promise<void> {
-		await this._view.webContents.setZoomFactor(zoomFactor);
-	}
-
-	/**
 	 * Focus this view
 	 */
 	async focus(): Promise<void> {
@@ -476,10 +545,27 @@ export class BrowserView extends Disposable {
 	}
 
 	/**
+	 * Get the currently selected text in the browser view.
+	 * Returns immediately with empty string if the page is still loading.
+	 */
+	async getSelectedText(): Promise<string> {
+		// we don't want to wait for the page to finish loading, which executeJavaScript normally does.
+		if (this._view.webContents.isLoading()) {
+			return '';
+		}
+		try {
+			// Uses our preloaded contextBridge-exposed API.
+			return await this._view.webContents.executeJavaScriptInIsolatedWorld(browserViewIsolatedWorldId, [{ code: 'window.browserViewAPI?.getSelectedText?.() ?? ""' }]);
+		} catch {
+			return '';
+		}
+	}
+
+	/**
 	 * Clear all storage data for this browser view's session
 	 */
 	async clearStorage(): Promise<void> {
-		await this.viewSession.clearData();
+		await this.session.electronSession.clearData();
 	}
 
 	/**
@@ -489,12 +575,39 @@ export class BrowserView extends Disposable {
 		return this._view;
 	}
 
+	// ============ ICDPTarget implementation ============
+
+	/**
+	 * Get CDP target info using Electron's real targetId.
+	 */
+	getTargetInfo(): Promise<CDPTargetInfo> {
+		return this._debugger.getTargetInfo();
+	}
+
+	/**
+	 * Attach to receive debugger events.
+	 * @returns A connection that can be disposed to detach
+	 */
+	attach(): Promise<ICDPConnection> {
+		return this._debugger.attach();
+	}
+
 	override dispose(): void {
+		if (this._isDisposed) {
+			return;
+		}
+		this._isDisposed = true;
+
+		// Dispose debugger. This detaches debug sessions first.
+		this._debugger.dispose();
+
 		// Remove from parent window
 		this._window?.win?.contentView.removeChildView(this._view);
 
+		// Fire close event BEFORE disposing emitters. This signals the view has been destroyed.
+		this._onDidClose.fire();
+
 		// Clean up the view and all its event listeners
-		// Note: webContents.close() automatically removes all event listeners
 		this._view.webContents.close({ waitForBeforeUnload: false });
 
 		super.dispose();

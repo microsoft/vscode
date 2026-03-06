@@ -206,6 +206,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// Note: These patterns support `-C <path>` and `--no-pager` immediately after `git`
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/': true,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b.*\\s--output(=|\\s|$)/': false,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+show\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+ls-files\\b/': true,
@@ -516,7 +517,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		markdownDescription: localize('terminalSandbox.enabledSetting', "Controls whether to run commands in a sandboxed terminal for the run in terminal tool."),
 		type: 'boolean',
 		default: false,
-		tags: ['experimental'],
+		tags: ['preview'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxNetwork]: {
@@ -534,17 +535,23 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 				description: localize('terminalSandbox.networkSetting.deniedDomains', "Array of denied domains (checked first, takes precedence over allowedDomains)."),
 				items: { type: 'string' },
 				default: []
+			},
+			allowTrustedDomains: {
+				type: 'boolean',
+				description: localize('terminalSandbox.networkSetting.allowTrustedDomains', "When enabled, the Trusted Domains list is included in the allowed domains for network access."),
+				default: false
 			}
 		},
 		default: {
 			allowedDomains: [],
-			deniedDomains: []
+			deniedDomains: [],
+			allowTrustedDomains: false
 		},
-		tags: ['experimental'],
+		tags: ['preview'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem]: {
-		markdownDescription: localize('terminalSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on Linux. Paths do not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env). **bubblewrap**, **socat** and **ripgrep** should be installed for this setting to work.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
+		markdownDescription: localize('terminalSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on Linux. Paths do not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env). **bubblewrap** and **socat** should be installed for this setting to work.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
 		type: 'object',
 		properties: {
 			denyRead: {
@@ -571,11 +578,11 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			allowWrite: ['.'],
 			denyWrite: []
 		},
-		tags: ['experimental'],
+		tags: ['preview'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem]: {
-		markdownDescription: localize('terminalSandbox.macFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on macOS.Paths also support git-style glob patterns(ex: *.ts, ./src, ./src/**/*.ts, file?.txt). **ripgrep** should be installed for this setting to work.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
+		markdownDescription: localize('terminalSandbox.macFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on macOS. Paths also support git-style glob patterns(ex: *.ts, ./src, ./src/**/*.ts, file?.txt).", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
 		type: 'object',
 		properties: {
 			denyRead: {
@@ -602,7 +609,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			allowWrite: ['.'],
 			denyWrite: []
 		},
-		tags: ['experimental'],
+		tags: ['preview'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.PreventShellHistory]: {

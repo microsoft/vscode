@@ -15,7 +15,6 @@ import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
-import { getPartByLocation } from '../../../../services/views/browser/viewsService.js';
 import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -29,12 +28,14 @@ import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AgentSessionsPicker } from './agentSessionsPicker.js';
-import { ActiveEditorContext, AuxiliaryBarMaximizedContext } from '../../../../common/contextkeys.js';
+import { ActiveEditorContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
 const AGENT_SESSIONS_CATEGORY = localize2('chatSessions', "Chat Agent Sessions");
 
@@ -79,10 +80,7 @@ export class SetAgentSessionsOrientationStackedAction extends Action2 {
 			id: 'workbench.action.chat.setAgentSessionsOrientationStacked',
 			title: localize2('chat.sessionsOrientation.stacked', "Stacked"),
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-				AuxiliaryBarMaximizedContext.negate()
-			),
+			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
 				group: 'navigation',
@@ -105,10 +103,7 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 			id: 'workbench.action.chat.setAgentSessionsOrientationSideBySide',
 			title: localize2('chat.sessionsOrientation.sideBySide', "Side by Side"),
 			toggled: ContextKeyExpr.notEquals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-				AuxiliaryBarMaximizedContext.negate()
-			),
+			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
 				group: 'navigation',
@@ -155,7 +150,7 @@ export class PickAgentSessionAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 
-		const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker);
+		const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker, undefined, undefined);
 		await agentSessionsPicker.pickAgentSession();
 	}
 }
@@ -486,16 +481,19 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
 		const chatService = accessor.get(IChatService);
 		const dialogService = accessor.get(IDialogService);
+		const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
 		// Archive all sessions
 		for (const session of sessions) {
-			const chatModel = chatService.getSession(session.resource);
-			if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
-				isArchiveAction: true,
-				titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
-				messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
-			})) {
-				return;
+			if (!environmentService.isSessionsWindow) {
+				const chatModel = chatService.getSession(session.resource);
+				if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
+					isArchiveAction: true,
+					titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
+					messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
+				})) {
+					return;
+				}
 			}
 
 			session.setArchived(true);
@@ -710,10 +708,11 @@ export class OpenAgentSessionInEditorGroupAction extends BaseOpenAgentSessionAct
 					primary: KeyMod.WinCtrl | KeyCode.Enter
 				},
 				weight: KeybindingWeight.WorkbenchContrib + 1,
-				when: ChatContextKeys.agentSessionsViewerFocused,
+				when: ContextKeyExpr.and(ChatContextKeys.agentSessionsViewerFocused, IsSessionsWindowContext.negate()),
 			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
+				when: IsSessionsWindowContext.negate(),
 				order: 1,
 				group: 'navigation'
 			}
@@ -743,10 +742,11 @@ export class OpenAgentSessionInNewEditorGroupAction extends BaseOpenAgentSession
 					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Enter
 				},
 				weight: KeybindingWeight.WorkbenchContrib + 1,
-				when: ChatContextKeys.agentSessionsViewerFocused,
+				when: ContextKeyExpr.and(ChatContextKeys.agentSessionsViewerFocused, IsSessionsWindowContext.negate()),
 			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
+				when: IsSessionsWindowContext.negate(),
 				order: 2,
 				group: 'navigation'
 			}
@@ -840,6 +840,7 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const viewDescriptorService = accessor.get(IViewDescriptorService);
 		const configurationService = accessor.get(IConfigurationService);
 		const viewsService = accessor.get(IViewsService);
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
 
 		const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
 		if (typeof chatLocation !== 'number') {
@@ -886,7 +887,7 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			return; // location does not allow for resize (panel top or bottom)
 		}
 
-		const part = getPartByLocation(chatLocation);
+		const part = paneCompositeService.getPartId(chatLocation);
 		let currentSize = layoutService.getSize(part);
 
 		const chatViewDefaultWidth = 300;
@@ -944,7 +945,6 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-				AuxiliaryBarMaximizedContext.negate()
 			),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
@@ -968,7 +968,6 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
-				AuxiliaryBarMaximizedContext.negate()
 			),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
@@ -989,10 +988,7 @@ export class ToggleAgentSessionsSidebar extends Action2 {
 		super({
 			id: ToggleAgentSessionsSidebar.ID,
 			title: ToggleAgentSessionsSidebar.TITLE,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				AuxiliaryBarMaximizedContext.negate()
-			),
+			precondition: ChatContextKeys.enabled,
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
 		});

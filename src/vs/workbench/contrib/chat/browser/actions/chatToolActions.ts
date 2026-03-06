@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -18,7 +19,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
 import { isResponseVM } from '../../common/model/chatViewModel.js';
-import { ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatModeKind } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ToolsScope } from '../widget/input/chatSelectedTools.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -41,12 +42,18 @@ export const SkipToolConfirmationActionId = 'workbench.action.chat.skipTool';
 export const AcceptToolPostConfirmationActionId = 'workbench.action.chat.acceptToolPostExecution';
 export const SkipToolPostConfirmationActionId = 'workbench.action.chat.skipToolPostExecution';
 
+export interface IToolConfirmationActionContext {
+	readonly sessionResource?: URI;
+}
+
 abstract class ToolConfirmationAction extends Action2 {
 	protected abstract getReason(): ConfirmedReason;
 
-	run(accessor: ServicesAccessor, ...args: unknown[]) {
+	run(accessor: ServicesAccessor, context?: IToolConfirmationActionContext) {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const widget = chatWidgetService.lastFocusedWidget;
+		const widget = context?.sessionResource
+			? chatWidgetService.getWidgetBySessionResource(context.sessionResource)
+			: chatWidgetService.lastFocusedWidget;
 		const lastItem = widget?.viewModel?.getItems().at(-1);
 		if (!isResponseVM(lastItem)) {
 			return;
@@ -107,14 +114,14 @@ class SkipToolConfirmation extends ToolConfirmationAction {
 	}
 }
 
-class ConfigureToolsAction extends Action2 {
+export class ConfigureToolsAction extends Action2 {
 	public static ID = 'workbench.action.chat.configureTools';
 
 	constructor() {
 		super({
 			id: ConfigureToolsAction.ID,
 			title: localize('label', "Configure Tools..."),
-			icon: Codicon.tools,
+			icon: Codicon.settings,
 			f1: false,
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
@@ -122,7 +129,6 @@ class ConfigureToolsAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 					ChatContextKeys.lockedToCodingAgent.negate(),
-					ContextKeyExpr.notEquals(`config.${ChatConfiguration.AlternativeToolAction}`, true)
 				),
 				id: MenuId.ChatInput,
 				group: 'navigation',

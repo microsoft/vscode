@@ -63,10 +63,12 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IHistoryService } from '../../../../../services/history/common/history.js';
 import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
 import { isNumber, isString } from '../../../../../../base/common/types.js';
-import { ChatConfiguration } from '../../../../chat/common/constants.js';
+import { ChatConfiguration, isAutoApproveLevel } from '../../../../chat/common/constants.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
 import { clamp } from '../../../../../../base/common/numbers.js';
+import { IOutputAnalyzer } from './outputAnalyzer.js';
+import { SandboxOutputAnalyzer } from './sandboxOutputAnalyzer.js';
 
 // #region Tool data
 
@@ -305,7 +307,7 @@ const telemetryIgnoredSequences = [
 	'\x1b[O', // Focus out
 ];
 
-const altBufferMessage = localize('runInTerminalTool.altBufferMessage', "The command opened the alternate buffer.");
+const altBufferMessage = '\n' + localize('runInTerminalTool.altBufferMessage', "The command opened the alternate buffer.");
 
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
@@ -319,6 +321,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
 	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
 	private readonly _commandLinePresenters: ICommandLinePresenter[];
+	private readonly _outputAnalyzers: IOutputAnalyzer[];
 
 	protected readonly _sessionTerminalAssociations = new ResourceMap<IToolTerminal>();
 
@@ -398,6 +401,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			new PythonCommandLinePresenter(),
 			new RubyCommandLinePresenter(),
 		];
+		this._outputAnalyzers = [
+			this._register(this._instantiationService.createInstance(SandboxOutputAnalyzer)),
+		];
 
 		// Clear out warning accepted state if the setting is disabled
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
@@ -429,7 +435,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunInTerminalInputParams;
 
-		const chatSessionResource = context.chatSessionResource ?? (context.chatSessionId ? LocalChatSessionUri.forSession(context.chatSessionId) : undefined);
+		const chatSessionResource = context.chatSessionResource;
 		let instance: ITerminalInstance | undefined;
 		if (chatSessionResource) {
 			const toolTerminal = this._sessionTerminalAssociations.get(chatSessionResource);
@@ -638,12 +644,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 
-		const confirmationMessages = isFinalAutoApproved ? undefined : {
+		// Check if the session's permission level (Autopilot/Bypass Approvals) auto-approves all tools.
+		// When active, skip terminal confirmation entirely since the user has opted into full auto-approval.
+		const isSessionAutoApproved = chatSessionResource && this._isSessionAutoApproveLevel(chatSessionResource);
+
+		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
+		const shouldShowConfirmation = (!isFinalAutoApproved && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
+		const confirmationMessages = shouldShowConfirmation ? {
 			title: confirmationTitle,
 			message: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", args.explanation, args.goal)),
 			disclaimer,
 			terminalCustomActions: customActions,
-		};
+		} : undefined;
 
 		return {
 			confirmationMessages,
@@ -651,11 +663,39 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		};
 	}
 
+	/**
+	 * Returns true if the chat session's permission level (Autopilot/Bypass Approvals)
+	 * auto-approves all tool calls, unless enterprise policy restricts it.
+	 * Checks both the request-stamped level and the live picker level.
+	 */
+	private _isSessionAutoApproveLevel(chatSessionResource: URI): boolean {
+		const inspected = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
+		if (inspected.policyValue === false) {
+			return false;
+		}
+		// Check the live widget picker level (handles mid-session switches).
+		// Fall back to lastFocusedWidget if the session-specific widget isn't found
+		// (e.g., widget was backgrounded or URI mismatch).
+		const widget = this._chatWidgetService.getWidgetBySessionResource(chatSessionResource)
+			?? this._chatWidgetService.lastFocusedWidget;
+		if (widget && isAutoApproveLevel(widget.input.currentModeInfo.permissionLevel)) {
+			return true;
+		}
+		// Fall back to the request-stamped level
+		const model = this._chatService.getSession(chatSessionResource);
+		const request = model?.getRequests().at(-1);
+		return isAutoApproveLevel(request?.modeInfo?.permissionLevel);
+	}
+
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
 		if (!toolSpecificData) {
 			throw new Error('toolSpecificData must be provided for this tool');
 		}
+		if (!invocation.context) {
+			throw new Error('Invocation context must be provided for this tool');
+		}
+
 		const commandId = toolSpecificData.terminalCommandId;
 		if (toolSpecificData.alternativeRecommendation) {
 			return {
@@ -670,8 +710,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 		let toolResultMessage: string | IMarkdownString | undefined;
 
-		const chatSessionResource = invocation.context?.sessionResource ?? LocalChatSessionUri.forSession(invocation.context?.sessionId ?? 'no-chat-session');
-		const chatSessionId = chatSessionResourceToId(chatSessionResource);
+		const chatSessionResource = invocation.context.sessionResource;
 		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
 		const didUserEditCommand = (
 			toolSpecificData.commandLine.userEdited !== undefined &&
@@ -697,7 +736,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const store = new DisposableStore();
 
 		// Unified terminal initialization
-		this._logService.debug(`RunInTerminalTool: Creating ${args.isBackground ? 'background' : 'foreground'} terminal. termId=${termId}, chatSessionId=${chatSessionId}`);
+		this._logService.debug(`RunInTerminalTool: Creating ${args.isBackground ? 'background' : 'foreground'} terminal. termId=${termId}, chatSessionResource=${chatSessionResource}`);
 		const toolTerminal = await this._initTerminal(chatSessionResource, termId, terminalToolSessionId, args.isBackground, token);
 
 		this._handleTerminalVisibility(toolTerminal, chatSessionResource);
@@ -773,7 +812,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// Create unified ActiveTerminalExecution (creates and owns the strategy)
 			const execution = this._instantiationService.createInstance(
 				ActiveTerminalExecution,
-				chatSessionId,
+				chatSessionResource,
 				termId,
 				toolTerminal,
 				commandDetection!,
@@ -794,7 +833,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						OutputMonitor,
 						{
 							instance: toolTerminal.instance,
-							sessionId: invocation.context?.sessionId,
+							sessionResource: chatSessionResource,
 							getOutput: (marker?: IXtermMarker) => execution.getOutput(marker ?? startMarker)
 						},
 						undefined,
@@ -930,6 +969,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// Capture output snapshot before disposing on cancellation
 				if (e instanceof CancellationError) {
 					await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
+					// Mark the command as cancelled if it hasn't finished yet
+					// This ensures the decoration shows a failure icon instead of running
+					const state = toolSpecificData.terminalCommandState ?? {};
+					if (state.exitCode === undefined) {
+						state.exitCode = -1;
+						state.timestamp = state.timestamp ?? timingStart;
+						state.duration = state.duration ?? Math.max(0, Date.now() - state.timestamp);
+					}
+					toolSpecificData.terminalCommandState = state;
 				}
 				// Clean up the execution on error
 				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
@@ -993,6 +1041,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 		if (didMoveToBackground && !args.isBackground) {
 			resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
+		}
+		let outputAnalyzerMessage: string | undefined;
+		for (const analyzer of this._outputAnalyzers) {
+			const message = await analyzer.analyze({ exitCode, exitResult: terminalResult, commandLine: command });
+			if (message) {
+				outputAnalyzerMessage = message;
+				break;
+			}
+		}
+		if (outputAnalyzerMessage) {
+			resultText.push(`${outputAnalyzerMessage}\n`);
 		}
 		resultText.push(terminalResult);
 
@@ -1218,7 +1277,7 @@ class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecu
 	}
 
 	constructor(
-		readonly sessionId: string,
+		readonly sessionResource: URI,
 		readonly termId: string,
 		toolTerminal: IToolTerminal,
 		commandDetection: ICommandDetectionCapability,

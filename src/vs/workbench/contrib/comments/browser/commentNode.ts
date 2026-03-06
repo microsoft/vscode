@@ -91,7 +91,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _commentFormActions: CommentFormActions | null = null;
 	private _commentEditorActions: CommentFormActions | null = null;
 
-	private readonly _onDidClick = new Emitter<CommentNode<T>>();
+	private readonly _onDidClick = this._register(new Emitter<CommentNode<T>>());
 
 	public get domNode(): HTMLElement {
 		return this._domNode;

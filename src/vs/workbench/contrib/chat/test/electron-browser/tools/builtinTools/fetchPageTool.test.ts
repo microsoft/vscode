@@ -192,7 +192,7 @@ suite('FetchWebPageTool', () => {
 		);
 
 		const preparation = await tool.prepareToolInvocation(
-			{ parameters: { urls: ['https://valid.com', 'test://valid/resource', 'invalid://invalid'] }, chatSessionResource: undefined },
+			{ parameters: { urls: ['https://valid.com', 'test://valid/resource', 'invalid://invalid'] }, toolCallId: 'test-call-1', chatSessionResource: undefined },
 			CancellationToken.None
 		);
 
@@ -230,7 +230,7 @@ suite('FetchWebPageTool', () => {
 		);
 
 		const preparation1 = await tool.prepareToolInvocation(
-			{ parameters: { urls: ['https://example.com'] }, chatSessionResource: LocalChatSessionUri.forSession('a') },
+			{ parameters: { urls: ['https://example.com'] }, toolCallId: 'test-call-2', chatSessionResource: LocalChatSessionUri.forSession('a') },
 			CancellationToken.None
 		);
 
@@ -238,7 +238,7 @@ suite('FetchWebPageTool', () => {
 		assert.strictEqual(preparation1.confirmationMessages?.title, undefined);
 
 		const preparation2 = await tool.prepareToolInvocation(
-			{ parameters: { urls: ['https://other.com'] }, chatSessionResource: LocalChatSessionUri.forSession('a') },
+			{ parameters: { urls: ['https://other.com'] }, toolCallId: 'test-call-3', chatSessionResource: LocalChatSessionUri.forSession('a') },
 			CancellationToken.None
 		);
 

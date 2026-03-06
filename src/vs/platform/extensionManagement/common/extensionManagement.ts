@@ -339,7 +339,10 @@ export interface IDeprecationInfo {
 	readonly extension?: {
 		readonly id: string;
 		readonly displayName: string;
-		readonly autoMigrate?: { readonly storage: boolean };
+		readonly autoMigrate?: {
+			readonly storage: boolean;
+			readonly donotDisable?: boolean;
+		};
 		readonly preRelease?: boolean;
 	};
 	readonly settings?: readonly string[];

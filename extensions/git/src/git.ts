@@ -13,7 +13,8 @@ import { EventEmitter } from 'events';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
-import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree } from './api/git';
+import type { Commit as ApiCommit, Ref, Branch, Remote, LogOptions, Change, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree } from './api/git';
+import { RefType, ForcePushMode, GitErrorCodes, Status } from './api/git.constants';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -377,6 +378,7 @@ const STASH_FORMAT = '%H%n%P%n%gd%n%gs%n%at%n%ct';
 
 export interface ICloneOptions {
 	readonly parentPath: string;
+	readonly targetName?: string;
 	readonly progress: Progress<{ increment: number }>;
 	readonly recursive?: boolean;
 	readonly ref?: string;
@@ -432,14 +434,16 @@ export class Git {
 	}
 
 	async clone(url: string, options: ICloneOptions, cancellationToken?: CancellationToken): Promise<string> {
-		const baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
+		const baseFolderName = options.targetName || decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
 		let folderName = baseFolderName;
 		let folderPath = path.join(options.parentPath, folderName);
 		let count = 1;
 
-		while (count < 20 && await new Promise(c => exists(folderPath, c))) {
-			folderName = `${baseFolderName}-${count++}`;
-			folderPath = path.join(options.parentPath, folderName);
+		if (!options.targetName) {
+			while (count < 20 && await new Promise(c => exists(folderPath, c))) {
+				folderName = `${baseFolderName}-${count++}`;
+				folderPath = path.join(options.parentPath, folderName);
+			}
 		}
 
 		await mkdirp(options.parentPath);
@@ -748,6 +752,11 @@ export interface CommitShortStat {
 	readonly deletions: number;
 }
 
+export interface CoAuthor {
+	readonly name: string;
+	readonly email: string;
+}
+
 export interface Commit {
 	hash: string;
 	message: string;
@@ -758,6 +767,7 @@ export interface Commit {
 	commitDate?: Date;
 	refNames: string[];
 	shortStat?: CommitShortStat;
+	coAuthors?: CoAuthor[];
 }
 
 export interface RefQuery extends ApiRefQuery {
@@ -951,11 +961,30 @@ export function parseGitCommits(data: string): Commit[] {
 			authorEmail: ` ${authorEmail}`.substr(1),
 			commitDate: new Date(Number(commitDate) * 1000),
 			refNames: refNames.split(',').map(s => s.trim()),
-			shortStat: shortStat ? parseGitDiffShortStat(shortStat) : undefined
+			shortStat: shortStat ? parseGitDiffShortStat(shortStat) : undefined,
+			coAuthors: parseCoAuthors(message)
 		});
 	} while (true);
 
 	return commits;
+}
+
+const coAuthorRegex = /^Co-authored-by:\s*(.+?)\s*<([^>]+)>\s*$/gim;
+
+export function parseCoAuthors(message: string): CoAuthor[] {
+	const coAuthors: CoAuthor[] = [];
+	let match;
+
+	coAuthorRegex.lastIndex = 0;
+	while ((match = coAuthorRegex.exec(message)) !== null) {
+		const name = match[1].trim();
+		const email = match[2].trim();
+		if (name && email) {
+			coAuthors.push({ name, email });
+		}
+	}
+
+	return coAuthors;
 }
 
 const diffShortStatRegex = /(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/;
@@ -1048,7 +1077,7 @@ function parseGitChanges(repositoryRoot: string, raw: string): Change[] {
 
 		let uri = originalUri;
 		let renameUri = originalUri;
-		let status = Status.UNTRACKED;
+		let status: Status = Status.UNTRACKED;
 
 		// Copy or Rename status comes with a number (ex: 'R100').
 		// We don't need the number, we use only first character of the status.
@@ -1113,7 +1142,7 @@ function parseGitChangesRaw(repositoryRoot: string, raw: string): DiffChange[] {
 
 			let uri = originalUri;
 			let renameUri = originalUri;
-			let status = Status.UNTRACKED;
+			let status: Status = Status.UNTRACKED;
 
 			switch (change[0]) {
 				case 'A':

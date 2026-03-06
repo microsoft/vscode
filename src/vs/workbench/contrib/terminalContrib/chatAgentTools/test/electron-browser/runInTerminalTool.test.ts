@@ -86,7 +86,8 @@ suite('RunInTerminalTool', () => {
 		}, store);
 
 		instantiationService.stub(IChatService, {
-			onDidDisposeSession: chatServiceDisposeEmitter.event
+			onDidDisposeSession: chatServiceDisposeEmitter.event,
+			getSession: () => undefined,
 		});
 		instantiationService.stub(ITerminalChatService, store.add(instantiationService.createInstance(TerminalChatService)));
 		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
@@ -319,6 +320,9 @@ suite('RunInTerminalTool', () => {
 			'docker compose events',
 		];
 		const confirmationRequiredTestCases = [
+			// git log file output
+			'git log --output=log.txt',
+
 			// Dangerous file operations
 			'rm README.md',
 			'rmdir folder',

@@ -49,6 +49,7 @@ import { IChatModel } from '../../chat/common/model/chatModel.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
 import { ChatAgentVoteDirection, IChatService } from '../../chat/common/chatService/chatService.js';
 import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
+import * as marked from '../../../../base/common/marked/marked.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
 import './media/inlineChat.css';
 
@@ -444,7 +445,41 @@ export class InlineChatWidget {
 		if (!item) {
 			return;
 		}
-		return viewModel.codeBlockModelCollection.get(viewModel.sessionResource, item, codeBlockIndex)?.model;
+
+		// Try to get the existing code block from the collection
+		const existingEntry = viewModel.codeBlockModelCollection.get(viewModel.sessionResource, item, codeBlockIndex);
+		if (existingEntry) {
+			return existingEntry.model;
+		}
+
+		// If not found, the rendering may not have completed yet.
+		// Parse the markdown and create the code block model synchronously.
+		const markdown = item.response.getMarkdown();
+		let currentCodeBlockIndex = 0;
+		let foundCodeBlock: { text: string; lang: string } | undefined;
+
+		marked.walkTokens(marked.lexer(markdown), token => {
+			if (token.type === 'code') {
+				if (currentCodeBlockIndex === codeBlockIndex) {
+					foundCodeBlock = { text: token.text, lang: token.lang || '' };
+				}
+				currentCodeBlockIndex++;
+			}
+		});
+
+		if (!foundCodeBlock) {
+			return undefined;
+		}
+
+		// Create the code block model synchronously
+		const entry = viewModel.codeBlockModelCollection.updateSync(
+			viewModel.sessionResource,
+			item,
+			codeBlockIndex,
+			{ text: foundCodeBlock.text, languageId: foundCodeBlock.lang, isComplete: true }
+		);
+
+		return entry.model;
 	}
 
 	get responseContent(): string | undefined {
