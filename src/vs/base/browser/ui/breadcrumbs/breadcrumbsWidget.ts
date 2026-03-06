@@ -35,6 +35,12 @@ export interface IBreadcrumbsItemEvent {
 	payload: unknown;
 }
 
+export interface IBreadcrumbsContextMenuEvent {
+	item: BreadcrumbsItem;
+	node: HTMLElement;
+	event: IMouseEvent;
+}
+
 export class BreadcrumbsWidget {
 
 	private readonly _disposables = new DisposableStore();
@@ -44,10 +50,12 @@ export class BreadcrumbsWidget {
 	private readonly _onDidSelectItem = new Emitter<IBreadcrumbsItemEvent>();
 	private readonly _onDidFocusItem = new Emitter<IBreadcrumbsItemEvent>();
 	private readonly _onDidChangeFocus = new Emitter<boolean>();
+	private readonly _onDidContextMenu = new Emitter<IBreadcrumbsContextMenuEvent>();
 
 	readonly onDidSelectItem: Event<IBreadcrumbsItemEvent> = this._onDidSelectItem.event;
 	readonly onDidFocusItem: Event<IBreadcrumbsItemEvent> = this._onDidFocusItem.event;
 	readonly onDidChangeFocus: Event<boolean> = this._onDidChangeFocus.event;
+	readonly onDidContextMenu: Event<IBreadcrumbsContextMenuEvent> = this._onDidContextMenu.event;
 
 	private readonly _items = new Array<BreadcrumbsItem>();
 	private readonly _nodes = new Array<HTMLDivElement>();
@@ -83,6 +91,7 @@ export class BreadcrumbsWidget {
 		this._separatorIcon = separatorIcon;
 		this._disposables.add(this._scrollable);
 		this._disposables.add(dom.addStandardDisposableListener(this._domNode, 'click', e => this._onClick(e)));
+		this._disposables.add(dom.addStandardDisposableListener(this._domNode, 'contextmenu', e => this._onContextMenu(e)));
 		container.appendChild(this._scrollable.getDomNode());
 
 		const styleElement = domStylesheetsJs.createStyleSheet(this._domNode);
@@ -113,6 +122,7 @@ export class BreadcrumbsWidget {
 		this._onDidSelectItem.dispose();
 		this._onDidFocusItem.dispose();
 		this._onDidChangeFocus.dispose();
+		this._onDidContextMenu.dispose();
 		this._domNode.remove();
 		this._nodes.length = 0;
 		this._freeNodes.length = 0;
@@ -358,6 +368,19 @@ export class BreadcrumbsWidget {
 			if (idx >= 0) {
 				this._focus(idx, event);
 				this._select(idx, event);
+				break;
+			}
+		}
+	}
+
+	private _onContextMenu(event: IMouseEvent): void {
+		if (!this._enabled) {
+			return;
+		}
+		for (let el: HTMLElement | null = event.target; el; el = el.parentElement) {
+			const idx = this._nodes.indexOf(el as HTMLDivElement);
+			if (idx >= 0) {
+				this._onDidContextMenu.fire({ item: this._items[idx], node: this._nodes[idx], event });
 				break;
 			}
 		}
