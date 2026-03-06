@@ -1968,12 +1968,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
 						dom.h('.chat-input-container@inputContainer', [
 							dom.h('.chat-editor-container@editorContainer'),
-							dom.h('.chat-input-toolbars@inputToolbars'),
+							dom.h('.chat-input-toolbars@inputToolbars', [
+								dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
+							]),
 						]),
 					]),
-					dom.h('.chat-secondary-toolbar@secondaryToolbar', [
-						dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
-					]),
+					dom.h('.chat-secondary-toolbar@secondaryToolbar'),
 					dom.h('.chat-attachments-container@attachmentsContainer', [
 						dom.h('.chat-attached-context@attachedContextContainer'),
 					]),
@@ -1994,12 +1994,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							dom.h('.chat-attached-context@attachedContextContainer'),
 						]),
 						dom.h('.chat-editor-container@editorContainer'),
-						dom.h('.chat-input-toolbars@inputToolbars'),
+						dom.h('.chat-input-toolbars@inputToolbars', [
+							dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
+						]),
 					]),
 				]),
-				dom.h('.chat-secondary-toolbar@secondaryToolbar', [
-					dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
-				]),
+				dom.h('.chat-secondary-toolbar@secondaryToolbar'),
 			]);
 		}
 		this.container = elements.root;
@@ -2021,9 +2021,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.attachedContextContainer = elements.attachedContextContainer;
 		const toolbarsContainer = elements.inputToolbars;
 		this.secondaryToolbarContainer = elements.secondaryToolbar;
-		if (this.options.isSessionsWindow) {
-			this.secondaryToolbarContainer.style.display = 'none';
-		}
+		this.secondaryToolbarContainer.style.display = 'none';
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
 		this.chatGettingStartedTipContainer = elements.chatGettingStartedTipContainer;
@@ -2031,10 +2029,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatQuestionCarouselContainer = elements.chatQuestionCarouselContainer;
 		this.chatInputWidgetsContainer = elements.chatInputWidgetsContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
-
-		if (this.options.isSessionsWindow) {
-			toolbarsContainer.prepend(this.contextUsageWidgetContainer);
-		}
 
 		// Context usage widget — will be positioned in the toolbar after toolbars are created
 		this.contextUsageWidget = this._register(this.instantiationService.createInstance(ChatContextUsageWidget));

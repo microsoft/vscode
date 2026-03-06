@@ -559,18 +559,6 @@ export class OpenSessionTargetPickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.chatSessionIsEmpty,
-						IsSessionsWindowContext),
-					group: 'navigation',
-				},
-				{
-					id: MenuId.ChatInputSecondary,
-					order: 0,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.enabled,
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-						ChatContextKeys.inQuickChat.negate(),
-						IsSessionsWindowContext.negate(),
 						ChatContextKeys.chatSessionIsEmpty),
 					group: 'navigation',
 				},
@@ -606,19 +594,7 @@ export class OpenDelegationPickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.chatSessionIsEmpty.negate(),
-						IsSessionsWindowContext),
-					group: 'navigation',
-				},
-				{
-					id: MenuId.ChatInputSecondary,
-					order: 0.5,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.enabled,
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.chatSessionIsEmpty.negate(),
-						IsSessionsWindowContext.negate()),
+						ChatContextKeys.chatSessionIsEmpty.negate()),
 					group: 'navigation',
 				},
 			]
@@ -651,18 +627,7 @@ export class OpenWorkspacePickerAction extends Action2 {
 					order: 0.6,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.inAgentSessionsWelcome,
-						ChatContextKeys.chatSessionType.isEqualTo('local'),
-						IsSessionsWindowContext
-					),
-					group: 'navigation',
-				},
-				{
-					id: MenuId.ChatInputSecondary,
-					order: 0.6,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.inAgentSessionsWelcome,
-						ChatContextKeys.chatSessionType.isEqualTo('local'),
-						IsSessionsWindowContext.negate()
+						ChatContextKeys.chatSessionType.isEqualTo('local')
 					),
 					group: 'navigation',
 				},
