@@ -1,6 +1,6 @@
 {
 	"scenario": "Scenario: Navigate between sessions and verify history loads",
-	"generatedAt": "2026-03-06T00:14:43.620Z",
+	"generatedAt": "2026-03-06T00:32:06.757Z",
 	"steps": [
 		{
 			"description": "Type \"explain the code\" in the chat input",

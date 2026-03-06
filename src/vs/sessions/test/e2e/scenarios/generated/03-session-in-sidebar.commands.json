@@ -1,6 +1,6 @@
 {
 	"scenario": "Scenario: Session appears in sidebar after sending a message",
-	"generatedAt": "2026-03-06T00:12:21.245Z",
+	"generatedAt": "2026-03-06T00:29:55.592Z",
 	"steps": [
 		{
 			"description": "Type \"fix the bug\" in the chat input",

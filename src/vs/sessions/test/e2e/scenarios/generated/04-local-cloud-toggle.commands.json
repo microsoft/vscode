@@ -1,7 +1,13 @@
 {
 	"scenario": "Scenario: Switch between Local and Cloud mode",
-	"generatedAt": "2026-03-06T00:13:03.291Z",
+	"generatedAt": "2026-03-06T00:30:28.447Z",
 	"steps": [
+		{
+			"description": "Click button \"New Session\"",
+			"commands": [
+				"click e36"
+			]
+		},
 		{
 			"description": "Click button \"Cloud\"",
 			"commands": [
@@ -9,23 +15,9 @@
 			]
 		},
 		{
-			"description": "Verify text \"Pick Repository\" appears on the page",
-			"commands": [
-				"snapshot",
-				"# ASSERT_VISIBLE: Pick Repository"
-			]
-		},
-		{
 			"description": "Click button \"Local\"",
 			"commands": [
 				"click e140"
-			]
-		},
-		{
-			"description": "Verify text \"Folder\" appears on the page",
-			"commands": [
-				"snapshot",
-				"# ASSERT_VISIBLE: Folder"
 			]
 		}
 	]

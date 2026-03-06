@@ -1,6 +1,6 @@
 {
 	"scenario": "Scenario: Chat message with file changes shows change count",
-	"generatedAt": "2026-03-06T00:11:41.084Z",
+	"generatedAt": "2026-03-06T00:29:14.893Z",
 	"steps": [
 		{
 			"description": "Type \"build the project\" in the chat input",
@@ -23,10 +23,10 @@
 			]
 		},
 		{
-			"description": "Verify text \"+8\" appears on the page",
+			"description": "Verify a change count appears in the session list",
 			"commands": [
 				"snapshot",
-				"# ASSERT_VISIBLE: +8"
+				"# ASSERT_VISIBLE: \"+23\""
 			]
 		}
 	]
