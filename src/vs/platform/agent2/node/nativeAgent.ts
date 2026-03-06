@@ -40,8 +40,11 @@ import {
 } from '../common/conversation.js';
 import { AgentLoopEvent } from '../common/events.js';
 import { IAgentTool } from '../common/tools.js';
+import { IMiddleware } from '../common/middleware.js';
 import { AnthropicModelProvider } from './anthropicProvider.js';
 import { CopilotTokenService } from './copilotToken.js';
+import { AllowAllPolicy, PermissionMiddleware } from './middleware/permissionMiddleware.js';
+import { ToolOutputTruncationMiddleware } from './middleware/toolOutputTruncation.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind } from './nativeToolDisplay.js';
 import { BashTool } from './tools/bashTool.js';
 import { ReadFileTool } from './tools/readFileTool.js';
@@ -212,6 +215,16 @@ export class NativeAgent extends Disposable implements IAgent {
 
 	// ---- Internal -----------------------------------------------------------
 
+	private _buildMiddleware(): IMiddleware[] {
+		return [
+			// Auto-approve all tool calls for now. The permission system will be
+			// wired to the IAgentPermissionRequestEvent flow in a later phase.
+			new PermissionMiddleware(new AllowAllPolicy(), () => Promise.resolve(true)),
+			// Truncate large tool outputs to prevent context window exhaustion.
+			new ToolOutputTruncationMiddleware(),
+		];
+	}
+
 	private _getSession(uri: URI): INativeSession {
 		const session = this._sessionState.get(uri.toString());
 		if (!session) {
@@ -236,6 +249,7 @@ export class NativeAgent extends Disposable implements IAgent {
 			requestConfig: {
 				providerOptions: { workingDirectory: session.workingDirectory },
 			},
+			middleware: this._buildMiddleware(),
 		};
 
 		try {
