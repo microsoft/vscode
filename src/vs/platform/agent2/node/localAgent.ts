@@ -42,7 +42,7 @@ import { AgentLoopEvent } from '../common/events.js';
 import { IAgentTool } from '../common/tools.js';
 import { IMiddleware } from '../common/middleware.js';
 import { CAPIRequestType, CopilotApiService, ICAPIModelsResponse } from './copilotToken.js';
-import { createAnthropicFactory, ModelProviderService } from './modelProviderService.js';
+import { createAnthropicFactory, createOpenAIFactory, ModelProviderService } from './modelProviderService.js';
 import { AllowAllPolicy, PermissionMiddleware } from './middleware/permissionMiddleware.js';
 import { ContextWindowMiddleware } from './middleware/contextWindow.js';
 import { ToolOutputTruncationMiddleware } from './middleware/toolOutputTruncation.js';
@@ -93,6 +93,7 @@ export class LocalAgent extends Disposable implements IAgent {
 		this._apiService = new CopilotApiService(_logService);
 		this._modelProviderService = new ModelProviderService();
 		this._modelProviderService.registerFactory(createAnthropicFactory(this._apiService, _logService));
+		this._modelProviderService.registerFactory(createOpenAIFactory(this._apiService, _logService));
 		this._tools = [new ReadFileTool(), new BashTool()];
 	}
 

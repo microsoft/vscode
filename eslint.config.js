@@ -1458,6 +1458,7 @@ export default tseslint.config(
 					'allow': [
 						'@anthropic-ai/**',
 						'@github/copilot-sdk',
+						'openai/**',
 						'@parcel/watcher',
 						'@vscode/copilot-api',
 						'@vscode/sqlite3',

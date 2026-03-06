@@ -16,6 +16,7 @@ import { IModelIdentity } from '../common/conversation.js';
 import { IModelProvider } from '../common/modelProvider.js';
 import { AnthropicModelProvider } from './anthropicProvider.js';
 import { CopilotApiService } from './copilotToken.js';
+import { OpenAIResponsesProvider } from './openaiResponsesProvider.js';
 
 // -- Provider resolution result -----------------------------------------------
 
@@ -89,6 +90,24 @@ export function createAnthropicFactory(apiService: CopilotApiService, logService
 		},
 		create(modelId: string): IModelProvider {
 			return new AnthropicModelProvider(modelId, apiService, logService);
+		},
+	};
+}
+
+/** Known OpenAI model prefixes. */
+const OPENAI_MODEL_PREFIXES = ['gpt-', 'o1', 'o3', 'o4'];
+
+/**
+ * Creates a factory that handles OpenAI models (gpt-*, o1*, o3*, o4*).
+ */
+export function createOpenAIFactory(apiService: CopilotApiService, logService: ILogService): IModelProviderFactory {
+	return {
+		providerId: 'openai',
+		canHandle(modelId: string): boolean {
+			return OPENAI_MODEL_PREFIXES.some(prefix => modelId.startsWith(prefix));
+		},
+		create(modelId: string): IModelProvider {
+			return new OpenAIResponsesProvider(modelId, apiService, logService);
 		},
 	};
 }
