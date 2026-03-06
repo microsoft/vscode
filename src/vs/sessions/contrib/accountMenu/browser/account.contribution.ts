@@ -23,7 +23,7 @@ import { IAction } from '../../../../base/common/actions.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { DisablementReason, IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -196,9 +196,9 @@ export class AccountWidget extends ActionViewItem {
 
 		const state = this.updateService.state;
 
-		// Special case: updates are disabled because we're running as an embedded/sessions app.
-		// Show a non-interactive hint to update via VS Code instead.
-		if (state.type === StateType.Disabled && state.reason === DisablementReason.EmbeddedApp) {
+		// In the embedded app, updates are detected but cannot be installed directly.
+		// Show a hint button to update via VS Code only when an update is actually available.
+		if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
 			this.updateButton.element.classList.remove('hidden');
 			this.updateButton.element.classList.remove('account-widget-update-button-ready');
 			this.updateButton.element.classList.add('account-widget-update-button-hint');
@@ -260,7 +260,7 @@ export class AccountWidget extends ActionViewItem {
 
 	private async update(): Promise<void> {
 		const state = this.updateService.state;
-		if (state.type === StateType.Disabled && state.reason === DisablementReason.EmbeddedApp) {
+		if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
 			const { confirmed } = await this.dialogService.confirm({
 				message: localize('updateFromVSCode.title', "Update from VS Code"),
 				detail: localize('updateFromVSCode.detail', "This will close the Sessions app and open VS Code so you can install the update.\n\nLaunch Sessions again after the update is complete."),
