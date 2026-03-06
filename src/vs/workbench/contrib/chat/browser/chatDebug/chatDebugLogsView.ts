@@ -10,7 +10,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IObjectTreeElement } from '../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -29,6 +29,7 @@ import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem, LogsViewMode } f
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
 import { ChatDebugDetailPanel } from './chatDebugDetailPanel.js';
 import { IChatWidgetService } from '../chat.js';
+import { createDebugEventsAttachment } from './chatDebugAttachment.js';
 
 const $ = DOM.$;
 
@@ -131,9 +132,8 @@ export class ChatDebugLogsView extends Disposable {
 			}
 			const widget = await this.chatWidgetService.openSession(this.currentSessionResource);
 			if (widget) {
-				const value = '/troubleshoot ';
-				widget.inputEditor.setValue(value);
-				widget.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
+				const attachment = await createDebugEventsAttachment(this.currentSessionResource, this.chatDebugService);
+				widget.attachmentModel.addContext(attachment);
 				widget.focusInput();
 			}
 		}));
@@ -389,12 +389,23 @@ export class ChatDebugLogsView extends Disposable {
 
 	private loadEvents(): void {
 		this.events = [...this.chatDebugService.getEvents(this.currentSessionResource || undefined)];
-		this.eventListener.value = this.chatDebugService.onDidAddEvent(e => {
+
+		const addEventDisposable = this.chatDebugService.onDidAddEvent(e => {
 			if (!this.currentSessionResource || e.sessionResource.toString() === this.currentSessionResource.toString()) {
 				this.events.push(e);
 				this.refreshList();
 			}
 		});
+
+		// Reload events when provider events are cleared (before re-invoking providers)
+		const clearEventsDisposable = this.chatDebugService.onDidClearProviderEvents(sessionResource => {
+			if (!this.currentSessionResource || sessionResource.toString() === this.currentSessionResource.toString()) {
+				this.events = [...this.chatDebugService.getEvents(this.currentSessionResource || undefined)];
+				this.refreshList();
+			}
+		});
+
+		this.eventListener.value = combinedDisposable(addEventDisposable, clearEventsDisposable);
 		this.updateBreadcrumb();
 		this.trackSessionState();
 	}

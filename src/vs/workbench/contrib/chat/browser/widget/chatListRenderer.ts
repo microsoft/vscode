@@ -2336,7 +2336,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		void this._autoReply.shouldAutoReply().then(shouldAutoReply => {
 			// always autoreply in autopilot mode.
-			const isAutopilot = isResponseVM(context.element) && context.element.model.request?.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot;
+			const isAutopilot = this._isAutopilotForContext(context);
 			if (!shouldAutoReply && !isAutopilot) {
 				// Roll back the in-progress mark if auto-reply is not enabled.
 				if (stableKey) {
@@ -2363,6 +2363,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const items = response.session.getItems();
 		const request = items.find(item => isRequestVM(item) && item.id === requestId) as IChatRequestViewModel | undefined;
 		return request?.messageText;
+	}
+
+	// session scoped picker
+	private _isAutopilotForContext(context: IChatContentPartRenderContext): boolean {
+		// Check request-stamped level
+		if (isResponseVM(context.element) && context.element.model.request?.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot) {
+			return true;
+		}
+		// Check live widget picker level (handles mid-session switches)
+		if (isResponseVM(context.element)) {
+			const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)
+				?? this.chatWidgetService.lastFocusedWidget;
+			if (widget?.input.currentModeInfo.permissionLevel === ChatPermissionLevel.Autopilot) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 

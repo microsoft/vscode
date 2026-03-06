@@ -1533,11 +1533,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 
-/* Hide the tools button when the toolbar is in collapsed state */
-.interactive-session .chat-input-toolbar:has(.hide-chevrons) .action-item:has(.codicon-settings) {
-	display: none;
-}
-
 /* Add context button icon sizing */
 .interactive-session .chat-input-toolbar .action-item:has(.codicon-add) .action-label {
 	display: flex;

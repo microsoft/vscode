@@ -250,7 +250,9 @@ export class ChatDebugEditor extends EditorPane {
 		}
 
 		this.chatDebugService.activeSessionResource = sessionResource;
-		this.chatDebugService.invokeProviders(sessionResource);
+		if (!this.chatDebugService.hasInvokedProviders(sessionResource)) {
+			this.chatDebugService.invokeProviders(sessionResource);
+		}
 		this.trackSessionModelChanges(sessionResource);
 
 		this.overviewView?.setSession(sessionResource);
@@ -327,7 +329,9 @@ export class ChatDebugEditor extends EditorPane {
 				this.savedSessionResource = undefined;
 				if (sessionResource) {
 					this.chatDebugService.activeSessionResource = sessionResource;
-					this.chatDebugService.invokeProviders(sessionResource);
+					if (!this.chatDebugService.hasInvokedProviders(sessionResource)) {
+						this.chatDebugService.invokeProviders(sessionResource);
+					}
 				} else {
 					this.showView(ViewState.Home);
 				}
