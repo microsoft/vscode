@@ -4353,7 +4353,7 @@
     "which": "4.0.0"
   },
   "optionalDependencies": {
-    "@vscode/fs-copyfile": "1.1.1"
+    "@vscode/fs-copyfile": "1.2.0"
   },
   "devDependencies": {
     "@types/byline": "4.2.31",
