@@ -442,7 +442,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
 		this._register(createImageElements(resource, attachment.name, fullName, this.element, attachment.value as Uint8Array, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
-		this.element.ariaLabel = this.appendDeletionHint(this.element.ariaLabel ?? '');
+		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 
 		if (resource) {
 			this.addResourceOpenHandlers(resource, undefined);
@@ -796,6 +796,7 @@ export class PromptTextAttachmentWidget extends AbstractChatAttachmentWidget {
 			}));
 		}
 		this.label.setLabel(localize('instructions.label', 'Additional Instructions'), undefined, undefined);
+		this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment', "Attached context, {0}", attachment.name));
 
 		this._register(hoverService.setupDelayedHover(this.element, {
 			...commonHoverOptions,
@@ -933,7 +934,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : undefined;
 		const buffer = this.getOutputItem(resource, attachment)?.data.buffer ?? new Uint8Array();
 		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
-		this.element.ariaLabel = this.appendDeletionHint(this.element.ariaLabel ?? '');
+		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 	}
 
 	private getOutputItem(resource: URI, attachment: INotebookOutputVariableEntry) {
