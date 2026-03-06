@@ -7,6 +7,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { ICodeEditorWidgetOptions, CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { TestCodeEditorService } from '../../../../editor/test/browser/editorTestServices.js';
 import { ComponentFixtureContext, createEditorServices, defineThemedFixtureGroup, defineComponentFixture, createTextModel } from './fixtureUtils.js';
 
 const SAMPLE_CODE = [
@@ -83,6 +84,17 @@ function renderWhitespaceVariableFont({ container, disposableStore, theme }: Com
 		{ range: new Range(7, 1, 7, 100) },
 		{ range: new Range(8, 1, 8, 100) },
 	]);
+
+	// TestCodeEditorService stores CSS rules in memory without injecting them into the DOM.
+	// In this fixture the editor runs inside a shadow DOM, so we need to manually inject the
+	// decoration CSS rules into the shadow root for them to take effect visually.
+	const testService = codeEditorService as TestCodeEditorService;
+	const shadowRoot = container.getRootNode() as ShadowRoot;
+	if (shadowRoot instanceof ShadowRoot) {
+		const sheet = new CSSStyleSheet();
+		sheet.replaceSync(testService.globalStyleSheet.read());
+		shadowRoot.adoptedStyleSheets = [...shadowRoot.adoptedStyleSheets, sheet];
+	}
 }
 
 export default defineThemedFixtureGroup({

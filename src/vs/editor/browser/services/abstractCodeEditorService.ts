@@ -771,7 +771,10 @@ class DecorationCSSRules {
 			return '';
 		}
 		const cssTextArr: string[] = [];
-		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontFamily', 'fontSize', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		this.collectCSSText(opts, ['fontStyle', 'fontWeight', 'fontFamily', 'textDecoration', 'cursor', 'color', 'opacity', 'letterSpacing'], cssTextArr);
+		if (opts.fontSize) {
+			cssTextArr.push(`font-size:calc(var(--editor-font-size)*${opts.fontSize});`);
+		}
 		if (opts.letterSpacing) {
 			this._hasLetterSpacing = true;
 		}
