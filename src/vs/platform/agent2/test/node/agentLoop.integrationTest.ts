@@ -15,6 +15,8 @@
  */
 
 import assert from 'assert';
+import { existsSync, readFileSync } from 'fs';
+import { dirname, join } from '../../../../base/common/path.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -27,6 +29,51 @@ import { CopilotApiService } from '../../node/copilotToken.js';
 function findEvents<K extends keyof IAgentLoopEventMap>(events: AgentLoopEvent[], type: K): IAgentLoopEventMap[K][] {
 	return events.filter(e => e.type === type) as IAgentLoopEventMap[K][];
 }
+
+/**
+ * Loads env vars from a .env file (simple KEY=VALUE format, no interpolation).
+ * Only sets vars that are not already in process.env.
+ */
+function loadDotEnv(filePath: string): void {
+	if (!existsSync(filePath)) {
+		return;
+	}
+	const content = readFileSync(filePath, 'utf8');
+	for (const line of content.split('\n')) {
+		const trimmed = line.trim();
+		if (!trimmed || trimmed.startsWith('#')) {
+			continue;
+		}
+		const eqIdx = trimmed.indexOf('=');
+		if (eqIdx === -1) {
+			continue;
+		}
+		const key = trimmed.substring(0, eqIdx).trim();
+		const value = trimmed.substring(eqIdx + 1).trim();
+		if (!process.env[key]) {
+			process.env[key] = value;
+		}
+	}
+}
+
+// Try to load credentials from the copilot-chat sibling repo's .env file.
+// The copilot-chat extension's `npm run setup` or `npm run get_token` writes
+// GITHUB_OAUTH_TOKEN (and optionally VSCODE_COPILOT_CHAT_TOKEN) to .env.
+// We look for it as a sibling to the vscode repo (../vscode-copilot-chat/.env).
+function findWorkspaceRoot(): string {
+	// Walk up from the cwd to find the vscode repo root
+	let dir = process.cwd();
+	while (dir !== dirname(dir)) {
+		if (existsSync(join(dir, 'package.json')) && existsSync(join(dir, 'src', 'vs'))) {
+			return dir;
+		}
+		dir = dirname(dir);
+	}
+	return process.cwd();
+}
+
+const vscodeRoot = findWorkspaceRoot();
+loadDotEnv(join(vscodeRoot, '..', 'vscode-copilot-chat', '.env'));
 
 /**
  * Resolves integration test credentials using the same env var conventions
