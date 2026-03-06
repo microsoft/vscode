@@ -305,16 +305,20 @@ suite('BrowserSessionTrust', () => {
 		trust.installCertErrorHandler(webContents.asWebContents());
 
 		let callbackResult: boolean | undefined;
-		webContents.emit('certificate-error', {}, 'https://example.com', 'ERR_CERT', { fingerprint: 'abc123' }, (value: boolean) => {
+		const firstEvent = { preventDefault: sinon.spy() };
+		webContents.emit('certificate-error', firstEvent, 'https://example.com', 'ERR_CERT', createCertificate('abc123'), (value: boolean) => {
 			callbackResult = value;
 		});
 		assert.strictEqual(callbackResult, false);
+		assert.strictEqual(firstEvent.preventDefault.calledOnce, true);
 
 		trust.trustCertificate('example.com', 'abc123');
-		webContents.emit('certificate-error', {}, 'https://example.com', 'ERR_CERT', { fingerprint: 'abc123' }, (value: boolean) => {
+		const secondEvent = { preventDefault: sinon.spy() };
+		webContents.emit('certificate-error', secondEvent, 'https://example.com', 'ERR_CERT', createCertificate('abc123'), (value: boolean) => {
 			callbackResult = value;
 		});
 		assert.strictEqual(callbackResult, true);
+		assert.strictEqual(secondEvent.preventDefault.calledOnce, true);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

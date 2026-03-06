@@ -13,11 +13,6 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import type { BrowserEditor } from './browserEditor.js';
 
-export interface ISiteInfoCallbacks {
-	getCertificateError(): IBrowserViewCertificateError | undefined;
-	revokeAndClose(certError: IBrowserViewCertificateError): void;
-}
-
 /**
  * Widget that displays site security information (e.g. certificate errors)
  * as an indicator button inside the URL bar, with a hover popover for details.

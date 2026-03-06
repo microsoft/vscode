@@ -99,7 +99,9 @@ export class BrowserSessionTrust implements IBrowserSessionTrust {
 	 * so that user-trusted certificates are accepted at the page level.
 	 */
 	installCertErrorHandler(webContents: Electron.WebContents): void {
-		webContents.on('certificate-error', (_event, url, _error, certificate, callback) => {
+		webContents.on('certificate-error', (event, url, _error, certificate, callback) => {
+			event.preventDefault();
+
 			const host = URL.parse(url)?.hostname;
 			if (!host) {
 				return callback(false);
@@ -171,7 +173,7 @@ export class BrowserSessionTrust implements IBrowserSessionTrust {
 		}
 		this.writeStorage();
 		// Important: close all connections since they may be using the now-untrusted cert.
-		this._session.electronSession.closeAllConnections();
+		void this._session.electronSession.closeAllConnections().catch(() => { });
 	}
 
 	/**

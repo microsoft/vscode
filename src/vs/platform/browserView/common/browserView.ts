@@ -333,7 +333,7 @@ export interface IBrowserViewService {
 
 	/**
 	 * Revoke trust for a previously trusted certificate.
-	 * The page will be automatically reloaded after revoking.
+	 * The browser view will be automatically closed after revoking.
 	 * @param id The browser view identifier
 	 * @param host The hostname to revoke the certificate for
 	 * @param fingerprint The SHA-256 fingerprint of the certificate to revoke

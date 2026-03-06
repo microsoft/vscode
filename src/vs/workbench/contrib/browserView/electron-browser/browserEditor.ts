@@ -144,7 +144,6 @@ class BrowserNavigationBar extends Disposable {
 		const urlInputWrapper = $('.browser-url-input-wrapper');
 		this._urlDisplay = $('span.browser-url-display');
 		this._urlDisplay.tabIndex = 0;
-		this._urlDisplay.role = 'button';
 		urlInputWrapper.appendChild(this._urlDisplay);
 		urlInputWrapper.appendChild(this._urlInput);
 
@@ -291,6 +290,7 @@ class BrowserNavigationBar extends Disposable {
 
 		// Clear previous content
 		this._urlDisplay.textContent = '';
+		this._urlDisplay.classList.toggle('placeholder', !url);
 
 		if (hasCertError && url.startsWith(httpsPrefix)) {
 			const protocol = document.createElement('span');
@@ -303,7 +303,6 @@ class BrowserNavigationBar extends Disposable {
 			this._urlDisplay.appendChild(rest);
 		} else {
 			this._urlDisplay.textContent = url || localize('browser.urlPlaceholder', "Enter a URL");
-			this._urlDisplay.classList.toggle('placeholder', !url);
 		}
 	}
 
@@ -801,14 +800,11 @@ export class BrowserEditor extends EditorPane {
 		return this._model?.certificateError;
 	}
 
-	revokeCertificateTrust(certError: IBrowserViewCertificateError): void {
-		this._model?.untrustCertificate(certError.host, certError.fingerprint);
-	}
-
 	/**
 	 * Revoke trust for the certificate and close this editor tab.
 	 */
 	revokeAndClose(certError: IBrowserViewCertificateError): void {
+		// This method automatically closes the browser view.
 		this._model?.untrustCertificate(certError.host, certError.fingerprint);
 	}
 
