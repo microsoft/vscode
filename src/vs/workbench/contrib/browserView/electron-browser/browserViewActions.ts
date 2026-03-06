@@ -254,7 +254,7 @@ class AddElementToChatAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.addElementToChat';
 
 	constructor() {
-		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true));
+		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.workbench.browser.sendElementsToChat', true));
 		super({
 			id: AddElementToChatAction.ID,
 			title: localize2('browser.addElementToChatAction', 'Add Element to Chat'),
@@ -291,7 +291,7 @@ class AddConsoleLogsToChatAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.addConsoleLogsToChat';
 
 	constructor() {
-		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true));
+		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.workbench.browser.sendElementsToChat', true));
 		super({
 			id: AddConsoleLogsToChatAction.ID,
 			title: localize2('browser.addConsoleLogsToChatAction', 'Add Console Logs to Chat'),
@@ -479,7 +479,7 @@ class OpenBrowserSettingsAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const preferencesService = accessor.get(IPreferencesService);
-		await preferencesService.openSettings({ query: '@id:workbench.browser.*,chat.sendElementsToChat.*' });
+		await preferencesService.openSettings({ query: '@id:workbench.browser.*' });
 	}
 }
 

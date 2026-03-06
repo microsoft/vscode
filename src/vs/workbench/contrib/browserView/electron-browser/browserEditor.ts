@@ -813,7 +813,7 @@ export class BrowserEditor extends EditorPane {
 
 			// Prepare HTML/CSS context
 			const displayName = getDisplayNameFromOuterHTML(elementData.outerHTML);
-			const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
+			const attachCss = this.configurationService.getValue<boolean>('workbench.browser.sendElementsToChat.attachCSS');
 			const value = this.createElementContextValue(elementData, displayName, attachCss);
 
 			toAttach.push({
@@ -834,7 +834,7 @@ export class BrowserEditor extends EditorPane {
 			});
 
 			// Attach screenshot if enabled
-			const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
+			const attachImages = this.configurationService.getValue<boolean>('workbench.browser.sendElementsToChat.attachImages');
 			if (attachImages && this._model) {
 				const screenshotBuffer = await this._model.captureScreenshot({
 					quality: 90,
@@ -860,8 +860,8 @@ export class BrowserEditor extends EditorPane {
 			};
 
 			type IntegratedBrowserAddElementToChatAddedClassification = {
-				attachCss: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachCSS was enabled.' };
-				attachImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachImages was enabled.' };
+				attachCss: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether workbench.browser.sendElementsToChat.attachCSS was enabled.' };
+				attachImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether workbench.browser.sendElementsToChat.attachImages was enabled.' };
 				owner: 'jruales';
 				comment: 'An element was successfully added to chat from Integrated Browser.';
 			};
