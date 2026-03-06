@@ -6,12 +6,15 @@
 import './media/agenttitlebarstatuswidget.css';
 import { $, addDisposableListener, EventType, getWindow, isHTMLElement, reset } from '../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event as EventUtils } from '../../../../../../base/common/event.js';
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
+import { AgentSessionHoverWidget } from '../agentSessionHoverWidget.js';
 import { AgentStatusMode, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
@@ -115,6 +118,12 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	/** Tracks if this window applied a badge filter (unread/inProgress), so we only auto-clear our own filters */
 	// TODO: This is imperfect. Targetted fix for vscode#290863. We should revisit storing filter state per-window to avoid this
 	private _badgeFilterAppliedByThisWindow: 'unread' | 'inProgress' | null = null;
+
+	/** Tracks sessions whose attention animation has already been shown */
+	private readonly _animatedSessionIds = new Set<string>();
+
+	/** Reusable hover widget for session preview - kept alive across hovers on the same session */
+	private readonly _sessionHover = this._register(new MutableDisposable<AgentSessionHoverWidget>());
 
 	/** Reusable menu for CommandCenterCenter items (e.g., debug toolbar) */
 	private readonly _commandCenterMenu;
@@ -429,22 +438,19 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		this._displayedSession = attentionSession;
 
 		const defaultLabel = this._getLabel();
-		const hoverLabel = localize('askAnythingPlaceholder', "Ask anything or describe what to build");
 
 		label.textContent = defaultLabel;
 		inputArea.appendChild(label);
 
-		// Hover behavior - swap label text
+		// Hover behavior - reset icon state but keep workspace name
 		disposables.add(addDisposableListener(inputArea, EventType.MOUSE_ENTER, () => {
 			reset(leftIcon, renderIcon(Codicon.searchSparkle));
 			leftIcon.classList.remove('has-attention');
-			label.textContent = hoverLabel;
 			label.classList.remove('has-progress');
 		}));
 
 		disposables.add(addDisposableListener(inputArea, EventType.MOUSE_LEAVE, () => {
 			reset(leftIcon, renderIcon(Codicon.searchSparkle));
-			label.textContent = defaultLabel;
 		}));
 
 		// Setup hover tooltip on input area only
@@ -831,7 +837,12 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			const textContainer = $('span.agent-status-attention-text');
 			attentionSection.appendChild(textContainer);
 
-			if (attentionProgress) {
+			// Only run the animation once per session
+			const { session: animationSession } = this._getSessionNeedingAttention(attentionNeededSessions);
+			const sessionKey = animationSession?.resource.toString();
+			const shouldAnimate = attentionProgress && sessionKey && !this._animatedSessionIds.has(sessionKey);
+
+			if (shouldAnimate) {
 				// Create two elements for expansion animation
 				const countSpan = $('span.agent-status-cycle-count');
 				countSpan.textContent = countText;
@@ -841,53 +852,104 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				textContainer.appendChild(countSpan);
 				textContainer.appendChild(descSpan);
 
-				// Show description once on load, then only on hover
-				let disposed = false;
 				const showDesc = () => textContainer.classList.add('show-desc');
 				const hideDesc = () => textContainer.classList.remove('show-desc');
 
-				// Initial reveal: count for 3s -> expand desc for 6s -> collapse back
-				const showTimer = setTimeout(() => {
-					if (disposed) { return; }
-					showDesc();
-					const hideTimer = setTimeout(() => {
-						if (disposed) { return; }
-						hideDesc();
-					}, 6000);
-					disposables.add({ dispose: () => clearTimeout(hideTimer) });
-				}, 3000);
-				disposables.add({ dispose: () => { disposed = true; clearTimeout(showTimer); } });
+				let disposed = false;
+				let isAnimationShowing = true;
 
-				// On hover: show description again
+				// Show description immediately, collapse after 6s, never show again
+				this._animatedSessionIds.add(sessionKey);
+				showDesc();
+				const hideTimer = setTimeout(() => {
+					if (disposed) { return; }
+					isAnimationShowing = false;
+					hideDesc();
+				}, 6000);
+				disposables.add({ dispose: () => { disposed = true; clearTimeout(hideTimer); } });
+
+				// On hover: only keep description visible if the animation is currently showing it
 				disposables.add(addDisposableListener(attentionSection, EventType.MOUSE_ENTER, () => {
-					showDesc();
+					if (isAnimationShowing) {
+						showDesc();
+					}
 				}));
 				disposables.add(addDisposableListener(attentionSection, EventType.MOUSE_LEAVE, () => {
-					hideDesc();
+					if (isAnimationShowing) {
+						hideDesc();
+					}
 				}));
 			} else {
-				// No description available, just show count
+				// Animation already shown or no description - just show count
 				textContainer.textContent = countText;
 			}
 
-			// Click handler - filter to in-progress sessions
+			// Hover: show session preview widget (same as sessions list hover)
+			const mostRecentAttentionSession = attentionNeededSessions.length > 0
+				? [...attentionNeededSessions].sort((a, b) => {
+					const timeA = a.timing.lastRequestStarted ?? a.timing.created;
+					const timeB = b.timing.lastRequestStarted ?? b.timing.created;
+					return timeB - timeA;
+				})[0]
+				: undefined;
+
+			const buildSessionHoverContent = () => {
+				if (!mostRecentAttentionSession) {
+					return {
+						content: attentionNeededSessions.length === 1
+							? localize('needsInputSessionsTooltip1', "{0} session needs input", attentionNeededSessions.length)
+							: localize('needsInputSessionsTooltip', "{0} sessions need input", attentionNeededSessions.length),
+						style: HoverStyle.Pointer as const,
+						position: { hoverPosition: HoverPosition.BELOW as const },
+					};
+				}
+
+				// Reuse hover widget if same session, otherwise create new
+				if (this._sessionHover.value?.session.resource.toString() !== mostRecentAttentionSession.resource.toString()) {
+					this._sessionHover.value = this.instantiationService.createInstance(AgentSessionHoverWidget, mostRecentAttentionSession);
+				}
+
+				const widget = this._sessionHover.value;
+				return {
+					id: `agent.status.hover.${mostRecentAttentionSession.resource.toString()}`,
+					content: widget.domNode,
+					style: HoverStyle.Pointer as const,
+					onDidShow: () => widget.onRendered(),
+					position: { hoverPosition: HoverPosition.BELOW as const },
+				};
+			};
+
+			// Delayed hover on mouse over
+			disposables.add(this.hoverService.setupDelayedHover(attentionSection, () => buildSessionHoverContent(), { groupId: 'agent.status', reducedDelay: true }));
+
+			// Click: show sticky hover + toggle active background
+			const showStickyHover = (focus?: boolean) => {
+				attentionSection!.classList.add('clicked');
+				const hoverContent = buildSessionHoverContent();
+				const hover = this.hoverService.showInstantHover({
+					...hoverContent,
+					target: attentionSection!,
+					persistence: { hideOnHover: false, sticky: true },
+				}, focus);
+				if (hover) {
+					disposables.add(hover);
+					const removeClicked = () => attentionSection!.classList.remove('clicked');
+					hover.isDisposed ? removeClicked() : disposables.add({ dispose: removeClicked });
+				}
+			};
+
 			disposables.add(addDisposableListener(attentionSection, EventType.CLICK, (e) => {
 				e.preventDefault();
 				e.stopPropagation();
-				this._openSessionsWithFilter('inProgress');
+				showStickyHover();
 			}));
 			disposables.add(addDisposableListener(attentionSection, EventType.KEY_DOWN, (e) => {
 				if (e.key === 'Enter' || e.key === ' ') {
 					e.preventDefault();
 					e.stopPropagation();
-					this._openSessionsWithFilter('inProgress');
+					showStickyHover(true);
 				}
 			}));
-
-			const attentionTooltip = attentionNeededSessions.length === 1
-				? localize('needsInputSessionsTooltip1', "{0} session needs input", attentionNeededSessions.length)
-				: localize('needsInputSessionsTooltip', "{0} sessions need input", attentionNeededSessions.length);
-			disposables.add(this.hoverService.setupManagedHover(hoverDelegate, attentionSection, attentionTooltip));
 		}
 
 		// In-progress section (spinner icon + count) - shows sessions that are running but don't need input

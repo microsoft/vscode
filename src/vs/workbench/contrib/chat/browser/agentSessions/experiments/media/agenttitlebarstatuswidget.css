@@ -325,40 +325,22 @@
 	background-color: var(--vscode-commandCenter-border, rgba(128, 128, 128, 0.35));
 }
 
-/* Sparkle section */
+/* Sparkle section - uses same padding as other sections */
 .agent-status-badge-section.sparkle {
 	gap: 0;
-	padding: 0;
 }
 
 .agent-status-badge-section.sparkle:hover {
-	background-color: transparent;
+	background-color: var(--vscode-commandCenter-activeBackground);
 }
 
-/* Sparkle button (simple icon button, no dropdown) */
+/* Sparkle button (simple icon button inside the section) */
 .agent-status-sparkle-button {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	padding: 0 8px;
 	height: 100%;
 	cursor: pointer;
-}
-
-.agent-status-badge-section.sparkle:first-child .agent-status-sparkle-button {
-	border-radius: 5px 0 0 5px;
-}
-
-.agent-status-badge-section.sparkle:last-child .agent-status-sparkle-button {
-	border-radius: 0 5px 5px 0;
-}
-
-.agent-status-badge-section.sparkle:only-child .agent-status-sparkle-button {
-	border-radius: 5px;
-}
-
-.agent-status-sparkle-button:hover {
-	background-color: var(--vscode-commandCenter-activeBackground);
 }
 
 .agent-status-sparkle-button:focus {
@@ -366,18 +348,21 @@
 	outline-offset: -1px;
 }
 
-/* Unread section - smaller dot with adjusted padding for visual balance */
-.agent-status-badge-section.unread {
-	padding: 0 8px 0 6px;
-}
-
+/* Unread section - smaller dot icon, constrain icon width for centering */
 .agent-status-badge-section.unread .agent-status-icon {
 	font-size: 8px;
+	width: 10px;
+	justify-content: center;
 }
 
 /* Active section in needs-input state - uses report icon with warning color */
 .agent-status-badge-section.active.needs-input .agent-status-icon {
 	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+/* Clicked state - shows hover-like background while sticky hover is open */
+.agent-status-badge-section.active.needs-input.clicked {
+	background-color: var(--vscode-commandCenter-activeBackground);
 }
 
 /* Attention text cycling animation - left-to-right expansion */
