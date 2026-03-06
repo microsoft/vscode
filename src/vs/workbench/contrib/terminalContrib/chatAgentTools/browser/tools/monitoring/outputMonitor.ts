@@ -17,7 +17,7 @@ import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatElicitationRequestPart } from '../../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatModel } from '../../../../../chat/common/model/chatModel.js';
 import { ElicitationState, IChatService } from '../../../../../chat/common/chatService/chatService.js';
-import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatPermissionLevel } from '../../../../../chat/common/constants.js';
 import { ChatMessageRole, getTextResponseFromStream, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
@@ -108,6 +108,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
 	readonly onDidFinishCommand: Event<void> = this._onDidFinishCommand.event;
 
+	/** The chat session resource for this tool invocation, used to check permission level. */
+	private readonly _sessionResource: URI | undefined;
+
 	constructor(
 		private readonly _execution: IExecution,
 		private readonly _pollFn: ((execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined>) | undefined,
@@ -123,6 +126,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
+
+		this._sessionResource = invocationContext?.sessionResource;
 
 		// Start async to ensure listeners are set up
 		timeout(0).then(() => {
@@ -237,7 +242,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		// Check for generic "press any key" prompts from scripts.
 		if ((!isTask || !isTaskInactive) && detectsGenericPressAnyKeyPattern(output)) {
-			this._logService.trace('OutputMonitor: Idle -> generic "press any key" detected, requesting free-form input');
+			this._logService.trace('OutputMonitor: Idle -> generic "press any key" detected');
+			// In autopilot mode, auto-reply to "press any key" prompts
+			if (this._isAutopilotMode()) {
+				this._logService.trace('OutputMonitor: Autopilot mode -> auto-replying to "press any key"');
+				await this._execution.instance.sendText('', true);
+				return { shouldContinuePollling: true };
+			}
+			this._logService.trace('OutputMonitor: Requesting free-form input for "press any key"');
 			// Register a marker to track this prompt position so we don't re-detect it
 			const currentMarker = this._execution.instance.registerMarker();
 			if (currentMarker) {
@@ -286,7 +298,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				this._cleanupIdleInputListener();
 				return { shouldContinuePollling: true };
 			}
-			const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts);
+			const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts) || this._isAutopilotMode();
 			if (autoReply && !this._isSensitivePrompt(confirmationPrompt.prompt)) {
 				const explicitInput = confirmationPrompt.suggestedInput ?? this._extractExplicitInputFromPrompt(confirmationPrompt.prompt);
 				const normalizedInput = this._normalizeAutoReplyInput(explicitInput);
@@ -588,6 +600,27 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return /(password|passphrase|token|api\s*key|secret)/i.test(prompt);
 	}
 
+	/**
+	 * Returns true if the current session is in Autopilot mode (not Bypass Approvals).
+	 * In Autopilot, terminal prompts should be auto-replied to so the agent can
+	 * work autonomously from start to finish.
+	 */
+	private _isAutopilotMode(): boolean {
+		if (!this._sessionResource) {
+			return false;
+		}
+		// Check the live widget picker level
+		const widget = this._chatWidgetService.getWidgetBySessionResource(this._sessionResource)
+			?? this._chatWidgetService.lastFocusedWidget;
+		if (widget?.input.currentModeInfo.permissionLevel === ChatPermissionLevel.Autopilot) {
+			return true;
+		}
+		// Fall back to the request-stamped level
+		const model = this._chatService.getSession(this._sessionResource);
+		const request = model?.getRequests().at(-1);
+		return request?.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot;
+	}
+
 	private _normalizeAutoReplyInput(input: string | undefined): string | undefined {
 		if (!input) {
 			return undefined;
@@ -626,7 +659,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!confirmationPrompt?.options.length) {
 			return undefined;
 		}
-		const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts);
+		const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts) || this._isAutopilotMode();
 		let model = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)[0]?.input.currentLanguageModel;
 		if (model) {
 			const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: model.replaceAll('copilot/', '') });

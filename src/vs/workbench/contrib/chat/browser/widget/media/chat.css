@@ -818,8 +818,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* top padding is inside the editor widget */
 	width: 100%;
 	position: relative;
-	/* Prevent contents from covering border corner */
-	overflow: hidden;
 }
 
 /* Context usage widget container - positioned in the secondary toolbar below input */
@@ -1532,11 +1530,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-
-/* Hide the tools button when the toolbar is in collapsed state */
-.interactive-session .chat-input-toolbar:has(.hide-chevrons) .action-item:has(.codicon-settings) {
-	display: none;
-}
 
 /* Add context button icon sizing */
 .interactive-session .chat-input-toolbar .action-item:has(.codicon-add) .action-label {

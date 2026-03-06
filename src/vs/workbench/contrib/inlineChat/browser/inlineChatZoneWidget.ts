@@ -28,7 +28,7 @@ import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 
 export class InlineChatZoneWidget extends ZoneWidget {
 
-	private static readonly _options: IOptions = {
+	static readonly #options: IOptions = {
 		showFrame: true,
 		frameWidth: 1,
 		// frameColor: 'var(--vscode-inlineChat-border)',
@@ -43,9 +43,12 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	readonly widget: EditorBasedInlineChatWidget;
 
-	private readonly _ctxCursorPosition: IContextKey<'above' | 'below' | ''>;
-	private _dimension?: Dimension;
-	private notebookEditor?: INotebookEditor;
+	readonly #ctxCursorPosition: IContextKey<'above' | 'below' | ''>;
+	#dimension?: Dimension;
+	#notebookEditor?: INotebookEditor;
+
+	readonly #instaService: IInstantiationService;
+	#logService: ILogService;
 
 	constructor(
 		location: IChatWidgetLocationOptions,
@@ -53,20 +56,22 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		editors: { editor: ICodeEditor; notebookEditor?: INotebookEditor },
 		/** @deprecated should go away with inline2 */
 		clearDelegate: () => Promise<void>,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@ILogService private _logService: ILogService,
+		@IInstantiationService instaService: IInstantiationService,
+		@ILogService logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(editors.editor, InlineChatZoneWidget._options);
-		this.notebookEditor = editors.notebookEditor;
+		super(editors.editor, InlineChatZoneWidget.#options);
+		this.#instaService = instaService;
+		this.#logService = logService;
+		this.#notebookEditor = editors.notebookEditor;
 
-		this._ctxCursorPosition = CTX_INLINE_CHAT_OUTER_CURSOR_POSITION.bindTo(contextKeyService);
+		this.#ctxCursorPosition = CTX_INLINE_CHAT_OUTER_CURSOR_POSITION.bindTo(contextKeyService);
 
 		this._disposables.add(toDisposable(() => {
-			this._ctxCursorPosition.reset();
+			this.#ctxCursorPosition.reset();
 		}));
 
-		this.widget = this._instaService.createInstance(EditorBasedInlineChatWidget, location, this.editor, {
+		this.widget = this.#instaService.createInstance(EditorBasedInlineChatWidget, location, this.editor, {
 			statusMenuId: {
 				menu: MENU_INLINE_CHAT_WIDGET_STATUS,
 				options: {
@@ -105,14 +110,14 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		let revealFn: (() => void) | undefined;
 		this._disposables.add(this.widget.chatWidget.onWillMaybeChangeHeight(() => {
 			if (this.position) {
-				revealFn = this._createZoneAndScrollRestoreFn(this.position);
+				revealFn = this.#createZoneAndScrollRestoreFn(this.position);
 			}
 		}));
 		this._disposables.add(this.widget.onDidChangeHeight(() => {
 			if (this.position && !this._usesResizeHeight) {
 				// only relayout when visible
-				revealFn ??= this._createZoneAndScrollRestoreFn(this.position);
-				const height = this._computeHeight();
+				revealFn ??= this.#createZoneAndScrollRestoreFn(this.position);
+				const height = this.#computeHeight();
 				this._relayout(height.linesValue);
 				revealFn?.();
 				revealFn = undefined;
@@ -136,13 +141,13 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		// todo@jrieken listen ONLY when showing
 		const updateCursorIsAboveContextKey = () => {
 			if (!this.position || !this.editor.hasModel()) {
-				this._ctxCursorPosition.reset();
+				this.#ctxCursorPosition.reset();
 			} else if (this.position.lineNumber === this.editor.getPosition().lineNumber) {
-				this._ctxCursorPosition.set('above');
+				this.#ctxCursorPosition.set('above');
 			} else if (this.position.lineNumber + 1 === this.editor.getPosition().lineNumber) {
-				this._ctxCursorPosition.set('below');
+				this.#ctxCursorPosition.set('below');
 			} else {
-				this._ctxCursorPosition.reset();
+				this.#ctxCursorPosition.reset();
 			}
 		};
 		this._disposables.add(this.editor.onDidChangeCursorPosition(e => updateCursorIsAboveContextKey()));
@@ -159,19 +164,19 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	protected override _doLayout(heightInPixel: number): void {
 
-		this._updatePadding();
+		this.#updatePadding();
 
 		const info = this.editor.getLayoutInfo();
 		const width = info.contentWidth - info.verticalScrollbarWidth;
 		// width = Math.min(850, width);
 
-		this._dimension = new Dimension(width, heightInPixel);
-		this.widget.layout(this._dimension);
+		this.#dimension = new Dimension(width, heightInPixel);
+		this.widget.layout(this.#dimension);
 	}
 
-	private _computeHeight(): { linesValue: number; pixelsValue: number } {
+	#computeHeight(): { linesValue: number; pixelsValue: number } {
 		const chatContentHeight = this.widget.contentHeight;
-		const editorHeight = this.notebookEditor?.getLayoutInfo().height ?? this.editor.getLayoutInfo().height;
+		const editorHeight = this.#notebookEditor?.getLayoutInfo().height ?? this.editor.getLayoutInfo().height;
 
 		const contentHeight = this._decoratingElementsHeight() + Math.min(chatContentHeight, Math.max(this.widget.minHeight, editorHeight * 0.42));
 		const heightInLines = contentHeight / this.editor.getOption(EditorOption.lineHeight);
@@ -192,25 +197,25 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	protected override _onWidth(_widthInPixel: number): void {
-		if (this._dimension) {
-			this._doLayout(this._dimension.height);
+		if (this.#dimension) {
+			this._doLayout(this.#dimension.height);
 		}
 	}
 
 	override show(position: Position): void {
 		assertType(this.container);
 
-		this._updatePadding();
+		this.#updatePadding();
 
-		const revealZone = this._createZoneAndScrollRestoreFn(position);
-		super.show(position, this._computeHeight().linesValue);
+		const revealZone = this.#createZoneAndScrollRestoreFn(position);
+		super.show(position, this.#computeHeight().linesValue);
 		this.widget.chatWidget.setVisible(true);
 		this.widget.focus();
 
 		revealZone();
 	}
 
-	private _updatePadding() {
+	#updatePadding() {
 		assertType(this.container);
 
 		const info = this.editor.getLayoutInfo();
@@ -226,12 +231,12 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	override updatePositionAndHeight(position: Position): void {
-		const revealZone = this._createZoneAndScrollRestoreFn(position);
-		super.updatePositionAndHeight(position, !this._usesResizeHeight ? this._computeHeight().linesValue : undefined);
+		const revealZone = this.#createZoneAndScrollRestoreFn(position);
+		super.updatePositionAndHeight(position, !this._usesResizeHeight ? this.#computeHeight().linesValue : undefined);
 		revealZone();
 	}
 
-	private _createZoneAndScrollRestoreFn(position: Position): () => void {
+	#createZoneAndScrollRestoreFn(position: Position): () => void {
 
 		const scrollState = StableEditorBottomScrollState.capture(this.editor);
 
@@ -242,7 +247,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 			const scrollTop = this.editor.getScrollTop();
 			const lineTop = this.editor.getTopForLineNumber(lineNumber);
-			const zoneTop = lineTop - this._computeHeight().pixelsValue;
+			const zoneTop = lineTop - this.#computeHeight().pixelsValue;
 			const editorHeight = this.editor.getLayoutInfo().height;
 			const lineBottom = this.editor.getBottomForLineNumber(lineNumber);
 
@@ -257,7 +262,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			}
 
 			if (newScrollTop < scrollTop || forceScrollTop) {
-				this._logService.trace('[IE] REVEAL zone', { zoneTop, lineTop, lineBottom, scrollTop, newScrollTop, forceScrollTop });
+				this.#logService.trace('[IE] REVEAL zone', { zoneTop, lineTop, lineBottom, scrollTop, newScrollTop, forceScrollTop });
 				this.editor.setScrollTop(newScrollTop, ScrollType.Immediate);
 			}
 		};
@@ -269,7 +274,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	override hide(): void {
 		const scrollState = StableEditorBottomScrollState.capture(this.editor);
-		this._ctxCursorPosition.reset();
+		this.#ctxCursorPosition.reset();
 		this.widget.chatWidget.setVisible(false);
 		super.hide();
 		aria.status(localize('inlineChatClosed', 'Closed inline chat widget'));
