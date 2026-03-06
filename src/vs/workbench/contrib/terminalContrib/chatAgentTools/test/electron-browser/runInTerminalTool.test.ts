@@ -1173,7 +1173,7 @@ suite('RunInTerminalTool', () => {
 
 			// Initialize lazy archive listener before firing the archive event.
 			const ensureArchivedSessionListener = (runInTerminalTool as unknown as Record<string, () => void>)['_ensureArchivedSessionListener'];
-			ensureArchivedSessionListener();
+			ensureArchivedSessionListener.call(runInTerminalTool);
 
 			chatSessionArchivedEmitter.fire({
 				resource: sessionResource,
