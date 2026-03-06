@@ -28,7 +28,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { URI } from '../../../../base/common/uri.js';
 import { UpdateHoverWidget } from './updateHoverWidget.js';
 
@@ -107,7 +107,7 @@ export class AccountWidget extends ActionViewItem {
 		@IProductService private readonly productService: IProductService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this.updateHoverWidget = new UpdateHoverWidget(this.updateService, this.productService, this.hoverService);
@@ -268,7 +268,7 @@ export class AccountWidget extends ActionViewItem {
 			});
 			if (confirmed) {
 				await this.openVSCode();
-				this.nativeHostService.closeWindow();
+				await this.hostService.close();
 			}
 			return;
 		}
