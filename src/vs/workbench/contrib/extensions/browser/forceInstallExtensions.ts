@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { TokenSourceCancelOnDispose } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { DisposableCancellationTokenSource } from '../../../../editor/browser/widget/diffEditor/utils.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IExtensionGalleryService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -49,12 +49,13 @@ export class ForceInstallExtensionsContribution extends Disposable implements IW
 		this._register(autorun(reader => {
 			const forceInstall = forceInstallIds.read(reader);
 			const disableForceInstall = disableForceInstallIds.read(undefined);
-			const cts = reader.store.add(new DisposableCancellationTokenSource());
-			this._forceInstallExtensions(forceInstall, disableForceInstall, cts);
+			const cts = reader.store.add(new TokenSourceCancelOnDispose());
+			this._forceInstallExtensions(forceInstall, disableForceInstall, cts)
+				.catch(error => this._logService.error(error));
 		}));
 	}
 
-	private async _forceInstallExtensions(forceInstallIds: string[], disableForceInstallIds: string[], cts: CancellationTokenSource): Promise<void> {
+	private async _forceInstallExtensions(forceInstallIds: string[], disableForceInstallIds: string[], cts: TokenSourceCancelOnDispose): Promise<void> {
 		const extensionIdsToInstall = forceInstallIds.filter(
 			id => !disableForceInstallIds.some(disabledId => areSameExtensions({ id }, { id: disabledId }))
 		);
@@ -73,9 +74,18 @@ export class ForceInstallExtensionsContribution extends Disposable implements IW
 		const forceInstallState = this._storageService.getObject<ForceInstallVersionState>(ForceInstallVersionStateStorageKey, StorageScope.WORKSPACE, {});
 		const remaining = new Set(extensionIdsToInstall);
 
+		const deleteFromRemaining = (id: string): void => {
+			for (const existingId of remaining) {
+				if (areSameExtensions({ id: existingId }, { id })) {
+					remaining.delete(existingId);
+					break;
+				}
+			}
+		};
+
 		const workspaceResourceExtensions = await this._getWorkspaceResourceExtensions(extensionIdsToInstall);
 		for (const extension of workspaceResourceExtensions) {
-			remaining.delete(extension.identifier.id);
+			deleteFromRemaining(extension.identifier.id);
 			if (this._isAlreadyForceInstalledForVersion(extension.identifier.id, extension.version, forceInstallState)) {
 				continue;
 			}
@@ -138,7 +148,7 @@ export class ForceInstallExtensionsContribution extends Disposable implements IW
 	}
 
 	private async _getWorkspaceResourceExtensions(extensionIds: string[]): Promise<IExtension[]> {
-		const extensionLocations = [];
+		const extensionLocations: URI[] = [];
 		for (const folder of this._workspaceContextService.getWorkspace().folders) {
 			const extensionsFolder = this._uriIdentityService.extUri.joinPath(folder.uri, '.vscode/extensions');
 			try {
