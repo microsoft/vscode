@@ -5,6 +5,7 @@
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { createStringDataTransferItem, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../../../../base/common/dataTransfer.js';
+import { alert } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { HierarchicalKind } from '../../../../../../../base/common/hierarchicalKind.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../../../base/common/marshalling.js';
@@ -386,6 +387,7 @@ function createCustomPasteEdit(model: ITextModel, context: IChatRequestVariableE
 	const label = context.length === 1
 		? context[0].name
 		: localize('pastedAttachment.multiple', '{0} and {1} more', context[0].name, context.length - 1);
+	const announceImageAttachment = context.length === 1 && context[0].kind === 'image';
 
 	const customEdit = {
 		resource: model.uri,
@@ -403,6 +405,9 @@ function createCustomPasteEdit(model: ITextModel, context: IChatRequestVariableE
 				throw new Error('No widget found for redo');
 			}
 			widget.attachmentModel.addContext(...context);
+			if (announceImageAttachment) {
+				alert(localize('chat.pastedImageAttached', 'Attached image'));
+			}
 		},
 		metadata: {
 			needsConfirmation: false,
