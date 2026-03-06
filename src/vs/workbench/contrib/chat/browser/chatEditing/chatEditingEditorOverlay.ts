@@ -11,11 +11,10 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction, IActionRunner } from '../../../../../base/common/actions.js';
-import { $, addDisposableGenericMouseMoveListener, append } from '../../../../../base/browser/dom.js';
+import { $, append } from '../../../../../base/browser/dom.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
-import { AcceptAction, navigationBearingFakeActionId, RejectAction } from './chatEditingEditorActions.js';
+import { navigationBearingFakeActionId } from './chatEditingEditorActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupView.js';
@@ -28,7 +27,11 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IAction, IActionRunner } from '../../../../../base/common/actions.js';
 
+/**
+ * A generic action view item used by inline chat overlay for keep/undo style actions.
+ */
 export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 
 	private readonly _reveal = this._store.add(new MutableDisposable());
@@ -36,10 +39,10 @@ export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 	constructor(
 		action: IAction,
 		options: IActionViewItemOptions,
-		private readonly _entry: IObservable<IModifiedFileEntry | undefined>,
-		private readonly _editor: { focus(): void } | undefined,
-		private readonly _keybindingService: IKeybindingService,
-		private readonly _primaryActionIds: readonly string[] = [AcceptAction.ID],
+		readonly entry: IObservable<IModifiedFileEntry | undefined>,
+		private readonly editor: { focus(): void } | undefined,
+		private readonly keybindingService: IKeybindingService,
+		private readonly _primaryActionIds: readonly string[] = [],
 	) {
 		super(undefined, action, { ...options, icon: false, label: true, keybindingNotRenderedWithLabel: true });
 	}
@@ -50,38 +53,13 @@ export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 		if (this._primaryActionIds.includes(this._action.id)) {
 			this.element?.classList.add('primary');
 		}
-
-		if (this._action.id === AcceptAction.ID) {
-
-			const listener = this._store.add(new MutableDisposable());
-
-			this._store.add(autorun(r => {
-
-				assertType(this.label);
-				assertType(this.element);
-
-				const ctrl = this._entry.read(r)?.autoAcceptController.read(r);
-				if (ctrl) {
-
-					const ratio = -100 * (ctrl.remaining / ctrl.total);
-
-					this.element.style.setProperty('--vscode-action-item-auto-timeout', `${ratio}%`);
-
-					this.element.classList.toggle('auto', true);
-					listener.value = addDisposableGenericMouseMoveListener(this.element, () => ctrl.cancel());
-				} else {
-					this.element.classList.toggle('auto', false);
-					listener.clear();
-				}
-			}));
-		}
 	}
 
 	override set actionRunner(actionRunner: IActionRunner) {
 		super.actionRunner = actionRunner;
-		if (this._editor) {
+		if (this.editor) {
 			this._reveal.value = actionRunner.onWillRun(_e => {
-				this._editor!.focus();
+				this.editor!.focus();
 			});
 		}
 	}
@@ -95,7 +73,7 @@ export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 		if (!value) {
 			return value;
 		}
-		return this._keybindingService.appendKeybinding(value, this._action.id);
+		return this.keybindingService.appendKeybinding(value, this._action.id);
 	}
 }
 
@@ -113,8 +91,8 @@ class ChatEditorOverlayWidget extends Disposable {
 	private readonly _navigationBearings = observableValue<{ changeCount: number; activeIdx: number; entriesCount: number }>(this, { changeCount: -1, activeIdx: -1, entriesCount: -1 });
 
 	constructor(
-		private readonly _editor: { focus(): void },
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		_editor: { focus(): void },
+		@IKeybindingService _keybindingService: IKeybindingService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		super();
@@ -252,10 +230,6 @@ class ChatEditorOverlayWidget extends Disposable {
 							return localize('tooltip_busy', "{0} - Working...", result);
 						}
 					};
-				}
-
-				if (action.id === AcceptAction.ID || action.id === RejectAction.ID) {
-					return new ChatEditingAcceptRejectActionViewItem(action, options, that._entry, that._editor, that._keybindingService);
 				}
 
 				return undefined;

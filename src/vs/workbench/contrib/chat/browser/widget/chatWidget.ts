@@ -50,7 +50,7 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
+import { applyingChatEditsFailedContextKey, hasAppliedChatEditsContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey } from '../../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
 import { IChatModel, IChatModelInputState, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ChatMode, getModeNameForTelemetry, IChatModeService } from '../../common/chatModes.js';
@@ -447,21 +447,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
-		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
-			const currentSession = this._editingSession.read(reader);
-			if (!currentSession) {
-				return;
-			}
-			const entries = currentSession.entries.read(reader);
-			const decidedEntries = entries.filter(entry => entry.state.read(reader) !== ModifiedFileEntryState.Modified);
-			return decidedEntries.map(entry => entry.entryId);
-		}));
-		this._register(bindContextKey(hasUndecidedChatEditingResourceContextKey, contextKeyService, (reader) => {
-			const currentSession = this._editingSession.read(reader);
-			const entries = currentSession?.entries.read(reader) ?? []; // using currentSession here
-			const decidedEntries = entries.filter(entry => entry.state.read(reader) === ModifiedFileEntryState.Modified);
-			return decidedEntries.length > 0;
-		}));
 		this._register(bindContextKey(hasAppliedChatEditsContextKey, contextKeyService, (reader) => {
 			const currentSession = this._editingSession.read(reader);
 			if (!currentSession) {

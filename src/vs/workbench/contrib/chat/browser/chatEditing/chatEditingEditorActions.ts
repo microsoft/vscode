@@ -16,21 +16,18 @@ import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from 
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IListService } from '../../../../../platform/list/browser/listService.js';
-import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CTX_HOVER_MODE } from '../../../inlineChat/common/inlineChat.js';
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { IDocumentDiffItemWithMultiDiffEditorItem, MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
-import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
+import { NOTEBOOK_CELL_LIST_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState, parseChatMultiDiffUri, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME } from '../../common/editing/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, parseChatMultiDiffUri } from '../../common/editing/chatEditingService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ctxCursorInChangeRange, ctxHasEditorModification, ctxHasRequestInProgress, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
+import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
 import { ChatEditingExplanationWidgetManager } from './chatEditingExplanationWidget.js';
 import { IChatEditingExplanationModelManager, IExplanationDiffInfo } from './chatEditingExplanationModelManager.js';
 import { DiffEditorViewModel } from '../../../../../editor/browser/widget/diffEditor/diffEditorViewModel.js';
@@ -173,135 +170,6 @@ async function openNextOrPreviousChange(accessor: ServicesAccessor, session: ICh
 	return true;
 }
 
-abstract class KeepOrUndoAction extends ChatEditingEditorAction {
-
-	constructor(id: string, private _keep: boolean) {
-		super({
-			id,
-			title: _keep
-				? localize2('accept', 'Keep Chat Edits')
-				: localize2('discard', 'Undo Chat Edits'),
-			shortTitle: _keep
-				? localize2('accept2', 'Keep')
-				: localize2('discard2', 'Undo'),
-			tooltip: _keep
-				? localize2('accept3', 'Keep Chat Edits in this File')
-				: localize2('discard3', 'Undo Chat Edits in this File'),
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
-			icon: _keep
-				? Codicon.check
-				: Codicon.discard,
-			f1: true,
-			keybinding: {
-				when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_EDITOR_FOCUSED),
-				weight: KeybindingWeight.WorkbenchContrib + 10, // win over new-window-action
-				primary: _keep
-					? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY
-					: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN,
-			},
-			menu: {
-				id: MenuId.ChatEditingEditorContent,
-				group: 'a_resolve',
-				order: _keep ? 0 : 1,
-				when: ContextKeyExpr.and(!_keep ? ctxReviewModeEnabled : undefined, ContextKeyExpr.or(ctxIsGlobalEditingSession, ctxHasRequestInProgress.negate()))
-			}
-		});
-	}
-
-	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration): Promise<void> {
-
-		const instaService = accessor.get(IInstantiationService);
-
-		if (this._keep) {
-			session.accept(entry.modifiedURI);
-		} else {
-			session.reject(entry.modifiedURI);
-		}
-
-		await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
-	}
-}
-
-export class AcceptAction extends KeepOrUndoAction {
-
-	static readonly ID = 'chatEditor.action.accept';
-
-	constructor() {
-		super(AcceptAction.ID, true);
-	}
-}
-
-export class RejectAction extends KeepOrUndoAction {
-
-	static readonly ID = 'chatEditor.action.reject';
-
-	constructor() {
-		super(RejectAction.ID, false);
-	}
-}
-
-const acceptHunkId = 'chatEditor.action.acceptHunk';
-const undoHunkId = 'chatEditor.action.undoHunk';
-abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
-
-	constructor(private readonly _accept: boolean) {
-		super(
-			{
-				id: _accept ? acceptHunkId : undoHunkId,
-				title: _accept ? localize2('acceptHunk', 'Keep this Change') : localize2('undo', 'Undo this Change'),
-				shortTitle: _accept ? localize2('acceptHunkShort', 'Keep') : localize2('undoShort', 'Undo'),
-				precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
-				f1: true,
-				keybinding: {
-					when: ContextKeyExpr.and(ctxCursorInChangeRange, ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED)),
-					weight: KeybindingWeight.WorkbenchContrib + 1,
-					primary: _accept
-						? KeyMod.CtrlCmd | KeyCode.KeyY
-						: KeyMod.CtrlCmd | KeyCode.KeyN
-				},
-				menu: {
-					id: MenuId.ChatEditingEditorHunk,
-					order: 1
-				}
-			}
-		);
-	}
-
-	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> {
-
-		const instaService = accessor.get(IInstantiationService);
-
-		if (this._accept) {
-			await ctrl.acceptNearestChange(args[0] as IModifiedFileEntryChangeHunk | undefined);
-		} else {
-			await ctrl.rejectNearestChange(args[0] as IModifiedFileEntryChangeHunk | undefined);
-		}
-
-		if (entry.changesCount.get() === 0) {
-			// no more changes, move to next file
-			await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
-		}
-	}
-}
-
-export class AcceptHunkAction extends AcceptRejectHunkAction {
-
-	static readonly ID = acceptHunkId;
-
-	constructor() {
-		super(true);
-	}
-}
-
-export class RejectHunkAction extends AcceptRejectHunkAction {
-
-	static readonly ID = undoHunkId;
-
-	constructor() {
-		super(false);
-	}
-}
-
 class ToggleDiffAction extends ChatEditingEditorAction {
 	constructor() {
 		super({
@@ -379,82 +247,6 @@ export class ReviewChangesAction extends ChatEditingEditorAction {
 
 	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: unknown[]): void {
 		entry.enableReviewModeUntilSettled();
-	}
-}
-
-export class AcceptAllEditsAction extends ChatEditingEditorAction {
-
-	static readonly ID = 'chatEditor.action.acceptAllEdits';
-
-	constructor() {
-		super({
-			id: AcceptAllEditsAction.ID,
-			title: localize2('acceptAllEdits', 'Keep All Chat Edits'),
-			tooltip: localize2('acceptAllEditsTooltip', 'Keep All Chat Edits in this Session'),
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
-			icon: Codicon.checkAll,
-			f1: true,
-			keybinding: {
-				when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_EDITOR_FOCUSED),
-				weight: KeybindingWeight.WorkbenchContrib + 10,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyY,
-			},
-		});
-	}
-
-	override async runChatEditingCommand(_accessor: ServicesAccessor, session: IChatEditingSession, _entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: unknown[]): Promise<void> {
-		await session.accept();
-	}
-}
-
-
-// --- multi file diff
-
-abstract class MultiDiffAcceptDiscardAction extends Action2 {
-
-	constructor(readonly accept: boolean) {
-		super({
-			id: accept ? 'chatEditing.multidiff.acceptAllFiles' : 'chatEditing.multidiff.discardAllFiles',
-			title: accept ? localize('accept4', 'Keep All Edits') : localize('discard4', 'Undo All Edits'),
-			icon: accept ? Codicon.check : Codicon.discard,
-			menu: {
-				when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
-				id: MenuId.EditorTitle,
-				order: accept ? 0 : 1,
-				group: 'navigation',
-			},
-		});
-	}
-
-	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const chatEditingService = accessor.get(IChatEditingService);
-		const editorService = accessor.get(IEditorService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const listService = accessor.get(IListService);
-
-		const resolvedContext = resolveCommandsContext(args, editorService, editorGroupsService, listService);
-
-		const groupContext = resolvedContext.groupedEditors[0];
-		if (!groupContext) {
-			return;
-		}
-
-		const editor = groupContext.editors[0];
-		if (!(editor instanceof MultiDiffEditorInput) || !editor.resource) {
-			return;
-		}
-
-		const { chatSessionResource } = parseChatMultiDiffUri(editor.resource);
-		const session = chatEditingService.getEditingSession(chatSessionResource);
-		if (session) {
-			if (this.accept) {
-				await session.accept();
-			} else {
-				await session.reject();
-			}
-
-			editorService.closeEditor({ editor, groupId: groupContext.group.id });
-		}
 	}
 }
 
@@ -624,16 +416,9 @@ export function registerChatEditorActions() {
 	registerAction2(class NextAction extends NavigateAction { constructor() { super(true); } });
 	registerAction2(class PrevAction extends NavigateAction { constructor() { super(false); } });
 	registerAction2(ReviewChangesAction);
-	registerAction2(AcceptAction);
-	registerAction2(RejectAction);
-	registerAction2(AcceptAllEditsAction);
-	registerAction2(AcceptHunkAction);
-	registerAction2(RejectHunkAction);
 	registerAction2(ToggleDiffAction);
 	registerAction2(ToggleAccessibleDiffViewAction);
 
-	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(true); } });
-	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(false); } });
 	registerAction2(ExplainMultiDiffAction);
 
 	MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {

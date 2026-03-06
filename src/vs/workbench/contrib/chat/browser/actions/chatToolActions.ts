@@ -82,7 +82,6 @@ class AcceptToolConfirmation extends ToolConfirmationAction {
 			keybinding: {
 				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.Editing.hasToolConfirmation),
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				// Override chatEditor.action.accept
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 			},
 		});
@@ -103,7 +102,6 @@ class SkipToolConfirmation extends ToolConfirmationAction {
 			keybinding: {
 				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.Editing.hasToolConfirmation),
 				primary: KeyMod.CtrlCmd | KeyCode.Enter | KeyMod.Alt,
-				// Override chatEditor.action.accept
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 			},
 		});

@@ -531,7 +531,7 @@ configurationRegistry.registerConfiguration({
 		'chat.checkpoints.showFileChanges': {
 			type: 'boolean',
 			description: nls.localize('chat.checkpoints.showFileChanges', "Controls whether to show chat checkpoint file changes."),
-			default: false
+			default: true
 		},
 		[mcpAccessConfig]: {
 			type: 'string',

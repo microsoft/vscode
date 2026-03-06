@@ -446,9 +446,12 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				return;
 			}
 		}
+		const entryCount = this._entriesObs.get().length;
 		const input = MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
 			multiDiffSource: getMultiDiffSourceUri(this, previousChanges),
-			label: localize('multiDiffEditorInput.name', "Suggested Edits")
+			label: entryCount === 1
+				? localize('multiDiffEditorInput.name.one', "Review Edits (1 file)")
+				: localize('multiDiffEditorInput.name.many', "Review Edits ({0} files)", entryCount)
 		}, this._instantiationService);
 
 		this._editorPane = await this._editorService.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
