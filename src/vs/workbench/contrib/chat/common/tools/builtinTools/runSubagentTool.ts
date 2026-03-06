@@ -66,6 +66,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 	readonly onDidUpdateToolData: Event<unknown>;
 
+	private static readonly _MaxCachedModels = 100;
+
 	/** Hack to port data between prepare/invoke */
 	private readonly _resolvedModels = new Map<string, { modeModelId: string | undefined; resolvedModelName: string | undefined }>();
 
@@ -75,7 +77,6 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILogService private readonly logService: ILogService,
-		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -107,7 +108,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				},
 				model: {
 					type: 'string',
-					description: 'Optional qualified model name to use for the subagent, in the format "Model Name (Vendor)". If not provided, uses the current model.',
+					description: 'Optional model for the subagent. Use a fast model (e.g. "GPT-4.1 (copilot)") for simple lookups and searches, or a reasoning model (e.g. "Claude Sonnet 4 (copilot)") for complex analysis. Format: "Model Name (Vendor)". If not provided, uses the current model.',
 					...this.getAvailableModelEnum(),
 				}
 			},
@@ -202,7 +203,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					modeInstructions = instructions && {
 						name: subAgentName,
 						content: instructions.content,
-						toolReferences: this.toolsService.toToolReferences(instructions.toolReferences),
+						toolReferences: this.languageModelToolsService.toToolReferences(instructions.toolReferences),
 						metadata: instructions.metadata,
 						isBuiltin: isBuiltinAgent(subagent.source, subagent.uri, this.productService),
 					};
@@ -405,11 +406,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			const modeModelQualifiedNames = subagent.model;
 			if (modeModelQualifiedNames) {
 				// Find the actual model identifier from the qualified name(s)
-				outer: for (const qualifiedName of modeModelQualifiedNames) {
+				for (const qualifiedName of modeModelQualifiedNames) {
 					const lmByQualifiedName = this.languageModelsService.lookupLanguageModelByQualifiedName(qualifiedName);
 					if (lmByQualifiedName?.identifier) {
 						modeModelId = lmByQualifiedName.identifier;
-						break outer;
+						break;
 					}
 				}
 			}
@@ -439,6 +440,13 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 		// Resolve the model early and cache it for invoke()
 		const resolved = this.resolveSubagentModel(subagent, context.modelId, args.model);
+		if (this._resolvedModels.size >= RunSubagentTool._MaxCachedModels) {
+			// Evict oldest entry to prevent unbounded growth on cancellation
+			const oldest = this._resolvedModels.keys().next().value;
+			if (oldest !== undefined) {
+				this._resolvedModels.delete(oldest);
+			}
+		}
 		this._resolvedModels.set(context.toolCallId, resolved);
 
 		return {
