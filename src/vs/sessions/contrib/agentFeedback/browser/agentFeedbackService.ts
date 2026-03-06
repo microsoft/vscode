@@ -17,6 +17,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -26,6 +27,11 @@ export interface IAgentFeedback {
 	readonly resourceUri: URI;
 	readonly range: IRange;
 	readonly sessionResource: URI;
+	readonly suggestion?: ICodeReviewSuggestion;
+}
+
+export interface INavigableSessionComment {
+	readonly id: string;
 }
 
 export interface IAgentFeedbackChangeEvent {
@@ -51,7 +57,7 @@ export interface IAgentFeedbackService {
 	/**
 	 * Add a feedback item for the given session.
 	 */
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string): IAgentFeedback;
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion): IAgentFeedback;
 
 	/**
 	 * Remove a single feedback item.
@@ -77,11 +83,13 @@ export interface IAgentFeedbackService {
 	 * Navigate to next/previous feedback item in a session.
 	 */
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined;
+	getNextNavigableItem<T extends INavigableSessionComment>(sessionResource: URI, items: readonly T[], next: boolean): T | undefined;
+	setNavigationAnchor(sessionResource: URI, itemId: string | undefined): void;
 
 	/**
 	 * Get the current navigation bearings for a session.
 	 */
-	getNavigationBearing(sessionResource: URI): IAgentFeedbackNavigationBearing;
+	getNavigationBearing(sessionResource: URI, items?: readonly INavigableSessionComment[]): IAgentFeedbackNavigationBearing;
 
 	/**
 	 * Clear all feedback items for a session (e.g., after sending).
@@ -92,7 +100,7 @@ export interface IAgentFeedbackService {
 	 * Add a feedback item and then submit the feedback. Waits for the
 	 * attachment to be updated in the chat widget before submitting.
 	 */
-	addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string): Promise<void>;
+	addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion): Promise<void>;
 }
 
 // --- Implementation -----------------------------------------------------------
@@ -123,7 +131,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		super();
 	}
 
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string): IAgentFeedback {
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion): IAgentFeedback {
 		const key = sessionResource.toString();
 		let feedbackItems = this._feedbackBySession.get(key);
 		if (!feedbackItems) {
@@ -137,6 +145,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			resourceUri,
 			range,
 			sessionResource,
+			suggestion,
 		};
 
 		// Insert at the correct sorted position.
@@ -270,42 +279,52 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			}
 		});
 		setTimeout(() => {
-			this._navigationAnchorBySession.set(key, feedbackId);
-			this._onDidChangeNavigation.fire(sessionResource);
+			this.setNavigationAnchor(sessionResource, feedbackId);
 		}, 50); // delay to ensure editor has revealed the correct position before firing navigation event
 	}
 
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined {
+		return this.getNextNavigableItem(sessionResource, this.getFeedback(sessionResource), next);
+	}
+
+	getNextNavigableItem<T extends INavigableSessionComment>(sessionResource: URI, items: readonly T[], next: boolean): T | undefined {
 		const key = sessionResource.toString();
-		const feedbackItems = this._feedbackBySession.get(key);
-		if (!feedbackItems?.length) {
+		if (!items.length) {
 			this._navigationAnchorBySession.delete(key);
 			return undefined;
 		}
 
 		const anchorId = this._navigationAnchorBySession.get(key);
-		let anchorIndex = anchorId ? feedbackItems.findIndex(item => item.id === anchorId) : -1;
+		let anchorIndex = anchorId ? items.findIndex(item => item.id === anchorId) : -1;
 
 		if (anchorIndex < 0 && !next) {
 			anchorIndex = 0;
 		}
 
 		const nextIndex = next
-			? (anchorIndex + 1) % feedbackItems.length
-			: (anchorIndex - 1 + feedbackItems.length) % feedbackItems.length;
+			? (anchorIndex + 1) % items.length
+			: (anchorIndex - 1 + items.length) % items.length;
 
-		const feedback = feedbackItems[nextIndex];
-		this._navigationAnchorBySession.set(key, feedback.id);
-		this._onDidChangeNavigation.fire(sessionResource);
-		return feedback;
+		const item = items[nextIndex];
+		this.setNavigationAnchor(sessionResource, item.id);
+		return item;
 	}
 
-	getNavigationBearing(sessionResource: URI): IAgentFeedbackNavigationBearing {
+	setNavigationAnchor(sessionResource: URI, itemId: string | undefined): void {
 		const key = sessionResource.toString();
-		const feedbackItems = this._feedbackBySession.get(key) ?? [];
+		if (itemId) {
+			this._navigationAnchorBySession.set(key, itemId);
+		} else {
+			this._navigationAnchorBySession.delete(key);
+		}
+		this._onDidChangeNavigation.fire(sessionResource);
+	}
+
+	getNavigationBearing(sessionResource: URI, items: readonly INavigableSessionComment[] = this._feedbackBySession.get(sessionResource.toString()) ?? []): IAgentFeedbackNavigationBearing {
+		const key = sessionResource.toString();
 		const anchorId = this._navigationAnchorBySession.get(key);
-		const activeIdx = anchorId ? feedbackItems.findIndex(item => item.id === anchorId) : -1;
-		return { activeIdx, totalCount: feedbackItems.length };
+		const activeIdx = anchorId ? items.findIndex(item => item.id === anchorId) : -1;
+		return { activeIdx, totalCount: items.length };
 	}
 
 	clearFeedback(sessionResource: URI): void {
@@ -317,8 +336,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems: [] });
 	}
 
-	async addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string): Promise<void> {
-		this.addFeedback(sessionResource, resourceUri, range, text);
+	async addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion): Promise<void> {
+		this.addFeedback(sessionResource, resourceUri, range, text, suggestion);
 
 		// Wait for the attachment contribution to update the chat widget's attachment model
 		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
