@@ -308,25 +308,28 @@ suite('MarkdownRenderer', () => {
 	});
 
 	test('Should use decoded file path as title for file:// links', () => {
-		const md = new MarkdownString(`[log](file:///home/user/project/lib.d.ts)`, {});
+		const fileUri = URI.file('/home/user/project/lib.d.ts');
+		const md = new MarkdownString(`[log](${fileUri.toString()})`, {});
 
 		const result = store.add(renderMarkdown(md)).element;
 		const anchor = result.querySelector('a')!;
 		assert.ok(anchor);
-		assert.strictEqual(anchor.title, '/home/user/project/lib.d.ts');
+		assert.strictEqual(anchor.title, fileUri.fsPath);
 	});
 
 	test('Should include fragment in title for file:// links with line numbers', () => {
-		const md = new MarkdownString(`[log](file:///home/user/project/lib.d.ts#L42)`, {});
+		const fileUri = URI.file('/home/user/project/lib.d.ts');
+		const md = new MarkdownString(`[log](${fileUri.toString()}#L42)`, {});
 
 		const result = store.add(renderMarkdown(md)).element;
 		const anchor = result.querySelector('a')!;
 		assert.ok(anchor);
-		assert.strictEqual(anchor.title, '/home/user/project/lib.d.ts#L42');
+		assert.strictEqual(anchor.title, `${fileUri.fsPath}#L42`);
 	});
 
 	test('Should not override explicit title for file:// links', () => {
-		const md = new MarkdownString(`[log](file:///home/user/project/lib.d.ts "Go to definition")`, {});
+		const fileUri = URI.file('/home/user/project/lib.d.ts');
+		const md = new MarkdownString(`[log](${fileUri.toString()} "Go to definition")`, {});
 
 		const result = store.add(renderMarkdown(md)).element;
 		const anchor = result.querySelector('a')!;
