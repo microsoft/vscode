@@ -374,7 +374,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.AutopilotEnabled]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.autopilot.enabled', "Controls whether the Autopilot mode is available in the permissions picker. When enabled, Autopilot auto-approves all tool calls and continues until the task is done."),
-			default: true,
+			default: product.quality !== 'stable', // don't enable by default in stable
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
