@@ -41,11 +41,14 @@ import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { TerminalChatService } from '../../../chat/browser/terminalChatService.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
+import { IAgentSession } from '../../../../chat/browser/agentSessions/agentSessionsModel.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
 
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
+	get sessionTerminalInstances() { return this._sessionTerminalInstances; }
 	get profileFetcher() { return this._profileFetcher; }
 
 	setBackendOs(os: OperatingSystem) {
@@ -63,6 +66,7 @@ suite('RunInTerminalTool', () => {
 	let workspaceContextService: TestContextService;
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 	let chatServiceDisposeEmitter: Emitter<{ sessionResource: URI[]; reason: 'cleared' }>;
+	let chatSessionArchivedEmitter: Emitter<IAgentSession>;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
@@ -79,6 +83,7 @@ suite('RunInTerminalTool', () => {
 		setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
 		chatServiceDisposeEmitter = new Emitter<{ sessionResource: URI[]; reason: 'cleared' }>();
+		chatSessionArchivedEmitter = new Emitter<IAgentSession>();
 
 		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
@@ -88,6 +93,11 @@ suite('RunInTerminalTool', () => {
 		instantiationService.stub(IChatService, {
 			onDidDisposeSession: chatServiceDisposeEmitter.event,
 			getSession: () => undefined,
+		});
+		instantiationService.stub(IAgentSessionsService, {
+			model: {
+				onDidChangeSessionArchivedState: chatSessionArchivedEmitter.event,
+			} as IAgentSessionsService['model']
 		});
 		instantiationService.stub(ITerminalChatService, store.add(instantiationService.createInstance(TerminalChatService)));
 		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
@@ -1140,6 +1150,63 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('chat session disposal cleanup', () => {
+		test('should dispose all terminals associated with a single chat session when archived', () => {
+			const sessionId = 'test-session-archive';
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			// eslint-disable-next-line local/code-no-any-casts
+			const mockTerminal1: ITerminalInstance = { dispose: () => { /* Mock dispose */ }, processId: 33333 } as any;
+			// eslint-disable-next-line local/code-no-any-casts
+			const mockTerminal2: ITerminalInstance = { dispose: () => { /* Mock dispose */ }, processId: 44444 } as any;
+
+			let terminal1Disposed = false;
+			let terminal2Disposed = false;
+			mockTerminal1.dispose = () => { terminal1Disposed = true; };
+			mockTerminal2.dispose = () => { terminal2Disposed = true; };
+
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
+				instance: mockTerminal2,
+				shellIntegrationQuality: ShellIntegrationQuality.None
+			});
+			runInTerminalTool.sessionTerminalInstances.set(sessionResource, new Set([mockTerminal1, mockTerminal2]));
+
+			chatSessionArchivedEmitter.fire({
+				resource: sessionResource,
+				isArchived: () => true,
+			} as IAgentSession);
+
+			strictEqual(terminal1Disposed, true, 'Terminal 1 should have been disposed');
+			strictEqual(terminal2Disposed, true, 'Terminal 2 should have been disposed');
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Terminal association should be removed after archive');
+			ok(!runInTerminalTool.sessionTerminalInstances.has(sessionResource), 'All tracked terminals for the session should be removed after archive');
+		});
+
+		test('should dispose all terminals associated with a single chat session', () => {
+			const sessionId = 'test-session-multiple-terminals';
+			// eslint-disable-next-line local/code-no-any-casts
+			const mockTerminal1: ITerminalInstance = { dispose: () => { /* Mock dispose */ }, processId: 11111 } as any;
+			// eslint-disable-next-line local/code-no-any-casts
+			const mockTerminal2: ITerminalInstance = { dispose: () => { /* Mock dispose */ }, processId: 22222 } as any;
+
+			let terminal1Disposed = false;
+			let terminal2Disposed = false;
+			mockTerminal1.dispose = () => { terminal1Disposed = true; };
+			mockTerminal2.dispose = () => { terminal2Disposed = true; };
+
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
+				instance: mockTerminal2,
+				shellIntegrationQuality: ShellIntegrationQuality.None
+			});
+			runInTerminalTool.sessionTerminalInstances.set(sessionResource, new Set([mockTerminal1, mockTerminal2]));
+
+			chatServiceDisposeEmitter.fire({ sessionResource: [sessionResource], reason: 'cleared' });
+
+			strictEqual(terminal1Disposed, true, 'Terminal 1 should have been disposed');
+			strictEqual(terminal2Disposed, true, 'Terminal 2 should have been disposed');
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Terminal association should be removed after disposal');
+			ok(!runInTerminalTool.sessionTerminalInstances.has(sessionResource), 'All tracked terminals for the session should be removed after disposal');
+		});
+
 		test('should dispose associated terminals when chat session is disposed', () => {
 			const sessionId = 'test-session-123';
 			// eslint-disable-next-line local/code-no-any-casts
