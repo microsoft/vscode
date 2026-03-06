@@ -215,6 +215,47 @@ suite('ShellIntegrationAddon', () => {
 			mock.verify();
 		});
 	});
+	suite('PowerShell prompt fallback resilience', () => {
+		test('should handle full D→A→B sequence with minimal fallback prompt (simulates try/catch fallback in shellIntegration.ps1)', async () => {
+			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
+			// Simulate: command finished (exit code 0) → prompt started → fallback "PS> " prompt → command input started
+			mock.expects('handleCommandFinished').once().withExactArgs(0);
+			mock.expects('handlePromptStart').once().withExactArgs();
+			mock.expects('handleCommandStart').once().withExactArgs();
+			await writeP(xterm, '\x1b]633;D;0\x07');
+			await writeP(xterm, '\x1b]633;A\x07');
+			await writeP(xterm, 'PS> ');
+			await writeP(xterm, '\x1b]633;B\x07');
+			mock.verify();
+		});
+		test('should handle A→B sequence without D when prompt error skips command finish (graceful degradation)', async () => {
+			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
+			// Simulate: prompt started → command input started (no D sequence = prompt ran but command finish was skipped)
+			mock.expects('handlePromptStart').once().withExactArgs();
+			mock.expects('handleCommandStart').once().withExactArgs();
+			await writeP(xterm, '\x1b]633;A\x07');
+			await writeP(xterm, '\x1b]633;B\x07');
+			mock.verify();
+		});
+		test('should handle consecutive prompt cycles with fallback prompt (repeated command execution)', async () => {
+			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
+			// Simulate two consecutive command cycles with fallback prompt
+			// Cycle 1: E→C → command output → D→A→B
+			mock.expects('setCommandLine').once().withExactArgs('hostname', false);
+			mock.expects('handleCommandExecuted').once().withExactArgs();
+			mock.expects('handleCommandFinished').once().withExactArgs(0);
+			mock.expects('handlePromptStart').once().withExactArgs();
+			mock.expects('handleCommandStart').once().withExactArgs();
+			await writeP(xterm, '\x1b]633;E;hostname\x07');
+			await writeP(xterm, '\x1b]633;C\x07');
+			await writeP(xterm, 'DESKTOP-ABC\r\n');
+			await writeP(xterm, '\x1b]633;D;0\x07');
+			await writeP(xterm, '\x1b]633;A\x07');
+			await writeP(xterm, 'PS> ');
+			await writeP(xterm, '\x1b]633;B\x07');
+			mock.verify();
+		});
+	});
 	suite('BufferMarkCapability', () => {
 		test('SetMark', async () => {
 			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);

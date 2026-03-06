@@ -148,8 +148,17 @@ function Global:Prompt() {
 	if ($FakeCode -ne 0) {
 		Write-Error "failure" -ea ignore
 	}
-	# Run the original prompt
-	$OriginalPrompt += $Global:__VSCodeState.OriginalPrompt.Invoke()
+	# Run the original prompt, wrapped in try/catch to ensure OSC sequences are always
+	# emitted correctly even if the user's prompt function throws an error. Without this,
+	# a broken custom prompt causes the 633;B sequence to never be sent, leaving VS Code's
+	# terminal state machine stuck and causing the terminal to stutter/misfire repeatedly.
+	$OriginalPrompt = ""
+	try {
+		$OriginalPrompt = $Global:__VSCodeState.OriginalPrompt.Invoke()
+	} catch {
+		# Fallback to a minimal prompt so the OSC sequence flow is not broken
+		$OriginalPrompt = "PS> "
+	}
 	$Result += $OriginalPrompt
 
 	# Prompt
@@ -198,23 +207,30 @@ if (Get-Module -Name PSReadLine) {
 		$CommandLine = $Global:__VSCodeState.OriginalPSConsoleHostReadLine.Invoke()
 		$Global:__VSCodeState.IsInExecution = $true
 
-		# Command line
-		# OSC 633 ; E [; <CommandLine> [; <Nonce>]] ST
-		$Result = "$([char]0x1b)]633;E;"
-		$Result += $(__VSCode-Escape-Value $CommandLine)
-		# Only send the nonce if the OS is not Windows 10 as it seems to echo to the terminal
-		# sometimes
-		if ($Global:__VSCodeState.IsWindows10 -eq $false) {
-			$Result += ";$($Global:__VSCodeState.Nonce)"
+		# Wrap OSC sequence emission in try/catch to prevent terminal state corruption.
+		# If [Console]::Write fails (e.g. due to encoding issues or broken pipe), we still
+		# need to return the command line so PowerShell can execute it normally.
+		try {
+			# Command line
+			# OSC 633 ; E [; <CommandLine> [; <Nonce>]] ST
+			$Result = "$([char]0x1b)]633;E;"
+			$Result += $(__VSCode-Escape-Value $CommandLine)
+			# Only send the nonce if the OS is not Windows 10 as it seems to echo to the terminal
+			# sometimes
+			if ($Global:__VSCodeState.IsWindows10 -eq $false) {
+				$Result += ";$($Global:__VSCodeState.Nonce)"
+			}
+			$Result += "`a"
+
+			# Command executed
+			# OSC 633 ; C ST
+			$Result += "$([char]0x1b)]633;C`a"
+
+			# Write command executed sequence directly to Console to avoid the new line from Write-Host
+			[Console]::Write($Result)
+		} catch {
+			# Silently ignore OSC emission failures to prevent terminal stuttering
 		}
-		$Result += "`a"
-
-		# Command executed
-		# OSC 633 ; C ST
-		$Result += "$([char]0x1b)]633;C`a"
-
-		# Write command executed sequence directly to Console to avoid the new line from Write-Host
-		[Console]::Write($Result)
 
 		$CommandLine
 	}
