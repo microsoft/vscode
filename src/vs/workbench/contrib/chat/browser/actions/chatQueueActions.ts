@@ -20,7 +20,7 @@ import { CHAT_CATEGORY } from './chatActions.js';
 
 const editingQueue = ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Queue);
 const editingSteer = ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Steer);
-const editingQueueOrSteer = ContextKeyExpr.or(editingQueue, editingSteer);
+const editingQueueOrSteer = ContextKeyExpr.or(editingQueue, editingSteer)!;
 
 const queuingActionsPresent = ContextKeyExpr.and(
 	ContextKeyExpr.or(ChatContextKeys.requestInProgress, editingQueueOrSteer),
@@ -33,11 +33,11 @@ const queueIsDefault = steerIsDefault.negate();
 // The effective default respects the editing context: when editing a queued/steer
 // message, the default matches that message type regardless of the config setting.
 const effectiveDefaultIsQueue = ContextKeyExpr.or(
-	ContextKeyExpr.and(queueIsDefault, editingQueueOrSteer!.negate()),
+	ContextKeyExpr.and(queueIsDefault, editingQueueOrSteer.negate()),
 	editingQueue
 );
 const effectiveDefaultIsSteer = ContextKeyExpr.or(
-	ContextKeyExpr.and(steerIsDefault, editingQueueOrSteer!.negate()),
+	ContextKeyExpr.and(steerIsDefault, editingQueueOrSteer.negate()),
 	editingSteer
 );
 
