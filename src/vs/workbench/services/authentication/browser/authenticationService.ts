@@ -21,7 +21,6 @@ import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.j
 import { match } from '../../../../base/common/glob.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../../base/common/oauth.js';
-import { raceCancellation, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
@@ -419,43 +418,11 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	private async tryActivateProvider(providerId: string, activateImmediate: boolean): Promise<IAuthenticationProvider> {
 		await this._extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId), activateImmediate ? ActivationKind.Immediate : ActivationKind.Normal);
-		let provider = this._authenticationProviders.get(providerId);
+		const provider = this._authenticationProviders.get(providerId);
 		if (provider) {
 			return provider;
 		}
-		if (this._disposedSource.token.isCancellationRequested) {
-			throw new Error('Authentication service is disposed.');
-		}
-
-		const store = new DisposableStore();
-		try {
-			// TODO: Remove this timeout and figure out a better way to ensure auth providers
-			// are registered _during_ extension activation.
-			const result = await raceTimeout(
-				raceCancellation(
-					Event.toPromise(
-						Event.filter(
-							this.onDidRegisterAuthenticationProvider,
-							e => e.id === providerId,
-							store
-						),
-						store
-					),
-					this._disposedSource.token
-				),
-				5000
-			);
-			provider = this._authenticationProviders.get(providerId);
-			if (provider) {
-				return provider;
-			}
-			if (!result) {
-				throw new Error(`Timed out waiting for authentication provider '${providerId}' to register.`);
-			}
-			throw new Error(`No authentication provider '${providerId}' is currently registered.`);
-		} finally {
-			store.dispose();
-		}
+		throw new Error(`No authentication provider '${providerId}' is currently registered.`);
 	}
 }
 
