@@ -103,9 +103,11 @@ export class ChatSuggestNextWidget extends Disposable {
 		}
 
 		// Add an "with Autopilot" button for the first send-able handoff when autopilot is enabled
+		// and enterprise policy hasn't disabled auto-approve
 		const isAutopilotEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
+		const isAutoApprovePolicyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 		const sendableHandoff = handoffs.find(h => h.send);
-		if (isAutopilotEnabled && sendableHandoff) {
+		if (isAutopilotEnabled && !isAutoApprovePolicyRestricted && sendableHandoff) {
 			const autopilotButton = this.createAutopilotButton(sendableHandoff);
 			this.promptsContainer.appendChild(autopilotButton);
 		}
