@@ -1646,8 +1646,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 					if (part === sideBar) {
 						this.setSideBarHidden(!visible);
-					} else if (part === panelPart && this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) === visible) {
-						this.setPanelHidden(!visible, true);
+					} else if (part === panelPart) {
+						// In dialog mode, the panel is removed from the grid and managed separately.
+						// When switching modes, hiding the panel from the grid fires this event with
+						// visible=false, which would incorrectly update panel state to hidden.
+						// Skip reacting to grid visibility changes in dialog mode since panel
+						// visibility is controlled through setPanelHidden() directly.
+						if (!this.isDialogMode && this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) === visible) {
+							this.setPanelHidden(!visible, true);
+						}
 					} else if (part === auxiliaryBarPart) {
 						this.setAuxiliaryBarHidden(!visible, true);
 					} else if (part === editorPart) {
@@ -2016,11 +2023,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
 		if (!this.workbenchGrid) {
 			return; // Return if not initialized fully (https://github.com/microsoft/vscode/issues/105480)
-		}
-
-		// In dialog mode, panel visibility is managed separately from the grid
-		if (this.isDialogMode) {
-			return;
 		}
 
 		if (!hidden && this.setAuxiliaryBarMaximized(false) && this.isVisible(Parts.PANEL_PART)) {
