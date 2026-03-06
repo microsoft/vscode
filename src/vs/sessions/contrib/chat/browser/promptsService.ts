@@ -17,7 +17,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform
 import { HOOKS_SOURCE_FOLDER, getCleanPromptName } from '../../../../workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPromptPath, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { BUILTIN_STORAGE } from '../../chat/common/builtinPromptsStorage.js';
+import { BUILTIN_STORAGE, IBuiltinPromptPath } from '../../chat/common/builtinPromptsStorage.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { ISearchService } from '../../../../workbench/services/search/common/search.js';
@@ -29,7 +29,7 @@ export const BUILTIN_PROMPTS_URI = FileAccess.asFileUri('vs/sessions/prompts');
 
 export class AgenticPromptsService extends PromptsService {
 	private _copilotRoot: URI | undefined;
-	private _builtinPromptsCache: Map<PromptsType, Promise<readonly IPromptPath[]>> | undefined;
+	private _builtinPromptsCache: Map<PromptsType, Promise<readonly IBuiltinPromptPath[]>> | undefined;
 
 	protected override createPromptFilesLocator(): PromptFilesLocator {
 		return this.instantiationService.createInstance(AgenticPromptFilesLocator);
@@ -45,9 +45,8 @@ export class AgenticPromptsService extends PromptsService {
 
 	/**
 	 * Returns built-in prompt files bundled with the Sessions app.
-	 * These are discovered from the `vs/sessions/prompts/` directory.
 	 */
-	private async getBuiltinPromptFiles(type: PromptsType): Promise<readonly IPromptPath[]> {
+	private async getBuiltinPromptFiles(type: PromptsType): Promise<readonly IBuiltinPromptPath[]> {
 		if (type !== PromptsType.prompt) {
 			return [];
 		}
@@ -64,7 +63,7 @@ export class AgenticPromptsService extends PromptsService {
 		return cached;
 	}
 
-	private async discoverBuiltinPrompts(type: PromptsType): Promise<readonly IPromptPath[]> {
+	private async discoverBuiltinPrompts(type: PromptsType): Promise<readonly IBuiltinPromptPath[]> {
 		const fileService = this.instantiationService.invokeFunction(accessor => accessor.get(IFileService));
 		const promptsDir = FileAccess.asFileUri('vs/sessions/prompts');
 		try {
@@ -74,11 +73,7 @@ export class AgenticPromptsService extends PromptsService {
 			}
 			return stat.children
 				.filter(child => !child.isDirectory && child.name.endsWith('.prompt.md'))
-				.map(child => ({
-					uri: child.resource,
-					storage: BUILTIN_STORAGE,
-					type,
-				} as IPromptPath));
+				.map(child => ({ uri: child.resource, storage: BUILTIN_STORAGE, type }));
 		} catch {
 			return [];
 		}
@@ -106,12 +101,14 @@ export class AgenticPromptsService extends PromptsService {
 		const nonOverridden = builtinPrompts.filter(
 			p => !overriddenNames.has(getCleanPromptName(p.uri))
 		);
-		return [...baseResults, ...nonOverridden];
+		// Built-in items use BUILTIN_STORAGE ('builtin') which is not in the
+		// core IPromptPath union but is handled by the sessions UI layer.
+		return [...baseResults, ...nonOverridden] as readonly IPromptPath[];
 	}
 
 	public override async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
 		if (storage === BUILTIN_STORAGE) {
-			return this.getBuiltinPromptFiles(type);
+			return this.getBuiltinPromptFiles(type) as Promise<readonly IPromptPath[]>;
 		}
 		return super.listPromptFilesForStorage(type, storage, token);
 	}
