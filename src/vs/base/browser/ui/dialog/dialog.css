@@ -180,10 +180,6 @@
 	align-items: center;
 	padding-right: 1px;
 	overflow: hidden; /* buttons row should never overflow */
-}
-
-.monaco-dialog-box > .dialog-buttons-row {
-	display: flex;
 	white-space: nowrap;
 	padding: 20px 0px 0px;
 }
