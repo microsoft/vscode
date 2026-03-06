@@ -64,21 +64,22 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 	});
 	private readonly editorViewState: PickerEditorState;
 
-	private _getTextQueryBuilderOptions(charsPerLine: number): ITextQueryBuilderOptions {
-		return {
-			...DEFAULT_TEXT_QUERY_BUILDER_OPTIONS,
-			... {
-				extraFileResources: this._instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
-				maxResults: this.configuration.maxResults ?? undefined,
-				isSmartCase: this.configuration.smartCase,
-			},
+    private _getTextQueryBuilderOptions(charsPerLine: number, truncationMode: 'start' | 'end' | 'both' | 'off'): ITextQueryBuilderOptions {
+        return {
+            ...DEFAULT_TEXT_QUERY_BUILDER_OPTIONS,
+            ... {
+                extraFileResources: this._instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
+                maxResults: this.configuration.maxResults ?? undefined,
+                isSmartCase: this.configuration.smartCase,
+            },
 
-			previewOptions: {
-				matchLines: 1,
-				charsPerLine
-			}
-		};
-	}
+            previewOptions: {
+                matchLines: 1,
+                charsPerLine,
+                truncationMode
+            }
+        };
+    }
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -188,9 +189,12 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			pattern: contentPattern,
 		};
 		this.searchModel.searchResult.toggleHighlights(false);
-		const charsPerLine = content.isRegExp ? 10000 : 1000; // from https://github.com/microsoft/vscode/blob/e7ad5651ac26fa00a40aa1e4010e81b92f655569/src/vs/workbench/contrib/search/browser/searchView.ts#L1508
+        const searchConfig = this._configurationService.getValue<IWorkbenchSearchConfiguration>().search;
+        const configuredChars = searchConfig.allowedSizeBeforeTruncation ?? 1000;
+        const charsPerLine = content.isRegExp ? Math.max(10000, configuredChars) : configuredChars; // match Search view rules
+        const truncationMode = searchConfig.resultsTruncation ?? 'start';
 
-		const query: ITextQuery = this.queryBuilder.text(content, folderResources.map(folder => folder.uri), this._getTextQueryBuilderOptions(charsPerLine));
+        const query: ITextQuery = this.queryBuilder.text(content, folderResources.map(folder => folder.uri), this._getTextQueryBuilderOptions(charsPerLine, truncationMode));
 
 		const result = this.searchModel.search(query, undefined, token);
 

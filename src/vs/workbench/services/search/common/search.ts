@@ -204,9 +204,14 @@ export interface IFileMatch<U extends UriComponents = URI> {
 
 export type IRawFileMatch2 = IFileMatch<UriComponents>;
 
+export type SearchResultsTruncationMode = 'start' | 'end' | 'both' | 'off';
+
 export interface ITextSearchPreviewOptions {
-	matchLines: number;
-	charsPerLine: number;
+    matchLines: number;
+    charsPerLine: number;
+    // Optional: controls how single-line previews are truncated
+    // 'start' (default), 'end', 'both', 'off'
+    truncationMode?: SearchResultsTruncationMode;
 }
 
 export interface ISearchRange {
@@ -335,36 +340,52 @@ export class TextSearchMatch implements ITextSearchMatch {
 		// TODO this is fishy.
 		const rangesArr = Array.isArray(ranges) ? ranges : [ranges];
 
-		if (previewOptions && previewOptions.matchLines === 1 && isSingleLineRangeList(rangesArr)) {
-			// 1 line preview requested
-			text = getNLines(text, previewOptions.matchLines);
+        if (previewOptions && previewOptions.matchLines === 1 && isSingleLineRangeList(rangesArr)) {
+            // 1 line preview requested
+            text = getNLines(text, previewOptions.matchLines);
 
-			let result = '';
-			let shift = 0;
-			let lastEnd = 0;
-			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
-			for (const range of rangesArr) {
-				const previewStart = Math.max(range.startColumn - leadingChars, 0);
-				const previewEnd = range.startColumn + previewOptions.charsPerLine;
-				if (previewStart > lastEnd + leadingChars + SEARCH_ELIDED_MIN_LEN) {
-					const elision = SEARCH_ELIDED_PREFIX + (previewStart - lastEnd) + SEARCH_ELIDED_SUFFIX;
-					result += elision + text.slice(previewStart, previewEnd);
-					shift += previewStart - (lastEnd + elision.length);
-				} else {
-					result += text.slice(lastEnd, previewEnd);
-				}
+            let result = '';
+            let shift = 0;
+            let lastEnd = 0;
+            const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
+            const truncationMode: SearchResultsTruncationMode = previewOptions.truncationMode ?? 'start';
+            for (const range of rangesArr) {
+                const previewStart = Math.max(range.startColumn - leadingChars, 0);
+                const previewEnd = range.startColumn + previewOptions.charsPerLine;
+                if (truncationMode === 'start' || truncationMode === 'both') {
+                    if (previewStart > lastEnd + leadingChars + SEARCH_ELIDED_MIN_LEN) {
+                        const elision = SEARCH_ELIDED_PREFIX + (previewStart - lastEnd) + SEARCH_ELIDED_SUFFIX;
+                        result += elision + text.slice(previewStart, previewEnd);
+                        shift += previewStart - (lastEnd + elision.length);
+                    } else {
+                        result += text.slice(lastEnd, previewEnd);
+                    }
+                } else if (truncationMode === 'end') {
+                    // Include from beginning up to after the match window; no leading elision
+                    result += text.slice(lastEnd, previewEnd);
+                    // shift unchanged
+                } else /* off */ {
+                    result += text.slice(lastEnd, Math.max(previewEnd, text.length));
+                }
 
-				lastEnd = previewEnd;
-				this.rangeLocations.push({
-					source: range,
-					preview: new OneLineRange(0, range.startColumn - shift, range.endColumn - shift)
-				});
+                lastEnd = previewEnd;
+                this.rangeLocations.push({
+                    source: range,
+                    preview: new OneLineRange(0, range.startColumn - shift, range.endColumn - shift)
+                });
 
-			}
+            }
 
-			this.previewText = result;
-		} else {
-			const firstMatchLine = Array.isArray(ranges) ? ranges[0].startLineNumber : ranges.startLineNumber;
+            if ((truncationMode === 'end' || truncationMode === 'both') && lastEnd + leadingChars + SEARCH_ELIDED_MIN_LEN < text.length) {
+                const omitted = Math.max(text.length - lastEnd, 0);
+                if (omitted > 0) {
+                    result += SEARCH_ELIDED_PREFIX + omitted + SEARCH_ELIDED_SUFFIX;
+                }
+            }
+
+            this.previewText = (truncationMode === 'off') ? text : result;
+        } else {
+            const firstMatchLine = Array.isArray(ranges) ? ranges[0].startLineNumber : ranges.startLineNumber;
 
 			const rangeLocs = mapArrayOrNot(ranges, r => ({
 				preview: new SearchRange(r.startLineNumber - firstMatchLine, r.startColumn, r.endLineNumber - firstMatchLine, r.endColumn),
@@ -373,8 +394,8 @@ export class TextSearchMatch implements ITextSearchMatch {
 
 			this.rangeLocations = Array.isArray(rangeLocs) ? rangeLocs : [rangeLocs];
 			this.previewText = text;
-		}
-	}
+    }
+}
 }
 
 function isSingleLineRangeList(ranges: ISearchRange[]): boolean {
@@ -473,10 +494,14 @@ export interface ISearchConfigurationProperties {
 	experimental: {
 		closedNotebookRichContentResults: boolean;
 	};
-	searchView: {
-		semanticSearchBehavior: string;
-		keywordSuggestions: boolean;
-	};
+    searchView: {
+        semanticSearchBehavior: string;
+        keywordSuggestions: boolean;
+    };
+    // Controls truncation of long search result lines
+    resultsTruncation?: SearchResultsTruncationMode;
+    // Number of characters per line before truncation applies (non-regex). Regex may enforce a higher minimum.
+    allowedSizeBeforeTruncation?: number | null;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

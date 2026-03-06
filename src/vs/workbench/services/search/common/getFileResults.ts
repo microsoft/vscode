@@ -77,11 +77,46 @@ export const getFileResults = (
 
 			let previewText = '';
 			let offset = 0;
+			let prefixLenForFirstLine = 0;
 			for (let matchLine = startLine; matchLine <= endLine; matchLine++) {
 				let previewLine = readLine(matchLine);
 				if (options.previewOptions?.charsPerLine && previewLine.length > options.previewOptions.charsPerLine) {
-					offset = Math.max(matchStartIndex - lineRanges[startLine].start - 20, 0);
-					previewLine = previewLine.substr(offset, options.previewOptions.charsPerLine);
+					const charsPerLine = options.previewOptions.charsPerLine;
+					const leadingChars = Math.floor(charsPerLine / 5);
+					const truncationMode = options.previewOptions.truncationMode ?? 'start';
+					if (matchLine === startLine) {
+						// compute match column within the start line
+						const matchColumnInLine = matchStartIndex - lineRanges[startLine].start;
+						offset = Math.max(matchColumnInLine - leadingChars, 0);
+						let prefix = '';
+						if ((truncationMode === 'start' || truncationMode === 'both')) {
+							const leftOmitted = offset;
+							const SEARCH_ELIDED_PREFIX = '⟪ ';
+							const SEARCH_ELIDED_SUFFIX = ' characters skipped ⟫';
+							const SEARCH_ELIDED_MIN_LEN = (SEARCH_ELIDED_PREFIX.length + SEARCH_ELIDED_SUFFIX.length + 5) * 2;
+							if (leftOmitted > leadingChars + SEARCH_ELIDED_MIN_LEN) {
+								prefix = SEARCH_ELIDED_PREFIX + leftOmitted + SEARCH_ELIDED_SUFFIX;
+							}
+						}
+
+						let lineSegment = previewLine.substr(offset, charsPerLine);
+						let suffix = '';
+						if (truncationMode === 'end' || truncationMode === 'both') {
+							const rightOmitted = Math.max(previewLine.length - (offset + charsPerLine), 0);
+							const SEARCH_ELIDED_PREFIX = '⟪ ';
+							const SEARCH_ELIDED_SUFFIX = ' characters skipped ⟫';
+							const SEARCH_ELIDED_MIN_LEN = (SEARCH_ELIDED_PREFIX.length + SEARCH_ELIDED_SUFFIX.length + 5) * 2;
+							if (rightOmitted > leadingChars + SEARCH_ELIDED_MIN_LEN) {
+								suffix = SEARCH_ELIDED_PREFIX + rightOmitted + SEARCH_ELIDED_SUFFIX;
+							}
+						}
+
+						prefixLenForFirstLine = prefix.length;
+						previewLine = `${prefix}${lineSegment}${suffix}`;
+					} else {
+						// subsequent lines: simple window from start
+						previewLine = previewLine.substr(0, charsPerLine);
+					}
 				}
 				previewText += `${previewLine}\n`;
 				resultLines.add(matchLine);
@@ -95,9 +130,9 @@ export const getFileResults = (
 			);
 			const previewRange = new Range(
 				0,
-				matchStartIndex - lineRanges[startLine].start - offset,
+				matchStartIndex - lineRanges[startLine].start - offset + prefixLenForFirstLine,
 				endLine - startLine,
-				matchStartIndex + matchedText.length - lineRanges[endLine].start - (endLine === startLine ? offset : 0)
+				matchStartIndex + matchedText.length - lineRanges[endLine].start - (endLine === startLine ? offset : 0) + (endLine === startLine ? prefixLenForFirstLine : 0)
 			);
 
 			const match: ITextSearchMatch = {

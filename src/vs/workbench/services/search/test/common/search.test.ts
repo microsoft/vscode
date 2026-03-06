@@ -6,7 +6,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITextSearchPreviewOptions, OneLineRange, TextSearchMatch, SearchRange } from '../../common/search.js';
 
-suite('TextSearchResult', () => {
+	suite('TextSearchResult', () => {
 
 	const previewOptions1: ITextSearchPreviewOptions = {
 		matchLines: 1,
@@ -31,6 +31,54 @@ suite('TextSearchResult', () => {
 		const result = new TextSearchMatch('', range);
 		assert.deepStrictEqual(getFirstSourceFromResult(result), range);
 		assertOneLinePreviewRangeText('', result);
+	});
+
+	test('truncation off shows full line', () => {
+		const previewOptions: ITextSearchPreviewOptions = {
+			matchLines: 1,
+			charsPerLine: 5,
+			truncationMode: 'off'
+		};
+
+		const text = 'hello world';
+		const range = new SearchRange(5, 6, 5, 11);
+		const result = new TextSearchMatch(text, range, previewOptions);
+		assert.strictEqual(result.previewText, text);
+		assert.deepStrictEqual(getFirstSourceFromResult(result), range);
+	});
+
+	test('truncation end adds trailing elision', () => {
+		const previewOptions: ITextSearchPreviewOptions = {
+			matchLines: 1,
+			charsPerLine: 10,
+			truncationMode: 'end'
+		};
+
+		const prefix = 'abcdefghij'; // 10 chars
+		const tail = 'x'.repeat(110); // total length large
+		const text = prefix + tail;
+		const range = new SearchRange(5, 5, 5, 8); // within prefix
+		const result = new TextSearchMatch(text, range, previewOptions);
+		assert.ok(result.previewText.includes(prefix));
+		assert.ok(/⟪ \d+ characters skipped ⟫$/.test(result.previewText));
+	});
+
+	test('truncation both adds left and trailing elision', () => {
+		const previewOptions: ITextSearchPreviewOptions = {
+			matchLines: 1,
+			charsPerLine: 10,
+			truncationMode: 'both'
+		};
+
+		const left = 'a'.repeat(100);
+		const right = 'b'.repeat(150);
+		const text = left + 'foozz' + right;
+		const range = new SearchRange(5, 100, 5, 103);
+		const result = new TextSearchMatch(text, range, previewOptions);
+		// left omitted = 98, trailing omitted = text.length - (range.startColumn + charsPerLine) = 255 - 110 = 145, but we used 5 letters 'foozz'
+		// preview text should include both elisions
+		assert.ok(result.previewText.startsWith('⟪ 98 characters skipped ⟫'));
+		assert.ok(result.previewText.endsWith('⟪ 145 characters skipped ⟫'));
 	});
 
 	test('empty with preview options', () => {
