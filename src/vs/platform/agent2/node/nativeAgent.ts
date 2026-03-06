@@ -45,6 +45,7 @@ import { IMiddleware } from '../common/middleware.js';
 import { AnthropicModelProvider } from './anthropicProvider.js';
 import { CopilotTokenService } from './copilotToken.js';
 import { AllowAllPolicy, PermissionMiddleware } from './middleware/permissionMiddleware.js';
+import { ContextWindowMiddleware } from './middleware/contextWindow.js';
 import { ToolOutputTruncationMiddleware } from './middleware/toolOutputTruncation.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind } from './nativeToolDisplay.js';
 import { BashTool } from './tools/bashTool.js';
@@ -222,6 +223,8 @@ export class NativeAgent extends Disposable implements IAgent {
 
 	private _buildMiddleware(): IMiddleware[] {
 		return [
+			// Context window management: prune old tool outputs when approaching limit
+			new ContextWindowMiddleware({ maxContextTokens: 200_000 }),
 			// Auto-approve all tool calls for now. The permission system will be
 			// wired to the IAgentPermissionRequestEvent flow in a later phase.
 			new PermissionMiddleware(new AllowAllPolicy(), () => Promise.resolve(true)),
