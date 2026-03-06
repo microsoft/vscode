@@ -78,6 +78,7 @@ export class LineHeightsManager {
 	private _invalidIndex: number = Infinity;
 	private _defaultLineHeight: number;
 	private _hasPending: boolean = false;
+	private _stagedDecorationIdToLines: Map<string, CustomLine[]> = new Map();
 
 	constructor(defaultLineHeight: number, customLineHeightData: CustomLineHeightData[]) {
 		this._defaultLineHeight = defaultLineHeight;
@@ -141,6 +142,7 @@ export class LineHeightsManager {
 		if (!this._hasPending) {
 			return;
 		}
+		const commitStart = Date.now();
 		const changes = this._pendingChanges;
 		this._pendingChanges = [];
 		this._hasPending = false;
@@ -165,6 +167,7 @@ export class LineHeightsManager {
 			}
 		}
 		this._flushStagedDecorationChanges(stagedInserts);
+		console.log(`[LineHeightsManager] _commit took ${Date.now() - commitStart}ms (changes: ${changes.length})`);
 	}
 
 	private _doRemoveCustomLineHeight(decorationID: string, stagedInserts: CustomLine[]): void {
@@ -176,32 +179,42 @@ export class LineHeightsManager {
 				this._invalidIndex = Math.min(this._invalidIndex, customLine.index);
 			}
 		}
-		for (let i = stagedInserts.length - 1; i >= 0; i--) {
-			if (stagedInserts[i].decorationId === decorationID) {
-				stagedInserts.splice(i, 1);
+		const stagedLines = this._stagedDecorationIdToLines.get(decorationID);
+		if (stagedLines) {
+			this._stagedDecorationIdToLines.delete(decorationID);
+			for (const line of stagedLines) {
+				line.deleted = true;
 			}
 		}
 	}
 
 	private _doInsertOrChangeCustomLineHeight(decorationId: string, startLineNumber: number, endLineNumber: number, lineHeight: number, stagedInserts: CustomLine[]): void {
 		this._doRemoveCustomLineHeight(decorationId, stagedInserts);
+		const newStagedInserts: CustomLine[] = [];
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 			const customLine = new CustomLine(decorationId, -1, lineNumber, lineHeight, 0);
 			stagedInserts.push(customLine);
+			newStagedInserts.push(customLine);
 		}
+		this._stagedDecorationIdToLines.set(decorationId, newStagedInserts);
 	}
 
 	private _flushStagedDecorationChanges(stagedInserts: CustomLine[]): void {
 		if (stagedInserts.length === 0 && this._invalidIndex === Infinity) {
 			return;
 		}
+		const flushStart = Date.now();
 		for (const pendingChange of stagedInserts) {
+			if (pendingChange.deleted) {
+				continue;
+			}
 			const candidateInsertionIndex = this._binarySearchOverOrderedCustomLinesArray(pendingChange.lineNumber);
 			const insertionIndex = candidateInsertionIndex >= 0 ? candidateInsertionIndex : -(candidateInsertionIndex + 1);
 			this._orderedCustomLines.splice(insertionIndex, 0, pendingChange);
 			this._invalidIndex = Math.min(this._invalidIndex, insertionIndex);
 		}
 		stagedInserts.length = 0;
+		this._stagedDecorationIdToLines.clear();
 		const newDecorationIDToSpecialLine = new ArrayMap<string, CustomLine>();
 		const newOrderedSpecialLines: CustomLine[] = [];
 
@@ -252,6 +265,7 @@ export class LineHeightsManager {
 		this._orderedCustomLines = newOrderedSpecialLines;
 		this._decorationIDToCustomLine = newDecorationIDToSpecialLine;
 		this._invalidIndex = Infinity;
+		console.log(`[LineHeightsManager] _flushStagedDecorationChanges took ${Date.now() - flushStart}ms (stagedInserts: ${stagedInserts.length}, orderedLines: ${newOrderedSpecialLines.length})`);
 	}
 
 	private _doLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
