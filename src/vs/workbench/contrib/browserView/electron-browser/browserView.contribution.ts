@@ -178,7 +178,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 						value: localize('browser.enableChatTools', 'When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser.')
 					}
 				},
-			}
+			},
+			order: 300
 		},
 		'workbench.browser.dataStorage': {
 			type: 'string',
@@ -219,7 +220,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			markdownDescription: localize('browser.sendElementsToChat.attachImages', "Controls whether a screenshot of the selected element will be added to the chat. {0} must be enabled.", '`#workbench.browser.sendElementsToChat.enabled#`'),
 			type: 'boolean',
-			tags: ['preview'],
+			tags: ['experimental'],
 			order: 220
 		}
 	}
