@@ -3640,6 +3640,7 @@ suite('PromptsService', () => {
 		});
 
 		test('returns undefined when workspace is untrusted', async function () {
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/test-workspace')));
 			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, { [HOOKS_SOURCE_FOLDER]: true });
 
@@ -3676,6 +3677,7 @@ suite('PromptsService', () => {
 		});
 
 		test('discovery info marks hooks as skipped when workspace is untrusted', async function () {
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/test-workspace')));
 			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, { [HOOKS_SOURCE_FOLDER]: true });
 
