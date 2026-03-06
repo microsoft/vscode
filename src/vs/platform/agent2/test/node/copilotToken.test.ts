@@ -12,11 +12,13 @@ import { CopilotTokenService } from '../../node/copilotToken.js';
 /**
  * Creates a mock fetcher service (ICAPIFetcherService) that returns
  * canned responses. CAPIClient delegates all HTTP to this service.
+ * Returns Response-like objects matching what the default fetcher returns.
  */
 function createMockFetcherService(handler: (url: string, options: Record<string, unknown>) => unknown) {
 	return {
 		fetch(url: string, options: Record<string, unknown>) {
-			return Promise.resolve(handler(url, options));
+			const result = handler(url, options);
+			return Promise.resolve(result);
 		},
 		fetchWithPagination() {
 			return Promise.resolve([]);
@@ -24,14 +26,23 @@ function createMockFetcherService(handler: (url: string, options: Record<string,
 	};
 }
 
-function createTokenResponse(overrides?: Partial<{ token: string; expires_at: number; refresh_in: number; endpoints: { api?: string }; sku: string }>) {
+/** Creates a Response-like object wrapping a token envelope JSON body. */
+function createTokenResponseObj(overrides?: Partial<{ token: string; expires_at: number; refresh_in: number; endpoints: { api?: string }; sku: string }>) {
 	const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
-	return {
+	const body = {
 		token: overrides?.token ?? 'copilot-jwt-123',
 		expires_at: overrides?.expires_at ?? futureExpiry,
 		refresh_in: overrides?.refresh_in ?? 1800,
 		endpoints: overrides?.endpoints ?? { api: 'https://api.githubcopilot.com' },
 		sku: overrides?.sku ?? 'copilot_for_business',
+	};
+	return {
+		ok: true,
+		status: 200,
+		statusText: 'OK',
+		json: async () => body,
+		text: async () => JSON.stringify(body),
+		_body: body, // For test assertions
 	};
 }
 
@@ -40,7 +51,7 @@ suite('CopilotTokenService', () => {
 	const log = new NullLogService();
 
 	test('exchanges GitHub token for Copilot JWT', async () => {
-		const tokenResp = createTokenResponse({ token: 'copilot-jwt-abc', endpoints: { api: 'https://custom.api.example.com' } });
+		const tokenResp = createTokenResponseObj({ token: 'copilot-jwt-abc', endpoints: { api: 'https://custom.api.example.com' } });
 		const fetcher = createMockFetcherService(() => tokenResp);
 
 		const service = new CopilotTokenService(log, fetcher);
@@ -49,12 +60,12 @@ suite('CopilotTokenService', () => {
 		const token = await service.getToken(CancellationToken.None);
 
 		assert.strictEqual(token.token, 'copilot-jwt-abc');
-		assert.strictEqual(token.expiresAt, tokenResp.expires_at);
+		assert.strictEqual(token.expiresAt, tokenResp._body.expires_at);
 	});
 
 	test('caches and reuses unexpired token', async () => {
 		let fetchCount = 0;
-		const tokenResp = createTokenResponse();
+		const tokenResp = createTokenResponseObj();
 		const fetcher = createMockFetcherService(() => {
 			fetchCount++;
 			return tokenResp;
@@ -79,7 +90,7 @@ suite('CopilotTokenService', () => {
 			const expiresAt = fetchCount === 1
 				? Math.floor(Date.now() / 1000) - 100  // Already expired
 				: Math.floor(Date.now() / 1000) + 3600; // Future
-			return createTokenResponse({ token: `jwt-${fetchCount}`, expires_at: expiresAt });
+			return createTokenResponseObj({ token: `jwt-${fetchCount}`, expires_at: expiresAt });
 		});
 
 		const service = new CopilotTokenService(log, fetcher);
@@ -98,7 +109,7 @@ suite('CopilotTokenService', () => {
 		let fetchCount = 0;
 		const fetcher = createMockFetcherService(() => {
 			fetchCount++;
-			return createTokenResponse({ token: `jwt-${fetchCount}` });
+			return createTokenResponseObj({ token: `jwt-${fetchCount}` });
 		});
 
 		const service = new CopilotTokenService(log, fetcher);
@@ -114,7 +125,7 @@ suite('CopilotTokenService', () => {
 	});
 
 	test('throws when no GitHub token is set', async () => {
-		const fetcher = createMockFetcherService(() => createTokenResponse());
+		const fetcher = createMockFetcherService(() => createTokenResponseObj());
 		const service = new CopilotTokenService(log, fetcher);
 		await assert.rejects(
 			() => service.getToken(CancellationToken.None),
@@ -128,7 +139,7 @@ suite('CopilotTokenService', () => {
 			fetchCount++;
 			// Simulate network latency
 			await new Promise(resolve => setTimeout(resolve, 10));
-			return createTokenResponse({ token: 'jwt-shared' });
+			return createTokenResponseObj({ token: 'jwt-shared' });
 		});
 
 		const service = new CopilotTokenService(log, fetcher);

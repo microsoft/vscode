@@ -252,10 +252,18 @@ export class CopilotTokenService {
 			method: 'GET',
 		};
 
-		const response = await client.makeRequest<ITokenEnvelope>(
+		const rawResponse = await client.makeRequest<Response>(
 			options,
 			{ type: CAPIRequestType.CopilotToken },
 		);
+
+		// CAPIClient returns a raw Response -- parse the JSON body
+		if (!rawResponse.ok) {
+			const errorBody = await rawResponse.text().catch(() => '');
+			throw new Error(`Copilot token exchange failed: ${rawResponse.status} ${rawResponse.statusText}${errorBody ? ` - ${errorBody}` : ''}`);
+		}
+
+		const response = await rawResponse.json() as ITokenEnvelope;
 
 		// Update CAPIClient domains from the token's endpoint configuration
 		if (response.endpoints || response.sku) {

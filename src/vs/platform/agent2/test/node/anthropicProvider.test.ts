@@ -42,14 +42,21 @@ function createMockSetup(sseEvents: string[], options?: { captureBody?: (body: s
 
 	const fetcher = {
 		fetch(url: string, fetchOptions: Record<string, unknown>): Promise<unknown> {
-			// Token exchange request
+			// Token exchange request -- return Response-like object
 			if (typeof url === 'string' && url.includes('copilot_internal')) {
-				return Promise.resolve({
+				const tokenBody = {
 					token: 'test-copilot-jwt',
 					expires_at: futureExpiry,
 					refresh_in: 1800,
 					endpoints: { api: 'https://test-api.example.com' },
 					sku: 'copilot_for_business',
+				};
+				return Promise.resolve({
+					ok: true,
+					status: 200,
+					statusText: 'OK',
+					json: async () => tokenBody,
+					text: async () => JSON.stringify(tokenBody),
 				});
 			}
 
@@ -196,9 +203,13 @@ suite('AnthropicModelProvider', () => {
 			const fetcher = {
 				fetch(url: string) {
 					if (url.includes('copilot_internal')) {
-						return Promise.resolve({
+						const body = {
 							token: 'jwt', expires_at: Math.floor(Date.now() / 1000) + 3600,
 							refresh_in: 1800, endpoints: {}, sku: 'test',
+						};
+						return Promise.resolve({
+							ok: true, status: 200, statusText: 'OK',
+							json: async () => body, text: async () => JSON.stringify(body),
 						});
 					}
 					// 400 is not retryable -- should fail immediately
@@ -282,9 +293,13 @@ suite('AnthropicModelProvider', () => {
 			const fetcher = {
 				fetch(url: string, fetchOptions: Record<string, unknown>) {
 					if (url.includes('copilot_internal')) {
-						return Promise.resolve({
+						const body = {
 							token: 'jwt', expires_at: Math.floor(Date.now() / 1000) + 3600,
 							refresh_in: 1800, endpoints: {}, sku: 'test',
+						};
+						return Promise.resolve({
+							ok: true, status: 200, statusText: 'OK',
+							json: async () => body, text: async () => JSON.stringify(body),
 						});
 					}
 

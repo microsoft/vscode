@@ -10,7 +10,7 @@ import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { AgentHostIpcChannels } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
-import { CopilotAgent } from './copilot/copilotAgent.js';
+// import { CopilotAgent } from './copilot/copilotAgent.js'; // Temporarily disabled
 import { NativeAgent } from '../../agent2/node/nativeAgent.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { parseArgs, OPTIONS } from '../../environment/node/argv.js';

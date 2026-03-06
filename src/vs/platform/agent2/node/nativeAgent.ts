@@ -270,12 +270,15 @@ export class NativeAgent extends Disposable implements IAgent {
 				session: session.uri,
 			});
 		} catch (err) {
-			this._logService.error('[NativeAgent] Loop error:', err);
+			const message = err instanceof Error ? err.message : String(err);
+			const stack = err instanceof Error ? err.stack : undefined;
+			this._logService.error(`[NativeAgent] Loop error: ${message}`, stack);
 			this._onDidSessionProgress.fire({
 				type: 'error',
 				session: session.uri,
 				errorType: err instanceof Error ? err.constructor.name : 'Error',
-				message: err instanceof Error ? err.message : String(err),
+				message,
+				stack,
 			});
 			this._onDidSessionProgress.fire({
 				type: 'idle',
