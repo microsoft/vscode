@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IExtensionContributions, ExtensionType, IExtension, IExtensionManifest, IExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { IExtensionContributions, ExtensionType, IExtension, IExtensionManifest, IExtensionIdentifier, IRelaxedExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { isUndefinedOrNull } from '../../../../../base/common/types.js';
 import { areSameExtensions } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -42,6 +42,7 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { AllowedExtensionsService } from '../../../../../platform/extensionManagement/common/allowedExtensionsService.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
+import { IExtensionService, IExtensionsStatus } from '../../../extensions/common/extensions.js';
 
 function createStorageService(instantiationService: TestInstantiationService, disposableStore: DisposableStore): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -537,8 +538,16 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.canChangeWorkspaceEnablement(aLocalExtension('pub.a')), false);
 	});
 
-	test('test canChangeWorkspaceEnablement return false for auth extension', () => {
-		assert.strictEqual(testObject.canChangeWorkspaceEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), false);
+	test('test canChangeWorkspaceEnablement return false for active auth extension', () => {
+		const activeAuth = aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] });
+		instantiationService.stub(IExtensionService, anExtensionService([activeAuth], []));
+		assert.strictEqual(testObject.canChangeWorkspaceEnablement(activeAuth), false);
+	});
+
+	test('test canChangeWorkspaceEnablement return true for inactive auth extension', () => {
+		const inactiveAuth = aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] });
+		instantiationService.stub(IExtensionService, anExtensionService([], [inactiveAuth]));
+		assert.strictEqual(testObject.canChangeWorkspaceEnablement(inactiveAuth), true);
 	});
 
 	test('test canChangeEnablement return false when extensions are disabled in environment', () => {
@@ -1236,6 +1245,41 @@ export function anExtensionManagementServerService(localExtensionManagementServe
 					: ExtensionInstallLocation.Local;
 		}
 	};
+}
+
+function anExtensionService(activeExtensions: Readonly<ILocalExtension>[], inactiveExtensions: Readonly<ILocalExtension>[]): IExtensionService {
+	const relaxedExtensionDescriptions: Readonly<IRelaxedExtensionDescription>[] = [...activeExtensions, ...inactiveExtensions];
+	const extensionsStatus: { [id: string]: IExtensionsStatus } = {};
+	for (const extension of activeExtensions) {
+		extensionsStatus[extension.identifier.id] = { activationStarted: true, activationTimes: null };
+	}
+	for (const extension of inactiveExtensions) {
+		extensionsStatus[extension.identifier.id] = { activationStarted: false, activationTimes: null };
+	}
+	return {
+		_serviceBrand: undefined,
+		extensions: relaxedExtensionDescriptions,
+		onDidChangeExtensions: Event.None,
+		onDidChangeExtensionsStatus: Event.None,
+		onDidChangeResponsiveChange: Event.None,
+		onDidRegisterExtensions: Event.None,
+		onWillActivateByEvent: Event.None,
+		onWillStop: Event.None,
+		activateByEvent: () => Promise.resolve(),
+		activateById: () => Promise.resolve(),
+		activationEventIsDone: (activationEvent) => false,
+		canAddExtension: (extension) => false,
+		canRemoveExtension: (extension) => false,
+		getExtension: (id) => Promise.resolve(extensions.find(e => e.identifier.value === id)),
+		getExtensionsStatus: () => extensionsStatus,
+		getInspectPorts: () => Promise.resolve([]),
+		readExtensionPointContributions: () => Promise.resolve([]),
+		setRemoteEnvironment: () => Promise.resolve(),
+		startExtensionHosts: () => Promise.resolve(),
+		stopExtensionHosts: () => Promise.resolve(true),
+		whenInstalledExtensionsRegistered: () => Promise.resolve(true)
+	};
+
 }
 
 function aLocalExtension(id: string, contributes?: IExtensionContributions, type?: ExtensionType): ILocalExtension {
