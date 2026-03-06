@@ -90,28 +90,36 @@ export const CAPIRequestType = {
 // -- CAPI model list response types -------------------------------------------
 
 export interface ICAPIModelCapabilities {
+	readonly type: string;
+	readonly family: string;
 	readonly supports: {
-		readonly vision: boolean;
-		readonly reasoningEffort: boolean;
+		readonly vision?: boolean;
+		readonly thinking?: boolean;
+		readonly adaptive_thinking?: boolean;
+		readonly streaming?: boolean;
+		readonly tool_calls?: boolean;
 	};
-	readonly limits: {
+	readonly limits?: {
 		readonly max_prompt_tokens?: number;
-		readonly max_context_window_tokens: number;
+		readonly max_output_tokens?: number;
+		readonly max_context_window_tokens?: number;
 	};
 }
 
 export interface ICAPIModelInfo {
 	readonly id: string;
 	readonly name: string;
+	readonly vendor: string;
+	readonly version: string;
+	readonly model_picker_enabled: boolean;
 	readonly capabilities: ICAPIModelCapabilities;
 	readonly policy?: { readonly state: 'enabled' | 'disabled' | 'unconfigured' };
-	readonly billing?: { readonly multiplier: number };
-	readonly supportedReasoningEfforts?: readonly string[];
-	readonly defaultReasoningEffort?: string;
+	readonly billing?: { readonly is_premium: boolean; readonly multiplier: number };
+	readonly supported_endpoints?: readonly string[];
 }
 
 export interface ICAPIModelsResponse {
-	readonly models: readonly ICAPIModelInfo[];
+	readonly data: readonly ICAPIModelInfo[];
 }
 
 // -- Token types --------------------------------------------------------------

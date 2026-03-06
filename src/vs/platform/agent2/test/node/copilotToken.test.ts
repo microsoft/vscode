@@ -122,7 +122,7 @@ suite('CopilotApiService', () => {
 		let requestedUrl: string | undefined;
 		const { fetcher } = createMockFetcherService((url) => {
 			requestedUrl = url;
-			return { ok: true, status: 200, statusText: 'OK', json: async () => ({ models: [] }), text: async () => '{"models":[]}' };
+			return { ok: true, status: 200, statusText: 'OK', json: async () => ({ data: [] }), text: async () => '{"data":[]}' };
 		});
 
 		const service = new CopilotApiService(log, fetcher);
@@ -135,23 +135,23 @@ suite('CopilotApiService', () => {
 	});
 
 	test('sendRequest parses JSON response', async () => {
-		const expectedModels = {
-			models: [
-				{ id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', capabilities: { supports: { vision: true, reasoningEffort: true }, limits: { max_context_window_tokens: 200000 } } },
-				{ id: 'claude-opus-4-20250514', name: 'Claude Opus 4', capabilities: { supports: { vision: true, reasoningEffort: true }, limits: { max_context_window_tokens: 200000 } } },
+		const expectedResponse = {
+			data: [
+				{ id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', vendor: 'anthropic', version: '1.0', model_picker_enabled: true, capabilities: { type: 'chat', family: 'claude-sonnet-4', supports: { vision: true, thinking: true }, limits: { max_context_window_tokens: 200000 } } },
+				{ id: 'claude-opus-4-20250514', name: 'Claude Opus 4', vendor: 'anthropic', version: '1.0', model_picker_enabled: true, capabilities: { type: 'chat', family: 'claude-opus-4', supports: { vision: true, thinking: true }, limits: { max_context_window_tokens: 200000 } } },
 			],
 		};
 		const { fetcher } = createMockFetcherService(() => {
-			return { ok: true, status: 200, statusText: 'OK', json: async () => expectedModels, text: async () => JSON.stringify(expectedModels) };
+			return { ok: true, status: 200, statusText: 'OK', json: async () => expectedResponse, text: async () => JSON.stringify(expectedResponse) };
 		});
 
 		const service = new CopilotApiService(log, fetcher);
 		service.setGitHubToken('gh-token');
 
-		const result = await service.sendRequest<{ models: { id: string }[] }>({ type: 'Models' }, undefined, CancellationToken.None);
-		assert.strictEqual(result.models.length, 2);
-		assert.strictEqual(result.models[0].id, 'claude-sonnet-4-20250514');
-		assert.strictEqual(result.models[1].id, 'claude-opus-4-20250514');
+		const result = await service.sendRequest<{ data: { id: string }[] }>({ type: 'Models' }, undefined, CancellationToken.None);
+		assert.strictEqual(result.data.length, 2);
+		assert.strictEqual(result.data[0].id, 'claude-sonnet-4-20250514');
+		assert.strictEqual(result.data[1].id, 'claude-opus-4-20250514');
 	});
 
 	test('sendRequest throws on non-OK response', async () => {
