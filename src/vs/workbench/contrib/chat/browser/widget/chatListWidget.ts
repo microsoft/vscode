@@ -518,6 +518,7 @@ export class ChatListWidget extends Disposable {
 			this._tree.setChildren(null, []);
 			this._lastItem = undefined;
 			this._lastItemIdContextKey.set([]);
+			this._updateAriaBusy(false);
 			return;
 		}
 
@@ -565,6 +566,25 @@ export class ChatListWidget extends Disposable {
 				}
 			});
 		});
+
+		// Update aria-busy state to prevent screen readers (e.g., VoiceOver) from losing
+		// focus position during DOM updates while a response is being streamed.
+		const hasIncompleteResponse = this._lastItem && isResponseVM(this._lastItem) && !this._lastItem.isComplete;
+		this._updateAriaBusy(!!hasIncompleteResponse);
+	}
+
+	/**
+	 * Set or remove the aria-busy attribute on the tree element.
+	 * When aria-busy is true, screen readers will not track intermediate DOM changes,
+	 * preventing focus from jumping unexpectedly during response streaming.
+	 */
+	private _updateAriaBusy(busy: boolean): void {
+		const treeElement = this._tree.getHTMLElement();
+		if (busy) {
+			treeElement.setAttribute('aria-busy', 'true');
+		} else {
+			treeElement.removeAttribute('aria-busy');
+		}
 	}
 
 	/**
