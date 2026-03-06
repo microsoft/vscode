@@ -43,7 +43,7 @@ import { AgentLoopEvent } from '../common/events.js';
 import { IAgentTool } from '../common/tools.js';
 import { IMiddleware } from '../common/middleware.js';
 import { AnthropicModelProvider } from './anthropicProvider.js';
-import { CopilotApiService } from './copilotToken.js';
+import { CAPIRequestType, CopilotApiService, ICAPIModelsResponse } from './copilotToken.js';
 import { AllowAllPolicy, PermissionMiddleware } from './middleware/permissionMiddleware.js';
 import { ContextWindowMiddleware } from './middleware/contextWindow.js';
 import { ToolOutputTruncationMiddleware } from './middleware/toolOutputTruncation.js';
@@ -111,16 +111,36 @@ export class NativeAgent extends Disposable implements IAgent {
 	}
 
 	async listModels(): Promise<IAgentModelInfo[]> {
-		return [{
-			provider: PROVIDER_ID,
-			id: DEFAULT_MODEL,
-			name: 'Claude Sonnet 4',
-			maxContextWindow: 200_000,
-			supportsVision: true,
-			supportsReasoningEffort: true,
-			supportedReasoningEfforts: ['low', 'medium', 'high'],
-			defaultReasoningEffort: 'medium',
-		}];
+		try {
+			const response = await this._apiService.sendRequest<ICAPIModelsResponse>(
+				{ type: CAPIRequestType.Models },
+			);
+
+			return response.models.map(m => ({
+				provider: PROVIDER_ID,
+				id: m.id,
+				name: m.name,
+				maxContextWindow: m.capabilities.limits.max_context_window_tokens,
+				supportsVision: m.capabilities.supports.vision,
+				supportsReasoningEffort: m.capabilities.supports.reasoningEffort,
+				supportedReasoningEfforts: m.supportedReasoningEfforts,
+				defaultReasoningEffort: m.defaultReasoningEffort,
+				policyState: m.policy?.state,
+				billingMultiplier: m.billing?.multiplier,
+			}));
+		} catch (err) {
+			this._logService.warn('[NativeAgent] Failed to fetch models from CAPI, returning defaults', err);
+			return [{
+				provider: PROVIDER_ID,
+				id: DEFAULT_MODEL,
+				name: 'Claude Sonnet 4',
+				maxContextWindow: 200_000,
+				supportsVision: true,
+				supportsReasoningEffort: true,
+				supportedReasoningEfforts: ['low', 'medium', 'high'],
+				defaultReasoningEffort: 'medium',
+			}];
+		}
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {

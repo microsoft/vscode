@@ -87,6 +87,33 @@ export const CAPIRequestType = {
 	Models: 'Models',
 } as const;
 
+// -- CAPI model list response types -------------------------------------------
+
+export interface ICAPIModelCapabilities {
+	readonly supports: {
+		readonly vision: boolean;
+		readonly reasoningEffort: boolean;
+	};
+	readonly limits: {
+		readonly max_prompt_tokens?: number;
+		readonly max_context_window_tokens: number;
+	};
+}
+
+export interface ICAPIModelInfo {
+	readonly id: string;
+	readonly name: string;
+	readonly capabilities: ICAPIModelCapabilities;
+	readonly policy?: { readonly state: 'enabled' | 'disabled' | 'unconfigured' };
+	readonly billing?: { readonly multiplier: number };
+	readonly supportedReasoningEfforts?: readonly string[];
+	readonly defaultReasoningEffort?: string;
+}
+
+export interface ICAPIModelsResponse {
+	readonly models: readonly ICAPIModelInfo[];
+}
+
 // -- Token types --------------------------------------------------------------
 
 interface ITokenEnvelope {
@@ -241,7 +268,12 @@ export class CopilotApiService {
 			},
 		};
 
-		return client.makeRequest<T>(options, requestType);
+		const rawResponse = await client.makeRequest<Response>(options, requestType);
+		if (!rawResponse.ok) {
+			const body = await rawResponse.text().catch(() => '');
+			throw new Error(`CAPI ${requestType.type} request failed: ${rawResponse.status} ${rawResponse.statusText} - ${body}`);
+		}
+		return rawResponse.json() as Promise<T>;
 	}
 
 	setGitHubToken(token: string): void {

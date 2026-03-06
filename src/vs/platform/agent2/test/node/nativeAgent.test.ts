@@ -64,7 +64,7 @@ suite('NativeAgent', () => {
 		assert.strictEqual(messages.length, 0);
 	});
 
-	test('lists models', async () => {
+	test('lists models (falls back to defaults without auth)', async () => {
 		const models = await agent.listModels();
 		assert.ok(models.length > 0);
 		assert.strictEqual(models[0].provider, 'native');

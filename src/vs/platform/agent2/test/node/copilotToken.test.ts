@@ -122,7 +122,7 @@ suite('CopilotApiService', () => {
 		let requestedUrl: string | undefined;
 		const { fetcher } = createMockFetcherService((url) => {
 			requestedUrl = url;
-			return { result: 'ok' };
+			return { ok: true, status: 200, statusText: 'OK', json: async () => ({ models: [] }), text: async () => '{"models":[]}' };
 		});
 
 		const service = new CopilotApiService(log, fetcher);
@@ -132,6 +132,40 @@ suite('CopilotApiService', () => {
 
 		assert.ok(requestedUrl);
 		assert.ok(requestedUrl!.includes('models'), `Expected URL to contain 'models', got: ${requestedUrl}`);
+	});
+
+	test('sendRequest parses JSON response', async () => {
+		const expectedModels = {
+			models: [
+				{ id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', capabilities: { supports: { vision: true, reasoningEffort: true }, limits: { max_context_window_tokens: 200000 } } },
+				{ id: 'claude-opus-4-20250514', name: 'Claude Opus 4', capabilities: { supports: { vision: true, reasoningEffort: true }, limits: { max_context_window_tokens: 200000 } } },
+			],
+		};
+		const { fetcher } = createMockFetcherService(() => {
+			return { ok: true, status: 200, statusText: 'OK', json: async () => expectedModels, text: async () => JSON.stringify(expectedModels) };
+		});
+
+		const service = new CopilotApiService(log, fetcher);
+		service.setGitHubToken('gh-token');
+
+		const result = await service.sendRequest<{ models: { id: string }[] }>({ type: 'Models' }, undefined, CancellationToken.None);
+		assert.strictEqual(result.models.length, 2);
+		assert.strictEqual(result.models[0].id, 'claude-sonnet-4-20250514');
+		assert.strictEqual(result.models[1].id, 'claude-opus-4-20250514');
+	});
+
+	test('sendRequest throws on non-OK response', async () => {
+		const { fetcher } = createMockFetcherService(() => {
+			return { ok: false, status: 401, statusText: 'Unauthorized', json: async () => ({}), text: async () => 'auth required' };
+		});
+
+		const service = new CopilotApiService(log, fetcher);
+		service.setGitHubToken('gh-token');
+
+		await assert.rejects(
+			() => service.sendRequest({ type: 'Models' }, undefined, CancellationToken.None),
+			/401 Unauthorized/,
+		);
 	});
 
 	test('model providers do not need to know about tokens', async () => {
