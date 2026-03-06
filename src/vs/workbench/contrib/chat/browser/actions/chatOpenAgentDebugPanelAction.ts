@@ -133,15 +133,15 @@ export function registerChatOpenAgentDebugPanelAction() {
 				return;
 			}
 
-			const data = await chatDebugService.exportLog(sessionResource);
-			if (!data) {
-				notificationService.notify({ severity: Severity.Warning, message: localize('chatDebugLog.exportFailed', "Export is not supported by the current provider.") });
-				return;
-			}
-
 			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultDebugLogFileName);
 			const outputPath = await fileDialogService.showSaveDialog({ defaultUri, filters: debugLogFilters });
 			if (!outputPath) {
+				return;
+			}
+
+			const data = await chatDebugService.exportLog(sessionResource);
+			if (!data) {
+				notificationService.notify({ severity: Severity.Warning, message: localize('chatDebugLog.exportFailed', "Export is not supported by the current provider.") });
 				return;
 			}
 

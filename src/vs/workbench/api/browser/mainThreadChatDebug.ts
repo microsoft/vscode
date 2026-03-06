@@ -16,6 +16,8 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 	private readonly _proxy: Proxied<ExtHostChatDebugShape>;
 	private readonly _providerDisposables = new Map<number, DisposableStore>();
 	private readonly _activeSessionResources = new Map<number, URI>();
+	/** Tracks core events already forwarded to the extension to avoid duplicates. */
+	private readonly _forwardedCoreEvents = new WeakSet<IChatDebugEvent>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -33,11 +35,12 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 			provideChatDebugLog: async (sessionResource, token) => {
 				this._activeSessionResources.set(handle, sessionResource);
 
-				// Send all existing core events for this session to the
-				// extension so they are captured even when the panel is
-				// opened after events have already been logged.
+				// Send existing core events for this session to the extension
+				// so they are captured even when the panel is opened late.
+				// Track forwarded events to avoid re-sending on subsequent calls.
 				for (const event of this._chatDebugService.getEvents(sessionResource)) {
-					if (this._chatDebugService.isCoreEvent(event)) {
+					if (this._chatDebugService.isCoreEvent(event) && !this._forwardedCoreEvents.has(event)) {
+						this._forwardedCoreEvents.add(event);
 						this._proxy.$handleCoreDebugEvent(handle, this._serializeEvent(event));
 					}
 				}
@@ -68,8 +71,11 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 			if (!activeSession || event.sessionResource.toString() !== activeSession.toString()) {
 				return;
 			}
-			const dto = this._serializeEvent(event);
-			this._proxy.$handleCoreDebugEvent(handle, dto);
+			if (this._forwardedCoreEvents.has(event)) {
+				return;
+			}
+			this._forwardedCoreEvents.add(event);
+			this._proxy.$handleCoreDebugEvent(handle, this._serializeEvent(event));
 		}));
 	}
 

@@ -6,6 +6,7 @@
 import type * as vscode from 'vscode';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { onUnexpectedExternalError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -298,16 +299,22 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 		}
 		const event = this._deserializeEvent(dto);
 		if (event) {
-			this._provider.resolveChatDebugLogCoreEvent(event, CancellationToken.None);
+			try {
+				this._provider.resolveChatDebugLogCoreEvent(event, CancellationToken.None);
+			} catch (err) {
+				onUnexpectedExternalError(err);
+			}
 		}
 	}
 
 	private _deserializeEvent(dto: IChatDebugEventDto): vscode.ChatDebugEvent | undefined {
 		const created = new Date(dto.created);
+		const sessionResource = dto.sessionResource ? URI.revive(dto.sessionResource) : undefined;
 		switch (dto.kind) {
 			case 'toolCall': {
 				const evt = new ChatDebugToolCallEvent(dto.toolName, created);
 				evt.id = dto.id;
+				evt.sessionResource = sessionResource;
 				evt.parentEventId = dto.parentEventId;
 				evt.toolCallId = dto.toolCallId;
 				evt.input = dto.input;
@@ -321,6 +328,7 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 			case 'modelTurn': {
 				const evt = new ChatDebugModelTurnEvent(created);
 				evt.id = dto.id;
+				evt.sessionResource = sessionResource;
 				evt.parentEventId = dto.parentEventId;
 				evt.model = dto.model;
 				evt.inputTokens = dto.inputTokens;
@@ -332,6 +340,7 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 			case 'generic': {
 				const evt = new ChatDebugGenericEvent(dto.name, dto.level as ChatDebugLogLevel, created);
 				evt.id = dto.id;
+				evt.sessionResource = sessionResource;
 				evt.parentEventId = dto.parentEventId;
 				evt.details = dto.details;
 				evt.category = dto.category;
@@ -340,6 +349,7 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 			case 'subagentInvocation': {
 				const evt = new ChatDebugSubagentInvocationEvent(dto.agentName, created);
 				evt.id = dto.id;
+				evt.sessionResource = sessionResource;
 				evt.parentEventId = dto.parentEventId;
 				evt.description = dto.description;
 				evt.status = dto.status === 'running' ? ChatDebugSubagentStatus.Running
@@ -354,6 +364,7 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 			case 'userMessage': {
 				const evt = new ChatDebugUserMessageEvent(dto.message, created);
 				evt.id = dto.id;
+				evt.sessionResource = sessionResource;
 				evt.parentEventId = dto.parentEventId;
 				evt.sections = dto.sections.map(s => new ChatDebugMessageSection(s.name, s.content));
 				return evt;
@@ -361,6 +372,7 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 			case 'agentResponse': {
 				const evt = new ChatDebugAgentResponseEvent(dto.message, created);
 				evt.id = dto.id;
+				evt.sessionResource = sessionResource;
 				evt.parentEventId = dto.parentEventId;
 				evt.sections = dto.sections.map(s => new ChatDebugMessageSection(s.name, s.content));
 				return evt;

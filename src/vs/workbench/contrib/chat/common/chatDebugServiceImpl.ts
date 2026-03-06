@@ -31,6 +31,9 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	/** Events that were returned by providers (not internally logged). */
 	private readonly _providerEvents = new WeakSet<IChatDebugEvent>();
 
+	/** Session URIs created via import, allowed through the invokeProviders guard. */
+	private readonly _importedSessions = new ResourceMap<boolean>();
+
 	activeSessionResource: URI | undefined;
 
 	log(sessionResource: URI, name: string, details?: string, level: ChatDebugLogLevel = ChatDebugLogLevel.Info, options?: { id?: string; category?: string; parentEventId?: string }): void {
@@ -122,6 +125,10 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	}
 
 	async invokeProviders(sessionResource: URI): Promise<void> {
+
+		if (!LocalChatSessionUri.isLocalSession(sessionResource) && !this._importedSessions.has(sessionResource)) {
+			return;
+		}
 		// Cancel only the previous invocation for THIS session, not others.
 		// Each session has its own pipeline so events from multiple sessions
 		// can be streamed concurrently.
@@ -243,6 +250,7 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 				try {
 					const sessionUri = await provider.resolveChatDebugLogImport(data, CancellationToken.None);
 					if (sessionUri !== undefined) {
+						this._importedSessions.set(sessionUri, true);
 						return sessionUri;
 					}
 				} catch (err) {

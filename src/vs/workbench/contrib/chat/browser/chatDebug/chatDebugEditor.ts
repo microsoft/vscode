@@ -172,13 +172,9 @@ export class ChatDebugEditor extends EditorPane {
 
 		this._register(this.chatService.onDidCreateModel(model => {
 			if (this.viewState === ViewState.Home) {
-				this.homeView?.render();
-			}
-
-			// Auto-navigate to the new session when the debug panel is
-			// already open on the home view.  This avoids the user having to
-			// wait for the title to resolve and manually clicking the session.
-			if (this.viewState === ViewState.Home) {
+				// Auto-navigate to the new session when the debug panel is
+				// already open on the home view.  This avoids the user having to
+				// wait for the title to resolve and manually clicking the session.
 				this.navigateToSession(model.sessionResource);
 			}
 
