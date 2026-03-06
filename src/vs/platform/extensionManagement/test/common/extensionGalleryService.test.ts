@@ -133,19 +133,32 @@ suite('Extension Gallery Service', () => {
 			assert.deepStrictEqual(result, versions);
 		});
 
-		test('should include both release and pre-release versions for same platform', () => {
-			const version1 = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64);
-			const version2 = aPreReleaseExtensionVersion('0.9.0', TargetPlatform.WIN32_X64); // Different version number
-			const versions = [version1, version2];
+		test('should include latest release and latest pre-release versions for same platform', () => {
+			const release = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64);
+			const prerelease = aPreReleaseExtensionVersion('0.9.0', TargetPlatform.WIN32_X64);
+			const versions = [release, prerelease];
 			const allTargetPlatforms = [TargetPlatform.WIN32_X64];
 
 			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
 
 			// Should include both since they have different version numbers
 			assert.strictEqual(result.length, 2);
-			assert.strictEqual(result[0], version1);
-			assert.strictEqual(result[1], version2);
+			assert.strictEqual(result[0], release);
+			assert.strictEqual(result[1], prerelease);
+		});
 
+		test('should include latest prerelease and latest release versions for same platform', () => {
+			const prerelease = aPreReleaseExtensionVersion('1.1.0', TargetPlatform.WIN32_X64);
+			const release = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64);
+			const versions = [prerelease, release];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Should include both since they have different version numbers
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0], prerelease);
+			assert.strictEqual(result[1], release);
 		});
 
 		test('should include one version per target platform for release versions', () => {
@@ -164,33 +177,6 @@ suite('Extension Gallery Service', () => {
 			assert.ok(result.includes(version3)); // Non-compatible, included
 		});
 
-		test('should separate release and pre-release versions', () => {
-			const releaseVersion = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64);
-			const preReleaseVersion = aPreReleaseExtensionVersion('1.1.0', TargetPlatform.WIN32_X64);
-			const versions = [releaseVersion, preReleaseVersion];
-			const allTargetPlatforms = [TargetPlatform.WIN32_X64];
-
-			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
-
-			// Should include both since they are different types (release vs pre-release)
-			assert.strictEqual(result.length, 2);
-			assert.ok(result.includes(releaseVersion));
-			assert.ok(result.includes(preReleaseVersion));
-		});
-
-		test('should include both release and pre-release versions for same platform with different version numbers', () => {
-			const preRelease1 = aPreReleaseExtensionVersion('1.1.0', TargetPlatform.WIN32_X64);
-			const release2 = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64); // Different version number
-			const versions = [preRelease1, release2];
-			const allTargetPlatforms = [TargetPlatform.WIN32_X64];
-
-			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
-
-			// Should include both since they have different version numbers
-			assert.strictEqual(result.length, 2);
-			assert.strictEqual(result[0], preRelease1);
-			assert.strictEqual(result[1], release2);
-		});
 
 		test('should handle versions without target platform (UNDEFINED)', () => {
 			const version1 = aExtensionVersion('1.0.0'); // No target platform specified
@@ -281,20 +267,21 @@ suite('Extension Gallery Service', () => {
 			assert.ok(!result.includes(lowerVersionUniversal)); // Filtered (second compatible release)
 		});
 
-		test('should handle lower version with specific platform vs higher version with universal platform', () => {
-			// Reverse scenario: older version for specific platform vs newer version with universal compatibility
-			const lowerVersionSpecificPlatform = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64);
+		test('should handle higher version with universal platform vs lower version with specific platform', () => {
+			// Scenario: higher universal version comes first, then lower platform-specific version
 			const higherVersionUniversal = aExtensionVersion('2.0.0'); // UNDEFINED/universal platform
+			const lowerVersionSpecificPlatform = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64);
 
-			const versions = [lowerVersionSpecificPlatform, higherVersionUniversal];
+			const versions = [higherVersionUniversal, lowerVersionSpecificPlatform];
 			const allTargetPlatforms = [TargetPlatform.WIN32_X64, TargetPlatform.DARWIN_X64];
 
 			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
 
-			// Both are compatible with WIN32_X64, but only the first release version should be included
+			// Both are compatible with WIN32_X64, the first (higher) version should be kept
+			// Platform-specific version should NOT replace since it has a different (lower) version number
 			assert.strictEqual(result.length, 1);
-			assert.ok(result.includes(lowerVersionSpecificPlatform)); // First compatible release
-			assert.ok(!result.includes(higherVersionUniversal)); // Filtered (second compatible release)
+			assert.ok(result.includes(higherVersionUniversal)); // First compatible release (higher version)
+			assert.ok(!result.includes(lowerVersionSpecificPlatform)); // Filtered (lower version)
 		});
 
 		test('should handle multiple specific platforms vs universal platform with version differences', () => {
@@ -391,19 +378,20 @@ suite('Extension Gallery Service', () => {
 			assert.ok(!result.includes(universalVersion));
 		});
 
-		test('should handle both release and pre-release with replacement', () => {
-			// Both release and pre-release starting with undefined and then getting specific platform
-			const undefinedRelease = aExtensionVersion('1.0.0'); // UNDEFINED release
-			const specificRelease = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64); // Specific release
+		test('should handle both release and pre-release with same version replacement', () => {
+			// Both release and pre-release with undefined platform, then specific platform with same versions
+			// Versions sorted by version descending (pre-release 1.1.0, release 1.0.0, then same versions with specific platform)
 			const undefinedPreRelease = aPreReleaseExtensionVersion('1.1.0'); // UNDEFINED pre-release
-			const specificPreRelease = aPreReleaseExtensionVersion('1.1.0', TargetPlatform.WIN32_X64); // Specific pre-release
+			const specificPreRelease = aPreReleaseExtensionVersion('1.1.0', TargetPlatform.WIN32_X64); // Specific pre-release (same version)
+			const undefinedRelease = aExtensionVersion('1.0.0'); // UNDEFINED release
+			const specificRelease = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64); // Specific release (same version)
 
-			const versions = [undefinedRelease, undefinedPreRelease, specificRelease, specificPreRelease];
+			const versions = [undefinedPreRelease, specificPreRelease, undefinedRelease, specificRelease];
 			const allTargetPlatforms = [TargetPlatform.WIN32_X64];
 
 			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
 
-			// Should return both specific platform versions
+			// Should return both specific platform versions (they replaced the undefined ones)
 			assert.strictEqual(result.length, 2);
 			assert.ok(result.includes(specificRelease));
 			assert.ok(result.includes(specificPreRelease));
@@ -427,20 +415,46 @@ suite('Extension Gallery Service', () => {
 		});
 
 		test('should handle replacement with non-compatible versions in between', () => {
+			// Versions sorted by version descending
 			const undefinedVersion = aExtensionVersion('1.0.0'); // UNDEFINED, compatible with WIN32_X64
-			const nonCompatibleVersion = aExtensionVersion('0.9.0', TargetPlatform.LINUX_ARM64); // Non-compatible platform
-			const specificVersion = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64); // Specific for WIN32_X64
+			const specificVersion = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64); // Specific for WIN32_X64 (same version)
+			const nonCompatibleVersion = aExtensionVersion('0.9.0', TargetPlatform.LINUX_ARM64); // Non-compatible platform (lower version)
 
-			const versions = [undefinedVersion, nonCompatibleVersion, specificVersion];
+			const versions = [undefinedVersion, specificVersion, nonCompatibleVersion];
 			const allTargetPlatforms = [TargetPlatform.WIN32_X64, TargetPlatform.DARWIN_X64];
 
 			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
 
-			// Should return specific WIN32_X64 version (replacing undefined) and non-compatible LINUX_ARM64 version
+			// Should return specific WIN32_X64 version (replacing undefined since same version) and non-compatible LINUX_ARM64 version
 			assert.strictEqual(result.length, 2);
 			assert.ok(result.includes(specificVersion));
 			assert.ok(result.includes(nonCompatibleVersion));
 			assert.ok(!result.includes(undefinedVersion));
+		});
+
+		test('should filter versions for linux-x64 target platform with mixed universal and platform-specific versions', () => {
+			// Data from real extension versions (sorted by version descending, as returned by gallery API):
+			// 0.15.0 - pre-release, universal
+			// 0.14.0 - release, universal
+			// 0.6.0 - release, linux-x64
+			// 0.5.1 - pre-release, linux-x64
+			const versions = [
+				aPreReleaseExtensionVersion('0.15.0'),                              // pre-release, universal (highest version)
+				aExtensionVersion('0.14.0'),                                        // release, universal
+				aExtensionVersion('0.6.0', TargetPlatform.LINUX_X64),               // release, linux-x64
+				aPreReleaseExtensionVersion('0.5.1', TargetPlatform.LINUX_X64),     // pre-release, linux-x64 (lowest version)
+			];
+			const allTargetPlatforms = [TargetPlatform.LINUX_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.LINUX_X64, allTargetPlatforms);
+
+			// Expected:
+			// - 0.15.0 universal (first compatible pre-release, higher version than 0.5.1 linux-x64)
+			// - 0.14.0 universal (first compatible release, higher version than 0.6.0 linux-x64)
+			// Platform-specific versions are NOT preferred when they have lower version numbers
+			assert.strictEqual(result.length, 2);
+			assert.ok(result.includes(versions[0])); // 0.15.0 universal (pre-release)
+			assert.ok(result.includes(versions[1])); // 0.14.0 universal (release)
 		});
 
 	});

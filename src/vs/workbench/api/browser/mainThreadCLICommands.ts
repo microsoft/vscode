@@ -18,6 +18,7 @@ import { ServiceCollection } from '../../../platform/instantiation/common/servic
 import { ILabelService } from '../../../platform/label/common/label.js';
 import { AbstractMessageLogger, ILogger, LogLevel } from '../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
 import { IOpenWindowOptions, IWindowOpenable } from '../../../platform/window/common/window.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { IExtensionManagementServerService } from '../../services/extensionManagement/common/extensionManagement.js';
@@ -106,8 +107,9 @@ class RemoteExtensionManagementCLI extends ExtensionManagementCLI {
 		@ILabelService labelService: ILabelService,
 		@IWorkbenchEnvironmentService envService: IWorkbenchEnvironmentService,
 		@IExtensionManifestPropertiesService private readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IProductService productService: IProductService,
 	) {
-		super(logger, extensionManagementService, extensionGalleryService);
+		super([], logger, extensionManagementService, extensionGalleryService, productService);
 
 		const remoteAuthority = envService.remoteAuthority;
 		this._location = remoteAuthority ? labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority) : undefined;

@@ -14,12 +14,14 @@ import { CancellationTokenSource } from '../../../../../../base/common/cancellat
 import { Extensions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from '../../../../../../platform/quickinput/common/quickAccess.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../../actions/chatActions.js';
 
 /** Marker ID for the "send to agent" quick pick item */
@@ -87,7 +89,12 @@ export class UnifiedQuickAccess extends Disposable {
 	private _tabBarContainer: HTMLElement | undefined;
 	private _isInternalValueChange = false; // Flag to prevent recursive tab detection
 	private _isUpdatingSendToAgent = false; // Guard to prevent infinite loop
+	private _arrivedViaShortcut: '<' | '>' | undefined; // Track if we arrived at current tab via shortcut key
 	private _sendToAgentTimeout: ReturnType<typeof setTimeout> | undefined;
+	private _sendButton: HTMLButtonElement | undefined;
+	private _sendButtonLabel: HTMLSpanElement | undefined;
+	private _sendButtonIcon: HTMLElement | undefined;
+	private _sendButtonHover: { update: (content: string) => void } | undefined;
 
 	private readonly _tabs: IUnifiedQuickAccessTab[];
 
@@ -98,6 +105,8 @@ export class UnifiedQuickAccess extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 		this._tabs = tabs ?? DEFAULT_UNIFIED_QUICK_ACCESS_TABS;
@@ -150,10 +159,26 @@ export class UnifiedQuickAccess extends Disposable {
 			if (this._isInternalValueChange) {
 				return;
 			}
+
+			// Check if user removed the shortcut character (including when input is emptied) - switch back to Files
+			if (this._arrivedViaShortcut) {
+				const shortcut = this._arrivedViaShortcut;
+				if (!value.startsWith(shortcut)) {
+					const filesTab = this._tabs.find(t => t.id === 'files');
+					if (filesTab && filesTab !== this._currentTab) {
+						this._arrivedViaShortcut = undefined;
+						this._switchTab(filesTab, picker, false);
+						return;
+					}
+				}
+			}
+
 			const matchingTab = this._detectTabFromValue(value);
 			if (matchingTab && matchingTab !== this._currentTab) {
 				this._switchTab(matchingTab, picker, true);
 			}
+			// Update send button state based on input
+			this._updateSendButtonState(value);
 			// Debounce send-to-agent check to let provider finish
 			if (this._sendToAgentTimeout) {
 				clearTimeout(this._sendToAgentTimeout);
@@ -175,10 +200,15 @@ export class UnifiedQuickAccess extends Disposable {
 				(item as IQuickPickItem & { id?: string }).id !== SEND_TO_AGENT_ID
 			);
 
-			// Get the filter text
-			const filterText = this._currentTab
-				? picker.value.substring(this._currentTab.prefix.length).trim()
-				: picker.value.trim();
+			// Get the filter text (without prefix or shortcut character)
+			let filterText: string;
+			if (this._arrivedViaShortcut && picker.value.startsWith(this._arrivedViaShortcut)) {
+				filterText = picker.value.substring(1).trim();
+			} else if (this._currentTab) {
+				filterText = picker.value.substring(this._currentTab.prefix.length).trim();
+			} else {
+				filterText = picker.value.trim();
+			}
 
 			// Send to agent if:
 			// 1. Send-to-agent item is explicitly selected, OR
@@ -195,6 +225,7 @@ export class UnifiedQuickAccess extends Disposable {
 			this._providerCts = undefined;
 			this._currentPicker = undefined;
 			this._currentTab = undefined;
+			this._arrivedViaShortcut = undefined;
 			// Clear any pending timeout
 			if (this._sendToAgentTimeout) {
 				clearTimeout(this._sendToAgentTimeout);
@@ -203,6 +234,11 @@ export class UnifiedQuickAccess extends Disposable {
 			// Remove the injected tab bar from DOM
 			this._tabBarContainer?.remove();
 			this._tabBarContainer = undefined;
+			// Clear button references
+			this._sendButton = undefined;
+			this._sendButtonLabel = undefined;
+			this._sendButtonIcon = undefined;
+			this._sendButtonHover = undefined;
 			this._currentDisposables.clear();
 		}));
 
@@ -294,27 +330,78 @@ export class UnifiedQuickAccess extends Disposable {
 		const container = $('div.unified-quick-access-send-container');
 
 		// Create send button
-		const button = $('button.unified-send-button');
+		const button = $('button.unified-send-button') as HTMLButtonElement;
 		button.setAttribute('type', 'button');
-		button.title = localize('sendTooltip', "Send message to new agent session");
+		this._sendButton = button;
 
 		const icon = renderIcon(Codicon.send);
+		icon.classList.add('unified-send-icon');
+		this._sendButtonIcon = icon;
 		button.appendChild(icon);
 
 		const labelSpan = $('span.unified-send-label');
-		labelSpan.textContent = localize('send', "Send");
+		this._sendButtonLabel = labelSpan;
 		button.appendChild(labelSpan);
 
 		container.appendChild(button);
 
-		// Click handler - send message (send exact input, always new chat)
+		// Set up managed hover for the button
+		this._sendButtonHover = this._currentDisposables.add(
+			this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), button, '')
+		);
+
+		// Initialize button state
+		this._updateSendButtonState(picker.value);
+
+		// Click handler - behavior depends on input state
 		this._currentDisposables.add(addDisposableListener(button, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this._sendMessageRaw(picker.value);
+			const hasInput = picker.value.trim().length > 0;
+			if (hasInput) {
+				this._sendMessageRaw(picker.value);
+			} else {
+				this._openChat();
+			}
 		}));
 
 		return container;
+	}
+
+	/**
+	 * Update the send button label and tooltip based on input state.
+	 */
+	private _updateSendButtonState(value: string): void {
+		if (!this._sendButton || !this._sendButtonLabel || !this._sendButtonIcon) {
+			return;
+		}
+
+		const hasInput = value.trim().length > 0;
+
+		if (hasInput) {
+			// Show "Send" with no keybinding in tooltip (Enter is implied by quick pick)
+			this._sendButtonLabel.textContent = localize('send', "Send");
+			this._sendButtonHover?.update(localize('sendTooltipNoKeybinding', "Send message to new agent session"));
+			this._sendButtonIcon.style.display = '';
+		} else {
+			// Show "Open Chat" with open chat keybinding and hide icon
+			const openChatKeybinding = this.keybindingService.lookupKeybinding(CHAT_OPEN_ACTION_ID);
+			const openChatLabel = openChatKeybinding?.getLabel() ?? '';
+			this._sendButtonLabel.textContent = localize('openChat', "Open Chat");
+			const tooltip = openChatLabel
+				? localize('openChatTooltipWithKeybinding', "Open chat ({0})", openChatLabel)
+				: localize('openChatTooltipNoKeybinding', "Open chat");
+			this._sendButtonHover?.update(tooltip);
+			this._sendButtonIcon.style.display = 'none';
+		}
+	}
+
+	/**
+	 * Open chat without sending a message.
+	 */
+	private _openChat(): void {
+		this.hide();
+		this.commandService.executeCommand(CHAT_OPEN_ACTION_ID);
 	}
 
 	/**
@@ -341,12 +428,17 @@ export class UnifiedQuickAccess extends Disposable {
 	}
 
 	/**
-	 * Send the current message to a new agent session (strips prefix).
+	 * Send the current message to a new agent session (strips prefix or shortcut character).
 	 */
 	private async _sendMessage(value: string): Promise<void> {
-		// Strip any prefix from the value
+		// Strip any prefix or shortcut character from the value
 		let message = value;
-		if (this._currentTab) {
+
+		// First, strip shortcut character if we arrived via shortcut
+		if (this._arrivedViaShortcut && message.startsWith(this._arrivedViaShortcut)) {
+			message = message.substring(1).trim();
+		} else if (this._currentTab) {
+			// Otherwise strip the normal prefix
 			if (value.startsWith(this._currentTab.prefix)) {
 				message = value.substring(this._currentTab.prefix.length).trim();
 			}
@@ -380,10 +472,16 @@ export class UnifiedQuickAccess extends Disposable {
 			return;
 		}
 
-		// Get the filter text (without prefix)
-		const filterText = this._currentTab
-			? picker.value.substring(this._currentTab.prefix.length).trim()
-			: picker.value.trim();
+		// Get the filter text (without prefix or shortcut character)
+		let filterText: string;
+		if (this._arrivedViaShortcut && picker.value.startsWith(this._arrivedViaShortcut)) {
+			// Strip shortcut character
+			filterText = picker.value.substring(1).trim();
+		} else if (this._currentTab) {
+			filterText = picker.value.substring(this._currentTab.prefix.length).trim();
+		} else {
+			filterText = picker.value.trim();
+		}
 
 		// Use full input if filter text is empty but there's input (user typed without prefix)
 		const fullInput = picker.value.trim();
@@ -463,16 +561,40 @@ export class UnifiedQuickAccess extends Disposable {
 		// Update picker value (with flag to prevent recursive tab detection)
 		this._isInternalValueChange = true;
 		if (preserveFilterText && previousTab) {
-			// User typed a prefix - keep the filter text, just change prefix
-			const filterText = picker.value.substring(previousTab.prefix.length);
-			picker.value = tab.prefix + filterText;
+			// User typed a shortcut prefix - normalize the value to show just the shortcut character
+			const currentValue = picker.value;
+
+			// Strip previous tab's prefix if present
+			let filterText = currentValue;
+			if (currentValue.startsWith(previousTab.prefix)) {
+				filterText = currentValue.substring(previousTab.prefix.length);
+			}
+
+			// Handle shortcut transitions - ensure only one shortcut char is shown
+			if (this._arrivedViaShortcut === '<' && tab.id === 'agentSessions') {
+				// Strip any leading "<" chars and set just one
+				filterText = filterText.replace(/^<+/, '');
+				picker.value = '<' + filterText;
+			} else if (this._arrivedViaShortcut === '>' && tab.id === 'commands') {
+				// Strip any leading ">" chars and set just one
+				filterText = filterText.replace(/^>+/, '');
+				picker.value = '>' + filterText;
+			} else {
+				// Normal prefix-based switching
+				picker.value = tab.prefix + filterText;
+			}
 		} else if (previousTab) {
 			// User clicked tab - keep current text but strip old prefix (don't add new prefix)
 			const currentValue = picker.value;
 			if (currentValue.startsWith(previousTab.prefix)) {
 				picker.value = currentValue.substring(previousTab.prefix.length);
 			}
-			// else: keep current value as-is
+			// Also strip shortcut character if present
+			if (picker.value.startsWith('<') || picker.value.startsWith('>')) {
+				picker.value = picker.value.substring(1);
+			}
+			// Clear shortcut tracking when switching via click
+			this._arrivedViaShortcut = undefined;
 		}
 		// else: first tab activation, value already set
 		this._isInternalValueChange = false;
@@ -486,8 +608,27 @@ export class UnifiedQuickAccess extends Disposable {
 	/**
 	 * Detect which tab matches the current value based on prefix.
 	 * Only switches away from current tab if user explicitly typed a different prefix.
+	 * Supports shortcut keys: ">" for Commands, "<" for Sessions.
 	 */
 	private _detectTabFromValue(value: string): IUnifiedQuickAccessTab | undefined {
+		// Check for "<" shortcut to switch to Sessions (from Files or Commands)
+		if (value === '<' || value.startsWith('<')) {
+			const sessionsTab = this._tabs.find(t => t.id === 'agentSessions');
+			if (sessionsTab && this._currentTab?.id !== 'agentSessions') {
+				this._arrivedViaShortcut = '<';
+				return sessionsTab;
+			}
+		}
+
+		// Check for ">" shortcut to switch to Commands (from Files or Sessions)
+		if (value === '>' || value.startsWith('>')) {
+			const commandsTab = this._tabs.find(t => t.id === 'commands');
+			if (commandsTab && this._currentTab?.id !== 'commands') {
+				this._arrivedViaShortcut = '>';
+				return commandsTab;
+			}
+		}
+
 		// Don't auto-switch if current tab matches (user is just typing)
 		if (this._currentTab && value.startsWith(this._currentTab.prefix)) {
 			return this._currentTab;
@@ -530,9 +671,15 @@ export class UnifiedQuickAccess extends Disposable {
 		const [provider] = this._getOrInstantiateProvider(tab.prefix);
 
 		if (provider) {
-			// Configure filtering - strip the tab's prefix from the filter value
+			// Configure filtering - strip the tab's prefix or shortcut character from the filter value
 			const tabPrefix = tab.prefix;
+			const arrivedViaShortcut = this._arrivedViaShortcut;
 			picker.filterValue = (value: string) => {
+				// If arrived via shortcut, strip the shortcut character
+				if (arrivedViaShortcut && value.startsWith(arrivedViaShortcut)) {
+					return value.substring(1);
+				}
+				// Otherwise strip the normal prefix
 				if (value.startsWith(tabPrefix)) {
 					return value.substring(tabPrefix.length);
 				}

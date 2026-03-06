@@ -173,6 +173,7 @@ export class Toggle extends Widget {
 				this.checked = !this._checked;
 				this._onChange.fire(false);
 				ev.preventDefault();
+				ev.stopPropagation();
 			}
 		});
 

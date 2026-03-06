@@ -33,6 +33,7 @@ import { IME } from '../../../../../base/common/ime.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { inputLatency } from '../../../../../base/browser/performance.js';
+import { ViewportData } from '../../../../common/viewLayout/viewLinesViewportData.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -57,10 +58,12 @@ export class NativeEditContext extends AbstractEditContext {
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
 	private _previousEditContextSelection: OffsetRange = new OffsetRange(0, 0);
+	private _previousEditContextText: string = '';
 	private _editContextPrimarySelection: Selection = new Selection(1, 1, 1, 1);
 
 	// Overflow guard container
 	private readonly _parent: HTMLElement;
+	private _parentBounds: DOMRect | null = null;
 	private _decorations: string[] = [];
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 
@@ -245,6 +248,19 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 		}));
 		this._register(NativeEditContextRegistry.register(ownerID, this));
+		this._register(context.viewModel.model.onDidChangeContent((e) => {
+			let doChange = false;
+			for (const change of e.changes) {
+				if (change.range.startLineNumber <= this._editContextPrimarySelection.endLineNumber
+					&& change.range.endLineNumber >= this._editContextPrimarySelection.startLineNumber) {
+					doChange = true;
+					break;
+				}
+			}
+			if (doChange) {
+				this._updateEditContext();
+			}
+		}));
 	}
 
 	// --- Public methods ---
@@ -268,17 +284,21 @@ export class NativeEditContext extends AbstractEditContext {
 		return this._primarySelection.getPosition();
 	}
 
+	public override onBeforeRender(viewportData: ViewportData): void {
+		// We need to read the position of the container dom node
+		// It is best to do this before we begin touching the DOM at all
+		// Because the sync layout will be fast if we do it here
+		this._parentBounds = this._parent.getBoundingClientRect();
+	}
+
 	public override prepareRender(ctx: RenderingContext): void {
 		this._screenReaderSupport.prepareRender(ctx);
 		this._updateSelectionAndControlBoundsData(ctx);
 	}
 
-	public override onDidRender(): void {
-		this._updateSelectionAndControlBoundsAfterRender();
-	}
-
 	public render(ctx: RestrictedRenderingContext): void {
 		this._screenReaderSupport.render(ctx);
+		this._updateSelectionAndControlBounds();
 	}
 
 	public override onCursorStateChanged(e: ViewCursorStateChangedEvent): boolean {
@@ -304,25 +324,15 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public override onLinesChanged(e: ViewLinesChangedEvent): boolean {
-		this._updateEditContextOnLineChange(e.fromLineNumber, e.fromLineNumber + e.count - 1);
 		return true;
 	}
 
 	public override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
-		this._updateEditContextOnLineChange(e.fromLineNumber, e.toLineNumber);
 		return true;
 	}
 
 	public override onLinesInserted(e: ViewLinesInsertedEvent): boolean {
-		this._updateEditContextOnLineChange(e.fromLineNumber, e.toLineNumber);
 		return true;
-	}
-
-	private _updateEditContextOnLineChange(fromLineNumber: number, toLineNumber: number): void {
-		if (this._editContextPrimarySelection.endLineNumber < fromLineNumber || this._editContextPrimarySelection.startLineNumber > toLineNumber) {
-			return;
-		}
-		this._updateEditContext();
 	}
 
 	public override onScrollChanged(e: ViewScrollChangedEvent): boolean {
@@ -406,8 +416,15 @@ export class NativeEditContext extends AbstractEditContext {
 		if (!editContextState) {
 			return;
 		}
-		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text ?? ' ');
-		this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
+		const newText = editContextState.text ?? ' ';
+		if (newText !== this._previousEditContextText) {
+			this._editContext.updateText(0, this._previousEditContextText.length, newText);
+			this._previousEditContextText = newText;
+		}
+		if (editContextState.selectionStartOffset !== this._previousEditContextSelection.start ||
+			editContextState.selectionEndOffset !== this._previousEditContextSelection.endExclusive) {
+			this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
+		}
 		this._editContextPrimarySelection = editContextState.editContextPrimarySelection;
 		this._previousEditContextSelection = new OffsetRange(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 	}
@@ -527,7 +544,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 	}
 
-	private _updateSelectionAndControlBoundsAfterRender() {
+	private _updateSelectionAndControlBounds() {
 		const options = this._context.configuration.options;
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
 
@@ -535,8 +552,9 @@ export class NativeEditContext extends AbstractEditContext {
 		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(viewSelection.startLineNumber);
 		const verticalOffsetEnd = this._context.viewLayout.getVerticalOffsetAfterLineNumber(viewSelection.endLineNumber);
 
-		// Make sure this doesn't force an extra layout (i.e. don't call it before rendering finished)
-		const parentBounds = this._parent.getBoundingClientRect();
+		// !!! Make sure this doesn't force an extra layout
+		// !!! by using the cached parent bounds read in onBeforeRender
+		const parentBounds = this._parentBounds!;
 		const top = parentBounds.top + verticalOffsetStart - this._scrollTop;
 		const height = verticalOffsetEnd - verticalOffsetStart;
 		let left = parentBounds.left + contentLeft - this._scrollLeft;
@@ -560,7 +578,7 @@ export class NativeEditContext extends AbstractEditContext {
 		const options = this._context.configuration.options;
 		const typicalHalfWidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
-		const parentBounds = this._parent.getBoundingClientRect();
+		const parentBounds = this._parentBounds!;
 
 		const characterBounds: DOMRect[] = [];
 		const offsetTransformer = new PositionOffsetTransformer(this._editContext.text);

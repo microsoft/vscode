@@ -395,6 +395,9 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 
 		if (msg.desiredConnectionType === ConnectionType.Management) {
 			// This should become a management connection
+			if (socket instanceof WebSocketNodeSocket) {
+				socket.setRecordInflateBytes(false);
+			}
 
 			if (isReconnection) {
 				// This is a reconnection
@@ -484,6 +487,9 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			}
 
 		} else if (msg.desiredConnectionType === ConnectionType.Tunnel) {
+			if (socket instanceof WebSocketNodeSocket) {
+				socket.setRecordInflateBytes(false);
+			}
 
 			const tunnelStartParams = <ITunnelConnectionStartParams>msg.args;
 			this._createTunnel(protocol, tunnelStartParams);

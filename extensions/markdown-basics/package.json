@@ -2,7 +2,7 @@
   "name": "markdown",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -18,14 +18,18 @@
           "markdown"
         ],
         "extensions": [
+          ".litcoffee",
           ".md",
           ".mkd",
+          ".mkdn",
           ".mdwn",
           ".mdown",
           ".markdown",
           ".markdn",
           ".mdtxt",
           ".mdtext",
+          ".ron",
+          ".ronn",
           ".workbook"
         ],
         "filenamePatterns": [

@@ -24,8 +24,9 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../../../../services/extensions/common/extensions.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
-import { IChatVariablesService, IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
+import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { IChatWidgetService } from '../../../chat.js';
+import { getDynamicVariablesForWidget } from '../../../attachments/chatVariables.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { cleanupOldImages, createFileForMedia, resizeImage } from '../../../chatImageUtils.js';
 
@@ -201,7 +202,6 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 
 	constructor(
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IChatVariablesService private readonly chatVariableService: IChatVariablesService
 	) { }
 
 	async prepareDocumentPaste(model: ITextModel, _ranges: readonly IRange[], _dataTransfer: IReadonlyVSDataTransfer, _token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer> {
@@ -212,7 +212,7 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 		}
 
 		const attachments = widget.attachmentModel.attachments;
-		const dynamicVariables = this.chatVariableService.getDynamicVariables(widget.viewModel.sessionResource);
+		const dynamicVariables = getDynamicVariablesForWidget(widget);
 
 		if (attachments.length === 0 && dynamicVariables.length === 0) {
 			return undefined;

@@ -7,7 +7,7 @@ import { encodeBase64 } from '../../../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
-import { ConfirmedReason, IChatExtensionsContent, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
+import { ConfirmedReason, IChatExtensionsContent, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
 import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult, ToolDataSource } from '../../tools/languageModelToolsService.js';
 
 export interface IStreamingToolCallOptions {
@@ -33,7 +33,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public generatedTitle?: string;
 	public readonly chatRequestId?: string;
 
-	public toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData;
+	public toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData;
 
 	private readonly _progress = observableValue<{ message?: string | IMarkdownString; progress: number | undefined }>(this, { progress: 0 });
 	private readonly _state: ISettableObservable<IChatToolInvocation.State>;
@@ -51,7 +51,15 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	 * Use this when the tool call is beginning to stream partial input from the LM.
 	 */
 	public static createStreaming(options: IStreamingToolCallOptions): ChatToolInvocation {
-		return new ChatToolInvocation(undefined, options.toolData, options.toolCallId, options.subagentInvocationId, undefined, true, options.chatRequestId);
+		return new ChatToolInvocation(undefined, options.toolData, options.toolCallId, options.subagentInvocationId, undefined, { startInStreaming: true }, options.chatRequestId);
+	}
+
+	/**
+	 * Create a tool invocation already in cancelled state.
+	 * Use this when a hook denies tool execution before it even starts.
+	 */
+	public static createCancelled(options: IStreamingToolCallOptions, parameters: unknown, reason: ToolConfirmKind.Denied | ToolConfirmKind.Skipped, reasonMessage?: string | IMarkdownString): ChatToolInvocation {
+		return new ChatToolInvocation(undefined, options.toolData, options.toolCallId, options.subagentInvocationId, parameters, { startInCancelled: true, cancelReason: reason, cancelReasonMessage: reasonMessage }, options.chatRequestId);
 	}
 
 	constructor(
@@ -60,12 +68,17 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		public readonly toolCallId: string,
 		subAgentInvocationId: string | undefined,
 		parameters: unknown,
-		isStreaming: boolean = false,
+		startOptions: { startInStreaming?: boolean; startInCancelled?: boolean; cancelReason?: ToolConfirmKind.Denied | ToolConfirmKind.Skipped; cancelReasonMessage?: string | IMarkdownString } = {},
 		chatRequestId?: string
 	) {
 		// For streaming invocations, use a default message until handleToolStream provides one
-		const defaultStreamingMessage = isStreaming ? localize('toolInvocationMessage', "Using \"{0}\"", toolData.displayName) : '';
-		this.invocationMessage = preparedInvocation?.invocationMessage ?? defaultStreamingMessage;
+		let defaultMessage: string | IMarkdownString = '';
+		if (startOptions.startInStreaming) {
+			defaultMessage = localize('toolInvocationMessage', "Using \"{0}\"", toolData.displayName);
+		} else if (startOptions.startInCancelled) {
+			defaultMessage = startOptions.cancelReasonMessage ?? localize('toolDeniedMessage', "Tool \"{0}\" was denied", toolData.displayName);
+		}
+		this.invocationMessage = preparedInvocation?.invocationMessage ?? defaultMessage;
 		this.pastTenseMessage = preparedInvocation?.pastTenseMessage;
 		this.originMessage = preparedInvocation?.originMessage;
 		this.confirmationMessages = preparedInvocation?.confirmationMessages;
@@ -77,7 +90,16 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this.parameters = parameters;
 		this.chatRequestId = chatRequestId;
 
-		if (isStreaming) {
+		if (startOptions.startInCancelled) {
+			// Start directly in cancelled state (e.g., when a hook denies execution)
+			this._state = observableValue(this, {
+				type: IChatToolInvocation.StateKind.Cancelled,
+				reason: startOptions.cancelReason ?? ToolConfirmKind.Denied,
+				reasonMessage: startOptions.cancelReasonMessage,
+				parameters: this.parameters,
+				confirmationMessages: this.confirmationMessages,
+			});
+		} else if (startOptions.startInStreaming) {
 			// Start in streaming state
 			this._state = observableValue(this, {
 				type: IChatToolInvocation.StateKind.Streaming,
@@ -141,6 +163,27 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 	/**
+	 * Cancel a streaming invocation directly (e.g., when preToolUse hook denies).
+	 * Only works when in Streaming state.
+	 * @returns true if the cancellation was applied, false if not in streaming state
+	 */
+	public cancelFromStreaming(reason: ToolConfirmKind.Denied | ToolConfirmKind.Skipped, reasonMessage?: string | IMarkdownString): boolean {
+		const currentState = this._state.get();
+		if (currentState.type !== IChatToolInvocation.StateKind.Streaming) {
+			return false; // Only cancel from streaming state
+		}
+
+		this._state.set({
+			type: IChatToolInvocation.StateKind.Cancelled,
+			reason: reason,
+			reasonMessage: reasonMessage,
+			parameters: this.parameters,
+			confirmationMessages: this.confirmationMessages,
+		}, undefined);
+		return true;
+	}
+
+	/**
 	 * Transition from streaming state to prepared/executing state.
 	 * Called when the full tool call is ready.
 	 */
@@ -190,7 +233,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		// Transition to the appropriate state
 		if (autoConfirmed) {
 			confirm(autoConfirmed);
-		} if (!this.confirmationMessages?.title) {
+		} else if (!this.confirmationMessages?.title) {
 			this._state.set({
 				type: IChatToolInvocation.StateKind.Executing,
 				confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: this.confirmationMessages?.confirmationNotNeededReason },
@@ -230,7 +273,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		}, undefined);
 	}
 
-	public didExecuteTool(result: IToolResult | undefined, final?: boolean): IChatToolInvocation.State {
+	public async didExecuteTool(result: IToolResult | undefined, final?: boolean, checkIfResultAutoApproved?: () => Promise<ConfirmedReason | undefined>): Promise<IChatToolInvocation.State> {
 		if (result?.toolResultMessage) {
 			this.pastTenseMessage = result.toolResultMessage;
 		} else if (this._progress.get().message) {
@@ -238,15 +281,20 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		}
 
 		if (this.confirmationMessages?.confirmResults && !result?.toolResultError && result?.confirmResults !== false && !final) {
-			this._state.set({
-				type: IChatToolInvocation.StateKind.WaitingForPostApproval,
-				confirmed: IChatToolInvocation.executionConfirmedOrDenied(this) || { type: ToolConfirmKind.ConfirmationNotNeeded },
-				resultDetails: result?.toolResultDetails,
-				contentForModel: result?.content || [],
-				confirm: reason => this._setCompleted(result, reason),
-				parameters: this.parameters,
-				confirmationMessages: this.confirmationMessages,
-			}, undefined);
+			const autoApproved = await checkIfResultAutoApproved?.();
+			if (autoApproved) {
+				this._setCompleted(result, autoApproved);
+			} else {
+				this._state.set({
+					type: IChatToolInvocation.StateKind.WaitingForPostApproval,
+					confirmed: IChatToolInvocation.executionConfirmedOrDenied(this) || { type: ToolConfirmKind.ConfirmationNotNeeded },
+					resultDetails: result?.toolResultDetails,
+					contentForModel: result?.content || [],
+					confirm: reason => this._setCompleted(result, reason),
+					parameters: this.parameters,
+					confirmationMessages: this.confirmationMessages,
+				}, undefined);
+			}
 		} else {
 			this._setCompleted(result);
 		}

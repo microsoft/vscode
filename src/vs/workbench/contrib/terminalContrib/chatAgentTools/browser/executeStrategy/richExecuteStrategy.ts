@@ -6,7 +6,7 @@
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
@@ -22,11 +22,11 @@ import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHe
  * wrong in this state, minimal verification is done in this mode since rich command detection is a
  * strong signal that it's behaving correctly.
  */
-export class RichExecuteStrategy implements ITerminalExecuteStrategy {
+export class RichExecuteStrategy extends Disposable implements ITerminalExecuteStrategy {
 	readonly type = 'rich';
-	private readonly _startMarker = new MutableDisposable<IXtermMarker>();
+	private readonly _startMarker = this._register(new MutableDisposable<IXtermMarker>());
 
-	private readonly _onDidCreateStartMarker = new Emitter<IXtermMarker | undefined>;
+	private readonly _onDidCreateStartMarker = this._register(new Emitter<IXtermMarker | undefined>);
 	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
 
 	constructor(
@@ -34,6 +34,7 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 		private readonly _commandDetection: ICommandDetectionCapability,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
+		super();
 	}
 
 	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {

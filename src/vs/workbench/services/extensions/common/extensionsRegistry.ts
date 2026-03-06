@@ -266,7 +266,7 @@ export const schema: IJSONSchema = {
 				defaultSnippets: [
 					{
 						label: 'onWebviewPanel',
-						description: nls.localize('vscode.extension.activationEvents.onWebviewPanel', 'An activation event emmited when a webview is loaded of a certain viewType'),
+						description: nls.localize('vscode.extension.activationEvents.onWebviewPanel', 'An activation event emitted when a webview is loaded of a certain viewType'),
 						body: 'onWebviewPanel:viewType'
 					},
 					{
@@ -421,7 +421,7 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onMcpCollection',
-						description: nls.localize('vscode.extension.activationEvents.onMcpCollection', 'An activation event emitted whenver a tool from the MCP server is requested.'),
+						description: nls.localize('vscode.extension.activationEvents.onMcpCollection', 'An activation event emitted whenever a tool from the MCP server is requested.'),
 						body: 'onMcpCollection:${2:collectionId}',
 					},
 					{
@@ -475,6 +475,15 @@ export const schema: IJSONSchema = {
 		},
 		extensionDependencies: {
 			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions. The identifier of an extension is always ${publisher}.${name}. For example: vscode.csharp.'),
+			type: 'array',
+			uniqueItems: true,
+			items: {
+				type: 'string',
+				pattern: EXTENSION_IDENTIFIER_PATTERN
+			}
+		},
+		extensionAffinity: {
+			description: nls.localize('vscode.extension.extensionAffinity', 'Extensions that this extension should be colocated with in the same extension host process if possible. The identifier of an extension is always ${publisher}.${name}. For example: vscode.git.'),
 			type: 'array',
 			uniqueItems: true,
 			items: {

@@ -5,9 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
-import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -17,16 +15,21 @@ import { ILanguageService } from '../../../../../../editor/common/languages/lang
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { LanguageModelPartAudience } from '../../../common/languageModels.js';
+import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from './codeBlockPart.js';
 import { IDisposableReference } from './chatCollections.js';
 import { ChatQueryTitlePart } from './chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatToolOutputContentSubPart } from './chatToolOutputContentSubPart.js';
+import { renderFileWidgets } from './chatInlineAnchorWidget.js';
+import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 
 export interface IChatCollapsibleIOCodePart {
 	kind: 'code';
@@ -41,6 +44,11 @@ export interface IChatCollapsibleIOCodePart {
 export interface IChatCollapsibleIODataPart {
 	kind: 'data';
 	value?: Uint8Array;
+	/**
+	 * Base64-encoded value that can be decoded lazily to avoid expensive
+	 * decoding during scroll. Takes precedence over `value` when present.
+	 */
+	base64Value?: string;
 	audience?: LanguageModelPartAudience[];
 	mimeType: string | undefined;
 	uri: URI;
@@ -54,10 +62,6 @@ export interface IChatCollapsibleOutputData {
 }
 
 export class ChatCollapsibleInputOutputContentPart extends Disposable {
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
-
-	private _currentWidth: number = 0;
 	private readonly _editorReferences: IDisposableReference<CodeBlockPart>[] = [];
 	private readonly _titlePart: ChatQueryTitlePart;
 	private _outputSubPart: ChatToolOutputContentSubPart | undefined;
@@ -97,9 +101,10 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		@IHoverService hoverService: IHoverService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
-		this._currentWidth = context.currentWidth.get();
 
 		const container = dom.h('.chat-confirmation-widget-container');
 		const titleEl = dom.h('.chat-confirmation-widget-title-inner');
@@ -113,7 +118,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			title,
 			subtitle,
 		));
-		this._register(this._titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		renderFileWidgets(titleEl.root, this._instantiationService, this.chatMarkdownAnchorService, this._store);
 		const spacer = document.createElement('span');
 		spacer.style.flexGrow = '1';
 
@@ -121,29 +126,33 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		btn.element.classList.add('chat-confirmation-widget-title', 'monaco-text-button');
 		btn.labelElement.append(titleEl.root);
 
-		const check = dom.h(isError
-			? ThemeIcon.asCSSSelector(Codicon.error)
-			: output
-				? ThemeIcon.asCSSSelector(Codicon.check)
-				: ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin'))
-		);
+		// Add hover chevron indicator on the right (decorative, hide from screen readers)
+		const hoverChevron = dom.$('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right');
+		hoverChevron.setAttribute('aria-hidden', 'true');
+		btn.element.appendChild(hoverChevron);
 
-		if (progressTooltip) {
-			this._register(hoverService.setupDelayedHover(check.root, {
-				content: progressTooltip,
-				style: HoverStyle.Pointer,
-			}));
-		}
+		// Only show leading icon for errors, or for checkmarks/loading when the accessibility setting is on
+		const showCheckmarks = observableConfigValue(AccessibilityWorkbenchSettingId.ShowChatCheckmarks, false, this.configurationService);
 
 		const expanded = this._expanded = observableValue(this, initiallyExpanded);
 		this._register(autorun(r => {
 			const value = expanded.read(r);
-			btn.icon = isError
-				? Codicon.error
-				: output
+			const checkmarksEnabled = showCheckmarks.read(r);
+			elements.root.classList.toggle('collapsed', !value);
+
+			if (isError) {
+				btn.icon = Codicon.error;
+			} else {
+				btn.icon = output
 					? Codicon.check
 					: ThemeIcon.modify(Codicon.loading, 'spin');
-			elements.root.classList.toggle('collapsed', !value);
+			}
+
+			container.root.classList.toggle('show-checkmarks', checkmarksEnabled);
+
+			// Update hover chevron direction
+			hoverChevron.classList.toggle('codicon-chevron-right', !value);
+			hoverChevron.classList.toggle('codicon-chevron-down', value);
 
 			// Lazy initialization: render content only when expanded for the first time
 			if (value && !this._contentInitialized) {
@@ -152,8 +161,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 				messageContainer.root.appendChild(this.createMessageContents());
 				elements.root.appendChild(messageContainer.root);
 			}
-
-			this._onDidChangeHeight.fire();
 		}));
 
 		const toggle = (e: Event) => {
@@ -234,8 +241,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			chatSessionResource: this.context.element.sessionResource,
 		};
 		const editorReference = this._register(this.context.editorPool.get());
-		editorReference.object.render(data, this._currentWidth || 300);
-		this._register(editorReference.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
+		editorReference.object.render(data, this.context.currentWidth.get() || 300);
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
 	}
@@ -246,7 +252,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	}
 
 	layout(width: number): void {
-		this._currentWidth = width;
 		this._editorReferences.forEach(r => r.object.layout(width));
 		this._outputSubPart?.layout(width);
 	}

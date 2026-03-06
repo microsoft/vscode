@@ -78,7 +78,6 @@ if (-not $env:VSCODE_PYTHON_AUTOACTIVATE_GUARD) {
 	$env:VSCODE_PYTHON_AUTOACTIVATE_GUARD = '1'
 	if ($env:VSCODE_PYTHON_PWSH_ACTIVATE -and $env:TERM_PROGRAM -eq 'vscode') {
 		$activateScript = $env:VSCODE_PYTHON_PWSH_ACTIVATE
-		Remove-Item Env:VSCODE_PYTHON_PWSH_ACTIVATE
 
 		try {
 			Invoke-Expression $activateScript
@@ -89,6 +88,8 @@ if (-not $env:VSCODE_PYTHON_AUTOACTIVATE_GUARD) {
 			Write-Host "`e[0m`e[7m * `e[0;103m VS Code Python powershell activation failed with exit code $($activationError.Exception.Message) `e[0m"
 		}
 	}
+	# Remove any leftover Python activation env vars.
+	Get-ChildItem Env:VSCODE_PYTHON_*_ACTIVATE | Remove-Item -ErrorAction SilentlyContinue
 }
 
 function Global:__VSCode-Escape-Value([string]$value) {

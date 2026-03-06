@@ -48,12 +48,6 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	readonly entryId = `${AbstractChatEditingModifiedFileEntry.scheme}::${++AbstractChatEditingModifiedFileEntry.lastEntryId}`;
 
-	/**
-	 * Observable that controls whether explanation widgets should be visible for this entry.
-	 * Set by the owning session.
-	 */
-	explanationWidgetVisible?: IObservable<boolean>;
-
 	protected readonly _onDidDelete = this._register(new Emitter<void>());
 	readonly onDidDelete = this._onDidDelete.event;
 

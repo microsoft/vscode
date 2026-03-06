@@ -77,14 +77,14 @@ const snippetSchemaProperties: IJSONSchemaMap = {
 		type: ['string', 'array']
 	},
 	include: {
-		markdownDescription: nls.localize('snippetSchema.json.include', 'A list of glob patterns to include the snippet for specific files, e.g. `["**/*.test.ts", "*.spec.ts"]` or `"**/*.spec.ts"`.'),
+		markdownDescription: nls.localize('snippetSchema.json.include', 'A list of [glob patterns](https://aka.ms/vscode-glob-patterns) to include the snippet for specific files, e.g. `["**/*.test.ts", "*.spec.ts"]` or `"**/*.spec.ts"`. Patterns will match on the absolute path of a file if they contain a path separator and will match on the name of the file otherwise. You can exclude matching files via the `exclude` property.'),
 		type: ['string', 'array'],
 		items: {
 			type: 'string'
 		}
 	},
 	exclude: {
-		markdownDescription: nls.localize('snippetSchema.json.exclude', 'A list of glob patterns to exclude the snippet from specific files, e.g. `["**/*.min.js"]` or `"*.min.js"`.'),
+		markdownDescription: nls.localize('snippetSchema.json.exclude', 'A list of [glob patterns](https://aka.ms/vscode-glob-patterns) to exclude the snippet from specific files, e.g. `["**/*.min.js"]` or `"*.min.js"`. Patterns will match on the absolute path of a file if they contain a path separator and will match on the name of the file otherwise. Exclude patterns take precedence over `include` patterns.'),
 		type: ['string', 'array'],
 		items: {
 			type: 'string'

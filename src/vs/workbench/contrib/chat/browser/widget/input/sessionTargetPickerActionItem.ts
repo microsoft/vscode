@@ -16,11 +16,13 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
+
 
 export interface ISessionTypeItem {
 	type: AgentSessionProviders;
@@ -50,6 +52,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		@IChatSessionsService protected readonly chatSessionsService: IChatSessionsService,
 		@ICommandService protected readonly commandService: ICommandService,
 		@IOpenerService protected readonly openerService: IOpenerService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
@@ -72,7 +75,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						category: this._getSessionCategory(sessionTypeItem),
 						description: this._getSessionDescription(sessionTypeItem),
 						tooltip: '',
-						hover: { content: sessionTypeItem.hoverDescription },
+						hover: { content: sessionTypeItem.hoverDescription, position: this.pickerOptions.hoverPosition },
 						run: async () => {
 							this._run(sessionTypeItem);
 						},
@@ -93,14 +96,16 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			actionProvider,
 			actionBarActionProvider,
 			showItemKeybindings: true,
+			reporter: { id: 'ChatSessionTypePicker', name: `ChatSessionTypePicker`, includeOptions: true },
 		};
 
-		super(action, sessionTargetPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService);
+		super(action, sessionTargetPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
-		this._updateAgentSessionItems();
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
 			this._updateAgentSessionItems();
 		}));
+
+		this._updateAgentSessionItems();
 	}
 
 	protected _run(sessionTypeItem: ISessionTypeItem): void {
@@ -172,7 +177,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _isSessionTypeEnabled(type: AgentSessionProviders): boolean {
-		return true;
+		if (type === AgentSessionProviders.Local) {
+			return true; // Local is always available
+		}
+		// Disable non-local session types when their provider is not registered yet
+		return !!this.chatSessionsService.getChatSessionContribution(type);
 	}
 
 	protected _getSessionCategory(sessionTypeItem: ISessionTypeItem) {
@@ -181,6 +190,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	protected _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
 		return undefined;
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-session-target-picker-item');
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
@@ -192,9 +206,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const labelElements = [];
 		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
-		if (currentType !== AgentSessionProviders.Local) {
-			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
-		}
+		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...labelElements);

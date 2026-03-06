@@ -206,6 +206,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// Note: These patterns support `-C <path>` and `--no-pager` immediately after `git`
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/': true,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b.*\\s--output(=|\\s|$)/': false,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+show\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+ls-files\\b/': true,
@@ -220,7 +221,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// - `-m`, `-M`: Prevent branch renaming
 			// - `--force`: Generally dangerous
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b/': true,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b.*-(d|D|m|M|-delete|-force)\\b/': false,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b.*\\s-(d|D|m|M|-delete|-force)\\b/': false,
 
 			// docker - readonly sub-commands
 			'/^docker\\s+(ps|images|info|version|inspect|logs|top|stats|port|diff|search|events)\\b/': true,
@@ -236,6 +237,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'Get-Date': true,
 			'Get-Random': true,
 			'Get-Location': true,
+			'Set-Location': true,
 			'Write-Host': true,
 			'Write-Output': true,
 			'Out-String': true,
@@ -292,12 +294,12 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// column
 			// - `-c`: We block excessive columns that could lead to memory exhaustion.
 			column: true,
-			'/^column\\b.*-c\\s+[0-9]{4,}/': false,
+			'/^column\\b.*\\s-c\\s+[0-9]{4,}/': false,
 
 			// date
 			// -s|--set: Sets the system clock
 			date: true,
-			'/^date\\b.*(-s|--set)\\b/': false,
+			'/^date\\b.*\\s(-s|--set)\\b/': false,
 
 			// find
 			// - `-delete`: Deletes files or directories.
@@ -305,13 +307,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// - `-fprint`/`fprintf`/`fls`: Writes files.
 			// - `-ok`/`-okdir`: Like exec but with a confirmation.
 			find: true,
-			'/^find\\b.*-(delete|exec|execdir|fprint|fprintf|fls|ok|okdir)\\b/': false,
+			'/^find\\b.*\\s-(delete|exec|execdir|fprint|fprintf|fls|ok|okdir)\\b/': false,
 
 			// rg (ripgrep)
 			// - `--pre`: Executes arbitrary command as preprocessor for every file searched.
 			// - `--hostname-bin`: Executes arbitrary command to get hostname.
 			rg: true,
-			'/^rg\\b.*(--pre|--hostname-bin)\\b/': false,
+			'/^rg\\b.*\\s(--pre|--hostname-bin)\\b/': false,
 
 			// sed
 			// - `-e`/`--expression`: Add the commands in script to the set of commands to be run
@@ -327,7 +329,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// - In-place editing (`-i`, `-I`, `--in-place`) is detected and blocked via file write
 			//   detection if necessary
 			sed: true,
-			'/^sed\\b.*(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
+			'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 			'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
 			'/^sed\\b.*;W/': false,
 
@@ -337,17 +339,18 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// - `-S`: Memory exhaustion is possible (`sort -S 100G file`), we allow possible denial
 			//   of service.
 			sort: true,
-			'/^sort\\b.*-(o|S)\\b/': false,
+			'/^sort\\b.*\\s-(o|S)\\b/': false,
 
 			// tree
 			// - `-o`: Output redirection can write files (`tree -o /etc/something file`) which are
 			//   blocked currently
 			tree: true,
-			'/^tree\\b.*-o\\b/': false,
+			'/^tree\\b.*\\s-o\\b/': false,
 
 			// xxd
 			// - Only allow flags and a single input file as it's difficult to parse the outfile
 			//   positional argument safely.
+			'/^xxd$/': true,
 			'/^xxd\\b(\\s+-\\S+)*\\s+[^-\\s]\\S*$/': true,
 
 			// #endregion
@@ -514,7 +517,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		markdownDescription: localize('terminalSandbox.enabledSetting', "Controls whether to run commands in a sandboxed terminal for the run in terminal tool."),
 		type: 'boolean',
 		default: false,
-		tags: ['experimental'],
+		tags: ['preview'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxNetwork]: {
@@ -532,17 +535,23 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 				description: localize('terminalSandbox.networkSetting.deniedDomains', "Array of denied domains (checked first, takes precedence over allowedDomains)."),
 				items: { type: 'string' },
 				default: []
+			},
+			allowTrustedDomains: {
+				type: 'boolean',
+				description: localize('terminalSandbox.networkSetting.allowTrustedDomains', "When enabled, the Trusted Domains list is included in the allowed domains for network access."),
+				default: false
 			}
 		},
 		default: {
 			allowedDomains: [],
-			deniedDomains: []
+			deniedDomains: [],
+			allowTrustedDomains: false
 		},
-		tags: ['experimental'],
+		tags: ['preview'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem]: {
-		markdownDescription: localize('terminalSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on Linux.Paths does not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env).", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
+		markdownDescription: localize('terminalSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on Linux. Paths do not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env). **bubblewrap** and **socat** should be installed for this setting to work.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
 		type: 'object',
 		properties: {
 			denyRead: {
@@ -569,11 +578,11 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			allowWrite: ['.'],
 			denyWrite: []
 		},
-		tags: ['experimental'],
+		tags: ['preview'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem]: {
-		markdownDescription: localize('terminalSandbox.macFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on macOS.Paths also support git-style glob patterns(ex: *.ts, ./src, ./src/**/*.ts, file?.txt).", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
+		markdownDescription: localize('terminalSandbox.macFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on macOS. Paths also support git-style glob patterns(ex: *.ts, ./src, ./src/**/*.ts, file?.txt).", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
 		type: 'object',
 		properties: {
 			denyRead: {
@@ -600,7 +609,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			allowWrite: ['.'],
 			denyWrite: []
 		},
-		tags: ['experimental'],
+		tags: ['preview'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.PreventShellHistory]: {
@@ -617,7 +626,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel]: {
 		restricted: true,
 		type: 'boolean',
-		default: false,
+		default: true,
 		tags: ['experimental'],
 		experiment: {
 			mode: 'auto'

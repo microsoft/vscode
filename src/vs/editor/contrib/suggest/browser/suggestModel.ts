@@ -415,7 +415,10 @@ export class SuggestModel implements IDisposable {
 				const lineTokens = model.tokenization.getLineTokens(pos.lineNumber);
 				const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
 				if (QuickSuggestionsOptions.valueFor(config, tokenType) !== 'on') {
-					return;
+					if (QuickSuggestionsOptions.valueFor(config, tokenType) !== 'offWhenInlineCompletions'
+						|| (this._languageFeaturesService.inlineCompletionsProvider.has(model) && this._editor.getOption(EditorOption.inlineSuggest).enabled)) {
+						return;
+					}
 				}
 			}
 

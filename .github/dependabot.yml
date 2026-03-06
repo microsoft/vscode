@@ -4,3 +4,21 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+  - package-ecosystem: "devcontainers" # https://containers.dev/guide/dependabot
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    allow:
+      - dependency-name: "@vscode/component-explorer"
+      - dependency-name: "@vscode/component-explorer-cli"
+  - package-ecosystem: "npm"
+    directory: "/build/vite"
+    schedule:
+      interval: "daily"
+    allow:
+      - dependency-name: "@vscode/component-explorer"
+      - dependency-name: "@vscode/component-explorer-vite-plugin"

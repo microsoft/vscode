@@ -23,11 +23,11 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { isEmptyObject, isObject } from '../../../../base/common/types.js';
 import { DefaultConfiguration as BaseDefaultConfiguration } from '../../../../platform/configuration/common/configurations.js';
 import { IJSONEditingService } from '../common/jsonEditing.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 
 export class DefaultConfiguration extends BaseDefaultConfiguration {
 
@@ -35,14 +35,16 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	private cachedConfigurationDefaultsOverrides: IStringDictionary<unknown> = {};
-	private readonly cacheKey: ConfigurationKey = { type: 'defaults', key: 'configurationDefaultsOverrides' };
+	private readonly cacheKey: ConfigurationKey;
 
 	constructor(
+		cacheScope: string,
 		private readonly configurationCache: IConfigurationCache,
 		environmentService: IBrowserWorkbenchEnvironmentService,
 		logService: ILogService,
 	) {
 		super(logService);
+		this.cacheKey = { type: 'defaults', key: `${cacheScope}-configurationDefaultsOverrides` };
 		if (environmentService.options?.configurationDefaults) {
 			this.configurationRegistry.registerDefaultConfigurations([{ overrides: environmentService.options.configurationDefaults as IStringDictionary<IStringDictionary<unknown>> }]);
 		}
@@ -95,10 +97,20 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 
 	private async updateCachedConfigurationDefaultsOverrides(): Promise<void> {
 		const cachedConfigurationDefaultsOverrides: IStringDictionary<unknown> = {};
-		const configurationDefaultsOverrides = this.configurationRegistry.getConfigurationDefaultsOverrides();
-		for (const [key, value] of configurationDefaultsOverrides) {
-			if (!OVERRIDE_PROPERTY_REGEX.test(key) && value.value !== undefined) {
-				cachedConfigurationDefaultsOverrides[key] = value.value;
+		const defaultConfigurations = this.configurationRegistry.getRegisteredDefaultConfigurations();
+		for (const defaultConfiguration of defaultConfigurations) {
+			if (defaultConfiguration.donotCache) {
+				continue;
+			}
+			for (const [key, value] of Object.entries(defaultConfiguration.overrides)) {
+				if (!OVERRIDE_PROPERTY_REGEX.test(key) && value !== undefined) {
+					const existingValue = cachedConfigurationDefaultsOverrides[key];
+					if (isObject(existingValue) && isObject(value)) {
+						cachedConfigurationDefaultsOverrides[key] = { ...existingValue, ...value };
+					} else {
+						cachedConfigurationDefaultsOverrides[key] = value;
+					}
+				}
 			}
 		}
 		try {

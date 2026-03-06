@@ -48,8 +48,8 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	readonly initialContent: string;
 
-	private readonly originalModel: ITextModel;
-	private readonly modifiedModel: ITextModel;
+	readonly originalModel: ITextModel;
+	readonly modifiedModel: ITextModel;
 
 	private readonly _docFileEditorModel: IResolvedTextEditorModel;
 

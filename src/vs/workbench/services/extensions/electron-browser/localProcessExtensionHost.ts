@@ -249,8 +249,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 
 		// Catch all output coming from the extension host process
 		type Output = { data: string; format: string[] };
-		const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.onStdout);
-		const onStderr = this._handleProcessOutputStream(this._extensionHostProcess.onStderr);
+		const onStdout = this._register(this._handleProcessOutputStream(this._extensionHostProcess.onStdout));
+		const onStderr = this._register(this._handleProcessOutputStream(this._extensionHostProcess.onStderr));
 		const onOutput = Event.any(
 			Event.map(onStdout.event, o => ({ data: `%c${o}`, format: [''] })),
 			Event.map(onStderr.event, o => ({ data: `%c${o}`, format: ['color: red'] }))
@@ -482,12 +482,14 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
 				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
+				isPortable: this._environmentService.isPortable,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
-				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions
+				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions,
+				isSessionsWindow: this._environmentService.isSessionsWindow
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: workspace.configuration ?? undefined,

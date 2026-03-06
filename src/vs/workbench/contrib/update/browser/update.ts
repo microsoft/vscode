@@ -26,15 +26,15 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
-import { Promises } from '../../../../base/common/async.js';
+import { Promises, Throttler } from '../../../../base/common/async.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { Event } from '../../../../base/common/event.js';
 import { toAction } from '../../../../base/common/actions.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
-export const RELEASE_NOTES_URL = new RawContextKey<string>('releaseNotesUrl', '');
-export const DOWNLOAD_URL = new RawContextKey<string>('downloadUrl', '');
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -69,6 +69,81 @@ async function showReleaseNotes(accessor: ServicesAccessor, version: string) {
 			throw new Error(`${err.message} and ${err2.message}`);
 		}
 	}
+}
+
+/**
+ * Appends update-related menu items to the given menu. This registers menu items
+ * for all update states (idle, checking, downloading, etc.) that show the current
+ * update status. The underlying commands (`update.check`, `update.restart`, etc.)
+ * must be registered separately.
+ */
+export function appendUpdateMenuItems(menuId: MenuId, group: string): void {
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.check',
+			title: nls.localize('checkForUpdates', "Check for Updates...")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.checking',
+			title: nls.localize('checkingForUpdates2', "Checking for Updates..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.downloadNow',
+			title: nls.localize('download update_1', "Download Update (1)")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.downloading',
+			title: nls.localize('DownloadingUpdate', "Downloading Update..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.install',
+			title: nls.localize('installUpdate...', "Install Update... (1)")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.updating',
+			title: nls.localize('installingUpdate', "Installing Update..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		order: 2,
+		command: {
+			id: 'update.restart',
+			title: nls.localize('restartToUpdate', "Restart to Update (1)")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
+	});
 }
 
 interface IVersion {
@@ -108,17 +183,7 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
 		@IProductService productService: IProductService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		if (productService.releaseNotesUrl) {
-			const releaseNotesUrlKey = RELEASE_NOTES_URL.bindTo(contextKeyService);
-			releaseNotesUrlKey.set(productService.releaseNotesUrl);
-		}
-		if (productService.downloadUrl) {
-			const downloadUrlKey = DOWNLOAD_URL.bindTo(contextKeyService);
-			downloadUrlKey.set(productService.downloadUrl);
-		}
-
 		if (isWeb) {
 			return;
 		}
@@ -316,7 +381,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			nls.localize('thereIsUpdateAvailable', "There is an available update."),
 			[{
 				label: nls.localize('download update', "Download Update"),
-				run: () => this.updateService.downloadUpdate()
+				run: () => this.updateService.downloadUpdate(true)
 			}, {
 				label: nls.localize('later', "Later"),
 				run: () => { }
@@ -454,67 +519,17 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 	private registerGlobalActivityActions(): void {
 		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(true));
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.check',
-				title: nls.localize('checkForUpdates', "Check for Updates...")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
-		});
-
 		CommandsRegistry.registerCommand('update.checking', () => { });
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.checking',
-				title: nls.localize('checkingForUpdates2', "Checking for Updates..."),
-				precondition: ContextKeyExpr.false()
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates)
-		});
-
-		CommandsRegistry.registerCommand('update.downloadNow', () => this.updateService.downloadUpdate());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.downloadNow',
-				title: nls.localize('download update_1', "Download Update (1)")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
-		});
-
+		CommandsRegistry.registerCommand('update.downloadNow', () => this.updateService.downloadUpdate(true));
 		CommandsRegistry.registerCommand('update.downloading', () => { });
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.downloading',
-				title: nls.localize('DownloadingUpdate', "Downloading Update..."),
-				precondition: ContextKeyExpr.false()
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading)
-		});
-
 		CommandsRegistry.registerCommand('update.install', () => this.updateService.applyUpdate());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.install',
-				title: nls.localize('installUpdate...', "Install Update... (1)")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
+		CommandsRegistry.registerCommand('update.updating', () => { });
+		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
+		CommandsRegistry.registerCommand('_update.state', () => {
+			return this.state;
 		});
 
-		CommandsRegistry.registerCommand('update.updating', () => { });
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.updating',
-				title: nls.localize('installingUpdate', "Installing Update..."),
-				precondition: ContextKeyExpr.false()
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating)
-		});
+		appendUpdateMenuItems(MenuId.GlobalActivity, '7_update');
 
 		if (this.productService.quality === 'stable') {
 			CommandsRegistry.registerCommand('update.showUpdateReleaseNotes', () => {
@@ -538,21 +553,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				when: ContextKeyExpr.and(CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready), MAJOR_MINOR_UPDATE_AVAILABLE)
 			});
 		}
-
-		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			order: 2,
-			command: {
-				id: 'update.restart',
-				title: nls.localize('restartToUpdate', "Restart to Update (1)")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
-		});
-
-		CommandsRegistry.registerCommand('_update.state', () => {
-			return this.state;
-		});
 	}
 }
 
@@ -670,6 +670,60 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 					return result;
 				}
 			}));
+		}
+	}
+}
+
+export class DefaultAccountUpdateContribution extends Disposable implements IWorkbenchContribution {
+
+	private static readonly STORAGE_KEY = 'update/internalOrg';
+	#internalOrg: string | undefined = undefined;
+	private throttler: Throttler = this._register(new Throttler());
+
+	constructor(
+		@IUpdateService private readonly updateService: IUpdateService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IStorageService private readonly storageService: IStorageService
+	) {
+		super();
+
+		if (isWeb) {
+			return; // Electron only
+		}
+
+		this.#internalOrg = this.storageService.get(DefaultAccountUpdateContribution.STORAGE_KEY, StorageScope.APPLICATION, undefined);
+		this.throttler.queue(() => this.updateService.setInternalOrg(this.#internalOrg));
+
+		// Check on startup
+		this.refresh();
+
+		// Listen for account changes
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.refresh()));
+	}
+
+	private refresh(): void {
+		this.throttler.queue(() => this.doRefresh());
+	}
+
+	private async doRefresh(): Promise<void> {
+		try {
+			const defaultAccount = await this.defaultAccountService.getDefaultAccount();
+			const internalOrg = getInternalOrg(defaultAccount?.entitlementsData?.organization_login_list);
+
+			if (internalOrg === this.#internalOrg) {
+				return;
+			}
+
+			this.#internalOrg = internalOrg;
+			await this.updateService.setInternalOrg(this.#internalOrg);
+
+			if (this.#internalOrg) {
+				this.storageService.store(DefaultAccountUpdateContribution.STORAGE_KEY, internalOrg, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			} else {
+				this.storageService.remove(DefaultAccountUpdateContribution.STORAGE_KEY, StorageScope.APPLICATION);
+			}
+		} catch (error) {
+			// Silently ignore errors - if we can't get the account, we don't disable background updates
 		}
 	}
 }

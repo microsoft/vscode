@@ -19,6 +19,7 @@ import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { TaskToolClassification, TaskToolEvent } from './taskToolsTelemetry.js';
+import { TerminalToolId } from '../toolIds.js';
 
 interface IRunTaskToolInput extends IToolInvocation {
 	id: string;
@@ -146,11 +147,11 @@ export class RunTaskTool implements IToolImpl {
 }
 
 export const RunTaskToolData: IToolData = {
-	id: 'run_task',
+	id: TerminalToolId.RunTask,
 	toolReferenceName: 'runTask',
 	legacyToolReferenceFullNames: ['runTasks/runTask'],
 	displayName: localize('runInTerminalTool.displayName', 'Run Task'),
-	modelDescription: 'Runs a VS Code task.\n\n- If you see that an appropriate task exists for building or running code, prefer to use this tool to run the task instead of using the run_in_terminal tool.\n- Make sure that any appropriate build or watch task is running before trying to run tests or execute code.\n- If the user asks to run a task, use this tool to do so.',
+	modelDescription: `Runs a VS Code task.\n\n- If you see that an appropriate task exists for building or running code, prefer to use this tool to run the task instead of using the ${TerminalToolId.RunInTerminal} tool.\n- Make sure that any appropriate build or watch task is running before trying to run tests or execute code.\n- If the user asks to run a task, use this tool to do so.`,
 	userDescription: localize('runInTerminalTool.userDescription', 'Run tasks in the workspace'),
 	icon: Codicon.tools,
 	source: ToolDataSource.Internal,

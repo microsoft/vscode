@@ -11,7 +11,7 @@
 	background-color: var(--vscode-editorWidget-background);
 	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
 	border-radius: 8px;
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-lg);
 	font-size: 12px;
 	line-height: 1.4;
 	opacity: 0;
@@ -266,4 +266,11 @@
 .chat-explanation-reply-button:hover {
 	opacity: 1 !important;
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Gutter decoration for range indicator on hover */
+.chat-explanation-range-glyph {
+	margin-left: 8px;
+	z-index: 5;
+	border-left: 2px solid var(--vscode-editorGutter-modifiedBackground);
 }

@@ -74,10 +74,10 @@ export class WatchExpressionsView extends ViewPane implements IDebugViewWithVari
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
-		this.watchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
+		this.watchExpressionsUpdatedScheduler = this._register(new RunOnceScheduler(() => {
 			this.needsRefresh = false;
 			this.tree.updateChildren();
-		}, 50);
+		}, 50));
 		this.watchExpressionsExist = CONTEXT_WATCH_EXPRESSIONS_EXIST.bindTo(contextKeyService);
 		this.watchExpressionsExist.set(this.debugService.getModel().getWatchExpressions().length > 0);
 		this.expressionRenderer = instantiationService.createInstance(DebugExpressionRenderer);

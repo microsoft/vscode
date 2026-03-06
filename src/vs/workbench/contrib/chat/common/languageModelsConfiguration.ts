@@ -11,6 +11,11 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 
 export const ILanguageModelsConfigurationService = createDecorator<ILanguageModelsConfigurationService>('ILanguageModelsConfigurationService');
 
+export interface ConfigureLanguageModelsOptions {
+	group: ILanguageModelsProviderGroup;
+	snippet?: string;
+}
+
 export interface ILanguageModelsConfigurationService {
 	readonly _serviceBrand: undefined;
 
@@ -26,7 +31,7 @@ export interface ILanguageModelsConfigurationService {
 
 	removeLanguageModelsProviderGroup(languageModelGroup: ILanguageModelsProviderGroup): Promise<void>;
 
-	configureLanguageModels(range?: IRange): Promise<void>;
+	configureLanguageModels(options?: ConfigureLanguageModelsOptions): Promise<void>;
 }
 
 export interface ILanguageModelsProviderGroup extends IStringDictionary<unknown> {
