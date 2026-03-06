@@ -15,9 +15,11 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { IAgentSession } from '../agentSessions/agentSessionsModel.js';
 import { ISessionOpenerParticipant, ISessionOpenOptions, sessionOpenerRegistry } from '../agentSessions/agentSessionsOpener.js';
+import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatWidgetService } from '../chat.js';
 import { CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../actions/chatActions.js';
 
@@ -52,10 +54,18 @@ export class GrowthSessionController extends Disposable implements IChatSessionI
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ILogService private readonly logService: ILogService,
+		@IChatService private readonly chatService: IChatService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 
-		this._dismissed = this.storageService.getBoolean(GrowthSessionController.STORAGE_KEY, StorageScope.APPLICATION, false);
+		const storedDismissed = this.storageService.getBoolean(GrowthSessionController.STORAGE_KEY, StorageScope.APPLICATION, false);
+		const hasInteractedWithChat = this.chatService.hasSessions() || this.chatWidgetService.getAllWidgets().length > 0;
+
+		this._dismissed = storedDismissed || hasInteractedWithChat;
+		if (hasInteractedWithChat && !storedDismissed) {
+			this.storageService.store(GrowthSessionController.STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+		}
 
 		// Dismiss the growth session when the user opens chat.
 		// Wait until the workbench is fully restored so we skip widgets
@@ -68,6 +78,12 @@ export class GrowthSessionController extends Disposable implements IChatSessionI
 				this.dismiss();
 			}));
 		});
+
+		if (!this._dismissed) {
+			this._register(this.chatService.onDidSubmitRequest(() => this.dismiss()));
+			this._register(this.agentSessionsService.model.onDidChangeSessions(() => this.onSessionsChanged()));
+			this.onSessionsChanged();
+		}
 	}
 
 	get items(): readonly IChatSessionItem[] {
@@ -93,7 +109,7 @@ export class GrowthSessionController extends Disposable implements IChatSessionI
 		// Nothing to refresh -- this is a static, local-only session item
 	}
 
-	private dismiss(): void {
+	dismiss(): void {
 		if (this._dismissed) {
 			return;
 		}
@@ -106,6 +122,17 @@ export class GrowthSessionController extends Disposable implements IChatSessionI
 		this._onDidChangeChatSessionItems.fire();
 		// Then fire dismiss event which triggers unregistration of the controller.
 		this._onDidDismiss.fire();
+	}
+
+	private onSessionsChanged(): void {
+		if (this._dismissed) {
+			return;
+		}
+
+		const growthSession = this.agentSessionsService.model.sessions.find(session => session.providerType === AgentSessionProviders.Growth);
+		if (growthSession?.isArchived()) {
+			this.dismiss();
+		}
 	}
 }
 
