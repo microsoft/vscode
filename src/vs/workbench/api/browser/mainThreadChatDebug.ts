@@ -32,6 +32,16 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 		disposables.add(this._chatDebugService.registerProvider({
 			provideChatDebugLog: async (sessionResource, token) => {
 				this._activeSessionResources.set(handle, sessionResource);
+
+				// Send all existing core events for this session to the
+				// extension so they are captured even when the panel is
+				// opened after events have already been logged.
+				for (const event of this._chatDebugService.getEvents(sessionResource)) {
+					if (this._chatDebugService.isCoreEvent(event)) {
+						this._proxy.$handleCoreDebugEvent(handle, this._serializeEvent(event));
+					}
+				}
+
 				const dtos = await this._proxy.$provideChatDebugLog(handle, sessionResource, token);
 				return dtos?.map(dto => this._reviveEvent(dto, sessionResource));
 			},
@@ -46,6 +56,20 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 				const result = await this._proxy.$importChatDebugLog(handle, VSBuffer.wrap(data), token);
 				return result ? URI.revive(result) : undefined;
 			}
+		}));
+
+		// Forward core-originated events to the extension so it can include
+		// them in its data pipeline (e.g., OTel export).
+		disposables.add(this._chatDebugService.onDidAddEvent(event => {
+			if (!this._chatDebugService.isCoreEvent(event)) {
+				return;
+			}
+			const activeSession = this._activeSessionResources.get(handle);
+			if (!activeSession || event.sessionResource.toString() !== activeSession.toString()) {
+				return;
+			}
+			const dto = this._serializeEvent(event);
+			this._proxy.$handleCoreDebugEvent(handle, dto);
 		}));
 	}
 
@@ -65,6 +89,30 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 		}
 		const revived = this._reviveEvent(dto, sessionResource);
 		this._chatDebugService.addProviderEvent(revived);
+	}
+
+	private _serializeEvent(event: IChatDebugEvent): IChatDebugEventDto {
+		const base = {
+			id: event.id,
+			sessionResource: event.sessionResource,
+			created: event.created.getTime(),
+			parentEventId: event.parentEventId,
+		};
+
+		switch (event.kind) {
+			case 'toolCall':
+				return { ...base, kind: 'toolCall', toolName: event.toolName, toolCallId: event.toolCallId, input: event.input, output: event.output, result: event.result, durationInMillis: event.durationInMillis };
+			case 'modelTurn':
+				return { ...base, kind: 'modelTurn', model: event.model, requestName: event.requestName, inputTokens: event.inputTokens, outputTokens: event.outputTokens, totalTokens: event.totalTokens, durationInMillis: event.durationInMillis };
+			case 'generic':
+				return { ...base, kind: 'generic', name: event.name, details: event.details, level: event.level, category: event.category };
+			case 'subagentInvocation':
+				return { ...base, kind: 'subagentInvocation', agentName: event.agentName, description: event.description, status: event.status, durationInMillis: event.durationInMillis, toolCallCount: event.toolCallCount, modelTurnCount: event.modelTurnCount };
+			case 'userMessage':
+				return { ...base, kind: 'userMessage', message: event.message, sections: event.sections.map(s => ({ name: s.name, content: s.content })) };
+			case 'agentResponse':
+				return { ...base, kind: 'agentResponse', message: event.message, sections: event.sections.map(s => ({ name: s.name, content: s.content })) };
+		}
 	}
 
 	private _reviveEvent(dto: IChatDebugEventDto, sessionResource: URI): IChatDebugEvent {

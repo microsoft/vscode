@@ -196,6 +196,12 @@ export interface IChatDebugService extends IDisposable {
 	 * Returns the session URI for the imported data.
 	 */
 	importLog(data: Uint8Array): Promise<URI | undefined>;
+
+	/**
+	 * Returns true if the event was logged by VS Code core
+	 * (not sourced from an external provider).
+	 */
+	isCoreEvent(event: IChatDebugEvent): boolean;
 }
 
 /**

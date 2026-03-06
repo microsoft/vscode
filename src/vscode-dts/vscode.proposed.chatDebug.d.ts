@@ -671,6 +671,16 @@ declare module 'vscode' {
 			data: Uint8Array,
 			token: CancellationToken
 		): ProviderResult<Uri>;
+
+		/**
+		 * Called when core emits a debug event for the active session.
+		 * Core events include prompt discovery, skill loading, and other
+		 * internal diagnostics that the extension may want to include in
+		 * its data pipeline (e.g., OTel export).
+		 *
+		 * @param event The debug event emitted by core.
+		 */
+		resolveChatDebugLogCoreEvent?(event: ChatDebugEvent, token: CancellationToken): void;
 	}
 
 	export namespace chat {

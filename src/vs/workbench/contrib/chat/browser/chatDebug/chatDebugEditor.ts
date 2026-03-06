@@ -65,9 +65,6 @@ export class ChatDebugEditor extends EditorPane {
 	private readonly sessionModelListener = this._register(new MutableDisposable());
 	private readonly modelChangeListeners = this._register(new DisposableMap<string>());
 
-	/** Saved session resource so we can restore it after the editor is re-shown. */
-	private savedSessionResource: URI | undefined;
-
 	/**
 	 * Stops the streaming pipeline and clears cached events for the
 	 * active session. Called when navigating away from a session or
@@ -317,34 +314,23 @@ export class ChatDebugEditor extends EditorPane {
 			// setOptions, so this.options still contains stale values from
 			// the previous openEditor() call. Navigation from new options
 			// is handled entirely by setOptions → _applyNavigationOptions.
-			// Here we only restore the previous state when the editor is
-			// re-shown without a new openEditor() call (e.g., tab switch).
+
+			// On tab switch back, just refresh the current view.
+			// The streaming pipeline stays alive while hidden, so events
+			// continue to accumulate — no need to re-invoke providers.
 			if (this.viewState === ViewState.Home) {
-				const sessionResource = this.chatDebugService.activeSessionResource ?? this.savedSessionResource;
-				this.savedSessionResource = undefined;
-				if (sessionResource) {
-					this.navigateToSession(sessionResource, 'overview');
-				} else {
-					this.showView(ViewState.Home);
-				}
-			} else {
-				// Re-activate the streaming pipeline for the current session,
-				// restoring the saved session resource if the editor was temporarily hidden.
-				const sessionResource = this.chatDebugService.activeSessionResource ?? this.savedSessionResource;
-				this.savedSessionResource = undefined;
-				if (sessionResource) {
-					this.chatDebugService.activeSessionResource = sessionResource;
-					this.chatDebugService.invokeProviders(sessionResource);
-				} else {
-					this.showView(ViewState.Home);
-				}
+				this.homeView?.render();
+			} else if (this.viewState === ViewState.Overview) {
+				this.overviewView?.refresh();
+			} else if (this.viewState === ViewState.Logs) {
+				this.logsView?.refreshList();
+			} else if (this.viewState === ViewState.FlowChart) {
+				this.flowChartView?.refresh();
 			}
-		} else {
-			// Remember the active session so we can restore when re-shown
-			this.savedSessionResource = this.chatDebugService.activeSessionResource;
-			// Stop the streaming pipeline when the editor is hidden
-			this.endActiveSession();
 		}
+		// Don't tear down the streaming pipeline on hide — the views'
+		// onDidAddEvent listeners keep accumulating events while hidden,
+		// so switching tabs and back preserves state without duplicates.
 	}
 
 	private _applyNavigationOptions(options: IChatDebugEditorOptions): void {

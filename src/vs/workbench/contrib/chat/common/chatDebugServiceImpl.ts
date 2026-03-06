@@ -217,6 +217,10 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		return undefined;
 	}
 
+	isCoreEvent(event: IChatDebugEvent): boolean {
+		return !this._providerEvents.has(event);
+	}
+
 	async exportLog(sessionResource: URI): Promise<Uint8Array | undefined> {
 		for (const provider of this._providers) {
 			if (provider.provideChatDebugLogExport) {
