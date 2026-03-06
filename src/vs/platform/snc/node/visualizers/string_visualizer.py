@@ -1204,27 +1204,6 @@ def _find_closing_delimiter(search: str | None) -> int | None:
     return None
 
 
-def is_regex_search(search: str | None) -> bool:
-    """Check if the search string is a regex search (starts with /)."""
-    return bool(search) and search[0] == '/'
-
-
-def is_string_search(search: str | None) -> bool:
-    """Check if the search string is a Python string literal search."""
-    if not search:
-        return False
-    if search[0] in ('/', '`'):
-        return False
-    return _find_closing_delimiter(search) is not None
-
-
-def is_backtick_search(search: str | None) -> bool:
-    """Check if the search is a backtick-delimited expression (`expr`)."""
-    if not search or search[0] != '`':
-        return False
-    return _find_closing_delimiter(search) is not None
-
-
 def _is_valid_python_expression(s: str) -> bool:
     """Check if s parses as a valid Python expression."""
     try:
@@ -1256,47 +1235,22 @@ def parse_slice_parts(search: str | None) -> tuple | None:
     return None
 
 
+def is_regex_search(search: str | None) -> bool:
+    """Check if the search string is a regex search."""
+    p = parse_search_term(search)
+    return p is not None and p[0] == 'regex'
+
+
 def is_slice_search(search: str | None) -> bool:
-    """Check if the search is a slice expression like '5:', ':10', '5:10', 'x:10'."""
-    if not search:
-        return False
-    if is_regex_search(search) or is_string_search(search):
-        return False
-    return parse_slice_parts(search) is not None
-
-
-def is_expression_search(search: str | None) -> bool:
-    """Check if the search is an expression (backtick or bare text)."""
-    if not search:
-        return False
-    if is_regex_search(search) or is_string_search(search):
-        return False
-    if is_slice_search(search):
-        return False
-    return True
-
-
-def get_eval_expression(search: str | None) -> str | None:
-    """Extract the Python expression from a backtick or bare search.
-
-    Returns the expression text, or None if not an expression search.
-    """
-    if not search or is_regex_search(search) or is_string_search(search):
-        return None
-    if is_backtick_search(search):
-        end = _find_closing_delimiter(search)
-        return search[1:end - 1]
-    return search  # bare text
+    """Check if the search is a slice expression like '5:', ':10', '5:10'."""
+    p = parse_search_term(search)
+    return p is not None and p[0] == 'slice'
 
 
 def get_search_flags(search: str | None) -> str:
-    """Extract postfix flags from a search string (everything after the closing delimiter)."""
-    if not search:
-        return ''
-    end = _find_closing_delimiter(search)
-    if end is None:
-        return ''
-    return search[end:]
+    """Extract postfix flags from a search string."""
+    p = parse_search_term(search)
+    return p[2] if p else ''
 
 
 def is_first_match_mode(search: str | None) -> bool:
@@ -1314,31 +1268,43 @@ def is_capture_groups_mode(search: str | None) -> bool:
     return 'c' in get_search_flags(search)
 
 
+def parse_search_term(search: str | None) -> tuple | None:
+    """Parse any search string into (kind, term, flags).
+
+    Returns None for empty or None inputs.
+    kind is one of 'regex', 'string', 'slice', 'expr'.
+    term is the extracted content:
+      - regex: inner pattern (between / delimiters)
+      - string: the literal including quotes (e.g. "'hello'")
+      - slice: (start, stop) tuple
+      - expr: expression text (backtick content or bare text)
+    flags is the postfix flags string (e.g. '1i').
+    """
+    if not search:
+        return None
+    if search[0] == '/':
+        end = _find_closing_delimiter(search)
+        if end is not None:
+            return ('regex', search[1:end - 1], search[end:])
+        return ('regex', search[1:], '')
+    if search[0] == '`':
+        end = _find_closing_delimiter(search)
+        if end is not None:
+            return ('expr', search[1:end - 1], search[end:])
+        return ('expr', search[1:], '')
+    end = _find_closing_delimiter(search)
+    if end is not None:
+        return ('string', search[:end], search[end:])
+    parts = parse_slice_parts(search)
+    if parts is not None:
+        return ('slice', parts, '')
+    return ('expr', search, '')
+
+
 def get_regex_inner_pattern(search: str | None) -> str | None:
-    """Extract the inner pattern from a regex search (strips / delimiters and flags).
-
-    Returns None if input is None or not a regex search.
-    """
-    if search is None or not is_regex_search(search):
-        return None
-    end = _find_closing_delimiter(search)
-    if end is None:
-        return search[1:-1]
-    return search[1:end - 1]
-
-
-def get_string_literal(search: str | None) -> str | None:
-    """Extract the string literal portion (including quotes, excluding flags).
-
-    E.g., "'hello'" from "'hello'i", "f'hello'" from "f'hello'1i".
-    Returns None if not a string search.
-    """
-    if not search or not is_string_search(search):
-        return None
-    end = _find_closing_delimiter(search)
-    if end is None:
-        return None
-    return search[:end]
+    """Extract the inner pattern from a regex search (strips / delimiters and flags)."""
+    p = parse_search_term(search)
+    return p[1] if p and p[0] == 'regex' else None
 
 
 def eval_string_search(search: str | None) -> str | None:
@@ -1346,11 +1312,11 @@ def eval_string_search(search: str | None) -> str | None:
 
     Returns None if not a string search or if evaluation fails.
     """
-    literal = get_string_literal(search)
-    if literal is None:
+    p = parse_search_term(search)
+    if not p or p[0] != 'string':
         return None
     try:
-        result = eval(literal)
+        result = eval(p[1])
         if isinstance(result, (str, bytes)):
             return result if isinstance(result, str) else result.decode('utf-8', errors='replace')
         return None
@@ -2066,11 +2032,11 @@ def _expression_search_highlights(search: str, string_value: str, eval_in_scope)
     If the expression evaluates to an int, treats it as an index search (str[N]).
     Returns no highlights if eval fails.
     """
-    expr_text = get_eval_expression(search)
-    if not expr_text:
+    p = parse_search_term(search)
+    if not p or p[0] != 'expr':
         return []
     try:
-        result = eval_in_scope(expr_text)
+        result = eval_in_scope(p[1])
     except Exception:
         return []
     if isinstance(result, int) and not isinstance(result, bool):
@@ -2095,19 +2061,21 @@ def parse_regex_for_highlighting(selection_regex: str | None, string_value: str,
     Returns:
         List of (internal_start, internal_end, type, pattern_display, repetition, segment_index) tuples.
     """
-    if selection_regex is None:
+    parsed = parse_search_term(selection_regex)
+    if not parsed:
         return []
+    kind = parsed[0]
 
-    if is_string_search(selection_regex):
+    if kind == 'string':
         return _string_search_highlights(selection_regex, string_value)
 
-    if is_slice_search(selection_regex):
+    if kind == 'slice':
         return _slice_search_highlights(selection_regex, string_value, eval_in_scope)
 
-    if is_expression_search(selection_regex):
+    if kind == 'expr':
         return _expression_search_highlights(selection_regex, string_value, eval_in_scope)
 
-    inner_pattern = get_regex_inner_pattern(selection_regex)
+    inner_pattern = parsed[1]
     if not inner_pattern:
         return []
 
@@ -3046,11 +3014,13 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
 
 def _eval_index_or_slice_match(selection_regex: str, string_value: str, eval_in_scope) -> str | None:
     """Evaluate index or slice search and return the matched string, or None."""
-    if is_slice_search(selection_regex):
-        parts = parse_slice_parts(selection_regex)
-        if parts is None:
-            return None
-        left, right = parts
+    parsed = parse_search_term(selection_regex)
+    if not parsed:
+        return None
+    kind, term, _flags = parsed
+
+    if kind == 'slice':
+        left, right = term
         try:
             start = eval_in_scope(left) if left else None
             stop = eval_in_scope(right) if right else None
@@ -3059,12 +3029,9 @@ def _eval_index_or_slice_match(selection_regex: str, string_value: str, eval_in_
         sliced = string_value[start:stop]
         return sliced if sliced else None
 
-    if is_expression_search(selection_regex):
-        expr_text = get_eval_expression(selection_regex)
-        if not expr_text:
-            return None
+    if kind == 'expr':
         try:
-            result = eval_in_scope(expr_text)
+            result = eval_in_scope(term)
         except Exception:
             return None
         if isinstance(result, int) and not isinstance(result, bool):
@@ -3082,18 +3049,18 @@ def is_index_or_slice_search(selection_regex: str | None, eval_in_scope=None) ->
     For slice, no eval needed. For index, eval_in_scope is required to check
     if the expression evaluates to an int.
     """
-    if not selection_regex:
+    parsed = parse_search_term(selection_regex)
+    if not parsed:
         return False
-    if is_slice_search(selection_regex):
+    kind, term, _flags = parsed
+    if kind == 'slice':
         return True
-    if eval_in_scope is not None and is_expression_search(selection_regex):
-        expr_text = get_eval_expression(selection_regex)
-        if expr_text:
-            try:
-                result = eval_in_scope(expr_text)
-                return isinstance(result, int) and not isinstance(result, bool)
-            except Exception:
-                pass
+    if kind == 'expr' and eval_in_scope is not None:
+        try:
+            result = eval_in_scope(term)
+            return isinstance(result, int) and not isinstance(result, bool)
+        except Exception:
+            pass
     return False
 
 
@@ -3111,54 +3078,48 @@ def _count_matches(selection_regex: str | None, string_value: str, eval_in_scope
     if is_slice_search(selection_regex) or is_index_or_slice_search(selection_regex, eval_in_scope):
         return 0
 
-    ci = is_case_insensitive(selection_regex)
-    first = is_first_match_mode(selection_regex)
+    parsed = parse_search_term(selection_regex)
+    if not parsed:
+        return 0
+    kind, term, flags = parsed
+    ci = 'i' in flags
+    first = '1' in flags
 
-    if is_string_search(selection_regex):
-        literal_str = eval_string_search(selection_regex)
-        if not literal_str:
+    if kind in ('string', 'expr'):
+        if kind == 'string':
+            search_text = eval_string_search(selection_regex)
+        else:
+            try:
+                search_text = eval_in_scope(term)
+            except Exception:
+                return 0
+            if not isinstance(search_text, str):
+                return 0
+        if not search_text:
             return 0
         if ci:
-            pattern = re.compile(re.escape(literal_str), re.IGNORECASE)
+            compiled = re.compile(re.escape(search_text), re.IGNORECASE)
             if first:
-                return 1 if pattern.search(string_value) else 0
-            return len(pattern.findall(string_value))
+                return 1 if compiled.search(string_value) else 0
+            return len(compiled.findall(string_value))
         else:
             if first:
-                return 1 if literal_str in string_value else 0
-            return string_value.count(literal_str)
+                return 1 if search_text in string_value else 0
+            return string_value.count(search_text)
 
-    if is_expression_search(selection_regex):
-        expr_text = get_eval_expression(selection_regex)
-        if not expr_text:
+    if kind == 'regex':
+        pattern = strip_capturing_groups(term) if term else ''
+        if not pattern:
             return 0
+        re_flags = re.M | (re.I if ci else 0)
         try:
-            result = eval_in_scope(expr_text)
+            if first:
+                return 1 if re.search(pattern, string_value, flags=re_flags) else 0
+            return len(list(re.finditer(pattern, string_value, flags=re_flags)))
         except Exception:
             return 0
-        if not isinstance(result, str):
-            return 0
-        if ci:
-            pattern = re.compile(re.escape(result), re.IGNORECASE)
-            if first:
-                return 1 if pattern.search(string_value) else 0
-            return len(pattern.findall(string_value))
-        else:
-            if first:
-                return 1 if result in string_value else 0
-            return string_value.count(result)
 
-    inner = get_regex_inner_pattern(selection_regex)
-    if not inner:
-        return 0
-    pattern = strip_capturing_groups(inner)
-    flags = re.M | (re.I if ci else 0)
-    try:
-        if first:
-            return 1 if re.search(pattern, string_value, flags=flags) else 0
-        return len(list(re.finditer(pattern, string_value, flags=flags)))
-    except Exception:
-        return 0
+    return 0
 
 
 def _count_truthy_transform_results(selection_regex: str, string_value: str, replace_text: str, eval_in_scope) -> int:
@@ -3195,53 +3156,45 @@ def _find_matches(selection_regex: str, string_value: str, eval_in_scope) -> lis
     if is_slice_search(selection_regex) or is_index_or_slice_search(selection_regex, eval_in_scope):
         return []
 
-    ci = is_case_insensitive(selection_regex)
-    first = is_first_match_mode(selection_regex)
+    parsed = parse_search_term(selection_regex)
+    if not parsed:
+        return []
+    kind, term, flags = parsed
+    ci = 'i' in flags
+    first = '1' in flags
 
-    if is_string_search(selection_regex):
-        literal_str = eval_string_search(selection_regex)
-        if not literal_str:
-            return []
-        if ci:
-            compiled = re.compile(re.escape(literal_str), re.IGNORECASE)
+    if kind in ('string', 'expr'):
+        if kind == 'string':
+            search_text = eval_string_search(selection_regex)
         else:
-            compiled = re.compile(re.escape(literal_str))
+            try:
+                search_text = eval_in_scope(term)
+            except Exception:
+                return []
+            if not isinstance(search_text, str):
+                return []
+        if not search_text:
+            return []
+        compiled = re.compile(re.escape(search_text), re.IGNORECASE if ci else 0)
         if first:
             m = compiled.search(string_value)
             return [m] if m else []
         return list(compiled.finditer(string_value))
 
-    if is_expression_search(selection_regex):
-        expr_text = get_eval_expression(selection_regex)
-        if not expr_text:
+    if kind == 'regex':
+        pattern = strip_capturing_groups(term) if term else ''
+        if not pattern:
             return []
+        re_flags = re.M | (re.I if ci else 0)
         try:
-            result = eval_in_scope(expr_text)
+            if first:
+                m = re.search(pattern, string_value, flags=re_flags)
+                return [m] if m else []
+            return list(re.finditer(pattern, string_value, flags=re_flags))
         except Exception:
             return []
-        if not isinstance(result, str):
-            return []
-        if ci:
-            compiled = re.compile(re.escape(result), re.IGNORECASE)
-        else:
-            compiled = re.compile(re.escape(result))
-        if first:
-            m = compiled.search(string_value)
-            return [m] if m else []
-        return list(compiled.finditer(string_value))
 
-    inner = get_regex_inner_pattern(selection_regex)
-    if not inner:
-        return []
-    pattern = strip_capturing_groups(inner)
-    flags = re.M | (re.I if ci else 0)
-    try:
-        if first:
-            m = re.search(pattern, string_value, flags=flags)
-            return [m] if m else []
-        return list(re.finditer(pattern, string_value, flags=flags))
-    except Exception:
-        return []
+    return []
 
 
 def _compute_predicate_previews(selection_regex, value, replace_visible, replace_text, match_count, eval_in_scope):
@@ -3515,32 +3468,29 @@ def _get_search_context(model: dict, source_code: str, source_line: int) -> dict
     if not selection_regex or not source_code or not source_line:
         return None
 
+    parsed = parse_search_term(selection_regex)
+    if not parsed:
+        return None
+    kind, term, flags = parsed
+
     expr, var_name = extract_expression_from_line(source_code, source_line)
     var_to_search = var_name if var_name else f"({expr})"
     suggest_base = var_name if var_name else "result"
 
     is_idx = False
-    is_slc = is_slice_search(selection_regex)
-    slice_start = None
-    slice_stop = None
     index_expr = None
+    if kind == 'slice':
+        slice_start, slice_stop = term
+    elif kind == 'expr':
+        try:
+            val = ast.literal_eval(term)
+            if isinstance(val, int) and not isinstance(val, bool):
+                is_idx = True
+                index_expr = term
+        except (ValueError, SyntaxError):
+            pass
 
-    if is_slc:
-        parts = parse_slice_parts(selection_regex)
-        if parts:
-            slice_start, slice_stop = parts
-    elif is_expression_search(selection_regex):
-        idx_expr = get_eval_expression(selection_regex)
-        if idx_expr:
-            try:
-                val = ast.literal_eval(idx_expr)
-                if isinstance(val, int) and not isinstance(val, bool):
-                    is_idx = True
-                    index_expr = idx_expr
-            except (ValueError, SyntaxError):
-                pass
-
-    if is_idx or is_slc:
+    if is_idx or kind == 'slice':
         replace_visible = model.get('replace_visible', False)
         replace_text = model.get('replace_text')
         replace_expr = None
@@ -3557,45 +3507,34 @@ def _get_search_context(model: dict, source_code: str, source_line: int) -> dict
             'var_name': var_name,
             'suggest_base': suggest_base,
             'is_index': is_idx,
-            'is_slice': is_slc,
+            'is_slice': kind == 'slice',
             'index_expr': index_expr,
-            'slice_start': slice_start,
-            'slice_stop': slice_stop,
+            'slice_start': term[0] if kind == 'slice' else None,
+            'slice_stop': term[1] if kind == 'slice' else None,
             'replace_visible': replace_visible,
             'replace_text': replace_text,
             'replace_expr': replace_expr,
         }
-
-    first = is_first_match_mode(selection_regex)
-    ci = is_case_insensitive(selection_regex)
-    is_str = is_string_search(selection_regex)
-    is_expr = is_expression_search(selection_regex)
-
-    embed = None
-    if is_str:
-        embed = get_string_literal(selection_regex)
-    elif is_expr:
-        embed = get_eval_expression(selection_regex)
+    first = '1' in flags
+    ci = 'i' in flags
+    is_expr = kind in ('string', 'expr')
 
     regex_pattern = None
-    if not is_str and not is_expr:
-        inner_pattern = get_regex_inner_pattern(selection_regex)
-        if is_capture_groups_mode(selection_regex):
-            regex_pattern = inner_pattern or ""
+    if kind == 'regex':
+        if 'c' in flags:
+            regex_pattern = term or ""
         else:
-            regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
+            regex_pattern = strip_capturing_groups(term) if term else ""
 
-    # Build flags strings
-    if is_str or is_expr:
+    if is_expr:
         flags_str = ', flags=re.I' if ci else ''
-        flags_str_kw = flags_str  # for string/expr searches, flags is keyword-style
+        flags_str_kw = flags_str
     else:
         flags_str = 'flags=re.M|re.I' if ci else 'flags=re.M'
-        flags_str_kw = f', {flags_str}'  # for use in function calls
+        flags_str_kw = f', {flags_str}'
 
     count_str = ', count=1' if first else ''
 
-    # Build replace expression info
     replace_visible = model.get('replace_visible', False)
     replace_text = model.get('replace_text')
     replace_expr = None
@@ -3616,11 +3555,10 @@ def _get_search_context(model: dict, source_code: str, source_line: int) -> dict
         'suggest_base': suggest_base,
         'is_first': first,
         'is_ci': ci,
-        'is_string': is_str,
         'is_expr': is_expr,
         'is_index': False,
         'is_slice': False,
-        'embed': embed,
+        'expr': term if is_expr else None,
         'regex_pattern': regex_pattern,
         'flags_str': flags_str,
         'flags_str_kw': flags_str_kw,
@@ -3634,16 +3572,16 @@ def _get_search_context(model: dict, source_code: str, source_line: int) -> dict
 
 def _finditer_expr(ctx: dict) -> str:
     """Build the re.finditer(...) call expression string."""
-    if ctx['is_string'] or ctx['is_expr']:
-        return f"re.finditer(re.escape({ctx['embed']}), {ctx['var_to_search']}{ctx['flags_str_kw']})"
+    if ctx['is_expr']:
+        return f"re.finditer(re.escape({ctx['expr']}), {ctx['var_to_search']}{ctx['flags_str_kw']})"
     else:
         return f"re.finditer(r'{ctx['regex_pattern']}', {ctx['var_to_search']}, {ctx['flags_str']})"
 
 
 def _search_expr(ctx: dict) -> str:
     """Build the re.search(...) call expression string."""
-    if ctx['is_string'] or ctx['is_expr']:
-        return f"re.search(re.escape({ctx['embed']}), {ctx['var_to_search']}{ctx['flags_str_kw']})"
+    if ctx['is_expr']:
+        return f"re.search(re.escape({ctx['expr']}), {ctx['var_to_search']}{ctx['flags_str_kw']})"
     else:
         return f"re.search(r'{ctx['regex_pattern']}', {ctx['var_to_search']}, {ctx['flags_str']})"
 
@@ -3726,8 +3664,8 @@ def _build_replace_expr(ctx: dict) -> tuple | None:
     if not ctx['replace_visible'] or not ctx.get('lambda_str'):
         return None
     suggest_name = ctx['suggest_base'] if ctx['var_name'] else "result"
-    if ctx['is_string'] or ctx['is_expr']:
-        return (suggest_name, f"re.sub(re.escape({ctx['embed']}), {ctx['lambda_str']}, {ctx['var_to_search']}{ctx['count_str']}{ctx['flags_str_kw']})")
+    if ctx['is_expr']:
+        return (suggest_name, f"re.sub(re.escape({ctx['expr']}), {ctx['lambda_str']}, {ctx['var_to_search']}{ctx['count_str']}{ctx['flags_str_kw']})")
     else:
         return (suggest_name, f"re.sub(r'{ctx['regex_pattern']}', {ctx['lambda_str']}, {ctx['var_to_search']}{ctx['count_str']}, {ctx['flags_str']})")
 
@@ -3749,15 +3687,15 @@ def _build_delete_expr(ctx: dict) -> tuple | None:
         left = f"{v}[:{start}]" if start else "''"
         right = f"{v}[{stop}:]" if stop else "''"
         return (suggest_name, f"{left} + {right}")
-    if ctx['is_string'] or ctx['is_expr']:
-        embed = ctx['embed']
+    if ctx['is_expr']:
+        expr = ctx['expr']
         if ctx['is_ci']:
-            return (suggest_name, f"re.sub(re.escape({embed}), '', {ctx['var_to_search']}{ctx['count_str']}{ctx['flags_str_kw']})")
+            return (suggest_name, f"re.sub(re.escape({expr}), '', {ctx['var_to_search']}{ctx['count_str']}{ctx['flags_str_kw']})")
         else:
             if ctx['is_first']:
-                return (suggest_name, f"{ctx['var_to_search']}.replace({embed}, '', 1)")
+                return (suggest_name, f"{ctx['var_to_search']}.replace({expr}, '', 1)")
             else:
-                return (suggest_name, f"{ctx['var_to_search']}.replace({embed}, '')")
+                return (suggest_name, f"{ctx['var_to_search']}.replace({expr}, '')")
     else:
         if ctx['is_first']:
             return (suggest_name, f"re.sub(r'{ctx['regex_pattern']}', '', {ctx['var_to_search']}, count=1, {ctx['flags_str']})")
@@ -3860,14 +3798,14 @@ def _build_split_expr(ctx: dict) -> tuple | None:
     suggest_name = f"{ctx['suggest_base']}_parts" if ctx['var_name'] else "result_parts"
     maxsplit_str = ', maxsplit=1' if ctx['is_first'] else ''
 
-    if ctx['is_string'] or ctx['is_expr']:
-        embed = ctx['embed']
-        if not ctx['is_ci'] and not ctx['is_expr']:
+    if ctx['is_expr']:
+        expr = ctx['expr']
+        if not ctx['is_ci']:
             if ctx['is_first']:
-                return (suggest_name, f"{ctx['var_to_search']}.split({embed}, 1)")
+                return (suggest_name, f"{ctx['var_to_search']}.split({expr}, 1)")
             else:
-                return (suggest_name, f"{ctx['var_to_search']}.split({embed})")
-        return (suggest_name, f"re.split(re.escape({embed}), {ctx['var_to_search']}{maxsplit_str}{ctx['flags_str_kw']})")
+                return (suggest_name, f"{ctx['var_to_search']}.split({expr})")
+        return (suggest_name, f"re.split(re.escape({expr}), {ctx['var_to_search']}{maxsplit_str}{ctx['flags_str_kw']})")
     else:
         return (suggest_name, f"re.split(r'{ctx['regex_pattern']}', {ctx['var_to_search']}{maxsplit_str}, {ctx['flags_str']})")
 

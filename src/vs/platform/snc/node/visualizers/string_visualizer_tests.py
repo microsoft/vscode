@@ -49,13 +49,9 @@ from string_visualizer import (
     append_segment_to_regex,
     canonicalize_regex,
     is_regex_search,
-    is_string_search,
-    is_backtick_search,
-    is_expression_search,
     is_slice_search,
     parse_slice_parts,
-    get_string_literal,
-    get_eval_expression,
+    parse_search_term,
     eval_string_search,
     _find_closing_delimiter,
     is_adjacent_right,
@@ -5547,57 +5543,6 @@ class TestIsRegexSearch(unittest.TestCase):
         self.assertFalse(is_regex_search(None))
 
 
-class TestIsStringSearch(unittest.TestCase):
-    def test_single_quote(self):
-        self.assertTrue(is_string_search("'hello'"))
-
-    def test_double_quote(self):
-        self.assertTrue(is_string_search('"hello"'))
-
-    def test_f_string(self):
-        self.assertTrue(is_string_search("f'hello'"))
-
-    def test_r_string(self):
-        self.assertTrue(is_string_search("r'hello'"))
-
-    def test_triple_quote(self):
-        self.assertTrue(is_string_search("'''hello'''"))
-
-    def test_regex_is_not_string(self):
-        self.assertFalse(is_string_search('/hello/'))
-
-    def test_none(self):
-        self.assertFalse(is_string_search(None))
-
-    def test_bare_text(self):
-        self.assertFalse(is_string_search('hello'))
-
-
-class TestGetStringLiteral(unittest.TestCase):
-    """Test extracting the string literal portion (including quotes, excluding flags)."""
-
-    def test_simple(self):
-        self.assertEqual(get_string_literal("'hello'"), "'hello'")
-
-    def test_with_flags(self):
-        self.assertEqual(get_string_literal("'hello'i"), "'hello'")
-
-    def test_with_combined_flags(self):
-        self.assertEqual(get_string_literal("'hello'1i"), "'hello'")
-
-    def test_f_string(self):
-        self.assertEqual(get_string_literal("f'hello'"), "f'hello'")
-
-    def test_triple_quote(self):
-        self.assertEqual(get_string_literal("'''hello'''1i"), "'''hello'''")
-
-    def test_regex_returns_none(self):
-        self.assertIsNone(get_string_literal("/hello/"))
-
-    def test_none_returns_none(self):
-        self.assertIsNone(get_string_literal(None))
-
-
 class TestEvalStringSearch(unittest.TestCase):
     """Test eval_string_search evaluates the string literal to a Python str."""
 
@@ -5913,77 +5858,72 @@ class TestFindClosingDelimiterBacktick(unittest.TestCase):
         self.assertEqual(_find_closing_delimiter('``'), 2)
 
 
-class TestIsBacktickSearch(unittest.TestCase):
+class TestParseSearchTerm(unittest.TestCase):
+    """parse_search_term returns (kind, term, flags) for all search types."""
 
-    def test_backtick(self):
-        self.assertTrue(is_backtick_search('`s`'))
+    # --- regex ---
+    def test_regex_no_flags(self):
+        self.assertEqual(parse_search_term('/hello/'), ('regex', 'hello', ''))
+
+    def test_regex_with_flags(self):
+        self.assertEqual(parse_search_term('/hello/1i'), ('regex', 'hello', '1i'))
+
+    def test_regex_complex_pattern(self):
+        self.assertEqual(parse_search_term(r'/(\d+)\s+/i'), ('regex', r'(\d+)\s+', 'i'))
+
+    # --- string ---
+    def test_string_no_flags(self):
+        self.assertEqual(parse_search_term("'hello'"), ('string', "'hello'", ''))
+
+    def test_string_with_flags(self):
+        self.assertEqual(parse_search_term("'hello'i"), ('string', "'hello'", 'i'))
+
+    def test_string_with_multiple_flags(self):
+        self.assertEqual(parse_search_term("'hello'1i"), ('string', "'hello'", '1i'))
+
+    def test_fstring(self):
+        self.assertEqual(parse_search_term("f'hello'"), ('string', "f'hello'", ''))
+
+    def test_triple_quoted(self):
+        self.assertEqual(parse_search_term("'''hello'''1i"), ('string', "'''hello'''", '1i'))
+
+    def test_double_quoted(self):
+        self.assertEqual(parse_search_term('"hello"'), ('string', '"hello"', ''))
+
+    # --- slice ---
+    def test_slice_both(self):
+        self.assertEqual(parse_search_term('5:10'), ('slice', ('5', '10'), ''))
+
+    def test_slice_start_only(self):
+        self.assertEqual(parse_search_term('5:'), ('slice', ('5', ''), ''))
+
+    def test_slice_stop_only(self):
+        self.assertEqual(parse_search_term(':5'), ('slice', ('', '5'), ''))
+
+    # --- expr (backtick) ---
+    def test_backtick_no_flags(self):
+        self.assertEqual(parse_search_term('`s`'), ('expr', 's', ''))
 
     def test_backtick_with_flags(self):
-        self.assertTrue(is_backtick_search('`s`i'))
-
-    def test_regex_is_not(self):
-        self.assertFalse(is_backtick_search('/hello/'))
-
-    def test_string_is_not(self):
-        self.assertFalse(is_backtick_search("'hello'"))
-
-    def test_bare_is_not(self):
-        self.assertFalse(is_backtick_search('s'))
-
-    def test_none(self):
-        self.assertFalse(is_backtick_search(None))
-
-
-class TestIsExpressionSearch(unittest.TestCase):
-    """is_expression_search covers both backtick and bare text."""
-
-    def test_backtick(self):
-        self.assertTrue(is_expression_search('`s`'))
-
-    def test_bare(self):
-        self.assertTrue(is_expression_search('s'))
-
-    def test_bare_function_call(self):
-        self.assertTrue(is_expression_search('f(x)'))
-
-    def test_regex_is_not(self):
-        self.assertFalse(is_expression_search('/hello/'))
-
-    def test_string_is_not(self):
-        self.assertFalse(is_expression_search("'hello'"))
-
-    def test_none(self):
-        self.assertFalse(is_expression_search(None))
-
-    def test_empty(self):
-        self.assertFalse(is_expression_search(''))
-
-
-class TestGetEvalExpression(unittest.TestCase):
-
-    def test_backtick(self):
-        self.assertEqual(get_eval_expression('`s`'), 's')
+        self.assertEqual(parse_search_term('`s`1i'), ('expr', 's', '1i'))
 
     def test_backtick_complex(self):
-        self.assertEqual(get_eval_expression('`x.lower()`'), 'x.lower()')
+        self.assertEqual(parse_search_term('`x.lower()`'), ('expr', 'x.lower()', ''))
 
-    def test_backtick_with_flags(self):
-        self.assertEqual(get_eval_expression('`s`1i'), 's')
+    # --- expr (bare) ---
+    def test_bare_text(self):
+        self.assertEqual(parse_search_term('hello'), ('expr', 'hello', ''))
 
-    def test_bare(self):
-        self.assertEqual(get_eval_expression('s'), 's')
+    def test_bare_expression(self):
+        self.assertEqual(parse_search_term('f(x)'), ('expr', 'f(x)', ''))
 
-    def test_bare_complex(self):
-        self.assertEqual(get_eval_expression('x.lower()'), 'x.lower()')
+    # --- None / empty ---
+    def test_none_returns_none(self):
+        self.assertIsNone(parse_search_term(None))
 
-    def test_regex_returns_none(self):
-        self.assertIsNone(get_eval_expression('/hello/'))
+    def test_empty_returns_none(self):
+        self.assertIsNone(parse_search_term(''))
 
-    def test_string_returns_none(self):
-        self.assertIsNone(get_eval_expression("'hello'"))
-
-    def test_none(self):
-        self.assertIsNone(get_eval_expression(None))
 
 
 class TestGetSearchFlagsBacktickAndBare(unittest.TestCase):
@@ -7801,16 +7741,16 @@ class TestParseSliceParts(unittest.TestCase):
 
 
 class TestSliceNotExpression(unittest.TestCase):
-    """Slices should NOT be detected as expression searches."""
+    """Slices should parse as 'slice' kind, not 'expr'."""
 
     def test_slice_is_not_expression(self):
-        self.assertFalse(is_expression_search('5:10'))
+        self.assertEqual(parse_search_term('5:10')[0], 'slice')
 
     def test_slice_start_only_is_not_expression(self):
-        self.assertFalse(is_expression_search('5:'))
+        self.assertEqual(parse_search_term('5:')[0], 'slice')
 
     def test_slice_stop_only_is_not_expression(self):
-        self.assertFalse(is_expression_search(':5'))
+        self.assertEqual(parse_search_term(':5')[0], 'slice')
 
 
 class TestIndexSearchHighlighting(unittest.TestCase):
