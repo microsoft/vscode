@@ -405,9 +405,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		const config = this._previewConfigurations.loadAndCacheConfiguration(this._resource);
 		for (const style of config.styles) {
 			try {
-				if (style.startsWith('file:')) {
-					baseRoots.push(uri.Utils.dirname(vscode.Uri.parse(style)));
-				} else if (style.startsWith('/') || /^[a-z]:\\/i.test(style)) {
+				if (style.startsWith('/') || /^[a-z]:\\/i.test(style)) {
 					baseRoots.push(uri.Utils.dirname(vscode.Uri.file(style)));
 				}
 			} catch {
