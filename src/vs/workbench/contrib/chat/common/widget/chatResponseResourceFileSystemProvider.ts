@@ -11,14 +11,15 @@ import { newWriteableStream, ReadableStreamEvents } from '../../../../../base/co
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileService, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat } from '../../../../../platform/files/common/files.js';
+import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileService, IFileSystemProvider, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat } from '../../../../../platform/files/common/files.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ChatResponseResource } from '../model/chatModel.js';
 import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService/chatService.js';
 import { isToolResultInputOutputDetails } from '../tools/languageModelToolsService.js';
 
 export const IChatResponseResourceFileSystemProvider = createDecorator<IChatResponseResourceFileSystemProvider>('chatResponseResourceFileSystemProvider');
 
-export interface IChatResponseResourceFileSystemProvider {
+export interface IChatResponseResourceFileSystemProvider extends IFileSystemProvider {
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -59,7 +60,6 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		@IFileService private readonly _fileService: IFileService
 	) {
 		super();
-		this._register(this._fileService.registerProvider(ChatResponseResource.scheme, this));
 		this._register(this.chatService.onDidDisposeSession(e => {
 			for (const sessionResource of e.sessionResource) {
 				const uris = this._sessionAssociations.get(sessionResource);
@@ -185,5 +185,18 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		}
 
 		return part.isText ? new TextEncoder().encode(part.value) : decodeBase64(part.value).buffer;
+	}
+}
+
+export class ChatResponseResourceWorkbenchContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'chatResponseResourceWorkbenchContribution';
+
+	constructor(
+		@IChatResponseResourceFileSystemProvider chatResponseResourceFsProvider: IChatResponseResourceFileSystemProvider,
+		@IFileService fileService: IFileService,
+	) {
+		super();
+		this._register(fileService.registerProvider(ChatResponseResource.scheme, chatResponseResourceFsProvider));
 	}
 }
