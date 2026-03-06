@@ -349,7 +349,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
-				localize('tip.subagents', "Ask the agent to work in parallel to complete large tasks faster.")
+				localize('tip.subagents', "Have another task to work on? Start a new session to run multiple agents at once.")
 			);
 		},
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
