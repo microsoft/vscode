@@ -105,6 +105,12 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			return;
 		}
 
+		if (app.runningUnderARM64Translation) {
+			this.setState(State.Disabled(DisablementReason.RunningUnderARM64Translation));
+			this.logService.info('update#ctor - updates are disabled due to running x64 build on ARM64 Windows');
+			return;
+		}
+
 		if (this.productService.win32VersionedUpdate) {
 			const cachePath = await this.cachePath;
 			app.setPath('appUpdate', cachePath);

@@ -291,6 +291,27 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 						},
 						neverShowAgain: { id: 'no-updates-running-as-admin', }
 					});
+				} else if (state.reason === DisablementReason.RunningUnderARM64Translation) {
+					this.notificationService.notify({
+						severity: Severity.Warning,
+						message: nls.localize('update service disabled arm64', "You are running an emulated x64 version of {0} on ARM64 Windows. Updates have been disabled. Please uninstall this version and download the native ARM64 version for better performance.", this.productService.nameLong),
+						actions: {
+							primary: [
+								toAction({
+									id: '',
+									label: nls.localize('download arm64', "Download ARM64"),
+									run: () => {
+										const quality = this.productService.quality;
+										const stableURL = 'https://code.visualstudio.com/docs/?dv=win32-arm64-user';
+										const insidersURL = 'https://code.visualstudio.com/docs/?dv=win32-arm64-user&build=insiders';
+										this.openerService.open(quality === 'stable' ? stableURL : insidersURL);
+									}
+								})
+							]
+						},
+						priority: NotificationPriority.URGENT,
+						neverShowAgain: { id: 'no-updates-arm64-translation', }
+					});
 				}
 				break;
 
