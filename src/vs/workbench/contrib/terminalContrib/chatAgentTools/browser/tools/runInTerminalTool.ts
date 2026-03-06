@@ -1275,7 +1275,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Archiving a session does not fire onDidDisposeSession, but we still need to dispose
 		// any terminals associated with the archived session to avoid process accumulation.
-		this._archivedSessionListener.value = this._agentSessionsService.model.onDidChangeSessionArchivedState(session => {
+		this._archivedSessionListener.value = this._agentSessionsService.onDidChangeSessionArchivedState(session => {
 			if (session.isArchived()) {
 				this._cleanupSessionTerminals(session.resource);
 			}

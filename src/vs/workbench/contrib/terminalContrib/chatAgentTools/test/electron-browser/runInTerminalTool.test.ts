@@ -95,6 +95,7 @@ suite('RunInTerminalTool', () => {
 			getSession: () => undefined,
 		});
 		instantiationService.stub(IAgentSessionsService, {
+			onDidChangeSessionArchivedState: chatSessionArchivedEmitter.event,
 			model: {
 				onDidChangeSessionArchivedState: chatSessionArchivedEmitter.event,
 			} as IAgentSessionsService['model']
@@ -1245,6 +1246,23 @@ suite('RunInTerminalTool', () => {
 			strictEqual(terminal2Disposed, true, 'Terminal 2 should have been disposed');
 			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Terminal association should be removed after archive');
 			ok(!runInTerminalTool.sessionTerminalInstances.has(sessionResource), 'All tracked terminals for the session should be removed after archive');
+		});
+
+		test('should not access agent sessions model when initializing archive listener', () => {
+			let modelAccessed = false;
+			instantiationService.stub(IAgentSessionsService, {
+				onDidChangeSessionArchivedState: chatSessionArchivedEmitter.event,
+				get model() {
+					modelAccessed = true;
+					throw new Error('model should not be accessed when wiring archive listener');
+				},
+			} as unknown as IAgentSessionsService);
+
+			const noModelAccessRunInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+			const ensureArchivedSessionListener = (noModelAccessRunInTerminalTool as unknown as Record<string, () => void>)['_ensureArchivedSessionListener'];
+			ensureArchivedSessionListener.call(noModelAccessRunInTerminalTool);
+
+			strictEqual(modelAccessed, false, 'Agent sessions model should not be accessed when initializing archive listener');
 		});
 
 		test('should dispose all terminals associated with a single chat session', () => {
