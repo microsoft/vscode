@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { localize } from '../../nls.js';
 import { Event, Emitter } from '../../base/common/event.js';
 import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
@@ -220,6 +221,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private panelDialogOverlay: HTMLElement | undefined;
 	private panelDialogSafeArea: HTMLElement | undefined;
 	private panelDialogOriginalParent: HTMLElement | undefined;
+	private panelDialogSavedPosition: Position | undefined;
 	private panelDialogSavedAlignment: PanelAlignment | undefined;
 	private panelDialogSavedSize: IViewSize | undefined;
 
@@ -2252,6 +2254,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		if (mode === PanelMode.Dialog) {
 			// Save current state before transitioning
+			this.panelDialogSavedPosition = this.getPanelPosition();
 			this.panelDialogSavedAlignment = this.getPanelAlignment();
 			this.panelDialogOriginalParent = panelPart.element.parentElement ?? undefined;
 			this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_MODE, PanelMode.Dialog);
@@ -2290,12 +2293,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 			}
 
+			// Restore position if it was changed while in dialog mode
+			if (this.panelDialogSavedPosition !== undefined && this.panelDialogSavedPosition !== this.getPanelPosition()) {
+				this.setPanelPosition(this.panelDialogSavedPosition);
+			}
+
 			// Restore alignment only for horizontal positions
 			if (this.panelDialogSavedAlignment !== undefined && isHorizontal(this.getPanelPosition())) {
 				this.setPanelAlignment(this.panelDialogSavedAlignment);
 			}
 
 			// Clean up saved state
+			this.panelDialogSavedPosition = undefined;
 			this.panelDialogSavedAlignment = undefined;
 			this.panelDialogSavedSize = undefined;
 			this.panelDialogOriginalParent = undefined;
@@ -2309,24 +2318,174 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private ensurePanelDialogOverlay(): void {
-		if (!this.panelDialogSafeArea) {
-			this.panelDialogSafeArea = document.createElement('div');
-			this.panelDialogSafeArea.classList.add('panel-dialog-safe-area');
-			this.mainContainer.appendChild(this.panelDialogSafeArea);
+		if (this.panelDialogOverlay) {
+			return;
 		}
 
-		if (!this.panelDialogOverlay) {
-			const backdrop = document.createElement('div');
-			backdrop.classList.add('panel-dialog-backdrop');
-			backdrop.addEventListener('mousedown', () => {
-				// Clicking backdrop hides the panel
-				this.setPartHidden(true, Parts.PANEL_PART);
-			});
-			this.mainContainer.appendChild(backdrop);
+		// Capture original parent before moving panel
+		if (!this.panelDialogOriginalParent) {
+			const panelPart = this.getPart(Parts.PANEL_PART);
+			this.panelDialogOriginalParent = panelPart.element.parentElement ?? undefined;
+		}
 
-			this.panelDialogOverlay = document.createElement('div');
-			this.panelDialogOverlay.classList.add('panel-dialog-overlay');
-			this.panelDialogSafeArea.appendChild(this.panelDialogOverlay);
+		// Create safe area that clips dialog to editor zone
+		const safeArea = this.panelDialogSafeArea = document.createElement('div');
+		safeArea.classList.add('panel-dialog-safe-area');
+		this.mainContainer.appendChild(safeArea);
+
+		// Create overlay (appended before backdrop for :focus-within sibling selector)
+		const overlay = this.panelDialogOverlay = document.createElement('div');
+		overlay.classList.add('panel-dialog-overlay');
+		overlay.setAttribute('role', 'dialog');
+		overlay.setAttribute('aria-label', localize('panelDialog', "Panel"));
+		safeArea.appendChild(overlay);
+
+		// Create non-interactive backdrop
+		const backdrop = document.createElement('div');
+		backdrop.classList.add('panel-dialog-backdrop');
+		safeArea.appendChild(backdrop);
+
+		// Position safe area
+		this.updatePanelDialogSafeArea();
+
+		// Drag support
+		this.setupPanelDialogDrag(overlay, safeArea);
+
+		// Resize observer for CSS resize handle
+		const resizeObserver = new ResizeObserver(() => this.onPanelDialogResized());
+		resizeObserver.observe(overlay);
+	}
+
+	private setupPanelDialogDrag(overlay: HTMLElement, safeArea: HTMLElement): void {
+		let dragStartX = 0, dragStartY = 0, overlayStartLeft = 0, overlayStartTop = 0;
+
+		const onMouseMove = (e: MouseEvent): void => {
+			const maxLeft = Math.max(0, safeArea.offsetWidth - overlay.offsetWidth);
+			const maxTop = Math.max(0, safeArea.offsetHeight - overlay.offsetHeight);
+			overlay.style.left = `${Math.max(0, Math.min(overlayStartLeft + e.clientX - dragStartX, maxLeft))}px`;
+			overlay.style.top = `${Math.max(0, Math.min(overlayStartTop + e.clientY - dragStartY, maxTop))}px`;
+		};
+
+		const onMouseUp = (): void => {
+			overlay.classList.remove('panel-dialog-dragging');
+			document.removeEventListener('mousemove', onMouseMove);
+			document.removeEventListener('mouseup', onMouseUp);
+			this.savePanelDialogBounds();
+		};
+
+		overlay.addEventListener('mousedown', (e: MouseEvent) => {
+			if (e.button !== 0) {
+				return;
+			}
+			const target = e.target as HTMLElement;
+			const titleEl = overlay.querySelector('.part.panel > .title') as HTMLElement | null;
+			if (!titleEl?.contains(target) || target.closest('a, button, .action-item, .action-label, .composite-bar, input, select')) {
+				return;
+			}
+			e.preventDefault();
+			dragStartX = e.clientX;
+			dragStartY = e.clientY;
+			overlayStartLeft = overlay.offsetLeft;
+			overlayStartTop = overlay.offsetTop;
+			overlay.classList.add('panel-dialog-dragging');
+			document.addEventListener('mousemove', onMouseMove);
+			document.addEventListener('mouseup', onMouseUp);
+		});
+	}
+
+	private onPanelDialogResized(): void {
+		if (!this.panelDialogOverlay || !this.isVisible(Parts.PANEL_PART) || !this.isDialogMode) {
+			return;
+		}
+		this.updatePanelDialogSafeArea();
+		if (!this.isPanelDialogMaximized()) {
+			this.clampPanelDialogOverlay();
+		}
+		const width = this.panelDialogOverlay.offsetWidth;
+		const height = this.panelDialogOverlay.offsetHeight;
+		if (width > 0 && height > 0) {
+			this.getPart(Parts.PANEL_PART).layout(width, height, 0, 0);
+		}
+		this.savePanelDialogBounds();
+	}
+
+	private updatePanelDialogSafeArea(): void {
+		if (!this.panelDialogSafeArea) {
+			return;
+		}
+		const titleBarH = this.isVisible(Parts.TITLEBAR_PART) ? this.titleBarPartView.minimumHeight : 0;
+		const statusBarH = this.isVisible(Parts.STATUSBAR_PART) ? this.statusBarPartView.minimumHeight : 0;
+		this.panelDialogSafeArea.style.top = `${titleBarH}px`;
+		this.panelDialogSafeArea.style.bottom = `${statusBarH}px`;
+	}
+
+	private clampPanelDialogOverlay(): void {
+		if (!this.panelDialogOverlay || !this.panelDialogSafeArea) {
+			return;
+		}
+		const safeW = this.panelDialogSafeArea.offsetWidth;
+		const safeH = this.panelDialogSafeArea.offsetHeight;
+
+		// Clamp size
+		if (this.panelDialogOverlay.offsetWidth > safeW) {
+			this.panelDialogOverlay.style.width = `${safeW}px`;
+		}
+		if (this.panelDialogOverlay.offsetHeight > safeH) {
+			this.panelDialogOverlay.style.height = `${safeH}px`;
+		}
+
+		// Clamp position
+		const maxLeft = Math.max(0, safeW - this.panelDialogOverlay.offsetWidth);
+		const maxTop = Math.max(0, safeH - this.panelDialogOverlay.offsetHeight);
+		const clampedLeft = Math.max(0, Math.min(this.panelDialogOverlay.offsetLeft, maxLeft));
+		const clampedTop = Math.max(0, Math.min(this.panelDialogOverlay.offsetTop, maxTop));
+		if (clampedLeft !== this.panelDialogOverlay.offsetLeft) {
+			this.panelDialogOverlay.style.left = `${clampedLeft}px`;
+		}
+		if (clampedTop !== this.panelDialogOverlay.offsetTop) {
+			this.panelDialogOverlay.style.top = `${clampedTop}px`;
+		}
+	}
+
+	private savePanelDialogBounds(): void {
+		if (!this.panelDialogOverlay || !this.panelDialogSafeArea) {
+			return;
+		}
+		const containerW = this.panelDialogSafeArea.offsetWidth;
+		const containerH = this.panelDialogSafeArea.offsetHeight;
+		if (containerW <= 0 || containerH <= 0) {
+			return;
+		}
+		this.storageService.store('workbench.panel.dialogBoundsRatio', JSON.stringify({
+			leftRatio: this.panelDialogOverlay.offsetLeft / containerW,
+			topRatio: this.panelDialogOverlay.offsetTop / containerH,
+			widthRatio: this.panelDialogOverlay.offsetWidth / containerW,
+			heightRatio: this.panelDialogOverlay.offsetHeight / containerH
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	private loadPanelDialogBounds(): { left: number; top: number; width: number; height: number } | undefined {
+		const raw = this.storageService.get('workbench.panel.dialogBoundsRatio', StorageScope.PROFILE);
+		if (!raw) {
+			return undefined;
+		}
+		try {
+			const { leftRatio, topRatio, widthRatio, heightRatio } = JSON.parse(raw);
+			if (typeof leftRatio !== 'number' || typeof topRatio !== 'number' || typeof widthRatio !== 'number' || typeof heightRatio !== 'number' || widthRatio <= 0 || heightRatio <= 0) {
+				return undefined;
+			}
+			const titleBarH = this.isVisible(Parts.TITLEBAR_PART) ? this.titleBarPartView.minimumHeight : 0;
+			const statusBarH = this.isVisible(Parts.STATUSBAR_PART) ? this.statusBarPartView.minimumHeight : 0;
+			const safeW = this._mainContainerDimension.width;
+			const safeH = Math.max(0, this._mainContainerDimension.height - titleBarH - statusBarH);
+			return {
+				left: Math.round(leftRatio * safeW),
+				top: Math.round(topRatio * safeH),
+				width: Math.round(widthRatio * safeW),
+				height: Math.round(heightRatio * safeH)
+			};
+		} catch {
+			return undefined;
 		}
 	}
 
@@ -2334,13 +2493,44 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (!this.panelDialogOverlay || !this.isDialogMode) {
 			return;
 		}
-		const panelPart = this.getPart(Parts.PANEL_PART);
-		const [width, height] = this.isPanelDialogMaximized()
-			? [this.panelDialogSafeArea?.clientWidth ?? this._mainContainerDimension.width,
-			   this.panelDialogSafeArea?.clientHeight ?? this._mainContainerDimension.height]
-			: [Math.min(900, Math.floor(this._mainContainerDimension.width * 0.8)),
-			   Math.min(600, Math.floor(this._mainContainerDimension.height * 0.7))];
-		panelPart.layout(width, height, 0, 0);
+
+		// Restore persisted bounds or compute defaults
+		if (!this.panelDialogOverlay.style.width) {
+			const saved = this.loadPanelDialogBounds();
+			if (saved) {
+				this.panelDialogOverlay.style.left = `${saved.left}px`;
+				this.panelDialogOverlay.style.top = `${saved.top}px`;
+				this.panelDialogOverlay.style.width = `${saved.width}px`;
+				this.panelDialogOverlay.style.height = `${saved.height}px`;
+			} else {
+				// Default: 70% wide, 40% tall, near bottom
+				const titleBarH = this.isVisible(Parts.TITLEBAR_PART) ? this.titleBarPartView.minimumHeight : 0;
+				const statusBarH = this.isVisible(Parts.STATUSBAR_PART) ? this.statusBarPartView.minimumHeight : 0;
+				const safeW = this._mainContainerDimension.width;
+				const safeH = Math.max(0, this._mainContainerDimension.height - titleBarH - statusBarH);
+				const dialogW = Math.round(safeW * 0.7);
+				const dialogH = Math.round(safeH * 0.4);
+				const left = Math.round((safeW - dialogW) / 2);
+				const top = safeH - dialogH - 8;
+
+				this.panelDialogOverlay.style.width = `${dialogW}px`;
+				this.panelDialogOverlay.style.height = `${dialogH}px`;
+				this.panelDialogOverlay.style.left = `${left}px`;
+				this.panelDialogOverlay.style.top = `${top}px`;
+
+				// Persist ratios for proportional window resize
+				if (safeW > 0 && safeH > 0) {
+					this.storageService.store('workbench.panel.dialogBoundsRatio', JSON.stringify({
+						leftRatio: left / safeW,
+						topRatio: top / safeH,
+						widthRatio: dialogW / safeW,
+						heightRatio: dialogH / safeH
+					}), StorageScope.PROFILE, StorageTarget.MACHINE);
+				}
+			}
+		}
+
+		this.onPanelDialogResized();
 	}
 
 	//#endregion
@@ -2466,6 +2656,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	setPanelPosition(position: Position): void {
+		// In dialog mode, stash the position for later restoration
+		if (this.isDialogMode) {
+			this.panelDialogSavedPosition = position;
+			return;
+		}
+
 		if (!this.isVisible(Parts.PANEL_PART)) {
 			this.setPanelHidden(false);
 		}

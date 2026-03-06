@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ActivePanelContext, PanelFocusContext } from '../../../common/contextkeys.js';
-import { IWorkbenchLayoutService, Parts, Position } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, Position, PanelMode } from '../../../services/layout/browser/layoutService.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -172,11 +172,6 @@ export class PanelPart extends AbstractPaneCompositePart {
 			}
 		}
 
-		const panelPositionMenu = this.menuService.getMenuActions(MenuId.PanelPositionMenu, this.contextKeyService, { shouldForwardArgs: true });
-		const panelAlignMenu = this.menuService.getMenuActions(MenuId.PanelAlignmentMenu, this.contextKeyService, { shouldForwardArgs: true });
-		const positionActions = getContextMenuActions(panelPositionMenu).secondary;
-		const alignActions = getContextMenuActions(panelAlignMenu).secondary;
-
 		const panelShowLabels = this.configurationService.getValue<boolean | undefined>('workbench.panel.showLabels');
 		const toggleShowLabelsAction = toAction({
 			id: 'workbench.action.panel.toggleShowLabels',
@@ -184,10 +179,23 @@ export class PanelPart extends AbstractPaneCompositePart {
 			run: () => this.configurationService.updateValue('workbench.panel.showLabels', !panelShowLabels)
 		});
 
+		const isDialogMode = this.layoutService.getPanelMode() === PanelMode.Dialog;
+
+		// Position and alignment submenus are hidden when in dialog mode
+		const positionAndAlignActions: IAction[] = isDialogMode ? [] : (() => {
+			const panelPositionMenu = this.menuService.getMenuActions(MenuId.PanelPositionMenu, this.contextKeyService, { shouldForwardArgs: true });
+			const panelAlignMenu = this.menuService.getMenuActions(MenuId.PanelAlignmentMenu, this.contextKeyService, { shouldForwardArgs: true });
+			const positionActions = getContextMenuActions(panelPositionMenu).secondary;
+			const alignActions = getContextMenuActions(panelAlignMenu).secondary;
+			return [
+				new SubmenuAction('workbench.action.panel.position', localize('panel position', "Panel Position"), positionActions),
+				new SubmenuAction('workbench.action.panel.align', localize('align panel', "Align Panel"), alignActions),
+			];
+		})();
+
 		actions.push(...[
 			new Separator(),
-			new SubmenuAction('workbench.action.panel.position', localize('panel position', "Panel Position"), positionActions),
-			new SubmenuAction('workbench.action.panel.align', localize('align panel', "Align Panel"), alignActions),
+			...positionAndAlignActions,
 			toggleShowLabelsAction,
 			toAction({ id: TogglePanelAction.ID, label: localize('hidePanel', "Hide Panel"), run: () => this.commandService.executeCommand(TogglePanelAction.ID) }),
 		]);
