@@ -7,7 +7,7 @@ import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IAgentLoopConfig, runAgentLoop } from '../../common/agentLoop.js';
+import { AgentLoop, IAgentLoopConfig } from '../../common/agentLoop.js';
 import { createUserMessage, IConversationMessage, IModelIdentity } from '../../common/conversation.js';
 import { AgentLoopEvent, IAgentLoopEventMap } from '../../common/events.js';
 import { IMiddleware } from '../../common/middleware.js';
@@ -92,7 +92,8 @@ async function collectEvents(
 	token: CancellationToken = CancellationToken.None,
 ): Promise<AgentLoopEvent[]> {
 	const events: AgentLoopEvent[] = [];
-	for await (const event of runAgentLoop(messages, config, token)) {
+	const loop = new AgentLoop(config);
+	for await (const event of loop.run(messages, token)) {
 		events.push(event);
 	}
 	return events;

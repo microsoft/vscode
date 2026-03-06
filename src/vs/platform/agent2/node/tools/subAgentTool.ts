@@ -15,7 +15,7 @@
  * starts with a clean conversation containing only the task description.
  */
 
-import { IAgentLoopConfig, runAgentLoop } from '../../common/agentLoop.js';
+import { AgentLoop, IAgentLoopConfig } from '../../common/agentLoop.js';
 import { createUserMessage, getAssistantText } from '../../common/conversation.js';
 import { IAgentTool, IToolContext, IToolResult } from '../../common/tools.js';
 
@@ -74,7 +74,8 @@ export function createSubAgentTool(
 			let finalText = '';
 
 			try {
-				for await (const event of runAgentLoop(messages, config, context.token)) {
+				const loop = new AgentLoop(config);
+				for await (const event of loop.run(messages, context.token)) {
 					if (event.type === 'assistant-message') {
 						finalText = getAssistantText(event.message);
 					}

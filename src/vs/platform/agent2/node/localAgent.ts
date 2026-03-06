@@ -31,7 +31,7 @@ import {
 	IAgentToolCompleteEvent,
 	IAgentToolStartEvent,
 } from '../../agent/common/agentService.js';
-import { IAgentLoopConfig, runAgentLoop } from '../common/agentLoop.js';
+import { AgentLoop, IAgentLoopConfig } from '../common/agentLoop.js';
 import {
 	createUserMessage,
 	getAssistantText,
@@ -280,7 +280,8 @@ export class LocalAgent extends Disposable implements IAgent {
 		};
 
 		try {
-			for await (const event of runAgentLoop(session.messages, config, session.cts.token)) {
+			const loop = new AgentLoop(config);
+			for await (const event of loop.run(session.messages, session.cts.token)) {
 				this._processEvent(event, session);
 			}
 

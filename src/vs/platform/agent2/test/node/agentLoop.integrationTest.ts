@@ -17,7 +17,7 @@ import assert from 'assert';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { runAgentLoop } from '../../common/agentLoop.js';
+import { AgentLoop } from '../../common/agentLoop.js';
 import { createUserMessage, IConversationMessage } from '../../common/conversation.js';
 import { AgentLoopEvent, IAgentLoopEventMap } from '../../common/events.js';
 import { AnthropicModelProvider } from '../../node/anthropicProvider.js';
@@ -54,12 +54,12 @@ describer('Agent Loop Integration (real CAPI)', function () {
 		];
 
 		const events: AgentLoopEvent[] = [];
-		for await (const event of runAgentLoop(messages, {
+		for await (const event of new AgentLoop({
 			modelProvider: provider,
 			modelIdentity: { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514' },
 			systemPrompt: 'You are a helpful assistant. Be concise.',
 			tools: [],
-		}, cts.token)) {
+		}).run(messages, cts.token)) {
 			events.push(event);
 		}
 
@@ -99,7 +99,7 @@ describer('Agent Loop Integration (real CAPI)', function () {
 		];
 
 		const events: AgentLoopEvent[] = [];
-		for await (const event of runAgentLoop(messages, {
+		for await (const event of new AgentLoop({
 			modelProvider: provider,
 			modelIdentity: { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514' },
 			systemPrompt: 'You are a helpful assistant. Always use the get_time tool when asked about the time.',
@@ -112,7 +112,7 @@ describer('Agent Loop Integration (real CAPI)', function () {
 					return { content: new Date().toISOString() };
 				},
 			}],
-		}, cts.token)) {
+		}).run(messages, cts.token)) {
 			events.push(event);
 		}
 
@@ -135,12 +135,12 @@ describer('Agent Loop Integration (real CAPI)', function () {
 		];
 
 		const events: AgentLoopEvent[] = [];
-		for await (const event of runAgentLoop(messages, {
+		for await (const event of new AgentLoop({
 			modelProvider: provider,
 			modelIdentity: { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514' },
 			systemPrompt: 'Be concise.',
 			tools: [],
-		}, cts.token)) {
+		}).run(messages, cts.token)) {
 			events.push(event);
 		}
 
@@ -160,12 +160,12 @@ describer('Agent Loop Integration (real CAPI)', function () {
 		];
 
 		const events: AgentLoopEvent[] = [];
-		for await (const event of runAgentLoop(messages, {
+		for await (const event of new AgentLoop({
 			modelProvider: provider,
 			modelIdentity: { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514' },
 			systemPrompt: 'Be concise.',
 			tools: [],
-		}, cts.token)) {
+		}).run(messages, cts.token)) {
 			events.push(event);
 		}
 
