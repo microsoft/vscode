@@ -129,7 +129,7 @@
 	flex: 1; /* let the message always grow */
 	white-space: normal;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
-	min-height: 22px; /* matches icon height */
+	min-height: 22px;
 	margin-bottom: 4px;
 	display: flex;
 	align-items: center;
