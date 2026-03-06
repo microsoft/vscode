@@ -95,13 +95,50 @@
 	color: var(--vscode-commandCenter-activeForeground);
 }
 
-/* Label */
+/* Label - styled as placeholder text */
 .agent-status-label {
 	flex: 1;
 	text-align: center;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	opacity: 0.6;
+}
+
+/* Compact mode: left-aligned label, no icon */
+.agent-status-pill.compact-mode .agent-status-label {
+	text-align: left;
+}
+
+/* Compact mode: inline status sections inside the pill */
+.agent-status-pill.compact-mode .agent-status-badge-section {
+	flex-shrink: 0;
+}
+
+/* First badge section in compact mode also gets a left separator */
+.agent-status-pill.compact-mode .agent-status-badge-section:first-of-type::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 4px;
+	bottom: 4px;
+	width: 1px;
+	background-color: var(--vscode-commandCenter-border, rgba(128, 128, 128, 0.35));
+}
+
+/* Input hover target - only this area triggers hover, not badge sections */
+.agent-status-pill .agent-status-input-area {
+	display: flex;
+	align-items: center;
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	cursor: pointer;
+	gap: 6px;
+}
+
+.agent-status-pill .agent-status-input-area:hover {
+	background-color: var(--vscode-commandCenter-activeBackground);
 }
 
 .agent-status-label.has-progress {

@@ -406,6 +406,10 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		this._firstFocusableElement = pill;
 		this._container.appendChild(pill);
 
+		// When agent status is also enabled, use compact mode (no icon, left-aligned label)
+		const isCompactMode = this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
+		pill.classList.toggle('compact-mode', isCompactMode);
+
 		// Left icon container (sparkle by default, report+count when attention needed, search on hover)
 		const leftIcon = $('span.agent-status-left-icon');
 		if (hasAttentionNeeded) {
@@ -418,53 +422,69 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		} else {
 			reset(leftIcon, renderIcon(Codicon.searchSparkle));
 		}
-		pill.appendChild(leftIcon);
+		if (!isCompactMode) {
+			pill.appendChild(leftIcon);
+		}
 
-		// Label (workspace name by default, placeholder on hover)
-		// Show attention progress or default label
+		// Input area wrapper - hover only activates here, not on badge sections
+		const inputArea = $('div.agent-status-input-area');
+		pill.appendChild(inputArea);
+
+		// Label - always shows workspace name in compact mode
 		const label = $('span.agent-status-label');
 		const { session: attentionSession, progress: progressText } = this._getSessionNeedingAttention(attentionNeededSessions);
 		this._displayedSession = attentionSession;
 
-		const defaultLabel = progressText ?? this._getLabel();
+		const defaultLabel = isCompactMode ? this._getLabel() : (progressText ?? this._getLabel());
 
-		if (progressText) {
+		if (!isCompactMode && progressText) {
 			label.classList.add('has-progress');
 		}
 
 		const hoverLabel = localize('askAnythingPlaceholder', "Ask anything or describe what to build");
 
 		label.textContent = defaultLabel;
-		pill.appendChild(label);
+		inputArea.appendChild(label);
 
-		// Send icon (hidden by default, shown on hover - only when not showing attention message)
-		const sendIcon = $('span.agent-status-send');
-		reset(sendIcon, renderIcon(Codicon.send));
-		sendIcon.classList.add('hidden');
-		pill.appendChild(sendIcon);
-
-		// Hover behavior - swap icon and label (only when showing default state).
-		// When progressText is defined (e.g. sessions need attention), keep the attention/progress
-		// message visible and do not replace it with the generic placeholder on hover.
-		if (!progressText) {
-			disposables.add(addDisposableListener(pill, EventType.MOUSE_ENTER, () => {
+		if (isCompactMode) {
+			// Compact mode: hover resets icon state but keeps workspace name
+			disposables.add(addDisposableListener(inputArea, EventType.MOUSE_ENTER, () => {
 				reset(leftIcon, renderIcon(Codicon.searchSparkle));
 				leftIcon.classList.remove('has-attention');
-				label.textContent = hoverLabel;
 				label.classList.remove('has-progress');
-				sendIcon.classList.remove('hidden');
 			}));
 
-			disposables.add(addDisposableListener(pill, EventType.MOUSE_LEAVE, () => {
+			disposables.add(addDisposableListener(inputArea, EventType.MOUSE_LEAVE, () => {
 				reset(leftIcon, renderIcon(Codicon.searchSparkle));
-				label.textContent = defaultLabel;
-				sendIcon.classList.add('hidden');
 			}));
+		} else {
+			// Send icon (hidden by default, shown on hover - only when not showing attention message)
+			const sendIcon = $('span.agent-status-send');
+			reset(sendIcon, renderIcon(Codicon.send));
+			sendIcon.classList.add('hidden');
+			inputArea.appendChild(sendIcon);
+
+			// Hover behavior - swap icon and label (only when showing default state).
+			if (!progressText) {
+				disposables.add(addDisposableListener(inputArea, EventType.MOUSE_ENTER, () => {
+					reset(leftIcon, renderIcon(Codicon.searchSparkle));
+					leftIcon.classList.remove('has-attention');
+					label.textContent = hoverLabel;
+					label.classList.remove('has-progress');
+					sendIcon.classList.remove('hidden');
+				}));
+
+				disposables.add(addDisposableListener(inputArea, EventType.MOUSE_LEAVE, () => {
+					reset(leftIcon, renderIcon(Codicon.searchSparkle));
+					label.textContent = defaultLabel;
+					sendIcon.classList.add('hidden');
+				}));
+			}
 		}
 
-		// Setup hover tooltip
+		// Setup hover tooltip on input area
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
-		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, pill, () => {
+		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, inputArea, () => {
 			if (this._displayedSession) {
 				return localize('openSessionTooltip', "Open session: {0}", this._displayedSession.label);
 			}
@@ -490,9 +510,10 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			}
 		}));
 
-		// Status badge (separate rectangle on right) - only when Agent Status is enabled
+		// Status badge - only when Agent Status is enabled
+		// In compact mode, render inline within the pill instead of as a separate badge
 		if (this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true) {
-			this._renderStatusBadge(disposables, activeSessions, unreadSessions, attentionNeededSessions);
+			this._renderStatusBadge(disposables, activeSessions, unreadSessions, attentionNeededSessions, isCompactMode ? pill : undefined);
 		}
 	}
 
@@ -715,7 +736,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	 * Shows split UI with sparkle icon on left, then unread, needs-input, and active indicators.
 	 * Always renders the sparkle icon section.
 	 */
-	private _renderStatusBadge(disposables: DisposableStore, activeSessions: IAgentSession[], unreadSessions: IAgentSession[], attentionNeededSessions: IAgentSession[]): void {
+	private _renderStatusBadge(disposables: DisposableStore, activeSessions: IAgentSession[], unreadSessions: IAgentSession[], attentionNeededSessions: IAgentSession[], inlineContainer?: HTMLElement): void {
 		if (!this._container) {
 			return;
 		}
@@ -727,8 +748,15 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Auto-clear filter if the filtered category becomes empty if this window applied it
 		this._clearFilterIfCategoryEmpty(hasUnreadSessions, hasActiveSessions);
 
-		const badge = $('div.agent-status-badge');
-		this._container.appendChild(badge);
+		// When inlineContainer is provided, render sections directly into it (compact mode)
+		// Otherwise, create a separate badge container
+		let badge: HTMLElement;
+		if (inlineContainer) {
+			badge = inlineContainer;
+		} else {
+			badge = $('div.agent-status-badge');
+			this._container.appendChild(badge);
+		}
 
 		// Sparkle dropdown button section (always visible on left) - proper button with dropdown menu
 		const sparkleContainer = $('span.agent-status-badge-section.sparkle');
@@ -736,7 +764,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		if (!this._firstFocusableElement) {
 			this._firstFocusableElement = sparkleContainer;
 		}
-		badge.appendChild(sparkleContainer);
 
 		// Get menu actions for dropdown with proper group separators
 		const menuActions: IAction[] = Separator.join(...this._chatTitleBarMenu.getActions({ shouldForwardArgs: true }).map(([, actions]) => actions));
@@ -812,10 +839,26 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Only show status indicators if chat.viewSessions.enabled is true
 		const viewSessionsEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled) !== false;
 
+		// When both unified agents bar and agent status are enabled, show status indicators
+		// before the sparkle button: [active, unread, sparkle] (populating inward)
+		// Otherwise, keep original order: [sparkle, unread, active]
+		const unifiedAgentsBarEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
+		const agentStatusEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
+		const reverseOrder = unifiedAgentsBarEnabled && agentStatusEnabled;
+
+		if (!reverseOrder) {
+			// Original order: sparkle first
+			badge.appendChild(sparkleContainer);
+		}
+
+		// Build status sections but don't append yet - we need to control order
+		let unreadSection: HTMLElement | undefined;
+		let activeSection: HTMLElement | undefined;
+
 		// Unread section (blue dot + count)
 		if (viewSessionsEnabled && hasUnreadSessions && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 			const { isFilteredToUnread } = this._getCurrentFilterState();
-			const unreadSection = $('span.agent-status-badge-section.unread');
+			unreadSection = $('span.agent-status-badge-section.unread');
 			if (isFilteredToUnread) {
 				unreadSection.classList.add('filtered');
 			}
@@ -827,7 +870,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			const unreadCount = $('span.agent-status-text');
 			unreadCount.textContent = String(unreadSessions.length);
 			unreadSection.appendChild(unreadCount);
-			badge.appendChild(unreadSection);
 
 			// Click handler - filter to unread sessions
 			disposables.add(addDisposableListener(unreadSection, EventType.CLICK, (e) => {
@@ -854,7 +896,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// otherwise shows "in progress" state. This is a single section that transforms based on state.
 		if (viewSessionsEnabled && hasActiveSessions) {
 			const { isFilteredToInProgress } = this._getCurrentFilterState();
-			const activeSection = $('span.agent-status-badge-section.active');
+			activeSection = $('span.agent-status-badge-section.active');
 			if (hasAttentionNeeded) {
 				activeSection.classList.add('needs-input');
 			}
@@ -871,7 +913,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			// Show needs-input count when attention needed, otherwise total active count
 			statusCount.textContent = String(hasAttentionNeeded ? attentionNeededSessions.length : activeSessions.length);
 			activeSection.appendChild(statusCount);
-			badge.appendChild(activeSection);
 
 			// Click handler - filter to in-progress sessions
 			disposables.add(addDisposableListener(activeSection, EventType.CLICK, (e) => {
@@ -896,6 +937,18 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 					? localize('activeSessionsTooltip1', "{0} session in progress", activeSessions.length)
 					: localize('activeSessionsTooltip', "{0} sessions in progress", activeSessions.length));
 			disposables.add(this.hoverService.setupManagedHover(hoverDelegate, activeSection, activeTooltip));
+		}
+
+		// Append status sections in the correct order
+		if (reverseOrder) {
+			// [active, unread, sparkle] — populates inward
+			if (activeSection) { badge.appendChild(activeSection); }
+			if (unreadSection) { badge.appendChild(unreadSection); }
+			badge.appendChild(sparkleContainer);
+		} else {
+			// Original: [sparkle (already appended), unread, active]
+			if (unreadSection) { badge.appendChild(unreadSection); }
+			if (activeSection) { badge.appendChild(activeSection); }
 		}
 
 	}
