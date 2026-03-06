@@ -273,6 +273,9 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return [];
 		}
 
+		// Check organization membership configuration
+		const allowedOrganizations = vscode.workspace.getConfiguration('github-authentication').get<string[]>('allowedOrganizations', []);
+
 		// Unfortunately, we were using a number secretly for the account id for some time... this is due to a bad `any`.
 		// AuthenticationSession's account id is a string, so we need to detect when there is a number accountId and re-store
 		// the sessions to migrate away from the bad number usage.
@@ -293,6 +296,15 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 					if (e.message === 'Unauthorized') {
 						return undefined;
 					}
+				}
+			}
+
+			// Check organization membership if configured
+			if (allowedOrganizations.length > 0) {
+				const isMemberOfAllowedOrg = await this._githubServer.checkOrganizationMembership(session.accessToken, allowedOrganizations);
+				if (!isMemberOfAllowedOrg) {
+					this._logger.warn(`Session for user does not meet organization membership requirements. Removing session.`);
+					return undefined;
 				}
 			}
 
@@ -370,6 +382,42 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			const scopeString = sortedScopes.join(' ');
 			const token = await this._githubServer.login(scopeString, signInProvider, options?.extraAuthorizeParameters, loginWith);
 			const session = await this.tokenToSession(token, scopes);
+
+			// Check organization membership if configured
+			const allowedOrganizations = vscode.workspace.getConfiguration('github-authentication').get<string[]>('allowedOrganizations', []);
+			if (allowedOrganizations.length > 0) {
+				const isMemberOfAllowedOrg = await this._githubServer.checkOrganizationMembership(token, allowedOrganizations);
+				
+				if (!isMemberOfAllowedOrg) {
+					/* __GDPR__
+						"organizationValidationFailed" : {
+							"owner": "TylerLeonhardt",
+							"comment": "Used to track when organization membership validation fails.",
+							"allowedOrganizationsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of allowed organizations configured." }
+						}
+					*/
+					this._telemetryReporter?.sendTelemetryEvent('organizationValidationFailed', {
+						allowedOrganizationsCount: allowedOrganizations.length.toString()
+					});
+
+					const orgList = allowedOrganizations.join(', ');
+					const errorMessage = vscode.l10n.t('Sign in failed: Account {0} is not a member of any of the allowed organizations: {1}', session.account.label, orgList);
+					this._logger.error(errorMessage);
+					throw new Error(errorMessage);
+				}
+
+				/* __GDPR__
+					"organizationValidationSuccess" : {
+						"owner": "TylerLeonhardt",
+						"comment": "Used to track when organization membership validation succeeds.",
+						"allowedOrganizationsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of allowed organizations configured." }
+					}
+				*/
+				this._telemetryReporter?.sendTelemetryEvent('organizationValidationSuccess', {
+					allowedOrganizationsCount: allowedOrganizations.length.toString()
+				});
+			}
+
 			this.afterSessionLoad(session);
 
 			const sessionIndex = sessions.findIndex(s => s.account.id === session.account.id && arrayEquals([...s.scopes].sort(), sortedScopes));
