@@ -143,7 +143,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		if (!this._hasClearButton) {
 			return ariaLabel;
 		}
-		return localize('chat.attachment.withDeleteHint', "{0}, press Delete to remove from context", ariaLabel);
+		return localize('chat.attachment.withDeleteHint', "{0} (Delete)", ariaLabel);
 	}
 
 	protected attachClearButton() {
