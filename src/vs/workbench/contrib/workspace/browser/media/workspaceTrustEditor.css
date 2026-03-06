@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .workspace-trust-editor {
+	max-width: 1600px;
 	padding-top: 12px;
 	margin: 0;
 	height: calc(100% - 12px);
