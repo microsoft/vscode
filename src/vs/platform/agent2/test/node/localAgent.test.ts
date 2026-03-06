@@ -7,19 +7,19 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../../agent/common/agentService.js';
-import { NativeAgent } from '../../node/nativeAgent.js';
+import { LocalAgent } from '../../node/localAgent.js';
 
-suite('NativeAgent', () => {
+suite('LocalAgent', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	let agent: NativeAgent;
+	let agent: LocalAgent;
 
 	setup(() => {
-		agent = store.add(new NativeAgent(new NullLogService()));
+		agent = store.add(new LocalAgent(new NullLogService()));
 	});
 
 	test('returns correct descriptor', () => {
 		const desc = agent.getDescriptor();
-		assert.strictEqual(desc.provider, 'native');
+		assert.strictEqual(desc.provider, 'local');
 		assert.strictEqual(desc.requiresAuth, true);
 		assert.ok(desc.displayName);
 		assert.ok(desc.description);
@@ -28,7 +28,7 @@ suite('NativeAgent', () => {
 	test('creates a session and returns a URI', async () => {
 		const sessionUri = await agent.createSession();
 		assert.ok(sessionUri);
-		assert.strictEqual(AgentSession.provider(sessionUri), 'native');
+		assert.strictEqual(AgentSession.provider(sessionUri), 'local');
 	});
 
 	test('creates a session with custom config', async () => {
@@ -37,7 +37,7 @@ suite('NativeAgent', () => {
 			workingDirectory: '/tmp/test',
 		});
 		assert.ok(sessionUri);
-		assert.strictEqual(AgentSession.provider(sessionUri), 'native');
+		assert.strictEqual(AgentSession.provider(sessionUri), 'local');
 	});
 
 	test('lists created sessions', async () => {
@@ -67,14 +67,14 @@ suite('NativeAgent', () => {
 	test('lists models (falls back to defaults without auth)', async () => {
 		const models = await agent.listModels();
 		assert.ok(models.length > 0);
-		assert.strictEqual(models[0].provider, 'native');
+		assert.strictEqual(models[0].provider, 'local');
 		assert.ok(models[0].id);
 		assert.ok(models[0].name);
 		assert.ok(models[0].maxContextWindow > 0);
 	});
 
 	test('throws on sendMessage to nonexistent session', async () => {
-		const fakeUri = AgentSession.uri('native', 'nonexistent');
+		const fakeUri = AgentSession.uri('local', 'nonexistent');
 		await assert.rejects(
 			() => agent.sendMessage(fakeUri, 'hello'),
 			/Session not found/,

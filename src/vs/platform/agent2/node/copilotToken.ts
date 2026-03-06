@@ -297,7 +297,7 @@ export class CopilotApiService {
 
 	private async _getToken(cancellationToken: CancellationToken): Promise<{ token: string; expiresAt: number }> {
 		if (!this._githubToken) {
-			throw new Error('No GitHub token available. Sign in to GitHub in VS Code to use the native agent.');
+			throw new Error('No GitHub token available. Sign in to GitHub in VS Code to use the local agent.');
 		}
 
 		if (this._cachedToken && !this._isExpired(this._cachedToken)) {

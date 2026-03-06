@@ -123,8 +123,8 @@ function getTargetLabel(provider: AgentSessionProviders): string {
 			return 'Growth';
 		case AgentSessionProviders.AgentHostCopilot:
 			return 'Agent Host - Copilot';
-		case AgentSessionProviders.AgentHostNative:
-			return 'Native Agent';
+		case AgentSessionProviders.AgentHostLocal:
+			return 'Local Agent';
 	}
 }
 

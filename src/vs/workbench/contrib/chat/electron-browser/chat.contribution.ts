@@ -264,11 +264,11 @@ CommandsRegistry.registerCommand(
 );
 
 CommandsRegistry.registerCommand(
-	`workbench.action.chat.openNewChatSessionInPlace.${AgentSessionProviders.AgentHostNative}`,
+	`workbench.action.chat.openNewChatSessionInPlace.${AgentSessionProviders.AgentHostLocal}`,
 	async (accessor, chatSessionPosition: string) => {
 		const viewsService = accessor.get(IViewsService);
 		const resource = URI.from({
-			scheme: AgentSessionProviders.AgentHostNative,
+			scheme: AgentSessionProviders.AgentHostLocal,
 			path: `/untitled-${generateUuid()}`,
 		});
 

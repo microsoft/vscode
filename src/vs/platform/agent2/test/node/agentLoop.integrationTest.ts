@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Integration test for the native agent loop with real CAPI model calls.
+ * Integration test for the local agent loop with real CAPI model calls.
  *
  * This test is gated on the `GITHUB_TOKEN` environment variable. When set,
  * it makes a real HTTP request to the GitHub Copilot API, exchanges the token

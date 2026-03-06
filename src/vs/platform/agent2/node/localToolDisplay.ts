@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Tool display name and message helpers for the native agent's built-in tools.
+ * Tool display name and message helpers for the local agent's built-in tools.
  * Analogous to `copilotToolDisplay.ts` for the Copilot SDK agent.
  */
 
-/** Maps a native tool name to a human-readable display name. */
+/** Maps a tool name to a human-readable display name. */
 export function getToolDisplayName(toolName: string): string {
 	switch (toolName) {
 		case 'bash': return 'Bash';

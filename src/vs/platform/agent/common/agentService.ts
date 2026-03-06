@@ -30,7 +30,7 @@ export interface IAgentSessionMetadata {
 	readonly summary?: string;
 }
 
-export type AgentProvider = 'copilot' | 'native';
+export type AgentProvider = 'copilot' | 'local';
 
 /** Metadata describing an agent backend, discovered over IPC. */
 export interface IAgentDescriptor {
@@ -248,7 +248,7 @@ export namespace AgentSession {
 	 */
 	export function provider(session: URI): AgentProvider | undefined {
 		const scheme = session.scheme;
-		if (scheme === 'copilot' || scheme === 'native') {
+		if (scheme === 'copilot' || scheme === 'local') {
 			return scheme;
 		}
 		return undefined;

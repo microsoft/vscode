@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * NativeAgent: IAgent implementation backed by the native agent loop.
+ * LocalAgent: IAgent implementation backed by the local agent loop.
  *
  * This is the glue between the core agent loop (a stateless function) and the
  * agent host IPC protocol. It manages sessions, translates AgentLoopEvents
- * to IAgentProgressEvents, and delegates auth to CopilotTokenService.
+ * to IAgentProgressEvents, and delegates auth to CopilotApiService.
  */
 
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -47,13 +47,13 @@ import { CAPIRequestType, CopilotApiService, ICAPIModelsResponse } from './copil
 import { AllowAllPolicy, PermissionMiddleware } from './middleware/permissionMiddleware.js';
 import { ContextWindowMiddleware } from './middleware/contextWindow.js';
 import { ToolOutputTruncationMiddleware } from './middleware/toolOutputTruncation.js';
-import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind } from './nativeToolDisplay.js';
+import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind } from './localToolDisplay.js';
 import { BashTool } from './tools/bashTool.js';
 import { ReadFileTool } from './tools/readFileTool.js';
 
 // -- Session state ------------------------------------------------------------
 
-interface INativeSession {
+interface ILocalSession {
 	readonly uri: URI;
 	readonly model: string;
 	readonly workingDirectory: string;
@@ -71,18 +71,18 @@ interface INativeSession {
 
 // -- Agent implementation -----------------------------------------------------
 
-const PROVIDER_ID: AgentProvider = 'native';
+const PROVIDER_ID: AgentProvider = 'local';
 const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
 const DEFAULT_SYSTEM_PROMPT = `You are a coding assistant. You help users with programming tasks by reading files, running commands, and providing information. Be concise and helpful.`;
 
-export class NativeAgent extends Disposable implements IAgent {
+export class LocalAgent extends Disposable implements IAgent {
 	readonly id = PROVIDER_ID;
 
 	private readonly _onDidSessionProgress = this._register(new Emitter<IAgentProgressEvent>());
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
 
 	private readonly _sessions = this._register(new DisposableMap<string, CancellationTokenSource>());
-	private readonly _sessionState = new Map<string, INativeSession>();
+	private readonly _sessionState = new Map<string, ILocalSession>();
 	private readonly _apiService: CopilotApiService;
 	private readonly _tools: readonly IAgentTool[];
 
@@ -99,14 +99,14 @@ export class NativeAgent extends Disposable implements IAgent {
 	getDescriptor(): IAgentDescriptor {
 		return {
 			provider: PROVIDER_ID,
-			displayName: 'Native Agent',
-			description: 'Native agent loop with direct CAPI model calls',
+			displayName: 'Local Agent',
+			description: 'Local agent loop with direct CAPI model calls',
 			requiresAuth: true,
 		};
 	}
 
 	async setAuthToken(token: string): Promise<void> {
-		this._logService.info('[NativeAgent] Auth token received');
+		this._logService.info('[LocalAgent] Auth token received');
 		this._apiService.setGitHubToken(token);
 	}
 
@@ -129,7 +129,7 @@ export class NativeAgent extends Disposable implements IAgent {
 					billingMultiplier: m.billing?.multiplier,
 				}));
 		} catch (err) {
-			this._logService.warn('[NativeAgent] Failed to fetch models from CAPI, returning defaults', err);
+			this._logService.warn('[LocalAgent] Failed to fetch models from CAPI, returning defaults', err);
 			return [{
 				provider: PROVIDER_ID,
 				id: DEFAULT_MODEL,
@@ -158,7 +158,7 @@ export class NativeAgent extends Disposable implements IAgent {
 		const workingDirectory = config?.workingDirectory ?? '';
 		const cts = new CancellationTokenSource();
 
-		const session: INativeSession = {
+		const session: ILocalSession = {
 			uri: sessionUri,
 			model,
 			workingDirectory,
@@ -175,7 +175,7 @@ export class NativeAgent extends Disposable implements IAgent {
 		this._sessionState.set(sessionUri.toString(), session);
 		this._sessions.set(sessionUri.toString(), cts);
 
-		this._logService.info(`[NativeAgent] Created session ${rawId}, model=${model}`);
+		this._logService.info(`[LocalAgent] Created session ${rawId}, model=${model}`);
 		return sessionUri;
 	}
 
@@ -216,7 +216,7 @@ export class NativeAgent extends Disposable implements IAgent {
 		const key = sessionUri.toString();
 		this._sessionState.delete(key);
 		this._sessions.deleteAndDispose(key);
-		this._logService.info(`[NativeAgent] Disposed session ${AgentSession.id(sessionUri)}`);
+		this._logService.info(`[LocalAgent] Disposed session ${AgentSession.id(sessionUri)}`);
 	}
 
 	async abortSession(sessionUri: URI): Promise<void> {
@@ -254,7 +254,7 @@ export class NativeAgent extends Disposable implements IAgent {
 		];
 	}
 
-	private _getSession(uri: URI): INativeSession {
+	private _getSession(uri: URI): ILocalSession {
 		const session = this._sessionState.get(uri.toString());
 		if (!session) {
 			throw new Error(`Session not found: ${uri.toString()}`);
@@ -262,7 +262,7 @@ export class NativeAgent extends Disposable implements IAgent {
 		return session;
 	}
 
-	private async _runLoop(session: INativeSession): Promise<void> {
+	private async _runLoop(session: ILocalSession): Promise<void> {
 		const modelIdentity: IModelIdentity = { provider: 'anthropic', modelId: session.model };
 		const modelProvider = new AnthropicModelProvider(
 			session.model,
@@ -292,7 +292,7 @@ export class NativeAgent extends Disposable implements IAgent {
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			const stack = err instanceof Error ? err.stack : undefined;
-			this._logService.error(`[NativeAgent] Loop error: ${message}`, stack);
+			this._logService.error(`[LocalAgent] Loop error: ${message}`, stack);
 			this._onDidSessionProgress.fire({
 				type: 'error',
 				session: session.uri,
@@ -307,7 +307,7 @@ export class NativeAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private _processEvent(event: AgentLoopEvent, session: INativeSession): void {
+	private _processEvent(event: AgentLoopEvent, session: ILocalSession): void {
 		switch (event.type) {
 			case 'model-call-start': {
 				// Allocate a message ID for correlating delta events
