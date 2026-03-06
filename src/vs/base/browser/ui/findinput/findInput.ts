@@ -234,7 +234,12 @@ export class FindInput extends Widget {
 
 		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
-		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire());
+		this.oninput(this.inputBox.inputElement, (e) => {
+			// Don't fire onInput during IME composition to prevent premature filtering
+			if (!this.imeSessionInProgress) {
+				this._onInput.fire();
+			}
+		});
 		this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e));
 	}
 
