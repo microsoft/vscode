@@ -515,8 +515,7 @@ suite('RunInTerminalTool', () => {
 
 			// Verify that auto-approve information is included
 			ok(result?.toolSpecificData, 'Expected toolSpecificData to be defined');
-			// eslint-disable-next-line local/code-no-any-casts
-			const terminalData = result!.toolSpecificData as any;
+			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
 			ok(terminalData.autoApproveInfo, 'Expected autoApproveInfo to be defined for auto-approved background command');
 			ok(terminalData.autoApproveInfo.value, 'Expected autoApproveInfo to have a value');
 			ok(terminalData.autoApproveInfo.value.includes('npm'), 'Expected autoApproveInfo to mention the approved rule');
@@ -1150,6 +1149,11 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('chat session disposal cleanup', () => {
+		const createMockTerminal = (processId: number): ITerminalInstance => ({
+			dispose: () => { /* Mock dispose */ },
+			processId
+		} as unknown as ITerminalInstance);
+
 		test('should dispose all terminals associated with a single chat session when archived', () => {
 			const sessionId = 'test-session-archive';
 			const sessionResource = LocalChatSessionUri.forSession(sessionId);
@@ -1180,10 +1184,8 @@ suite('RunInTerminalTool', () => {
 
 		test('should dispose all terminals associated with a single chat session', () => {
 			const sessionId = 'test-session-multiple-terminals';
-			// eslint-disable-next-line local/code-no-any-casts
-			const mockTerminal1: ITerminalInstance = { dispose: () => { /* Mock dispose */ }, processId: 11111 } as any;
-			// eslint-disable-next-line local/code-no-any-casts
-			const mockTerminal2: ITerminalInstance = { dispose: () => { /* Mock dispose */ }, processId: 22222 } as any;
+			const mockTerminal1 = createMockTerminal(11111);
+			const mockTerminal2 = createMockTerminal(22222);
 
 			let terminal1Disposed = false;
 			let terminal2Disposed = false;
@@ -1207,11 +1209,7 @@ suite('RunInTerminalTool', () => {
 
 		test('should dispose associated terminals when chat session is disposed', () => {
 			const sessionId = 'test-session-123';
-			// eslint-disable-next-line local/code-no-any-casts
-			const mockTerminal: ITerminalInstance = {
-				dispose: () => { /* Mock dispose */ },
-				processId: 12345
-			} as any;
+			const mockTerminal = createMockTerminal(12345);
 			let terminalDisposed = false;
 			mockTerminal.dispose = () => { terminalDisposed = true; };
 
@@ -1232,16 +1230,8 @@ suite('RunInTerminalTool', () => {
 		test('should not affect other sessions when one session is disposed', () => {
 			const sessionId1 = 'test-session-1';
 			const sessionId2 = 'test-session-2';
-			// eslint-disable-next-line local/code-no-any-casts
-			const mockTerminal1: ITerminalInstance = {
-				dispose: () => { /* Mock dispose */ },
-				processId: 12345
-			} as any;
-			// eslint-disable-next-line local/code-no-any-casts
-			const mockTerminal2: ITerminalInstance = {
-				dispose: () => { /* Mock dispose */ },
-				processId: 67890
-			} as any;
+			const mockTerminal1 = createMockTerminal(12345);
+			const mockTerminal2 = createMockTerminal(67890);
 
 			let terminal1Disposed = false;
 			let terminal2Disposed = false;
