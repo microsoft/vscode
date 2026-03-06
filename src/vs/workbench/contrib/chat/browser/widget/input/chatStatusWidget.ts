@@ -23,7 +23,8 @@ const $ = dom.$;
 
 /**
  * Widget that displays a status message with an optional action button.
- * Only shown for free tier users when the setting is enabled (experiment controlled via onExP tag).
+ * Shown for free tier users when quota is exceeded, and for Pro users when the experimental setting is enabled.
+ * Anonymous users require the experimental setting to be enabled.
  */
 export class ChatStatusWidget extends Disposable implements IChatInputPartWidget {
 
@@ -55,6 +56,8 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 			this.createWidgetContent('anonymous');
 		} else if (entitlement === ChatEntitlement.Free) {
 			this.createWidgetContent('free');
+		} else if (entitlement === ChatEntitlement.Pro) {
+			this.createWidgetContent('pro');
 		} else {
 			return;
 		}
@@ -66,7 +69,7 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 		return this.domNode.style.display === 'none' ? 0 : this.domNode.offsetHeight;
 	}
 
-	private createWidgetContent(enabledSku: 'free' | 'anonymous'): void {
+	private createWidgetContent(enabledSku: 'free' | 'anonymous' | 'pro'): void {
 		const contentContainer = $('.chat-status-content');
 		this.messageElement = $('.chat-status-message');
 		contentContainer.appendChild(this.messageElement);
@@ -84,6 +87,12 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 			this.messageElement.textContent = message;
 			this.actionButton.label = buttonLabel;
 			this.actionButton.element.ariaLabel = localize('chat.anonymousRateLimited.signIn.ariaLabel', "{0} {1}", message, buttonLabel);
+		} else if (enabledSku === 'pro') {
+			const message = localize('chat.proQuotaExceeded.message', "You've reached the limit for chat messages.");
+			const buttonLabel = localize('chat.proQuotaExceeded.upgrade', "Upgrade");
+			this.messageElement.textContent = message;
+			this.actionButton.label = buttonLabel;
+			this.actionButton.element.ariaLabel = localize('chat.proQuotaExceeded.upgrade.ariaLabel', "{0} {1}", message, buttonLabel);
 		} else {
 			const message = localize('chat.freeQuotaExceeded.message', "You've reached the limit for chat messages.");
 			const buttonLabel = localize('chat.freeQuotaExceeded.upgrade', "Upgrade");
@@ -116,6 +125,7 @@ ChatInputPartWidgetsRegistry.register(
 		ChatContextKeys.chatSessionIsEmpty,
 		ContextKeyExpr.or(
 			ChatContextKeys.Entitlement.planFree,
+			ChatContextKeys.Entitlement.planPro,
 			ChatEntitlementContextKeys.chatAnonymous
 		)
 	)
