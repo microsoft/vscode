@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { isAbsolute, normalize, resolve } from '../../../../base/common/path.js';
+import { isAbsolute, normalize, resolve, sep } from '../../../../base/common/path.js';
 import { IAgentTool, IToolContext, IToolResult } from '../../common/tools.js';
 
 const MAX_FILE_SIZE = 1024 * 1024; // 1 MB
@@ -49,11 +49,14 @@ export class ReadFileTool implements IAgentTool {
 
 		// Security: prevent path traversal outside working directory for relative paths
 		if (!isAbsolute(filePath)) {
+			if (!context.workingDirectory) {
+				return { content: 'Error: Cannot use relative paths without a working directory.', isError: true };
+			}
 			const normalizedResolved = normalize(resolvedPath);
 			const normalizedWorkDir = normalize(context.workingDirectory);
-			// Ensure the work dir ends with separator to prevent prefix collisions
+			// Use platform separator for prefix matching to prevent collisions
 			// (e.g., /repo/project must not match /repo/project2/...)
-			const workDirPrefix = normalizedWorkDir.endsWith('/') ? normalizedWorkDir : normalizedWorkDir + '/';
+			const workDirPrefix = normalizedWorkDir.endsWith(sep) ? normalizedWorkDir : normalizedWorkDir + sep;
 			if (!normalizedResolved.startsWith(workDirPrefix) && normalizedResolved !== normalizedWorkDir) {
 				return { content: 'Error: Path traversal outside working directory is not allowed.', isError: true };
 			}

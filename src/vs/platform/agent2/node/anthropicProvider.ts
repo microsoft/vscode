@@ -471,16 +471,18 @@ export class AnthropicModelProvider implements IModelProvider {
 				case 'content_block_stop': {
 					const blockType = blockTypes.get(payload.index);
 					if (blockType === 'tool_use') {
-						const toolCallId = blockToolIds.get(payload.index) ?? '';
-						const toolName = blockToolNames.get(payload.index) ?? '';
-						const chunks = blockArgChunks.get(payload.index) ?? [];
-						const argsJson = chunks.join('');
-						pushEvent({
-							type: 'tool-call-complete',
-							toolCallId,
-							toolName,
-							arguments: argsJson || '{}',
-						});
+						const toolCallId = blockToolIds.get(payload.index);
+						const toolName = blockToolNames.get(payload.index);
+						if (toolCallId && toolName) {
+							const chunks = blockArgChunks.get(payload.index) ?? [];
+							const argsJson = chunks.join('');
+							pushEvent({
+								type: 'tool-call-complete',
+								toolCallId,
+								toolName,
+								arguments: argsJson || '{}',
+							});
+						}
 						blockToolIds.delete(payload.index);
 						blockToolNames.delete(payload.index);
 						blockArgChunks.delete(payload.index);

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { IAgentTool, IToolContext, IToolResult } from '../../common/tools.js';
 
 const DEFAULT_TIMEOUT_MS = 120_000; // 2 minutes
@@ -88,11 +89,13 @@ export class BashTool implements IAgentTool {
 			const disposable = context.token.onCancellationRequested(() => {
 				child.kill('SIGTERM');
 				// Give it a moment to clean up, then force kill
-				setTimeout(() => {
+				const forceKill = disposableTimeout(() => {
 					if (!child.killed) {
 						child.kill('SIGKILL');
 					}
 				}, 1000);
+
+				child.on('exit', () => forceKill.dispose());
 			});
 
 			child.on('exit', () => disposable.dispose());
