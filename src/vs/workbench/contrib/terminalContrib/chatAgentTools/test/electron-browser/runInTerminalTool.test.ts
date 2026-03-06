@@ -1171,6 +1171,10 @@ suite('RunInTerminalTool', () => {
 			});
 			runInTerminalTool.sessionTerminalInstances.set(sessionResource, new Set([mockTerminal1, mockTerminal2]));
 
+			// Initialize lazy archive listener before firing the archive event.
+			const ensureArchivedSessionListener = (runInTerminalTool as unknown as Record<string, () => void>)['_ensureArchivedSessionListener'];
+			ensureArchivedSessionListener();
+
 			chatSessionArchivedEmitter.fire({
 				resource: sessionResource,
 				isArchived: () => true,

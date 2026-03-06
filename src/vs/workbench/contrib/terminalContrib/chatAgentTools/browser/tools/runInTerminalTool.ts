@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, posix, win32 } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
@@ -323,6 +323,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
 	private readonly _commandLinePresenters: ICommandLinePresenter[];
 	private readonly _outputAnalyzers: IOutputAnalyzer[];
+	private readonly _archivedSessionListener = this._register(new MutableDisposable());
 
 	protected readonly _sessionTerminalAssociations = new ResourceMap<IToolTerminal>();
 	protected readonly _sessionTerminalInstances = new ResourceMap<Set<ITerminalInstance>>();
@@ -430,13 +431,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}));
 
-		// Archiving a session does not fire onDidDisposeSession, but we still need to dispose
-		// any terminals associated with the archived session to avoid process accumulation.
-		this._register(this._agentSessionsService.model.onDidChangeSessionArchivedState(session => {
-			if (session.isArchived()) {
-				this._cleanupSessionTerminals(session.resource);
-			}
-		}));
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -1257,6 +1251,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private _addSessionTerminalAssociation(chatSessionResource: URI, toolTerminal: IToolTerminal): void {
+		this._ensureArchivedSessionListener();
+
 		let sessionTerminals = this._sessionTerminalInstances.get(chatSessionResource);
 		if (!sessionTerminals) {
 			sessionTerminals = new Set<ITerminalInstance>();
@@ -1267,6 +1263,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (!toolTerminal.isBackground) {
 			this._sessionTerminalAssociations.set(chatSessionResource, toolTerminal);
 		}
+	}
+
+	private _ensureArchivedSessionListener(): void {
+		if (this._archivedSessionListener.value) {
+			return;
+		}
+
+		// Archiving a session does not fire onDidDisposeSession, but we still need to dispose
+		// any terminals associated with the archived session to avoid process accumulation.
+		this._archivedSessionListener.value = this._agentSessionsService.model.onDidChangeSessionArchivedState(session => {
+			if (session.isArchived()) {
+				this._cleanupSessionTerminals(session.resource);
+			}
+		});
 	}
 
 	private _removeTerminalAssociations(terminal: ITerminalInstance): void {
