@@ -23,6 +23,7 @@ import { Disposable } from '../../base/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/common/contributions.js';
 import { IChatProgress } from '../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, IChatSessionItem, IChatSessionFileChange, ChatSessionStatus, IChatSessionHistoryItem } from '../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IGitService, IGitExtensionDelegate, IGitRepository } from '../../workbench/contrib/git/common/gitService.js';
 
 const MOCK_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: { id: 'github', name: 'GitHub (Mock)', enterprise: false },
@@ -188,7 +189,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 			existing.timing.lastRequestStarted = now;
 			existing.timing.lastRequestEnded = now;
 			if (changes) {
-				(existing as any).changes = changes;
+				existing.changes = changes;
 			}
 		} else {
 			this._sessionItems.push({
@@ -333,6 +334,17 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 registerWorkbenchContribution2(MockChatAgentContribution.ID, MockChatAgentContribution, WorkbenchPhase.BlockStartup);
 
 // ---------------------------------------------------------------------------
+// MockGitService — resolves immediately instead of waiting 10s for delegate
+// ---------------------------------------------------------------------------
+
+class MockGitService implements IGitService {
+	declare readonly _serviceBrand: undefined;
+	readonly repositories: Iterable<IGitRepository> = [];
+	setDelegate(_delegate: IGitExtensionDelegate) { return Disposable.None; }
+	async openRepository(_uri: URI) { return undefined; }
+}
+
+// ---------------------------------------------------------------------------
 // TestSessionsBrowserMain
 // ---------------------------------------------------------------------------
 
@@ -352,6 +364,9 @@ export class TestSessionsBrowserMain extends SessionsBrowserMain {
 
 		// Override default account service to hide the "Sign In" button
 		serviceCollection.set(IDefaultAccountService, new MockDefaultAccountService());
+
+		// Override git service so openRepository resolves instantly (no 10s barrier wait)
+		serviceCollection.set(IGitService, new MockGitService());
 
 		console.log('[Sessions Web Test] Creating Sessions workbench with mocks');
 		return new SessionsWorkbench(domElement, undefined, serviceCollection, logService);

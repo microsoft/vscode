@@ -53,51 +53,78 @@ function normalizeLabel(text) {
 }
 
 // ---------------------------------------------------------------------------
+// Polling helper — retries a check function until it passes or times out
+// ---------------------------------------------------------------------------
+
+const ASSERT_TIMEOUT_MS = 10_000;
+const ASSERT_POLL_MS = 500;
+
+/**
+ * @param {() => { ok: boolean; message?: string }} checkFn
+ * @returns {{ ok: boolean; message?: string }}
+ */
+function pollAssertion(checkFn) {
+	const deadline = Date.now() + ASSERT_TIMEOUT_MS;
+	let lastResult = checkFn();
+	while (!lastResult.ok && Date.now() < deadline) {
+		cp.spawnSync('sleep', [(ASSERT_POLL_MS / 1000).toString()]);
+		lastResult = checkFn();
+	}
+	return lastResult;
+}
+
+// ---------------------------------------------------------------------------
 // Execute a single command line and handle assertions
 // ---------------------------------------------------------------------------
 
 function executeCommand(cmd) {
-	// Assertion comments — take a fresh snapshot and check
+	// Assertion comments — poll with retries to handle async rendering
 	if (cmd.startsWith('# ASSERT_VISIBLE:')) {
 		const text = cmd.slice('# ASSERT_VISIBLE:'.length).trim();
-		const snap = getSnapshot();
-		if (!snap) { return { ok: false, message: 'Failed to get snapshot for assertion' }; }
-		if (!snap.toLowerCase().includes(text.toLowerCase())) {
-			return { ok: false, message: `Expected "${text}" to be visible in snapshot` };
-		}
-		return { ok: true };
+		return pollAssertion(() => {
+			const snap = getSnapshot();
+			if (!snap.stdout) { return { ok: false, message: 'Failed to get snapshot for assertion' }; }
+			if (!snap.stdout.toLowerCase().includes(text.toLowerCase())) {
+				return { ok: false, message: `Expected "${text}" to be visible in snapshot` };
+			}
+			return { ok: true };
+		});
 	}
 
 	if (cmd.startsWith('# ASSERT_DISABLED:')) {
 		const label = cmd.slice('# ASSERT_DISABLED:'.length).trim();
-		const snap = getSnapshot();
-		if (!snap) { return { ok: false, message: 'Failed to get snapshot for assertion' }; }
-		const needle = normalizeLabel(label);
-		const buttonLine = snap.split('\n').find(l =>
-			l.includes('button') && l.match(/"([^"]+)"/) &&
-			normalizeLabel(l.match(/"([^"]+)"/)[1]) === needle
-		);
-		if (!buttonLine) { return { ok: false, message: `Button "${label}" not found in snapshot` }; }
-		if (!buttonLine.includes('[disabled]')) {
-			return { ok: false, message: `Expected button "${label}" to be disabled` };
-		}
-		return { ok: true };
+		return pollAssertion(() => {
+			const snap = getSnapshot();
+			if (!snap.stdout) { return { ok: false, message: 'Failed to get snapshot for assertion' }; }
+			const needle = normalizeLabel(label);
+			const buttonLine = snap.stdout.split('\n').find(l =>
+				l.includes('button') && l.match(/"([^"]+)"/) &&
+				normalizeLabel(l.match(/"([^"]+)"/)[1]) === needle
+			);
+			if (!buttonLine) { return { ok: false, message: `Button "${label}" not found in snapshot` }; }
+			if (!buttonLine.includes('[disabled]')) {
+				return { ok: false, message: `Expected button "${label}" to be disabled` };
+			}
+			return { ok: true };
+		});
 	}
 
 	if (cmd.startsWith('# ASSERT_ENABLED:')) {
 		const label = cmd.slice('# ASSERT_ENABLED:'.length).trim();
-		const snap = getSnapshot();
-		if (!snap) { return { ok: false, message: 'Failed to get snapshot for assertion' }; }
-		const needle = normalizeLabel(label);
-		const buttonLine = snap.split('\n').find(l =>
-			l.includes('button') && l.match(/"([^"]+)"/) &&
-			normalizeLabel(l.match(/"([^"]+)"/)[1]) === needle
-		);
-		if (!buttonLine) { return { ok: false, message: `Button "${label}" not found in snapshot` }; }
-		if (buttonLine.includes('[disabled]')) {
-			return { ok: false, message: `Expected button "${label}" to be enabled` };
-		}
-		return { ok: true };
+		return pollAssertion(() => {
+			const snap = getSnapshot();
+			if (!snap.stdout) { return { ok: false, message: 'Failed to get snapshot for assertion' }; }
+			const needle = normalizeLabel(label);
+			const buttonLine = snap.stdout.split('\n').find(l =>
+				l.includes('button') && l.match(/"([^"]+)"/) &&
+				normalizeLabel(l.match(/"([^"]+)"/)[1]) === needle
+			);
+			if (!buttonLine) { return { ok: false, message: `Button "${label}" not found in snapshot` }; }
+			if (buttonLine.includes('[disabled]')) {
+				return { ok: false, message: `Expected button "${label}" to be enabled` };
+			}
+			return { ok: true };
+		});
 	}
 
 	// Skip other comments
@@ -159,6 +186,8 @@ async function main() {
 
 		// Reset state between scenarios
 		runPlaywrightCli(['press', 'Escape']);
+		runPlaywrightCli(['goto', BASE_URL]);
+		cp.spawnSync('sleep', ['3']);
 
 		let scenarioPassed = true;
 
@@ -193,6 +222,9 @@ async function main() {
 				console.log(`  ✅ ${label}`);
 				totalPassed++;
 			}
+
+			// Give the UI time to settle after each step (matches generate.cjs behavior)
+			cp.spawnSync('sleep', ['1']);
 		}
 
 		console.log();

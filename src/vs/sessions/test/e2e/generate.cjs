@@ -65,7 +65,7 @@ const SYSTEM_PROMPT = [
 function askCopilot(step, snapshot) {
 	const prompt = `Snapshot:\n\`\`\`\n${snapshot}\n\`\`\`\n\nStep: ${step}\n\nOutput the playwright-cli commands:`;
 
-	const result = cp.spawnSync('copilot', ['-p', `${SYSTEM_PROMPT}\n\n${prompt}`], {
+	const result = cp.spawnSync('copilot', ['-p', `${SYSTEM_PROMPT}\n\n${prompt}`, '--model', 'claude-sonnet-4.6'], {
 		cwd: APP_ROOT,
 		stdio: ['ignore', 'pipe', 'pipe'],
 		timeout: 60_000,
@@ -92,22 +92,26 @@ function compileScenario(scenario) {
 	console.log(`\n▶ Compiling: ${scenario.name}`);
 
 	const compiledSteps = [];
-
+	let lastSnapshot = {
+		stdout: '',
+		path: ''
+	};
 	for (const [i, step] of scenario.steps.entries()) {
 		console.log(`  step ${i + 1}: ${step}`);
 
 		const snapshot = getSnapshot();
-		if (!snapshot) {
+		lastSnapshot = snapshot;
+		if (!snapshot.stdout) {
 			console.error(`    ⚠ Could not get snapshot, skipping step`);
 			compiledSteps.push({ description: step, commands: [], error: 'Failed to get snapshot' });
 			continue;
 		}
 
 		try {
-			const commands = askCopilot(step, snapshot);
+			const commands = askCopilot(step, snapshot.stdout);
 			console.log(`    → ${commands.join(' ; ')}`);
 
-			compiledSteps.push({ description: step, commands });
+			compiledSteps.push({ description: step, commands, snapshot: snapshot.path });
 
 			// Execute the commands to advance the UI state for the next step
 			for (const cmd of commands) {
@@ -129,6 +133,7 @@ function compileScenario(scenario) {
 		scenario: scenario.name,
 		generatedAt: new Date().toISOString(),
 		steps: compiledSteps,
+		snapshot: lastSnapshot.path
 	};
 }
 

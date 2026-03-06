@@ -70,20 +70,27 @@ function getSnapshot() {
 	const result = runPlaywrightCli(['snapshot']);
 	if (!result.ok) {
 		console.error(`  [snapshot] failed: ${result.stderr}`);
-		return '';
+		return {
+			stdout: '',
+			path: ''
+		};
 	}
 	const fileMatch = result.stdout.match(/\[Snapshot\]\((.+?\.yml)\)/);
+	let pathStr = '';
 	if (fileMatch) {
-		const snapshotPath = path.join(APP_ROOT, fileMatch[1]);
+		pathStr = path.join(APP_ROOT, fileMatch[1]);
 		try {
-			const content = fs.readFileSync(snapshotPath, 'utf-8');
+			const content = fs.readFileSync(pathStr, 'utf-8');
 			if (!content.trim()) { console.error(`  [snapshot] file is empty`); }
-			return content;
+			return { stdout: content, path: pathStr };
 		} catch (e) {
 			console.error(`  [snapshot] failed to read: ${e.message}`);
 		}
 	}
-	return result.stdout;
+	return {
+		stdout: result.stdout,
+		path: pathStr
+	};
 }
 
 // ---------------------------------------------------------------------------
