@@ -53,6 +53,40 @@ function normalizeLabel(text) {
 }
 
 // ---------------------------------------------------------------------------
+// Semantic command resolver — resolves role+label selectors to current refs
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve a semantic command like `click button "Send"` to a ref-based
+ * command like `click e170` using a fresh snapshot of the current page.
+ *
+ * Commands that don't match the semantic pattern (type, press, comments)
+ * are returned as-is.
+ */
+function resolveSemanticCommand(cmd, snapshotText) {
+	// Match: <action> <role> "<label>"
+	const match = cmd.match(/^(click|focus)\s+(\w+)\s+"([^"]+)"$/);
+	if (!match) { return { resolved: cmd, ok: true }; }
+
+	const [, action, role, label] = match;
+	const needle = normalizeLabel(label);
+
+	for (const line of snapshotText.split('\n')) {
+		const refMatch = line.match(/\[ref=(e\d+)\]/);
+		if (!refMatch) { continue; }
+		if (!line.includes(role)) { continue; }
+		const labelMatch = line.match(/"([^"]+)"/);
+		if (!labelMatch) { continue; }
+		const lineLabel = normalizeLabel(labelMatch[1]);
+		if (lineLabel.includes(needle) || needle.includes(lineLabel)) {
+			return { resolved: `${action} ${refMatch[1]}`, ok: true };
+		}
+	}
+
+	return { resolved: cmd, ok: false, message: `Could not find ${role} "${label}" in snapshot` };
+}
+
+// ---------------------------------------------------------------------------
 // Polling helper — retries a check function until it passes or times out
 // ---------------------------------------------------------------------------
 
@@ -130,7 +164,25 @@ function executeCommand(cmd) {
 	// Skip other comments
 	if (cmd.startsWith('#')) { return { ok: true }; }
 
-	// Regular playwright-cli command
+	// Semantic commands (e.g. `click button "Send"`) — resolve to ref from live snapshot
+	const semanticMatch = cmd.match(/^(click|focus)\s+\w+\s+"[^"]+"$/);
+	if (semanticMatch) {
+		// Poll: the element might not be rendered yet
+		return pollAssertion(() => {
+			const snap = getSnapshot();
+			if (!snap.stdout) { return { ok: false, message: 'Failed to get snapshot for command resolution' }; }
+			const { resolved, ok, message } = resolveSemanticCommand(cmd, snap.stdout);
+			if (!ok) { return { ok: false, message: message || `Could not resolve: ${cmd}` }; }
+			console.log(`    [resolve] ${cmd} → ${resolved}`);
+			const result = runPlaywrightCli(resolved);
+			if (!result.ok) {
+				return { ok: false, message: `playwright-cli ${resolved} failed:\n${result.stderr || result.stdout}` };
+			}
+			return { ok: true };
+		});
+	}
+
+	// Regular playwright-cli command (type, press, snapshot, etc.)
 	const result = runPlaywrightCli(cmd);
 	if (!result.ok) {
 		return { ok: false, message: `playwright-cli ${cmd} failed:\n${result.stderr || result.stdout}` };
@@ -192,6 +244,8 @@ async function main() {
 		let scenarioPassed = true;
 
 		for (const [i, step] of data.steps.entries()) {
+			// Give the UI time to settle after each step (matches generate.cjs behavior)
+			cp.spawnSync('sleep', ['1']);
 			const label = `  step ${i + 1}: ${step.description}`;
 
 			if (step.error) {
@@ -222,9 +276,6 @@ async function main() {
 				console.log(`  ✅ ${label}`);
 				totalPassed++;
 			}
-
-			// Give the UI time to settle after each step (matches generate.cjs behavior)
-			cp.spawnSync('sleep', ['1']);
 		}
 
 		console.log();
