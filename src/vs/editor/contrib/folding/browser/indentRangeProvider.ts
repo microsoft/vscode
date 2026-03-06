@@ -10,13 +10,17 @@ import { FoldingMarkers } from '../../../common/languages/languageConfiguration.
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { FoldingRegions, MAX_LINE_NUMBER } from './foldingRanges.js';
 import { FoldingLimitReporter, RangeProvider } from './folding.js';
+import { FoldingPreferencesCapabilities } from './preferences/capabilities.js';
 
 const MAX_FOLDING_REGIONS_FOR_INDENT_DEFAULT = 5000;
 
 const ID_INDENT_PROVIDER = 'indent';
 
+const preferencesCapabilities: FoldingPreferencesCapabilities = {};
+
 export class IndentRangeProvider implements RangeProvider {
 	readonly id = ID_INDENT_PROVIDER;
+	readonly capabilities = preferencesCapabilities;
 
 	constructor(
 		private readonly editorModel: ITextModel,

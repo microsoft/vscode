@@ -42,11 +42,14 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { URI } from '../../../../base/common/uri.js';
 import { IModelService } from '../../../common/services/model.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { FoldingPreferencesCompatibility } from './preferences/compatibility.js';
+import { FoldingPreferencesCapabilities } from './preferences/capabilities.js';
 
 const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
 
 export interface RangeProvider {
 	readonly id: string;
+	readonly capabilities: FoldingPreferencesCapabilities;
 	compute(cancelationToken: CancellationToken): Promise<FoldingRegions | null>;
 	dispose(): void;
 }
@@ -94,6 +97,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private _currentModelHasFoldedImports: boolean;
 
 	private readonly foldingDecorationProvider: FoldingDecorationProvider;
+	private readonly compatibility: FoldingPreferencesCompatibility;
 
 	private foldingModel: FoldingModel | null;
 	private hiddenRangeModel: HiddenRangeModel | null;
@@ -178,6 +182,12 @@ export class FoldingController extends Disposable implements IEditorContribution
 				this._foldingImportsByDefault = this.editor.getOptions().get(EditorOption.foldingImportsByDefault);
 			}
 		}));
+
+		this.compatibility = new FoldingPreferencesCompatibility(editor, () => {
+			this.triggerFoldingModelChanged();
+		});
+		this._register(this.compatibility);
+
 		this.onModelChanged();
 	}
 
@@ -301,7 +311,6 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.triggerFoldingModelChanged();
 	}
 
-
 	public triggerFoldingModelChanged() {
 		if (this.updateScheduler) {
 			if (this.foldingRegionPromise) {
@@ -328,9 +337,13 @@ export class FoldingController extends Disposable implements IEditorContribution
 							}
 						}
 
+						// Apply adjustments for folding-related preferences
+						// that are not natively supported by folding provider.
+						const adjustedFoldingRanges = this.compatibility.apply(provider, foldingRanges);
+
 						// some cursors might have moved into hidden regions, make sure they are in expanded regions
 						const selections = this.editor.getSelections();
-						foldingModel.update(foldingRanges, toSelectedLines(selections));
+						foldingModel.update(adjustedFoldingRanges, toSelectedLines(selections));
 
 						scrollState?.restore(this.editor);
 
