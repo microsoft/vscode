@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, posix, win32 } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
@@ -69,6 +69,7 @@ import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
 import { clamp } from '../../../../../../base/common/numbers.js';
 import { IOutputAnalyzer } from './outputAnalyzer.js';
 import { SandboxOutputAnalyzer } from './sandboxOutputAnalyzer.js';
+import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
 
 // #region Tool data
 
@@ -322,8 +323,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
 	private readonly _commandLinePresenters: ICommandLinePresenter[];
 	private readonly _outputAnalyzers: IOutputAnalyzer[];
+	private readonly _archivedSessionListener = this._register(new MutableDisposable());
 
 	protected readonly _sessionTerminalAssociations = new ResourceMap<IToolTerminal>();
+	protected readonly _sessionTerminalInstances = new ResourceMap<Set<ITerminalInstance>>();
+	private readonly _terminalsBeingDisposedBySessionCleanup = new Set<ITerminalInstance>();
 
 	// Immutable window state
 	protected readonly _osBackend: Promise<OperatingSystem>;
@@ -373,6 +377,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 
@@ -417,11 +422,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Restore terminal associations from storage
 		this._restoreTerminalAssociations();
 		this._register(this._terminalService.onDidDisposeInstance(e => {
-			for (const [sessionResource, toolTerminal] of this._sessionTerminalAssociations.entries()) {
-				if (e === toolTerminal.instance) {
-					this._sessionTerminalAssociations.delete(sessionResource);
-				}
-			}
+			this._removeTerminalAssociations(e);
 		}));
 
 		// Listen for chat session disposal to clean up associated terminals
@@ -430,6 +431,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._cleanupSessionTerminals(resource);
 			}
 		}));
+
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -1108,7 +1110,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
 		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionResource, toolTerminal.instance);
 		this._registerInputListener(toolTerminal);
-		this._sessionTerminalAssociations.set(chatSessionResource, toolTerminal);
+		this._addSessionTerminalAssociation(chatSessionResource, toolTerminal);
 		if (token.isCancellationRequested) {
 			toolTerminal.instance.dispose();
 			throw new CancellationError();
@@ -1149,7 +1151,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							shellIntegrationQuality: association.shellIntegrationQuality,
 							isBackground: association.isBackground
 						};
-						this._sessionTerminalAssociations.set(chatSessionResource, toolTerminal);
+						this._addSessionTerminalAssociation(chatSessionResource, toolTerminal);
 						this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionResource, instance);
 
 						// Listen for terminal disposal to clean up storage
@@ -1220,23 +1222,83 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private _cleanupSessionTerminals(chatSessionResource: URI): void {
+		const sessionTerminals = this._sessionTerminalInstances.get(chatSessionResource);
 		const toolTerminal = this._sessionTerminalAssociations.get(chatSessionResource);
-		if (toolTerminal) {
-			this._logService.debug(`RunInTerminalTool: Cleaning up terminal for disposed chat session ${chatSessionResource}`);
+		const terminalsToDispose = sessionTerminals ?? (toolTerminal ? new Set([toolTerminal.instance]) : undefined);
+		if (!terminalsToDispose || terminalsToDispose.size === 0) {
+			return;
+		}
 
-			this._sessionTerminalAssociations.delete(chatSessionResource);
-			toolTerminal.instance.dispose();
+		this._logService.debug(`RunInTerminalTool: Cleaning up ${terminalsToDispose.size} terminal(s) for ended chat session ${chatSessionResource}`);
 
-			// Clean up any active executions associated with this session
-			const terminalToRemove: string[] = [];
-			for (const [termId, execution] of RunInTerminalTool._activeExecutions.entries()) {
-				if (execution.instance === toolTerminal.instance) {
-					execution.dispose();
-					terminalToRemove.push(termId);
-				}
+		this._sessionTerminalAssociations.delete(chatSessionResource);
+		this._sessionTerminalInstances.delete(chatSessionResource);
+
+		for (const terminal of terminalsToDispose) {
+			// Skip redundant map walks in onDidDispose since this session has already been removed.
+			this._terminalsBeingDisposedBySessionCleanup.add(terminal);
+			terminal.dispose();
+		}
+
+		// Clean up any active executions associated with this session
+		const terminalToRemove: string[] = [];
+		for (const [termId, execution] of RunInTerminalTool._activeExecutions.entries()) {
+			if (terminalsToDispose.has(execution.instance)) {
+				execution.dispose();
+				terminalToRemove.push(termId);
 			}
-			for (const termId of terminalToRemove) {
-				RunInTerminalTool._activeExecutions.delete(termId);
+		}
+		for (const termId of terminalToRemove) {
+			RunInTerminalTool._activeExecutions.delete(termId);
+		}
+	}
+
+	private _addSessionTerminalAssociation(chatSessionResource: URI, toolTerminal: IToolTerminal): void {
+		this._ensureArchivedSessionListener();
+
+		let sessionTerminals = this._sessionTerminalInstances.get(chatSessionResource);
+		if (!sessionTerminals) {
+			sessionTerminals = new Set<ITerminalInstance>();
+			this._sessionTerminalInstances.set(chatSessionResource, sessionTerminals);
+		}
+		sessionTerminals.add(toolTerminal.instance);
+
+		if (!toolTerminal.isBackground) {
+			this._sessionTerminalAssociations.set(chatSessionResource, toolTerminal);
+		}
+	}
+
+	private _ensureArchivedSessionListener(): void {
+		if (this._archivedSessionListener.value) {
+			return;
+		}
+
+		// Archiving a session does not fire onDidDisposeSession, but we still need to dispose
+		// any terminals associated with the archived session to avoid process accumulation.
+		this._archivedSessionListener.value = this._agentSessionsService.onDidChangeSessionArchivedState(session => {
+			if (session.isArchived()) {
+				this._cleanupSessionTerminals(session.resource);
+			}
+		});
+	}
+
+	private _removeTerminalAssociations(terminal: ITerminalInstance): void {
+		if (this._terminalsBeingDisposedBySessionCleanup.delete(terminal)) {
+			return;
+		}
+
+		for (const [sessionResource, toolTerminal] of this._sessionTerminalAssociations.entries()) {
+			if (terminal === toolTerminal.instance) {
+				this._sessionTerminalAssociations.delete(sessionResource);
+			}
+		}
+
+		for (const [sessionResource, sessionTerminals] of this._sessionTerminalInstances.entries()) {
+			if (!sessionTerminals.delete(terminal)) {
+				continue;
+			}
+			if (sessionTerminals.size === 0) {
+				this._sessionTerminalInstances.delete(sessionResource);
 			}
 		}
 	}
