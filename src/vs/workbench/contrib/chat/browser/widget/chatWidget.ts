@@ -2155,6 +2155,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		// Prompt slash commands are transformed out of the input before sendRequest.
+		// Track them now so tip exclusions still update for commands like /init.
+		this.chatTipService.recordSlashCommandUsage(agentSlashPromptPart.name);
+
 		// need to resolve the slash command to get the prompt file
 		const slashCommand = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.name, CancellationToken.None);
 		if (!slashCommand) {

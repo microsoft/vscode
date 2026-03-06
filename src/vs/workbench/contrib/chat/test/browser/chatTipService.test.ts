@@ -25,7 +25,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { MockLanguageModelToolsService } from '../common/tools/mockLanguageModelToolsService.js';
-import { ChatTipTier } from '../../browser/chatTipCatalog.js';
+import { ChatTipTier, TIP_CATALOG } from '../../browser/chatTipCatalog.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatService } from '../../common/chatService/chatService.js';
@@ -218,6 +218,110 @@ suite('ChatTipService', () => {
 		assert.ok(!executedCommands.includes(CREATE_AGENT_TRACKING_COMMAND));
 		assert.ok(!executedCommands.includes(CREATE_SKILL_TRACKING_COMMAND));
 		assert.ok(!executedCommands.includes(FORK_CONVERSATION_TRACKING_COMMAND));
+	});
+
+
+	test('hides shown slash tip after submitted slash command without clicking tip link', () => {
+		const submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>());
+		instantiationService.stub(IChatService, {
+			onDidSubmitRequest: submitRequestEmitter.event,
+			getSession: () => undefined,
+		} as Partial<IChatService> as IChatService);
+
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
+
+		let tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		for (let i = 0; i < TIP_CATALOG.length && tip?.id !== 'tip.init'; i++) {
+			tip = service.navigateToNextTip();
+		}
+
+		assert.ok(tip);
+		assert.strictEqual(tip.id, 'tip.init', 'Expected to navigate to the init tip before submitting /init');
+
+		let didHide = false;
+		testDisposables.add(service.onDidHideTip(() => didHide = true));
+
+		submitRequestEmitter.fire({
+			chatSessionResource: URI.parse('chat:session-advance-init'),
+			message: {
+				text: '/init',
+				parts: [],
+			},
+		});
+
+		assert.ok(didHide, 'Expected slash tip to hide after submitting /init');
+		assert.notStrictEqual(service.getWelcomeTip(contextKeyService)?.id, 'tip.init', 'Expected init tip to stay excluded after slash usage');
+	});
+
+	test('removes slash tip from rotation after submitted slash command via eligibility tracking', () => {
+		const submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>());
+		instantiationService.stub(IChatService, {
+			onDidSubmitRequest: submitRequestEmitter.event,
+			getSession: () => undefined,
+		} as Partial<IChatService> as IChatService);
+
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
+
+		let tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		for (let i = 0; i < TIP_CATALOG.length && tip?.id !== 'tip.init'; i++) {
+			tip = service.navigateToNextTip();
+		}
+
+		assert.ok(tip);
+		assert.strictEqual(tip.id, 'tip.init');
+
+		submitRequestEmitter.fire({
+			chatSessionResource: URI.parse('chat:session-rotate-init'),
+			message: {
+				text: '/init',
+				parts: [],
+			},
+		});
+
+		for (let i = 0; i < TIP_CATALOG.length; i++) {
+			tip = service.navigateToNextTip();
+			if (!tip) {
+				break;
+			}
+			assert.notStrictEqual(tip.id, 'tip.init', 'Expected init tip to be removed from tip rotation');
+		}
+
+		const executedCommands = JSON.parse(storageService.get('chat.tips.executedCommands', StorageScope.APPLICATION) ?? '[]') as string[];
+		assert.ok(executedCommands.includes(CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND), 'Expected slash usage to be tracked in executed command exclusions');
+	});
+
+	test('removes slash tip from rotation when slash usage is recorded before input transformation', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
+
+		let tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		for (let i = 0; i < TIP_CATALOG.length && tip?.id !== 'tip.init'; i++) {
+			tip = service.navigateToNextTip();
+		}
+
+		assert.ok(tip);
+		assert.strictEqual(tip.id, 'tip.init');
+
+		service.recordSlashCommandUsage('init');
+
+		for (let i = 0; i < TIP_CATALOG.length; i++) {
+			tip = service.navigateToNextTip();
+			if (!tip) {
+				break;
+			}
+			assert.notStrictEqual(tip.id, 'tip.init', 'Expected init tip to be removed from tip rotation');
+		}
+
+		const executedCommands = JSON.parse(storageService.get('chat.tips.executedCommands', StorageScope.APPLICATION) ?? '[]') as string[];
+		assert.ok(executedCommands.includes(CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND), 'Expected slash usage to be tracked in executed command exclusions');
 	});
 
 	test('records fork tip usage for submitted /fork command', () => {

@@ -304,7 +304,8 @@ export type PromptFileSkipReason =
 	| 'parse-error'
 	| 'disabled'
 	| 'all-hooks-disabled'
-	| 'claude-hooks-disabled';
+	| 'claude-hooks-disabled'
+	| 'workspace-untrusted';
 
 /**
  * Result of discovering a single prompt file.
