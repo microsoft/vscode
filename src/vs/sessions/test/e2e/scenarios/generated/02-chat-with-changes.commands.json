@@ -1,6 +1,6 @@
 {
 	"scenario": "Scenario: Chat message with file changes shows change count",
-	"generatedAt": "2026-03-06T00:29:14.893Z",
+	"generatedAt": "2026-03-06T00:54:38.959Z",
 	"steps": [
 		{
 			"description": "Type \"build the project\" in the chat input",
@@ -16,17 +16,32 @@
 			]
 		},
 		{
-			"description": "Verify text \"build the project\" appears on the page",
+			"description": "Verify there is a response in the chat",
 			"commands": [
 				"snapshot",
-				"# ASSERT_VISIBLE: build the project"
+				"# ASSERT_VISIBLE: I'll help you build the project. Here are the changes:"
 			]
 		},
 		{
 			"description": "Verify a change count appears in the session list",
 			"commands": [
 				"snapshot",
-				"# ASSERT_VISIBLE: \"+23\""
+				"# ASSERT_VISIBLE: +23"
+			]
+		},
+		{
+			"description": "Toggle the secondary side bar",
+			"commands": [
+				"click e190"
+			]
+		},
+		{
+			"description": "Make sure the changes list shows the file diffs",
+			"commands": [
+				"snapshot",
+				"# ASSERT_VISIBLE: build.ts",
+				"# ASSERT_VISIBLE: config.ts",
+				"# ASSERT_VISIBLE: package.json"
 			]
 		}
 	]

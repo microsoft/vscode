@@ -1,6 +1,6 @@
 {
 	"scenario": "Scenario: Session appears in sidebar after sending a message",
-	"generatedAt": "2026-03-06T00:29:55.592Z",
+	"generatedAt": "2026-03-06T00:55:25.968Z",
 	"steps": [
 		{
 			"description": "Type \"fix the bug\" in the chat input",
@@ -16,10 +16,18 @@
 			]
 		},
 		{
-			"description": "Verify text \"fix the bug\" appears on the page",
+			"description": "Verify the session appears in the sessions list",
 			"commands": [
 				"snapshot",
 				"# ASSERT_VISIBLE: fix the bug"
+			]
+		},
+		{
+			"description": "Verify the diff count shows in the sessions list",
+			"commands": [
+				"snapshot",
+				"# ASSERT_VISIBLE: +7",
+				"# ASSERT_VISIBLE: -0"
 			]
 		}
 	]

@@ -3,4 +3,7 @@
 ## Steps
 1. Click button "New Session"
 2. Click button "Cloud"
-3. Click button "Local"
+3. Write "hello world" and hit enter
+4. Make sure "Pick Repository" picker opens
+5. Click on "Pick Repository" picker to close it
+6. Click on button "Local"

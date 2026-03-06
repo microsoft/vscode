@@ -1,6 +1,6 @@
 {
 	"scenario": "Scenario: Switch between Local and Cloud mode",
-	"generatedAt": "2026-03-06T00:30:28.447Z",
+	"generatedAt": "2026-03-06T00:56:41.549Z",
 	"steps": [
 		{
 			"description": "Click button \"New Session\"",
@@ -15,7 +15,28 @@
 			]
 		},
 		{
-			"description": "Click button \"Local\"",
+			"description": "Write \"hello world\" and hit enter",
+			"commands": [
+				"click e155",
+				"type \"hello world\"",
+				"press Enter"
+			]
+		},
+		{
+			"description": "Make sure \"Pick Repository\" picker opens",
+			"commands": [
+				"snapshot",
+				"# ASSERT_VISIBLE: Repository Picker"
+			]
+		},
+		{
+			"description": "Click on \"Pick Repository\" picker to close it",
+			"commands": [
+				"click e199"
+			]
+		},
+		{
+			"description": "Click on button \"Local\"",
 			"commands": [
 				"click e140"
 			]

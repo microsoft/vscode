@@ -1,11 +1,11 @@
 {
 	"scenario": "Scenario: Navigate between sessions and verify history loads",
-	"generatedAt": "2026-03-06T00:32:06.757Z",
+	"generatedAt": "2026-03-06T00:59:25.952Z",
 	"steps": [
 		{
 			"description": "Type \"explain the code\" in the chat input",
 			"commands": [
-				"click e156",
+				"click e158",
 				"type \"explain the code\""
 			]
 		},
@@ -16,10 +16,10 @@
 			]
 		},
 		{
-			"description": "Verify text \"simple structure\" appears on the page",
+			"description": "Verify there is a chat response",
 			"commands": [
 				"snapshot",
-				"# ASSERT_VISIBLE: simple structure"
+				"# ASSERT_VISIBLE: explain the codehello world"
 			]
 		},
 		{
@@ -31,7 +31,7 @@
 		{
 			"description": "Type \"build the project\" in the chat input",
 			"commands": [
-				"click e319",
+				"click e158",
 				"type \"build the project\""
 			]
 		},
@@ -42,23 +42,23 @@
 			]
 		},
 		{
-			"description": "Verify text \"build the project\" appears on the page",
+			"description": "Verify there is a chat response",
 			"commands": [
 				"snapshot",
-				"# ASSERT_VISIBLE: build the project"
+				"# ASSERT_VISIBLE: hello world"
 			]
 		},
 		{
-			"description": "Click button \"explain the code\"",
+			"description": "Click on a different session in the sessions list",
 			"commands": [
-				"click e206"
+				"click e40"
 			]
 		},
 		{
-			"description": "Verify text \"simple structure\" appears on the page",
+			"description": "Verify the session changed and the content in the chat is different",
 			"commands": [
 				"snapshot",
-				"# ASSERT_VISIBLE: simple structure"
+				"# ASSERT_VISIBLE: explain the codehello world"
 			]
 		}
 	]

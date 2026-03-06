@@ -1,6 +1,6 @@
 {
 	"scenario": "Scenario: Send a chat message and verify response",
-	"generatedAt": "2026-03-06T00:28:27.254Z",
+	"generatedAt": "2026-03-06T00:53:25.599Z",
 	"steps": [
 		{
 			"description": "Type \"explain the code\" in the chat input",
@@ -16,10 +16,10 @@
 			]
 		},
 		{
-			"description": "Verify text \"simple structure\" appears on the page",
+			"description": "Verify there is a chat response",
 			"commands": [
 				"snapshot",
-				"# ASSERT_VISIBLE: simple structure"
+				"# ASSERT_VISIBLE: This project has a simple structure with a main entry point and utility functions."
 			]
 		}
 	]
