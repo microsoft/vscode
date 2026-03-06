@@ -13,9 +13,9 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IObservable, IObservableWithChange, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, IObservableWithChange, observableFromEvent, observableFromPromise, observableValue } from '../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../base/common/path.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -58,6 +58,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
+import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 
 const $ = dom.$;
 
@@ -101,6 +102,8 @@ interface IChangesFolderItem {
 interface IActiveSession {
 	readonly resource: URI;
 	readonly sessionType: string;
+	readonly repository: URI | undefined;
+	readonly worktree: URI | undefined;
 }
 
 type ChangesTreeElement = IChangesFileItem | IChangesFolderItem;
@@ -230,6 +233,7 @@ export class ChangesViewPane extends ViewPane {
 	private readonly activeSession: IObservableWithChange<IActiveSession | undefined>;
 	private readonly activeSessionFileCountObs: IObservableWithChange<number>;
 	private readonly activeSessionHasChangesObs: IObservableWithChange<boolean>;
+	private readonly activeSessionRepositoryChangesObs: IObservableWithChange<IChangesFileItem[] | undefined>;
 
 	get activeSessionHasChanges(): IObservable<boolean> {
 		return this.activeSessionHasChangesObs;
@@ -257,6 +261,7 @@ export class ChangesViewPane extends ViewPane {
 		@ILabelService private readonly labelService: ILabelService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
+		@IGitService private readonly gitService: IGitService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -278,15 +283,48 @@ export class ChangesViewPane extends ViewPane {
 
 			return {
 				resource: activeSession.resource,
+				repository: activeSession.repository,
+				worktree: activeSession.worktree,
 				sessionType: getChatSessionType(activeSession.resource),
 			};
 		}).recomputeInitiallyAndOnChange(this._store);
 
+		// Track active session repository changes
+		const repositoryObs = derived(reader => {
+			const activeSessionWorktree = this.activeSession.read(reader)?.worktree;
+			if (!activeSessionWorktree) {
+				return undefined;
+			}
+
+			return observableFromPromise(this.gitService.openRepository(activeSessionWorktree));
+		});
+
+		this.activeSessionRepositoryChangesObs = derived(reader => {
+			const repository = repositoryObs.read(reader)?.read(reader);
+			if (!repository) {
+				return undefined;
+			}
+
+			const state = repository.value?.state.read(reader);
+			return (state?.workingTreeChanges ?? []).map(change => {
+				const isDeletion = change.modifiedUri === undefined;
+				const isAddition = change.originalUri === undefined;
+				return {
+					type: 'file',
+					uri: change.modifiedUri ?? change.uri,
+					originalUri: change.originalUri,
+					state: ModifiedFileEntryState.Accepted,
+					isDeletion,
+					changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
+					reviewCommentCount: 0,
+					linesAdded: 0,
+					linesRemoved: 0,
+				} satisfies IChangesFileItem;
+			});
+		});
+
 		this.activeSessionFileCountObs = this.createActiveSessionFileCountObservable();
 		this.activeSessionHasChangesObs = this.activeSessionFileCountObs.map(fileCount => fileCount > 0).recomputeInitiallyAndOnChange(this._store);
-
-		// Setup badge tracking
-		this.registerBadgeTracking();
 
 		// Set chatSessionType on the view's context key service so ViewTitle
 		// menu items can use it in their `when` clauses. Update reactively
@@ -295,14 +333,6 @@ export class ChangesViewPane extends ViewPane {
 		this._register(autorun(reader => {
 			const activeSession = this.activeSession.read(reader);
 			viewSessionTypeKey.set(activeSession?.sessionType ?? '');
-		}));
-	}
-
-	private registerBadgeTracking(): void {
-		// Update badge when file count changes
-		this._register(autorun(reader => {
-			const fileCount = this.activeSessionFileCountObs.read(reader);
-			this.updateBadge(fileCount);
 		}));
 	}
 
@@ -532,13 +562,24 @@ export class ChangesViewPane extends ViewPane {
 		const combinedEntriesObs = derived(reader => {
 			const editEntries = editSessionEntriesObs.read(reader);
 			const sessionFiles = sessionFilesObs.read(reader);
-			return [...editEntries, ...sessionFiles];
+			const repositoryFiles = this.activeSessionRepositoryChangesObs.read(reader) ?? [];
+
+			const resources = new Set();
+			const entries: IChangesFileItem[] = [];
+			for (const item of [...editEntries, ...sessionFiles, ...repositoryFiles]) {
+				if (!resources.has(item.uri.fsPath)) {
+					resources.add(item.uri.fsPath);
+					entries.push(item);
+				}
+			}
+			return entries.sort((a, b) => extUriBiasedIgnorePathCase.compare(a.uri, b.uri));
 		});
 
 		// Calculate stats from combined entries
 		const topLevelStats = derived(reader => {
 			const editEntries = editSessionEntriesObs.read(reader);
 			const sessionFiles = sessionFilesObs.read(reader);
+			const repositoryFiles = this.activeSessionRepositoryChangesObs.read(reader) ?? [];
 			const entries = combinedEntriesObs.read(reader);
 
 			let added = 0, removed = 0;
@@ -549,7 +590,7 @@ export class ChangesViewPane extends ViewPane {
 			}
 
 			const files = entries.length;
-			const isSessionMenu = editEntries.length === 0 && sessionFiles.length > 0;
+			const isSessionMenu = editEntries.length === 0 && (sessionFiles.length > 0 || repositoryFiles.length > 0);
 
 			return { files, added, removed, isSessionMenu };
 		});
@@ -651,6 +692,11 @@ export class ChangesViewPane extends ViewPane {
 			dom.setVisibility(hasEntries, this.contentContainer!);
 			dom.setVisibility(hasEntries, this.actionsContainer!);
 			dom.setVisibility(!hasEntries, this.welcomeContainer!);
+		}));
+
+		// Update badge when file count changes
+		this.renderDisposables.add(autorun(reader => {
+			this.updateBadge(topLevelStats.read(reader).files);
 		}));
 
 		// Update summary text (line counts only, file count is shown in badge)
