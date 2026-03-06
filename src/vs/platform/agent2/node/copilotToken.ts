@@ -250,6 +250,8 @@ export class CopilotApiService {
 				headers: {
 					'Authorization': `Bearer ${token.token}`,
 					'Content-Type': 'application/json',
+					'X-Request-Id': generateUuid(),
+					'OpenAI-Intent': 'conversation-agent',
 					...extraHeaders,
 				},
 				body: JSON.stringify(body),
@@ -366,12 +368,20 @@ export class CopilotApiService {
 			client.updateDomains(copilotToken, undefined);
 		}
 
+		// Use refresh_in relative to local clock rather than the server's
+		// expires_at. Some clients have clocks that run ahead, which would
+		// make a freshly minted token look immediately expired if we trust
+		// the server timestamp. Adding a buffer ensures the token stays
+		// valid long enough for the refresh cycle to fire.
+		const nowSeconds = Date.now() / 1000;
+		const expiresAt = nowSeconds + response.refresh_in + 60;
+
 		const token = {
 			token: response.token,
-			expiresAt: response.expires_at,
+			expiresAt,
 		};
 
-		this._logService.info(`[CopilotApi] Token acquired, expires at ${new Date(token.expiresAt * 1000).toISOString()}`);
+		this._logService.info(`[CopilotApi] Token acquired, expires in ~${Math.round(response.refresh_in / 60)}m (refresh_in=${response.refresh_in}s)`);
 		return token;
 	}
 }

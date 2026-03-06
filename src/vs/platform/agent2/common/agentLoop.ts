@@ -317,6 +317,15 @@ export class AgentLoop {
 					Object.assign(accumulatedMetadata, chunk.metadata);
 					break;
 				}
+				case 'redacted-thinking': {
+					// Redacted thinking blocks must be preserved opaquely
+					// and echoed back on subsequent turns.
+					parts.push({
+						type: 'redacted-thinking',
+						data: chunk.data,
+					});
+					break;
+				}
 			}
 		}
 

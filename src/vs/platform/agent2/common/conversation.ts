@@ -58,7 +58,17 @@ export interface IThinkingPart {
 	readonly signature?: string;
 }
 
-export type IAssistantContentPart = ITextPart | IToolCallPart | IThinkingPart;
+/**
+ * Opaque redacted thinking block from the provider. The content is
+ * encrypted and must be echoed back unchanged on the next turn to
+ * maintain reasoning continuity. Dropping these causes API errors.
+ */
+export interface IRedactedThinkingPart {
+	readonly type: 'redacted-thinking';
+	readonly data: string;
+}
+
+export type IAssistantContentPart = ITextPart | IToolCallPart | IThinkingPart | IRedactedThinkingPart;
 
 // -- Messages -----------------------------------------------------------------
 

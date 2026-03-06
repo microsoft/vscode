@@ -283,6 +283,45 @@ suite('AnthropicModelProvider', () => {
 			assert.ok(capturedHeaders!['anthropic-beta']);
 			assert.strictEqual(capturedHeaders!['Content-Type'], 'application/json');
 		});
+
+		test('translates thinking + tool_use + tool_result round-trip', async () => {
+			let capturedBody: string | undefined;
+			const { provider } = createMockSetup(SIMPLE_SSE_EVENTS, {
+				captureBody: (body) => { capturedBody = body; },
+			});
+
+			const model = { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514' };
+			const messages: IConversationMessage[] = [
+				createUserMessage('Run ls'),
+				createAssistantMessage([
+					{ type: 'thinking', text: 'I should run ls', signature: 'sig_123' },
+					{ type: 'tool-call', toolCallId: 'toolu_abc', toolName: 'bash', arguments: { command: 'ls' } },
+				], model),
+				createToolResultMessage('toolu_abc', 'bash', 'file1.txt\nfile2.txt'),
+			];
+
+			await collectChunks(provider, messages);
+
+			assert.ok(capturedBody);
+			const parsed = JSON.parse(capturedBody!);
+
+			// messages[0]: user
+			assert.strictEqual(parsed.messages[0].role, 'user');
+
+			// messages[1]: assistant with thinking + tool_use
+			assert.strictEqual(parsed.messages[1].role, 'assistant');
+			assert.strictEqual(parsed.messages[1].content.length, 2);
+			assert.strictEqual(parsed.messages[1].content[0].type, 'thinking');
+			assert.strictEqual(parsed.messages[1].content[0].signature, 'sig_123');
+			assert.strictEqual(parsed.messages[1].content[1].type, 'tool_use');
+			assert.strictEqual(parsed.messages[1].content[1].id, 'toolu_abc');
+
+			// messages[2]: user with tool_result matching the tool_use id
+			assert.strictEqual(parsed.messages[2].role, 'user');
+			assert.strictEqual(parsed.messages[2].content[0].type, 'tool_result');
+			assert.strictEqual(parsed.messages[2].content[0].tool_use_id, 'toolu_abc');
+			assert.strictEqual(parsed.messages[2].content[0].content, 'file1.txt\nfile2.txt');
+		});
 	});
 
 	suite('cancellation', () => {
@@ -343,6 +382,91 @@ suite('AnthropicModelProvider', () => {
 			assert.strictEqual(models.length, 1);
 			assert.strictEqual(models[0].identity.modelId, 'claude-sonnet-4-20250514');
 			assert.strictEqual(models[0].identity.provider, 'anthropic');
+		});
+	});
+
+	suite('redacted thinking', () => {
+		test('captures redacted_thinking blocks from SSE stream', async () => {
+			const { provider } = createMockSetup([
+				sseEvent('message_start', {
+					type: 'message_start',
+					message: { id: 'msg-1', model: 'claude-sonnet-4-20250514', usage: { input_tokens: 10, output_tokens: 0 } },
+				}),
+				sseEvent('content_block_start', { type: 'content_block_start', index: 0, content_block: { type: 'redacted_thinking', data: 'encrypted-data-abc123' } }),
+				sseEvent('content_block_stop', { type: 'content_block_stop', index: 0 }),
+				sseEvent('content_block_start', { type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } }),
+				sseEvent('content_block_delta', { type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: 'Hello' } }),
+				sseEvent('content_block_stop', { type: 'content_block_stop', index: 1 }),
+				sseEvent('message_delta', { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 5 } }),
+				sseEvent('message_stop', { type: 'message_stop' }),
+			]);
+
+			const chunks = await collectChunks(provider);
+			const redactedChunks = chunks.filter(c => c.type === 'redacted-thinking');
+			assert.strictEqual(redactedChunks.length, 1);
+			assert.strictEqual(redactedChunks[0].data, 'encrypted-data-abc123');
+		});
+
+		test('round-trips redacted_thinking with tool_use through message translation', async () => {
+			// This test catches the bug where redacted_thinking blocks were
+			// silently dropped, causing Anthropic to reject the next request
+			// because tool_use IDs had no matching tool_result blocks.
+			let capturedBody: string | undefined;
+			const { provider } = createMockSetup([
+				sseEvent('message_start', {
+					type: 'message_start',
+					message: { id: 'msg-1', model: 'claude-sonnet-4-20250514', usage: { input_tokens: 10, output_tokens: 0 } },
+				}),
+				sseEvent('content_block_start', { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }),
+				sseEvent('content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'OK' } }),
+				sseEvent('content_block_stop', { type: 'content_block_stop', index: 0 }),
+				sseEvent('message_delta', { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 1 } }),
+				sseEvent('message_stop', { type: 'message_stop' }),
+			], { captureBody: (b) => { capturedBody = b; } });
+
+			// Build messages that include an assistant message with redacted_thinking + tool_use,
+			// followed by a tool result -- this is the conversation on the SECOND model call.
+			const messages: IConversationMessage[] = [
+				createUserMessage('Do something'),
+				createAssistantMessage(
+					[
+						{ type: 'redacted-thinking', data: 'encrypted-opaque-data' },
+						{ type: 'thinking', text: 'Let me use bash', signature: 'sig123' },
+						{ type: 'tool-call', toolCallId: 'toolu_01XYZ', toolName: 'bash', arguments: { command: 'ls' } },
+					],
+					{ provider: 'anthropic', modelId: 'claude-sonnet-4-20250514' },
+				),
+				createToolResultMessage('toolu_01XYZ', 'bash', 'file1.txt\nfile2.txt'),
+			];
+
+			await collectChunks(provider, messages);
+			assert.ok(capturedBody, 'Request body should have been captured');
+
+			const body = JSON.parse(capturedBody!);
+			const anthropicMessages = body.messages;
+
+			// messages[0] = user
+			assert.strictEqual(anthropicMessages[0].role, 'user');
+
+			// messages[1] = assistant with redacted_thinking + thinking + tool_use
+			assert.strictEqual(anthropicMessages[1].role, 'assistant');
+			const assistantContent = anthropicMessages[1].content;
+			const redactedBlock = assistantContent.find((b: { type: string }) => b.type === 'redacted_thinking');
+			assert.ok(redactedBlock, 'redacted_thinking block must be preserved in the echoed assistant message');
+			assert.strictEqual(redactedBlock.data, 'encrypted-opaque-data');
+
+			const thinkingBlock = assistantContent.find((b: { type: string }) => b.type === 'thinking');
+			assert.ok(thinkingBlock, 'thinking block must be present');
+
+			const toolUseBlock = assistantContent.find((b: { type: string }) => b.type === 'tool_use');
+			assert.ok(toolUseBlock, 'tool_use block must be present');
+			assert.strictEqual(toolUseBlock.id, 'toolu_01XYZ');
+
+			// messages[2] = user with tool_result
+			assert.strictEqual(anthropicMessages[2].role, 'user');
+			const toolResultBlock = anthropicMessages[2].content.find((b: { type: string }) => b.type === 'tool_result');
+			assert.ok(toolResultBlock, 'tool_result block must be present');
+			assert.strictEqual(toolResultBlock.tool_use_id, 'toolu_01XYZ');
 		});
 	});
 });

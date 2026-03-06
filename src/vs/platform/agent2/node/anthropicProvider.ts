@@ -218,6 +218,12 @@ export class AnthropicModelProvider implements IModelProvider {
 						signature: part.signature ?? '',
 					});
 					break;
+				case 'redacted-thinking':
+					content.push({
+						type: 'redacted_thinking',
+						data: part.data,
+					});
+					break;
 			}
 		}
 		return { role: 'assistant', content };
@@ -285,7 +291,7 @@ export class AnthropicModelProvider implements IModelProvider {
 		};
 
 		// State for tracking content blocks
-		const blockTypes = new Map<number, 'text' | 'tool_use' | 'thinking'>();
+		const blockTypes = new Map<number, string>();
 		const blockToolIds = new Map<number, string>();
 		const blockToolNames = new Map<number, string>();
 		const blockArgChunks = new Map<number, string[]>();
@@ -329,7 +335,7 @@ export class AnthropicModelProvider implements IModelProvider {
 				}
 				case 'content_block_start': {
 					const block = payload.content_block;
-					blockTypes.set(payload.index, block.type as 'text' | 'tool_use' | 'thinking');
+					blockTypes.set(payload.index, block.type);
 					if (block.type === 'tool_use' && block.id && block.name) {
 						blockToolIds.set(payload.index, block.id);
 						blockToolNames.set(payload.index, block.name);
@@ -338,6 +344,13 @@ export class AnthropicModelProvider implements IModelProvider {
 							type: 'tool-call-start',
 							toolCallId: block.id,
 							toolName: block.name,
+						});
+					} else if (block.type === 'redacted_thinking') {
+						// Emit immediately - redacted thinking blocks carry all
+						// data in the start event and have no deltas.
+						pushEvent({
+							type: 'redacted-thinking',
+							data: (block as { data: string }).data,
 						});
 					}
 					break;

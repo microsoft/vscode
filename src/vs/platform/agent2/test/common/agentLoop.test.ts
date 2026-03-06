@@ -621,5 +621,57 @@ suite('Agent Loop', () => {
 				'turn-boundary',
 			]);
 		});
+		test('tool result messages are passed back to the model on re-sample', async () => {
+			const tool = createMockTool('bash', false, () => 'command output');
+			const capturedMessages: IConversationMessage[][] = [];
+
+			const provider: IModelProvider = {
+				providerId: 'test',
+				async *sendRequest(
+					_systemPrompt: string,
+					messages: readonly IConversationMessage[],
+				): AsyncGenerator<ModelResponseChunk> {
+					capturedMessages.push([...messages]);
+					if (capturedMessages.length === 1) {
+						// First call: return a tool call
+						yield { type: 'tool-call-complete', toolCallId: 'toolu_1', toolName: 'bash', arguments: '{"command":"ls"}' };
+					} else {
+						// Second call: return final text
+						yield { type: 'text-delta', text: 'Done' };
+					}
+				},
+				async listModels() { return []; },
+			};
+
+			await collectEvents(
+				[createUserMessage('Run ls')],
+				defaultConfig({ modelProvider: provider, tools: [tool] }),
+			);
+
+			// Should have been called twice
+			assert.strictEqual(capturedMessages.length, 2);
+
+			// First call: just the user message
+			assert.strictEqual(capturedMessages[0].length, 1);
+			assert.strictEqual(capturedMessages[0][0].role, 'user');
+
+			// Second call: user + assistant (with tool_use) + tool_result
+			assert.strictEqual(capturedMessages[1].length, 3);
+			assert.strictEqual(capturedMessages[1][0].role, 'user');
+			assert.strictEqual(capturedMessages[1][1].role, 'assistant');
+			assert.strictEqual(capturedMessages[1][2].role, 'tool-result');
+
+			// Verify tool result has the correct tool call ID
+			const toolResult = capturedMessages[1][2] as import('../../common/conversation.js').IToolResultMessage;
+			assert.strictEqual(toolResult.toolCallId, 'toolu_1');
+			assert.strictEqual(toolResult.content, 'command output');
+
+			// Verify assistant message has the tool call
+			const assistantMsg = capturedMessages[1][1] as import('../../common/conversation.js').IAssistantMessage;
+			const toolCalls = assistantMsg.content.filter(p => p.type === 'tool-call');
+			assert.strictEqual(toolCalls.length, 1);
+			assert.strictEqual(toolCalls[0].toolCallId, 'toolu_1');
+		});
+
 	});
 });

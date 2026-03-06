@@ -67,6 +67,11 @@ export interface IProviderMetadataChunk {
 	readonly metadata: Record<string, unknown>;
 }
 
+export interface IRedactedThinkingChunk {
+	readonly type: 'redacted-thinking';
+	readonly data: string;
+}
+
 export type ModelResponseChunk =
 	| ITextDeltaChunk
 	| IToolCallStartChunk
@@ -75,7 +80,8 @@ export type ModelResponseChunk =
 	| IThinkingDeltaChunk
 	| IThinkingSignatureChunk
 	| IUsageChunk
-	| IProviderMetadataChunk;
+	| IProviderMetadataChunk
+	| IRedactedThinkingChunk;
 
 // -- Model configuration ------------------------------------------------------
 
