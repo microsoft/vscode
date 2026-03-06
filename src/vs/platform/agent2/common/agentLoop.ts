@@ -338,9 +338,16 @@ export class AgentLoop {
 			});
 		}
 
-		// Add text part if any text was accumulated
+		// Add text part before any tool-call parts. Anthropic requires text
+		// blocks to precede tool_use blocks in assistant messages; placing text
+		// after tool_use causes a 400 ("tool_use without tool_result").
 		if (fullText) {
-			parts.push({ type: 'text', text: fullText });
+			const firstToolIdx = parts.findIndex(p => p.type === 'tool-call');
+			if (firstToolIdx >= 0) {
+				parts.splice(firstToolIdx, 0, { type: 'text', text: fullText });
+			} else {
+				parts.push({ type: 'text', text: fullText });
+			}
 		}
 
 		return { parts, text: fullText, events, providerMetadata: accumulatedMetadata };
