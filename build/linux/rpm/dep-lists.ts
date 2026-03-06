@@ -13,11 +13,14 @@ export const additionalDeps = [
 	'rpmlib(FileDigests) <= 4.6.0-1',
 	'libvulkan.so.1()(64bit)',
 	'libcurl.so.4()(64bit)',
-	'xdg-utils' // OS integration
+	'xdg-utils', // OS integration
+	'bubblewrap', // agent command sandboxing
+	'socat', // agent command sandboxing
 ];
 
 export const referenceGeneratedDepsByArch = {
 	'x86_64': [
+		'bubblewrap',
 		'ca-certificates',
 		'ld-linux-x86-64.so.2()(64bit)',
 		'ld-linux-x86-64.so.2(GLIBC_2.2.5)(64bit)',
@@ -114,9 +117,11 @@ export const referenceGeneratedDepsByArch = {
 		'libxkbfile.so.1()(64bit)',
 		'rpmlib(FileDigests) <= 4.6.0-1',
 		'rtld(GNU_HASH)',
+		'socat',
 		'xdg-utils'
 	],
 	'armv7hl': [
+		'bubblewrap',
 		'ca-certificates',
 		'ld-linux-armhf.so.3',
 		'ld-linux-armhf.so.3(GLIBC_2.4)',
@@ -223,9 +228,11 @@ export const referenceGeneratedDepsByArch = {
 		'libxkbfile.so.1',
 		'rpmlib(FileDigests) <= 4.6.0-1',
 		'rtld(GNU_HASH)',
+		'socat',
 		'xdg-utils'
 	],
 	'aarch64': [
+		'bubblewrap',
 		'ca-certificates',
 		'ld-linux-aarch64.so.1()(64bit)',
 		'ld-linux-aarch64.so.1(GLIBC_2.17)(64bit)',
@@ -315,6 +322,7 @@ export const referenceGeneratedDepsByArch = {
 		'libxkbfile.so.1()(64bit)',
 		'rpmlib(FileDigests) <= 4.6.0-1',
 		'rtld(GNU_HASH)',
+		'socat',
 		'xdg-utils'
 	]
 };
