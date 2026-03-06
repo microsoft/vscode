@@ -109,3 +109,17 @@ export type AgentLoopEvent =
 	| IUsageEvent
 	| IErrorEvent
 	| ITurnBoundaryEvent;
+
+/** Maps event type discriminant strings to their corresponding event interface. */
+export interface IAgentLoopEventMap {
+	'model-call-start': IModelCallStartEvent;
+	'model-call-complete': IModelCallCompleteEvent;
+	'assistant-delta': IAssistantDeltaEvent;
+	'assistant-message': IAssistantMessageEvent;
+	'reasoning-delta': IReasoningDeltaEvent;
+	'tool-start': IToolStartEvent;
+	'tool-complete': IToolCompleteEvent;
+	'usage': IUsageEvent;
+	'error': IErrorEvent;
+	'turn-boundary': ITurnBoundaryEvent;
+}
