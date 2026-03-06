@@ -16,6 +16,7 @@ import { BrowserViewUri } from '../common/browserViewUri.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { BrowserSession } from './browserSession.js';
 import { IProductService } from '../../product/common/productService.js';
+import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { CDPBrowserProxy } from '../common/cdp/proxy.js';
 import { logBrowserOpen } from '../common/browserViewTelemetry.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -54,7 +55,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IProductService private readonly productService: IProductService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService
 	) {
 		super();
 	}
@@ -66,6 +68,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		if (this.browserViews.has(id)) {
 			throw new Error(`Browser view with id ${id} already exists`);
 		}
+
+		browserSession.connectStorage(this.applicationStorageMainService);
 
 		const view = this.instantiationService.createInstance(
 			BrowserView,
@@ -225,8 +229,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				await this.destroyBrowserView(view.id);
 			}
 		}
-
-		browserSession.dispose();
 	}
 
 	/**
@@ -360,9 +362,18 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).clearStorage();
 	}
 
+	async trustCertificate(id: string, host: string, fingerprint: string): Promise<void> {
+		return this._getBrowserView(id).trustCertificate(host, fingerprint);
+	}
+
+	async untrustCertificate(id: string, host: string, fingerprint: string): Promise<void> {
+		return this._getBrowserView(id).untrustCertificate(host, fingerprint);
+	}
+
 	async clearGlobalStorage(): Promise<void> {
 		const browserSession = BrowserSession.getOrCreateGlobal();
-		await browserSession.electronSession.clearData();
+		browserSession.connectStorage(this.applicationStorageMainService);
+		await browserSession.clearData();
 	}
 
 	async clearWorkspaceStorage(workspaceId: string): Promise<void> {
@@ -370,6 +381,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			workspaceId,
 			this.environmentMainService.workspaceStorageHome
 		);
-		await browserSession.electronSession.clearData();
+		browserSession.connectStorage(this.applicationStorageMainService);
+		await browserSession.clearData();
 	}
 }

@@ -34,6 +34,7 @@ export interface IBrowserViewState {
 	lastScreenshot: VSBuffer | undefined;
 	lastFavicon: string | undefined;
 	lastError: IBrowserViewLoadError | undefined;
+	certificateError: IBrowserViewCertificateError | undefined;
 	storageScope: BrowserViewStorageScope;
 	zoomFactor: number;
 }
@@ -43,6 +44,7 @@ export interface IBrowserViewNavigationEvent {
 	title: string;
 	canGoBack: boolean;
 	canGoForward: boolean;
+	certificateError: IBrowserViewCertificateError | undefined;
 }
 
 export interface IBrowserViewLoadingEvent {
@@ -54,6 +56,15 @@ export interface IBrowserViewLoadError {
 	url: string;
 	errorCode: number;
 	errorDescription: string;
+	certificateError?: IBrowserViewCertificateError;
+}
+
+export interface IBrowserViewCertificateError {
+	host: string;
+	fingerprint: string;
+	error: string;
+	url: string;
+	hasTrustedException: boolean;
 }
 
 export interface IBrowserViewFocusEvent {
@@ -287,4 +298,22 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	clearStorage(id: string): Promise<void>;
+
+	/**
+	 * Trust a certificate for a given host in the browser view's session.
+	 * The page will be automatically reloaded after trusting.
+	 * @param id The browser view identifier
+	 * @param host The hostname that presented the certificate
+	 * @param fingerprint The SHA-256 fingerprint of the certificate to trust
+	 */
+	trustCertificate(id: string, host: string, fingerprint: string): Promise<void>;
+
+	/**
+	 * Revoke trust for a previously trusted certificate.
+	 * The page will be automatically reloaded after revoking.
+	 * @param id The browser view identifier
+	 * @param host The hostname to revoke the certificate for
+	 * @param fingerprint The SHA-256 fingerprint of the certificate to revoke
+	 */
+	untrustCertificate(id: string, host: string, fingerprint: string): Promise<void>;
 }
