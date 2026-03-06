@@ -268,7 +268,10 @@
 		"charts.orange": "#CD861A",
 		"charts.green": "#86CF86",
 		"charts.purple": "#AD80D7",
-		"inlineChat.border": "#00000000"
+		"inlineChat.border": "#00000000",
+		"minimapSlider.background": "#83848533",
+		"minimapSlider.hoverBackground": "#83848566",
+		"minimapSlider.activeBackground": "#83848599",
 	},
 	"tokenColors": [
 		{

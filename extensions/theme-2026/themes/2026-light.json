@@ -272,7 +272,10 @@
 		"charts.green": "#388A34",
 		"charts.purple": "#652D90",
 		"agentStatusIndicator.background": "#FFFFFF",
-		"inlineChat.border": "#00000000"
+		"inlineChat.border": "#00000000",
+		"minimapSlider.background": "#99999926",
+		"minimapSlider.hoverBackground": "#99999940",
+		"minimapSlider.activeBackground": "#99999955",
 	},
 	"tokenColors": [
 		{
