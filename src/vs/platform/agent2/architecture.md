@@ -169,14 +169,15 @@ Renderer (workbench)
     → IPC to agent host process
       → NativeAgent.setAuthToken(githubToken)
         → CopilotTokenService.setGitHubToken(githubToken)
-          → Exchanges for Copilot JWT via GET {capiBaseUrl}/copilot_internal/v2/token
+          → CAPIClient.makeRequest(RequestType.CopilotToken) exchanges for Copilot JWT
+          → CAPIClient.updateDomains() updates URL routing from token endpoints
           → Caches JWT, auto-refreshes when expired
           → JWT used as Bearer token for all model requests
 ```
 
 ## Design Decisions
 
-1. **Direct CAPI calls, no SDK dependency.** We talk to the GitHub Copilot API directly via HTTP, giving us full control over the request/response cycle, streaming, and retry behavior.
+1. **CAPIClient for API routing.** We use the `@vscode/copilot-api` CAPIClient for URL routing, header injection, and token exchange -- the same module used by the copilot-chat extension. This ensures correct endpoint resolution, standard header management (session ID, machine ID, integration ID), and domain updates from token endpoints. No hardcoded API URLs.
 
 2. **Provider-neutral conversation format.** Internal message types don't leak provider-specific concepts. `providerMetadata` bags enable lossless round-trip translation without coupling the core to any specific API.
 
