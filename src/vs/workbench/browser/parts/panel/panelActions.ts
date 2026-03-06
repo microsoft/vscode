@@ -9,7 +9,7 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { MenuId, MenuRegistry, registerAction2, Action2, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { isHorizontal, IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from '../../../services/layout/browser/layoutService.js';
-import { IsAuxiliaryWindowContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from '../../../common/contextkeys.js';
+import { IsAuxiliaryWindowContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext, PanelDialogModeContext } from '../../../common/contextkeys.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -425,3 +425,41 @@ export class MoveSecondarySideBarToPanelAction extends MoveViewsBetweenPanelsAct
 }
 registerAction2(MoveSidePanelToPanelAction);
 registerAction2(MoveSecondarySideBarToPanelAction);
+
+// --- Toggle Panel Mode (Pinned/Dialog)
+
+const unpinIcon = registerIcon('panel-unpin', Codicon.pinned, localize('unpinPanelIcon', 'Icon to unpin the panel from the grid.'));
+
+registerAction2(class TogglePanelModeAction extends Action2 {
+
+	static readonly ID = 'workbench.action.togglePanelMode';
+
+	constructor() {
+		super({
+			id: 'workbench.action.togglePanelMode',
+			title: localize2('togglePanelMode', "Toggle Panel Mode"),
+			category: Categories.View,
+			f1: true,
+			toggled: {
+				condition: PanelDialogModeContext,
+				title: localize('pinPanel', "Pin Panel"),
+			},
+			menu: [{
+				id: MenuId.PanelTitle,
+				group: 'navigation',
+				order: 1,
+				when: PanelDialogModeContext.negate()
+			}, {
+				id: MenuId.PanelTitle,
+				group: 'navigation',
+				order: 1,
+				when: PanelDialogModeContext
+			}],
+			icon: unpinIcon,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IWorkbenchLayoutService).togglePanelMode();
+	}
+});

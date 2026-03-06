@@ -98,3 +98,89 @@
 	display: inline-block;
 	transform: rotate(180deg);
 }
+
+/*---------------------------------------------------------------------------------------------
+ * Panel Dialog Mode
+ *--------------------------------------------------------------------------------------------*/
+
+/* Safe area for panel dialog - respects title bar and other chrome */
+.monaco-workbench .panel-dialog-safe-area {
+	position: absolute;
+	top: var(--vscode-titleBar-height, 30px);
+	left: 0;
+	right: 0;
+	bottom: 0;
+	pointer-events: none;
+	display: none;
+}
+
+.monaco-workbench.panel-dialog-open .panel-dialog-safe-area {
+	display: block;
+	z-index: 100;
+}
+
+/* Semi-transparent backdrop behind the dialog */
+.monaco-workbench .panel-dialog-backdrop {
+	position: absolute;
+	top: var(--vscode-titleBar-height, 30px);
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.4);
+	display: none;
+	z-index: 99;
+}
+
+.monaco-workbench.panel-dialog-open .panel-dialog-backdrop {
+	display: block;
+	pointer-events: auto;
+}
+
+/* Reduce backdrop opacity when the dialog is focused */
+.monaco-workbench.panel-dialog-open .panel-dialog-overlay:focus-within ~ .panel-dialog-backdrop {
+	background: rgba(0, 0, 0, 0.3);
+}
+
+/* The overlay container that holds the floating panel */
+.monaco-workbench .panel-dialog-overlay {
+	position: absolute;
+	display: none;
+	pointer-events: none;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	border-radius: 8px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+	overflow: hidden;
+}
+
+.monaco-workbench.panel-dialog-open .panel-dialog-overlay {
+	display: flex;
+	pointer-events: auto;
+	z-index: 101;
+}
+
+/* Full-size maximized dialog */
+.monaco-workbench.panel-dialog-open.panel-dialog-maximized .panel-dialog-overlay {
+	left: 0;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	transform: none;
+	width: 100% !important;
+	height: 100% !important;
+	border-radius: 0;
+}
+
+/* Panel part inside the overlay takes full size */
+.monaco-workbench .panel-dialog-overlay .part.panel {
+	width: 100% !important;
+	height: 100% !important;
+	position: relative !important;
+}
+
+/* Override nopanel hiding when in dialog mode */
+.monaco-workbench.nopanel.panel-dialog-open .panel-dialog-overlay .part.panel {
+	display: flex !important;
+	visibility: visible !important;
+}
