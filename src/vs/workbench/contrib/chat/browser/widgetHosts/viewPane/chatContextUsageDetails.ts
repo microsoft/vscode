@@ -74,8 +74,7 @@ export class ChatContextUsageDetails extends Disposable {
 
 		// Output buffer legend (shown only when outputBuffer is provided)
 		this.outputBufferLegend = this.quotaItem.appendChild($('.output-buffer-legend'));
-		const legendSwatch = this.outputBufferLegend.appendChild($('.output-buffer-swatch'));
-		legendSwatch.classList.add('output-buffer');
+		this.outputBufferLegend.appendChild($('.output-buffer-swatch'));
 		const legendLabel = this.outputBufferLegend.appendChild($('span'));
 		legendLabel.textContent = localize('outputReserved', "Reserved for response");
 		this.outputBufferLegend.style.display = 'none';
@@ -119,16 +118,16 @@ export class ChatContextUsageDetails extends Disposable {
 			this.formatTokenCount(usedTokens, 1),
 			this.formatTokenCount(totalContextWindow, 0)
 		);
-		this.percentageLabel.textContent = localize('quotaDisplay', "{0}%", percentage.toFixed(0));
+		this.percentageLabel.textContent = localize('quotaDisplay', "{0}%", Math.min(100, percentage).toFixed(0));
 
 		// Update progress bar — prompt fill + output buffer fill
 		const promptPercentage = outputBufferPercentage !== undefined
-			? Math.min(100, percentage - outputBufferPercentage)
-			: Math.min(100, percentage);
+			? Math.max(0, Math.min(100, percentage - outputBufferPercentage))
+			: Math.max(0, Math.min(100, percentage));
 		this.progressFill.style.width = `${promptPercentage}%`;
 
 		if (outputBufferPercentage !== undefined && outputBufferPercentage > 0) {
-			this.outputBufferFill.style.width = `${Math.min(100 - promptPercentage, outputBufferPercentage)}%`;
+			this.outputBufferFill.style.width = `${Math.max(0, Math.min(100 - promptPercentage, outputBufferPercentage))}%`;
 			this.outputBufferFill.style.display = '';
 			this.outputBufferLegend.style.display = '';
 		} else {

@@ -279,9 +279,9 @@ export class ChatContextUsageWidget extends Disposable {
 		const totalContextWindow = maxInputTokens + maxOutputTokens;
 		const reservedOutput = outputBuffer ?? maxOutputTokens;
 		const usedTokens = promptTokens + reservedOutput;
-		const percentage = Math.min(100, (usedTokens / totalContextWindow) * 100);
+		const percentage = (usedTokens / totalContextWindow) * 100;
 		const outputBufferPercentage = outputBuffer !== undefined
-			? Math.min(100, (outputBuffer / totalContextWindow) * 100)
+			? (outputBuffer / totalContextWindow) * 100
 			: undefined;
 
 		this.render(percentage, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails);
@@ -292,11 +292,11 @@ export class ChatContextUsageWidget extends Disposable {
 		// Store current data for use in details popup
 		this.currentData = { usedTokens, totalContextWindow, percentage, outputBufferPercentage, promptTokenDetails };
 
-		// Update pie chart progress
+		// Update pie chart progress (setProgress clamps internally)
 		this.progressIndicator.setProgress(percentage);
 
-		// Update percentage label and aria-label
-		const roundedPercentage = Math.round(percentage);
+		// Update percentage label and aria-label (clamp display to 100)
+		const roundedPercentage = Math.min(100, Math.round(percentage));
 		this.percentageLabel.textContent = `${roundedPercentage}%`;
 		this.domNode.setAttribute('aria-label', localize('contextUsagePercentageLabel', "Context window usage: {0}%", roundedPercentage));
 
