@@ -4,20 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Copilot API client service.
+ * Copilot API service.
+ *
+ * A unified service for making authenticated requests to the GitHub Copilot
+ * API (CAPI). This is the single place where auth tokens are managed and
+ * authorization headers are set. Individual model providers should NOT handle
+ * tokens or auth headers -- they call this service's methods which handle
+ * all of that transparently.
  *
  * Wraps the CAPIClient from `@vscode/copilot-api` to provide:
- * - GitHub OAuth token -> Copilot JWT exchange
+ * - GitHub OAuth token -> Copilot JWT exchange (automatic, transparent)
+ * - Authenticated requests with proper Authorization headers
  * - URL routing for all API endpoints (models, messages, completions, etc.)
  * - Standard header injection (session ID, machine ID, integration ID)
  * - Domain updates from Copilot token endpoints
  *
- * This follows the same pattern used by the copilot-chat extension's
- * ICAPIClientService but adapted for the agent host process.
- *
- * Note: We use `require()` to load @vscode/copilot-api because its .d.ts
- * files use extensionless relative imports which are incompatible with
- * TypeScript's `nodenext` module resolution. The types are defined locally.
+ * Note: We use dynamic import() to load @vscode/copilot-api because its
+ * .d.ts files use extensionless relative imports which are incompatible
+ * with TypeScript's `nodenext` module resolution. The types are defined
+ * locally.
  */
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
@@ -27,7 +32,7 @@ import { ILogService } from '../../log/common/log.js';
 // -- Types mirroring @vscode/copilot-api -------------------------------------
 
 /** Mirrors @vscode/copilot-api FetchOptions */
-interface ICAPIFetchOptions {
+export interface ICAPIFetchOptions {
 	headers?: Record<string, string>;
 	body?: BodyInit;
 	timeout?: number;
@@ -37,7 +42,7 @@ interface ICAPIFetchOptions {
 }
 
 /** Mirrors @vscode/copilot-api IFetcherService */
-interface ICAPIFetcherService {
+export interface ICAPIFetcherService {
 	fetch(url: string, options: ICAPIFetchOptions): Promise<unknown>;
 }
 
@@ -61,10 +66,8 @@ interface ICAPICopilotToken {
 	sku: string;
 }
 
-/**
- * Type for request metadata. We only use a subset of request types.
- */
-interface ICAPIRequestMetadata {
+/** Type for request metadata. */
+export interface ICAPIRequestMetadata {
 	type: string;
 	isModelLab?: boolean;
 }
@@ -85,13 +88,6 @@ export const CAPIRequestType = {
 } as const;
 
 // -- Token types --------------------------------------------------------------
-
-export interface ICopilotToken {
-	/** The Copilot JWT used as Bearer token for API requests. */
-	readonly token: string;
-	/** Unix timestamp (seconds) when the token expires. */
-	readonly expiresAt: number;
-}
 
 interface ITokenEnvelope {
 	readonly token: string;
@@ -137,16 +133,16 @@ const TOKEN_REFRESH_MARGIN_SECONDS = 60;
 const GITHUB_API_VERSION = '2025-04-01';
 
 /**
- * Service that manages the Copilot API client and JWT lifecycle:
- * - Wraps CAPIClient for URL routing and header management
- * - Exchanges GitHub OAuth tokens for Copilot JWTs
- * - Caches JWTs and auto-refreshes before expiry
- * - Provides makeRequest() for routing API calls
+ * Unified service for making authenticated requests to the Copilot API.
+ *
+ * Model providers should use {@link sendModelRequest} to make model calls --
+ * auth is handled transparently. The service manages the full token lifecycle
+ * (exchange, caching, refresh) and delegates URL routing to CAPIClient.
  */
-export class CopilotTokenService {
+export class CopilotApiService {
 	private _githubToken: string | undefined;
-	private _cachedToken: ICopilotToken | undefined;
-	private _refreshPromise: Promise<ICopilotToken> | undefined;
+	private _cachedToken: { token: string; expiresAt: number } | undefined;
+	private _refreshPromise: Promise<{ token: string; expiresAt: number }> | undefined;
 	private _capiClient: ICAPIClient | undefined;
 	private _capiClientPromise: Promise<ICAPIClient> | undefined;
 	private readonly _fetcherService: ICAPIFetcherService | undefined;
@@ -187,12 +183,64 @@ export class CopilotTokenService {
 		return this._capiClientPromise;
 	}
 
+	// ---- Public API --------------------------------------------------------
+
 	/**
-	 * Makes a request through CAPIClient with proper URL routing and headers.
-	 * Use this instead of raw fetch for all Copilot API calls.
+	 * Makes an authenticated request to a CAPI model endpoint.
+	 * Automatically handles token exchange, Authorization header, and
+	 * URL routing via CAPIClient. Callers should NOT set the
+	 * Authorization header -- this method does it.
+	 *
+	 * @param body - The JSON request body (will be stringified).
+	 * @param requestType - The CAPI request type for URL routing.
+	 * @param extraHeaders - Additional headers (e.g., anthropic-beta).
+	 * @param signal - AbortSignal for cancellation.
+	 * @param cancellationToken - VS Code cancellation token for token exchange.
+	 * @returns The raw Response from the API.
 	 */
-	async makeRequest<T>(options: ICAPIFetchOptions, requestType: ICAPIRequestMetadata): Promise<T> {
+	async sendModelRequest(
+		body: unknown,
+		requestType: ICAPIRequestMetadata,
+		extraHeaders?: Record<string, string>,
+		signal?: AbortSignal,
+		cancellationToken?: CancellationToken,
+	): Promise<Response> {
+		const token = await this._getToken(cancellationToken ?? CancellationToken.None);
 		const client = await this._ensureCAPIClient();
+
+		const options: ICAPIFetchOptions = {
+			method: 'POST',
+			headers: {
+				'Authorization': `Bearer ${token.token}`,
+				'Content-Type': 'application/json',
+				...extraHeaders,
+			},
+			body: JSON.stringify(body),
+			signal,
+		};
+
+		return client.makeRequest<Response>(options, requestType);
+	}
+
+	/**
+	 * Makes an authenticated non-streaming request and returns parsed JSON.
+	 */
+	async sendRequest<T>(
+		requestType: ICAPIRequestMetadata,
+		extraHeaders?: Record<string, string>,
+		cancellationToken?: CancellationToken,
+	): Promise<T> {
+		const token = await this._getToken(cancellationToken ?? CancellationToken.None);
+		const client = await this._ensureCAPIClient();
+
+		const options: ICAPIFetchOptions = {
+			method: 'GET',
+			headers: {
+				'Authorization': `Bearer ${token.token}`,
+				...extraHeaders,
+			},
+		};
+
 		return client.makeRequest<T>(options, requestType);
 	}
 
@@ -201,25 +249,21 @@ export class CopilotTokenService {
 			this._githubToken = token;
 			this._cachedToken = undefined;
 			this._refreshPromise = undefined;
-			this._logService.info('[CopilotToken] GitHub token updated');
+			this._logService.info('[CopilotApi] GitHub token updated');
 		}
 	}
 
-	/**
-	 * Returns a valid Copilot JWT, exchanging or refreshing as needed.
-	 * Throws if no GitHub token has been set via the renderer's auth flow.
-	 */
-	async getToken(cancellationToken: CancellationToken): Promise<ICopilotToken> {
+	// ---- Token management (private) ----------------------------------------
+
+	private async _getToken(cancellationToken: CancellationToken): Promise<{ token: string; expiresAt: number }> {
 		if (!this._githubToken) {
 			throw new Error('No GitHub token available. Sign in to GitHub in VS Code to use the native agent.');
 		}
 
-		// Check if cached token is still valid
 		if (this._cachedToken && !this._isExpired(this._cachedToken)) {
 			return this._cachedToken;
 		}
 
-		// Avoid concurrent refresh requests
 		if (this._refreshPromise) {
 			return this._refreshPromise;
 		}
@@ -234,13 +278,13 @@ export class CopilotTokenService {
 		}
 	}
 
-	private _isExpired(token: ICopilotToken): boolean {
+	private _isExpired(token: { expiresAt: number }): boolean {
 		const nowSeconds = Date.now() / 1000;
 		return nowSeconds >= (token.expiresAt - TOKEN_REFRESH_MARGIN_SECONDS);
 	}
 
-	private async _exchange(githubToken: string, _cancellationToken: CancellationToken): Promise<ICopilotToken> {
-		this._logService.info('[CopilotToken] Exchanging GitHub token for Copilot JWT...');
+	private async _exchange(githubToken: string, _cancellationToken: CancellationToken): Promise<{ token: string; expiresAt: number }> {
+		this._logService.info('[CopilotApi] Exchanging GitHub token for Copilot JWT...');
 
 		const client = await this._ensureCAPIClient();
 
@@ -257,7 +301,6 @@ export class CopilotTokenService {
 			{ type: CAPIRequestType.CopilotToken },
 		);
 
-		// CAPIClient returns a raw Response -- parse the JSON body
 		if (!rawResponse.ok) {
 			const errorBody = await rawResponse.text().catch(() => '');
 			throw new Error(`Copilot token exchange failed: ${rawResponse.status} ${rawResponse.statusText}${errorBody ? ` - ${errorBody}` : ''}`);
@@ -278,12 +321,12 @@ export class CopilotTokenService {
 			client.updateDomains(copilotToken, undefined);
 		}
 
-		const token: ICopilotToken = {
+		const token = {
 			token: response.token,
 			expiresAt: response.expires_at,
 		};
 
-		this._logService.info(`[CopilotToken] Token acquired, expires at ${new Date(token.expiresAt * 1000).toISOString()}`);
+		this._logService.info(`[CopilotApi] Token acquired, expires at ${new Date(token.expiresAt * 1000).toISOString()}`);
 		return token;
 	}
 }

@@ -21,7 +21,7 @@ import { runAgentLoop } from '../../common/agentLoop.js';
 import { createUserMessage, IConversationMessage } from '../../common/conversation.js';
 import { AgentLoopEvent, IAgentLoopEventMap } from '../../common/events.js';
 import { AnthropicModelProvider } from '../../node/anthropicProvider.js';
-import { CopilotTokenService } from '../../node/copilotToken.js';
+import { CopilotApiService } from '../../node/copilotToken.js';
 
 function findEvents<K extends keyof IAgentLoopEventMap>(events: AgentLoopEvent[], type: K): IAgentLoopEventMap[K][] {
 	return events.filter(e => e.type === type) as IAgentLoopEventMap[K][];
@@ -38,11 +38,11 @@ describer('Agent Loop Integration (real CAPI)', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const log = new NullLogService();
 
-	let tokenService: CopilotTokenService;
+	let tokenService: CopilotApiService;
 	let provider: AnthropicModelProvider;
 
 	setup(() => {
-		tokenService = new CopilotTokenService(log);
+		tokenService = new CopilotApiService(log);
 		tokenService.setGitHubToken(GITHUB_TOKEN!);
 		provider = new AnthropicModelProvider('claude-sonnet-4-20250514', tokenService, log);
 	});

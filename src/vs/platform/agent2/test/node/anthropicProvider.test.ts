@@ -11,7 +11,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { createAssistantMessage, createToolResultMessage, createUserMessage, IConversationMessage } from '../../common/conversation.js';
 import { ModelResponseChunk } from '../../common/modelProvider.js';
 import { AnthropicModelProvider } from '../../node/anthropicProvider.js';
-import { CopilotTokenService } from '../../node/copilotToken.js';
+import { CopilotApiService } from '../../node/copilotToken.js';
 
 // -- Test helpers -------------------------------------------------------------
 
@@ -32,7 +32,7 @@ function sseEvent(type: string, data: unknown): string {
 }
 
 /**
- * Creates a CopilotTokenService backed by a mock fetcher that:
+ * Creates a CopilotApiService backed by a mock fetcher that:
  * 1. Returns a canned token response for CopilotToken requests
  * 2. Returns SSE stream responses for ChatMessages requests (model calls)
  */
@@ -82,7 +82,7 @@ function createMockSetup(sseEvents: string[], options?: { captureBody?: (body: s
 		},
 	};
 
-	const tokenService = new CopilotTokenService(log, fetcher);
+	const tokenService = new CopilotApiService(log, fetcher);
 	tokenService.setGitHubToken('test-github-token');
 	const provider = new AnthropicModelProvider('claude-sonnet-4-20250514', tokenService, log);
 	return { tokenService, provider };
@@ -220,7 +220,7 @@ suite('AnthropicModelProvider', () => {
 				},
 				fetchWithPagination() { return Promise.resolve([]); },
 			};
-			const tokenService = new CopilotTokenService(log2, fetcher);
+			const tokenService = new CopilotApiService(log2, fetcher);
 			tokenService.setGitHubToken('test');
 			const provider = new AnthropicModelProvider('claude-sonnet-4-20250514', tokenService, log2);
 			await assert.rejects(() => collectChunks(provider), /Anthropic API error: 400/);
@@ -323,7 +323,7 @@ suite('AnthropicModelProvider', () => {
 				fetchWithPagination() { return Promise.resolve([]); },
 			};
 
-			const tokenService = new CopilotTokenService(log2, fetcher);
+			const tokenService = new CopilotApiService(log2, fetcher);
 			tokenService.setGitHubToken('test');
 			const provider = new AnthropicModelProvider('claude-sonnet-4-20250514', tokenService, log2);
 

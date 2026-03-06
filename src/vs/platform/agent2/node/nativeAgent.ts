@@ -43,7 +43,7 @@ import { AgentLoopEvent } from '../common/events.js';
 import { IAgentTool } from '../common/tools.js';
 import { IMiddleware } from '../common/middleware.js';
 import { AnthropicModelProvider } from './anthropicProvider.js';
-import { CopilotTokenService } from './copilotToken.js';
+import { CopilotApiService } from './copilotToken.js';
 import { AllowAllPolicy, PermissionMiddleware } from './middleware/permissionMiddleware.js';
 import { ContextWindowMiddleware } from './middleware/contextWindow.js';
 import { ToolOutputTruncationMiddleware } from './middleware/toolOutputTruncation.js';
@@ -83,14 +83,14 @@ export class NativeAgent extends Disposable implements IAgent {
 
 	private readonly _sessions = this._register(new DisposableMap<string, CancellationTokenSource>());
 	private readonly _sessionState = new Map<string, INativeSession>();
-	private readonly _tokenService: CopilotTokenService;
+	private readonly _apiService: CopilotApiService;
 	private readonly _tools: readonly IAgentTool[];
 
 	constructor(
 		private readonly _logService: ILogService,
 	) {
 		super();
-		this._tokenService = new CopilotTokenService(_logService);
+		this._apiService = new CopilotApiService(_logService);
 		this._tools = [new ReadFileTool(), new BashTool()];
 	}
 
@@ -107,7 +107,7 @@ export class NativeAgent extends Disposable implements IAgent {
 
 	async setAuthToken(token: string): Promise<void> {
 		this._logService.info('[NativeAgent] Auth token received');
-		this._tokenService.setGitHubToken(token);
+		this._apiService.setGitHubToken(token);
 	}
 
 	async listModels(): Promise<IAgentModelInfo[]> {
@@ -246,7 +246,7 @@ export class NativeAgent extends Disposable implements IAgent {
 		const modelIdentity: IModelIdentity = { provider: 'anthropic', modelId: session.model };
 		const modelProvider = new AnthropicModelProvider(
 			session.model,
-			this._tokenService,
+			this._apiService,
 			this._logService,
 		);
 

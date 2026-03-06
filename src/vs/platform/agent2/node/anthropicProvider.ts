@@ -19,7 +19,7 @@ import { ISSEEvent, SSEParser } from '../../../base/common/sseParser.js';
 import { IAssistantMessage, IConversationMessage, IToolResultMessage } from '../common/conversation.js';
 import { IModelInfo, IModelProvider, IModelRequestConfig, ModelResponseChunk } from '../common/modelProvider.js';
 import { IAgentToolDefinition } from '../common/tools.js';
-import { CAPIRequestType, CopilotTokenService } from './copilotToken.js';
+import { CAPIRequestType, CopilotApiService } from './copilotToken.js';
 import { ILogService } from '../../log/common/log.js';
 
 // -- Configuration ------------------------------------------------------------
@@ -166,7 +166,7 @@ export class AnthropicModelProvider implements IModelProvider {
 
 	constructor(
 		private readonly _modelId: string,
-		private readonly _tokenService: CopilotTokenService,
+		private readonly _apiService: CopilotApiService,
 		private readonly _logService: ILogService,
 	) { }
 
@@ -177,7 +177,6 @@ export class AnthropicModelProvider implements IModelProvider {
 		config: IModelRequestConfig,
 		token: CancellationToken,
 	): AsyncIterable<ModelResponseChunk> {
-		const copilotToken = await this._tokenService.getToken(token);
 		const body = this._buildRequestBody(systemPrompt, messages, tools, config);
 
 		this._logService.debug('[Anthropic] Sending request', { model: this._modelId, messageCount: messages.length, toolCount: tools.length });
@@ -199,19 +198,14 @@ export class AnthropicModelProvider implements IModelProvider {
 					await new Promise(resolve => setTimeout(resolve, delay));
 				}
 
-				// Use CAPIClient.makeRequest for proper URL routing and header injection.
-				const response = await this._tokenService.makeRequest<Response>(
-					{
-						method: 'POST',
-						headers: {
-							'Authorization': `Bearer ${copilotToken.token}`,
-							'Content-Type': 'application/json',
-							'anthropic-beta': ANTHROPIC_BETA_HEADERS,
-						},
-						body: JSON.stringify(body),
-						signal: abortController.signal,
-					},
+				// Auth and URL routing are handled by CopilotApiService.
+				// We only provide the body and model-specific headers.
+				const response = await this._apiService.sendModelRequest(
+					body,
 					{ type: CAPIRequestType.ChatMessages },
+					{ 'anthropic-beta': ANTHROPIC_BETA_HEADERS },
+					abortController.signal,
+					token,
 				);
 
 				if (!response.ok) {
@@ -219,7 +213,6 @@ export class AnthropicModelProvider implements IModelProvider {
 					const statusCode = response.status;
 
 					if (RETRYABLE_STATUS_CODES.has(statusCode) && attempt < MAX_RETRIES) {
-						// Check for Retry-After header
 						const retryAfter = response.headers?.get?.('retry-after');
 						if (retryAfter) {
 							const retryAfterMs = parseInt(retryAfter, 10) * 1000;
