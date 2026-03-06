@@ -173,6 +173,11 @@ export interface IChatDebugService extends IDisposable {
 	registerProvider(provider: IChatDebugLogProvider): IDisposable;
 
 	/**
+	 * Check whether providers have already been invoked for a given session.
+	 */
+	hasInvokedProviders(sessionResource: URI): boolean;
+
+	/**
 	 * Invoke all registered providers for a given session resource.
 	 * Called when the Debug View is opened to fetch events from extensions.
 	 */

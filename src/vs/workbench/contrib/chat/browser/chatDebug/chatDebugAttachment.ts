@@ -66,7 +66,9 @@ export async function createDebugEventsAttachment(
 	chatDebugService: IChatDebugService
 ): Promise<IChatRequestVariableEntry> {
 	chatDebugService.markDebugDataAttached(sessionResource);
-	await chatDebugService.invokeProviders(sessionResource);
+	if (!chatDebugService.hasInvokedProviders(sessionResource)) {
+		await chatDebugService.invokeProviders(sessionResource);
+	}
 	const events = chatDebugService.getEvents(sessionResource);
 	const summary = events.length > 0
 		? formatDebugEventsForContext(events)

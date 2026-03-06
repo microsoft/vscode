@@ -130,6 +130,10 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		});
 	}
 
+	hasInvokedProviders(sessionResource: URI): boolean {
+		return this._invocationCts.has(sessionResource);
+	}
+
 	async invokeProviders(sessionResource: URI): Promise<void> {
 		if (!LocalChatSessionUri.isLocalSession(sessionResource)) {
 			return;
