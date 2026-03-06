@@ -1,0 +1,33 @@
+{
+	"scenario": "Scenario: Chat message with file changes shows change count",
+	"generatedAt": "2026-03-06T00:11:41.084Z",
+	"steps": [
+		{
+			"description": "Type \"build the project\" in the chat input",
+			"commands": [
+				"click e155",
+				"type \"build the project\""
+			]
+		},
+		{
+			"description": "Press Enter to submit",
+			"commands": [
+				"press Enter"
+			]
+		},
+		{
+			"description": "Verify text \"build the project\" appears on the page",
+			"commands": [
+				"snapshot",
+				"# ASSERT_VISIBLE: build the project"
+			]
+		},
+		{
+			"description": "Verify text \"+8\" appears on the page",
+			"commands": [
+				"snapshot",
+				"# ASSERT_VISIBLE: +8"
+			]
+		}
+	]
+}

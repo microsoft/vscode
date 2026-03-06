@@ -1,0 +1,26 @@
+{
+	"scenario": "Scenario: Session appears in sidebar after sending a message",
+	"generatedAt": "2026-03-06T00:12:21.245Z",
+	"steps": [
+		{
+			"description": "Type \"fix the bug\" in the chat input",
+			"commands": [
+				"click e155",
+				"type \"fix the bug\""
+			]
+		},
+		{
+			"description": "Press Enter to submit",
+			"commands": [
+				"press Enter"
+			]
+		},
+		{
+			"description": "Verify text \"fix the bug\" appears on the page",
+			"commands": [
+				"snapshot",
+				"# ASSERT_VISIBLE: fix the bug"
+			]
+		}
+	]
+}

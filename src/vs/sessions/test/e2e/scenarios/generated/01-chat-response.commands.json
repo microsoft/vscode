@@ -1,0 +1,26 @@
+{
+	"scenario": "Scenario: Send a chat message and verify response",
+	"generatedAt": "2026-03-06T00:10:51.456Z",
+	"steps": [
+		{
+			"description": "Type \"explain the code\" in the chat input",
+			"commands": [
+				"click e156",
+				"type \"explain the code\""
+			]
+		},
+		{
+			"description": "Press Enter to submit",
+			"commands": [
+				"press Enter"
+			]
+		},
+		{
+			"description": "Verify text \"simple structure\" appears on the page",
+			"commands": [
+				"snapshot",
+				"# ASSERT_VISIBLE: simple structure"
+			]
+		}
+	]
+}

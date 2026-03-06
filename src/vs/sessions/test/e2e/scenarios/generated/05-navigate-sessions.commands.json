@@ -1,0 +1,65 @@
+{
+	"scenario": "Scenario: Navigate between sessions and verify history loads",
+	"generatedAt": "2026-03-06T00:14:43.620Z",
+	"steps": [
+		{
+			"description": "Type \"explain the code\" in the chat input",
+			"commands": [
+				"click e156",
+				"type \"explain the code\""
+			]
+		},
+		{
+			"description": "Press Enter to submit",
+			"commands": [
+				"press Enter"
+			]
+		},
+		{
+			"description": "Verify text \"simple structure\" appears on the page",
+			"commands": [
+				"snapshot",
+				"# ASSERT_VISIBLE: simple structure"
+			]
+		},
+		{
+			"description": "Click button \"New Session\"",
+			"commands": [
+				"click e36"
+			]
+		},
+		{
+			"description": "Type \"build the project\" in the chat input",
+			"commands": [
+				"click e319",
+				"type \"build the project\""
+			]
+		},
+		{
+			"description": "Press Enter to submit",
+			"commands": [
+				"press Enter"
+			]
+		},
+		{
+			"description": "Verify text \"build the project\" appears on the page",
+			"commands": [
+				"snapshot",
+				"# ASSERT_VISIBLE: build the project"
+			]
+		},
+		{
+			"description": "Click button \"explain the code\"",
+			"commands": [
+				"click e206"
+			]
+		},
+		{
+			"description": "Verify text \"simple structure\" appears on the page",
+			"commands": [
+				"snapshot",
+				"# ASSERT_VISIBLE: simple structure"
+			]
+		}
+	]
+}
