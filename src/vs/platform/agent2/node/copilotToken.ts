@@ -115,12 +115,19 @@ let _CAPIClientCtor: (new (
 	integrationId?: string,
 ) => ICAPIClient) | undefined;
 
-function getCAPIClientCtor(): typeof _CAPIClientCtor {
-	if (!_CAPIClientCtor) {
-		// eslint-disable-next-line no-restricted-globals
-		const mod = require('@vscode/copilot-api');
-		_CAPIClientCtor = mod.CAPIClient;
+let _loadingPromise: Promise<void> | undefined;
+
+async function ensureCAPIClientCtor(): Promise<typeof _CAPIClientCtor> {
+	if (_CAPIClientCtor) {
+		return _CAPIClientCtor;
 	}
+	if (!_loadingPromise) {
+		_loadingPromise = (async () => {
+			const mod = await import('@vscode/copilot-api');
+			_CAPIClientCtor = (mod as { CAPIClient: typeof _CAPIClientCtor }).CAPIClient;
+		})();
+	}
+	await _loadingPromise;
 	return _CAPIClientCtor;
 }
 
@@ -140,28 +147,44 @@ export class CopilotTokenService {
 	private _githubToken: string | undefined;
 	private _cachedToken: ICopilotToken | undefined;
 	private _refreshPromise: Promise<ICopilotToken> | undefined;
-	private readonly _capiClient: ICAPIClient;
+	private _capiClient: ICAPIClient | undefined;
+	private _capiClientPromise: Promise<ICAPIClient> | undefined;
+	private readonly _fetcherService: ICAPIFetcherService | undefined;
 
 	constructor(
 		private readonly _logService: ILogService,
 		fetcherService?: ICAPIFetcherService,
 	) {
-		const ClientCtor = getCAPIClientCtor();
-		if (!ClientCtor) {
-			throw new Error('@vscode/copilot-api CAPIClient not available');
+		this._fetcherService = fetcherService;
+	}
+
+	private async _ensureCAPIClient(): Promise<ICAPIClient> {
+		if (this._capiClient) {
+			return this._capiClient;
 		}
-		this._capiClient = new ClientCtor(
-			{
-				name: 'vscode.agent-host',
-				sessionId: generateUuid(),
-				machineId: generateUuid(),
-				vscodeVersion: '1.111.0', // TODO: get from product service
-				version: '1.0.0',
-				buildType: 'dev',
-			},
-			undefined, // license (undefined for dev builds)
-			fetcherService,
-		);
+		if (this._capiClientPromise) {
+			return this._capiClientPromise;
+		}
+		this._capiClientPromise = (async () => {
+			const ClientCtor = await ensureCAPIClientCtor();
+			if (!ClientCtor) {
+				throw new Error('@vscode/copilot-api CAPIClient not available');
+			}
+			this._capiClient = new ClientCtor(
+				{
+					name: 'vscode.agent-host',
+					sessionId: generateUuid(),
+					machineId: generateUuid(),
+					vscodeVersion: '1.111.0', // TODO: get from product service
+					version: '1.0.0',
+					buildType: 'dev',
+				},
+				undefined, // license (undefined for dev builds)
+				this._fetcherService,
+			);
+			return this._capiClient;
+		})();
+		return this._capiClientPromise;
 	}
 
 	/**
@@ -169,7 +192,8 @@ export class CopilotTokenService {
 	 * Use this instead of raw fetch for all Copilot API calls.
 	 */
 	async makeRequest<T>(options: ICAPIFetchOptions, requestType: ICAPIRequestMetadata): Promise<T> {
-		return this._capiClient.makeRequest<T>(options, requestType);
+		const client = await this._ensureCAPIClient();
+		return client.makeRequest<T>(options, requestType);
 	}
 
 	setGitHubToken(token: string): void {
@@ -218,6 +242,8 @@ export class CopilotTokenService {
 	private async _exchange(githubToken: string, _cancellationToken: CancellationToken): Promise<ICopilotToken> {
 		this._logService.info('[CopilotToken] Exchanging GitHub token for Copilot JWT...');
 
+		const client = await this._ensureCAPIClient();
+
 		const options: ICAPIFetchOptions = {
 			headers: {
 				'Authorization': `token ${githubToken}`,
@@ -226,7 +252,7 @@ export class CopilotTokenService {
 			method: 'GET',
 		};
 
-		const response = await this._capiClient.makeRequest<ITokenEnvelope>(
+		const response = await client.makeRequest<ITokenEnvelope>(
 			options,
 			{ type: CAPIRequestType.CopilotToken },
 		);
@@ -241,7 +267,7 @@ export class CopilotTokenService {
 				},
 				sku: response.sku ?? '',
 			};
-			this._capiClient.updateDomains(copilotToken, undefined);
+			client.updateDomains(copilotToken, undefined);
 		}
 
 		const token: ICopilotToken = {
