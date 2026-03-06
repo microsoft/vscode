@@ -1154,6 +1154,67 @@ suite('RunInTerminalTool', () => {
 			processId
 		} as unknown as ITerminalInstance);
 
+		test('should restore all terminals into the session terminal map and dispose them when archived', () => {
+			const sessionId = 'test-session-restored-archive';
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+
+			let terminal1Disposed = false;
+			let terminal2Disposed = false;
+			const terminal1DisposedEmitter = new Emitter<void>();
+			const terminal2DisposedEmitter = new Emitter<void>();
+			const mockTerminal1 = {
+				dispose: () => {
+					terminal1Disposed = true;
+					terminal1DisposedEmitter.fire();
+				},
+				onDisposed: terminal1DisposedEmitter.event,
+				processId: 55555,
+			} as unknown as ITerminalInstance;
+			const mockTerminal2 = {
+				dispose: () => {
+					terminal2Disposed = true;
+					terminal2DisposedEmitter.fire();
+				},
+				onDisposed: terminal2DisposedEmitter.event,
+				processId: 66666,
+			} as unknown as ITerminalInstance;
+
+			storageService.store('chat.terminalSessions', JSON.stringify({
+				[mockTerminal1.processId!]: {
+					sessionId,
+					id: 'restored-1',
+					shellIntegrationQuality: ShellIntegrationQuality.None,
+					isBackground: true,
+				},
+				[mockTerminal2.processId!]: {
+					sessionId,
+					id: 'restored-2',
+					shellIntegrationQuality: ShellIntegrationQuality.None,
+					isBackground: false,
+				}
+			}), StorageScope.WORKSPACE, StorageTarget.USER);
+
+			instantiationService.stub(ITerminalService, {
+				onDidDisposeInstance: terminalServiceDisposeEmitter.event,
+				instances: [mockTerminal1, mockTerminal2],
+				setNextCommandId: async () => { }
+			});
+
+			const restoredRunInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+			const restoredSessionTerminals = restoredRunInTerminalTool.sessionTerminalInstances.get(sessionResource);
+			strictEqual(restoredSessionTerminals?.size, 2, 'Both restored terminals should be tracked for the session');
+
+			chatSessionArchivedEmitter.fire({
+				resource: sessionResource,
+				isArchived: () => true,
+			} as unknown as IAgentSession);
+
+			strictEqual(terminal1Disposed, true, 'Restored background terminal should have been disposed');
+			strictEqual(terminal2Disposed, true, 'Restored foreground terminal should have been disposed');
+			ok(!restoredRunInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Foreground terminal association should be removed after archive');
+			ok(!restoredRunInTerminalTool.sessionTerminalInstances.has(sessionResource), 'All restored terminals for the session should be removed after archive');
+		});
+
 		test('should dispose all terminals associated with a single chat session when archived', () => {
 			const sessionId = 'test-session-archive';
 			const sessionResource = LocalChatSessionUri.forSession(sessionId);

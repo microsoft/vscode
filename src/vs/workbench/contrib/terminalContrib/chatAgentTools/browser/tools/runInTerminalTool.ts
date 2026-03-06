@@ -327,6 +327,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	protected readonly _sessionTerminalAssociations = new ResourceMap<IToolTerminal>();
 	protected readonly _sessionTerminalInstances = new ResourceMap<Set<ITerminalInstance>>();
+	private readonly _terminalsBeingDisposedBySessionCleanup = new Set<ITerminalInstance>();
 
 	// Immutable window state
 	protected readonly _osBackend: Promise<OperatingSystem>;
@@ -1234,6 +1235,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._sessionTerminalInstances.delete(chatSessionResource);
 
 		for (const terminal of terminalsToDispose) {
+			// Skip redundant map walks in onDidDispose since this session has already been removed.
+			this._terminalsBeingDisposedBySessionCleanup.add(terminal);
 			terminal.dispose();
 		}
 
@@ -1280,6 +1283,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private _removeTerminalAssociations(terminal: ITerminalInstance): void {
+		if (this._terminalsBeingDisposedBySessionCleanup.delete(terminal)) {
+			return;
+		}
+
 		for (const [sessionResource, toolTerminal] of this._sessionTerminalAssociations.entries()) {
 			if (terminal === toolTerminal.instance) {
 				this._sessionTerminalAssociations.delete(sessionResource);
