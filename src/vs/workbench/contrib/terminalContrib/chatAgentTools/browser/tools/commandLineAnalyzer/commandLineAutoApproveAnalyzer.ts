@@ -90,7 +90,7 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		}
 
 		const subCommandResults = await Promise.all(subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, options.shell, options.os, options.cwd, options.chatSessionResource)));
-		const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(trimmedCommandLine, options.chatSessionResource);
+		const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(trimmedCommandLine, options.cwd, options.chatSessionResource);
 		const autoApproveReasons: string[] = [
 			...subCommandResults.map(e => e.reason),
 			commandLineResult.reason,
