@@ -20,6 +20,9 @@ import { Selection } from '../../../common/core/selection.js';
 import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from '../../../common/editorCommon.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { DragAndDropCommand } from './dragAndDropCommand.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { Action } from '../../../../base/common/actions.js';
+import { localize } from '../../../../nls.js';
 
 function hasTriggerModifier(e: IKeyboardEvent | IMouseEvent): boolean {
 	if (isMacintosh) {
@@ -38,13 +41,17 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 	private readonly _dndDecorationIds: IEditorDecorationsCollection;
 	private _mouseDown: boolean;
 	private _modifierPressed: boolean;
+	private _isRightClickDrag: boolean;
 	static readonly TRIGGER_KEY_VALUE = isMacintosh ? KeyCode.Alt : KeyCode.Ctrl;
 
 	static get(editor: ICodeEditor): DragAndDropController | null {
 		return editor.getContribution<DragAndDropController>(DragAndDropController.ID);
 	}
 
-	constructor(editor: ICodeEditor) {
+	constructor(
+		editor: ICodeEditor,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService
+	) {
 		super();
 		this._editor = editor;
 		this._dndDecorationIds = this._editor.createDecorationsCollection();
@@ -60,6 +67,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 		this._mouseDown = false;
 		this._modifierPressed = false;
 		this._dragSelection = null;
+		this._isRightClickDrag = false;
 	}
 
 	private onEditorBlur() {
@@ -67,6 +75,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 		this._dragSelection = null;
 		this._mouseDown = false;
 		this._modifierPressed = false;
+		this._isRightClickDrag = false;
 	}
 
 	private onEditorKeyDown(e: IKeyboardEvent): void {
@@ -103,6 +112,8 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
 		this._mouseDown = true;
+		// Track if this is a right-click drag
+		this._isRightClickDrag = mouseEvent.event.rightButton;
 	}
 
 	private _onEditorMouseUp(mouseEvent: IEditorMouseEvent): void {
@@ -153,6 +164,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 		this._removeDecoration();
 		this._dragSelection = null;
 		this._mouseDown = false;
+		this._isRightClickDrag = false;
 	}
 
 	private _onEditorMouseDrop(mouseEvent: IPartialEditorMouseEvent): void {
@@ -187,9 +199,14 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 						this._dragSelection.getEndPosition().equals(newCursorPosition) || this._dragSelection.getStartPosition().equals(newCursorPosition)
 					) // we allow users to paste content beside the selection
 				)) {
-				this._editor.pushUndoStop();
-				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition, hasTriggerModifier(mouseEvent.event) || this._modifierPressed));
-				this._editor.pushUndoStop();
+				
+				// If this was a right-click drag, show context menu
+				if (this._isRightClickDrag) {
+					this._showDragDropContextMenu(mouseEvent, newCursorPosition);
+				} else {
+					// Execute the drag and drop command directly for left-click drag
+					this._executeDragAndDrop(newCursorPosition, hasTriggerModifier(mouseEvent.event) || this._modifierPressed);
+				}
 			}
 		}
 
@@ -200,6 +217,37 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 		this._removeDecoration();
 		this._dragSelection = null;
 		this._mouseDown = false;
+		this._isRightClickDrag = false;
+	}
+
+	private _executeDragAndDrop(targetPosition: Position, isCopy: boolean): void {
+		if (this._dragSelection) {
+			this._editor.pushUndoStop();
+			this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, targetPosition, isCopy));
+			this._editor.pushUndoStop();
+		}
+	}
+
+	private _showDragDropContextMenu(mouseEvent: IPartialEditorMouseEvent, targetPosition: Position): void {
+		if (!this._dragSelection) {
+			return;
+		}
+
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => mouseEvent.event,
+			getActions: () => [
+				new Action('editor.action.moveHere', localize('moveHere', "Move here"), undefined, true, async () => {
+					this._executeDragAndDrop(targetPosition, false);
+				}),
+				new Action('editor.action.copyHere', localize('copyHere', "Copy here"), undefined, true, async () => {
+					this._executeDragAndDrop(targetPosition, true);
+				}),
+				new Action('editor.action.cancel', localize('cancel', "Cancel"), undefined, true, async () => {
+					// Do nothing, just close the menu
+				})
+			],
+			autoSelectFirstItem: false
+		});
 	}
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
@@ -235,6 +283,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 		this._dragSelection = null;
 		this._mouseDown = false;
 		this._modifierPressed = false;
+		this._isRightClickDrag = false;
 		super.dispose();
 	}
 }
