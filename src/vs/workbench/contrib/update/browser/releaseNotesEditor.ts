@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/releasenoteseditor.css';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { KeybindingParser } from '../../../../base/common/keybindingParser.js';
@@ -20,6 +20,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asTextOrError, IRequestService } from '../../../../platform/request/common/request.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../markdown/browser/markdownDocumentRenderer.js';
 import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
 import { IWebviewWorkbenchService } from '../../webviewPanel/browser/webviewWorkbenchService.js';
@@ -38,6 +39,8 @@ import { dirname } from '../../../../base/common/resources.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+
+const ReleaseNotesEditorIcon = registerIcon('release-notes-view-icon', Codicon.vscode, nls.localize('releaseNotesViewIcon', 'Icon of the release notes editor.'));
 
 export class ReleaseNotesManager extends Disposable {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
@@ -124,7 +127,7 @@ export class ReleaseNotesManager extends Disposable {
 				},
 				'releaseNotes',
 				title,
-				undefined,
+				ReleaseNotesEditorIcon,
 				{ group: ACTIVE_GROUP, preserveFocus: false });
 
 			const disposables = new DisposableStore();
