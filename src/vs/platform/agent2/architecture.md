@@ -104,6 +104,7 @@ src/vs/platform/agent2/
 │   ├── events.ts             # AgentLoopEvent types
 │   ├── middleware.ts          # IMiddleware interface
 │   ├── modelProvider.ts       # IModelProvider interface + ModelResponseChunk types
+│   ├── schemaValidation.ts    # JSON Schema validator for tool arguments
 │   └── tools.ts              # IAgentTool interface, ToolContext, ToolResult
 ├── node/
 │   ├── anthropicProvider.ts   # Anthropic Messages API provider
@@ -117,17 +118,22 @@ src/vs/platform/agent2/
 │   │   └── toolOutputTruncation.ts # Large output truncation
 │   └── tools/
 │       ├── bashTool.ts        # Bash shell tool
-│       └── readFileTool.ts    # Read file tool
+│       ├── readFileTool.ts    # Read file tool
+│       └── subAgentTool.ts    # Sub-agent invocation (nested loop)
 ├── test/
 │   ├── common/
 │   │   ├── agentLoop.test.ts
 │   │   ├── conversation.test.ts
-│   │   └── middleware.test.ts
+│   │   ├── middleware.test.ts
+│   │   └── schemaValidation.test.ts
 │   └── node/
 │       ├── anthropicProvider.test.ts
 │       ├── copilotToken.test.ts
 │       ├── nativeAgent.test.ts
 │       ├── agentLoop.integrationTest.ts
+│       ├── middleware/
+│       │   ├── contextWindow.test.ts
+│       │   └── middleware.test.ts
 │       └── tools/
 │           ├── bashTool.test.ts
 │           └── readFileTool.test.ts

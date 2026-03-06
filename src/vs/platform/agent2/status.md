@@ -2,70 +2,68 @@
 
 > **Keep this file up-to-date** with each piece of work. Check off items as they are implemented and tested.
 
-## P0 -- Core Loop Mechanics
+## P0 -- Core Loop Mechanics (COMPLETE)
 
 ### Phase 1: Core Types & Conversation Format
-- [x] `conversation.ts` -- Provider-neutral message types (IModelIdentity, ISystemMessage, IUserMessage, IAssistantMessage, IToolResultMessage, content parts)
+- [x] `conversation.ts` -- Provider-neutral message types, content parts, helpers
 - [x] `events.ts` -- AgentLoopEvent discriminated union (11 event types + IAgentLoopEventMap)
-- [x] `modelProvider.ts` -- IModelProvider interface, ModelResponseChunk types, IModelInfo, IModelRequestConfig
+- [x] `modelProvider.ts` -- IModelProvider interface, ModelResponseChunk types
 - [x] `tools.ts` -- IAgentTool, IAgentToolDefinition, IToolContext, IToolResult
 - [x] `middleware.ts` -- IMiddleware interface with pre/post hooks, composed runner functions
-- [x] Unit tests for conversation types and middleware runners (27 tests)
+- [x] Unit tests (27 tests)
 
 ### Phase 2: Core Agent Loop
 - [x] `agentLoop.ts` -- stateless runAgentLoop() with model call / tool execution / re-sample cycle
-- [x] Parallel execution for contiguous read-only tools, sequential for mutating tools (order-preserving)
+- [x] Order-preserving tool parallelism (contiguous read-only batches)
 - [x] Full middleware integration (pre-request, post-response, pre-tool, post-tool)
-- [x] Cancellation via CancellationToken at every step
-- [x] Max iteration safety limit with error event
-- [x] Tool argument parsing with graceful fallback for malformed JSON
-- [x] Session-scoped scratchpad for inter-tool coordination
-- [x] Retry event buffering (discarded attempt events are not emitted)
+- [x] Cancellation, max iteration safety, retry event buffering, session-scoped scratchpad
 - [x] Unit tests (19 tests)
 
 ### Phase 3: Anthropic Messages API Provider
-- [x] `copilotToken.ts` -- CAPI token exchange with caching, auto-refresh, concurrent request deduplication
-- [x] `anthropicProvider.ts` -- AnthropicModelProvider (SSE streaming, message translation, thinking blocks, tool_use blocks, usage tracking, cancellation)
-- [ ] Full model discovery (GET /models) -- currently returns configured model only
-- [x] Unit tests for Anthropic provider (12 tests)
-- [x] Unit tests for token service (8 tests)
+- [x] `copilotToken.ts` -- CAPI token exchange with caching, auto-refresh, deduplication
+- [x] `anthropicProvider.ts` -- AnthropicModelProvider (SSE streaming, message translation, thinking, tool_use, cancellation)
+- [x] Unit tests (20 tests)
 
 ### Phase 4: Basic Tools
-- [x] `readFileTool.ts` -- line ranges, segment-safe path traversal guard, size limits, UTF-8
-- [x] `bashTool.ts` -- timeout, cancellation via SIGTERM/SIGKILL, stderr capture, exit codes
-- [x] Unit tests for tools (18 tests)
+- [x] `readFileTool.ts` -- segment-safe path traversal guard, cross-platform sep, line ranges, size limits
+- [x] `bashTool.ts` -- timeout, cancellation via disposableTimeout, stderr capture
+- [x] Unit tests (18 tests)
 
 ### Phase 5: Wire Up as IAgent Provider
-- [x] `nativeAgent.ts` -- Session CRUD, event translation, per-session tool tracking, correlated delta message IDs
-- [x] `nativeToolDisplay.ts` -- Tool display mapping
+- [x] `nativeAgent.ts` -- session CRUD, event translation, per-session tool tracking, correlated delta message IDs
+- [x] `nativeToolDisplay.ts` -- tool display mapping
 - [x] Register NativeAgent in agentHostMain.ts alongside CopilotAgent
 - [x] Add 'native' to AgentProvider type, update AgentSession.provider()
-- [x] Unit tests for NativeAgent (10 tests)
+- [x] Register 'agent-host-native' as session type in chat UI (agentSessions.ts, sessionTargetPicker.ts, chat.contribution.ts)
+- [x] Unit tests (10 tests)
 
 ### Phase 6: Integration Test
-- [ ] Integration test with real CAPI calls (gated on GITHUB_TOKEN env var)
+- [x] Integration test harness with real CAPI calls (gated on GITHUB_TOKEN env var)
 
-## P1 -- Essential Infrastructure
+## P1 -- Essential Infrastructure (MOSTLY COMPLETE)
 
-- [x] Context window management middleware -- token estimation, old tool output pruning with configurable thresholds
-- [x] Permission system middleware -- allow/deny/ask per tool, IPermissionPolicy, IPermissionHandler callback, AllowAllPolicy, DefaultPermissionPolicy
+- [x] Context window management middleware -- token estimation, old tool output pruning
+- [x] Permission system middleware -- allow/deny/ask per tool, IPermissionPolicy, AllowAllPolicy, DefaultPermissionPolicy
 - [x] Tool output truncation middleware -- configurable max length (default 50K chars)
-- [ ] Sub-agent invocation tool
+- [x] Sub-agent invocation tool -- nested loop with isolated conversation, configurable tools/system prompt
 - [x] Custom instructions injection -- IInstructionProvider interface, pre-request middleware
-- [x] Dynamic tool management -- tools can be a function `() => IAgentTool[]`, resolved per iteration
-- [x] Turn tracking (turn numbers on all events) -- in Phase 2
-- [x] Usage metrics (per-model-call token counts with correct model identity) -- in Phase 3
-- [x] Reasoning/thinking support (first-class events, thinking parts, signature preservation) -- in Phase 2-3
-- [ ] Tool call validation against JSON Schema
-- [x] Configurable tool parallelism (read-safe vs exclusive, order-preserving batches) -- in Phase 2
+- [x] Dynamic tool management -- tools config accepts `() => IAgentTool[]`, resolved per iteration
+- [x] Turn tracking (turn numbers on all events) -- built into event types
+- [x] Usage metrics (per-model-call token counts with correct model identity) -- usage events
+- [x] Reasoning/thinking support (first-class events, thinking parts, signature preservation)
+- [x] Tool call validation against JSON Schema -- `schemaValidation.ts`, integrated into loop
+- [x] Configurable tool parallelism (read-safe vs exclusive, order-preserving batches)
+- [ ] Wire permission middleware to IAgentPermissionRequestEvent IPC flow (ask mode in UI)
 
 ## P2 -- Production-Grade Features
 
 - [ ] Workspace snapshots (shadow git)
 - [ ] Edit tracking (baselines, diffs)
-- [ ] Rate limit awareness
+- [ ] Rate limit awareness (429 handling with retry-after headers)
 - [ ] Streaming intent extraction middleware
 - [ ] Public-facing hooks (external extension points)
+- [ ] Full model discovery (GET /models endpoint)
+- [ ] Provider metadata passthrough (accumulate provider-metadata chunks)
 
 ## P3 -- Advanced / Future
 
@@ -88,15 +86,19 @@
 | a653bb9 | Phase 4: readFile and bash tools |
 | a0b6b26 | Phase 5: NativeAgent IAgent implementation and registration |
 | 3f566ea | P1 middleware: tool output truncation, permissions, custom instructions |
-| 903eb4a | Code review fixes: usage model identity, retry event buffering, tool order, path traversal, session-scoped tracking, delta messageId correlation |
-| ece4c1f | P1: Context window management middleware with tool output pruning |
-| (pending) | P1: Dynamic tool management |
+| 903eb4a | Code review fixes round 1 |
+| ece4c1f | P1: Context window management middleware |
+| 5127a00 | P1: Dynamic tool management, doc updates |
+| 5162f6d | Code review fixes round 2: path safety, cross-platform sep, disposableTimeout |
+| 3e041f7 | Register native agent as session type in chat UI |
+| f9efef2 | P1: Schema validation, sub-agent tool, integration test harness |
 
 ## Test Summary
 
-**111 tests total, all passing**
+**125 tests total, all passing**
 - Conversation types: 14 tests
 - Middleware runners: 11 tests
+- Schema validation: 14 tests
 - Agent loop: 19 tests
 - Anthropic provider: 12 tests
 - Copilot token service: 8 tests
@@ -107,4 +109,14 @@
 - ReadFileTool: 8 tests
 - BashTool: 8 tests
 - NativeAgent: 10 tests
-- Other: 4 tests (clean state checks)
+- Other: 4 tests
+
+## End-to-End Verification
+
+Verified working in Code OSS:
+- Agent host process starts and registers both 'copilot' and 'native' providers
+- "Native Agent" appears in the session target picker
+- Selecting Native Agent creates a session with correct model configuration
+- Sending a message creates a session and runs the agent loop
+- Error handling works correctly (tested auth error path)
+- Auth token flow: setAuthToken broadcasts to all providers including NativeAgent
