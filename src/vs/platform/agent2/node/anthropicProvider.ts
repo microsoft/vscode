@@ -23,6 +23,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/messages/messages.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { timeout } from '../../../base/common/async.js';
 import { ISSEEvent, SSEParser } from '../../../base/common/sseParser.js';
 import { IAssistantMessage, IConversationMessage, IToolResultMessage } from '../common/conversation.js';
 import { IModelInfo, IModelProvider, IModelRequestConfig, ModelResponseChunk } from '../common/modelProvider.js';
@@ -70,7 +71,7 @@ export class AnthropicModelProvider implements IModelProvider {
 			if (attempt > 0) {
 				const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
 				this._logService.info(`[Anthropic] Retrying after ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES + 1})`);
-				await new Promise(resolve => setTimeout(resolve, delay));
+				await timeout(delay, token);
 			}
 
 			// Auth, URL routing, and cancellation are handled by CopilotApiService.
@@ -91,7 +92,7 @@ export class AnthropicModelProvider implements IModelProvider {
 						const retryAfterMs = parseInt(retryAfter, 10) * 1000;
 						if (!isNaN(retryAfterMs) && retryAfterMs > 0) {
 							this._logService.info(`[Anthropic] Rate limited, waiting ${retryAfterMs}ms (Retry-After header)`);
-							await new Promise(resolve => setTimeout(resolve, retryAfterMs));
+							await timeout(retryAfterMs, token);
 						}
 					}
 					lastError = new Error(`Anthropic API error: ${statusCode} ${response.statusText}${errorBody ? ` - ${errorBody}` : ''}`);

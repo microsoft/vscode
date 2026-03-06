@@ -110,15 +110,19 @@ suite('OpenAIResponsesProvider', () => {
 		assert.strictEqual(textDeltas[1].text, ' world');
 	});
 
-	test('handles function tool calls', async () => {
+	test('handles function tool calls with distinct id and call_id', async () => {
+		// In the Responses API, output_item.added provides an item with both `id`
+		// (item identifier) and `call_id` (tool call identifier for result correlation).
+		// Delta/done events reference by `item_id` (= the item's `id` field).
+		// Our provider must emit call_id as toolCallId consistently.
 		const { provider } = createMockSetup([
 			sseEvent({
 				type: 'response.output_item.added', output_index: 0, sequence_number: 1,
-				item: { type: 'function_call', call_id: 'call_1', name: 'read_file', arguments: '', id: 'item_1' },
+				item: { type: 'function_call', call_id: 'call_abc', name: 'read_file', arguments: '', id: 'item_123' },
 			}),
-			sseEvent({ type: 'response.function_call_arguments.delta', item_id: 'call_1', delta: '{"path":', output_index: 0, sequence_number: 2 }),
-			sseEvent({ type: 'response.function_call_arguments.delta', item_id: 'call_1', delta: '"test.txt"}', output_index: 0, sequence_number: 3 }),
-			sseEvent({ type: 'response.function_call_arguments.done', item_id: 'call_1', name: 'read_file', arguments: '{"path":"test.txt"}', output_index: 0, sequence_number: 4 }),
+			sseEvent({ type: 'response.function_call_arguments.delta', item_id: 'item_123', delta: '{"path":', output_index: 0, sequence_number: 2 }),
+			sseEvent({ type: 'response.function_call_arguments.delta', item_id: 'item_123', delta: '"test.txt"}', output_index: 0, sequence_number: 3 }),
+			sseEvent({ type: 'response.function_call_arguments.done', item_id: 'item_123', name: 'read_file', arguments: '{"path":"test.txt"}', output_index: 0, sequence_number: 4 }),
 			sseEvent({
 				type: 'response.completed', sequence_number: 5,
 				response: {
@@ -137,12 +141,17 @@ suite('OpenAIResponsesProvider', () => {
 
 		assert.strictEqual(toolStarts.length, 1);
 		assert.strictEqual(toolStarts[0].toolName, 'read_file');
-		assert.strictEqual(toolStarts[0].toolCallId, 'call_1');
+		// Must emit call_id, not item id
+		assert.strictEqual(toolStarts[0].toolCallId, 'call_abc');
 
 		assert.strictEqual(toolDeltas.length, 2);
+		// Deltas must also emit call_id
+		assert.strictEqual(toolDeltas[0].toolCallId, 'call_abc');
+		assert.strictEqual(toolDeltas[1].toolCallId, 'call_abc');
 
 		assert.strictEqual(toolCompletes.length, 1);
 		assert.strictEqual(toolCompletes[0].toolName, 'read_file');
+		assert.strictEqual(toolCompletes[0].toolCallId, 'call_abc');
 		assert.strictEqual(toolCompletes[0].arguments, '{"path":"test.txt"}');
 	});
 

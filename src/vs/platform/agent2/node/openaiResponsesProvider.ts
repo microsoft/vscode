@@ -17,6 +17,8 @@ import type {
 	EasyInputMessage,
 	FunctionTool,
 	ResponseCompletedEvent,
+	ResponseErrorEvent,
+	ResponseFailedEvent,
 	ResponseFunctionCallArgumentsDeltaEvent,
 	ResponseFunctionCallArgumentsDoneEvent,
 	ResponseFunctionToolCall,
@@ -29,6 +31,7 @@ import type {
 } from 'openai/resources/responses/responses.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { timeout } from '../../../base/common/async.js';
 import { ISSEEvent, SSEParser } from '../../../base/common/sseParser.js';
 import { IAssistantMessage, IConversationMessage, IToolResultMessage } from '../common/conversation.js';
 import { IModelInfo, IModelProvider, IModelRequestConfig, ModelResponseChunk } from '../common/modelProvider.js';
@@ -177,7 +180,7 @@ export class OpenAIResponsesProvider implements IModelProvider {
 			if (attempt > 0) {
 				const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
 				this._logService.info(`[OpenAI] Retry attempt ${attempt}/${MAX_RETRIES} after ${delay}ms`);
-				await new Promise(resolve => setTimeout(resolve, delay));
+				await timeout(delay, token);
 			}
 
 			const response = await this._apiService.sendModelRequest(
@@ -250,8 +253,10 @@ export class OpenAIResponsesProvider implements IModelProvider {
 			}
 		};
 
-		// Track function call arguments being accumulated
+		// Track function call state: key by item_id (used in delta/done events),
+		// but store call_id (used for tool result correlation)
 		const pendingArgs = new Map<string, string[]>();
+		const pendingCallIds = new Map<string, string>();
 		const pendingNames = new Map<string, string>();
 
 		const parser = new SSEParser((sseEvent: ISSEEvent) => {
@@ -283,8 +288,10 @@ export class OpenAIResponsesProvider implements IModelProvider {
 					const itemAdded = parsed as ResponseOutputItemAddedEvent;
 					if (itemAdded.item.type === 'function_call') {
 						const fc = itemAdded.item as ResponseFunctionToolCall;
-						pendingArgs.set(fc.call_id, []);
-						pendingNames.set(fc.call_id, fc.name);
+						const itemId = fc.id ?? fc.call_id;
+						pendingArgs.set(itemId, []);
+						pendingCallIds.set(itemId, fc.call_id);
+						pendingNames.set(itemId, fc.name);
 						pushEvent({
 							type: 'tool-call-start',
 							toolCallId: fc.call_id,
@@ -299,9 +306,10 @@ export class OpenAIResponsesProvider implements IModelProvider {
 					const pending = pendingArgs.get(argsDelta.item_id);
 					if (pending) {
 						pending.push(argsDelta.delta);
+						const callId = pendingCallIds.get(argsDelta.item_id) ?? argsDelta.item_id;
 						pushEvent({
 							type: 'tool-call-delta',
-							toolCallId: argsDelta.item_id,
+							toolCallId: callId,
 							argumentsDelta: argsDelta.delta,
 						});
 					}
@@ -310,12 +318,14 @@ export class OpenAIResponsesProvider implements IModelProvider {
 
 				case 'response.function_call_arguments.done': {
 					const argsDone = parsed as ResponseFunctionCallArgumentsDoneEvent;
+					const callId = pendingCallIds.get(argsDone.item_id) ?? argsDone.item_id;
 					const name = pendingNames.get(argsDone.item_id) ?? argsDone.name;
 					pendingArgs.delete(argsDone.item_id);
+					pendingCallIds.delete(argsDone.item_id);
 					pendingNames.delete(argsDone.item_id);
 					pushEvent({
 						type: 'tool-call-complete',
-						toolCallId: argsDone.item_id,
+						toolCallId: callId,
 						toolName: name,
 						arguments: argsDone.arguments,
 					});
@@ -342,6 +352,22 @@ export class OpenAIResponsesProvider implements IModelProvider {
 						});
 					}
 					pushEvent(null); // End of stream
+					break;
+				}
+
+				case 'error': {
+					const errorEvent = parsed as ResponseErrorEvent;
+					pushEvent(new Error(`OpenAI stream error: ${errorEvent.message}`));
+					break;
+				}
+
+				case 'response.failed': {
+					const failedEvent = parsed as ResponseFailedEvent;
+					const errorDetails = failedEvent.response?.error;
+					const message = errorDetails
+						? `${(errorDetails as { message?: string }).message ?? 'Unknown error'}`
+						: 'Response failed';
+					pushEvent(new Error(`OpenAI response failed: ${message}`));
 					break;
 				}
 			}
