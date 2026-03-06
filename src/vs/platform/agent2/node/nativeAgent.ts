@@ -106,6 +106,7 @@ export class NativeAgent extends Disposable implements IAgent {
 	}
 
 	async setAuthToken(token: string): Promise<void> {
+		this._logService.info(`[NativeAgent] Auth token received (${token.substring(0, 4)}...)`);
 		this._tokenService.setGitHubToken(token);
 	}
 

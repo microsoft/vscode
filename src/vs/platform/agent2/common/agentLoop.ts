@@ -28,6 +28,7 @@ import {
 	IThinkingPart,
 	IToolCallPart,
 } from './conversation.js';
+import { formatValidationErrors, validateSchema } from './schemaValidation.js';
 import { AgentLoopEvent } from './events.js';
 import { IMiddleware, runPostResponseMiddleware, runPostToolMiddleware, runPreRequestMiddleware, runPreToolMiddleware } from './middleware.js';
 import { IModelProvider, IModelRequestConfig } from './modelProvider.js';
@@ -441,20 +442,27 @@ async function executeSingleTool(
 		resultContent = `Error: Unknown tool "${toolCall.toolName}". Available tools: ${[...toolMap.keys()].join(', ')}`;
 		isError = true;
 	} else {
-		try {
-			const toolResult = await tool.execute(preResult.arguments, {
-				token,
-				workingDirectory: config.workingDirectory ?? '',
-				scratchpad,
-			});
-			resultContent = toolResult.content;
-			isError = toolResult.isError ?? false;
-		} catch (err) {
-			if (err instanceof CancellationError || token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-			resultContent = `Error executing tool "${toolCall.toolName}": ${err instanceof Error ? err.message : String(err)}`;
+		// Validate arguments against the tool's schema
+		const validationErrors = validateSchema(preResult.arguments, tool.parametersSchema);
+		if (validationErrors.length > 0) {
+			resultContent = formatValidationErrors(validationErrors);
 			isError = true;
+		} else {
+			try {
+				const toolResult = await tool.execute(preResult.arguments, {
+					token,
+					workingDirectory: config.workingDirectory ?? '',
+					scratchpad,
+				});
+				resultContent = toolResult.content;
+				isError = toolResult.isError ?? false;
+			} catch (err) {
+				if (err instanceof CancellationError || token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				resultContent = `Error executing tool "${toolCall.toolName}": ${err instanceof Error ? err.message : String(err)}`;
+				isError = true;
+			}
 		}
 	}
 
