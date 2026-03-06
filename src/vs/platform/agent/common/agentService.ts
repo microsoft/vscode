@@ -21,6 +21,20 @@ export const enum AgentHostIpcChannels {
 /** Configuration key that controls whether the agent host process is spawned. */
 export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
 
+/**
+ * Initialization data passed from the renderer to the agent host once
+ * per connection. Carries per-window identity that cannot be known at
+ * process start time.
+ */
+export interface IAgentHostInitData {
+	/** Stable machine identifier (persists across sessions). */
+	readonly machineId: string;
+	/** VS Code version string (e.g., '1.111.0'). */
+	readonly vscodeVersion: string;
+	/** Build quality: 'stable', 'insider', or '' for dev/OSS. */
+	readonly quality: string;
+}
+
 // ---- IPC data types (serializable across MessagePort) -----------------------
 
 export interface IAgentSessionMetadata {
@@ -299,6 +313,9 @@ export interface IAgent {
 	/** Set the authentication token for this provider. */
 	setAuthToken(token: string): Promise<void>;
 
+	/** Initialize with per-window identity data. */
+	initialize?(initData: IAgentHostInitData): Promise<void>;
+
 	/** Gracefully shut down all sessions. */
 	shutdown(): Promise<void>;
 
@@ -325,6 +342,12 @@ export interface IAgentService {
 
 	/** Set the GitHub auth token used by the Copilot SDK. */
 	setAuthToken(token: string): Promise<void>;
+
+	/**
+	 * Initialize the agent host with per-window identity data.
+	 * Called once after the IPC connection is established.
+	 */
+	initialize(initData: IAgentHostInitData): Promise<void>;
 
 	/** List available models from the agent. */
 	listModels(): Promise<IAgentModelInfo[]>;

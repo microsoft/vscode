@@ -8,12 +8,10 @@ import { Server as ChildProcessServer } from '../../../base/parts/ipc/node/ipc.c
 import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc.mp.js';
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { generateUuid } from '../../../base/common/uuid.js';
 import { AgentHostIpcChannels } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
 // import { CopilotAgent } from './copilot/copilotAgent.js'; // Temporarily disabled
 import { LocalAgent } from '../../agent2/node/localAgent.js';
-import { ICopilotApiIdentity } from '../../agent2/node/copilotToken.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { parseArgs, OPTIONS } from '../../environment/node/argv.js';
 import { getLogLevel } from '../../log/common/log.js';
@@ -55,14 +53,7 @@ function startAgentHost(): void {
 	try {
 		agentService = new AgentService(logService);
 		// agentService.registerProvider(new CopilotAgent(logService)); // Temporarily disabled -- conflicts with locally installed Copilot CLI
-
-		const identity: ICopilotApiIdentity = {
-			sessionId: process.env['VSCODE_AGENT_SESSION_ID'] || generateUuid(),
-			machineId: process.env['VSCODE_AGENT_MACHINE_ID'] || generateUuid(),
-			vscodeVersion: process.env['VSCODE_AGENT_VERSION'] || productService.version || '1.111.0',
-			buildType: (process.env['VSCODE_AGENT_QUALITY'] === 'stable' || process.env['VSCODE_AGENT_QUALITY'] === 'insider') ? 'prod' : 'dev',
-		};
-		agentService.registerProvider(new LocalAgent(logService, identity));
+		agentService.registerProvider(new LocalAgent(logService));
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		throw err;

@@ -13,7 +13,7 @@ import { acquirePort } from '../../../base/parts/ipc/electron-browser/ipc.mp.js'
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentHostService, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../common/agentService.js';
+import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentHostInitData, IAgentHostService, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../common/agentService.js';
 
 /**
  * Renderer-side implementation of {@link IAgentHostService} that connects
@@ -73,6 +73,9 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 
 	setAuthToken(token: string): Promise<void> {
 		return this._proxy.setAuthToken(token);
+	}
+	initialize(initData: IAgentHostInitData): Promise<void> {
+		return this._proxy.initialize(initData);
 	}
 	listAgents(): Promise<IAgentDescriptor[]> {
 		return this._proxy.listAgents();

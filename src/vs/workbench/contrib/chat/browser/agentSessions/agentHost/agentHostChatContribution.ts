@@ -10,7 +10,9 @@ import { IAgentHostService, AgentHostEnabledSettingId, IAgentDescriptor } from '
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../services/output/common/output.js';
@@ -49,6 +51,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IOutputService private readonly _outputService: IOutputService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
 
@@ -123,6 +127,14 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	private async _discoverAndRegisterAgents(): Promise<void> {
 		try {
+			// Send identity data before discovering agents so providers
+			// can configure their API clients with the correct machine ID
+			await this._agentHostService.initialize({
+				machineId: this._telemetryService.machineId,
+				vscodeVersion: this._productService.version,
+				quality: this._productService.quality ?? '',
+			});
+
 			const agents = await this._agentHostService.listAgents();
 			if (this._store.isDisposed) {
 				return;

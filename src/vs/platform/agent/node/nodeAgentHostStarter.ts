@@ -9,8 +9,6 @@ import { Client, IIPCOptions } from '../../../base/parts/ipc/node/ipc.cp.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../environment/common/environment.js';
 import { parseAgentHostDebugPort } from '../../environment/node/environmentService.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { IProductService } from '../../product/common/productService.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 /**
  * Spawns the agent host as a Node child process (fallback when
@@ -18,9 +16,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
  */
 export class NodeAgentHostStarter extends Disposable implements IAgentHostStarter {
 	constructor(
-		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
-		@IProductService private readonly _productService: IProductService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService
 	) {
 		super();
 	}
@@ -33,10 +29,6 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 				VSCODE_ESM_ENTRYPOINT: 'vs/platform/agent/node/agentHostMain',
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true',
-				VSCODE_AGENT_SESSION_ID: this._telemetryService.sessionId,
-				VSCODE_AGENT_MACHINE_ID: this._telemetryService.machineId,
-				VSCODE_AGENT_VERSION: this._productService.version,
-				VSCODE_AGENT_QUALITY: this._productService.quality ?? '',
 			}
 		};
 

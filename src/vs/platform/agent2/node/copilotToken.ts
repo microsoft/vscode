@@ -168,12 +168,14 @@ const TOKEN_REFRESH_MARGIN_SECONDS = 60;
 const GITHUB_API_VERSION = '2025-04-01';
 
 /**
- * Identity information for the CAPI client. Passed to the constructor
- * so the client identifies itself correctly for routing and telemetry.
+ * Process-level identity information for the CAPI client.
+ *
+ * Note: sessionId is intentionally absent. The agent host is a singleton
+ * process serving multiple VS Code windows, so per-window session IDs
+ * must flow through the IPC protocol per-request rather than being baked
+ * into the CAPI client at startup.
  */
 export interface ICopilotApiIdentity {
-	/** Stable session ID (should persist for the lifetime of a VS Code window). */
-	readonly sessionId: string;
 	/** Stable machine identifier (should persist across sessions). */
 	readonly machineId: string;
 	/** VS Code version string (e.g., '1.111.0'). */
@@ -196,7 +198,7 @@ export class CopilotApiService {
 	private _capiClient: ICAPIClient | undefined;
 	private _capiClientPromise: Promise<ICAPIClient> | undefined;
 	private readonly _fetcherService: ICAPIFetcherService | undefined;
-	private readonly _identity: ICopilotApiIdentity;
+	private _identity: ICopilotApiIdentity;
 
 	constructor(
 		private readonly _logService: ILogService,
@@ -205,7 +207,6 @@ export class CopilotApiService {
 	) {
 		this._fetcherService = fetcherService;
 		this._identity = identity ?? {
-			sessionId: generateUuid(),
 			machineId: generateUuid(),
 			vscodeVersion: '1.111.0',
 			buildType: 'dev',
@@ -227,7 +228,7 @@ export class CopilotApiService {
 			this._capiClient = new ClientCtor(
 				{
 					name: 'vscode.agent-host',
-					sessionId: this._identity.sessionId,
+					sessionId: generateUuid(), // Process-level placeholder; per-window sessionId TODO
 					machineId: this._identity.machineId,
 					vscodeVersion: this._identity.vscodeVersion,
 					version: '1.0.0',
@@ -321,6 +322,20 @@ export class CopilotApiService {
 			this._refreshPromise = undefined;
 			this._logService.info('[CopilotApi] GitHub token updated');
 		}
+	}
+
+	/**
+	 * Updates the process-level identity. If the CAPI client has already been
+	 * created, it will be discarded so the next request creates a new one with
+	 * the updated identity. Called from {@link LocalAgent.initialize} when the
+	 * renderer sends init data over IPC.
+	 */
+	setIdentity(identity: ICopilotApiIdentity): void {
+		this._identity = identity;
+		// Force re-creation of the CAPI client with the new identity
+		this._capiClient = undefined;
+		this._capiClientPromise = undefined;
+		this._logService.info('[CopilotApi] Identity updated');
 	}
 
 	/**

@@ -24,6 +24,7 @@ import {
 	IAgentAttachment,
 	IAgentCreateSessionConfig,
 	IAgentDescriptor,
+	IAgentHostInitData,
 	IAgentMessageEvent,
 	IAgentModelInfo,
 	IAgentProgressEvent,
@@ -41,7 +42,7 @@ import {
 import { AgentLoopEvent } from '../common/events.js';
 import { IAgentTool } from '../common/tools.js';
 import { IMiddleware } from '../common/middleware.js';
-import { CAPIRequestType, CopilotApiService, ICAPIModelsResponse, ICopilotApiIdentity } from './copilotToken.js';
+import { CAPIRequestType, CopilotApiService, ICAPIModelsResponse } from './copilotToken.js';
 import { createAnthropicFactory, createOpenAIFactory, ModelProviderService } from './modelProviderService.js';
 import { AllowAllPolicy, PermissionMiddleware } from './middleware/permissionMiddleware.js';
 import { ContextWindowMiddleware } from './middleware/contextWindow.js';
@@ -88,10 +89,9 @@ export class LocalAgent extends Disposable implements IAgent {
 
 	constructor(
 		private readonly _logService: ILogService,
-		identity?: ICopilotApiIdentity,
 	) {
 		super();
-		this._apiService = new CopilotApiService(_logService, identity);
+		this._apiService = new CopilotApiService(_logService);
 		this._modelProviderService = new ModelProviderService();
 		this._modelProviderService.registerFactory(createAnthropicFactory(this._apiService, _logService));
 		this._modelProviderService.registerFactory(createOpenAIFactory(this._apiService, _logService));
@@ -112,6 +112,15 @@ export class LocalAgent extends Disposable implements IAgent {
 	async setAuthToken(token: string): Promise<void> {
 		this._logService.info('[LocalAgent] Auth token received');
 		this._apiService.setGitHubToken(token);
+	}
+
+	async initialize(initData: IAgentHostInitData): Promise<void> {
+		this._logService.info('[LocalAgent] Initialized with identity data');
+		this._apiService.setIdentity({
+			machineId: initData.machineId,
+			vscodeVersion: initData.vscodeVersion,
+			buildType: (initData.quality === 'stable' || initData.quality === 'insider') ? 'prod' : 'dev',
+		});
 	}
 
 	async listModels(): Promise<IAgentModelInfo[]> {
