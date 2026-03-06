@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter, applyStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { BUILTIN_STORAGE } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { BUILTIN_STORAGE } from '../../chat/common/builtinPromptsStorage.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CustomizationCreatorService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationCreatorService.js';

@@ -17,7 +17,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform
 import { HOOKS_SOURCE_FOLDER, getCleanPromptName } from '../../../../workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPromptPath, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { BUILTIN_STORAGE } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { BUILTIN_STORAGE } from '../../chat/common/builtinPromptsStorage.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { ISearchService } from '../../../../workbench/services/search/common/search.js';
