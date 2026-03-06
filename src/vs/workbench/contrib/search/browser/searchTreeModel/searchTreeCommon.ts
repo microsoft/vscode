@@ -244,6 +244,7 @@ export interface ISearchTreeFileMatch {
 	getSelectedMatch(): ISearchTreeMatch | null;
 	parent(): ISearchTreeFolderMatch;
 	bindModel(model: ITextModel): void;
+	forceUpdateMatches(): void;
 	hasReadonlyMatches(): boolean;
 	addContext(results: ITextSearchResult[] | undefined): void;
 	add(match: ISearchTreeMatch, trigger?: boolean): void;
