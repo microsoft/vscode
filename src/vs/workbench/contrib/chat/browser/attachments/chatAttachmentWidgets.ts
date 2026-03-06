@@ -320,7 +320,7 @@ export class TerminalCommandAttachmentWidget extends AbstractChatAttachmentWidge
 			}
 		}));
 
-		this.element.ariaLabel = this.appendDeletionHint(this.element.ariaLabel ?? '');
+		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 	}
 }
 
