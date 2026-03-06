@@ -8,7 +8,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { MenuId, MenuRegistry, registerAction2, Action2, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { isHorizontal, IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from '../../../services/layout/browser/layoutService.js';
+import { isHorizontal, IWorkbenchLayoutService, PanelAlignment, PanelMode, Parts, Position, positionToString } from '../../../services/layout/browser/layoutService.js';
 import { IsAuxiliaryWindowContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext, PanelDialogModeContext } from '../../../common/contextkeys.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -305,7 +305,9 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor) {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const notificationService = accessor.get(INotificationService);
-		if (layoutService.getPanelAlignment() !== 'center' && isHorizontal(layoutService.getPanelPosition())) {
+		// Grid-based maximization requires center alignment in horizontal position.
+		// Dialog mode has no grid constraints, so this limitation doesn't apply.
+		if (layoutService.getPanelMode() === PanelMode.Dock && layoutService.getPanelAlignment() !== 'center' && isHorizontal(layoutService.getPanelPosition())) {
 			notificationService.warn(localize('panelMaxNotSupported', "Maximizing the panel is only supported when it is center aligned."));
 			return;
 		}
