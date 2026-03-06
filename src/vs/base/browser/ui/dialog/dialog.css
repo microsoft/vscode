@@ -253,5 +253,5 @@
 }
 
 .monaco-dialog-modal-block .dialog-shadow {
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius: var(--vscode-cornerRadius-xLarge);
 }
