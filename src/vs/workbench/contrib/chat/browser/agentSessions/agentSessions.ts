@@ -21,6 +21,7 @@ export enum AgentSessionProviders {
 	Codex = 'openai-codex',
 	Growth = 'copilot-growth',
 	AgentHostCopilot = 'agent-host-copilot',
+	AgentHostNative = 'agent-host-native',
 }
 
 export function isBuiltInAgentSessionProvider(provider: string): boolean {
@@ -39,6 +40,7 @@ export function getAgentSessionProvider(sessionResource: URI | string): AgentSes
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
 		case AgentSessionProviders.AgentHostCopilot:
+		case AgentSessionProviders.AgentHostNative:
 			return type;
 		default:
 			return undefined;
@@ -61,6 +63,8 @@ export function getAgentSessionProviderName(provider: AgentSessionProviders): st
 			return 'Growth';
 		case AgentSessionProviders.AgentHostCopilot:
 			return 'Agent Host - Copilot';
+		case AgentSessionProviders.AgentHostNative:
+			return 'Native Agent';
 	}
 }
 
@@ -80,6 +84,8 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 			return Codicon.lightbulb;
 		case AgentSessionProviders.AgentHostCopilot:
 			return Codicon.vscodeInsiders; // default; use getAgentHostIcon() for quality-aware icon
+		case AgentSessionProviders.AgentHostNative:
+			return Codicon.vscodeInsiders;
 	}
 }
 
@@ -96,6 +102,8 @@ export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders
 		case AgentSessionProviders.Background:
 		case AgentSessionProviders.Cloud:
 		case AgentSessionProviders.AgentHostCopilot:
+			return true;
+		case AgentSessionProviders.AgentHostNative:
 			return true;
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
@@ -114,6 +122,8 @@ export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean 
 		case AgentSessionProviders.Codex:
 		case AgentSessionProviders.Growth:
 		case AgentSessionProviders.AgentHostCopilot:
+			return false;
+		case AgentSessionProviders.AgentHostNative:
 			return false;
 	}
 }
@@ -134,6 +144,8 @@ export function getAgentSessionProviderDescription(provider: AgentSessionProvide
 			return localize('chat.session.providerDescription.growth', "Learn about Copilot features.");
 		case AgentSessionProviders.AgentHostCopilot:
 			return 'Run a Copilot SDK agent in a dedicated process.';
+		case AgentSessionProviders.AgentHostNative:
+			return 'Run a native agent loop with direct model API calls in a dedicated process.';
 	}
 }
 
