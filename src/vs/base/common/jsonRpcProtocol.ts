@@ -43,6 +43,7 @@ export interface IJsonRpcErrorResponse {
 }
 
 export type JsonRpcMessage = IJsonRpcRequest | IJsonRpcNotification | IJsonRpcSuccessResponse | IJsonRpcErrorResponse;
+export type JsonRpcResponse = IJsonRpcSuccessResponse | IJsonRpcErrorResponse;
 
 interface IPendingRequest {
 	promise: DeferredPromise<unknown>;
@@ -122,9 +123,20 @@ export class JsonRpcProtocol extends Disposable {
 		}) as Promise<T>;
 	}
 
-	public async handleMessage(message: JsonRpcMessage | JsonRpcMessage[]): Promise<JsonRpcMessage[]> {
+	/**
+	 * Handles one or more incoming JSON-RPC messages.
+	 *
+	 * Returns an array of JSON-RPC response objects generated for any incoming
+	 * requests in the message(s). Notifications and responses to our own
+	 * outgoing requests do not produce return values. For batch inputs, the
+	 * returned responses are in the same order as the corresponding requests.
+	 *
+	 * Note: responses are also emitted via the `_send` callback, so callers
+	 * that rely on the return value should not re-send them.
+	 */
+	public async handleMessage(message: JsonRpcMessage | JsonRpcMessage[]): Promise<JsonRpcResponse[]> {
 		if (Array.isArray(message)) {
-			const replies: JsonRpcMessage[] = [];
+			const replies: JsonRpcResponse[] = [];
 			for (const single of message) {
 				const reply = await this._handleMessage(single);
 				if (reply) {
@@ -157,7 +169,7 @@ export class JsonRpcProtocol extends Disposable {
 		}
 	}
 
-	private async _handleMessage(message: JsonRpcMessage): Promise<JsonRpcMessage | undefined> {
+	private async _handleMessage(message: JsonRpcMessage): Promise<JsonRpcResponse | undefined> {
 		if (isJsonRpcResponse(message)) {
 			if (hasKey(message, { result: true })) {
 				this._handleResult(message);
@@ -200,9 +212,9 @@ export class JsonRpcProtocol extends Disposable {
 		}
 	}
 
-	private async _handleRequest(request: IJsonRpcRequest): Promise<JsonRpcMessage> {
+	private async _handleRequest(request: IJsonRpcRequest): Promise<JsonRpcResponse> {
 		if (!this._handlers.handleRequest) {
-			const response: JsonRpcMessage = {
+			const response: IJsonRpcErrorResponse = {
 				jsonrpc: '2.0',
 				id: request.id,
 				error: {
@@ -220,7 +232,7 @@ export class JsonRpcProtocol extends Disposable {
 		try {
 			const resultOrThenable = this._handlers.handleRequest(request, cts.token);
 			const result = isThenable(resultOrThenable) ? await resultOrThenable : resultOrThenable;
-			const response: JsonRpcMessage = {
+			const response: IJsonRpcSuccessResponse = {
 				jsonrpc: '2.0',
 				id: request.id,
 				result,
@@ -228,7 +240,7 @@ export class JsonRpcProtocol extends Disposable {
 			this._send(response);
 			return response;
 		} catch (error) {
-			let response: JsonRpcMessage;
+			let response: IJsonRpcErrorResponse;
 			if (error instanceof JsonRpcError) {
 				response = {
 					jsonrpc: '2.0',

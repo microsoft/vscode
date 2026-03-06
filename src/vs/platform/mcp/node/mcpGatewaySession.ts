@@ -6,7 +6,7 @@
 import type * as http from 'http';
 import {
 	IJsonRpcNotification, IJsonRpcRequest,
-	isJsonRpcNotification, isJsonRpcResponse, JsonRpcError, JsonRpcMessage, JsonRpcProtocol
+	isJsonRpcNotification, isJsonRpcResponse, JsonRpcError, JsonRpcMessage, JsonRpcProtocol, JsonRpcResponse
 } from '../../../base/common/jsonRpcProtocol.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -134,7 +134,7 @@ export class McpGatewaySession extends Disposable {
 		});
 	}
 
-	public async handleIncoming(message: JsonRpcMessage | JsonRpcMessage[]): Promise<JsonRpcMessage[]> {
+	public async handleIncoming(message: JsonRpcMessage | JsonRpcMessage[]): Promise<JsonRpcResponse[]> {
 		return this._rpc.handleMessage(message);
 	}
 
