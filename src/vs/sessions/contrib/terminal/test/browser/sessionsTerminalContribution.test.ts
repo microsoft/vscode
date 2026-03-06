@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -77,7 +77,6 @@ function addCommandToInstance(instance: ITerminalInstance, timestamp: number): v
 }
 
 suite('SessionsTerminalContribution', () => {
-
 	const store = new DisposableStore();
 	let contribution: SessionsTerminalContribution;
 	let activeSessionObs: ReturnType<typeof observableValue<IActiveSessionItem | undefined>>;
@@ -116,6 +115,7 @@ suite('SessionsTerminalContribution', () => {
 		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
+			override onDidCreateInstance = Event.None;
 			override get instances(): readonly ITerminalInstance[] {
 				return [...terminalInstances.values()];
 			}
