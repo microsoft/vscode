@@ -984,6 +984,15 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		const scrollableContent = dom.$('div.chat-element-hover-content');
 		const innerScrollables: DomScrollableElement[] = [];
 
+		// PAGE URL section
+		if (attachment.pageUrl) {
+			const section = dom.$('div.chat-element-hover-section');
+			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.pageUrl', "PAGE URL"));
+			section.appendChild(header);
+			section.appendChild(dom.$('div.chat-element-hover-text', {}, attachment.pageUrl));
+			scrollableContent.appendChild(section);
+		}
+
 		// ELEMENT section: show the selected element tag with all attributes
 		{
 			const section = dom.$('div.chat-element-hover-section');
@@ -1130,7 +1139,7 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 	}
 
 	private shouldRenderRichElementHover(attachment: IElementVariableEntry): boolean {
-		if (attachment.dimensions || attachment.innerText) {
+		if (attachment.pageUrl || attachment.dimensions || attachment.innerText) {
 			return true;
 		}
 
