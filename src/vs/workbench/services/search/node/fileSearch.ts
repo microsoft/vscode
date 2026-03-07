@@ -266,7 +266,8 @@ export class FileWalker {
 				return;
 			}
 
-			// TODO: Optimize siblings clauses with ripgrep here.
+			// Sibling clauses are not yet optimized with ripgrep because integrating them
+			// properly requires significant changes to file searching internals.
 			this.addDirectoryEntries(folderQuery, tree, rootFolder, relativeFiles, onResult);
 
 			if (last) {
