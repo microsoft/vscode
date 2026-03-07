@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CursorState, ICursorSimpleModel, SelectionStartKind, SingleCursorState } from '../cursorCommon.js';
-import { CursorContext } from './cursorContext.js';
+import { TextEditorCursorStyle } from '../config/editorOptions.js';
 import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { Selection } from '../core/selection.js';
+import { CursorConfiguration, CursorState, ICursorSimpleModel, SelectionStartKind, SingleCursorState } from '../cursorCommon.js';
 import { PositionAffinity, TrackedRangeStickiness } from '../model.js';
+import { CursorContext } from './cursorContext.js';
 
 /**
  * Represents a single cursor.
@@ -88,12 +89,12 @@ export class Cursor {
 		return viewModel.normalizePosition(position, PositionAffinity.None);
 	}
 
-	private static _validateViewState(viewModel: ICursorSimpleModel, viewState: SingleCursorState): SingleCursorState {
+	private static _validateViewState(viewModel: ICursorSimpleModel, viewState: SingleCursorState, cursorConfig: CursorConfiguration): SingleCursorState {
 		const position = viewState.position;
 		const sStartPosition = viewState.selectionStart.getStartPosition();
 		const sEndPosition = viewState.selectionStart.getEndPosition();
 
-		const validPosition = viewModel.normalizePosition(position, PositionAffinity.None);
+		const validPosition = viewModel.normalizePosition(position, cursorConfig.cursorStyle === TextEditorCursorStyle.Line || cursorConfig.cursorStyle === TextEditorCursorStyle.LineThin ? PositionAffinity.None : PositionAffinity.RightOfInjectedText);
 		const validSStartPosition = this._validatePositionWithCache(viewModel, sStartPosition, position, validPosition);
 		const validSEndPosition = this._validatePositionWithCache(viewModel, sEndPosition, sStartPosition, validSStartPosition);
 
@@ -113,7 +114,7 @@ export class Cursor {
 
 	private _setState(context: CursorContext, modelState: SingleCursorState | null, viewState: SingleCursorState | null): void {
 		if (viewState) {
-			viewState = Cursor._validateViewState(context.viewModel, viewState);
+			viewState = Cursor._validateViewState(context.viewModel, viewState, context.cursorConfig);
 		}
 
 		if (!modelState) {
@@ -145,10 +146,14 @@ export class Cursor {
 
 		if (!viewState) {
 			// We only have the model state => compute the view state
-			const viewSelectionStart1 = context.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelState.selectionStart.startLineNumber, modelState.selectionStart.startColumn));
-			const viewSelectionStart2 = context.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelState.selectionStart.endLineNumber, modelState.selectionStart.endColumn));
+			// For block cursors, use Right affinity so that view positions land after any injected text
+			// (e.g. inlay hints) at the model position, placing the block on the real character.
+			const isLineCursor = context.cursorConfig.cursorStyle === TextEditorCursorStyle.Line || context.cursorConfig.cursorStyle === TextEditorCursorStyle.LineThin;
+			const viewPositionAffinity = isLineCursor ? PositionAffinity.None : PositionAffinity.Right;
+			const viewSelectionStart1 = context.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelState.selectionStart.startLineNumber, modelState.selectionStart.startColumn), viewPositionAffinity);
+			const viewSelectionStart2 = context.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelState.selectionStart.endLineNumber, modelState.selectionStart.endColumn), viewPositionAffinity);
 			const viewSelectionStart = new Range(viewSelectionStart1.lineNumber, viewSelectionStart1.column, viewSelectionStart2.lineNumber, viewSelectionStart2.column);
-			const viewPosition = context.coordinatesConverter.convertModelPositionToViewPosition(modelState.position);
+			const viewPosition = context.coordinatesConverter.convertModelPositionToViewPosition(modelState.position, viewPositionAffinity);
 			viewState = new SingleCursorState(viewSelectionStart, modelState.selectionStartKind, modelState.selectionStartLeftoverVisibleColumns, viewPosition, modelState.leftoverVisibleColumns);
 		} else {
 			// Validate new view state
