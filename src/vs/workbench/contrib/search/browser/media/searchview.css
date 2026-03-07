@@ -363,6 +363,7 @@
 .search-view .findInFileMatch {
 	background-color: var(--vscode-editor-findMatchHighlightBackground);
 	border: 1px solid var(--vscode-editor-findMatchHighlightBorder);
+	color: var(--vscode-editor-findMatchForeground);
 }
 
 /* High Contrast Theming */
