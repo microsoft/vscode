@@ -14,13 +14,18 @@
 
 import { IAssistantContentPart, IModelIdentity } from './conversation.js';
 
+/** Current schema version for session entries. */
+export const SESSION_ENTRY_VERSION = 1;
+
 export interface ISessionUserMessage {
+	readonly v: number;
 	readonly type: 'user-message';
 	readonly messageId: string;
 	readonly content: string;
 }
 
 export interface ISessionAssistantMessage {
+	readonly v: number;
 	readonly type: 'assistant-message';
 	readonly messageId: string;
 	/** The full content parts: text, tool-calls, thinking, redacted-thinking. */
@@ -32,6 +37,7 @@ export interface ISessionAssistantMessage {
 }
 
 export interface ISessionToolStart {
+	readonly v: number;
 	readonly type: 'tool-start';
 	readonly toolCallId: string;
 	readonly toolName: string;
@@ -43,6 +49,7 @@ export interface ISessionToolStart {
 }
 
 export interface ISessionToolComplete {
+	readonly v: number;
 	readonly type: 'tool-complete';
 	readonly toolCallId: string;
 	readonly toolName: string;

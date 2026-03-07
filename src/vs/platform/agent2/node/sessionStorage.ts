@@ -27,13 +27,14 @@ import {
 	AgentSession,
 	IAgentSessionMetadata,
 } from '../../agent/common/agentService.js';
-import type { SessionEntry } from '../common/sessionTypes.js';
+import { SESSION_ENTRY_VERSION, type SessionEntry } from '../common/sessionTypes.js';
 
 export type { ISessionUserMessage, ISessionAssistantMessage, ISessionToolStart, ISessionToolComplete, SessionEntry } from '../common/sessionTypes.js';
 
 // -- Internal JSONL record types (metadata only) ------------------------------
 
 interface ISessionCreatedRecord {
+	readonly v: number;
 	readonly type: 'session-created';
 	readonly sessionId: string;
 	readonly model: string;
@@ -42,6 +43,7 @@ interface ISessionCreatedRecord {
 }
 
 interface ISessionModifiedRecord {
+	readonly v: number;
 	readonly type: 'session-modified';
 	readonly modifiedTime: number;
 }
@@ -98,6 +100,7 @@ export class SessionStorage {
 		const sessionId = AgentSession.id(sessionUri);
 
 		const record: ISessionCreatedRecord = {
+			v: SESSION_ENTRY_VERSION,
 			type: 'session-created',
 			sessionId,
 			model,
@@ -120,6 +123,7 @@ export class SessionStorage {
 	 */
 	markModified(sessionUri: URI, workingDirectory: string): void {
 		const record: ISessionModifiedRecord = {
+			v: SESSION_ENTRY_VERSION,
 			type: 'session-modified',
 			modifiedTime: Date.now(),
 		};

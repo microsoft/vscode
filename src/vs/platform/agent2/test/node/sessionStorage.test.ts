@@ -11,6 +11,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../../agent/common/agentService.js';
 import { SessionStorage } from '../../node/sessionStorage.js';
+import { SESSION_ENTRY_VERSION } from '../../common/sessionTypes.js';
+
+const V = SESSION_ENTRY_VERSION;
 
 suite('SessionStorage', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -41,9 +44,9 @@ suite('SessionStorage', () => {
 		const wd = '/workspace';
 		await storage.createSession(uri, 'claude-sonnet-4-20250514', wd, Date.now());
 
-		storage.append(uri, wd, { type: 'user-message', messageId: 'msg-1', content: 'Hello world' });
+		storage.append(uri, wd, { v: V, type: 'user-message', messageId: 'msg-1', content: 'Hello world' });
 		storage.append(uri, wd, {
-			type: 'assistant-message', messageId: 'msg-2',
+			v: V, type: 'assistant-message', messageId: 'msg-2',
 			contentParts: [{ type: 'text', text: 'Hi there!' }],
 			modelIdentity: { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514' },
 		});
@@ -68,6 +71,7 @@ suite('SessionStorage', () => {
 		await storage.createSession(uri, 'claude-sonnet-4-20250514', wd, Date.now());
 
 		storage.append(uri, wd, {
+			v: V,
 			type: 'tool-start',
 			toolCallId: 'tc-1',
 			toolName: 'readFile',
@@ -75,6 +79,7 @@ suite('SessionStorage', () => {
 			invocationMessage: 'Reading test.txt',
 		});
 		storage.append(uri, wd, {
+			v: V,
 			type: 'tool-complete',
 			toolCallId: 'tc-1',
 			toolName: 'readFile',
@@ -95,8 +100,8 @@ suite('SessionStorage', () => {
 		const uri = AgentSession.uri('local', 'test-session-4');
 		const wd = '/workspace';
 		await storage.createSession(uri, 'claude-sonnet-4-20250514', wd, Date.now());
-		storage.append(uri, wd, { type: 'user-message', messageId: 'msg-1', content: 'First message' });
-		storage.append(uri, wd, { type: 'user-message', messageId: 'msg-2', content: 'Second message' });
+		storage.append(uri, wd, { v: V, type: 'user-message', messageId: 'msg-1', content: 'First message' });
+		storage.append(uri, wd, { v: V, type: 'user-message', messageId: 'msg-2', content: 'Second message' });
 		await storage.flush('test-session-4');
 
 		// Read raw file and verify it has exactly 3 lines (created + 2 messages)
@@ -136,7 +141,7 @@ suite('SessionStorage', () => {
 	test('findAndRestoreSession scans all workspaces', async () => {
 		const uri = AgentSession.uri('local', 'session-find');
 		await storage.createSession(uri, 'claude-sonnet-4-20250514', '/some-workspace', Date.now());
-		storage.append(uri, '/some-workspace', { type: 'user-message', messageId: 'msg-1', content: 'test' });
+		storage.append(uri, '/some-workspace', { v: V, type: 'user-message', messageId: 'msg-1', content: 'test' });
 		await storage.flush('session-find');
 
 		// Should find it without knowing the workspace
@@ -149,7 +154,7 @@ suite('SessionStorage', () => {
 	test('extracts summary from first user message', async () => {
 		const uri = AgentSession.uri('local', 'session-summary');
 		await storage.createSession(uri, 'claude-sonnet-4-20250514', '/workspace', Date.now());
-		storage.append(uri, '/workspace', { type: 'user-message', messageId: 'msg-1', content: 'Help me refactor this function' });
+		storage.append(uri, '/workspace', { v: V, type: 'user-message', messageId: 'msg-1', content: 'Help me refactor this function' });
 		await storage.flush('session-summary');
 
 		const sessions = await storage.listSessions('/workspace');

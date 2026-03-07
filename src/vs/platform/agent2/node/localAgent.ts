@@ -50,12 +50,13 @@ import { ToolOutputTruncationMiddleware } from './middleware/toolOutputTruncatio
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind } from './localToolDisplay.js';
 import { BashTool } from './tools/bashTool.js';
 import { ReadFileTool } from './tools/readFileTool.js';
-import type {
-	ISessionAssistantMessage,
-	ISessionToolComplete,
-	ISessionToolStart,
-	ISessionUserMessage,
-	SessionEntry,
+import {
+	SESSION_ENTRY_VERSION,
+	type ISessionAssistantMessage,
+	type ISessionToolComplete,
+	type ISessionToolStart,
+	type ISessionUserMessage,
+	type SessionEntry,
 } from '../common/sessionTypes.js';
 import { SessionStorage } from './sessionStorage.js';
 
@@ -129,6 +130,7 @@ class LocalSession {
 
 	addUserMessage(prompt: string): ISessionUserMessage {
 		const entry: ISessionUserMessage = {
+			v: SESSION_ENTRY_VERSION,
 			type: 'user-message',
 			messageId: generateUuid(),
 			content: prompt,
@@ -140,6 +142,7 @@ class LocalSession {
 
 	addAssistantMessage(msg: IAssistantMessage): ISessionAssistantMessage {
 		const entry: ISessionAssistantMessage = {
+			v: SESSION_ENTRY_VERSION,
 			type: 'assistant-message',
 			messageId: this._currentAssistantMessageId ?? generateUuid(),
 			contentParts: msg.content,
@@ -156,6 +159,7 @@ class LocalSession {
 		this._activeToolCalls.set(toolCallId, { toolName, args });
 
 		const entry: ISessionToolStart = {
+			v: SESSION_ENTRY_VERSION,
 			type: 'tool-start',
 			toolCallId,
 			toolName,
@@ -176,6 +180,7 @@ class LocalSession {
 		const toolArgs = tracked?.args ?? {};
 
 		const entry: ISessionToolComplete = {
+			v: SESSION_ENTRY_VERSION,
 			type: 'tool-complete',
 			toolCallId,
 			toolName,
