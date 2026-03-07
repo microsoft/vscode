@@ -55,10 +55,9 @@
 	flex-grow: 1; /* left items push right items to the far right end */}
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item {
-	display: inline-block;
-	line-height: 22px;
+	display: flex;
+	align-items: center;
 	height: 100%;
-	vertical-align: top;
 	max-width: 40vw;
 	font-variant-numeric: tabular-nums;
 }
@@ -105,6 +104,7 @@
 	align-items: center;
 	text-overflow: ellipsis;
 	overflow: hidden;
+	min-width: 0;
 	outline-width: 0px; /* do not render focus outline, we already have background */
 }
 
