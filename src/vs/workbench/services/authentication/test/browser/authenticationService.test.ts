@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { AuthenticationAccessService } from '../../browser/authenticationAccessService.js';
 import { AuthenticationService } from '../../browser/authenticationService.js';
 import { AuthenticationProviderInformation, AuthenticationSessionsChangeEvent, IAuthenticationProvider } from '../../common/authentication.js';
+import { DynamicAuthenticationProviderStorageService } from '../../browser/dynamicAuthenticationProviderStorageService.js';
 import { TestEnvironmentService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestExtensionService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -39,7 +40,8 @@ suite('AuthenticationService', () => {
 	setup(() => {
 		const storageService = disposables.add(new TestStorageService());
 		const authenticationAccessService = disposables.add(new AuthenticationAccessService(storageService, TestProductService));
-		authenticationService = disposables.add(new AuthenticationService(new TestExtensionService(), authenticationAccessService, TestEnvironmentService, new NullLogService()));
+		const dynamicAuthenticationProviderStorageService = disposables.add(new DynamicAuthenticationProviderStorageService(storageService, null as any /* SecretStorageService */, new NullLogService()));
+		authenticationService = disposables.add(new AuthenticationService(new TestExtensionService(), authenticationAccessService, TestEnvironmentService, new NullLogService(), dynamicAuthenticationProviderStorageService));
 	});
 
 	teardown(() => {
@@ -97,6 +99,15 @@ suite('AuthenticationService', () => {
 			assert.equal(authenticationService.isAuthenticationProviderRegistered(provider.id), false);
 			const result = await unregistered;
 			assert.deepEqual(result, { id: provider.id, label: provider.label });
+		});
+
+		test('removeDynamicAuthenticationProvider', async () => {
+			const provider = createProvider();
+			authenticationService.registerAuthenticationProvider('test', provider);
+			assert.strictEqual(authenticationService.getProviderIds().length, 1);
+
+			await authenticationService.removeDynamicAuthenticationProvider(provider.id);
+			assert.strictEqual(authenticationService.getProviderIds().length, 0);
 		});
 
 		test('getProviderIds', () => {

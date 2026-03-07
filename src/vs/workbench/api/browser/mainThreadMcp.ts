@@ -26,7 +26,6 @@ import { IAuthenticationMcpAccessService } from '../../services/authentication/b
 import { IAuthenticationMcpService } from '../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../services/authentication/browser/authenticationMcpUsageService.js';
 import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationService } from '../../services/authentication/common/authentication.js';
-import { IDynamicAuthenticationProviderStorageService } from '../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { ExtensionHostKind, extensionHostKindToString } from '../../services/extensions/common/extensionHostKind.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
@@ -56,7 +55,6 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		@IAuthenticationMcpService private readonly authenticationMcpServersService: IAuthenticationMcpService,
 		@IAuthenticationMcpAccessService private readonly authenticationMCPServerAccessService: IAuthenticationMcpAccessService,
 		@IAuthenticationMcpUsageService private readonly authenticationMCPServerUsageService: IAuthenticationMcpUsageService,
-		@IDynamicAuthenticationProviderStorageService private readonly _dynamicAuthenticationProviderStorageService: IDynamicAuthenticationProviderStorageService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -239,9 +237,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			if (!this._authenticationService.isDynamicAuthenticationProvider(providerId)) {
 				throw new Error('Cannot force new registration for a non-dynamic authentication provider.');
 			}
-			this._authenticationService.unregisterAuthenticationProvider(providerId);
-			// TODO: Encapsulate this and the unregister in one call in the auth service
-			await this._dynamicAuthenticationProviderStorageService.removeDynamicProvider(providerId);
+			await this._authenticationService.removeDynamicAuthenticationProvider(providerId);
 			providerId = undefined;
 		}
 
