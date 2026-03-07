@@ -1449,6 +1449,7 @@ export interface ISerializableChatRequestData extends ISerializableChatResponseD
 	confirmation?: string;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	modelId?: string;
+	modeInfo?: IChatRequestModeInfo;
 }
 
 export interface ISerializableMarkdownInfo {
@@ -2315,6 +2316,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			confirmation: raw.confirmation,
 			editedFileEvents: raw.editedFileEvents,
 			modelId: raw.modelId,
+			modeInfo: raw.modeInfo,
 		});
 		request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any, local/code-no-any-casts
@@ -2657,6 +2659,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					confirmation: r.confirmation,
 					editedFileEvents: r.editedFileEvents,
 					modelId: r.modelId,
+					modeInfo: r.modeInfo,
 					...r.response?.toJSON(),
 				};
 			}),
