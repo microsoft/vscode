@@ -111,15 +111,22 @@ function getSharedStyleSheet(): HTMLStyleElement {
 	return _sharedStyleSheet;
 }
 
-function getDynamicStyleSheetRules(style: HTMLStyleElement) {
-	if (style?.sheet?.rules) {
-		return style.sheet.rules; // Chrome, IE
+function getDynamicStyleSheetRules(style: HTMLStyleElement): CSSRuleList {
+	if (style.sheet) {
+		return style.sheet.cssRules;
 	}
-	if (style?.sheet?.cssRules) {
-		return style.sheet.cssRules; // FF
-	}
-	return [];
+
+	const emptyRules: CSSRule[] = [];
+
+	return {
+		length: 0,
+		item: () => null,
+		[Symbol.iterator]: () => emptyRules.values()
+	};
 }
+
+
+
 
 export function createCSSRule(selector: string, cssText: string, style = getSharedStyleSheet()): void {
 	if (!style || !cssText) {
