@@ -643,11 +643,13 @@ export class ChangesViewPane extends ViewPane {
 					const isDeletion = change.modifiedUri === undefined;
 					const isAddition = change.originalUri === undefined;
 					const fileUri = change.modifiedUri ?? change.uri;
+					const originalUri = isAddition ? change.originalUri
+						: headCommit ? fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: parentRef }) })
+							: change.originalUri;
 					return {
 						type: 'file',
 						uri: fileUri,
-						originalUri: isDeletion || !headCommit ? change.originalUri
-							: fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: parentRef }) }),
+						originalUri,
 						state: ModifiedFileEntryState.Accepted,
 						isDeletion,
 						changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
