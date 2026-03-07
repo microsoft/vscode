@@ -335,12 +335,12 @@ export interface IModalEditorPartOptions {
 	readonly maximized?: boolean;
 
 	/**
-	 * Size of the modal editor part unless it is maximised.
+	 * Size of the modal editor part unless it is maximized.
 	 */
 	readonly size?: { readonly width: number; readonly height: number };
 
 	/**
-	 * Position of the modal editor part unless it is maximised.
+	 * Position of the modal editor part unless it is maximized.
 	 */
 	readonly position?: { readonly left: number; readonly top: number };
 
