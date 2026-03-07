@@ -22,7 +22,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { getActiveElement, isAncestor, isHTMLElement } from '../../../../base/browser/dom.js';
+import { getActiveElement, IDimension, isAncestor, isHTMLElement } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DeepPartial } from '../../../../base/common/types.js';
@@ -159,6 +159,8 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	get activeModalEditorPart(): IModalEditorPart | undefined { return this.modalEditorPart; }
 
 	private modalEditorMaximized = false;
+	private modalEditorSize: IDimension | undefined;
+	private modalEditorPosition: { left: number; top: number } | undefined;
 
 	async createModalEditorPart(options?: IModalEditorPartOptions): Promise<IModalEditorPart> {
 
@@ -169,19 +171,25 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			return this.modalEditorPart;
 		}
 
-		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(ModalEditorPart, this).create({ ...options, maximized: options?.maximized ?? this.modalEditorMaximized });
+		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(ModalEditorPart, this).create({
+			...options,
+			maximized: options?.maximized ?? this.modalEditorMaximized,
+			size: options?.size ?? this.modalEditorSize,
+			position: options?.position ?? this.modalEditorPosition,
+		});
 
 		// Keep instantiation service and reference to reuse
 		this.modalEditorPart = part;
 		this.modalPartInstantiationService = instantiationService;
+
+		// Remember state on dispose to restore when opening next time
 		disposables.add(toDisposable(() => {
+			this.modalEditorMaximized = part.maximized;
+			this.modalEditorSize = part.size;
+			this.modalEditorPosition = part.position;
+
 			this.modalPartInstantiationService = undefined;
 			this.modalEditorPart = undefined;
-		}));
-
-		// Track maximized state in memory
-		disposables.add(part.onDidChangeMaximized(maximized => {
-			this.modalEditorMaximized = maximized;
 		}));
 
 		// Events
