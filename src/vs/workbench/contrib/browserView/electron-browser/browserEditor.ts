@@ -49,6 +49,7 @@ import { logBrowserOpen } from '../../../../platform/browserView/common/browserV
 import { URI } from '../../../../base/common/uri.js';
 import { ChatConfiguration } from '../../chat/common/constants.js';
 import { Event } from '../../../../base/common/event.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -273,7 +274,8 @@ export class BrowserEditor extends EditorPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserElementsService private readonly browserElementsService: IBrowserElementsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILayoutService private readonly layoutService: ILayoutService
 	) {
 		super(BrowserEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -378,12 +380,6 @@ export class BrowserEditor extends EditorPane {
 			hasFocus: this._model?.focused ?? false,
 			window: this._model?.focused ? this.window : undefined
 		})));
-
-		// Automatically call layoutBrowserContainer() when the browser container changes size.
-		// Be careful to use `ResizeObserver` from the target window to avoid cross-window issues.
-		const resizeObserver = new this.window.ResizeObserver(() => this.layoutBrowserContainer());
-		resizeObserver.observe(this._browserContainer);
-		this._register(toDisposable(() => resizeObserver.disconnect()));
 	}
 
 	override async setInput(input: BrowserEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -514,12 +510,11 @@ export class BrowserEditor extends EditorPane {
 			if (targetWindowId === this.window.vscodeWindowId) {
 				// Update CSS variable for size calculations
 				this._browserContainerWrapper.style.setProperty('--zoom-factor', String(getZoomFactor(this.window)));
-				this.layoutBrowserContainer();
 			}
 		}));
 
 		this.updateErrorDisplay();
-		this.layoutBrowserContainer();
+		this.layout();
 		this.updateVisibility();
 		this.doScreenshot();
 
@@ -1168,21 +1163,28 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	override layout(dimension: Dimension, _position?: IDomPosition): void {
+	override layout(dimension?: Dimension, _position?: IDomPosition): void {
 		// Layout find widget if it exists
-		this._findWidget.rawValue?.layout(dimension.width);
+		if (dimension && this._findWidget.rawValue) {
+			this._findWidget.rawValue.layout(dimension.width);
+		}
+
+		const whenContainerStylesLoaded = this.layoutService.whenContainerStylesLoaded(this.window);
+		if (whenContainerStylesLoaded) {
+			// In floating windows, we need to ensure that the
+			// container is ready for us to compute certain
+			// layout related properties.
+			whenContainerStylesLoaded.then(() => this.layoutBrowserContainer());
+		} else {
+			this.layoutBrowserContainer();
+		}
 	}
 
 	/**
-	 * This should be called whenever .browser-container changes in size, or when
-	 * there could be any elements, such as the command palette, overlapping with it.
-	 *
-	 * Note that we don't call layoutBrowserContainer() from layout() but instead rely on using a ResizeObserver and on
-	 * making direct calls to it. This is because we have seen cases where the getBoundingClientRect() values of
-	 * the .browser-container element are not correct during layout() calls, especially during "Move into New Window"
-	 * and "Copy into New Window" operations into a different monitor.
+	 * Recompute the layout of the browser container and update the model with the new bounds.
+	 * This should generally only be called via layout() to ensure that the container is ready and all necessary styles are loaded.
 	 */
-	layoutBrowserContainer(): void {
+	private layoutBrowserContainer(): void {
 		if (this._model) {
 			this.checkOverlays();
 

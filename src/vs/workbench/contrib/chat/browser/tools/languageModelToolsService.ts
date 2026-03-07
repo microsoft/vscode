@@ -838,14 +838,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				...prepared.confirmationMessages,
 				title: localize('defaultToolConfirmation.title', 'Confirm tool execution'),
 				message: localize('defaultToolConfirmation.message', 'Run the \'{0}\' tool?', fullReferenceName),
-				disclaimer: tool.data.id === toolIdThatCannotBeAutoApproved ? undefined : new MarkdownString(localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted via {1}.', getToolFullReferenceName(tool.data), createMarkdownCommandLink({ title: '`' + ChatConfiguration.EligibleForAutoApproval + '`', id: 'workbench.action.openSettings', arguments: [ChatConfiguration.EligibleForAutoApproval] }, false)), { isTrusted: true }),
+				disclaimer: tool.data.id === toolIdThatCannotBeAutoApproved ? undefined : new MarkdownString(localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted via {1}.', getToolFullReferenceName(tool.data), createMarkdownCommandLink({ text: '`' + ChatConfiguration.EligibleForAutoApproval + '`', id: 'workbench.action.openSettings', arguments: [ChatConfiguration.EligibleForAutoApproval], tooltip: localize('openSettings.autoApproval.tooltip', 'Open settings to configure auto-approval') }, false)), { isTrusted: true }),
 				allowAutoConfirm: false,
 			};
 		}
 
 		if (!isEligibleForAutoApproval && prepared?.confirmationMessages?.title) {
 			// Always overwrite the disclaimer if not eligible for auto-approval
-			prepared.confirmationMessages.disclaimer = tool.data.id === toolIdThatCannotBeAutoApproved ? undefined : new MarkdownString(localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted via {1}.', getToolFullReferenceName(tool.data), createMarkdownCommandLink({ title: '`' + ChatConfiguration.EligibleForAutoApproval + '`', id: 'workbench.action.openSettings', arguments: [ChatConfiguration.EligibleForAutoApproval] }, false)), { isTrusted: true });
+			prepared.confirmationMessages.disclaimer = tool.data.id === toolIdThatCannotBeAutoApproved ? undefined : new MarkdownString(localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted via {1}.', getToolFullReferenceName(tool.data), createMarkdownCommandLink({ text: '`' + ChatConfiguration.EligibleForAutoApproval + '`', id: 'workbench.action.openSettings', arguments: [ChatConfiguration.EligibleForAutoApproval], tooltip: localize('openSettings.autoApproval.tooltip', 'Open settings to configure auto-approval') }, false)), { isTrusted: true });
 		}
 
 		if (prepared?.confirmationMessages?.title) {

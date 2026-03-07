@@ -1542,7 +1542,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				ChatContextKeys.currentlyEditing.bindTo(item.contextKeyService).set(true);
 			}
 
-			const isEditingSentRequest = currentElement.pendingKind === undefined ? ChatContextKeys.EditingRequestType.Sent : ChatContextKeys.EditingRequestType.QueueOrSteer;
+			const isEditingSentRequest = currentElement.pendingKind === undefined
+				? ChatContextKeys.EditingRequestType.Sent
+				: currentElement.pendingKind === ChatRequestQueueKind.Queued
+					? ChatContextKeys.EditingRequestType.Queue
+					: ChatContextKeys.EditingRequestType.Steer;
 			const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
 			this.inputPart?.setEditing(!!this.viewModel?.editing && isInput, isEditingSentRequest);
 
