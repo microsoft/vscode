@@ -178,14 +178,9 @@ export interface TextSearchOptions extends SearchOptions {
 	encoding?: string;
 
 	/**
-	 * Number of lines of context to include before each match.
+	 * Number of lines of context to include before and after each match.
 	 */
-	beforeContext?: number;
-
-	/**
-	 * Number of lines of context to include after each match.
-	 */
-	afterContext?: number;
+	surroundingContext?: number;
 }
 /**
  * Options that apply to AI text search.
@@ -207,14 +202,9 @@ export interface AITextSearchOptions extends SearchOptions {
 	maxFileSize?: number;
 
 	/**
-	 * Number of lines of context to include before each match.
+	 * Number of lines of context to include before and after each match.
 	 */
-	beforeContext?: number;
-
-	/**
-	 * Number of lines of context to include after each match.
-	 */
-	afterContext?: number;
+	surroundingContext?: number;
 }
 
 /**
@@ -426,14 +416,9 @@ export interface FindTextInFilesOptions {
 	previewOptions?: TextSearchPreviewOptions;
 
 	/**
-	 * Number of lines of context to include before each match.
+	 * Number of lines of context to include before and after each match.
 	 */
-	beforeContext?: number;
-
-	/**
-	 * Number of lines of context to include after each match.
-	 */
-	afterContext?: number;
+	surroundingContext?: number;
 }
 
 function newToOldFileProviderOptions(options: FileSearchProviderOptions): FileSearchOptions[] {
@@ -476,8 +461,7 @@ function newToOldTextProviderOptions(options: TextSearchProviderOptions): TextSe
 		previewOptions: newToOldPreviewOptions(options.previewOptions),
 		maxFileSize: options.maxFileSize,
 		encoding: folderOption.encoding,
-		afterContext: options.surroundingContext,
-		beforeContext: options.surroundingContext
+		surroundingContext: options.surroundingContext
 	} satisfies TextSearchOptions));
 }
 
