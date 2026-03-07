@@ -151,18 +151,21 @@ if [[ -n "$XDG_RUNTIME_DIR" && -z "$DISABLE_WAYLAND" ]]; then
     if [ -n "$WAYLAND_DISPLAY" ]; then
         wdisplay="$WAYLAND_DISPLAY"
     fi
-    wayland_sockpath="$XDG_RUNTIME_DIR/../$wdisplay"
-    wayland_snappath="$XDG_RUNTIME_DIR/$wdisplay"
+    wayland_sockpath="$XDG_RUNTIME_DIR/$wdisplay"
     if [ -S "$wayland_sockpath" ]; then
-        # if running under wayland, use it
-        #export WAYLAND_DEBUG=1
-        # shellcheck disable=SC2034
         wayland_available=true
-        # create the compat symlink for now
-        if [ ! -e "$wayland_snappath" ]; then
-            ln -s "$wayland_sockpath" "$wayland_snappath"
-        fi
+        export GDK_BACKEND=wayland
+    else
+        # Fallback to X11 if Wayland socket not found
+        export GDK_BACKEND=x11
     fi
+fi
+
+# Add session type check
+if [ "$XDG_SESSION_TYPE" = "wayland" ]; then
+    export GDK_BACKEND=wayland
+    export WEBKIT_FORCE_WAYLAND=1
+    export MOZ_ENABLE_WAYLAND=1
 fi
 
 # Keep an array of data dirs, for looping through them
