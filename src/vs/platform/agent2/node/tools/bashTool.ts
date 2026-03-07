@@ -3,19 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { exec } from 'child_process';
-import { disposableTimeout } from '../../../../base/common/async.js';
+import { ChildProcess, spawn } from 'child_process';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { IAgentTool, IToolContext, IToolResult } from '../../common/tools.js';
 
 const DEFAULT_TIMEOUT_MS = 120_000; // 2 minutes
 const MAX_OUTPUT_BYTES = 256 * 1024; // 256 KB
+const SCRATCHPAD_KEY = 'bashTool.shellProcess';
 
 /**
- * Tool that executes a shell command via bash.
+ * A persistent shell process that is reused across tool invocations within
+ * a session. State (cwd, environment variables, shell functions, etc.) is
+ * preserved between commands.
+ */
+interface IPersistentShell {
+	readonly process: ChildProcess;
+	/** Accumulated data buffer for current command */
+	buffer: string;
+}
+
+/**
+ * Tool that executes shell commands in a persistent bash session.
+ *
+ * The shell process is created on first use and stored in the session
+ * scratchpad, so state (working directory, environment, etc.) is preserved
+ * across invocations within the same agent session.
  */
 export class BashTool implements IAgentTool {
 	readonly name = 'bash';
-	readonly description = 'Execute a shell command and return stdout/stderr. Commands run in the working directory.';
+	readonly description = 'Execute a shell command in a persistent bash session. The session preserves state (working directory, environment variables, etc.) across invocations.';
 	readonly parametersSchema = {
 		type: 'object',
 		properties: {
@@ -39,66 +55,138 @@ export class BashTool implements IAgentTool {
 		}
 
 		const timeoutMs = typeof args['timeout'] === 'number' ? args['timeout'] : DEFAULT_TIMEOUT_MS;
+		const shell = this._getOrCreateShell(context);
 
+		return this._executeInShell(shell, command, timeoutMs, context);
+	}
+
+	private _getOrCreateShell(context: IToolContext): IPersistentShell {
+		let shell = context.scratchpad.get(SCRATCHPAD_KEY) as IPersistentShell | undefined;
+		if (shell && !shell.process.killed) {
+			return shell;
+		}
+
+		const child = spawn('/bin/bash', ['--norc', '--noprofile'], {
+			cwd: context.workingDirectory || undefined,
+			env: { ...process.env, TERM: 'dumb', PS1: '', PS2: '', BASH_SILENCE_DEPRECATION_WARNING: '1' },
+			stdio: ['pipe', 'pipe', 'pipe'],
+		});
+
+		shell = { process: child, buffer: '' };
+		context.scratchpad.set(SCRATCHPAD_KEY, shell);
+
+		// Clean up on exit
+		child.on('exit', () => {
+			const current = context.scratchpad.get(SCRATCHPAD_KEY) as IPersistentShell | undefined;
+			if (current?.process === child) {
+				context.scratchpad.delete(SCRATCHPAD_KEY);
+			}
+		});
+
+		return shell;
+	}
+
+	private _executeInShell(shell: IPersistentShell, command: string, timeoutMs: number, context: IToolContext): Promise<IToolResult> {
 		return new Promise<IToolResult>(resolve => {
-			const child = exec(
-				command,
-				{
-					cwd: context.workingDirectory,
-					timeout: timeoutMs,
-					maxBuffer: MAX_OUTPUT_BYTES,
-					shell: '/bin/bash',
-					env: { ...process.env, TERM: 'dumb' },
-				},
-				(error, stdout, stderr) => {
-					let output = '';
-					if (stdout) {
-						output += stdout;
-					}
-					if (stderr) {
-						if (output) {
-							output += '\n';
-						}
-						output += `stderr:\n${stderr}`;
-					}
+			const sentinel = `__SENTINEL_${generateUuid()}__`;
+			const exitCodeVar = `__EXIT_${generateUuid().replace(/-/g, '')}__`;
 
-					if (error) {
-						// Check for timeout
-						if (error.killed) {
-							resolve({
-								content: `Error: Command timed out after ${timeoutMs}ms.\n${output}`,
-								isError: true,
-							});
-							return;
-						}
+			let output = '';
+			let totalBytes = 0;
+			let truncated = false;
+			let settled = false;
 
-						// Command exited with non-zero code
-						const exitCode = error.code ?? 'unknown';
-						resolve({
-							content: `Command exited with code ${exitCode}.\n${output}`,
-							isError: true,
-						});
-						return;
-					}
+			// Timeout
+			const timeoutHandle = setTimeout(() => {
+				shell.process.kill('SIGINT');
+				settle({
+					content: `Error: Command timed out after ${timeoutMs}ms.\n${output}`,
+					isError: true,
+				});
+			}, timeoutMs);
 
-					resolve({ content: output || '(no output)' });
-				},
-			);
-
-			// Handle cancellation
-			const disposable = context.token.onCancellationRequested(() => {
-				child.kill('SIGTERM');
-				// Give it a moment to clean up, then force kill
-				const forceKill = disposableTimeout(() => {
-					if (!child.killed) {
-						child.kill('SIGKILL');
-					}
-				}, 1000);
-
-				child.on('exit', () => forceKill.dispose());
+			// Cancellation
+			const cancellationDisposable = context.token.onCancellationRequested(() => {
+				shell.process.kill('SIGINT');
+				settle({
+					content: `Command cancelled.\n${output}`,
+					isError: true,
+				});
 			});
 
-			child.on('exit', () => disposable.dispose());
+			const settle = (result: IToolResult) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				clearTimeout(timeoutHandle);
+				cancellationDisposable.dispose();
+				cleanup();
+				resolve(result);
+			};
+
+			const onData = (data: Buffer) => {
+				const text = data.toString();
+				output += text;
+				totalBytes += data.byteLength;
+
+				if (totalBytes > MAX_OUTPUT_BYTES) {
+					truncated = true;
+				}
+
+				// Check if the sentinel has appeared in the accumulated output
+				const sentinelIdx = output.indexOf(sentinel);
+				if (sentinelIdx !== -1) {
+					// Parse exit code from the line containing the sentinel:
+					// The command writes: echo "<exitCodeVar>=$?<sentinel>"
+					const commandOutput = output.substring(0, sentinelIdx);
+					const exitCodeMatch = commandOutput.match(new RegExp(`${exitCodeVar}=(\\d+)`));
+					const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : 0;
+
+					// Remove the exit code marker line from output
+					let cleanOutput = commandOutput.replace(new RegExp(`${exitCodeVar}=\\d+`), '').trim();
+
+					if (truncated) {
+						cleanOutput = cleanOutput.substring(cleanOutput.length - MAX_OUTPUT_BYTES) + '\n[output truncated]';
+					}
+
+					settle({
+						content: cleanOutput || '(no output)',
+						isError: exitCode !== 0 ? true : undefined,
+					});
+				}
+			};
+
+			const onError = (err: Error) => {
+				settle({
+					content: `Error: Shell process error: ${err.message}`,
+					isError: true,
+				});
+			};
+
+			const onExit = (code: number | null) => {
+				settle({
+					content: `Error: Shell process exited unexpectedly with code ${code ?? 'unknown'}.\n${output}`,
+					isError: true,
+				});
+			};
+
+			const cleanup = () => {
+				shell.process.stdout?.off('data', onData);
+				shell.process.stderr?.off('data', onData);
+				shell.process.off('error', onError);
+				shell.process.off('exit', onExit);
+			};
+
+			shell.process.stdout?.on('data', onData);
+			shell.process.stderr?.on('data', onData);
+			shell.process.on('error', onError);
+			shell.process.on('exit', onExit);
+
+			// Write the command followed by the sentinel echo
+			// This captures the exit code and signals completion
+			const wrappedCommand = `${command}\necho "${exitCodeVar}=$?${sentinel}"\n`;
+			shell.process.stdin?.write(wrappedCommand);
 		});
 	}
 }

@@ -55,6 +55,27 @@
 - [x] Configurable tool parallelism (read-safe vs exclusive, order-preserving batches)
 - [ ] Wire permission middleware to IAgentPermissionRequestEvent IPC flow (ask mode in UI)
 
+## Assorted issues
+- [x] Refactor CopilotApiService as injectable service with ICopilotApiService interface and createDecorator
+	- LocalAgent now accepts ICopilotApiService via constructor injection
+	- Model provider factories and providers use the interface
+- [x] Sessions not showing up in the sessions list
+	- AgentHostSessionListController now subscribes to onDidSessionProgress idle events and auto-refreshes
+- [x] Upgrade BashTool to persistent shell sessions
+	- Shell process persisted in session scratchpad across invocations
+	- Preserves cwd, environment variables, shell state between commands
+- [x] Persist sessions to jsonl files on disk
+	- Append-only JSONL under `<userDataPath>/agentSessions/<workspaceKeyHash>/`
+	- SessionStorage: create, append events, list, restore, delete
+	- LocalAgent wires up persistence for session creation, messages, tool events, modified timestamps
+	- Sessions survive process restarts and show up in `listSessions`
+	- 10 dedicated SessionStorage tests
+- Hook up vscode terminal tool (IPC bridge to workbench terminal service)
+- Expand the tool set. How much do we copy from current vscode tools or start from scratch?
+	- Must support model-specific tools
+- Bring over real model-specific prompts from the extension
+	- Use prompt-tsx, we still use shared components and dynamic tweaks. ONLY for rendering the system prompt though, with none of the advanced features
+
 ## P2 -- Production-Grade Features
 
 - [ ] Workspace snapshots (shadow git)
@@ -104,6 +125,7 @@ CAPI integration. Required for production correctness and server feature utiliza
 - [ ] Agent resume
 - [ ] Sandbox enforcement
 - [ ] Server-side session support
+- [ ] Come up with a solution for logging/tracing runs. Opentelemetry or vscode's agent debug panel?
 
 ---
 

@@ -15,7 +15,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IModelIdentity } from '../common/conversation.js';
 import { IModelProvider } from '../common/modelProvider.js';
 import { AnthropicModelProvider } from './anthropicProvider.js';
-import { CopilotApiService } from './copilotToken.js';
+import { ICopilotApiService } from './copilotToken.js';
 import { OpenAIResponsesProvider } from './openaiResponsesProvider.js';
 
 // -- Provider resolution result -----------------------------------------------
@@ -82,7 +82,7 @@ const ANTHROPIC_MODEL_PREFIXES = ['claude-'];
 /**
  * Creates a factory that handles Anthropic models (claude-*).
  */
-export function createAnthropicFactory(apiService: CopilotApiService, logService: ILogService): IModelProviderFactory {
+export function createAnthropicFactory(apiService: ICopilotApiService, logService: ILogService): IModelProviderFactory {
 	return {
 		providerId: 'anthropic',
 		canHandle(modelId: string): boolean {
@@ -100,7 +100,7 @@ const OPENAI_MODEL_PREFIXES = ['gpt-', 'o1', 'o3', 'o4'];
 /**
  * Creates a factory that handles OpenAI models (gpt-*, o1*, o3*, o4*).
  */
-export function createOpenAIFactory(apiService: CopilotApiService, logService: ILogService): IModelProviderFactory {
+export function createOpenAIFactory(apiService: ICopilotApiService, logService: ILogService): IModelProviderFactory {
 	return {
 		providerId: 'openai',
 		canHandle(modelId: string): boolean {

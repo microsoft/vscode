@@ -17,6 +17,7 @@ import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import {
 	AgentProvider,
 	AgentSession,
@@ -35,14 +36,13 @@ import {
 import { AgentLoop, IAgentLoopConfig } from '../common/agentLoop.js';
 import {
 	createUserMessage,
-	getAssistantText,
-	getToolCalls,
+	IAssistantMessage,
 	IConversationMessage,
 } from '../common/conversation.js';
 import { AgentLoopEvent } from '../common/events.js';
 import { IAgentTool } from '../common/tools.js';
 import { IMiddleware } from '../common/middleware.js';
-import { CAPIRequestType, CopilotApiService, ICAPIModelsResponse } from './copilotToken.js';
+import { CAPIRequestType, ICopilotApiService, ICAPIModelsResponse } from './copilotToken.js';
 import { createAnthropicFactory, createOpenAIFactory, ModelProviderService } from './modelProviderService.js';
 import { AllowAllPolicy, PermissionMiddleware } from './middleware/permissionMiddleware.js';
 import { ContextWindowMiddleware } from './middleware/contextWindow.js';
@@ -50,23 +50,156 @@ import { ToolOutputTruncationMiddleware } from './middleware/toolOutputTruncatio
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind } from './localToolDisplay.js';
 import { BashTool } from './tools/bashTool.js';
 import { ReadFileTool } from './tools/readFileTool.js';
+import {
+	ISessionAssistantMessage,
+	ISessionToolComplete,
+	ISessionToolStart,
+	ISessionUserMessage,
+	SessionEntry,
+	SessionStorage,
+} from './sessionStorage.js';
 
 // -- Session state ------------------------------------------------------------
 
-interface ILocalSession {
+/**
+ * A live agent session. Owns the in-memory conversation state (a flat
+ * list of {@link SessionEntry} items) and transparently persists entries
+ * to the JSONL storage. The entry list is the single source of truth.
+ *
+ * Conversation messages for the agent loop are derived from entries and
+ * maintained as a private cache -- callers never see them directly.
+ */
+class LocalSession {
+	private readonly _entries: SessionEntry[] = [];
+	private readonly _activeToolCalls = new Map<string, { toolName: string; args: Record<string, unknown> }>();
+	private _currentAssistantMessageId: string | undefined;
+	private _modifiedTime: number;
+	private _cts: CancellationTokenSource;
+	private _running = false;
+
 	readonly uri: URI;
 	readonly model: string;
 	readonly workingDirectory: string;
-	readonly messages: IConversationMessage[];
-	readonly history: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[];
-	/** Tracks active tool calls so we have args at completion time. */
-	readonly activeToolCalls: Map<string, { toolName: string; args: Record<string, unknown> }>;
-	/** Current assistant message ID for correlating delta events. */
-	currentAssistantMessageId: string | undefined;
 	readonly startTime: number;
-	modifiedTime: number;
-	cts: CancellationTokenSource;
-	running: boolean;
+
+	constructor(
+		uri: URI,
+		model: string,
+		workingDirectory: string,
+		private readonly _storage: SessionStorage,
+	) {
+		this.uri = uri;
+		this.model = model;
+		this.workingDirectory = workingDirectory;
+		this.startTime = Date.now();
+		this._modifiedTime = this.startTime;
+		this._cts = new CancellationTokenSource();
+	}
+
+	get entries(): readonly SessionEntry[] { return this._entries; }
+	get modifiedTime(): number { return this._modifiedTime; }
+	get running(): boolean { return this._running; }
+	get cts(): CancellationTokenSource { return this._cts; }
+
+	/** Persist the initial session-created record. Must be awaited before any other writes. */
+	persistCreation(): Promise<void> {
+		return this._storage.createSession(this.uri, this.model, this.workingDirectory, this.startTime);
+	}
+
+	beginTurn(): void {
+		this._running = true;
+		this._modifiedTime = Date.now();
+	}
+
+	endTurn(): void {
+		this._running = false;
+		this._modifiedTime = Date.now();
+		this._storage.markModified(this.uri, this.workingDirectory);
+	}
+
+	/** Allocate a message ID for the next assistant response. */
+	beginModelCall(): string {
+		this._currentAssistantMessageId = generateUuid();
+		return this._currentAssistantMessageId;
+	}
+
+	get currentAssistantMessageId(): string | undefined {
+		return this._currentAssistantMessageId;
+	}
+
+	addUserMessage(prompt: string): ISessionUserMessage {
+		const entry: ISessionUserMessage = {
+			type: 'user-message',
+			messageId: generateUuid(),
+			content: prompt,
+		};
+		this._entries.push(entry);
+		this._storage.append(this.uri, this.workingDirectory, entry);
+		return entry;
+	}
+
+	addAssistantMessage(msg: IAssistantMessage): ISessionAssistantMessage {
+		const entry: ISessionAssistantMessage = {
+			type: 'assistant-message',
+			messageId: this._currentAssistantMessageId ?? generateUuid(),
+			contentParts: msg.content,
+			modelIdentity: msg.modelIdentity,
+			providerMetadata: msg.providerMetadata,
+		};
+		this._entries.push(entry);
+		this._currentAssistantMessageId = undefined;
+		this._storage.append(this.uri, this.workingDirectory, entry);
+		return entry;
+	}
+
+	addToolStart(toolCallId: string, toolName: string, args: Record<string, unknown>): ISessionToolStart {
+		this._activeToolCalls.set(toolCallId, { toolName, args });
+
+		const entry: ISessionToolStart = {
+			type: 'tool-start',
+			toolCallId,
+			toolName,
+			displayName: getToolDisplayName(toolName),
+			invocationMessage: getInvocationMessage(toolName, args),
+			toolInput: getToolInputString(toolName, args),
+			toolKind: getToolKind(toolName),
+			language: getShellLanguage(toolName),
+		};
+		this._entries.push(entry);
+		this._storage.append(this.uri, this.workingDirectory, entry);
+		return entry;
+	}
+
+	addToolComplete(toolCallId: string, toolName: string, result: string, isError: boolean): ISessionToolComplete {
+		const tracked = this._activeToolCalls.get(toolCallId);
+		this._activeToolCalls.delete(toolCallId);
+		const toolArgs = tracked?.args ?? {};
+
+		const entry: ISessionToolComplete = {
+			type: 'tool-complete',
+			toolCallId,
+			toolName,
+			success: !isError,
+			pastTenseMessage: getPastTenseMessage(toolName, toolArgs),
+			toolOutput: result,
+		};
+		this._entries.push(entry);
+		this._storage.append(this.uri, this.workingDirectory, entry);
+		return entry;
+	}
+
+	abort(): void {
+		this._cts.cancel();
+		this._cts = new CancellationTokenSource();
+	}
+
+	toMetadata(): IAgentSessionMetadata {
+		return {
+			session: this.uri,
+			startTime: this.startTime,
+			modifiedTime: this._modifiedTime,
+		};
+	}
 }
 
 // -- Agent implementation -----------------------------------------------------
@@ -82,21 +215,24 @@ export class LocalAgent extends Disposable implements IAgent {
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
 
 	private readonly _sessions = this._register(new DisposableMap<string, CancellationTokenSource>());
-	private readonly _sessionState = new Map<string, ILocalSession>();
-	private readonly _apiService: CopilotApiService;
+	private readonly _sessionState = new Map<string, LocalSession>();
 	private readonly _modelProviderService: ModelProviderService;
 	private readonly _tools: readonly IAgentTool[];
+	private readonly _storage: SessionStorage;
 
 	constructor(
-		private readonly _logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
+		@ICopilotApiService private readonly _apiService: ICopilotApiService,
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 	) {
 		super();
-		this._apiService = new CopilotApiService(_logService);
 		this._modelProviderService = new ModelProviderService();
 		this._modelProviderService.registerFactory(createAnthropicFactory(this._apiService, _logService));
 		this._modelProviderService.registerFactory(createOpenAIFactory(this._apiService, _logService));
 		this._tools = [new ReadFileTool(), new BashTool()];
+		this._storage = new SessionStorage(environmentService.userDataPath, _logService);
 	}
+
 
 	// ---- IAgent implementation ----------------------------------------------
 
@@ -157,11 +293,15 @@ export class LocalAgent extends Disposable implements IAgent {
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		return [...this._sessionState.values()].map(s => ({
-			session: s.uri,
-			startTime: s.startTime,
-			modifiedTime: s.modifiedTime,
-		}));
+		// Include in-memory sessions
+		const inMemory = [...this._sessionState.values()].map(s => s.toMetadata());
+
+		// Merge with persisted sessions (persisted ones not currently loaded)
+		const persisted = await this._storage.listSessions();
+		const inMemoryKeys = new Set(inMemory.map(s => s.session.toString()));
+		const additional = persisted.filter(s => !inMemoryKeys.has(s.session.toString()));
+
+		return [...inMemory, ...additional];
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
@@ -169,24 +309,12 @@ export class LocalAgent extends Disposable implements IAgent {
 		const sessionUri = config?.session ?? AgentSession.uri(PROVIDER_ID, rawId);
 		const model = config?.model ?? DEFAULT_MODEL;
 		const workingDirectory = config?.workingDirectory ?? '';
-		const cts = new CancellationTokenSource();
 
-		const session: ILocalSession = {
-			uri: sessionUri,
-			model,
-			workingDirectory,
-			messages: [],
-			history: [],
-			activeToolCalls: new Map(),
-			currentAssistantMessageId: undefined,
-			startTime: Date.now(),
-			modifiedTime: Date.now(),
-			cts,
-			running: false,
-		};
-
+		const session = new LocalSession(sessionUri, model, workingDirectory, this._storage);
 		this._sessionState.set(sessionUri.toString(), session);
-		this._sessions.set(sessionUri.toString(), cts);
+		this._sessions.set(sessionUri.toString(), session.cts);
+
+		await session.persistCreation();
 
 		this._logService.info(`[LocalAgent] Created session ${rawId}, model=${model}`);
 		return sessionUri;
@@ -198,31 +326,23 @@ export class LocalAgent extends Disposable implements IAgent {
 			throw new Error('Session is already running');
 		}
 
-		session.running = true;
-		session.modifiedTime = Date.now();
-
-		// Append user message
-		const userMessage = createUserMessage(prompt);
-		session.messages.push(userMessage);
-		session.history.push({
-			type: 'message',
-			session: sessionUri,
-			role: 'user',
-			messageId: generateUuid(),
-			content: prompt,
-		});
+		session.beginTurn();
+		session.addUserMessage(prompt);
 
 		try {
 			await this._runLoop(session);
 		} finally {
-			session.running = false;
-			session.modifiedTime = Date.now();
+			session.endTurn();
 		}
 	}
 
 	async getSessionMessages(sessionUri: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
-		const session = this._getSession(sessionUri);
-		return [...session.history];
+		// In-memory session takes priority
+		const session = this._sessionState.get(sessionUri.toString());
+		const entries = session?.entries
+			?? (await this._storage.findAndRestoreSession(sessionUri))?.entries
+			?? [];
+		return this._entriesToIpcEvents(sessionUri, entries);
 	}
 
 	async disposeSession(sessionUri: URI): Promise<void> {
@@ -235,8 +355,7 @@ export class LocalAgent extends Disposable implements IAgent {
 	async abortSession(sessionUri: URI): Promise<void> {
 		const session = this._sessionState.get(sessionUri.toString());
 		if (session) {
-			session.cts.cancel();
-			session.cts = new CancellationTokenSource();
+			session.abort();
 			this._sessions.set(sessionUri.toString(), session.cts);
 		}
 	}
@@ -249,6 +368,7 @@ export class LocalAgent extends Disposable implements IAgent {
 		for (const session of this._sessionState.values()) {
 			session.cts.cancel();
 		}
+		await this._storage.flushAll();
 		this._sessionState.clear();
 		this._sessions.clearAndDisposeAll();
 	}
@@ -267,7 +387,7 @@ export class LocalAgent extends Disposable implements IAgent {
 		];
 	}
 
-	private _getSession(uri: URI): ILocalSession {
+	private _getSession(uri: URI): LocalSession {
 		const session = this._sessionState.get(uri.toString());
 		if (!session) {
 			throw new Error(`Session not found: ${uri.toString()}`);
@@ -275,7 +395,7 @@ export class LocalAgent extends Disposable implements IAgent {
 		return session;
 	}
 
-	private async _runLoop(session: ILocalSession): Promise<void> {
+	private async _runLoop(session: LocalSession): Promise<void> {
 		const { provider: modelProvider, identity: modelIdentity } = this._modelProviderService.resolve(session.model);
 
 		const config: IAgentLoopConfig = {
@@ -289,7 +409,8 @@ export class LocalAgent extends Disposable implements IAgent {
 
 		try {
 			const loop = new AgentLoop(config);
-			for await (const event of loop.run(session.messages, session.cts.token)) {
+			const messages = this._buildConversationMessages(session);
+			for await (const event of loop.run(messages, session.cts.token)) {
 				this._processEvent(event, session);
 			}
 
@@ -316,11 +437,10 @@ export class LocalAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private _processEvent(event: AgentLoopEvent, session: ILocalSession): void {
+	private _processEvent(event: AgentLoopEvent, session: LocalSession): void {
 		switch (event.type) {
 			case 'model-call-start': {
-				// Allocate a message ID for correlating delta events
-				session.currentAssistantMessageId = generateUuid();
+				session.beginModelCall();
 				break;
 			}
 			case 'assistant-delta': {
@@ -333,28 +453,7 @@ export class LocalAgent extends Disposable implements IAgent {
 				break;
 			}
 			case 'assistant-message': {
-				const msg = event.message;
-				const text = getAssistantText(msg);
-
-				// Add the assistant message to conversation history
-				session.messages.push(msg);
-
-				const calls = getToolCalls(msg);
-				const toolRequests = calls.map(tc => ({
-					toolCallId: tc.toolCallId,
-					name: tc.toolName,
-					arguments: JSON.stringify(tc.arguments),
-				}));
-
-				session.history.push({
-					type: 'message',
-					session: session.uri,
-					role: 'assistant',
-					messageId: session.currentAssistantMessageId ?? generateUuid(),
-					content: text,
-					toolRequests: toolRequests.length > 0 ? toolRequests : undefined,
-				});
-				session.currentAssistantMessageId = undefined;
+				session.addAssistantMessage(event.message);
 				break;
 			}
 			case 'reasoning-delta': {
@@ -366,56 +465,21 @@ export class LocalAgent extends Disposable implements IAgent {
 				break;
 			}
 			case 'tool-start': {
-				const displayName = getToolDisplayName(event.toolName);
-				const invocationMessage = getInvocationMessage(event.toolName, event.arguments);
-				const toolInput = getToolInputString(event.toolName, event.arguments);
-				const toolKind = getToolKind(event.toolName);
-				const language = getShellLanguage(event.toolName);
-
-				// Track so we have args at completion time (per-session)
-				session.activeToolCalls.set(event.toolCallId, { toolName: event.toolName, args: event.arguments });
-
-				const startEvent: IAgentToolStartEvent = {
+				const entry = session.addToolStart(event.toolCallId, event.toolName, event.arguments);
+				this._onDidSessionProgress.fire({
+					...entry,
 					type: 'tool_start',
 					session: session.uri,
-					toolCallId: event.toolCallId,
-					toolName: event.toolName,
-					displayName,
-					invocationMessage,
-					toolInput,
-					toolKind,
-					language,
-				};
-				session.history.push(startEvent);
-				this._onDidSessionProgress.fire(startEvent);
+				});
 				break;
 			}
 			case 'tool-complete': {
-				const tracked = session.activeToolCalls.get(event.toolCallId);
-				session.activeToolCalls.delete(event.toolCallId);
-				const toolArgs = tracked?.args ?? {};
-				const pastTenseMessage = getPastTenseMessage(event.toolName, toolArgs);
-
-				// Add tool result to conversation
-				const toolResultMsg = {
-					role: 'tool-result' as const,
-					toolCallId: event.toolCallId,
-					toolName: event.toolName,
-					content: event.result,
-					isError: event.isError || undefined,
-				};
-				session.messages.push(toolResultMsg);
-
-				const completeEvent: IAgentToolCompleteEvent = {
+				const entry = session.addToolComplete(event.toolCallId, event.toolName, event.result, event.isError);
+				this._onDidSessionProgress.fire({
+					...entry,
 					type: 'tool_complete',
 					session: session.uri,
-					toolCallId: event.toolCallId,
-					success: !event.isError,
-					pastTenseMessage,
-					toolOutput: event.result,
-				};
-				session.history.push(completeEvent);
-				this._onDidSessionProgress.fire(completeEvent);
+				});
 				break;
 			}
 			case 'usage': {
@@ -439,5 +503,78 @@ export class LocalAgent extends Disposable implements IAgent {
 				break;
 			}
 		}
+	}
+
+	/**
+	 * Build the conversation message array that the model provider needs
+	 * from the session's entries. This is the only place where session
+	 * entries are translated into the provider-neutral conversation format.
+	 */
+	private _buildConversationMessages(session: LocalSession): IConversationMessage[] {
+		const messages: IConversationMessage[] = [];
+		for (const entry of session.entries) {
+			switch (entry.type) {
+				case 'user-message':
+					messages.push(createUserMessage(entry.content));
+					break;
+				case 'assistant-message':
+					messages.push({
+						role: 'assistant',
+						content: entry.contentParts,
+						modelIdentity: entry.modelIdentity,
+						providerMetadata: entry.providerMetadata,
+					});
+					break;
+				case 'tool-complete':
+					messages.push({
+						role: 'tool-result' as const,
+						toolCallId: entry.toolCallId,
+						toolName: entry.toolName,
+						content: entry.toolOutput,
+						isError: !entry.success || undefined,
+					});
+					break;
+			}
+		}
+		return messages;
+	}
+
+	/**
+	 * Translates session entries to IPC event types for getSessionMessages().
+	 */
+	private _entriesToIpcEvents(
+		sessionUri: URI,
+		entries: readonly SessionEntry[],
+	): (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] {
+		const result: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] = [];
+		for (const entry of entries) {
+			switch (entry.type) {
+				case 'user-message':
+					result.push({ type: 'message', session: sessionUri, role: 'user', messageId: entry.messageId, content: entry.content });
+					break;
+				case 'assistant-message': {
+					const text = entry.contentParts
+						.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+						.map(p => p.text)
+						.join('');
+					const toolRequests = entry.contentParts
+						.filter((p): p is { type: 'tool-call'; toolCallId: string; toolName: string; arguments: Record<string, unknown> } => p.type === 'tool-call')
+						.map(p => ({ toolCallId: p.toolCallId, name: p.toolName, arguments: JSON.stringify(p.arguments) }));
+					result.push({
+						type: 'message', session: sessionUri, role: 'assistant', messageId: entry.messageId,
+						content: text,
+						toolRequests: toolRequests.length > 0 ? toolRequests : undefined,
+					});
+					break;
+				}
+				case 'tool-start':
+					result.push({ ...entry, type: 'tool_start', session: sessionUri });
+					break;
+				case 'tool-complete':
+					result.push({ ...entry, type: 'tool_complete', session: sessionUri });
+					break;
+			}
+		}
+		return result;
 	}
 }

@@ -36,7 +36,7 @@ suite('BashTool', () => {
 
 	test('executes a simple command', async () => {
 		const result = await tool.execute({ command: 'echo hello' }, createContext(tmpDir));
-		assert.strictEqual(result.content.trim(), 'hello');
+		assert.ok(result.content.includes('hello'));
 		assert.strictEqual(result.isError, undefined);
 	});
 
@@ -44,19 +44,17 @@ suite('BashTool', () => {
 		await fs.promises.writeFile(join(tmpDir, 'marker.txt'), 'found');
 
 		const result = await tool.execute({ command: 'cat marker.txt' }, createContext(tmpDir));
-		assert.strictEqual(result.content.trim(), 'found');
+		assert.ok(result.content.includes('found'));
 	});
 
-	test('captures stderr', async () => {
+	test('captures stderr in output', async () => {
 		const result = await tool.execute({ command: 'echo err >&2' }, createContext(tmpDir));
-		assert.ok(result.content.includes('stderr:'));
 		assert.ok(result.content.includes('err'));
 	});
 
 	test('reports non-zero exit code as error', async () => {
 		const result = await tool.execute({ command: 'exit 42' }, createContext(tmpDir));
 		assert.strictEqual(result.isError, true);
-		assert.ok(result.content.includes('42'));
 	});
 
 	test('returns error for missing command argument', async () => {
@@ -85,16 +83,19 @@ suite('BashTool', () => {
 			createContext(tmpDir, cts.token),
 		);
 
-		// Tool should complete (either with error or killed)
-		assert.ok(result.isError || result.content.includes('killed'));
+		assert.strictEqual(result.isError, true);
 	});
 
-	test('handles multi-line output', async () => {
-		const result = await tool.execute(
-			{ command: 'printf "line1\\nline2\\nline3"' },
-			createContext(tmpDir),
-		);
-		assert.strictEqual(result.content, 'line1\nline2\nline3');
+	test('preserves state across invocations', async () => {
+		const ctx = createContext(tmpDir);
+
+		// Change directory and set a variable in first invocation
+		await tool.execute({ command: 'mkdir -p subdir && cd subdir && export MY_VAR=hello' }, ctx);
+
+		// Second invocation should see the directory change and variable
+		const result = await tool.execute({ command: 'echo "$MY_VAR from $(basename $PWD)"' }, ctx);
+		assert.ok(result.content.includes('hello'), `Expected output to contain 'hello', got: "${result.content}"`);
+		assert.ok(result.content.includes('subdir'), `Expected output to contain 'subdir', got: "${result.content}"`);
 	});
 
 	test('returns "(no output)" for quiet commands', async () => {

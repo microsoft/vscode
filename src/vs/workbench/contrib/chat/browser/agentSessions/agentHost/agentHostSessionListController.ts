@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -30,6 +30,15 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
+
+		// Refresh the session list whenever the agent produces an idle event,
+		// which indicates a session turn completed and the list may have changed.
+		this._register(this._agentHostService.onDidSessionProgress(e => {
+			if (e.type === 'idle' && AgentSession.provider(e.session) === this._provider) {
+				const cts = new CancellationTokenSource();
+				this.refresh(cts.token).finally(() => cts.dispose());
+			}
+		}));
 	}
 
 	get items(): readonly IChatSessionItem[] {

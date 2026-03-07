@@ -25,6 +25,9 @@ export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
  * Initialization data passed from the renderer to the agent host once
  * per connection. Carries per-window identity that cannot be known at
  * process start time.
+ * TODO@roblourens we will have to rethink this when there is real client/
+ * server separation, but we need it in the short-term for telemetry
+ * and request headers, so plumbing it like this for now.	
  */
 export interface IAgentHostInitData {
 	/** Stable machine identifier (persists across sessions). */

@@ -28,7 +28,7 @@ import { ISSEEvent, SSEParser } from '../../../base/common/sseParser.js';
 import { IAssistantMessage, IConversationMessage, IToolResultMessage } from '../common/conversation.js';
 import { IModelInfo, IModelProvider, IModelRequestConfig, ModelResponseChunk } from '../common/modelProvider.js';
 import { IAgentToolDefinition } from '../common/tools.js';
-import { CAPIRequestType, CopilotApiService } from './copilotToken.js';
+import { CAPIRequestType, ICopilotApiService } from './copilotToken.js';
 import { ILogService } from '../../log/common/log.js';
 
 // -- Configuration ------------------------------------------------------------
@@ -46,7 +46,7 @@ export class AnthropicModelProvider implements IModelProvider {
 
 	constructor(
 		private readonly _modelId: string,
-		private readonly _apiService: CopilotApiService,
+		private readonly _apiService: ICopilotApiService,
 		private readonly _logService: ILogService,
 	) { }
 

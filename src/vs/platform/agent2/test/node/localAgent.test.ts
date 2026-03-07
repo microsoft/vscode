@@ -4,17 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { AgentSession } from '../../../agent/common/agentService.js';
 import { LocalAgent } from '../../node/localAgent.js';
+import { CopilotApiService, ICopilotApiService } from '../../node/copilotToken.js';
 
 suite('LocalAgent', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let agent: LocalAgent;
+	let tmpDir: string;
 
-	setup(() => {
-		agent = store.add(new LocalAgent(new NullLogService()));
+	setup(async () => {
+		tmpDir = await fs.promises.mkdtemp(join(os.tmpdir(), 'agent2-local-'));
+		const log = new NullLogService();
+
+		const services = new ServiceCollection();
+		services.set(ILogService, log);
+		services.set(ICopilotApiService, new CopilotApiService(log));
+		services.set(INativeEnvironmentService, { userDataPath: tmpDir } as Partial<INativeEnvironmentService> as INativeEnvironmentService);
+		const instantiationService = store.add(new InstantiationService(services));
+
+		agent = store.add(instantiationService.createInstance(LocalAgent));
+	});
+
+	teardown(async () => {
+		await fs.promises.rm(tmpDir, { recursive: true, force: true });
 	});
 
 	test('returns correct descriptor', () => {
@@ -50,12 +71,17 @@ suite('LocalAgent', () => {
 		assert.ok(sessions.some(s => s.session.toString() === s2.toString()));
 	});
 
-	test('disposes a session', async () => {
+	test('disposes a session from memory', async () => {
 		const sessionUri = await agent.createSession();
 		await agent.disposeSession(sessionUri);
 
-		const sessions = await agent.listSessions();
-		assert.strictEqual(sessions.length, 0);
+		// Session is removed from in-memory state but persisted sessions
+		// remain on disk, so listSessions may still return it.
+		// Verify that sendMessage throws (session no longer active).
+		await assert.rejects(
+			() => agent.sendMessage(sessionUri, 'hello'),
+			/Session not found/,
+		);
 	});
 
 	test('getSessionMessages returns empty for new session', async () => {
@@ -87,13 +113,16 @@ suite('LocalAgent', () => {
 		await agent.abortSession(sessionUri);
 	});
 
-	test('shutdown disposes all sessions', async () => {
-		await agent.createSession();
+	test('shutdown clears in-memory sessions', async () => {
+		const s1 = await agent.createSession();
 		await agent.createSession();
 
 		await agent.shutdown();
 
-		const sessions = await agent.listSessions();
-		assert.strictEqual(sessions.length, 0);
+		// In-memory sessions are gone
+		await assert.rejects(
+			() => agent.sendMessage(s1, 'hello'),
+			/Session not found/,
+		);
 	});
 });

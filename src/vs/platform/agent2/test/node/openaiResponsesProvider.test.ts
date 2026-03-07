@@ -155,6 +155,45 @@ suite('OpenAIResponsesProvider', () => {
 		assert.strictEqual(toolCompletes[0].arguments, '{"path":"test.txt"}');
 	});
 
+	test('handles obfuscated item_ids (GPT-5 via CAPI)', async () => {
+		// GPT-5 through CAPI obfuscates item_ids between events. The parser
+		// should correlate events by output_index, not item_id.
+		const { provider } = createMockSetup([
+			sseEvent({
+				type: 'response.output_item.added', output_index: 0, sequence_number: 1,
+				item: { type: 'function_call', call_id: 'call_real_id', name: 'get_time', arguments: '', id: 'obfuscated_id_1' },
+			}),
+			sseEvent({ type: 'response.function_call_arguments.delta', item_id: 'obfuscated_id_2', delta: '{}', output_index: 0, sequence_number: 2 }),
+			sseEvent({ type: 'response.function_call_arguments.done', item_id: 'obfuscated_id_3', name: 'get_time', arguments: '{}', output_index: 0, sequence_number: 3 }),
+			sseEvent({
+				type: 'response.completed', sequence_number: 4,
+				response: {
+					id: 'resp_1', status: 'completed', output: [],
+					usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } },
+				},
+			}),
+		]);
+
+		const messages = [createUserMessage('What time is it?')];
+		const chunks = await collectChunks(provider, messages);
+
+		const toolStarts = chunks.filter(c => c.type === 'tool-call-start');
+		const toolDeltas = chunks.filter(c => c.type === 'tool-call-delta');
+		const toolCompletes = chunks.filter(c => c.type === 'tool-call-complete');
+
+		assert.strictEqual(toolStarts.length, 1);
+		assert.strictEqual(toolStarts[0].toolCallId, 'call_real_id');
+		assert.strictEqual(toolStarts[0].toolName, 'get_time');
+
+		assert.strictEqual(toolDeltas.length, 1);
+		assert.strictEqual(toolDeltas[0].toolCallId, 'call_real_id');
+
+		assert.strictEqual(toolCompletes.length, 1);
+		assert.strictEqual(toolCompletes[0].toolCallId, 'call_real_id');
+		assert.strictEqual(toolCompletes[0].toolName, 'get_time');
+		assert.strictEqual(toolCompletes[0].arguments, '{}');
+	});
+
 	test('reports usage from completed event', async () => {
 		const { provider } = createMockSetup([
 			sseEvent({ type: 'response.output_text.delta', delta: 'Hi', item_id: 'msg_1', output_index: 0, content_index: 0, sequence_number: 1, logprobs: [] }),

@@ -14,7 +14,6 @@
  */
 
 import type {
-	EasyInputMessage,
 	FunctionTool,
 	ResponseCompletedEvent,
 	ResponseErrorEvent,
@@ -22,9 +21,9 @@ import type {
 	ResponseFunctionCallArgumentsDeltaEvent,
 	ResponseFunctionCallArgumentsDoneEvent,
 	ResponseFunctionToolCall,
-	ResponseFunctionToolCallOutputItem,
 	ResponseInputItem,
 	ResponseOutputItemAddedEvent,
+	ResponseOutputMessage,
 	ResponseReasoningSummaryTextDeltaEvent,
 	ResponseStreamEvent,
 	ResponseTextDeltaEvent,
@@ -33,10 +32,10 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { timeout } from '../../../base/common/async.js';
 import { ISSEEvent, SSEParser } from '../../../base/common/sseParser.js';
-import { IAssistantMessage, IConversationMessage, IToolResultMessage } from '../common/conversation.js';
+import { IConversationMessage } from '../common/conversation.js';
 import { IModelInfo, IModelProvider, IModelRequestConfig, ModelResponseChunk } from '../common/modelProvider.js';
 import { IAgentToolDefinition } from '../common/tools.js';
-import { CAPIRequestType, CopilotApiService } from './copilotToken.js';
+import { CAPIRequestType, ICopilotApiService } from './copilotToken.js';
 import { ILogService } from '../../log/common/log.js';
 
 // -- Constants ----------------------------------------------------------------
@@ -60,53 +59,60 @@ function translateMessages(
 	messages: readonly IConversationMessage[],
 ): ResponseInputItem[] {
 	const items: ResponseInputItem[] = [];
+	let replayMsgIdx = 0;
 
 	for (const msg of messages) {
 		switch (msg.role) {
 			case 'user': {
-				items.push({
+				const userItem: ResponseInputItem.Message = {
 					role: 'user',
-					content: msg.content,
+					content: [{ type: 'input_text', text: msg.content }],
 					type: 'message',
-				} satisfies EasyInputMessage as ResponseInputItem);
+				};
+				items.push(userItem);
 				break;
 			}
 			case 'assistant': {
-				const assistantMsg = msg as IAssistantMessage;
-
 				// Build output items from the assistant's content parts.
-				// First add any text as a message.
-				const textParts = assistantMsg.content.filter(p => p.type === 'text');
+				// Add text as a ResponseOutputMessage (required format for replaying
+				// assistant turns in the Responses API).
+				const textParts = msg.content.filter(p => p.type === 'text');
 				if (textParts.length > 0) {
-					items.push({
+					const replayMsg: ResponseOutputMessage = {
 						role: 'assistant',
-						content: textParts.map(p => p.text).join(''),
+						content: textParts.map(p => ({
+							type: 'output_text' as const,
+							text: p.text,
+							annotations: [],
+						})),
+						id: `msg_replay_${replayMsgIdx++}`,
+						status: 'completed',
 						type: 'message',
-					} satisfies EasyInputMessage as ResponseInputItem);
+					};
+					items.push(replayMsg);
 				}
 
 				// Add tool calls as function_call items
-				for (const part of assistantMsg.content) {
+				for (const part of msg.content) {
 					if (part.type === 'tool-call') {
-						items.push({
+						const toolCall: ResponseFunctionToolCall = {
 							type: 'function_call',
 							call_id: part.toolCallId,
 							name: part.toolName,
 							arguments: JSON.stringify(part.arguments),
-						} satisfies ResponseFunctionToolCall as ResponseInputItem);
+						};
+						items.push(toolCall);
 					}
 				}
 				break;
 			}
 			case 'tool-result': {
-				const toolResult = msg as IToolResultMessage;
-				const outputItem: ResponseFunctionToolCallOutputItem = {
+				const callOutput: ResponseInputItem.FunctionCallOutput = {
 					type: 'function_call_output',
-					call_id: toolResult.toolCallId,
-					output: toolResult.content,
-					id: toolResult.toolCallId,
+					call_id: msg.toolCallId,
+					output: msg.content,
 				};
-				items.push(outputItem as ResponseInputItem);
+				items.push(callOutput);
 				break;
 			}
 			// system messages are passed via the `instructions` field, not in input
@@ -136,7 +142,7 @@ export class OpenAIResponsesProvider implements IModelProvider {
 
 	constructor(
 		private readonly _modelId: string,
-		private readonly _apiService: CopilotApiService,
+		private readonly _apiService: ICopilotApiService,
 		private readonly _logService: ILogService,
 	) { }
 
@@ -253,11 +259,11 @@ export class OpenAIResponsesProvider implements IModelProvider {
 			}
 		};
 
-		// Track function call state: key by item_id (used in delta/done events),
-		// but store call_id (used for tool result correlation)
-		const pendingArgs = new Map<string, string[]>();
-		const pendingCallIds = new Map<string, string>();
-		const pendingNames = new Map<string, string>();
+		// Track function call state: key by output_index (stable across events
+		// even when item IDs are obfuscated, e.g., by GPT-5 models via CAPI).
+		const pendingArgs = new Map<number, string[]>();
+		const pendingCallIds = new Map<number, string>();
+		const pendingNames = new Map<number, string>();
 
 		const parser = new SSEParser((sseEvent: ISSEEvent) => {
 			if (sseEvent.data === '[DONE]') {
@@ -287,15 +293,14 @@ export class OpenAIResponsesProvider implements IModelProvider {
 				case 'response.output_item.added': {
 					const itemAdded = parsed as ResponseOutputItemAddedEvent;
 					if (itemAdded.item.type === 'function_call') {
-						const fc = itemAdded.item as ResponseFunctionToolCall;
-						const itemId = fc.id ?? fc.call_id;
-						pendingArgs.set(itemId, []);
-						pendingCallIds.set(itemId, fc.call_id);
-						pendingNames.set(itemId, fc.name);
+						const idx = itemAdded.output_index;
+						pendingArgs.set(idx, []);
+						pendingCallIds.set(idx, itemAdded.item.call_id);
+						pendingNames.set(idx, itemAdded.item.name);
 						pushEvent({
 							type: 'tool-call-start',
-							toolCallId: fc.call_id,
-							toolName: fc.name,
+							toolCallId: itemAdded.item.call_id,
+							toolName: itemAdded.item.name,
 						});
 					}
 					break;
@@ -303,10 +308,10 @@ export class OpenAIResponsesProvider implements IModelProvider {
 
 				case 'response.function_call_arguments.delta': {
 					const argsDelta = parsed as ResponseFunctionCallArgumentsDeltaEvent;
-					const pending = pendingArgs.get(argsDelta.item_id);
+					const pending = pendingArgs.get(argsDelta.output_index);
 					if (pending) {
 						pending.push(argsDelta.delta);
-						const callId = pendingCallIds.get(argsDelta.item_id) ?? argsDelta.item_id;
+						const callId = pendingCallIds.get(argsDelta.output_index) ?? argsDelta.item_id;
 						pushEvent({
 							type: 'tool-call-delta',
 							toolCallId: callId,
@@ -318,11 +323,11 @@ export class OpenAIResponsesProvider implements IModelProvider {
 
 				case 'response.function_call_arguments.done': {
 					const argsDone = parsed as ResponseFunctionCallArgumentsDoneEvent;
-					const callId = pendingCallIds.get(argsDone.item_id) ?? argsDone.item_id;
-					const name = pendingNames.get(argsDone.item_id) ?? argsDone.name;
-					pendingArgs.delete(argsDone.item_id);
-					pendingCallIds.delete(argsDone.item_id);
-					pendingNames.delete(argsDone.item_id);
+					const callId = pendingCallIds.get(argsDone.output_index) ?? argsDone.item_id;
+					const name = pendingNames.get(argsDone.output_index) ?? argsDone.name;
+					pendingArgs.delete(argsDone.output_index);
+					pendingCallIds.delete(argsDone.output_index);
+					pendingNames.delete(argsDone.output_index);
 					pushEvent({
 						type: 'tool-call-complete',
 						toolCallId: callId,

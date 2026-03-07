@@ -28,6 +28,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 // -- Types mirroring @vscode/copilot-api -------------------------------------
 
@@ -184,6 +185,37 @@ export interface ICopilotApiIdentity {
 	readonly buildType: 'dev' | 'prod';
 }
 
+// -- Service interface --------------------------------------------------------
+
+export const ICopilotApiService = createDecorator<ICopilotApiService>('copilotApiService');
+
+export interface ICopilotApiService {
+	readonly _serviceBrand: undefined;
+
+	sendModelRequest(
+		body: unknown,
+		requestType: ICAPIRequestMetadata,
+		extraHeaders?: Record<string, string>,
+		cancellationToken?: CancellationToken,
+	): Promise<Response>;
+
+	sendRequest<T>(
+		requestType: ICAPIRequestMetadata,
+		extraHeaders?: Record<string, string>,
+		cancellationToken?: CancellationToken,
+	): Promise<T>;
+
+	setGitHubToken(token: string): void;
+	setIdentity(identity: ICopilotApiIdentity): void;
+	setCopilotToken(
+		copilotJwt: string,
+		endpoints?: { api?: string; telemetry?: string; proxy?: string },
+		sku?: string,
+	): Promise<void>;
+}
+
+// -- Service ------------------------------------------------------------------
+
 /**
  * Unified service for making authenticated requests to the Copilot API.
  *
@@ -191,7 +223,8 @@ export interface ICopilotApiIdentity {
  * auth is handled transparently. The service manages the full token lifecycle
  * (exchange, caching, refresh) and delegates URL routing to CAPIClient.
  */
-export class CopilotApiService {
+export class CopilotApiService implements ICopilotApiService {
+	declare readonly _serviceBrand: undefined;
 	private _githubToken: string | undefined;
 	private _cachedToken: { token: string; expiresAt: number } | undefined;
 	private _refreshPromise: Promise<{ token: string; expiresAt: number }> | undefined;
