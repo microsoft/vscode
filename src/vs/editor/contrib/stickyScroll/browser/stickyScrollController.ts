@@ -622,6 +622,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				const bottomOfElement = topOfElement + range.height;
 				const topOfBeginningLine = this._editor.getTopForLineNumber(start) - scrollTop;
 				const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
+				// Skip line 1 when it's still mostly visible in the viewport to prevent overlay from blocking interaction
+				// We check if line 1's top is within a small threshold (half line height) from the viewport top
+				if (start === 1 && topOfBeginningLine > -(range.height / 2)) {
+					continue;
+				}
 				if (topOfElement > topOfBeginningLine && topOfElement <= bottomOfEndLine) {
 					startLineNumbers.push(start);
 					endLineNumbers.push(end + 1);
