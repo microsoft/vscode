@@ -196,7 +196,7 @@ export class LineHeightsManager {
 	}
 
 	private _flushStagedDecorationChanges(stagedInserts: CustomLine[], stagedIdMap: ArrayMap<string, CustomLine>): void {
-		if (stagedInserts.length === 0 && this._invalidIndex === Infinity) {
+		if (this._invalidIndex === Infinity) {
 			return;
 		}
 		for (const pendingChange of stagedInserts) {
