@@ -196,7 +196,7 @@ export class LineHeightsManager {
 	}
 
 	private _flushStagedDecorationChanges(stagedInserts: CustomLine[], stagedIdMap: ArrayMap<string, CustomLine>): void {
-		if (this._invalidIndex === Infinity) {
+		if (stagedInserts.length === 0 && this._invalidIndex === Infinity) {
 			return;
 		}
 		for (const pendingChange of stagedInserts) {
@@ -210,6 +210,9 @@ export class LineHeightsManager {
 		}
 		stagedInserts.length = 0;
 		stagedIdMap.clear();
+		if (this._invalidIndex === Infinity) {
+			return;
+		}
 		const newDecorationIDToSpecialLine = new ArrayMap<string, CustomLine>();
 		const newOrderedSpecialLines: CustomLine[] = [];
 
