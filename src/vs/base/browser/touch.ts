@@ -27,6 +27,7 @@ interface TouchData {
 	rollingTimestamps: number[];
 	rollingPageX: number[];
 	rollingPageY: number[];
+	didScroll: boolean;
 }
 
 export interface GestureEvent extends MouseEvent {
@@ -168,7 +169,8 @@ export class Gesture extends Disposable {
 				initialPageY: touch.pageY,
 				rollingTimestamps: [timestamp],
 				rollingPageX: [touch.pageX],
-				rollingPageY: [touch.pageY]
+				rollingPageY: [touch.pageY],
+				didScroll: false
 			};
 
 			const evt = this.newGestureEvent(EventType.Start, touch.target);
@@ -201,7 +203,8 @@ export class Gesture extends Disposable {
 			const data = this.activeTouches[touch.identifier],
 				holdTime = Date.now() - data.initialTimeStamp;
 
-			if (holdTime < Gesture.HOLD_DELAY
+			if (!data.didScroll
+				&& holdTime < Gesture.HOLD_DELAY
 				&& Math.abs(data.initialPageX - data.rollingPageX.at(-1)!) < 30
 				&& Math.abs(data.initialPageY - data.rollingPageY.at(-1)!) < 30) {
 
@@ -210,7 +213,8 @@ export class Gesture extends Disposable {
 				evt.pageY = data.rollingPageY.at(-1)!;
 				this.dispatchEvent(evt);
 
-			} else if (holdTime >= Gesture.HOLD_DELAY
+			} else if (!data.didScroll
+				&& holdTime >= Gesture.HOLD_DELAY
 				&& Math.abs(data.initialPageX - data.rollingPageX.at(-1)!) < 30
 				&& Math.abs(data.initialPageY - data.rollingPageY.at(-1)!) < 30) {
 
@@ -360,6 +364,9 @@ export class Gesture extends Disposable {
 			evt.pageX = touch.pageX;
 			evt.pageY = touch.pageY;
 			this.dispatchEvent(evt);
+
+			// Mark that scrolling has occurred for this touch
+			data.didScroll = true;
 
 			// only keep a few data points, to average the final speed
 			if (data.rollingPageX.length > 3) {
