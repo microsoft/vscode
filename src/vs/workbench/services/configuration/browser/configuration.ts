@@ -9,6 +9,8 @@ import * as errors from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable, combinedDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult, FileOperation, FileOperationEvent } from '../../../../platform/files/common/files.js';
+import * as json from '../../../../base/common/json.js';
+import { merge } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, UserSettings } from '../../../../platform/configuration/common/configurationModels.js';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from '../common/configurationModels.js';
 import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES, MCP_CONFIGURATION_KEY } from '../common/configuration.js';
@@ -241,6 +243,8 @@ class FileServiceBasedConfiguration extends Disposable {
 	private _folderSettingsParseOptions: ConfigurationParseOptions;
 	private _standAloneConfigurations: ConfigurationModel[];
 	private _cache: ConfigurationModel;
+	private readonly resolvedSettingsResourceWatchers = this._register(new DisposableStore());
+	private resolvedSettingsResources: URI[] = [];
 
 	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -297,7 +301,14 @@ class FileServiceBasedConfiguration extends Disposable {
 			resolveContents(this.standAloneConfigurationResources.map(([, resource]) => resource)),
 		]);
 
-		return [settingsContent, standAloneConfigurationContents.map((content, index) => ([this.standAloneConfigurationResources[index][0], content]))];
+		let resolvedSettingsContent = settingsContent;
+		if (settingsContent !== undefined) {
+			const resolved = await this.resolveSettingsContent(this.settingsResource, settingsContent);
+			resolvedSettingsContent = resolved.content;
+			this.updateResolvedSettingsResources(resolved.resources);
+		}
+
+		return [resolvedSettingsContent, standAloneConfigurationContents.map((content, index) => ([this.standAloneConfigurationResources[index][0], content]))];
 	}
 
 	async loadConfiguration(settingsConfiguration?: ConfigurationModel): Promise<ConfigurationModel> {
@@ -345,26 +356,176 @@ class FileServiceBasedConfiguration extends Disposable {
 		this._cache = (settingsConfiguration ?? this._folderSettingsModelParser.configurationModel).merge(...this._standAloneConfigurations);
 	}
 
+	private async resolveSettingsContent(resource: URI, content: string): Promise<{ content: string; resources: URI[] }> {
+		const resolving = new Set<string>();
+		const resolved = new Map<string, { raw: IStringDictionary<unknown>; resources: URI[] }>();
+		const result = await this.resolveSettingsRaw(resource, content, resolving, resolved);
+		return { content: JSON.stringify(result.raw), resources: result.resources };
+	}
+
+	private async resolveSettingsRaw(resource: URI, content: string, resolving: Set<string>, resolved: Map<string, { raw: IStringDictionary<unknown>; resources: URI[] }>): Promise<{ raw: IStringDictionary<unknown>; resources: URI[] }> {
+		const comparisonKey = this.uriIdentityService.extUri.getComparisonKey(resource);
+		const cached = resolved.get(comparisonKey);
+		if (cached) {
+			return cached;
+		}
+
+		if (resolving.has(comparisonKey)) {
+			this.logService.warn(`Error while resolving configuration file '${resource.toString()}': Circular settings extends detected.`);
+			return { raw: Object.create(null), resources: [] };
+		}
+
+		resolving.add(comparisonKey);
+		const ownRaw = this.parseSettingsContent(content, resource);
+		const extendsRefs = this.getExtendsReferences(ownRaw);
+		delete ownRaw.extends;
+
+		const mergedRaw: IStringDictionary<unknown> = Object.create(null);
+		const inheritedResources: URI[] = [];
+
+		for (const extendsRef of extendsRefs) {
+			const extendsResource = this.resolveExtendsResource(resource, extendsRef);
+			if (!extendsResource) {
+				continue;
+			}
+
+			const extendsResourceKey = this.uriIdentityService.extUri.getComparisonKey(extendsResource);
+			if (resolving.has(extendsResourceKey)) {
+				this.logService.warn(`Error while resolving configuration file '${resource.toString()}': Circular settings extends detected via '${extendsResource.toString()}'.`);
+				continue;
+			}
+
+			const extendsContent = await this.readExtendsContent(extendsResource);
+			if (extendsContent === undefined) {
+				continue;
+			}
+
+			const inherited = await this.resolveSettingsRaw(extendsResource, extendsContent, resolving, resolved);
+			merge(mergedRaw, inherited.raw, true);
+			inheritedResources.push(extendsResource, ...inherited.resources);
+		}
+
+		merge(mergedRaw, ownRaw, true);
+		const result = { raw: mergedRaw, resources: this.distinctResources(inheritedResources) };
+
+		resolved.set(comparisonKey, result);
+		resolving.delete(comparisonKey);
+		return result;
+	}
+
+	private parseSettingsContent(content: string, resource: URI): IStringDictionary<unknown> {
+		const errors: json.ParseError[] = [];
+		const parsed = json.parse(content, errors) as IStringDictionary<unknown>;
+		if (errors.length) {
+			this.logService.trace(`Error while parsing settings file '${resource.toString()}' to resolve extends.`);
+		}
+		return isObject(parsed) ? parsed : Object.create(null);
+	}
+
+	private getExtendsReferences(raw: IStringDictionary<unknown>): string[] {
+		const extendsValue = raw.extends;
+		if (typeof extendsValue === 'string') {
+			return [extendsValue];
+		}
+		if (Array.isArray(extendsValue)) {
+			return extendsValue.filter((value): value is string => typeof value === 'string');
+		}
+		return [];
+	}
+
+	private resolveExtendsResource(settingsResource: URI, extendsRef: string): URI | undefined {
+		const trimmedRef = extendsRef.trim();
+		if (!trimmedRef) {
+			return undefined;
+		}
+
+		const baseDir = this.uriIdentityService.extUri.dirname(settingsResource);
+		let candidate: URI | undefined;
+
+		try {
+			const parsed = URI.parse(trimmedRef);
+			if (parsed.scheme) {
+				candidate = parsed;
+			}
+		} catch {
+		}
+
+		if (!candidate) {
+			candidate = this.uriIdentityService.extUri.resolvePath(baseDir, trimmedRef);
+		}
+
+		if (candidate.scheme !== baseDir.scheme || candidate.authority !== baseDir.authority) {
+			this.logService.trace(`Ignoring extends reference '${extendsRef}' from '${settingsResource.toString()}' because it has a different scheme or authority.`);
+			return undefined;
+		}
+
+		if (!this.uriIdentityService.extUri.isEqualOrParent(candidate, baseDir)) {
+			this.logService.trace(`Ignoring extends reference '${extendsRef}' from '${settingsResource.toString()}' because it resolves outside the configuration folder.`);
+			return undefined;
+		}
+
+		return candidate;
+	}
+
+	private async readExtendsContent(resource: URI): Promise<string | undefined> {
+		try {
+			const content = await this.fileService.readFile(resource, { atomic: true });
+			return content.value.toString();
+		} catch (error) {
+			this.logService.trace(`Error while resolving configuration file '${resource.toString()}': ${errors.getErrorMessage(error)}`);
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND
+				&& (<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_DIRECTORY) {
+				this.logService.error(error);
+			}
+		}
+		return undefined;
+	}
+
+	private updateResolvedSettingsResources(resources: URI[]): void {
+		this.resolvedSettingsResourceWatchers.clear();
+		this.resolvedSettingsResources = this.distinctResources(resources).filter(resource => !this.allResources.some(candidate => this.uriIdentityService.extUri.isEqual(candidate, resource)));
+		for (const resource of this.resolvedSettingsResources) {
+			this.resolvedSettingsResourceWatchers.add(combinedDisposable(
+				this.fileService.watch(this.uriIdentityService.extUri.dirname(resource)),
+				this.fileService.watch(resource)
+			));
+		}
+	}
+
+	private distinctResources(resources: URI[]): URI[] {
+		const map = new Map<string, URI>();
+		for (const resource of resources) {
+			map.set(this.uriIdentityService.extUri.getComparisonKey(resource), resource);
+		}
+		return [...map.values()];
+	}
+
+	private getWatchedResources(): URI[] {
+		return [...this.allResources, ...this.resolvedSettingsResources];
+	}
+
 	private handleFileChangesEvent(event: FileChangesEvent): boolean {
+		const watchedResources = this.getWatchedResources();
 		// One of the resources has changed
-		if (this.allResources.some(resource => event.contains(resource))) {
+		if (watchedResources.some(resource => event.contains(resource))) {
 			return true;
 		}
 		// One of the resource's parent got deleted
-		if (this.allResources.some(resource => event.contains(this.uriIdentityService.extUri.dirname(resource), FileChangeType.DELETED))) {
+		if (watchedResources.some(resource => event.contains(this.uriIdentityService.extUri.dirname(resource), FileChangeType.DELETED))) {
 			return true;
 		}
 		return false;
 	}
 
 	private handleFileOperationEvent(event: FileOperationEvent): boolean {
+		const watchedResources = this.getWatchedResources();
 		// One of the resources has changed
 		if ((event.isOperation(FileOperation.CREATE) || event.isOperation(FileOperation.COPY) || event.isOperation(FileOperation.DELETE) || event.isOperation(FileOperation.WRITE))
-			&& this.allResources.some(resource => this.uriIdentityService.extUri.isEqual(event.resource, resource))) {
+			&& watchedResources.some(resource => this.uriIdentityService.extUri.isEqual(event.resource, resource))) {
 			return true;
 		}
 		// One of the resource's parent got deleted
-		if (event.isOperation(FileOperation.DELETE) && this.allResources.some(resource => this.uriIdentityService.extUri.isEqual(event.resource, this.uriIdentityService.extUri.dirname(resource)))) {
+		if (event.isOperation(FileOperation.DELETE) && watchedResources.some(resource => this.uriIdentityService.extUri.isEqual(event.resource, this.uriIdentityService.extUri.dirname(resource)))) {
 			return true;
 		}
 		return false;
