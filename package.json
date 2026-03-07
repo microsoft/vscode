@@ -1,5 +1,5 @@
 {
-  "name": "code-oss-dev",
+  "name": "son-of-anton-ide",
   "version": "1.112.0",
   "distro": "cd72f8f27b485d65c99f5020caa895a5ac5692eb",
   "author": {
@@ -44,7 +44,6 @@
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.ts",
     "update-localization-extension": "node build/npm/update-localization-extension.ts",
-    "mixin-telemetry-docs": "node build/npm/mixin-telemetry-docs.ts",
     "smoketest": "node build/lib/preLaunch.ts && cd test/smoke && npm run compile && node test/index.js",
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.ts",
@@ -158,7 +157,6 @@
     "@vscode/component-explorer-cli": "^0.1.1-15",
     "@vscode/gulp-electron": "1.40.1",
     "@vscode/l10n-dev": "0.0.35",
-    "@vscode/telemetry-extractor": "^1.20.2",
     "@vscode/test-cli": "^0.0.6",
     "@vscode/test-electron": "^2.4.0",
     "@vscode/test-web": "^0.0.76",
