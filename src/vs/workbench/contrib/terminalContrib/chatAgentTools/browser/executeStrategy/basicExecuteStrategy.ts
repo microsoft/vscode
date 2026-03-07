@@ -58,35 +58,6 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 		const store = new DisposableStore();
 
 		try {
-			const idlePromptPromise = trackIdleOnPrompt(this._instance, 1000, store);
-			const onDone = Promise.race([
-				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
-					// When shell integration is basic, it means that the end execution event is
-					// often misfired since we don't have command line verification. Because of this
-					// we make sure the prompt is idle after the end execution event happens.
-					this._log('onDone 1 of 2 via end event, waiting for short idle prompt');
-					return idlePromptPromise.then(() => {
-						this._log('onDone 2 of 2 via short idle prompt');
-						return {
-							'type': 'success',
-							command: e
-						} as const;
-					});
-				}),
-				Event.toPromise(token.onCancellationRequested as Event<undefined>, store).then(() => {
-					this._log('onDone via cancellation');
-				}),
-				Event.toPromise(this._instance.onDisposed, store).then(() => {
-					this._log('onDone via terminal disposal');
-					return { type: 'disposal' } as const;
-				}),
-				// A longer idle prompt event is used here as a catch all for unexpected cases where
-				// the end event doesn't fire for some reason.
-				trackIdleOnPrompt(this._instance, 3000, store).then(() => {
-					this._log('onDone long idle prompt');
-				}),
-			]);
-
 			// Ensure xterm is available
 			this._log('Waiting for xterm');
 			const xterm = await this._instance.xtermReadyPromise;
@@ -124,6 +95,37 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			// occurs.
 			this._log(`Executing command line \`${commandLine}\``);
 			this._instance.sendText(commandLine, true);
+
+			// Set up the completion listeners AFTER sending the command to avoid capturing
+			// the exit code from SIGINT (130) instead of the actual command's exit code.
+			const idlePromptPromise = trackIdleOnPrompt(this._instance, 1000, store);
+			const onDone = Promise.race([
+				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
+					// When shell integration is basic, it means that the end execution event is
+					// often misfired since we don't have command line verification. Because of this
+					// we make sure the prompt is idle after the end execution event happens.
+					this._log('onDone 1 of 2 via end event, waiting for short idle prompt');
+					return idlePromptPromise.then(() => {
+						this._log('onDone 2 of 2 via short idle prompt');
+						return {
+							'type': 'success',
+							command: e
+						} as const;
+					});
+				}),
+				Event.toPromise(token.onCancellationRequested as Event<undefined>, store).then(() => {
+					this._log('onDone via cancellation');
+				}),
+				Event.toPromise(this._instance.onDisposed, store).then(() => {
+					this._log('onDone via terminal disposal');
+					return { type: 'disposal' } as const;
+				}),
+				// A longer idle prompt event is used here as a catch all for unexpected cases where
+				// the end event doesn't fire for some reason.
+				trackIdleOnPrompt(this._instance, 3000, store).then(() => {
+					this._log('onDone long idle prompt');
+				}),
+			]);
 
 			// Wait for the next end execution event - note that this may not correspond to the actual
 			// execution requested
