@@ -42,6 +42,8 @@
 	font-weight: 400;
 	margin: 0 0 12px 0;
 	color: var(--vscode-foreground);
+	line-height: 1.2;
+	overflow-wrap: break-word;
 }
 
 .agentSessionsWelcome-startEntries {
