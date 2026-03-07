@@ -149,7 +149,7 @@ class ManageLanguageModelAuthenticationAction extends Action2 {
 					if (allowedExt.trusted && !addedTrustedSeparator) {
 						items.push({
 							type: 'separator',
-							label: localize('trustedExtension', 'Trusted by Microsoft'),
+							label: localize('trustedExtension', 'Trusted by Son of Anton'),
 						});
 						addedTrustedSeparator = true;
 					}

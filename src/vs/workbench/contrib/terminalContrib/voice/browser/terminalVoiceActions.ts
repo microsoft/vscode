@@ -54,7 +54,7 @@ export function registerTerminalVoiceActions() {
 				primaryButton = localize('enableExtension', "Enable Extension");
 				run = () => workbenchExtensionEnablementService.setEnablement([extension], EnablementState.EnabledWorkspace);
 			} else {
-				message = localize('terminal.voice.installSpeechExtension', "Would you like to install 'VS Code Speech' extension from 'Microsoft'?");
+				message = localize('terminal.voice.installSpeechExtension', "Would you like to install the 'VS Code Speech' extension for microphone support?");
 				run = () => commandService.executeCommand('workbench.extensions.installExtension', 'ms-vscode.vscode-speech');
 				primaryButton = localize('installExtension', "Install Extension");
 			}
