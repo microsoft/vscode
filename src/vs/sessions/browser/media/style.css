@@ -56,6 +56,7 @@
 	margin: 0 auto;
 	padding-left: 12px;
 	padding-right: 12px;
+	box-sizing: border-box;
 }
 
 .agent-sessions-workbench .interactive-session > .chat-suggest-next-widget {
@@ -63,6 +64,7 @@
 	margin: 0 auto;
 	padding-left: 12px;
 	padding-right: 12px;
+	box-sizing: border-box;
 }
 
 /* ---- Chat Input ---- */
