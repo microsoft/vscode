@@ -3217,7 +3217,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private getVisibleScrollbarOptions(): IEditorScrollbarOptions {
 		const scrollbar = this._inputEditor.getRawOptions().scrollbar ?? {};
 		return this.options.renderStyle === 'compact'
-			? { ...scrollbar, vertical: 'visible' }
+			? { ...scrollbar, vertical: 'hidden' }
 			: { ...scrollbar, vertical: 'visible', verticalScrollbarSize: 7 };
 	}
 
