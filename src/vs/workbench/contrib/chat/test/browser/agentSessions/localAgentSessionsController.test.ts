@@ -149,7 +149,7 @@ class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	cancelCurrentRequestForSession(_sessionResource: URI, _source?: string): void { }
+	async cancelCurrentRequestForSession(_sessionResource: URI, _source?: string): Promise<void> { }
 
 	setYieldRequested(_sessionResource: URI): void { }
 
