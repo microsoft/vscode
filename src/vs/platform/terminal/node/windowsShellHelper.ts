@@ -35,6 +35,10 @@ const SHELL_EXECUTABLES = [
 	'nu.exe',
 	'node.exe',
 	'xonsh.exe',
+	'claude.exe',
+	'codex.ps1',
+	'copilot.ps1',
+	'gemini.ps1',
 ];
 
 const SHELL_EXECUTABLE_REGEXES = [
