@@ -175,16 +175,18 @@ suite('SessionStorage', () => {
 		assert.strictEqual(sessions.length, 0);
 	});
 
-	test('markModified updates modifiedTime', async () => {
+	test('modifiedTime reflects file modification time', async () => {
 		const uri = AgentSession.uri('local', 'session-modified');
 		const wd = '/workspace';
 		const startTime = Date.now() - 10000;
 		await storage.createSession(uri, 'claude-sonnet-4-20250514', wd, startTime);
-		storage.markModified(uri, wd);
+
+		// Append an entry so the file mtime updates
+		storage.append(uri, wd, { v: V, type: 'user-message', messageId: 'msg-1', content: 'test' });
 		await storage.flush('session-modified');
 
 		const sessions = await storage.listSessions(wd);
 		assert.strictEqual(sessions.length, 1);
-		assert.ok(sessions[0].modifiedTime > startTime);
+		assert.ok(sessions[0].modifiedTime >= startTime);
 	});
 });

@@ -42,14 +42,8 @@ interface ISessionCreatedRecord {
 	readonly startTime: number;
 }
 
-interface ISessionModifiedRecord {
-	readonly v: number;
-	readonly type: 'session-modified';
-	readonly modifiedTime: number;
-}
-
 /** A JSONL line is either a metadata record or a session entry. */
-type SessionRecord = ISessionCreatedRecord | ISessionModifiedRecord | SessionEntry;
+type SessionRecord = ISessionCreatedRecord | SessionEntry;
 
 // -- Restored session data ----------------------------------------------------
 
@@ -58,7 +52,6 @@ export interface IRestoredSession {
 	readonly model: string;
 	readonly workingDirectory: string;
 	readonly startTime: number;
-	readonly modifiedTime: number;
 	readonly entries: readonly SessionEntry[];
 }
 
@@ -116,18 +109,6 @@ export class SessionStorage {
 	 */
 	append(sessionUri: URI, workingDirectory: string, entry: SessionEntry): void {
 		this._appendRecord(workingDirectory, AgentSession.id(sessionUri), entry);
-	}
-
-	/**
-	 * Mark the session as modified (appends a timestamp record).
-	 */
-	markModified(sessionUri: URI, workingDirectory: string): void {
-		const record: ISessionModifiedRecord = {
-			v: SESSION_ENTRY_VERSION,
-			type: 'session-modified',
-			modifiedTime: Date.now(),
-		};
-		this._appendRecord(workingDirectory, AgentSession.id(sessionUri), record);
 	}
 
 	/**
@@ -345,7 +326,10 @@ export class SessionStorage {
 	 * Read just the metadata from a JSONL file (first line + scan for latest modified time).
 	 */
 	private async _readSessionMetadata(filePath: string): Promise<IAgentSessionMetadata | undefined> {
-		const content = await fs.readFile(filePath, 'utf-8');
+		const [content, stat] = await Promise.all([
+			fs.readFile(filePath, 'utf-8'),
+			fs.stat(filePath),
+		]);
 		const lines = content.split('\n').filter(l => l.trim());
 		if (lines.length === 0) {
 			return undefined;
@@ -356,19 +340,7 @@ export class SessionStorage {
 			return undefined;
 		}
 
-		// Find the latest modifiedTime by scanning session-modified records
-		let modifiedTime = firstRecord.startTime;
-		for (let i = lines.length - 1; i >= 1; i--) {
-			try {
-				const record = JSON.parse(lines[i]) as SessionRecord;
-				if (record.type === 'session-modified') {
-					modifiedTime = record.modifiedTime;
-					break;
-				}
-			} catch {
-				continue;
-			}
-		}
+		const modifiedTime = stat.mtimeMs;
 
 		// Extract a summary from the first user message if present
 		let summary: string | undefined;
@@ -410,7 +382,6 @@ export class SessionStorage {
 		}
 
 		const entries: SessionEntry[] = [];
-		let modifiedTime = firstRecord.startTime;
 
 		for (const line of lines) {
 			let record: SessionRecord;
@@ -420,15 +391,8 @@ export class SessionStorage {
 				continue;
 			}
 
-			switch (record.type) {
-				case 'session-created':
-					break;
-				case 'session-modified':
-					modifiedTime = record.modifiedTime;
-					break;
-				default:
-					entries.push(record);
-					break;
+			if (record.type !== 'session-created') {
+				entries.push(record);
 			}
 		}
 
@@ -437,7 +401,6 @@ export class SessionStorage {
 			model: firstRecord.model,
 			workingDirectory: firstRecord.workingDirectory,
 			startTime: firstRecord.startTime,
-			modifiedTime,
 			entries,
 		};
 	}

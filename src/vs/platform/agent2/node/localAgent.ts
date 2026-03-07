@@ -115,7 +115,6 @@ class LocalSession {
 	endTurn(): void {
 		this._running = false;
 		this._modifiedTime = Date.now();
-		this._storage.markModified(this.uri, this.workingDirectory);
 	}
 
 	/** Allocate a message ID for the next assistant response. */
