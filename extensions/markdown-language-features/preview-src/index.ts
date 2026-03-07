@@ -14,6 +14,7 @@ import type { ToWebviewMessage } from '../types/previewMessaging';
 import { isOfScheme, Schemes } from '../src/util/schemes';
 
 let scrollDisabledCount = 0;
+let scrollDisabledTimer: number | undefined;
 
 const marker = new ActiveLineMarker();
 const settings = new SettingsManager();
@@ -129,7 +130,13 @@ onceDocumentLoaded(() => {
 
 const onUpdateView = (() => {
 	const doScroll = throttle((line: number) => {
-		scrollDisabledCount += 1;
+		scrollDisabledCount = 1;
+		if (scrollDisabledTimer) {
+			clearTimeout(scrollDisabledTimer);
+		}
+		scrollDisabledTimer = window.setTimeout(() => {
+			scrollDisabledCount = 0;
+		}, 50);
 		doAfterImagesLoaded(() => scrollToRevealSourceLine(line, documentVersion, settings));
 	}, 50);
 
@@ -369,12 +376,12 @@ window.addEventListener('scroll', throttle(() => {
 	updateScrollProgress();
 
 	if (scrollDisabledCount > 0) {
-		scrollDisabledCount -= 1;
-	} else {
-		const line = getEditorLineNumberForPageOffset(window.scrollY, documentVersion);
-		if (typeof line === 'number' && !isNaN(line)) {
-			messaging.postMessage('revealLine', { line });
-		}
+		return;
+	}
+
+	const line = getEditorLineNumberForPageOffset(window.scrollY, documentVersion);
+	if (typeof line === 'number' && !isNaN(line)) {
+		messaging.postMessage('revealLine', { line });
 	}
 }, 50));
 
