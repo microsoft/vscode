@@ -32,7 +32,7 @@
 	/* Top border only visible unless focused to make room for focus outline */
 	content: '';
 	position: absolute;
-	top: 0;
+	top: -1px;
 	left: 0;
 	z-index: 5;
 	pointer-events: none;
