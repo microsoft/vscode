@@ -92,6 +92,7 @@ export interface ICodeBlockData {
 	readonly parentContextKeyService?: IContextKeyService;
 	readonly renderOptions?: ICodeBlockRenderOptions;
 
+	readonly text?: string;
 	readonly chatSessionResource: URI;
 }
 
@@ -406,6 +407,18 @@ export class CodeBlockPart extends Disposable {
 		if (this.currentCodeBlockData?.range) {
 			const lineCount = this.currentCodeBlockData.range.endLineNumber - this.currentCodeBlockData.range.startLineNumber + 1;
 			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+			return lineCount * lineHeight + 2 * this.verticalPadding;
+		} else if (!this.editor.getModel() && this.currentCodeBlockData?.text) {
+			// Use text-based height estimate only before the editor model is set
+			// (i.e., during streaming/pending layout before updateEditor() completes).
+			// Once the model is available, fall through to editor.getContentHeight().
+			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+			let lineCount = 1;
+			for (let i = 0; i < this.currentCodeBlockData.text.length; i++) {
+				if (this.currentCodeBlockData.text.charCodeAt(i) === 10 /* \n */) {
+					lineCount++;
+				}
+			}
 			return lineCount * lineHeight + 2 * this.verticalPadding;
 		}
 		return this.editor.getContentHeight();
