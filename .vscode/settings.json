@@ -209,4 +209,7 @@
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
 	"debug.breakpointsView.presentation": "tree",
+	"extensions.forceInstall": [
+		"ms-vscode.vscode-extras"
+	],
 }

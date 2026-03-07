@@ -74,6 +74,7 @@ import { SearchExtensionsTool, SearchExtensionsToolData } from '../common/search
 import { ShowRuntimeExtensionsAction } from './abstractRuntimeExtensionsEditor.js';
 import { ExtensionEditor } from './extensionEditor.js';
 import { ExtensionEnablementWorkspaceTrustTransitionParticipant } from './extensionEnablementWorkspaceTrustTransitionParticipant.js';
+import { DisableForceInstallConfigurationKey, ForceInstallConfigurationKey, ForceInstallExtensionsContribution } from './forceInstallExtensions.js';
 import { ExtensionRecommendationNotificationService } from './extensionRecommendationNotificationService.js';
 import { ExtensionRecommendationsService } from './extensionRecommendationsService.js';
 import { ClearLanguageAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceRecommendedExtensionsAction, InstallAction, InstallAnotherVersionAction, InstallSpecificVersionOfExtensionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ToggleAutoUpdateForExtensionAction, ToggleAutoUpdatesForPublisherAction, TogglePreReleaseExtensionAction } from './extensionsActions.js';
@@ -317,6 +318,26 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: 60_000,
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['advanced', 'usesOnlineServices']
+			},
+			[ForceInstallConfigurationKey]: {
+				type: 'array',
+				items: {
+					type: 'string'
+				},
+				markdownDescription: localize('extensions.forceInstall', "A list of extensions that will be automatically installed as workspace extensions. Use the format `publisher.name`. Each extension version is force installed at most once, and force installation runs again when the target version changes. Users can opt out of individual extensions using {0}.", `\`#${DisableForceInstallConfigurationKey}#\``),
+				default: [],
+				scope: ConfigurationScope.RESOURCE,
+				restricted: true,
+				tags: ['usesOnlineServices']
+			},
+			[DisableForceInstallConfigurationKey]: {
+				type: 'array',
+				items: {
+					type: 'string'
+				},
+				markdownDescription: localize('extensions.disableForceInstall', "A list of extensions that should not be force installed, even when listed in {0}. This also prevents reinstallation when a force install target version changes.", `\`#${ForceInstallConfigurationKey}#\``),
+				default: [],
+				scope: ConfigurationScope.APPLICATION
 			},
 		}
 	});
@@ -2055,6 +2076,7 @@ if (isWeb) {
 }
 
 registerWorkbenchContribution2(ExtensionToolsContribution.ID, ExtensionToolsContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ForceInstallExtensionsContribution.ID, ForceInstallExtensionsContribution, WorkbenchPhase.AfterRestored);
 
 
 // Running Extensions
