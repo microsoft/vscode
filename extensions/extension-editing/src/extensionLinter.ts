@@ -394,9 +394,11 @@ export class ExtensionLinter {
 	private readPackageJsonInfo(folder: Uri, tree: JsonNode | undefined) {
 		const engine = tree && findNodeAtLocation(tree, ['engines', 'vscode']);
 		const parsedEngineVersion = engine?.type === 'string' ? normalizeVersion(parseVersion(engine.value)) : null;
+		const isImplicitActivationSupported = parsedEngineVersion && (parsedEngineVersion.majorBase > 1 || (parsedEngineVersion.majorBase === 1 && parsedEngineVersion.minorBase >= 75));
 		const repo = tree && findNodeAtLocation(tree, ['repository', 'url']);
 		const uri = repo && parseUri(repo.value);
-		const activationEvents = tree && parseImplicitActivationEvents(tree);
+		// Only parse implicit activation events if the engine supports them
+		const activationEvents = tree && isImplicitActivationSupported ? parseImplicitActivationEvents(tree) : undefined;
 
 		const info: PackageJsonInfo = {
 			isExtension: !!(engine && engine.type === 'string'),
