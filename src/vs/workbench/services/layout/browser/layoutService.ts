@@ -81,6 +81,18 @@ export function isHorizontal(position: Position): boolean {
 	return position === Position.BOTTOM || position === Position.TOP;
 }
 
+export const enum PanelMode {
+	/**
+	 * Panel is docked in the workbench grid (traditional behavior).
+	 */
+	Dock = 'dock',
+
+	/**
+	 * Panel floats as a dialog overlay above the workbench.
+	 */
+	Dialog = 'dialog'
+}
+
 export const enum PartOpensMaximizedOptions {
 	ALWAYS,
 	NEVER,
@@ -248,6 +260,21 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns true if the panel is maximized.
 	 */
 	isPanelMaximized(): boolean;
+
+	/**
+	 * Gets the current panel mode (Pinned or Dialog).
+	 */
+	getPanelMode(): PanelMode;
+
+	/**
+	 * Sets the panel mode to either Pinned (docked in grid) or Dialog (floating overlay).
+	 */
+	setPanelMode(mode: PanelMode): void;
+
+	/**
+	 * Toggles between Pinned and Dialog panel modes.
+	 */
+	togglePanelMode(): void;
 
 	/**
 	 * Maximizes the auxiliary sidebar by hiding the editor and panel areas.

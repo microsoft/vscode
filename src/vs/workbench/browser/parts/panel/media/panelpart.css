@@ -98,3 +98,109 @@
 	display: inline-block;
 	transform: rotate(180deg);
 }
+
+/*---------------------------------------------------------------------------------------------
+ * Panel Dialog Mode
+ *--------------------------------------------------------------------------------------------*/
+
+/* Safe area clips the floating dialog to the editor zone (below title bar, above status bar).
+   overflow: hidden prevents the dialog and native CSS resize handle from exceeding bounds. */
+.monaco-workbench .panel-dialog-safe-area {
+	display: none;
+	position: absolute;
+	left: 0;
+	right: 0;
+	/* top and bottom are set dynamically via JS based on titlebar/statusbar heights */
+	overflow: hidden;
+	pointer-events: none;
+	z-index: 900;
+}
+
+.monaco-workbench.panel-dialog-open .panel-dialog-safe-area {
+	display: block;
+}
+
+/* Semi-transparent backdrop - purely visual, non-interactive */
+.monaco-workbench .panel-dialog-backdrop {
+	display: none;
+	position: absolute;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.35);
+	z-index: 0;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.15s ease-out;
+}
+
+.monaco-workbench.panel-dialog-open .panel-dialog-backdrop {
+	display: block;
+}
+
+/* Show backdrop when overlay has focus */
+.monaco-workbench.panel-dialog-open .panel-dialog-overlay:focus-within ~ .panel-dialog-backdrop {
+	opacity: 1;
+}
+
+/* The floating dialog container */
+.monaco-workbench .panel-dialog-overlay {
+	display: none;
+	position: absolute;
+	pointer-events: all;
+	z-index: 1;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+	border: 1px solid var(--vscode-panelTitle-border, var(--vscode-panel-border, transparent));
+	border-radius: 4px;
+	overflow: hidden;
+	resize: both;
+	min-width: 300px;
+	min-height: 120px;
+	max-width: 100%;
+	max-height: 100%;
+}
+
+.monaco-workbench.panel-dialog-open .panel-dialog-overlay {
+	display: flex;
+	flex-direction: column;
+}
+
+/* When maximized, dialog covers the entire safe-area */
+.monaco-workbench.panel-dialog-open.panel-dialog-maximized .panel-dialog-overlay {
+	left: 0 !important;
+	top: 0 !important;
+	width: 100% !important;
+	height: 100% !important;
+	border-radius: 0;
+	resize: none;
+}
+
+/* Title bar is the drag handle */
+.monaco-workbench .panel-dialog-overlay .part.panel > .title {
+	cursor: move;
+}
+
+.monaco-workbench .panel-dialog-overlay.panel-dialog-dragging .part.panel > .title {
+	cursor: grabbing;
+}
+
+/* Interactive elements in title should not show move cursor */
+.monaco-workbench .panel-dialog-overlay .part.panel > .title a,
+.monaco-workbench .panel-dialog-overlay .part.panel > .title button,
+.monaco-workbench .panel-dialog-overlay .part.panel > .title .action-item,
+.monaco-workbench .panel-dialog-overlay .part.panel > .title .action-label,
+.monaco-workbench .panel-dialog-overlay .part.panel > .title .composite-bar {
+	cursor: default;
+}
+
+/* Panel part inside the overlay takes full size */
+.monaco-workbench .panel-dialog-overlay .part.panel {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+}
+
+/* Override nopanel hiding when in dialog mode */
+.monaco-workbench.nopanel.panel-dialog-open .panel-dialog-overlay .part.panel {
+	display: flex !important;
+	visibility: visible !important;
+}
