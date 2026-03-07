@@ -30,11 +30,11 @@
 - [x] Unit tests (18 tests)
 
 ### Phase 5: Wire Up as IAgent Provider
-- [x] `nativeAgent.ts` -- session CRUD, event translation, per-session tool tracking, correlated delta message IDs
-- [x] `nativeToolDisplay.ts` -- tool display mapping
-- [x] Register NativeAgent in agentHostMain.ts alongside CopilotAgent
-- [x] Add 'native' to AgentProvider type, update AgentSession.provider()
-- [x] Register 'agent-host-native' as session type in chat UI (agentSessions.ts, sessionTargetPicker.ts, chat.contribution.ts)
+- [x] `localAgent.ts` -- session CRUD, event translation, per-session tool tracking, correlated delta message IDs
+- [x] `localToolDisplay.ts` -- tool display mapping
+- [x] Register LocalAgent in agentHostMain.ts
+- [x] Add 'local' to AgentProvider type, update AgentSession.provider()
+- [x] Register 'agent-host-local' as session type in chat UI
 - [x] Unit tests (10 tests)
 
 ### Phase 6: Integration Test
@@ -128,48 +128,3 @@ CAPI integration. Required for production correctness and server feature utiliza
 - [ ] Come up with a solution for logging/tracing runs. Opentelemetry or vscode's agent debug panel?
 
 ---
-
-## Commit Log
-
-| Commit | Description |
-|--------|-------------|
-| ce00a59 | Phase 1: Core types, conversation format, events, tools, middleware |
-| 1683dae | Phase 2: Core agent loop and tests |
-| 5d0e33d | Phase 3: CAPI token service and Anthropic Messages API provider |
-| a653bb9 | Phase 4: readFile and bash tools |
-| a0b6b26 | Phase 5: NativeAgent IAgent implementation and registration |
-| 3f566ea | P1 middleware: tool output truncation, permissions, custom instructions |
-| 903eb4a | Code review fixes round 1 |
-| ece4c1f | P1: Context window management middleware |
-| 5127a00 | P1: Dynamic tool management, doc updates |
-| 5162f6d | Code review fixes round 2: path safety, cross-platform sep, disposableTimeout |
-| 3e041f7 | Register native agent as session type in chat UI |
-| f9efef2 | P1: Schema validation, sub-agent tool, integration test harness |
-
-## Test Summary
-
-**125 tests total, all passing**
-- Conversation types: 14 tests
-- Middleware runners: 11 tests
-- Schema validation: 14 tests
-- Agent loop: 19 tests
-- Anthropic provider: 12 tests
-- Copilot token service: 8 tests
-- Context window middleware: 5 tests
-- Tool output truncation: 4 tests
-- Permission middleware: 5 tests
-- Custom instructions: 3 tests
-- ReadFileTool: 8 tests
-- BashTool: 8 tests
-- NativeAgent: 10 tests
-- Other: 4 tests
-
-## End-to-End Verification
-
-Verified working in Code OSS:
-- Agent host process starts and registers both 'copilot' and 'native' providers
-- "Native Agent" appears in the session target picker
-- Selecting Native Agent creates a session with correct model configuration
-- Sending a message creates a session and runs the agent loop
-- Error handling works correctly (tested auth error path)
-- Auth token flow: setAuthToken broadcasts to all providers including NativeAgent

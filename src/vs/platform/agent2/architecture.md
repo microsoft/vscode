@@ -4,6 +4,22 @@
 
 For the high-level spec, see [agent-loop-spec.md](agent-loop-spec.md). For implementation status, see [status.md](status.md).
 
+## Values
+
+1. **Simplicity above all.** The code should be as clean and simple as possible. Prefer small files, clear interfaces, and obvious data flow. Resist the urge to over-abstract or pre-optimize.
+
+2. **Simple core, extensible surface.** The agent loop itself is a tight, stateless function (~100 lines). All feature complexity lives in middleware, tools, and providers -- independent units that plug in without modifying the core. This separation is the foundation of the architecture.
+
+3. **Single source of truth.** Every piece of state has exactly one owner. Session entries are the canonical model -- conversation messages, IPC events, and persisted JSONL are all derived from entries, never maintained in parallel.
+
+4. **Independent contribution.** The middleware + tools + providers architecture exists so that many developers can work on features independently without stepping on each other. Adding a new tool, a new middleware, or a new model provider should never require changing the loop.
+
+5. **Testability is non-negotiable.** Every component must be exercisable through unit tests that are easy to write and easy to read. The stateless loop, typed events, and clean interfaces exist specifically to make testing straightforward. Integration tests with real model calls validate the full stack end-to-end.
+
+6. **No leaky abstractions.** Session state doesn't know about IPC event types. The loop doesn't know about model wire formats. Providers don't know about sessions. Each layer has a clean boundary and translates at its edges.
+
+7. **Append-only persistence.** Session history is stored as append-only JSONL files. Each entry is self-describing with a version field. Files are never modified after writing -- only appended to. This makes the format simple, crash-safe, and easy to debug.
+
 ## Overview
 
 The native agent loop is a stateless function that implements the model-call / tool-execution / re-sample cycle directly, without relying on an external SDK. It makes direct HTTP calls to the GitHub Copilot API (CAPI), owns the conversation format, and emits typed events for the caller to react to.
@@ -70,6 +86,7 @@ Providers handle auth, serialization, streaming, and retry. The loop doesn't kno
 
 Currently implemented:
 - **Anthropic Messages API** (`AnthropicModelProvider`) -- via CAPI, using SSE streaming
+- **OpenAI Responses API** (`OpenAIResponsesProvider`) -- via CAPI, using SSE streaming
 
 ### Tools
 
@@ -81,7 +98,7 @@ Dynamic tool management: the `tools` field in `IAgentLoopConfig` can be a static
 
 Currently implemented tools:
 - **ReadFileTool** (`read_file`) -- reads file contents with optional line range
-- **BashTool** (`bash`) -- executes shell commands with timeout and cancellation support
+- **BashTool** (`bash`) -- persistent shell session with state preserved across invocations
 
 ### Middleware Implementations
 
@@ -105,38 +122,29 @@ src/vs/platform/agent2/
 │   ├── middleware.ts          # IMiddleware interface
 │   ├── modelProvider.ts       # IModelProvider interface + ModelResponseChunk types
 │   ├── schemaValidation.ts    # JSON Schema validator for tool arguments
+│   ├── sessionTypes.ts        # Session entry types (shared data model for memory + JSONL)
 │   └── tools.ts              # IAgentTool interface, ToolContext, ToolResult
 ├── node/
 │   ├── anthropicProvider.ts   # Anthropic Messages API provider
-│   ├── copilotToken.ts        # CAPI token exchange (GitHub token -> Copilot JWT)
-│   ├── nativeAgent.ts         # NativeAgent: IAgent implementation wrapping the loop
-│   ├── nativeToolDisplay.ts   # Tool name -> display string mapping
+│   ├── openaiResponsesProvider.ts # OpenAI Responses API provider
+│   ├── copilotToken.ts        # ICopilotApiService: CAPI token exchange + authenticated requests
+│   ├── modelProviderService.ts # Maps model IDs to providers (factory pattern)
+│   ├── localAgent.ts          # LocalAgent: IAgent implementation wrapping the loop
+│   ├── localSession.ts        # LocalSession: per-session state + persistence
+│   ├── sessionStorage.ts      # SessionWriter (per-session JSONL writer) + SessionStorage (read-only listing/restore)
+│   ├── localToolDisplay.ts    # Tool name -> display string mapping
 │   ├── middleware/
 │   │   ├── contextWindow.ts       # Context window management (tool output pruning)
 │   │   ├── customInstructions.ts  # Custom instruction injection
 │   │   ├── permissionMiddleware.ts # Permission system (allow/deny/ask)
 │   │   └── toolOutputTruncation.ts # Large output truncation
 │   └── tools/
-│       ├── bashTool.ts        # Bash shell tool
+│       ├── bashTool.ts        # Persistent bash shell tool
 │       ├── readFileTool.ts    # Read file tool
 │       └── subAgentTool.ts    # Sub-agent invocation (nested loop)
 ├── test/
 │   ├── common/
-│   │   ├── agentLoop.test.ts
-│   │   ├── conversation.test.ts
-│   │   ├── middleware.test.ts
-│   │   └── schemaValidation.test.ts
 │   └── node/
-│       ├── anthropicProvider.test.ts
-│       ├── copilotToken.test.ts
-│       ├── nativeAgent.test.ts
-│       ├── agentLoop.integrationTest.ts
-│       ├── middleware/
-│       │   ├── contextWindow.test.ts
-│       │   └── middleware.test.ts
-│       └── tools/
-│           ├── bashTool.test.ts
-│           └── readFileTool.test.ts
 ├── agent-loop-spec.md         # High-level spec
 ├── architecture.md            # This file
 └── status.md                  # Implementation status tracker
@@ -144,22 +152,22 @@ src/vs/platform/agent2/
 
 ## Integration with Agent Host
 
-The `NativeAgent` class implements the `IAgent` interface and wraps the core loop:
+The `LocalAgent` class implements the `IAgent` interface and wraps the core loop:
 
 ```
-NativeAgent (IAgent implementation)
-  ├── Creates sessions with conversation state
-  ├── On sendMessage(): builds conversation, runs loop, translates events
+LocalAgent (IAgent implementation)
+  ├── Creates LocalSession instances with per-session SessionWriter
+  ├── On sendMessage(): builds conversation from entries, runs loop, translates events
   ├── Fires IAgentProgressEvent for each AgentLoopEvent
-  └── Delegates to CopilotTokenService for auth
+  └── Delegates to ICopilotApiService for auth
 
-Registered in AgentService alongside CopilotAgent
-  ├── Provider ID: 'native'
-  ├── Session URIs: native:/<uuid>
+Registered in AgentService via InstantiationService
+  ├── Provider ID: 'local'
+  ├── Session URIs: local:/<uuid>
   └── Discovered via listAgents()
 ```
 
-The workbench contribution (`AgentHostContribution`) discovers the native agent via `listAgents()` and registers it as a chat session type - same mechanism as the Copilot SDK agent.
+The workbench contribution (`AgentHostContribution`) discovers the agent via `listAgents()` and registers it as a chat session type.
 
 ## Auth Flow
 
@@ -167,9 +175,9 @@ The workbench contribution (`AgentHostContribution`) discovers the native agent 
 Renderer (workbench)
   → pushAuthToken() sends GitHub OAuth token via IAgentHostService.setAuthToken()
     → IPC to agent host process
-      → NativeAgent.setAuthToken(githubToken)
-        → CopilotTokenService.setGitHubToken(githubToken)
-          → CAPIClient.makeRequest(RequestType.CopilotToken) exchanges for Copilot JWT
+      → LocalAgent.setAuthToken(githubToken)
+        → ICopilotApiService.setGitHubToken(githubToken)
+          → CAPIClient exchanges for Copilot JWT
           → CAPIClient.updateDomains() updates URL routing from token endpoints
           → Caches JWT, auto-refreshes when expired
           → JWT used as Bearer token for all model requests
