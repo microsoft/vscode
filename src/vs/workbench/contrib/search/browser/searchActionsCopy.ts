@@ -260,7 +260,7 @@ function folderMatchToString(folderMatch: ISearchTreeFolderMatchWithResource | I
 	};
 }
 
-function allFolderMatchesToString(folderMatches: Array<ISearchTreeFolderMatchWithResource | ISearchTreeFolderMatch>, labelService: ILabelService): string {
+export function allFolderMatchesToString(folderMatches: Array<ISearchTreeFolderMatchWithResource | ISearchTreeFolderMatch>, labelService: ILabelService): string {
 	const folderResults: string[] = [];
 	folderMatches = folderMatches.sort(searchMatchComparer);
 	for (let i = 0; i < folderMatches.length; i++) {

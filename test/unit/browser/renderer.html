@@ -234,7 +234,9 @@
 		async function loadModules(modules) {
 			for (const file of modules) {
 				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
-				const m = await new Promise((resolve, reject) => import(`../../../${out}/${file}.js`).then(resolve, err => {
+				// Always use relative path - import map is for dependencies, not test files
+				const importPath = `../../../${out}/${file}.js`;
+				const m = await new Promise((resolve, reject) => import(importPath).then(resolve, err => {
 					console.log("BAD " + file + JSON.stringify(err, undefined, '\t'));
 					resolve({});
 				}));
