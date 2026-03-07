@@ -1644,6 +1644,8 @@ export class SCMHistoryViewPane extends ViewPane {
 	private readonly _refreshThrottler = new Throttler();
 	private readonly _updateChildrenThrottler = new Throttler();
 
+	private _isDisposed = false;
+
 	private readonly _scmProviderCtx: IContextKey<string | undefined>;
 	private readonly _scmCurrentHistoryItemRefHasRemote: IContextKey<boolean>;
 	private readonly _scmCurrentHistoryItemRefHasBase: IContextKey<boolean>;
@@ -1896,6 +1898,10 @@ export class SCMHistoryViewPane extends ViewPane {
 	}
 
 	async refresh(): Promise<void> {
+		if (this._isDisposed) {
+			return;
+		}
+
 		return this._refreshThrottler.queue(token => this._refresh(token));
 	}
 
@@ -2221,6 +2227,10 @@ export class SCMHistoryViewPane extends ViewPane {
 	}
 
 	private _updateChildren(): Promise<void> {
+		if (this._isDisposed) {
+			return Promise.resolve();
+		}
+
 		return this._updateChildrenThrottler.queue(
 			() => this._treeOperationSequencer.queue(
 				async () => {
@@ -2241,6 +2251,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	}
 
 	override dispose(): void {
+		this._isDisposed = true;
 		this._contextMenuDisposables.dispose();
 		this._visibilityDisposables.dispose();
 		super.dispose();
