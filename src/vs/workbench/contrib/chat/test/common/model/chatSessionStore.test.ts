@@ -22,12 +22,24 @@ import { TestWorkspace, Workspace } from '../../../../../../platform/workspace/t
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
 import { InMemoryTestFileService, TestContextService, TestLifecycleService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
-import { ChatModel, ISerializableChatData3 } from '../../../common/model/chatModel.js';
+import { ChatModel, IChatRequestModel, ISerializableChatData3 } from '../../../common/model/chatModel.js';
 import { ChatSessionStore, IChatTransfer } from '../../../common/model/chatSessionStore.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { MockChatModel } from './mockChatModel.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+
+function createExternalMockChatModel(externalUri: URI, options?: { customTitle?: string; hasRequests?: boolean }): ChatModel {
+	const model = new MockChatModel(externalUri);
+	model.sessionId = externalUri.toString();
+	if (options?.customTitle) {
+		model.customTitle = options.customTitle;
+	}
+	if (options?.hasRequests) {
+		model.requests = [{ message: { text: 'test' } } as unknown as IChatRequestModel];
+	}
+	return model as unknown as ChatModel;
+}
 
 function createMockChatModel(sessionResource: URI, options?: { customTitle?: string }): ChatModel {
 	const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
@@ -460,6 +472,99 @@ suite('ChatSessionStore', () => {
 
 			const newStorageRoot = store.getChatStorageFolder();
 			assert.ok(newStorageRoot.path.includes('new-workspace-id'), 'Storage root should be updated to new workspace location');
+		});
+	});
+
+	suite('external session persistence', () => {
+		test('storeExternalSessionsLocally persists session and creates index entry', async () => {
+			// Disable log storage so mock models can use flat JSON serialization
+			const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			await configService.setUserConfiguration('chat.useLogSessionStorage', false);
+			const store = createChatSessionStore();
+			const externalUri = URI.parse('vscode-chat://provider/external-session-1');
+			const model = testDisposables.add(createExternalMockChatModel(externalUri, { hasRequests: true }));
+
+			await store.storeExternalSessionsLocally([model]);
+
+			const index = await store.getIndex();
+			const entries = Object.entries(index);
+			assert.strictEqual(entries.length, 1, 'Should have one index entry');
+
+			const [localId, entry] = entries[0];
+			assert.ok(localId !== externalUri.toString(), 'Index key should be a local UUID, not the external URI');
+			assert.strictEqual(entry.isPersistedLocally, true);
+			assert.strictEqual(entry.externalSessionResource, externalUri.toString());
+			assert.strictEqual(entry.sessionId, localId, 'sessionId should match the local UUID key');
+		});
+
+		test('storeExternalSessionsLocally reuses existing local ID on re-persist', async () => {
+			const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			await configService.setUserConfiguration('chat.useLogSessionStorage', false);
+			const store = createChatSessionStore();
+			const externalUri = URI.parse('vscode-chat://provider/external-session-1');
+			const model = testDisposables.add(createExternalMockChatModel(externalUri, { hasRequests: true }));
+
+			await store.storeExternalSessionsLocally([model]);
+			const indexAfterFirst = await store.getIndex();
+			const firstLocalId = Object.keys(indexAfterFirst)[0];
+
+			// Persist the same session again
+			await store.storeExternalSessionsLocally([model]);
+			const indexAfterSecond = await store.getIndex();
+			const entries = Object.entries(indexAfterSecond);
+
+			assert.strictEqual(entries.length, 1, 'Should still have only one entry (no duplicates)');
+			assert.strictEqual(entries[0][0], firstLocalId, 'Should reuse the same local ID');
+		});
+
+		test('deleteSession removes externally-persisted session', async () => {
+			const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			await configService.setUserConfiguration('chat.useLogSessionStorage', false);
+			const store = createChatSessionStore();
+			const externalUri = URI.parse('vscode-chat://provider/external-session-1');
+			const model = testDisposables.add(createExternalMockChatModel(externalUri, { hasRequests: true }));
+
+			await store.storeExternalSessionsLocally([model]);
+			const index = await store.getIndex();
+			const localId = Object.keys(index)[0];
+
+			await store.deleteSession(localId);
+
+			const indexAfterDelete = await store.getIndex();
+			assert.deepStrictEqual(indexAfterDelete, {}, 'Index should be empty after deletion');
+		});
+
+		test('clearAllSessions removes externally-persisted sessions', async () => {
+			const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			await configService.setUserConfiguration('chat.useLogSessionStorage', false);
+			const store = createChatSessionStore();
+
+			// Store a local session
+			const localModel = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('local-1')));
+			await store.storeSessions([localModel]);
+
+			// Store an external session
+			const externalUri = URI.parse('vscode-chat://provider/external-session-1');
+			const externalModel = testDisposables.add(createExternalMockChatModel(externalUri, { hasRequests: true }));
+			await store.storeExternalSessionsLocally([externalModel]);
+
+			const indexBefore = await store.getIndex();
+			assert.strictEqual(Object.keys(indexBefore).length, 2, 'Should have both local and external entries');
+
+			await store.clearAllSessions();
+
+			const indexAfter = await store.getIndex();
+			assert.deepStrictEqual(indexAfter, {}, 'All sessions should be cleared');
+		});
+
+		test('storeExternalSessionsLocally skips local sessions', async () => {
+			const store = createChatSessionStore();
+			const localModel = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('local-1')));
+
+			await store.storeExternalSessionsLocally([localModel as unknown as ChatModel]);
+
+			const index = await store.getIndex();
+			assert.deepStrictEqual(index, {}, 'Local sessions should be skipped by storeExternalSessionsLocally');
 		});
 	});
 });
