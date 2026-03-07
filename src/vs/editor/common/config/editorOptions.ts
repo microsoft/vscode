@@ -1745,6 +1745,10 @@ export interface IEditorFindOptions {
 	 */
 	loop?: boolean;
 	/**
+	 * Controls whether to close the Find Widget after an explicit find navigation command lands on a match.
+	 */
+	closeOnResult?: boolean;
+	/**
 	 * @internal
 	 * Controls how the find widget search history should be stored
 	 */
@@ -1772,6 +1776,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
 			loop: true,
+			closeOnResult: false,
 			history: 'workspace',
 			replaceHistory: 'workspace',
 		};
@@ -1821,6 +1826,11 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 					default: defaults.loop,
 					description: nls.localize('find.loop', "Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found.")
 				},
+				'editor.find.closeOnResult': {
+					type: 'boolean',
+					default: defaults.closeOnResult,
+					description: nls.localize('find.closeOnResult', "Controls whether the Find Widget closes after an explicit find navigation command lands on a result.")
+				},
 				'editor.find.history': {
 					type: 'string',
 					enum: ['never', 'workspace'],
@@ -1867,6 +1877,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
 			loop: boolean(input.loop, this.defaultValue.loop),
+			closeOnResult: boolean(input.closeOnResult, this.defaultValue.closeOnResult),
 			history: stringSet<'never' | 'workspace'>(input.history, this.defaultValue.history, ['never', 'workspace']),
 			replaceHistory: stringSet<'never' | 'workspace'>(input.replaceHistory, this.defaultValue.replaceHistory, ['never', 'workspace']),
 		};
@@ -2322,6 +2333,11 @@ export interface IEditorHoverOptions {
 	 * Defaults to false.
 	 */
 	above?: boolean;
+	/**
+	 * Should long line warning hovers be shown (tokenization skipped, rendering paused)?
+	 * Defaults to true.
+	 */
+	showLongLineWarning?: boolean;
 }
 
 /**
@@ -2338,6 +2354,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			hidingDelay: 300,
 			sticky: true,
 			above: true,
+			showLongLineWarning: true,
 		};
 		super(
 			EditorOption.hover, 'hover', defaults,
@@ -2376,6 +2393,11 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 					default: defaults.above,
 					description: nls.localize('hover.above', "Prefer showing hovers above the line, if there's space.")
 				},
+				'editor.hover.showLongLineWarning': {
+					type: 'boolean',
+					default: defaults.showLongLineWarning,
+					description: nls.localize('hover.showLongLineWarning', "Controls whether long line warning hovers are shown, such as when tokenization is skipped or rendering is paused.")
+				},
 			}
 		);
 	}
@@ -2391,6 +2413,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			sticky: boolean(input.sticky, this.defaultValue.sticky),
 			hidingDelay: EditorIntOption.clampedInt(input.hidingDelay, this.defaultValue.hidingDelay, 0, 600000),
 			above: boolean(input.above, this.defaultValue.above),
+			showLongLineWarning: boolean(input.showLongLineWarning, this.defaultValue.showLongLineWarning),
 		};
 	}
 }

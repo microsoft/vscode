@@ -29,8 +29,18 @@ export interface GitRefQuery {
 	readonly sort?: 'alphabetically' | 'committerdate' | 'creatordate';
 }
 
+export interface GitChange {
+	readonly uri: URI;
+	readonly originalUri: URI | undefined;
+	readonly modifiedUri: URI | undefined;
+}
+
 export interface GitRepositoryState {
 	readonly HEAD?: GitBranch;
+	readonly mergeChanges: readonly GitChange[];
+	readonly indexChanges: readonly GitChange[];
+	readonly workingTreeChanges: readonly GitChange[];
+	readonly untrackedChanges: readonly GitChange[];
 }
 
 export interface GitBranch extends GitRef {

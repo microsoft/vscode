@@ -73,14 +73,14 @@ jobs:
           fi
 
       - name: Upload explorer artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: component-explorer
           path: /tmp/explorer-artifact/
 
       - name: Upload screenshot report
         if: steps.compare.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: screenshot-diff
           path: |

@@ -138,7 +138,7 @@ export interface IBrowserViewModel extends IDisposable {
 	loadURL(url: string): Promise<void>;
 	goBack(): Promise<void>;
 	goForward(): Promise<void>;
-	reload(): Promise<void>;
+	reload(hard?: boolean): Promise<void>;
 	toggleDevTools(): Promise<void>;
 	captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
 	dispatchKeyEvent(keyEvent: IBrowserViewKeyDownEvent): Promise<void>;
@@ -353,9 +353,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.goForward(this.id);
 	}
 
-	async reload(): Promise<void> {
+	async reload(hard?: boolean): Promise<void> {
 		this.logNavigationTelemetry('reload', this._url);
-		return this.browserViewService.reload(this.id);
+		return this.browserViewService.reload(this.id, hard);
 	}
 
 	async toggleDevTools(): Promise<void> {

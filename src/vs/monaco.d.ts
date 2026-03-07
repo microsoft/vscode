@@ -4255,6 +4255,10 @@ declare namespace monaco.editor {
 		 * Controls whether the search result and diff result automatically restarts from the beginning (or the end) when no further matches can be found
 		 */
 		loop?: boolean;
+		/**
+		 * Controls whether to close the Find Widget after an explicit find navigation command lands on a match.
+		 */
+		closeOnResult?: boolean;
 	}
 
 	export type GoToLocationValues = 'peek' | 'gotoAndPeek' | 'goto';
@@ -4307,6 +4311,11 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		above?: boolean;
+		/**
+		 * Should long line warning hovers be shown (tokenization skipped, rendering paused)?
+		 * Defaults to true.
+		 */
+		showLongLineWarning?: boolean;
 	}
 
 	/**

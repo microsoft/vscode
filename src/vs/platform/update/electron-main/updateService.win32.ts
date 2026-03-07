@@ -99,9 +99,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected override async initialize(): Promise<void> {
+		// In the embedded app, skip win32-specific setup (cache paths, telemetry)
+		// but still run the base initialization to detect available updates.
 		if ((process as INodeProcess).isEmbeddedApp) {
-			this.setState(State.Disabled(DisablementReason.EmbeddedApp));
-			this.logService.info('update#ctor - updates are disabled from embedded app');
+			this.logService.info('update#ctor - embedded app: checking for updates without auto-download');
+			await super.initialize();
 			return;
 		}
 
@@ -224,6 +226,13 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 				if (updateType === UpdateType.Archive) {
 					this.setState(State.AvailableForDownload(update));
+					return Promise.resolve(null);
+				}
+
+				// In the embedded app, signal that an update exists but can't be installed here.
+				if ((process as INodeProcess).isEmbeddedApp) {
+					this.logService.info('update#doCheckForUpdates - embedded app: update available, skipping download');
+					this.setState(State.AvailableForDownload(update, /* canInstall */ false));
 					return Promise.resolve(null);
 				}
 

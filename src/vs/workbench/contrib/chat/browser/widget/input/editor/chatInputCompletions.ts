@@ -54,12 +54,19 @@ import { IDynamicVariable } from '../../../../common/attachments/chatVariables.j
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../../../common/constants.js';
 import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
-import { IPromptsService, Target } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
+import {
+	PromptsType,
+	Target
+} from '../../../../common/promptSyntax/promptTypes.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
+import { IChatDebugService } from '../../../../common/chatDebugService.js';
+import { createDebugEventsAttachment } from '../../../chatDebug/chatDebugAttachment.js';
+import { getPromptFileType } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 
 /**
  * Regex matching a slash command word (e.g. `/foo`). Uses `\p{L}` for Unicode
@@ -143,7 +150,7 @@ class SlashCommandCompletions extends Disposable {
 						.map((c, i): CompletionItem => {
 							const withSlash = `/${c.command}`;
 							return {
-								label: withSlash,
+								label: { label: withSlash, description: c.detail },
 								insertText: c.executeImmediately ? '' : `${withSlash} `,
 								documentation: c.detail,
 								range,
@@ -187,7 +194,7 @@ class SlashCommandCompletions extends Disposable {
 					suggestions: slashCommands.map((c, i): CompletionItem => {
 						const withSlash = `${chatSubcommandLeader}${c.command}`;
 						return {
-							label: withSlash,
+							label: { label: withSlash, description: c.detail },
 							insertText: c.executeImmediately ? '' : `${withSlash} `,
 							documentation: c.detail,
 							range,
@@ -238,9 +245,20 @@ class SlashCommandCompletions extends Disposable {
 				// Filter out commands that are not user-invocable (hidden from / menu)
 				const userInvocableCommands = promptCommands
 					.filter(c => {
-						// Exclude extension-provided prompt files for locked agents.
-						if (widget.lockedAgentId && c.promptPath.extension) {
-							return false;
+						if (widget.lockedAgentId) {
+							// Exclude extension-provided prompt files for locked agents.
+							if (c.promptPath.extension) {
+								return false;
+							}
+							// Exclude hooks as those don't work in locked agent scenarios.
+							try {
+								const promptType = getPromptFileType(c.promptPath.uri);
+								if (promptType && promptType === PromptsType.hook) {
+									return false;
+								}
+							} catch {
+
+							}
 						}
 						return true;
 					})
@@ -832,6 +850,7 @@ interface IVariableCompletionsDetails {
 
 class BuiltinDynamicCompletions extends Disposable {
 	private static readonly addReferenceCommand = '_addReferenceCmd';
+	private static readonly addDebugEventsSnapshotCommand = '_addDebugEventsSnapshotCmd';
 	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}[\\w:-]*`, 'g'); // MUST be using `g`-flag
 
 
@@ -848,6 +867,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 	) {
 		super();
 
@@ -933,9 +953,45 @@ class BuiltinDynamicCompletions extends Disposable {
 			return result;
 		});
 
+		// Debug Events Snapshot completion
+		this.registerVariableCompletions('debugEventsSnapshot', ({ widget, range }) => {
+			if (widget.location !== ChatAgentLocation.Chat) {
+				return;
+			}
+
+			const sessionResource = widget.viewModel?.sessionResource;
+			if (!sessionResource || this.chatDebugService.getEvents(sessionResource).length === 0) {
+				return;
+			}
+
+			const text = `${chatVariableLeader}debugEventsSnapshot`;
+			const result: CompletionList = { suggestions: [] };
+			result.suggestions.push({
+				label: { label: text, description: localize('debugEventsSnapshot.description', 'Attach debug events snapshot') },
+				filterText: text,
+				insertText: '',
+				range,
+				kind: CompletionItemKind.Text,
+				sortText: 'z',
+				command: {
+					id: BuiltinDynamicCompletions.addDebugEventsSnapshotCommand, title: '', arguments: [widget]
+				}
+			});
+			return result;
+		});
+
 		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addReferenceCommand, (_services, arg) => {
 			assertType(arg instanceof ReferenceArgument);
 			return this.cmdAddReference(arg);
+		}));
+
+		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addDebugEventsSnapshotCommand, async (_services, widget: IChatWidget) => {
+			const sessionResource = widget.viewModel?.sessionResource;
+			if (!sessionResource) {
+				return;
+			}
+			const attachment = await createDebugEventsAttachment(sessionResource, this.chatDebugService);
+			widget.attachmentModel.addContext(attachment);
 		}));
 	}
 

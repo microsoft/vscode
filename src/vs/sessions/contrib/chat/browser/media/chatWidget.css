@@ -115,6 +115,11 @@
 	color: var(--vscode-icon-foreground);
 	background: transparent !important;
 	border: none !important;
+	cursor: pointer;
+}
+
+.sessions-chat-send-button .monaco-button.disabled {
+	cursor: default;
 }
 
 .sessions-chat-send-button .monaco-button:not(.disabled):hover {

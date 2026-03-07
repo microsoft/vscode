@@ -126,6 +126,11 @@ export interface IChatDebugService extends IDisposable {
 	readonly onDidAddEvent: Event<IChatDebugEvent>;
 
 	/**
+	 * Fired when provider events are cleared for a session (before re-invoking providers).
+	 */
+	readonly onDidClearProviderEvents: Event<URI>;
+
+	/**
 	 * Log a generic event to the debug service.
 	 */
 	log(sessionResource: URI, name: string, details?: string, level?: ChatDebugLogLevel, options?: { id?: string; category?: string; parentEventId?: string }): void;
@@ -168,6 +173,11 @@ export interface IChatDebugService extends IDisposable {
 	registerProvider(provider: IChatDebugLogProvider): IDisposable;
 
 	/**
+	 * Check whether providers have already been invoked for a given session.
+	 */
+	hasInvokedProviders(sessionResource: URI): boolean;
+
+	/**
 	 * Invoke all registered providers for a given session resource.
 	 * Called when the Debug View is opened to fetch events from extensions.
 	 */
@@ -185,6 +195,21 @@ export interface IChatDebugService extends IDisposable {
 	 * Delegates to the registered provider's resolveChatDebugLogEvent.
 	 */
 	resolveEvent(eventId: string): Promise<IChatDebugResolvedEventContent | undefined>;
+
+	/**
+	 * Fired when debug data is attached to a session.
+	 */
+	readonly onDidAttachDebugData: Event<URI>;
+
+	/**
+	 * Mark a session as having debug data attached.
+	 */
+	markDebugDataAttached(sessionResource: URI): void;
+
+	/**
+	 * Check whether a session has had debug data attached.
+	 */
+	hasAttachedDebugData(sessionResource: URI): boolean;
 }
 
 /**

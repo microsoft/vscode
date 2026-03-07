@@ -12,6 +12,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
@@ -459,6 +460,7 @@ export class ModelPickerWidget extends Disposable {
 
 	private _selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	private _badge: ModelPickerBadge | undefined;
+	private _hideChevrons: IObservable<boolean> | undefined;
 
 	private _domNode: HTMLElement | undefined;
 	private _badgeIcon: HTMLElement | undefined;
@@ -484,6 +486,17 @@ export class ModelPickerWidget extends Disposable {
 		super();
 	}
 
+	setHideChevrons(hideChevrons: IObservable<boolean>): void {
+		this._hideChevrons = hideChevrons;
+		this._register(autorun(reader => {
+			const hide = hideChevrons.read(reader);
+			if (this._domNode) {
+				this._domNode.classList.toggle('hide-chevrons', hide);
+			}
+			this._renderLabel();
+		}));
+	}
+
 	setSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): void {
 		this._selectedModel = model;
 		this._renderLabel();
@@ -500,6 +513,11 @@ export class ModelPickerWidget extends Disposable {
 		this._domNode.setAttribute('role', 'button');
 		this._domNode.setAttribute('aria-haspopup', 'true');
 		this._domNode.setAttribute('aria-expanded', 'false');
+
+		// Apply initial collapsed state now that _domNode exists
+		if (this._hideChevrons?.get()) {
+			this._domNode.classList.toggle('hide-chevrons', true);
+		}
 
 		this._badgeIcon = dom.append(this._domNode, dom.$('span.model-picker-badge'));
 		this._updateBadge();
@@ -566,7 +584,7 @@ export class ModelPickerWidget extends Disposable {
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
-			minWidth: 300,
+			minWidth: 200,
 		};
 		const previouslyFocusedElement = dom.getActiveElement();
 

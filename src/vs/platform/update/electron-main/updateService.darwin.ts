@@ -16,7 +16,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
+import { AvailableForDownload, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
 import { INodeProcess } from '../../../base/common/platform.js';
@@ -68,13 +68,15 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	}
 
 	protected override async initialize(): Promise<void> {
+		await super.initialize();
+
+		// In the embedded app we still want to detect available updates via HTTP,
+		// but we must not wire up Electron's autoUpdater (which auto-downloads).
 		if ((process as INodeProcess).isEmbeddedApp) {
-			this.setState(State.Disabled(DisablementReason.EmbeddedApp));
-			this.logService.info('update#ctor - updates are disabled from embedded app');
+			this.logService.info('update#ctor - embedded app: checking for updates without auto-download');
 			return;
 		}
 
-		await super.initialize();
 		this.onRawError(this.onError, this, this.disposables);
 		this.onRawCheckingForUpdate(this.onCheckingForUpdate, this, this.disposables);
 		this.onRawUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
@@ -135,6 +137,13 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
+		// In the embedded app, always check without triggering Electron's auto-download.
+		if ((process as INodeProcess).isEmbeddedApp) {
+			this.logService.info('update#doCheckForUpdates - embedded app: checking for update without auto-download');
+			this.checkForUpdateNoDownload(url, /* canInstall */ false);
+			return;
+		}
+
 		// When connection is metered and this is not an explicit check, avoid electron call as to not to trigger auto-download.
 		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
 			this.logService.info('update#doCheckForUpdates - checking for update without auto-download because connection is metered');
@@ -148,9 +157,10 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 	/**
 	 * Manually check the update feed URL without triggering Electron's auto-download.
-	 * Used when connection is metered to show update availability without downloading.
+	 * Used when connection is metered or in the embedded app.
+	 * @param canInstall When false, signals that the update cannot be installed from this app.
 	 */
-	private async checkForUpdateNoDownload(url: string): Promise<void> {
+	private async checkForUpdateNoDownload(url: string, canInstall?: boolean): Promise<void> {
 		const headers = getUpdateRequestHeaders(this.productService.version);
 		this.logService.trace('update#checkForUpdateNoDownload - checking update server', { url, headers });
 
@@ -165,7 +175,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 				this.setState(State.Idle(UpdateType.Archive));
 			} else {
 				this.logService.trace('update#checkForUpdateNoDownload - update available', { version: update.version, productVersion: update.productVersion });
-				this.setState(State.AvailableForDownload(update));
+				this.setState(State.AvailableForDownload(update, canInstall));
 			}
 		} catch (err) {
 			this.logService.error('update#checkForUpdateNoDownload - failed to check for update', err);

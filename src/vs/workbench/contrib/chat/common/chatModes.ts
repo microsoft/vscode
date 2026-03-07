@@ -19,12 +19,14 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IChatAgentService } from './participants/chatAgents.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from './constants.js';
-import { IHandOff, isTarget } from './promptSyntax/promptFileParser.js';
-import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, PromptsStorage, Target } from './promptSyntax/service/promptsService.js';
+import { IHandOff } from './promptSyntax/promptFileParser.js';
+import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { Target } from './promptSyntax/promptTypes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { hash } from '../../../../base/common/hash.js';
 import { isString } from '../../../../base/common/types.js';
+import { isTarget } from './promptSyntax/languageProviders/promptFileAttributes.js';
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
 export interface IChatModeService {

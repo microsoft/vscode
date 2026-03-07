@@ -1147,6 +1147,46 @@
         "title": "%command.deleteRef%",
         "category": "Git",
         "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.worktreeCopyBranchName",
+        "title": "%command.artifactCopyBranchName%",
+        "category": "Git"
+      },
+      {
+        "command": "git.repositories.worktreeCopyCommitHash",
+        "title": "%command.artifactCopyCommitHash%",
+        "category": "Git"
+      },
+      {
+        "command": "git.repositories.worktreeCopyPath",
+        "title": "%command.artifactCopyWorktreePath%",
+        "category": "Git"
+      },
+      {
+        "command": "git.repositories.copyCommitHash",
+        "title": "%command.artifactCopyCommitHash%",
+        "category": "Git"
+      },
+      {
+        "command": "git.repositories.copyBranchName",
+        "title": "%command.artifactCopyBranchName%",
+        "category": "Git"
+      },
+      {
+        "command": "git.repositories.copyTagName",
+        "title": "%command.artifactCopyTagName%",
+        "category": "Git"
+      },
+      {
+        "command": "git.repositories.copyStashName",
+        "title": "%command.artifactCopyStashName%",
+        "category": "Git"
+      },
+      {
+        "command": "git.repositories.stashCopyBranchName",
+        "title": "%command.artifactCopyBranchName%",
+        "category": "Git"
       }
     ],
     "continueEditSession": [
@@ -1846,6 +1886,38 @@
         {
           "command": "git.repositories.deleteWorktree",
           "when": "false"
+        },
+        {
+          "command": "git.repositories.worktreeCopyBranchName",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.worktreeCopyCommitHash",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.worktreeCopyPath",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.copyCommitHash",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.copyBranchName",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.copyTagName",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.copyStashName",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.stashCopyBranchName",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -2091,6 +2163,16 @@
           "when": "scmProvider == git && scmArtifactGroupId == stashes"
         },
         {
+          "command": "git.repositories.stashCopyBranchName",
+          "group": "4_copy@1",
+          "when": "scmProvider == git && scmArtifactGroupId == stashes"
+        },
+        {
+          "command": "git.repositories.copyStashName",
+          "group": "4_copy@2",
+          "when": "scmProvider == git && scmArtifactGroupId == stashes"
+        },
+        {
           "command": "git.repositories.checkout",
           "group": "1_checkout@1",
           "when": "scmProvider == git && (scmArtifactGroupId == branches || scmArtifactGroupId == tags)"
@@ -2131,6 +2213,21 @@
           "when": "scmProvider == git && (scmArtifactGroupId == branches || scmArtifactGroupId == tags)"
         },
         {
+          "command": "git.repositories.copyCommitHash",
+          "group": "5_copy@2",
+          "when": "scmProvider == git && (scmArtifactGroupId == branches || scmArtifactGroupId == tags)"
+        },
+        {
+          "command": "git.repositories.copyBranchName",
+          "group": "5_copy@1",
+          "when": "scmProvider == git && scmArtifactGroupId == branches"
+        },
+        {
+          "command": "git.repositories.copyTagName",
+          "group": "5_copy@2",
+          "when": "scmProvider == git && scmArtifactGroupId == tags"
+        },
+        {
           "command": "git.repositories.openWorktreeInNewWindow",
           "group": "inline@1",
           "when": "scmProvider == git && scmArtifactGroupId == worktrees"
@@ -2148,6 +2245,21 @@
         {
           "command": "git.repositories.deleteWorktree",
           "group": "2_modify@1",
+          "when": "scmProvider == git && scmArtifactGroupId == worktrees"
+        },
+        {
+          "command": "git.repositories.worktreeCopyCommitHash",
+          "group": "3_copy@2",
+          "when": "scmProvider == git && scmArtifactGroupId == worktrees"
+        },
+        {
+          "command": "git.repositories.worktreeCopyBranchName",
+          "group": "3_copy@1",
+          "when": "scmProvider == git && scmArtifactGroupId == worktrees"
+        },
+        {
+          "command": "git.repositories.worktreeCopyPath",
+          "group": "3_copy@3",
           "when": "scmProvider == git && scmArtifactGroupId == worktrees"
         }
       ],

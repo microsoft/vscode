@@ -11,8 +11,6 @@ export const ChatTipStorageKeys = {
 	DismissedTips: 'chat.tip.dismissed',
 	/** The ID of the last tip that was shown, for round-robin selection. */
 	LastTipId: 'chat.tip.lastTipId',
-	/** Whether the user has ever enabled global auto-approve (yolo mode). */
-	YoloModeEverEnabled: 'chat.tip.yoloModeEverEnabled',
 	/** Whether the user has ever modified the thinking phrases setting. */
 	ThinkingPhrasesEverModified: 'chat.tip.thinkingPhrasesEverModified',
 };
@@ -37,7 +35,7 @@ export const TipEligibilityStorageKeys = {
 export const TipTrackingCommands = {
 	/** Tracked when user attaches a file/folder reference with #. */
 	AttachFilesReferenceUsed: 'chat.tips.attachFiles.referenceUsed',
-	/** Tracked when user executes /create-instructions. */
+	/** Tracked when user executes /init or /create-instructions. */
 	CreateAgentInstructionsUsed: 'chat.tips.createAgentInstructions.commandUsed',
 	/** Tracked when user executes /create-prompt. */
 	CreatePromptUsed: 'chat.tips.createPrompt.commandUsed',
@@ -45,4 +43,6 @@ export const TipTrackingCommands = {
 	CreateAgentUsed: 'chat.tips.createAgent.commandUsed',
 	/** Tracked when user executes /create-skill. */
 	CreateSkillUsed: 'chat.tips.createSkill.commandUsed',
+	/** Tracked when user executes /fork. */
+	ForkConversationUsed: 'chat.tips.forkConversation.commandUsed',
 } as const;
