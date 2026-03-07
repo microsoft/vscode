@@ -653,9 +653,6 @@ Agent2 has a single agent mode. The extension has multiple modes and extensibili
 
 ## MISCELLANEOUS -- Gap Analysis
 
-### Chat Participants (VS Code integration)
-- [ ] Extension registers 9 different chat participants (Default, VS Code, Terminal, EditingSession, EditsAgent, Notebook, etc.) each with specific intent resolution. Agent2 has one flat chat entry point.
-
 ### Prompt Categorization
 - [ ] Fire-and-forget `categorizePrompt()` on first turn for analytics
 
@@ -674,6 +671,78 @@ Agent2 has a single agent mode. The extension has multiple modes and extensibili
 - [ ] `AnthropicAdapter` - translates between Anthropic Messages API ↔ VS Code/CAPI
 - [ ] Token usage scaling: makes the SDK think context window is 200k even when real limit is smaller
 - [ ] Model mapping: `claude-haiku*` → `claude-haiku-4.5`, `claude-sonnet-4*` → `claude-sonnet-4.5`, etc.
+
+---
+
+## TESTING STRATEGY
+
+### Current state
+- [x] **Unit tests** (~94 tests) covering core types, conversation format, agent loop,
+  middleware, schema validation, Anthropic provider, OpenAI provider, copilot token,
+  model provider service, local agent, and session storage.
+- [x] **Integration tests** (`agentLoop.integrationTest.ts`) - end-to-end scenarios against
+  a real CAPI endpoint, gated on `GITHUB_TOKEN` env var. Proves the happy path works
+  but requires network access and a valid token.
+
+### Inner dev loop tests (needed)
+
+These tests run fast, require no network, and can be used as part of agentic
+development workflows. They are the primary safety net during implementation.
+
+#### Recorded replay tests (wire format regression)
+- [ ] Record real CAPI request/response pairs as fixture files (raw SSE chunks)
+- [ ] Replay through each provider's SSE parser and verify the `ModelResponseChunk[]` output
+- [ ] One fixture per feature: basic text, tool calls, thinking, redacted thinking,
+  interleaved thinking, context management response, compaction events, server tool
+  calls, reasoning summaries, stateful markers, content filter, error events, usage
+- [ ] Validates wire format correctness without network access
+- [ ] Every new API feature gets a fixture before or alongside implementation
+- [ ] Shared contract tests: parameterize across providers to verify they all produce
+  equivalent `ModelResponseChunk` shapes for semantically equivalent responses
+
+#### Conversation shape tests (multi-turn state management)
+- [ ] Build realistic 10+ turn conversations with mixed tool calls, thinking, errors
+- [ ] Serialize to JSONL via `SessionStorage`, restore, verify rebuilt `IConversationMessage[]`
+  matches the original exactly
+- [ ] Resume from storage mid-conversation and verify the next model call gets correct history
+- [ ] Verify middleware effects accumulate correctly across turns (context window pruning
+  after many tool results, tool output truncation, etc.)
+- [ ] Mock `IModelProvider` returns scripted `ModelResponseChunk[]` sequences - no real API calls
+
+#### Scenario tests (scripted multi-turn pipelines)
+- [ ] Define scenarios as scripted model responses + expected outcomes
+- [ ] Mock `IModelProvider` yields canned chunk sequences per iteration
+- [ ] Verify the full pipeline: loop iterations, tool executions, middleware application,
+  session storage writes, IPC event translation
+- [ ] Cover key flows:
+  - Basic tool call cycle (read_file → edit → verify)
+  - Parallel read-only tool batch execution
+  - Error recovery (tool failure → model retry)
+  - Max iteration limit hit
+  - Cancellation mid-tool-execution
+  - Session resumption from disk
+  - Context window compaction trigger
+  - Permission middleware deny/ask flows
+
+#### Prompt snapshot tests (when prompt-tsx migration begins)
+- [ ] Render the full system prompt for a given model + context configuration
+- [ ] Compare against golden snapshot files
+- [ ] Catch unintended prompt drift from code changes
+- [ ] Separate snapshots per model family (Anthropic, OpenAI, Gemini, etc.)
+- [ ] Verify cache breakpoint placement stability (prompt cache invalidation is expensive)
+
+### Eval benchmarks (outer loop)
+
+Not part of the inner dev loop, but important for measuring overall quality.
+
+#### vscbench
+- [ ] Run agent2 through vscbench - real product scenarios with real endpoints
+- [ ] Gives overall score and performance baseline comparable to the extension
+- [ ] **Request diffing**: Log the exact CAPI requests sent by both agent2 and the extension
+  for the same vscbench scenarios, then diff them. This surfaces prompt differences,
+  missing headers, tool definition discrepancies, and wire format issues that unit
+  tests won't catch. Useful as a one-time validation after major milestones (prompt
+  migration, new provider features, tool set changes).
 
 ---
 
