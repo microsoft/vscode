@@ -74,7 +74,6 @@ class LocalSession {
 	private readonly _entries: SessionEntry[] = [];
 	private readonly _writer: SessionWriter;
 	private readonly _activeToolCalls = new Map<string, { toolName: string; args: Record<string, unknown> }>();
-	private _currentAssistantMessageId: string | undefined;
 	private _modifiedTime: number;
 	private _cts: CancellationTokenSource;
 	private _running = false;
@@ -120,16 +119,6 @@ class LocalSession {
 		this._modifiedTime = Date.now();
 	}
 
-	/** Allocate a message ID for the next assistant response. */
-	beginModelCall(): string {
-		this._currentAssistantMessageId = generateUuid();
-		return this._currentAssistantMessageId;
-	}
-
-	get currentAssistantMessageId(): string | undefined {
-		return this._currentAssistantMessageId;
-	}
-
 	addUserMessage(prompt: string): ISessionUserMessage {
 		const entry: ISessionUserMessage = {
 			v: SESSION_ENTRY_VERSION,
@@ -142,17 +131,16 @@ class LocalSession {
 		return entry;
 	}
 
-	addAssistantMessage(msg: IAssistantMessage): ISessionAssistantMessage {
+	addAssistantMessage(msg: IAssistantMessage, messageId: string): ISessionAssistantMessage {
 		const entry: ISessionAssistantMessage = {
 			v: SESSION_ENTRY_VERSION,
 			type: 'assistant-message',
-			messageId: this._currentAssistantMessageId ?? generateUuid(),
+			messageId,
 			contentParts: msg.content,
 			modelIdentity: msg.modelIdentity,
 			providerMetadata: msg.providerMetadata,
 		};
 		this._entries.push(entry);
-		this._currentAssistantMessageId = undefined;
 		this._writer.append(entry);
 		return entry;
 	}
@@ -233,6 +221,8 @@ export class LocalAgent extends Disposable implements IAgent {
 
 	private readonly _sessions = this._register(new DisposableMap<string, CancellationTokenSource>());
 	private readonly _sessionState = new Map<string, LocalSession>();
+	/** Per-session message ID for correlating streaming deltas with the final assistant message. */
+	private readonly _pendingMessageIds = new Map<string, string>();
 	private readonly _modelProviderService: ModelProviderService;
 	private readonly _tools: readonly IAgentTool[];
 	private readonly _storage: SessionStorage;
@@ -473,22 +463,26 @@ export class LocalAgent extends Disposable implements IAgent {
 	}
 
 	private _processEvent(event: AgentLoopEvent, session: LocalSession): void {
+		const sessionKey = session.uri.toString();
+
 		switch (event.type) {
 			case 'model-call-start': {
-				session.beginModelCall();
+				this._pendingMessageIds.set(sessionKey, generateUuid());
 				break;
 			}
 			case 'assistant-delta': {
 				this._onDidSessionProgress.fire({
 					type: 'delta',
 					session: session.uri,
-					messageId: session.currentAssistantMessageId ?? generateUuid(),
+					messageId: this._pendingMessageIds.get(sessionKey) ?? generateUuid(),
 					content: event.text,
 				});
 				break;
 			}
 			case 'assistant-message': {
-				session.addAssistantMessage(event.message);
+				const messageId = this._pendingMessageIds.get(sessionKey) ?? generateUuid();
+				this._pendingMessageIds.delete(sessionKey);
+				session.addAssistantMessage(event.message, messageId);
 				break;
 			}
 			case 'reasoning-delta': {
