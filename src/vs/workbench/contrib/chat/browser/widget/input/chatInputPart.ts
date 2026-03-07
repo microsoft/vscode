@@ -35,7 +35,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { EditorOptions, IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import { EditorOptions, IEditorOptions, IEditorScrollbarOptions } from '../../../../../../editor/common/config/editorOptions.js';
 import { IDimension } from '../../../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
@@ -330,6 +330,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _inputEditor!: CodeEditorWidget;
 	private _inputEditorElement!: HTMLElement;
+	private _forceVisibleScrollbarUntilAccept = false;
 
 	// Reference to the input model for syncing input state
 	private _inputModel: IInputModel | undefined;
@@ -1459,6 +1460,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const userQuery = this.getCurrentInputState();
 			this.history.append(this._getFilteredEntry(userQuery));
 		}
+
+		this.resetScrollbarVisibilityAfterAccept();
 
 		if (this._chatSessionIsEmpty) {
 			this._chatSessionIsEmpty = false;
@@ -3202,6 +3205,42 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Fallback for unknown contexts
 		return { location: ChatWidgetLocation.Editor, isMaximized: false };
+	}
+
+	private getDefaultScrollbarOptions(): IEditorScrollbarOptions {
+		const scrollbar = this._inputEditor.getRawOptions().scrollbar ?? {};
+		return this.options.renderStyle === 'compact'
+			? { ...scrollbar, vertical: 'hidden' }
+			: { ...scrollbar, vertical: 'auto', verticalScrollbarSize: 7 };
+	}
+
+	private getVisibleScrollbarOptions(): IEditorScrollbarOptions {
+		const scrollbar = this._inputEditor.getRawOptions().scrollbar ?? {};
+		return this.options.renderStyle === 'compact'
+			? { ...scrollbar, vertical: 'hidden' }
+			: { ...scrollbar, vertical: 'visible', verticalScrollbarSize: 7 };
+	}
+
+	private updateInputEditorScrollbarOptions(): void {
+		this._inputEditor.updateOptions({
+			scrollbar: this._forceVisibleScrollbarUntilAccept
+				? this.getVisibleScrollbarOptions()
+				: this.getDefaultScrollbarOptions()
+		});
+	}
+
+	showScrollbarUntilAccept(): void {
+		this._forceVisibleScrollbarUntilAccept = true;
+		this.updateInputEditorScrollbarOptions();
+	}
+
+	private resetScrollbarVisibilityAfterAccept(): void {
+		if (!this._forceVisibleScrollbarUntilAccept) {
+			return;
+		}
+
+		this._forceVisibleScrollbarUntilAccept = false;
+		this.updateInputEditorScrollbarOptions();
 	}
 }
 
