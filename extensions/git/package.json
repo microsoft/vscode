@@ -4352,6 +4352,9 @@
     "vscode-uri": "^2.0.0",
     "which": "4.0.0"
   },
+  "optionalDependencies": {
+    "@vscode/fs-copyfile": "1.2.0"
+  },
   "devDependencies": {
     "@types/byline": "4.2.31",
     "@types/mocha": "^10.0.10",
