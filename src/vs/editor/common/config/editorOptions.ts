@@ -2020,6 +2020,7 @@ class EditorFontInfo extends ComputedEditorOption<EditorOption.fontInfo, FontInf
 			middotWidth: 0,
 			wsmiddotWidth: 0,
 			maxDigitWidth: 0,
+			fontHeight: 0,
 		}, false));
 	}
 

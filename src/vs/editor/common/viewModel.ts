@@ -23,6 +23,11 @@ import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
 import { InlineDecoration } from './viewModel/inlineDecorations.js';
 import { EditorOption, FindComputedEditorOptionValueById } from './config/editorOptions.js';
+import { BareFontInfo, FontInfo } from './config/fontInfo.js';
+
+export interface IFontInfoReader {
+	readFontInfo(bareFontInfo: BareFontInfo): FontInfo;
+}
 
 export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 
@@ -51,7 +56,7 @@ export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 	onCompositionStart(): void;
 	onCompositionEnd(): void;
 
-	getFontSizeAtPosition(position: IPosition): string | null;
+	getFontAtPosition(position: IPosition): FontInfo;
 	getMinimapDecorationsInRange(range: Range): ViewModelDecoration[];
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getTextDirection(lineNumber: number): TextDirection;

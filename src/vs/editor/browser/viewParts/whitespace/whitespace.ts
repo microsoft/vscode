@@ -24,6 +24,7 @@ import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
  */
 export class WhitespaceOverlay extends DynamicViewOverlay {
 
+	private readonly PADDING_BOTTOM = 3;
 	private readonly _context: ViewContext;
 	private _options: WhitespaceOptions;
 	private _selection: Selection[];
@@ -210,19 +211,21 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 			if (!visibleRange) {
 				continue;
 			}
+			const fontInfo = this._context.viewModel.getFontAtPosition(new Position(lineNumber, charIndex + 1));
+			const cy = lineHeight - fontInfo.fontHeight / 2 - this.PADDING_BOTTOM;
 
 			if (USE_SVG) {
 				maxLeft = Math.max(maxLeft, visibleRange.left);
 				if (chCode === CharCode.Tab) {
-					result += this._renderArrow(lineHeight, spaceWidth, visibleRange.left);
+					result += this._renderArrow(2 * cy, spaceWidth, visibleRange.left);
 				} else {
-					result += `<circle cx="${(visibleRange.left + spaceWidth / 2).toFixed(2)}" cy="${(lineHeight / 2).toFixed(2)}" r="${(spaceWidth / 7).toFixed(2)}" />`;
+					result += `<circle cx="${(visibleRange.left + spaceWidth / 2).toFixed(2)}" cy="${cy.toFixed(2)}" r="${(spaceWidth / 7).toFixed(2)}" />`;
 				}
 			} else {
 				if (chCode === CharCode.Tab) {
-					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${lineHeight}px;">${canUseHalfwidthRightwardsArrow ? String.fromCharCode(0xFFEB) : String.fromCharCode(0x2192)}</div>`;
+					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${2 * cy}px;">${canUseHalfwidthRightwardsArrow ? String.fromCharCode(0xFFEB) : String.fromCharCode(0x2192)}</div>`;
 				} else {
-					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${lineHeight}px;">${String.fromCharCode(renderSpaceCharCode)}</div>`;
+					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${2 * cy}px;">${String.fromCharCode(renderSpaceCharCode)}</div>`;
 				}
 			}
 		}
