@@ -4,55 +4,111 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Session entry types -- the single source of truth for in-memory session
- * state.
+ * Session entry validators -- the single source of truth for in-memory
+ * session state.
  *
- * Used by {@link LocalSession} at runtime. These types intentionally do NOT
- * carry a version field; the storage layer ({@link SessionStorage}) extends
- * them with `v` when persisting to JSONL.
+ * Validators define both runtime validation and the TypeScript types (via
+ * {@link ValidatorType}). Used by {@link LocalSession} at runtime. These
+ * types intentionally do NOT carry a version field; the storage layer
+ * ({@link SessionStorage}) extends them with `v` when persisting to JSONL.
  */
 
-import { IAssistantContentPart, IModelIdentity } from './conversation.js';
+import {
+	ValidatorType,
+	vArray,
+	vBoolean,
+	vEnum,
+	vLiteral,
+	vObj,
+	vOptionalProp,
+	vString,
+	vUnchecked,
+	vUnion,
+} from '../../../base/common/validation.js';
 
-export interface ISessionUserMessage {
-	readonly type: 'user-message';
-	readonly id: string;
-	readonly content: string;
-}
+// -- Content part validators --------------------------------------------------
 
-export interface ISessionAssistantMessage {
-	readonly type: 'assistant-message';
-	readonly id: string;
-	/** The full content parts: text, tool-calls, thinking, redacted-thinking. */
-	readonly parts: readonly IAssistantContentPart[];
-	/** Which model produced this message. */
-	readonly modelIdentity: IModelIdentity;
-	/** Opaque provider metadata (encrypted reasoning state, cache hints, etc.). */
-	readonly providerMetadata?: Record<string, unknown>;
-}
+export const vTextPart = vObj({
+	type: vLiteral('text'),
+	text: vString(),
+});
 
-export interface ISessionToolStart {
-	readonly type: 'tool-start';
-	readonly toolCallId: string;
-	readonly toolName: string;
-	readonly displayName: string;
-	readonly invocationMessage: string;
-	readonly toolInput?: string;
-	readonly toolKind?: 'terminal';
-	readonly language?: string;
-}
+export const vToolCallPart = vObj({
+	type: vLiteral('tool-call'),
+	toolCallId: vString(),
+	toolName: vString(),
+	arguments: vUnchecked<Record<string, unknown>>(),
+});
 
-export interface ISessionToolComplete {
-	readonly type: 'tool-complete';
-	readonly toolCallId: string;
-	readonly toolName: string;
-	readonly success: boolean;
-	readonly pastTenseMessage: string;
-	readonly toolOutput: string;
-}
+export const vThinkingPart = vObj({
+	type: vLiteral('thinking'),
+	text: vString(),
+	signature: vOptionalProp(vString()),
+});
 
-export type SessionEntry =
-	| ISessionUserMessage
-	| ISessionAssistantMessage
-	| ISessionToolStart
-	| ISessionToolComplete;
+export const vRedactedThinkingPart = vObj({
+	type: vLiteral('redacted-thinking'),
+	data: vString(),
+});
+
+export const vAssistantContentPart = vUnion(
+	vTextPart,
+	vToolCallPart,
+	vThinkingPart,
+	vRedactedThinkingPart,
+);
+
+// -- Model identity validator -------------------------------------------------
+
+export const vModelIdentity = vObj({
+	provider: vString(),
+	modelId: vString(),
+});
+
+// -- Session entry validators -------------------------------------------------
+
+export const vSessionUserMessage = vObj({
+	type: vLiteral('user-message'),
+	id: vString(),
+	content: vString(),
+});
+export type ISessionUserMessage = ValidatorType<typeof vSessionUserMessage>;
+
+export const vSessionAssistantMessage = vObj({
+	type: vLiteral('assistant-message'),
+	id: vString(),
+	parts: vArray(vAssistantContentPart),
+	modelIdentity: vModelIdentity,
+	providerMetadata: vOptionalProp(vUnchecked<Record<string, unknown>>()),
+});
+export type ISessionAssistantMessage = ValidatorType<typeof vSessionAssistantMessage>;
+
+export const vSessionToolStart = vObj({
+	type: vLiteral('tool-start'),
+	toolCallId: vString(),
+	toolName: vString(),
+	displayName: vString(),
+	invocationMessage: vString(),
+	toolInput: vOptionalProp(vString()),
+	toolKind: vOptionalProp(vEnum('terminal')),
+	language: vOptionalProp(vString()),
+});
+export type ISessionToolStart = ValidatorType<typeof vSessionToolStart>;
+
+export const vSessionToolComplete = vObj({
+	type: vLiteral('tool-complete'),
+	toolCallId: vString(),
+	toolName: vString(),
+	success: vBoolean(),
+	pastTenseMessage: vString(),
+	toolOutput: vString(),
+});
+export type ISessionToolComplete = ValidatorType<typeof vSessionToolComplete>;
+
+export const vSessionEntry = vUnion(
+	vSessionUserMessage,
+	vSessionAssistantMessage,
+	vSessionToolStart,
+	vSessionToolComplete,
+);
+export type SessionEntry = ValidatorType<typeof vSessionEntry>;

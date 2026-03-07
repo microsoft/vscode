@@ -94,7 +94,7 @@ export class LocalSession extends Disposable {
 		const entry: ISessionAssistantMessage = {
 			type: 'assistant-message',
 			id: messageId,
-			parts: msg.content,
+			parts: [...msg.content],
 			modelIdentity: msg.modelIdentity,
 			providerMetadata: msg.providerMetadata,
 		};

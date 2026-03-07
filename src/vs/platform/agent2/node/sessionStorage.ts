@@ -24,34 +24,32 @@ import { join } from '../../../base/common/path.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
+import { vLiteral, vNumber, vObj, vString } from '../../../base/common/validation.js';
 import { ILogService } from '../../log/common/log.js';
 import {
 	AgentSession,
 	IAgentSessionMetadata,
 } from '../../agent/common/agentService.js';
-import { type SessionEntry } from '../common/sessionTypes.js';
+import { vSessionEntry, type SessionEntry } from '../common/sessionTypes.js';
 
 export type { ISessionUserMessage, ISessionAssistantMessage, ISessionToolStart, ISessionToolComplete, SessionEntry } from '../common/sessionTypes.js';
 
 /** Current JSONL schema version, stamped on every persisted record. */
 const SESSION_ENTRY_VERSION = 2;
 
-/** A persisted session entry - extends the in-memory type with a version. */
+/** A persisted session entry -- extends the in-memory type with a version. */
 type VersionedEntry = SessionEntry & { readonly v: number };
 
-// -- Internal JSONL record types (metadata only) ------------------------------
+// -- Internal JSONL record validators ----------------------------------------
 
-interface ISessionCreatedRecord {
-	readonly v: number;
-	readonly type: 'session-created';
-	readonly sessionId: string;
-	readonly model: string;
-	readonly workingDirectory: string;
-	readonly startTime: number;
-}
-
-/** A JSONL line is either a metadata record or a versioned session entry. */
-type SessionRecord = ISessionCreatedRecord | VersionedEntry;
+const vSessionCreatedRecord = vObj({
+	v: vNumber(),
+	type: vLiteral('session-created'),
+	sessionId: vString(),
+	model: vString(),
+	workingDirectory: vString(),
+	startTime: vNumber(),
+});
 
 // -- Restored session data ----------------------------------------------------
 
@@ -65,37 +63,22 @@ export interface IRestoredSession {
 
 // -- Legacy field normalization -----------------------------------------------
 
-interface ILegacyFields {
-	messageId?: string;
-	contentParts?: readonly unknown[];
-}
-
 /**
- * Normalize a deserialized entry so that v1 records (with `messageId` /
- * `contentParts`) are mapped to the current field names (`id` / `parts`).
- * Returns `undefined` for malformed records missing required fields.
+ * Pre-normalize a raw parsed object so that v1 field names (`messageId`,
+ * `contentParts`) are mapped to their v2 equivalents (`id`, `parts`)
+ * before running through the validator.
  */
-function normalizeEntry(raw: SessionEntry & ILegacyFields): SessionEntry | undefined {
-	if (raw.type === 'user-message') {
-		const id = raw.id ?? raw.messageId;
-		if (!id) {
-			return undefined;
-		}
-		return { type: raw.type, id, content: raw.content };
+function normalizeLegacyFields(raw: Record<string, unknown>): Record<string, unknown> {
+	if (raw['type'] === 'user-message' && raw['id'] === undefined && raw['messageId'] !== undefined) {
+		raw['id'] = raw['messageId'];
 	}
-	if (raw.type === 'assistant-message') {
-		const id = raw.id ?? raw.messageId;
-		const parts = raw.parts ?? raw.contentParts;
-		if (!id || !parts) {
-			return undefined;
+	if (raw['type'] === 'assistant-message') {
+		if (raw['id'] === undefined && raw['messageId'] !== undefined) {
+			raw['id'] = raw['messageId'];
 		}
-		return {
-			type: raw.type,
-			id,
-			parts,
-			modelIdentity: raw.modelIdentity,
-			providerMetadata: raw.providerMetadata,
-		};
+		if (raw['parts'] === undefined && raw['contentParts'] !== undefined) {
+			raw['parts'] = raw['contentParts'];
+		}
 	}
 	return raw;
 }
@@ -136,9 +119,9 @@ export class SessionWriter extends Disposable {
 	 * Write the initial session-created record and flush immediately.
 	 */
 	async writeHeader(model: string, workingDirectory: string, startTime: number, sessionId: string): Promise<void> {
-		const record: ISessionCreatedRecord = {
+		const record = {
 			v: SESSION_ENTRY_VERSION,
-			type: 'session-created',
+			type: 'session-created' as const,
 			sessionId,
 			model,
 			workingDirectory,
@@ -340,19 +323,19 @@ export class SessionStorage {
 			return undefined;
 		}
 
-		const firstRecord = JSON.parse(lines[0]) as SessionRecord;
-		if (firstRecord.type !== 'session-created') {
+		const headerResult = vSessionCreatedRecord.validate(JSON.parse(lines[0]));
+		if (headerResult.error) {
 			return undefined;
 		}
+		const header = headerResult.content;
 
 		let summary: string | undefined;
 		for (const line of lines) {
 			try {
-				const record = JSON.parse(line) as SessionRecord;
-				if (record.type === 'user-message') {
-					summary = record.content.length > 80
-						? record.content.substring(0, 77) + '...'
-						: record.content;
+				const raw = JSON.parse(line) as Record<string, unknown>;
+				if (raw['type'] === 'user-message' && typeof raw['content'] === 'string') {
+					const text = raw['content'];
+					summary = text.length > 80 ? text.substring(0, 77) + '...' : text;
 					break;
 				}
 			} catch {
@@ -361,8 +344,8 @@ export class SessionStorage {
 		}
 
 		return {
-			session: AgentSession.uri('local', firstRecord.sessionId),
-			startTime: firstRecord.startTime,
+			session: AgentSession.uri('local', header.sessionId),
+			startTime: header.startTime,
 			modifiedTime: stat.mtimeMs,
 			summary,
 		};
@@ -374,20 +357,22 @@ export class SessionStorage {
 			return undefined;
 		}
 
-		const firstRecord = JSON.parse(lines[0]) as SessionRecord;
-		if (firstRecord.type !== 'session-created') {
+		const headerResult = vSessionCreatedRecord.validate(JSON.parse(lines[0]));
+		if (headerResult.error) {
 			return undefined;
 		}
+		const header = headerResult.content;
 
 		const entries: SessionEntry[] = [];
 		for (const line of lines) {
 			try {
-				const { v: _v, ...record } = JSON.parse(line) as SessionRecord;
-				if (record.type !== 'session-created') {
-					const entry = normalizeEntry(record);
-					if (entry) {
-						entries.push(entry);
-					}
+				const raw = normalizeLegacyFields(JSON.parse(line) as Record<string, unknown>);
+				if (raw['type'] === 'session-created') {
+					continue;
+				}
+				const result = vSessionEntry.validate(raw);
+				if (!result.error) {
+					entries.push(result.content);
 				}
 			} catch {
 				continue;
@@ -395,10 +380,10 @@ export class SessionStorage {
 		}
 
 		return {
-			sessionId: firstRecord.sessionId,
-			model: firstRecord.model,
-			workingDirectory: firstRecord.workingDirectory,
-			startTime: firstRecord.startTime,
+			sessionId: header.sessionId,
+			model: header.model,
+			workingDirectory: header.workingDirectory,
+			startTime: header.startTime,
 			entries,
 		};
 	}
