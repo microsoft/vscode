@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import minimatch from 'minimatch';
 import { Utils } from 'vscode-uri';
 import { findPreferredPM } from './preferred-pm';
-import { readScripts } from './readScripts';
+import { readScripts, IPositionOffsetTransformer } from './readScripts';
 
 const excludeRegex = new RegExp('^(node_modules|.vscode-test)$', 'i');
 
@@ -30,6 +30,103 @@ export interface IFolderTaskItem extends QuickPickItem {
 type AutoDetect = 'on' | 'off';
 
 let cachedTasks: ITaskWithLocation[] | undefined = undefined;
+
+interface IPackageJsonCache {
+	mtime: number;
+	scripts: ReturnType<typeof readScripts>;
+}
+
+// Simple LRU cache implementation for package.json entries
+class PackageJsonLRUCache {
+	private cache = new Map<string, IPackageJsonCache>();
+	private accessOrder: string[] = [];
+	private readonly maxSize: number;
+	private readonly storageKey = 'npm.packageJsonCache';
+
+	constructor(private readonly context: ExtensionContext | undefined, maxSize: number = 128) {
+		this.maxSize = maxSize;
+		this.loadFromStorage();
+	}
+
+	private loadFromStorage(): void {
+		if (!this.context) {
+			return;
+		}
+		try {
+			const stored = this.context.workspaceState.get<Record<string, IPackageJsonCache>>(this.storageKey);
+			if (stored) {
+				// Restore cache entries (up to maxSize)
+				const entries = Object.entries(stored);
+				for (const [key, value] of entries.slice(-this.maxSize)) {
+					this.cache.set(key, value);
+					this.accessOrder.push(key);
+				}
+			}
+		} catch (e) {
+			// Ignore errors loading from storage
+		}
+	}
+
+	private async saveToStorage(): Promise<void> {
+		if (!this.context) {
+			return;
+		}
+		try {
+			const toStore: Record<string, IPackageJsonCache> = {};
+			this.cache.forEach((value, key) => {
+				toStore[key] = value;
+			});
+			await this.context.workspaceState.update(this.storageKey, toStore);
+		} catch (e) {
+			// Ignore errors saving to storage
+		}
+	}
+
+	get(key: string): IPackageJsonCache | undefined {
+		const value = this.cache.get(key);
+		if (value !== undefined) {
+			// Move to end (most recently used)
+			this.accessOrder = this.accessOrder.filter(k => k !== key);
+			this.accessOrder.push(key);
+		}
+		return value;
+	}
+
+	set(key: string, value: IPackageJsonCache): void {
+		// If key exists, remove it from access order
+		if (this.cache.has(key)) {
+			this.accessOrder = this.accessOrder.filter(k => k !== key);
+		}
+
+		// Add to cache and access order
+		this.cache.set(key, value);
+		this.accessOrder.push(key);
+
+		// Evict least recently used if over capacity
+		if (this.cache.size > this.maxSize) {
+			const lru = this.accessOrder.shift();
+			if (lru !== undefined) {
+				this.cache.delete(lru);
+			}
+		}
+
+		// Persist to storage asynchronously
+		void this.saveToStorage();
+	}
+
+	clear(): void {
+		this.cache.clear();
+		this.accessOrder = [];
+		void this.saveToStorage();
+	}
+}
+
+// Cache for package.json file reading to avoid unnecessary reads
+let packageJsonCache: PackageJsonLRUCache;
+
+export function initializePackageJsonCache(context: ExtensionContext): void {
+	packageJsonCache = new PackageJsonLRUCache(context, 128);
+}
 
 export const INSTALL_SCRIPT = 'install';
 
@@ -88,6 +185,7 @@ export class NpmTaskProvider implements TaskProvider {
 
 export function invalidateTasksCache() {
 	cachedTasks = undefined;
+	packageJsonCache.clear();
 }
 
 const buildNames: string[] = ['build', 'compile', 'watch'];
@@ -473,6 +571,39 @@ export function findScriptAtPosition(document: TextDocument, buffer: string, pos
 	return undefined;
 }
 
+// Helper to transform offsets to positions for package.json content
+class PositionOffsetTransformer implements IPositionOffsetTransformer {
+	private readonly lineOffsets: number[];
+
+	constructor(public readonly uri: Uri, content: string) {
+		const lines = content.split(/\r?\n/);
+		this.lineOffsets = [0];
+		for (let i = 0; i < lines.length; i++) {
+			const currentOffset = this.lineOffsets[i] + lines[i].length;
+			// Check if there's a \r character (Windows line ending)
+			const nextCharOffset = currentOffset < content.length ? content[currentOffset] : undefined;
+			const lineEndingLength = nextCharOffset === '\r' ? 2 : 1;
+			this.lineOffsets.push(currentOffset + lineEndingLength);
+		}
+	}
+
+	positionAt(offset: number): Position {
+		let low = 0;
+		let high = this.lineOffsets.length - 1;
+		while (low < high) {
+			const mid = Math.floor((low + high) / 2);
+			if (this.lineOffsets[mid] > offset) {
+				high = mid;
+			} else {
+				low = mid + 1;
+			}
+		}
+		const line = low - 1;
+		const character = offset - this.lineOffsets[line];
+		return new Position(line, character);
+	}
+}
+
 export async function getScripts(packageJsonUri: Uri) {
 	if (packageJsonUri.scheme !== 'file') {
 		return undefined;
@@ -484,8 +615,25 @@ export async function getScripts(packageJsonUri: Uri) {
 	}
 
 	try {
-		const document: TextDocument = await workspace.openTextDocument(packageJsonUri);
-		return readScripts(document);
+		// Check cache with mtime to avoid unnecessary file reads
+		const stat = await workspace.fs.stat(packageJsonUri);
+		const cached = packageJsonCache.get(packageJson);
+		
+		if (cached && cached.mtime === stat.mtime) {
+			return cached.scripts;
+		}
+
+		// Use workspace.fs.readFile instead of openTextDocument to avoid triggering
+		// textDocument/didOpen notifications to language servers
+		const content = await workspace.fs.readFile(packageJsonUri);
+		const text = new TextDecoder('utf-8').decode(content);
+		const transformer = new PositionOffsetTransformer(packageJsonUri, text);
+		const scripts = readScripts(transformer, text);
+		
+		// Cache the result
+		packageJsonCache.set(packageJson, { mtime: stat.mtime, scripts });
+		
+		return scripts;
 	} catch (e) {
 		const localizedParseError = l10n.t("Npm task detection: failed to parse the file {0}", packageJsonUri.fsPath);
 		throw new Error(localizedParseError);
