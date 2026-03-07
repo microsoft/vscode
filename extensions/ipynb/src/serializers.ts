@@ -71,14 +71,14 @@ export function getCellMetadata(options: { cell: NotebookCell | NotebookCellData
 	}
 }
 
-export function getVSCodeCellLanguageId(metadata: CellMetadata): string | undefined {
+export function getSonOfAntonCellLanguageId(metadata: CellMetadata): string | undefined {
 	return metadata.metadata?.vscode?.languageId;
 }
-export function setVSCodeCellLanguageId(metadata: CellMetadata, languageId: string) {
+export function setSonOfAntonCellLanguageId(metadata: CellMetadata, languageId: string) {
 	metadata.metadata = metadata.metadata || {};
 	metadata.metadata.vscode = { languageId };
 }
-export function removeVSCodeCellLanguageId(metadata: CellMetadata) {
+export function removeSonOfAntonCellLanguageId(metadata: CellMetadata) {
 	if (metadata.metadata?.vscode) {
 		delete metadata.metadata.vscode;
 	}
@@ -88,10 +88,10 @@ function createCodeCellFromNotebookCell(cell: NotebookCellData, preferredLanguag
 	const cellMetadata: CellMetadata = JSON.parse(JSON.stringify(getCellMetadata({ cell })));
 	cellMetadata.metadata = cellMetadata.metadata || {}; // This cannot be empty.
 	if (cell.languageId !== preferredLanguage) {
-		setVSCodeCellLanguageId(cellMetadata, cell.languageId);
+		setSonOfAntonCellLanguageId(cellMetadata, cell.languageId);
 	} else {
 		// cell current language is the same as the preferred cell language in the document, flush the vscode custom language id metadata
-		removeVSCodeCellLanguageId(cellMetadata);
+		removeSonOfAntonCellLanguageId(cellMetadata);
 	}
 
 	const codeCell: nbformat.ICodeCell = {

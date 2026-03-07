@@ -10,7 +10,7 @@ import { createDecorator } from '../../../platform/instantiation/common/instanti
 import { URI } from '../../../base/common/uri.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { IDisposable, DisposableStore, Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, TerminalExitReason, TerminalCompletionItem } from './extHostTypes.js';
+import { Disposable as SonOfAntonDisposable, EnvironmentVariableMutatorType, TerminalExitReason, TerminalCompletionItem } from './extHostTypes.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { localize } from '../../../nls.js';
 import { NotSupportedError } from '../../../base/common/errors.js';
@@ -755,7 +755,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		}
 		this._profileProviders.set(id, { provider, extension });
 		this._proxy.$registerProfileProvider(id, extension.identifier.value);
-		return new VSCodeDisposable(() => {
+		return new SonOfAntonDisposable(() => {
 			this._profileProviders.delete(id);
 			this._proxy.$unregisterProfileProvider(id);
 		});
@@ -767,7 +767,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		}
 		this._completionProviders.set(extension.identifier.value, provider);
 		this._proxy.$registerCompletionProvider(extension.identifier.value, extension.identifier.value, ...triggerCharacters);
-		return new VSCodeDisposable(() => {
+		return new SonOfAntonDisposable(() => {
 			this._completionProviders.delete(extension.identifier.value);
 			this._proxy.$unregisterCompletionProvider(extension.identifier.value);
 		});
@@ -805,7 +805,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		}
 		this._quickFixProviders.set(id, provider);
 		this._proxy.$registerQuickFixProvider(id, extensionId);
-		return new VSCodeDisposable(() => {
+		return new SonOfAntonDisposable(() => {
 			this._quickFixProviders.delete(id);
 			this._proxy.$unregisterQuickFixProvider(id);
 		});
@@ -889,7 +889,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (this._linkProviders.size === 1) {
 			this._proxy.$startLinkProvider();
 		}
-		return new VSCodeDisposable(() => {
+		return new SonOfAntonDisposable(() => {
 			this._linkProviders.delete(provider);
 			if (this._linkProviders.size === 0) {
 				this._proxy.$stopLinkProvider();

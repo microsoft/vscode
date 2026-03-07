@@ -161,7 +161,7 @@ function buildHookProperties(target: Target, arraySchema: IJSONSchema): Record<s
 /**
  * Hook properties for the VS Code format.
  */
-const vscodeHookProperties: Record<string, IJSONSchema> = buildHookProperties(Target.VSCode, hookArraySchema);
+const vscodeHookProperties: Record<string, IJSONSchema> = buildHookProperties(Target.SonOfAnton, hookArraySchema);
 
 /**
  * Hook command schema for the Copilot CLI format.

@@ -22,17 +22,17 @@ export async function resolveMarketplaceHeaders(version: string,
 	telemetryService: ITelemetryService): Promise<IHeaders> {
 
 	const headers: IHeaders = {
-		'X-Market-Client-Id': `VSCode ${version}`,
-		'User-Agent': `VSCode ${version} (${productService.nameShort})`
+		'X-Market-Client-Id': `Son of Anton ${version}`,
+		'User-Agent': `Son of Anton ${version} (${productService.nameShort})`
 	};
 
 	if (supportsTelemetry(productService, environmentService) && getTelemetryLevel(configurationService) === TelemetryLevel.USAGE) {
 		const serviceMachineId = await getServiceMachineId(environmentService, fileService, storageService);
 		headers['X-Market-User-Id'] = serviceMachineId;
-		// Send machineId as VSCode-SessionId so we can correlate telemetry events across different services
+		// Send machineId as Son of Anton-SessionId so we can correlate telemetry events across different services
 		// machineId can be undefined sometimes (eg: when launching from CLI), so send serviceMachineId instead otherwise
-		// Marketplace will reject the request if there is no VSCode-SessionId header
-		headers['VSCode-SessionId'] = telemetryService.machineId || serviceMachineId;
+		// Marketplace will reject the request if there is no Son of Anton-SessionId header
+		headers['Son of Anton-SessionId'] = telemetryService.machineId || serviceMachineId;
 	}
 
 	return headers;

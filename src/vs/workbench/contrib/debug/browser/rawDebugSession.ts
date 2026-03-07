@@ -25,13 +25,13 @@ import { Schemas } from '../../../../base/common/network.js';
  * The optional "prefix" contains arbitrary text and the optional "path" contains a file system path.
  * Concatenating both results in the original command line argument.
  */
-interface ILaunchVSCodeArgument {
+interface ILaunchSonOfAntonArgument {
 	prefix?: string;
 	path?: string;
 }
 
-interface ILaunchVSCodeArguments {
-	args: ILaunchVSCodeArgument[];
+interface ILaunchSonOfAntonArguments {
+	args: ILaunchSonOfAntonArgument[];
 	debugRenderer?: boolean;
 	env?: { [key: string]: string | null };
 }
@@ -656,9 +656,9 @@ export class RawDebugSession implements IDisposable {
 
 		const safeSendResponse = (response: DebugProtocol.Response) => this.debugAdapter && this.debugAdapter.sendResponse(response);
 
-		if (request.command === 'launchVSCode') {
+		if (request.command === 'launchSon of Anton') {
 			try {
-				let result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
+				let result = await this.launchVsCode(<ILaunchSonOfAntonArguments>request.arguments);
 				if (!result.success) {
 					const { confirmed } = await this.dialogSerivce.confirm({
 						type: Severity.Warning,
@@ -666,7 +666,7 @@ export class RawDebugSession implements IDisposable {
 						primaryButton: nls.localize({ key: 'continue', comment: ['&& denotes a mnemonic'] }, "&&Continue")
 					});
 					if (confirmed) {
-						result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
+						result = await this.launchVsCode(<ILaunchSonOfAntonArguments>request.arguments);
 					} else {
 						response.success = false;
 						safeSendResponse(response);
@@ -727,7 +727,7 @@ export class RawDebugSession implements IDisposable {
 		}
 	}
 
-	private launchVsCode(vscodeArgs: ILaunchVSCodeArguments): Promise<IOpenExtensionWindowResult> {
+	private launchVsCode(vscodeArgs: ILaunchSonOfAntonArguments): Promise<IOpenExtensionWindowResult> {
 
 		const args: string[] = [];
 

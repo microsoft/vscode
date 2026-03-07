@@ -24,7 +24,7 @@ import { TextDirection } from '../../../common/model.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
-		// In VSCode we know very well when the zoom level changes
+		// In Son of Anton we know very well when the zoom level changes
 		return true;
 	}
 

@@ -449,7 +449,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 			const firstBackupChunk = VSBuffer.concat(peekedBackupStream.buffer);
 
 			// We have seen reports (e.g. https://github.com/microsoft/vscode/issues/78500) where
-			// if VSCode goes down while writing the backup file, the file can turn empty because
+			// if Son of Anton goes down while writing the backup file, the file can turn empty because
 			// it always first gets truncated and then written to. In this case, we will not find
 			// the meta-end marker ('\n') and as such the backup can only be invalid. We bail out
 			// here if that is the case.

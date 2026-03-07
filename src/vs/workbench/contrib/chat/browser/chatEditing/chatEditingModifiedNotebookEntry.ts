@@ -56,7 +56,7 @@ import { adjustCellDiffAndOriginalModelBasedOnCellAddDelete, adjustCellDiffAndOr
 import { countChanges, ICellDiffInfo, sortCellChanges } from './notebook/notebookCellChanges.js';
 
 
-const SnapshotLanguageId = 'VSCodeChatNotebookSnapshotLanguage';
+const SnapshotLanguageId = 'Son of AntonChatNotebookSnapshotLanguage';
 
 export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifiedFileEntry {
 	static NewModelCounter: number = 0;

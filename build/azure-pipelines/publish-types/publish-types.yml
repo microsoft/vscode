@@ -39,7 +39,7 @@ steps:
 
   - bash: |
       git config --global user.email "vscode@microsoft.com"
-      git config --global user.name "VSCode"
+      git config --global user.name "Son of Anton"
 
       git clone https://$(GITHUB_TOKEN)@github.com/DefinitelyTyped/DefinitelyTyped.git --depth=1
       node build/azure-pipelines/publish-types/update-types.ts

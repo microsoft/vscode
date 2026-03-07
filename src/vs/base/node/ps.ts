@@ -161,7 +161,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 		else {
 			function calculateLinuxCpuUsage() {
 
-				// Flatten rootItem to get a list of all VSCode processes
+				// Flatten rootItem to get a list of all Son of Anton processes
 				let processes = [rootItem];
 				const pids: number[] = [];
 				while (processes.length) {

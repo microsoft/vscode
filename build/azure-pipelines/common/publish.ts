@@ -452,9 +452,9 @@ class ESRPReleaseService {
 				description: 'VS Code'
 			},
 			accessPermissionsInfo: {
-				mainPublisher: 'VSCode',
+				mainPublisher: 'Son of Anton',
 				channelDownloadEntityDetails: {
-					AllDownloadEntities: ['VSCode']
+					AllDownloadEntities: ['Son of Anton']
 				}
 			},
 			routingInfo: {

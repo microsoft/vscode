@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------------------------
 
 # Prevent installing more than once per session
-if ((Test-Path variable:global:__VSCodeState) -and $null -ne $Global:__VSCodeState.OriginalPrompt) {
+if ((Test-Path variable:global:__Son of AntonState) -and $null -ne $Global:__Son of AntonState.OriginalPrompt) {
 	return;
 }
 
@@ -13,7 +13,7 @@ if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
 	return;
 }
 
-$Global:__VSCodeState = @{
+$Global:__Son of AntonState = @{
 	OriginalPrompt = $function:Prompt
 	LastHistoryId = -1
 	IsInExecution = $false
@@ -27,24 +27,24 @@ $Global:__VSCodeState = @{
 # Store the nonce in a regular variable and unset the environment variable. It's by design that
 # anything that can execute PowerShell code can read the nonce, as it's basically impossible to hide
 # in PowerShell. The most important thing is getting it out of the environment.
-$Global:__VSCodeState.Nonce = $env:VSCODE_NONCE
+$Global:__Son of AntonState.Nonce = $env:VSCODE_NONCE
 $env:VSCODE_NONCE = $null
 
-$Global:__VSCodeState.IsStable = $env:VSCODE_STABLE
+$Global:__Son of AntonState.IsStable = $env:VSCODE_STABLE
 $env:VSCODE_STABLE = $null
 
-$Global:__VSCodeState.IsA11yMode = $env:VSCODE_A11Y_MODE
+$Global:__Son of AntonState.IsA11yMode = $env:VSCODE_A11Y_MODE
 $env:VSCODE_A11Y_MODE = $null
 
 $__vscode_shell_env_reporting = $env:VSCODE_SHELL_ENV_REPORTING
 $env:VSCODE_SHELL_ENV_REPORTING = $null
 if ($__vscode_shell_env_reporting) {
-	$Global:__VSCodeState.EnvVarsToReport = $__vscode_shell_env_reporting.Split(',')
+	$Global:__Son of AntonState.EnvVarsToReport = $__vscode_shell_env_reporting.Split(',')
 }
 Remove-Variable -Name __vscode_shell_env_reporting -ErrorAction SilentlyContinue
 
 $osVersion = [System.Environment]::OSVersion.Version
-$Global:__VSCodeState.IsWindows10 = $IsWindows -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
+$Global:__Son of AntonState.IsWindows10 = $IsWindows -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
 Remove-Variable -Name osVersion -ErrorAction SilentlyContinue
 
 if ($env:VSCODE_ENV_REPLACE) {
@@ -81,7 +81,7 @@ if (-not $env:VSCODE_PYTHON_AUTOACTIVATE_GUARD) {
 
 		try {
 			Invoke-Expression $activateScript
-			$Global:__VSCodeState.OriginalPrompt = $function:Prompt
+			$Global:__Son of AntonState.OriginalPrompt = $function:Prompt
 		}
 		catch {
 			$activationError = $_
@@ -92,7 +92,7 @@ if (-not $env:VSCODE_PYTHON_AUTOACTIVATE_GUARD) {
 	Get-ChildItem Env:VSCODE_PYTHON_*_ACTIVATE | Remove-Item -ErrorAction SilentlyContinue
 }
 
-function Global:__VSCode-Escape-Value([string]$value) {
+function Global:__Son of Anton-Escape-Value([string]$value) {
 	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
 	# Replace any non-alphanumeric characters.
 	[regex]::Replace($value, "[$([char]0x00)-$([char]0x1f)\\\n;]", { param($match)
@@ -112,9 +112,9 @@ function Global:Prompt() {
 	$Result = ""
 	# Skip finishing the command if the first command has not yet started or an execution has not
 	# yet begun
-	if ($Global:__VSCodeState.LastHistoryId -ne -1 -and ($Global:__VSCodeState.HasPSReadLine -eq $false -or $Global:__VSCodeState.IsInExecution -eq $true)) {
-		$Global:__VSCodeState.IsInExecution = $false
-		if ($LastHistoryEntry.Id -eq $Global:__VSCodeState.LastHistoryId) {
+	if ($Global:__Son of AntonState.LastHistoryId -ne -1 -and ($Global:__Son of AntonState.HasPSReadLine -eq $false -or $Global:__Son of AntonState.IsInExecution -eq $true)) {
+		$Global:__Son of AntonState.IsInExecution = $false
+		if ($LastHistoryEntry.Id -eq $Global:__Son of AntonState.LastHistoryId) {
 			# Don't provide a command line or exit code if there was no history entry (eg. ctrl+c, enter on no command)
 			$Result += "$([char]0x1b)]633;D`a"
 		}
@@ -129,19 +129,19 @@ function Global:Prompt() {
 	$Result += "$([char]0x1b)]633;A`a"
 	# Current working directory
 	# OSC 633 ; <Property>=<Value> ST
-	$Result += if ($pwd.Provider.Name -eq 'FileSystem') { "$([char]0x1b)]633;P;Cwd=$(__VSCode-Escape-Value $pwd.ProviderPath)`a" }
+	$Result += if ($pwd.Provider.Name -eq 'FileSystem') { "$([char]0x1b)]633;P;Cwd=$(__Son of Anton-Escape-Value $pwd.ProviderPath)`a" }
 
 	# Send current environment variables as JSON
 	# OSC 633 ; EnvJson ; <Environment> ; <Nonce>
-	if ($Global:__VSCodeState.EnvVarsToReport.Count -gt 0) {
+	if ($Global:__Son of AntonState.EnvVarsToReport.Count -gt 0) {
 		$envMap = @{}
-        foreach ($varName in $Global:__VSCodeState.EnvVarsToReport) {
+        foreach ($varName in $Global:__Son of AntonState.EnvVarsToReport) {
             if (Test-Path "env:$varName") {
                 $envMap[$varName] = (Get-Item "env:$varName").Value
             }
         }
         $envJson = $envMap | ConvertTo-Json -Compress
-        $Result += "$([char]0x1b)]633;EnvJson;$(__VSCode-Escape-Value $envJson);$($Global:__VSCodeState.Nonce)`a"
+        $Result += "$([char]0x1b)]633;EnvJson;$(__Son of Anton-Escape-Value $envJson);$($Global:__Son of AntonState.Nonce)`a"
 	}
 
 	# Before running the original prompt, put $? back to what it was:
@@ -149,18 +149,18 @@ function Global:Prompt() {
 		Write-Error "failure" -ea ignore
 	}
 	# Run the original prompt
-	$OriginalPrompt += $Global:__VSCodeState.OriginalPrompt.Invoke()
+	$OriginalPrompt += $Global:__Son of AntonState.OriginalPrompt.Invoke()
 	$Result += $OriginalPrompt
 
 	# Prompt
 	# OSC 633 ; <Property>=<Value> ST
-	if ($Global:__VSCodeState.IsStable -eq "0") {
-		$Result += "$([char]0x1b)]633;P;Prompt=$(__VSCode-Escape-Value $OriginalPrompt)`a"
+	if ($Global:__Son of AntonState.IsStable -eq "0") {
+		$Result += "$([char]0x1b)]633;P;Prompt=$(__Son of Anton-Escape-Value $OriginalPrompt)`a"
 	}
 
 	# Write command started
 	$Result += "$([char]0x1b)]633;B`a"
-	$Global:__VSCodeState.LastHistoryId = $LastHistoryEntry.Id
+	$Global:__Son of AntonState.LastHistoryId = $LastHistoryEntry.Id
 	return $Result
 }
 
@@ -175,7 +175,7 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 	[Console]::Write("$([char]0x1b)]633;P;PromptType=posh-git`a")
 }
 
-if ($Global:__VSCodeState.IsA11yMode -eq "1") {
+if ($Global:__Son of AntonState.IsA11yMode -eq "1") {
 	if (-not (Get-Module -Name PSReadLine)) {
 		$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 		$specialPsrlPath = Join-Path $scriptRoot 'psreadline'
@@ -188,24 +188,24 @@ if ($Global:__VSCodeState.IsA11yMode -eq "1") {
 
 # Only send the command executed sequence when PSReadLine is loaded, if not shell integration should
 # still work thanks to the command line sequence
-$Global:__VSCodeState.HasPSReadLine = $false
+$Global:__Son of AntonState.HasPSReadLine = $false
 if (Get-Module -Name PSReadLine) {
-	$Global:__VSCodeState.HasPSReadLine = $true
+	$Global:__Son of AntonState.HasPSReadLine = $true
 	[Console]::Write("$([char]0x1b)]633;P;HasRichCommandDetection=True`a")
 
-	$Global:__VSCodeState.OriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
+	$Global:__Son of AntonState.OriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
 	function Global:PSConsoleHostReadLine {
-		$CommandLine = $Global:__VSCodeState.OriginalPSConsoleHostReadLine.Invoke()
-		$Global:__VSCodeState.IsInExecution = $true
+		$CommandLine = $Global:__Son of AntonState.OriginalPSConsoleHostReadLine.Invoke()
+		$Global:__Son of AntonState.IsInExecution = $true
 
 		# Command line
 		# OSC 633 ; E [; <CommandLine> [; <Nonce>]] ST
 		$Result = "$([char]0x1b)]633;E;"
-		$Result += $(__VSCode-Escape-Value $CommandLine)
+		$Result += $(__Son of Anton-Escape-Value $CommandLine)
 		# Only send the nonce if the OS is not Windows 10 as it seems to echo to the terminal
 		# sometimes
-		if ($Global:__VSCodeState.IsWindows10 -eq $false) {
-			$Result += ";$($Global:__VSCodeState.Nonce)"
+		if ($Global:__Son of AntonState.IsWindows10 -eq $false) {
+			$Result += ";$($Global:__Son of AntonState.Nonce)"
 		}
 		$Result += "`a"
 
@@ -220,9 +220,9 @@ if (Get-Module -Name PSReadLine) {
 	}
 
 	# Set ContinuationPrompt property
-	$Global:__VSCodeState.ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
-	if ($Global:__VSCodeState.ContinuationPrompt) {
-		[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__VSCode-Escape-Value $Global:__VSCodeState.ContinuationPrompt)`a")
+	$Global:__Son of AntonState.ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
+	if ($Global:__Son of AntonState.ContinuationPrompt) {
+		[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__Son of Anton-Escape-Value $Global:__Son of AntonState.ContinuationPrompt)`a")
 	}
 }
 
@@ -258,7 +258,7 @@ function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
 }
 
-if ($Global:__VSCodeState.HasPSReadLine) {
+if ($Global:__Son of AntonState.HasPSReadLine) {
 	Set-MappedKeyHandlers
 
 	# Prevent AI-executed commands from polluting shell history

@@ -299,7 +299,7 @@ export class SettingsDocument {
 
 			/**
 			 *  Skip if suggestions are for first language override range
-			 *  Since VSCode registers language overrides to the schema, JSON language server does suggestions for first language override.
+			 *  Since Son of Anton registers language overrides to the schema, JSON language server does suggestions for first language override.
 			 */
 			if (languageOverrideRange && !languageOverrideRange.isEqual(languageOverridesRanges[0])) {
 				const languages = await vscode.languages.getLanguages();

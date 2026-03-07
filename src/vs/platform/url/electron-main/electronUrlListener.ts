@@ -17,13 +17,13 @@ import { IProtocolUrl } from './url.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 
 /**
- * A listener for URLs that are opened from the OS and handled by VSCode.
+ * A listener for URLs that are opened from the OS and handled by Son of Anton.
  * Depending on the platform, this works differently:
- * - Windows: we use `app.setAsDefaultProtocolClient()` to register VSCode with the OS
+ * - Windows: we use `app.setAsDefaultProtocolClient()` to register Son of Anton with the OS
  *            and additionally add the `open-url` command line argument to identify.
  * - macOS:   we rely on `app.on('open-url')` to be called by the OS
  * - Linux:   we have a special shortcut installed (`resources/linux/code-url-handler.desktop`)
- *            that calls VSCode with the `open-url` command line argument
+ *            that calls Son of Anton with the `open-url` command line argument
  *            (https://github.com/microsoft/vscode/pull/56727)
  */
 export class ElectronURLListener extends Disposable {

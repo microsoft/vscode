@@ -1155,7 +1155,7 @@ suite('LanguageModelToolsService', () => {
 		}
 	});
 
-	test('toToolAndToolSetEnablementMap map Github to VSCode tools', () => {
+	test('toToolAndToolSetEnablementMap map Github to Son of Anton tools', () => {
 		const runInTerminalToolData: IToolData = {
 			id: 'runInTerminalId',
 			toolReferenceName: 'runInTerminal',

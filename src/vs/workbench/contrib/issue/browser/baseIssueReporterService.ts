@@ -48,7 +48,7 @@ interface SearchResult {
 }
 
 enum IssueSource {
-	VSCode = 'vscode',
+	SonOfAnton = 'vscode',
 	Extension = 'extension',
 	Marketplace = 'marketplace',
 	Unknown = 'unknown'
@@ -129,7 +129,7 @@ export class BaseIssueReporterService extends Disposable {
 		}));
 
 		const fileOnMarketplace = data.issueSource === IssueSource.Marketplace;
-		const fileOnProduct = data.issueSource === IssueSource.VSCode;
+		const fileOnProduct = data.issueSource === IssueSource.SonOfAnton;
 		this.issueReporterModel.update({ fileOnMarketplace, fileOnProduct });
 
 		this.createAction = this._register(new Action('issueReporter.create', localize('create', "Create on GitHub"), undefined, true, async () => {
@@ -615,7 +615,7 @@ export class BaseIssueReporterService extends Disposable {
 
 			// eslint-disable-next-line no-restricted-syntax
 			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
-			if (value === IssueSource.VSCode) {
+			if (value === IssueSource.SonOfAnton) {
 				descriptionTextArea.placeholder = localize('vscodePlaceholder', "E.g Workbench is missing problems panel");
 			} else if (value === IssueSource.Extension) {
 				descriptionTextArea.placeholder = localize('extensionPlaceholder', "E.g. Missing alt text on extension readme image");
@@ -630,7 +630,7 @@ export class BaseIssueReporterService extends Disposable {
 				fileOnExtension = true;
 			} else if (value === IssueSource.Marketplace) {
 				fileOnMarketplace = true;
-			} else if (value === IssueSource.VSCode) {
+			} else if (value === IssueSource.SonOfAnton) {
 				fileOnProduct = true;
 			}
 
@@ -650,7 +650,7 @@ export class BaseIssueReporterService extends Disposable {
 			if (this.issueReporterModel.fileOnExtension() === false) {
 				// eslint-disable-next-line no-restricted-syntax
 				const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
-				this.searchVSCodeIssues(title, issueDescription);
+				this.searchSonOfAntonIssues(title, issueDescription);
 			}
 		});
 
@@ -796,7 +796,7 @@ export class BaseIssueReporterService extends Disposable {
 		return selectedExtension && selectedExtension.bugsUrl;
 	}
 
-	public searchVSCodeIssues(title: string, issueDescription?: string): void {
+	public searchSonOfAntonIssues(title: string, issueDescription?: string): void {
 		if (title) {
 			this.searchDuplicates(title, issueDescription);
 		} else {
@@ -814,7 +814,7 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		const description = this.issueReporterModel.getData().issueDescription;
-		this.searchVSCodeIssues(title, description);
+		this.searchSonOfAntonIssues(title, description);
 	}
 
 	private searchExtensionIssues(title: string): void {
@@ -998,7 +998,7 @@ export class BaseIssueReporterService extends Disposable {
 
 		sourceSelect.innerText = '';
 		sourceSelect.append(this.makeOption('', localize('selectSource', "Select source"), true));
-		sourceSelect.append(this.makeOption(IssueSource.VSCode, localize('vscode', "Visual Studio Code"), false));
+		sourceSelect.append(this.makeOption(IssueSource.SonOfAnton, localize('vscode', "Visual Studio Code"), false));
 		sourceSelect.append(this.makeOption(IssueSource.Extension, localize('extension', "A VS Code extension"), false));
 		if (this.product.reportMarketplaceIssueUrl) {
 			sourceSelect.append(this.makeOption(IssueSource.Marketplace, localize('marketplace', "Extensions Marketplace"), false));

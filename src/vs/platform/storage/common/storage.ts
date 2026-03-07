@@ -376,7 +376,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 				}
 
 				// On some OS we do not get enough time to persist state on shutdown (e.g. when
-				// Windows restarts after applying updates). In other cases, VSCode might crash,
+				// Windows restarts after applying updates). In other cases, Son of Anton might crash,
 				// so we periodically save state to reduce the chance of loosing any state.
 				// In the browser we do not have support for long running unload sequences. As such,
 				// we cannot ask for saving state in that moment, because that would result in a

@@ -22,7 +22,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { IEditorModel } from '../../../../../editor/common/editorCommon.js';
 import { parseCommaSeparatedList, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { isBoolean } from '../../../../../base/common/types.js';
-import { getTarget, isTarget, isVSCodeOrDefaultTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
+import { getTarget, isTarget, isSonOfAntonOrDefaultTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
 
 class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider {
 
@@ -63,7 +63,7 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 		}
 
 		const target = getTarget(promptType, header);
-		if (!isVSCodeOrDefaultTarget(target)) {
+		if (!isSonOfAntonOrDefaultTarget(target)) {
 			return undefined;
 		}
 
