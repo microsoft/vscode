@@ -1,8 +1,8 @@
 {
-	"nameShort": "Code - OSS",
-	"nameLong": "Code - OSS",
-	"applicationName": "code-oss",
-	"dataFolderName": ".vscode-oss",
+	"nameShort": "Project Forge",
+	"nameLong": "Project Forge IDE",
+	"applicationName": "project-forge",
+	"dataFolderName": ".project-forge",
 	"win32MutexName": "vscodeoss",
 	"licenseName": "MIT",
 	"licenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
@@ -11,7 +11,7 @@
 	"serverLicense": [],
 	"serverLicensePrompt": "",
 	"serverApplicationName": "code-server-oss",
-	"serverDataFolderName": ".vscode-server-oss",
+	"serverDataFolderName": ".project-forge-server",
 	"tunnelApplicationName": "code-tunnel-oss",
 	"win32DirName": "Microsoft Code OSS",
 	"win32NameVersion": "Microsoft Code OSS",
@@ -155,5 +155,15 @@
 		"github-enterprise": [
 			"GitHub.copilot-chat"
 		]
+	},
+	"enableTelemetry": false,
+	"extensionsGallery": {
+		"serviceUrl": "https://open-vsx.org/vscode/gallery",
+		"itemUrl": "https://open-vsx.org/vscode/item",
+		"resourceUrlTemplate": "https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}",
+		"controlUrl": "",
+		"nlsBaseUrl": "",
+		"publisherUrl": "",
+		"extensionUrlTemplate": "https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}"
 	}
 }
