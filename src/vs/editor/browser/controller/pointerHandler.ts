@@ -10,8 +10,7 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import { IPointerHandlerHelper, MouseHandler } from './mouseHandler.js';
-import { NavigationCommandRevealType } from '../coreCommands.js';
-import { IMouseTarget, MouseTargetType } from '../editorBrowser.js';
+import { IMouseTarget } from '../editorBrowser.js';
 import { EditorMouseEvent, EditorPointerEventFactory } from '../editorDom.js';
 import { ViewController } from '../view/viewController.js';
 import { ViewContext } from '../../common/viewModel/viewContext.js';
@@ -59,8 +58,16 @@ export class PointerEventHandler extends MouseHandler {
 		}
 
 		event.preventDefault();
-		this.viewHelper.focusTextArea();
+
+		// Dispatch the gesture first to handle cursor positioning and word selection
+		// before focusing the textarea. This ensures double-tap word selection works
+		// correctly on iOS/iPadOS.
 		this._dispatchGesture(event, /*inSelectionMode*/false);
+
+		// Focus the textarea after dispatching the gesture.
+		// On iOS/iPadOS, this focus call happens in direct response to user touch,
+		// which is required for the on-screen keyboard to appear.
+		this.viewHelper.focusTextArea();
 	}
 
 	private onChange(event: GestureEvent): void {
@@ -69,27 +76,6 @@ export class PointerEventHandler extends MouseHandler {
 		}
 		if (this._lastPointerType === 'pen') {
 			this._dispatchGesture(event, /*inSelectionMode*/true);
-		}
-	}
-
-	private _dispatchGesture(event: GestureEvent, inSelectionMode: boolean): void {
-		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
-		if (target.position) {
-			this.viewController.dispatchMouse({
-				position: target.position,
-				mouseColumn: target.position.column,
-				startedOnLineNumbers: false,
-				revealType: NavigationCommandRevealType.Minimal,
-				mouseDownCount: event.tapCount,
-				inSelectionMode,
-				altKey: false,
-				ctrlKey: false,
-				metaKey: false,
-				shiftKey: false,
-				leftButton: false,
-				middleButton: false,
-				onInjectedText: target.type === MouseTargetType.CONTENT_TEXT && target.detail.injectedText !== null
-			});
 		}
 	}
 
@@ -117,18 +103,18 @@ class TouchHandler extends MouseHandler {
 	private onTap(event: GestureEvent): void {
 		event.preventDefault();
 
+		// Send the tap event also to the <textarea> (for input purposes)
+		const syntheticEvent = document.createEvent('CustomEvent');
+		syntheticEvent.initEvent(TextAreaSyntethicEvents.Tap, false, true);
+		this.viewHelper.dispatchTextAreaEvent(syntheticEvent);
+
+		// Dispatch gesture to handle cursor positioning and word selection
+		this._dispatchGesture(event, /*inSelectionMode*/false);
+
+		// Focus the textarea after dispatching the gesture.
+		// This ensures double-tap word selection works correctly,
+		// and the keyboard appears on touch devices.
 		this.viewHelper.focusTextArea();
-
-		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
-
-		if (target.position) {
-			// Send the tap event also to the <textarea> (for input purposes)
-			const event = document.createEvent('CustomEvent');
-			event.initEvent(TextAreaSyntethicEvents.Tap, false, true);
-			this.viewHelper.dispatchTextAreaEvent(event);
-
-			this.viewController.moveTo(target.position, NavigationCommandRevealType.Minimal);
-		}
 	}
 
 	private onChange(e: GestureEvent): void {
