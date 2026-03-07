@@ -219,7 +219,7 @@ export class ChatSendPendingImmediatelyAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const chatService = accessor.get(IChatService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const [context] = args;
@@ -250,7 +250,7 @@ export class ChatSendPendingImmediatelyAction extends Action2 {
 		];
 
 		chatService.setPendingRequests(context.sessionResource, reordered);
-		chatService.cancelCurrentRequestForSession(context.sessionResource, 'queueRunNext');
+		await chatService.cancelCurrentRequestForSession(context.sessionResource, 'queueRunNext');
 		chatService.processPendingRequests(context.sessionResource);
 	}
 }

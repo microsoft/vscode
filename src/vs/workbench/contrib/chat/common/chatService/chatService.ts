@@ -1410,7 +1410,7 @@ export interface IChatService {
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
-	cancelCurrentRequestForSession(sessionResource: URI, source?: string): void;
+	cancelCurrentRequestForSession(sessionResource: URI, source?: string): Promise<void>;
 	/**
 	 * Sets yieldRequested on the active request for the given session.
 	 */
