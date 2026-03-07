@@ -12,6 +12,7 @@ import { constObservable, observableValue } from '../../../../../../base/common/
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -575,12 +576,14 @@ suite('ChatService', () => {
 
 	test('cancelCurrentRequestForSession returns after timeout if response does not complete', async () => {
 		const requestStarted = new DeferredPromise<void>();
+		const completeRequest = new DeferredPromise<void>();
 
 		const hangingAgent: IChatAgentImplementation = {
 			async invoke(request, progress, history, token) {
 				requestStarted.complete();
-				// Never complete - simulate a hung request
-				return new Promise<{}>(() => { });
+				// Wait for external signal, ignoring cancellation to simulate a hung agent
+				await completeRequest.p;
+				return {};
 			},
 		};
 
@@ -596,14 +599,15 @@ suite('ChatService', () => {
 
 		await requestStarted.p;
 
-		// Cancel should return after timeout (~1s) even though the request never completes
-		const before = Date.now();
-		await testService.cancelCurrentRequestForSession(model.sessionResource, 'test');
-		const elapsed = Date.now() - before;
+		// Cancel should return after timeout even though the agent has not completed.
+		// Use faked timers so raceTimeout's 1s setTimeout fires instantly.
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await testService.cancelCurrentRequestForSession(model.sessionResource, 'test');
+		});
 
-		// Should have waited at least close to the 1s timeout but not forever
-		assert.ok(elapsed >= 900, `Should have waited for timeout, but only waited ${elapsed}ms`);
-		assert.ok(elapsed < 5000, `Should not have waited forever, waited ${elapsed}ms`);
+		// Let the agent finish so the test cleans up properly
+		completeRequest.complete();
+		await response.data.responseCompletePromise;
 	});
 });
 
