@@ -24,6 +24,7 @@
 	align-items: center;
 	padding: 40px;
 	max-width: 900px;
+	min-width: 350px;
 	width: 100%;
 	box-sizing: border-box;
 }
