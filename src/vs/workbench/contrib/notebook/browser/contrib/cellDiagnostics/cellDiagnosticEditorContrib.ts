@@ -118,8 +118,8 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 			const disposables: IDisposable[] = [];
 			const errorLabel = metadata.error.name ? `${metadata.error.name}: ${metadata.error.message}` : metadata.error.message;
 			const marker = this.createMarkerData(errorLabel, metadata.error.location);
-			this.markerService.changeOne(CellDiagnostics.ID, cell.uri, [marker]);
-			disposables.push(toDisposable(() => this.markerService.changeOne(CellDiagnostics.ID, cell.uri, [])));
+			this.markerService.changeOne(undefined, CellDiagnostics.ID, cell.uri, [marker]);
+			disposables.push(toDisposable(() => this.markerService.changeOne(undefined, CellDiagnostics.ID, cell.uri, [])));
 			cell.executionErrorDiagnostic.set(metadata.error, undefined);
 			disposables.push(toDisposable(() => cell.executionErrorDiagnostic.set(undefined, undefined)));
 			disposables.push(autorun((r) => {

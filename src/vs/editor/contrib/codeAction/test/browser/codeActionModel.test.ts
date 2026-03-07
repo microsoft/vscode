@@ -78,7 +78,7 @@ suite('CodeActionModel', () => {
 			}));
 
 			// start here
-			markerService.changeOne('fake', uri, [{
+			markerService.changeOne(undefined, 'fake', uri, [{
 				startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
 				message: 'error',
 				severity: 1,
@@ -94,7 +94,7 @@ suite('CodeActionModel', () => {
 			const reg = registry.register(languageId, testProvider);
 			store.add(reg);
 
-			markerService.changeOne('fake', uri, [{
+			markerService.changeOne(undefined, 'fake', uri, [{
 				startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
 				message: 'error',
 				severity: 1,
@@ -147,7 +147,7 @@ suite('CodeActionModel', () => {
 				}, 0);
 			}, 5 /*delay*/));
 
-			markerService.changeOne('fake', uri, [{
+			markerService.changeOne(undefined, 'fake', uri, [{
 				startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
 				message: 'error',
 				severity: 1,

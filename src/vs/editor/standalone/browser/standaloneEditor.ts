@@ -249,7 +249,7 @@ export function setModelLanguage(model: ITextModel, mimeTypeOrLanguageId: string
 export function setModelMarkers(model: ITextModel, owner: string, markers: IMarkerData[]): void {
 	if (model) {
 		const markerService = StandaloneServices.get(IMarkerService);
-		markerService.changeOne(owner, model.uri, markers);
+		markerService.changeOne(undefined, owner, model.uri, markers);
 	}
 }
 
@@ -258,7 +258,7 @@ export function setModelMarkers(model: ITextModel, owner: string, markers: IMark
  */
 export function removeAllMarkers(owner: string) {
 	const markerService = StandaloneServices.get(IMarkerService);
-	markerService.changeAll(owner, []);
+	markerService.changeAll(undefined, owner, []);
 }
 
 /**

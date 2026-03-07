@@ -2124,7 +2124,7 @@ export interface ExtHostConfigurationShape {
 }
 
 export interface ExtHostDiagnosticsShape {
-	$acceptMarkersChange(data: [UriComponents, IMarkerData[]][]): void;
+	$acceptMarkerServiceChange(data: [UriComponents, IMarkerData[]][]): void;
 }
 
 export interface ExtHostDocumentContentProvidersShape {

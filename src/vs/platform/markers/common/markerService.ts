@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFalsyOrEmpty, isNonEmptyArray } from '../../../base/common/arrays.js';
+import { isNonEmptyArray } from '../../../base/common/arrays.js';
 import { MicrotaskEmitter } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -12,6 +12,7 @@ import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IMarker, IMarkerData, IMarkerReadOptions, IMarkerService, IResourceMarker, MarkerSeverity, MarkerStatistics } from './markers.js';
+import { markerOriginPriorityCompare, markerOriginSelectPrioritized, IOriginMarkers, IMarkerOrigin } from './markerOrigin.js';
 
 export const unsupportedSchemas = new Set([
 	Schemas.inMemory,
@@ -157,7 +158,8 @@ export class MarkerService implements IMarkerService {
 
 	readonly onMarkerChanged = this._onMarkerChanged.event;
 
-	private readonly _data = new DoubleResourceMap<IMarker[]>();
+	private readonly _facade = new DoubleResourceMap<IOriginMarkers>();
+	private readonly _backyard = new DoubleResourceMap<Map<IMarkerOrigin, IOriginMarkers>>();
 	private readonly _stats = new MarkerStats(this);
 	private readonly _filteredResources = new ResourceMap<string[]>();
 
@@ -170,31 +172,141 @@ export class MarkerService implements IMarkerService {
 		return this._stats;
 	}
 
-	remove(owner: string, resources: URI[]): void {
+	/**
+	 * Removes origin for a given owner and resource
+	 * @returns `true` if facade markers were affected
+	 */
+	private _removeOriginForOwnerResource(origin: IMarkerOrigin, owner: string, resource: URI): boolean {
+		const backyardMarkers = this._backyard.get(resource, owner);
+		if (backyardMarkers === undefined) {
+			// No origins exist
+			return false;
+		}
+
+		backyardMarkers.delete(origin);
+		if (backyardMarkers.size === 0) {
+			this._backyard.delete(resource, owner);
+		}
+
+		const facadeMarkers = this._facade.get(resource, owner);
+		if (facadeMarkers === undefined || facadeMarkers.origin !== origin) {
+			// Removed origin is not at facade
+			return false;
+		}
+
+		// Change facade markers based on existing origins priority
+		const prioritized = markerOriginSelectPrioritized(backyardMarkers);
+		if (prioritized !== undefined) {
+			this._facade.set(resource, owner, prioritized);
+		} else {
+			this._facade.delete(resource, owner);
+		}
+		return true;
+	}
+
+	removeOriginForOwnerResources(origin: IMarkerOrigin, owner: string, resources: URI[]): void {
+		if (resources.length === 0) {
+			return;
+		}
+		const facadeAffectedUris: URI[] = [];
 		for (const resource of resources || []) {
-			this.changeOne(owner, resource, []);
+			const facadeAffected = this._removeOriginForOwnerResource(origin, owner, resource);
+			if (facadeAffected) {
+				facadeAffectedUris.push(resource);
+			}
+		}
+		if (facadeAffectedUris.length > 0) {
+			this._onMarkerChanged.fire(facadeAffectedUris);
 		}
 	}
 
-	changeOne(owner: string, resource: URI, markerData: IMarkerData[]): void {
+	/**
+	 * Removes origin from all resources for given owner
+	 * @returns list of affected facade uris
+	 */
+	private _removeOriginForOwner(origin: IMarkerOrigin, owner: string): URI[] {
+		const facadeUris: URI[] = [];
 
-		if (isFalsyOrEmpty(markerData)) {
-			// remove marker for this (owner,resource)-tuple
-			const removed = this._data.delete(resource, owner);
-			if (removed) {
-				this._onMarkerChanged.fire([resource]);
+		for (const backyardOrigins of this._backyard.values(owner)) {
+			const backyardMarkers = backyardOrigins.get(origin);
+			if (backyardMarkers === undefined) {
+				continue;
 			}
-
-		} else {
-			// insert marker for this (owner,resource)-tuple
-			const markers: IMarker[] = [];
-			for (const data of markerData) {
-				const marker = MarkerService._toMarker(owner, resource, data);
-				if (marker) {
-					markers.push(marker);
+			const first = Iterable.first(backyardMarkers.markers);
+			if (first !== undefined) {
+				const facadeAffected = this._removeOriginForOwnerResource(origin, owner, first.resource);
+				if (facadeAffected) {
+					facadeUris.push(first.resource);
 				}
 			}
-			this._data.set(resource, owner, markers);
+		}
+
+		return facadeUris;
+	}
+
+	removeOriginForOwner(origin: IMarkerOrigin, owner: string): void {
+		const facadeAffectedUris = this._removeOriginForOwner(origin, owner);
+		if (facadeAffectedUris.length > 0) {
+			this._onMarkerChanged.fire(facadeAffectedUris);
+		}
+	}
+
+	/**
+	 * Updates markers of origin for a given owner and resource
+	 * @returns `true` if facade markers were affected
+	 */
+	private _updateOriginForOwnerResource(origin: IMarkerOrigin, owner: string, resource: URI, markerData: IMarkerData[]): boolean {
+		// Sanitize incoming markers before updating
+		const markers: IMarker[] = [];
+		for (const data of markerData) {
+			const marker = MarkerService._toMarker(owner, resource, data);
+			if (marker !== undefined) {
+				markers.push(marker);
+			}
+		}
+
+		const backyardMarkers = this._backyard.get(resource, owner);
+		if (backyardMarkers === undefined) {
+			// No origins exist. Add and place on facade
+			const newOriginsMap = new Map<IMarkerOrigin, IOriginMarkers>();
+			const newMarkers: IOriginMarkers = { origin, markers };
+			newOriginsMap.set(origin, newMarkers);
+			this._backyard.set(resource, owner, newOriginsMap);
+			this._facade.set(resource, owner, newMarkers);
+			return true;
+		} else {
+			const originMarkers = backyardMarkers.get(origin);
+			const facadeMarkers = this._facade.get(resource, owner)!;
+			if (originMarkers === undefined) {
+				// New origin. Add and check if it is more prioritized to be at facade
+				const newMarkers: IOriginMarkers = { origin, markers };
+				backyardMarkers.set(origin, newMarkers);
+				if (markerOriginPriorityCompare(newMarkers, facadeMarkers) < 0) {
+					this._facade.set(resource, owner, newMarkers);
+					return true;
+				}
+			} else {
+				// Origin exists
+				originMarkers.markers = markers;
+				if (originMarkers.origin === facadeMarkers.origin) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Updates markers of origin for a given owner and resource
+	 * or removes origin from markerService if `null` is passed as markerData
+	 */
+	changeOne(origin: IMarkerOrigin, owner: string, resource: URI, markerData: IMarkerData[] | null): void {
+		const facadeAffected = markerData === null
+			? this._removeOriginForOwnerResource(origin, owner, resource)
+			: this._updateOriginForOwnerResource(origin, owner, resource, markerData);
+
+		if (facadeAffected) {
 			this._onMarkerChanged.fire([resource]);
 		}
 	}
@@ -232,7 +344,7 @@ export class MarkerService implements IMarkerService {
 			startLineNumber, startColumn, endLineNumber, endColumn,
 			relatedInformation,
 			modelVersionId,
-			tags, origin
+			tags
 		} = data;
 
 		if (!message) {
@@ -258,54 +370,39 @@ export class MarkerService implements IMarkerService {
 			endColumn,
 			relatedInformation,
 			modelVersionId,
-			tags,
-			origin
+			tags
 		};
 	}
 
-	changeAll(owner: string, data: IResourceMarker[]): void {
-		const changes: URI[] = [];
+	changeAll(origin: IMarkerOrigin, owner: string, data: IResourceMarker[]): void {
 
-		// remove old marker
-		const existing = this._data.values(owner);
-		if (existing) {
-			for (const data of existing) {
-				const first = Iterable.first(data);
-				if (first) {
-					changes.push(first.resource);
-					this._data.delete(first.resource, owner);
-				}
-			}
-		}
+		// Remove all markers of origin for owner
+		const facadeChanges = this._removeOriginForOwner(origin, owner);
 
-		// add new markers
+		// Add new markers
 		if (isNonEmptyArray(data)) {
-
-			// group by resource
-			const groups = new ResourceMap<IMarker[]>();
+			// Group by resource
+			const groups = new ResourceMap<IMarkerData[]>();
 			for (const { resource, marker: markerData } of data) {
-				const marker = MarkerService._toMarker(owner, resource, markerData);
-				if (!marker) {
-					// filter bad markers
-					continue;
-				}
 				const array = groups.get(resource);
 				if (!array) {
-					groups.set(resource, [marker]);
-					changes.push(resource);
+					groups.set(resource, [markerData]);
 				} else {
-					array.push(marker);
+					array.push(markerData);
 				}
 			}
 
-			// insert all
-			for (const [resource, value] of groups) {
-				this._data.set(resource, owner, value);
+			// Insert all
+			for (const [resource, markerData] of groups) {
+				const facadeAffected = this._updateOriginForOwnerResource(origin, owner, resource, markerData);
+				if (facadeAffected) {
+					facadeChanges.push(resource);
+				}
 			}
 		}
 
-		if (changes.length > 0) {
-			this._onMarkerChanged.fire(changes);
+		if (facadeChanges.length > 0) {
+			this._onMarkerChanged.fire(facadeChanges);
 		}
 	}
 
@@ -329,6 +426,9 @@ export class MarkerService implements IMarkerService {
 		};
 	}
 
+	/**
+	 * Returns markers from markerService facade
+	 */
 	read(filter: IMarkerReadOptions = Object.create(null)): IMarker[] {
 
 		let { owner, resource, severities, take } = filter;
@@ -345,13 +445,13 @@ export class MarkerService implements IMarkerService {
 				return [infoMarker];
 			}
 
-			const data = this._data.get(resource, owner);
+			const data = this._facade.get(resource, owner);
 			if (!data) {
 				return [];
 			}
 
 			const result: IMarker[] = [];
-			for (const marker of data) {
+			for (const marker of data.markers) {
 				if (take > 0 && result.length === take) {
 					break;
 				}
@@ -368,14 +468,14 @@ export class MarkerService implements IMarkerService {
 		} else {
 			// of one resource OR owner
 			const iterable = !owner && !resource
-				? this._data.values()
-				: this._data.values(resource ?? owner!);
+				? this._facade.values()
+				: this._facade.values(resource ?? owner!);
 
 			const result: IMarker[] = [];
 			const filtered = new ResourceSet();
 
 			for (const markers of iterable) {
-				for (const data of markers) {
+				for (const data of markers.markers) {
 					if (filtered.has(data.resource)) {
 						continue;
 					}

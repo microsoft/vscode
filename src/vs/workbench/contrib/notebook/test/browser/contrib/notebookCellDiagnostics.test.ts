@@ -22,6 +22,7 @@ import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebook
 import { setupInstantiationService, TestNotebookExecutionStateService, withTestNotebook } from '../testNotebookEditor.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../chat/common/constants.js';
+import { IMarkerOrigin } from '../../../../../../platform/markers/common/markerOrigin.js';
 
 
 suite('notebookCellDiagnostics', () => {
@@ -94,7 +95,7 @@ suite('notebookCellDiagnostics', () => {
 			private _onMarkersUpdated = new Emitter<void>();
 			override onMarkersUpdated = this._onMarkersUpdated.event;
 			override markers: ResourceMap<IMarkerData[]> = new ResourceMap();
-			override changeOne(owner: string, resource: URI, markers: IMarkerData[]) {
+			override changeOne(origin: IMarkerOrigin, owner: string, resource: URI, markers: IMarkerData[]) {
 				this.markers.set(resource, markers);
 				this._onMarkersUpdated.fire();
 			}

@@ -273,7 +273,6 @@ suite('ProblemPatternRegistry - msCompile', () => {
 	test('matches lines with leading whitespace', () => {
 		const matcher = matchers.createLineMatcher({
 			owner: 'msCompile',
-			applyTo: matchers.ApplyToKind.allDocuments,
 			fileLocation: matchers.FileLocationKind.Absolute,
 			pattern: matchers.ProblemPatternRegistry.get('msCompile')
 		});
@@ -288,7 +287,6 @@ suite('ProblemPatternRegistry - msCompile', () => {
 	test('matches lines without diagnostic code', () => {
 		const matcher = matchers.createLineMatcher({
 			owner: 'msCompile',
-			applyTo: matchers.ApplyToKind.allDocuments,
 			fileLocation: matchers.FileLocationKind.Absolute,
 			pattern: matchers.ProblemPatternRegistry.get('msCompile')
 		});
@@ -303,7 +301,6 @@ suite('ProblemPatternRegistry - msCompile', () => {
 	test('matches lines without location information', () => {
 		const matcher = matchers.createLineMatcher({
 			owner: 'msCompile',
-			applyTo: matchers.ApplyToKind.allDocuments,
 			fileLocation: matchers.FileLocationKind.Absolute,
 			pattern: matchers.ProblemPatternRegistry.get('msCompile')
 		});
@@ -319,7 +316,6 @@ suite('ProblemPatternRegistry - msCompile', () => {
 	test('matches lines with build prefixes and fatal errors', () => {
 		const matcher = matchers.createLineMatcher({
 			owner: 'msCompile',
-			applyTo: matchers.ApplyToKind.allDocuments,
 			fileLocation: matchers.FileLocationKind.Absolute,
 			pattern: matchers.ProblemPatternRegistry.get('msCompile')
 		});
@@ -335,7 +331,6 @@ suite('ProblemPatternRegistry - msCompile', () => {
 	test('matches info diagnostics with codes', () => {
 		const matcher = matchers.createLineMatcher({
 			owner: 'msCompile',
-			applyTo: matchers.ApplyToKind.allDocuments,
 			fileLocation: matchers.FileLocationKind.Absolute,
 			pattern: matchers.ProblemPatternRegistry.get('msCompile')
 		});
@@ -351,7 +346,6 @@ suite('ProblemPatternRegistry - msCompile', () => {
 	test('matches lines with subcategory prefixes', () => {
 		const matcher = matchers.createLineMatcher({
 			owner: 'msCompile',
-			applyTo: matchers.ApplyToKind.allDocuments,
 			fileLocation: matchers.FileLocationKind.Absolute,
 			pattern: matchers.ProblemPatternRegistry.get('msCompile')
 		});
@@ -367,7 +361,6 @@ suite('ProblemPatternRegistry - msCompile', () => {
 	test('matches complex diagnostics with all qualifiers', () => {
 		const matcher = matchers.createLineMatcher({
 			owner: 'msCompile',
-			applyTo: matchers.ApplyToKind.allDocuments,
 			fileLocation: matchers.FileLocationKind.Absolute,
 			pattern: matchers.ProblemPatternRegistry.get('msCompile')
 		});
@@ -387,7 +380,6 @@ suite('ProblemPatternRegistry - msCompile', () => {
 	test('ignores diagnostics without origin', () => {
 		const matcher = matchers.createLineMatcher({
 			owner: 'msCompile',
-			applyTo: matchers.ApplyToKind.allDocuments,
 			fileLocation: matchers.FileLocationKind.Absolute,
 			pattern: matchers.ProblemPatternRegistry.get('msCompile')
 		});
