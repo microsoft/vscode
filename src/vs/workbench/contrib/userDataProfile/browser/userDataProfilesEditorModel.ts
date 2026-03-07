@@ -1275,12 +1275,26 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		}
 
 		if (profile && !profile.isTransient && this.newProfileElement) {
+			// Only switch to the profile if it wasn't a preview (user is already on preview profile)
+			const wasNotPreview = !this.newProfileElement.previewProfile;
 			this.removeNewProfile();
 			const existing = this._profiles.find(([p]) => p.name === profile.name);
 			if (existing) {
 				this._onDidChange.fire(existing[0]);
 			} else {
 				this.onDidChangeProfiles({ added: [profile], removed: [], updated: [], all: this.userDataProfilesService.profiles });
+			}
+			// Switch to the newly created profile
+			if (wasNotPreview) {
+				try {
+					if (isWeb) {
+						await this.userDataProfileManagementService.switchProfile(profile);
+					} else {
+						await this.openWindow(profile);
+					}
+				} catch (error) {
+					// ignore - profile was created successfully, user can switch manually if needed
+				}
 			}
 		}
 
