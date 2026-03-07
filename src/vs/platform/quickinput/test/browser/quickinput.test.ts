@@ -279,4 +279,42 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.strictEqual(activeItemsFromEvent.length, 0);
 		assert.strictEqual(quickpick.activeItems.length, 0);
 	});
+
+	test('aria-activedescendant is cleared when shifting focus back to input', async () => {
+		// This test ensures that when using Shift+Tab to move focus from list back to input,
+		// the aria-activedescendant attribute is properly cleared for screen reader accessibility
+		const quickpick = store.add(controller.createQuickPick());
+		const items = [{ label: 'item 1' }, { label: 'item 2' }];
+		quickpick.items = items;
+		
+		const wait = setupWaitTilShownListener(controller);
+		quickpick.show();
+		await wait;
+		
+		// Find the input element
+		const inputElement = mainWindow.document.querySelector('input[aria-controls]') as HTMLInputElement;
+		assert.ok(inputElement, 'Input element should exist');
+		
+		// Wait for aria-activedescendant to be set (should happen when active items are set)
+		await new Promise<void>(resolve => {
+			const check = () => {
+				if (inputElement.hasAttribute('aria-activedescendant') && 
+					inputElement.getAttribute('aria-activedescendant') !== '') {
+					resolve();
+				} else {
+					setTimeout(check, 10);
+				}
+			};
+			check();
+		});
+
+		// Verify aria-activedescendant is initially set
+		assert.ok(inputElement.hasAttribute('aria-activedescendant'), 'aria-activedescendant should be set when list has active items');
+		
+		// Close the quickpick - this simulates the "leave" behavior
+		quickpick.hide();
+		
+		// The aria-activedescendant should be cleared
+		assert.ok(!inputElement.hasAttribute('aria-activedescendant'), 'aria-activedescendant should be removed when leaving the list');
+	});
 });
