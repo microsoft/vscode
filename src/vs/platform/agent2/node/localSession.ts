@@ -20,7 +20,6 @@ import {
 } from '../../agent/common/agentService.js';
 import { IAssistantMessage } from '../common/conversation.js';
 import {
-	SESSION_ENTRY_VERSION,
 	type ISessionAssistantMessage,
 	type ISessionToolComplete,
 	type ISessionToolStart,
@@ -82,9 +81,8 @@ export class LocalSession extends Disposable {
 
 	addUserMessage(prompt: string): ISessionUserMessage {
 		const entry: ISessionUserMessage = {
-			v: SESSION_ENTRY_VERSION,
 			type: 'user-message',
-			messageId: generateUuid(),
+			id: generateUuid(),
 			content: prompt,
 		};
 		this._entries.push(entry);
@@ -94,10 +92,9 @@ export class LocalSession extends Disposable {
 
 	addAssistantMessage(msg: IAssistantMessage, messageId: string): ISessionAssistantMessage {
 		const entry: ISessionAssistantMessage = {
-			v: SESSION_ENTRY_VERSION,
 			type: 'assistant-message',
-			messageId,
-			contentParts: msg.content,
+			id: messageId,
+			parts: msg.content,
 			modelIdentity: msg.modelIdentity,
 			providerMetadata: msg.providerMetadata,
 		};
@@ -110,7 +107,6 @@ export class LocalSession extends Disposable {
 		this._activeToolCalls.set(toolCallId, { toolName, args });
 
 		const entry: ISessionToolStart = {
-			v: SESSION_ENTRY_VERSION,
 			type: 'tool-start',
 			toolCallId,
 			toolName,
@@ -131,7 +127,6 @@ export class LocalSession extends Disposable {
 		const toolArgs = tracked?.args ?? {};
 
 		const entry: ISessionToolComplete = {
-			v: SESSION_ENTRY_VERSION,
 			type: 'tool-complete',
 			toolCallId,
 			toolName,

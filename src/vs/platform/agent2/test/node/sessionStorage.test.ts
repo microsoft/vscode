@@ -11,9 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../../agent/common/agentService.js';
 import { SessionStorage, SessionWriter } from '../../node/sessionStorage.js';
-import { SESSION_ENTRY_VERSION } from '../../common/sessionTypes.js';
 
-const V = SESSION_ENTRY_VERSION;
 const log = new NullLogService();
 
 suite('SessionStorage', () => {
@@ -50,10 +48,10 @@ suite('SessionStorage', () => {
 		const wd = '/workspace';
 		const writer = await createWriter('test-session-2', wd);
 
-		writer.append({ v: V, type: 'user-message', messageId: 'msg-1', content: 'Hello world' });
+		writer.append({ type: 'user-message', id: 'msg-1', content: 'Hello world' });
 		writer.append({
-			v: V, type: 'assistant-message', messageId: 'msg-2',
-			contentParts: [{ type: 'text', text: 'Hi there!' }],
+			type: 'assistant-message', id: 'msg-2',
+			parts: [{ type: 'text', text: 'Hi there!' }],
 			modelIdentity: { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514' },
 		});
 		await writer.flush();
@@ -68,7 +66,7 @@ suite('SessionStorage', () => {
 		}
 		assert.strictEqual(restored.entries[1].type, 'assistant-message');
 		if (restored.entries[1].type === 'assistant-message') {
-			assert.strictEqual(restored.entries[1].contentParts[0].type, 'text');
+			assert.strictEqual(restored.entries[1].parts[0].type, 'text');
 		}
 	});
 
@@ -77,11 +75,11 @@ suite('SessionStorage', () => {
 		const writer = await createWriter('test-session-3', wd);
 
 		writer.append({
-			v: V, type: 'tool-start', toolCallId: 'tc-1', toolName: 'readFile',
+			type: 'tool-start', toolCallId: 'tc-1', toolName: 'readFile',
 			displayName: 'Read File', invocationMessage: 'Reading test.txt',
 		});
 		writer.append({
-			v: V, type: 'tool-complete', toolCallId: 'tc-1', toolName: 'readFile',
+			type: 'tool-complete', toolCallId: 'tc-1', toolName: 'readFile',
 			success: true, pastTenseMessage: 'Read test.txt', toolOutput: 'file contents',
 		});
 		await writer.flush();
@@ -97,8 +95,8 @@ suite('SessionStorage', () => {
 	test('JSONL file is append-only', async () => {
 		const wd = '/workspace';
 		const writer = await createWriter('test-session-4', wd);
-		writer.append({ v: V, type: 'user-message', messageId: 'msg-1', content: 'First message' });
-		writer.append({ v: V, type: 'user-message', messageId: 'msg-2', content: 'Second message' });
+		writer.append({ type: 'user-message', id: 'msg-1', content: 'First message' });
+		writer.append({ type: 'user-message', id: 'msg-2', content: 'Second message' });
 		await writer.flush();
 
 		const sessionDir = join(tmpDir, 'agentSessions');
@@ -113,7 +111,8 @@ suite('SessionStorage', () => {
 		assert.strictEqual(lines.length, 3);
 
 		for (const line of lines) {
-			JSON.parse(line);
+			const record = JSON.parse(line);
+			assert.strictEqual(typeof record.v, 'number', 'every persisted line must have a version');
 		}
 	});
 
@@ -131,7 +130,7 @@ suite('SessionStorage', () => {
 
 	test('findAndRestoreSession scans all workspaces', async () => {
 		const writer = await createWriter('session-find', '/some-workspace');
-		writer.append({ v: V, type: 'user-message', messageId: 'msg-1', content: 'test' });
+		writer.append({ type: 'user-message', id: 'msg-1', content: 'test' });
 		await writer.flush();
 
 		const uri = AgentSession.uri('local', 'session-find');
@@ -143,7 +142,7 @@ suite('SessionStorage', () => {
 
 	test('extracts summary from first user message', async () => {
 		const writer = await createWriter('session-summary', '/workspace');
-		writer.append({ v: V, type: 'user-message', messageId: 'msg-1', content: 'Help me refactor this function' });
+		writer.append({ type: 'user-message', id: 'msg-1', content: 'Help me refactor this function' });
 		await writer.flush();
 
 		const sessions = await storage.listSessions('/workspace');
@@ -168,11 +167,44 @@ suite('SessionStorage', () => {
 		const wd = '/workspace';
 		const startTime = Date.now() - 10000;
 		const writer = await createWriter('session-modified', wd);
-		writer.append({ v: V, type: 'user-message', messageId: 'msg-1', content: 'test' });
+		writer.append({ type: 'user-message', id: 'msg-1', content: 'test' });
 		await writer.flush();
 
 		const sessions = await storage.listSessions(wd);
 		assert.strictEqual(sessions.length, 1);
 		assert.ok(sessions[0].modifiedTime >= startTime);
+	});
+
+	test('normalizes legacy v1 field names on restore', async () => {
+		// Write a raw JSONL file using the old v1 field names (messageId, contentParts)
+		const wd = '/legacy-workspace';
+		const writer = await createWriter('session-legacy', wd);
+		// Bypass typed append() to write raw legacy-shaped JSON
+		const legacyUser = JSON.stringify({ v: 1, type: 'user-message', messageId: 'old-1', content: 'Hi' });
+		const legacyAssistant = JSON.stringify({
+			v: 1, type: 'assistant-message', messageId: 'old-2',
+			contentParts: [{ type: 'text', text: 'Hello!' }],
+			modelIdentity: { provider: 'anthropic', modelId: 'test-model' },
+		});
+		// Write legacy lines directly to the JSONL file
+		const crypto = await import('crypto');
+		const key = crypto.createHash('sha256').update(wd).digest('hex').substring(0, 16);
+		const filePath = join(tmpDir, 'agentSessions', key, 'session-legacy.jsonl');
+		await fs.promises.appendFile(filePath, legacyUser + '\n' + legacyAssistant + '\n', 'utf-8');
+		await writer.flush();
+
+		const uri = AgentSession.uri('local', 'session-legacy');
+		const restored = await storage.restoreSession(uri, wd);
+		assert.ok(restored);
+		assert.strictEqual(restored.entries.length, 2);
+		// Verify legacy messageId was normalized to id
+		if (restored.entries[0].type === 'user-message') {
+			assert.strictEqual(restored.entries[0].id, 'old-1');
+		}
+		// Verify legacy contentParts was normalized to parts
+		if (restored.entries[1].type === 'assistant-message') {
+			assert.strictEqual(restored.entries[1].id, 'old-2');
+			assert.strictEqual(restored.entries[1].parts[0].type, 'text');
+		}
 	});
 });

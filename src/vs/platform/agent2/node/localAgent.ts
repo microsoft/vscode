@@ -394,7 +394,7 @@ export class LocalAgent extends Disposable implements IAgent {
 				case 'assistant-message':
 					messages.push({
 						role: 'assistant',
-						content: entry.contentParts,
+						content: entry.parts,
 						modelIdentity: entry.modelIdentity,
 						providerMetadata: entry.providerMetadata,
 					});
@@ -424,18 +424,18 @@ export class LocalAgent extends Disposable implements IAgent {
 		for (const entry of entries) {
 			switch (entry.type) {
 				case 'user-message':
-					result.push({ type: 'message', session: sessionUri, role: 'user', messageId: entry.messageId, content: entry.content });
+					result.push({ type: 'message', session: sessionUri, role: 'user', messageId: entry.id, content: entry.content });
 					break;
 				case 'assistant-message': {
-					const text = entry.contentParts
+					const text = entry.parts
 						.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
 						.map(p => p.text)
 						.join('');
-					const toolRequests = entry.contentParts
+					const toolRequests = entry.parts
 						.filter((p): p is { type: 'tool-call'; toolCallId: string; toolName: string; arguments: Record<string, unknown> } => p.type === 'tool-call')
 						.map(p => ({ toolCallId: p.toolCallId, name: p.toolName, arguments: JSON.stringify(p.arguments) }));
 					result.push({
-						type: 'message', session: sessionUri, role: 'assistant', messageId: entry.messageId,
+						type: 'message', session: sessionUri, role: 'assistant', messageId: entry.id,
 						content: text,
 						toolRequests: toolRequests.length > 0 ? toolRequests : undefined,
 					});

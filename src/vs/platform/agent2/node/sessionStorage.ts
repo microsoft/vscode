@@ -29,9 +29,15 @@ import {
 	AgentSession,
 	IAgentSessionMetadata,
 } from '../../agent/common/agentService.js';
-import { SESSION_ENTRY_VERSION, type SessionEntry } from '../common/sessionTypes.js';
+import { type SessionEntry } from '../common/sessionTypes.js';
 
 export type { ISessionUserMessage, ISessionAssistantMessage, ISessionToolStart, ISessionToolComplete, SessionEntry } from '../common/sessionTypes.js';
+
+/** Current JSONL schema version, stamped on every persisted record. */
+const SESSION_ENTRY_VERSION = 2;
+
+/** A persisted session entry - extends the in-memory type with a version. */
+type VersionedEntry = SessionEntry & { readonly v: number };
 
 // -- Internal JSONL record types (metadata only) ------------------------------
 
@@ -44,8 +50,8 @@ interface ISessionCreatedRecord {
 	readonly startTime: number;
 }
 
-/** A JSONL line is either a metadata record or a session entry. */
-type SessionRecord = ISessionCreatedRecord | SessionEntry;
+/** A JSONL line is either a metadata record or a versioned session entry. */
+type SessionRecord = ISessionCreatedRecord | VersionedEntry;
 
 // -- Restored session data ----------------------------------------------------
 
@@ -55,6 +61,43 @@ export interface IRestoredSession {
 	readonly workingDirectory: string;
 	readonly startTime: number;
 	readonly entries: readonly SessionEntry[];
+}
+
+// -- Legacy field normalization -----------------------------------------------
+
+interface ILegacyFields {
+	messageId?: string;
+	contentParts?: readonly unknown[];
+}
+
+/**
+ * Normalize a deserialized entry so that v1 records (with `messageId` /
+ * `contentParts`) are mapped to the current field names (`id` / `parts`).
+ * Returns `undefined` for malformed records missing required fields.
+ */
+function normalizeEntry(raw: SessionEntry & ILegacyFields): SessionEntry | undefined {
+	if (raw.type === 'user-message') {
+		const id = raw.id ?? raw.messageId;
+		if (!id) {
+			return undefined;
+		}
+		return { type: raw.type, id, content: raw.content };
+	}
+	if (raw.type === 'assistant-message') {
+		const id = raw.id ?? raw.messageId;
+		const parts = raw.parts ?? raw.contentParts;
+		if (!id || !parts) {
+			return undefined;
+		}
+		return {
+			type: raw.type,
+			id,
+			parts,
+			modelIdentity: raw.modelIdentity,
+			providerMetadata: raw.providerMetadata,
+		};
+	}
+	return raw;
 }
 
 // -- Per-session writer -------------------------------------------------------
@@ -106,10 +149,12 @@ export class SessionWriter extends Disposable {
 	}
 
 	/**
-	 * Buffer an entry for debounced writing.
+	 * Buffer an entry for debounced writing. Stamps the current schema
+	 * version onto the serialized record.
 	 */
 	append(entry: SessionEntry): void {
-		this._buffer.push(JSON.stringify(entry) + '\n');
+		const versioned: VersionedEntry = { ...entry, v: SESSION_ENTRY_VERSION };
+		this._buffer.push(JSON.stringify(versioned) + '\n');
 		this._scheduler.schedule();
 	}
 
@@ -337,9 +382,12 @@ export class SessionStorage {
 		const entries: SessionEntry[] = [];
 		for (const line of lines) {
 			try {
-				const record = JSON.parse(line) as SessionRecord;
+				const { v: _v, ...record } = JSON.parse(line) as SessionRecord;
 				if (record.type !== 'session-created') {
-					entries.push(record);
+					const entry = normalizeEntry(record);
+					if (entry) {
+						entries.push(entry);
+					}
 				}
 			} catch {
 				continue;

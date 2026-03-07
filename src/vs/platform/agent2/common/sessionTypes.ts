@@ -4,32 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Session entry types -- the single source of truth for session state.
+ * Session entry types -- the single source of truth for in-memory session
+ * state.
  *
- * Used both in memory (by {@link LocalSession}) and for JSONL serialization
- * (by {@link SessionStorage}). Every entry contains the complete data needed
- * for both display and conversation reconstruction (including thinking
- * blocks, provider metadata, tool-call parts, etc.).
+ * Used by {@link LocalSession} at runtime. These types intentionally do NOT
+ * carry a version field; the storage layer ({@link SessionStorage}) extends
+ * them with `v` when persisting to JSONL.
  */
 
 import { IAssistantContentPart, IModelIdentity } from './conversation.js';
 
-/** Current schema version for session entries. */
-export const SESSION_ENTRY_VERSION = 1;
-
 export interface ISessionUserMessage {
-	readonly v: number;
 	readonly type: 'user-message';
-	readonly messageId: string;
+	readonly id: string;
 	readonly content: string;
 }
 
 export interface ISessionAssistantMessage {
-	readonly v: number;
 	readonly type: 'assistant-message';
-	readonly messageId: string;
+	readonly id: string;
 	/** The full content parts: text, tool-calls, thinking, redacted-thinking. */
-	readonly contentParts: readonly IAssistantContentPart[];
+	readonly parts: readonly IAssistantContentPart[];
 	/** Which model produced this message. */
 	readonly modelIdentity: IModelIdentity;
 	/** Opaque provider metadata (encrypted reasoning state, cache hints, etc.). */
@@ -37,7 +32,6 @@ export interface ISessionAssistantMessage {
 }
 
 export interface ISessionToolStart {
-	readonly v: number;
 	readonly type: 'tool-start';
 	readonly toolCallId: string;
 	readonly toolName: string;
@@ -49,7 +43,6 @@ export interface ISessionToolStart {
 }
 
 export interface ISessionToolComplete {
-	readonly v: number;
 	readonly type: 'tool-complete';
 	readonly toolCallId: string;
 	readonly toolName: string;
