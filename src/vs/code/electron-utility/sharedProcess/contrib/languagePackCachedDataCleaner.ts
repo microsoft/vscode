@@ -87,12 +87,12 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 			}
 
 			const now = Date.now();
-			for (const packEntry of Object.keys(installed)) {
+			await Promise.all(Object.keys(installed).map(async (packEntry) => {
 				const folder = join(cacheDir, packEntry);
 				const entries = await Promises.readdir(folder);
-				for (const entry of entries) {
+				await Promise.all(entries.map(async (entry) => {
 					if (entry === 'tcf.json') {
-						continue;
+						return;
 					}
 
 					const candidate = join(folder, entry);
@@ -102,8 +102,8 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 
 						await Promises.rm(candidate);
 					}
-				}
-			}
+				}));
+			}));
 		} catch (error) {
 			onUnexpectedError(error);
 		}
