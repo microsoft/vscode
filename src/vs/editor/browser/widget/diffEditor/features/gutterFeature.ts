@@ -21,7 +21,7 @@ import { LineRange, LineRangeSet } from '../../../../common/core/ranges/lineRang
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Range } from '../../../../common/core/range.js';
 import { TextEdit } from '../../../../common/core/edits/textEdit.js';
-import { DetailedLineRangeMapping } from '../../../../common/diff/rangeMapping.js';
+import { DetailedLineRangeMapping, RangeMapping } from '../../../../common/diff/rangeMapping.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
 import { ActionRunnerWithContext } from '../../multiDiffEditor/utils.js';
 import { DiffEditorEditors } from '../components/diffEditorEditors.js';
@@ -81,20 +81,50 @@ export class DiffEditorGutter extends Disposable {
 			// Return `emptyArr` because it is a constant. [] is always a new array and would trigger a change.
 			if (!diff) { return emptyArr; }
 
-			const selections = this._editors.modifiedSelections.read(reader);
-			if (selections.every(s => s.isEmpty())) { return emptyArr; }
+			const modifiedSelections = this._editors.modifiedSelections.read(reader);
+			const originalSelections = this._editors.originalSelections.read(reader);
+			const hasModifiedSelection = !modifiedSelections.every(s => s.isEmpty());
+			const hasOriginalSelection = !originalSelections.every(s => s.isEmpty());
+			if (!hasModifiedSelection && !hasOriginalSelection) { return emptyArr; }
 
-			const selectedLineNumbers = new LineRangeSet(selections.map(s => LineRange.fromRangeInclusive(s)));
+			const selectedModifiedLineNumbers = hasModifiedSelection
+				? new LineRangeSet(modifiedSelections.map(s => LineRange.fromRangeInclusive(s)))
+				: undefined;
+			const selectedOriginalLineNumbers = hasOriginalSelection
+				? new LineRangeSet(originalSelections.map(s => LineRange.fromRangeInclusive(s)))
+				: undefined;
 
-			const selectedMappings = diff.mappings.filter(m =>
-				m.lineRangeMapping.innerChanges && selectedLineNumbers.intersects(m.lineRangeMapping.modified)
-			);
-			const result = selectedMappings.map(mapping => ({
-				mapping,
-				rangeMappings: mapping.lineRangeMapping.innerChanges!.filter(
-					c => selections.some(s => Range.areIntersecting(c.modifiedRange, s))
-				)
-			}));
+			const selectedMappings = diff.mappings.filter(m => {
+				if (!m.lineRangeMapping.innerChanges) { return false; }
+				// Pure deletions have an empty modified range — match them
+				// via the original (left) editor where the deleted text lives.
+				if (m.lineRangeMapping.modified.isEmpty && selectedOriginalLineNumbers) {
+					return selectedOriginalLineNumbers.intersects(m.lineRangeMapping.original);
+				}
+				if (selectedModifiedLineNumbers) {
+					return selectedModifiedLineNumbers.intersects(m.lineRangeMapping.modified);
+				}
+				return false;
+			});
+			const result = selectedMappings.map(mapping => {
+				const isPureDeletion = mapping.lineRangeMapping.modified.isEmpty;
+				let rangeMappings: RangeMapping[];
+				if (isPureDeletion) {
+					// For pure deletions, clip each inner change's originalRange
+					// to the selection so only selected deleted lines are staged.
+					rangeMappings = mapping.lineRangeMapping.innerChanges!.flatMap(c => {
+						const clipped = originalSelections
+							.map(s => Range.intersectRanges(c.originalRange, s))
+							.filter((r): r is Range => r !== null && !r.isEmpty());
+						return clipped.map(r => new RangeMapping(r, c.modifiedRange));
+					});
+				} else {
+					rangeMappings = mapping.lineRangeMapping.innerChanges!.filter(
+						c => modifiedSelections.some(s => Range.areIntersecting(c.modifiedRange, s))
+					);
+				}
+				return { mapping, rangeMappings };
+			});
 			if (result.length === 0 || result.every(r => r.rangeMappings.length === 0)) { return emptyArr; }
 			return result;
 		});
