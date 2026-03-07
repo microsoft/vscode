@@ -431,6 +431,11 @@ export class AnthropicModelProvider implements IModelProvider {
 		});
 
 		const reader = body.getReader();
+		// Wake the consumer loop on cancellation so it doesn't block forever
+		const cancellationListener = token.onCancellationRequested(() => {
+			pushEvent(new CancellationError());
+		});
+
 		// Start reading in the background
 		const readPromise = (async () => {
 			try {
@@ -471,6 +476,7 @@ export class AnthropicModelProvider implements IModelProvider {
 				}
 			}
 		} finally {
+			cancellationListener.dispose();
 			reader.cancel().catch(() => { });
 			await readPromise.catch(() => { });
 		}
