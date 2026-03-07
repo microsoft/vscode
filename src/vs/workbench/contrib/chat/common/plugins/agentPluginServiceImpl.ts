@@ -34,6 +34,7 @@ import { parseClaudeHooks } from '../promptSyntax/hookClaudeCompat.js';
 import { parseCopilotHooks } from '../promptSyntax/hookCompatibility.js';
 import { IHookCommand } from '../promptSyntax/hookSchema.js';
 import { agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from './agentPluginService.js';
+import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
 
 const COMMAND_FILE_SUFFIX = '.md';
@@ -416,6 +417,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 
 		const plugin: PluginEntry = {
 			uri,
+			label: fromMarketplace?.name ?? basename(uri),
 			enabled,
 			setEnabled: setEnabledCallback,
 			remove: removeCallback,
@@ -864,6 +866,7 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 
 	constructor(
 		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
+		@IAgentPluginRepositoryService private readonly _pluginRepositoryService: IAgentPluginRepositoryService,
 		@IFileService fileService: IFileService,
 		@IPathService pathService: IPathService,
 		@ILogService logService: ILogService,
@@ -904,7 +907,17 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 				enabled: entry.enabled,
 				fromMarketplace: entry.plugin,
 				setEnabled: (value: boolean) => this._pluginMarketplaceService.setInstalledPluginEnabled(entry.pluginUri, value),
-				remove: () => this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri),
+				remove: () => {
+					// Always remove the metadata entry first so the plugin
+					// disappears from the UI immediately.
+					this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri);
+					// For non-marketplace (direct-source) plugins, also clean up the
+					// on-disk cache. This is best-effort — failures are logged but
+					// do not block removal.
+					this._pluginRepositoryService.cleanupPluginSource(entry.plugin).catch(error => {
+						this._logService.error('[MarketplaceAgentPluginDiscovery] Failed to clean up plugin source', error);
+					});
+				},
 			});
 		}
 

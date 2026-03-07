@@ -3,15 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../../../browser/media/sidebarActionButton.css';
-import './media/customizationsToolbar.css';
 import './media/sessionsViewPane.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorsVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -29,9 +25,6 @@ import { localize, localize2 } from '../../../../nls.js';
 import { AgentSessionsControl } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsControl.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsFilter.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
-import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from './sessionsManagementService.js';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -40,26 +33,19 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { Menus } from '../../../browser/menus.js';
-import { getCustomizationTotalCount } from './customizationCounts.js';
+import { AICustomizationShortcutsWidget } from './aiCustomizationShortcutsWidget.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'agentic.workbench.view.sessionsView';
 const SessionsViewFilterSubMenu = new MenuId('AgentSessionsViewFilterSubMenu');
 
-const CUSTOMIZATIONS_COLLAPSED_KEY = 'agentSessions.customizationsCollapsed';
-
 export class AgenticSessionsViewPane extends ViewPane {
 
 	private viewPaneContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	sessionsControl: AgentSessionsControl | undefined;
-	private aiCustomizationContainer: HTMLElement | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -73,13 +59,8 @@ export class AgenticSessionsViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IPromptsService private readonly promptsService: IPromptsService,
-		@IMcpService private readonly mcpService: IMcpService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
 		@IHostService private readonly hostService: IHostService,
-		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
@@ -143,7 +124,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 			source: 'agentSessionsViewPane',
 			filter: sessionsFilter,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
-			useSimpleHover: true,
+			disableHover: true,
 			showIsolationIcon: true,
 			enableApprovalRow: true,
 			getHoverPosition: () => this.getSessionHoverPosition(),
@@ -180,8 +161,14 @@ export class AgenticSessionsViewPane extends ViewPane {
 		}));
 
 		// AI Customization toolbar (bottom, fixed height)
-		this.aiCustomizationContainer = DOM.append(sessionsContainer, $('div'));
-		this.createAICustomizationShortcuts(this.aiCustomizationContainer);
+		this._register(this.instantiationService.createInstance(AICustomizationShortcutsWidget, sessionsContainer, {
+			onDidToggleCollapse: () => {
+				if (this.viewPaneContainer) {
+					const { offsetHeight, offsetWidth } = this.viewPaneContainer;
+					this.layoutBody(offsetHeight, offsetWidth);
+				}
+			},
+		}));
 	}
 
 	private restoreLastSelectedSession(): void {
@@ -189,96 +176,6 @@ export class AgenticSessionsViewPane extends ViewPane {
 		if (activeSession && this.sessionsControl) {
 			this.sessionsControl.reveal(activeSession.resource);
 		}
-	}
-
-	private createAICustomizationShortcuts(container: HTMLElement): void {
-		// Get initial collapsed state
-		const isCollapsed = this.storageService.getBoolean(CUSTOMIZATIONS_COLLAPSED_KEY, StorageScope.PROFILE, false);
-
-		container.classList.add('ai-customization-toolbar');
-		if (isCollapsed) {
-			container.classList.add('collapsed');
-		}
-
-		// Header (clickable to toggle)
-		const header = DOM.append(container, $('.ai-customization-header'));
-		header.classList.toggle('collapsed', isCollapsed);
-
-		const headerButtonContainer = DOM.append(header, $('.customization-link-button-container'));
-		const headerButton = this._register(new Button(headerButtonContainer, {
-			...defaultButtonStyles,
-			secondary: true,
-			title: false,
-			supportIcons: true,
-			buttonSecondaryBackground: 'transparent',
-			buttonSecondaryHoverBackground: undefined,
-			buttonSecondaryForeground: undefined,
-			buttonSecondaryBorder: undefined,
-		}));
-		headerButton.element.classList.add('customization-link-button', 'sidebar-action-button');
-		headerButton.element.setAttribute('aria-expanded', String(!isCollapsed));
-		headerButton.label = localize('customizations', "CUSTOMIZATIONS");
-
-		const chevronContainer = DOM.append(headerButton.element, $('span.customization-link-counts'));
-		const chevron = DOM.append(chevronContainer, $('.ai-customization-chevron'));
-		const headerTotalCount = DOM.append(chevronContainer, $('span.ai-customization-header-total.hidden'));
-		chevron.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
-
-		// Toolbar container
-		const toolbarContainer = DOM.append(container, $('.ai-customization-toolbar-content.sidebar-action-list'));
-
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SidebarCustomizations, {
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			toolbarOptions: { primaryGroup: () => true },
-			telemetrySource: 'sidebarCustomizations',
-		}));
-
-		let updateCountRequestId = 0;
-		const updateHeaderTotalCount = async () => {
-			const requestId = ++updateCountRequestId;
-			const totalCount = await getCustomizationTotalCount(this.promptsService, this.mcpService, this.workspaceService, this.workspaceContextService);
-			if (requestId !== updateCountRequestId) {
-				return;
-			}
-
-			headerTotalCount.classList.toggle('hidden', totalCount === 0);
-			headerTotalCount.textContent = `${totalCount}`;
-		};
-
-		this._register(this.promptsService.onDidChangeCustomAgents(() => updateHeaderTotalCount()));
-		this._register(this.promptsService.onDidChangeSlashCommands(() => updateHeaderTotalCount()));
-		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => updateHeaderTotalCount()));
-		this._register(autorun(reader => {
-			this.mcpService.servers.read(reader);
-			updateHeaderTotalCount();
-		}));
-		this._register(autorun(reader => {
-			this.workspaceService.activeProjectRoot.read(reader);
-			updateHeaderTotalCount();
-		}));
-		updateHeaderTotalCount();
-
-		// Toggle collapse on header click
-		const transitionListener = this._register(new MutableDisposable());
-		const toggleCollapse = () => {
-			const collapsed = container.classList.toggle('collapsed');
-			header.classList.toggle('collapsed', collapsed);
-			this.storageService.store(CUSTOMIZATIONS_COLLAPSED_KEY, collapsed, StorageScope.PROFILE, StorageTarget.USER);
-			headerButton.element.setAttribute('aria-expanded', String(!collapsed));
-			chevron.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chevronRight), ...ThemeIcon.asClassNameArray(Codicon.chevronDown));
-			chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
-
-			// Re-layout after the transition so sessions control gets the right height
-			transitionListener.value = DOM.addDisposableListener(toolbarContainer, 'transitionend', () => {
-				transitionListener.clear();
-				if (this.viewPaneContainer) {
-					const { offsetHeight, offsetWidth } = this.viewPaneContainer;
-					this.layoutBody(offsetHeight, offsetWidth);
-				}
-			});
-		};
-
-		this._register(headerButton.onDidClick(() => toggleCollapse()));
 	}
 
 	private getSessionHoverPosition(): HoverPosition {
@@ -325,10 +222,27 @@ KeybindingsRegistry.registerKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 });
 
-// Register Cmd+W / Ctrl+W to open new session when the current session is non-empty,
+const CLOSE_SESSION_COMMAND_ID = 'agentSession.close';
+registerAction2(class CloseSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: CLOSE_SESSION_COMMAND_ID,
+			title: localize2('closeSession', "Close Session"),
+			f1: true,
+			precondition: ContextKeyExpr.and(IsNewChatSessionContext.negate(), EditorsVisibleContext.negate()),
+			category: SessionsCategories.Sessions,
+		});
+	}
+	override async run(accessor: ServicesAccessor) {
+		const sessionsService = accessor.get(ISessionsManagementService);
+		await sessionsService.openNewSessionView();
+	}
+});
+
+// Register Cmd+W / Ctrl+W to close the current session and navigate to the new-session view,
 // mirroring how Cmd+W closes the active editor in the normal workbench.
 KeybindingsRegistry.registerKeybindingRule({
-	id: ACTION_ID_NEW_CHAT,
+	id: CLOSE_SESSION_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib + 1,
 	when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), EditorsVisibleContext.negate()),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyW,

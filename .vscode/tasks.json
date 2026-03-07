@@ -225,8 +225,7 @@
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},
-			"problemMatcher": [],
-			"inSessions": true
+			"problemMatcher": []
 		},
 		{
 			"label": "Run Dev Sessions",
@@ -238,7 +237,6 @@
 			"args": [
 				"--sessions"
 			],
-			"inSessions": true,
 			"problemMatcher": []
 		},
 		{

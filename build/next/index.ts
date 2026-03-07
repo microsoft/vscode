@@ -273,6 +273,9 @@ const desktopResourcePatterns = [
 	'vs/workbench/services/extensionManagement/common/media/*.png',
 	'vs/workbench/browser/parts/editor/media/*.png',
 	'vs/workbench/contrib/debug/browser/media/*.png',
+
+	// Sessions - built-in prompts
+	'vs/sessions/prompts/*.prompt.md',
 ];
 
 // Resources for server target (minimal - no UI)

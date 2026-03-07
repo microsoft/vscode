@@ -141,11 +141,19 @@ export function readSavedContents(): Record<string, string> | undefined {
 
 // When run directly, output state as JSON for tooling (e.g. the vscode-extras extension).
 if (import.meta.filename === process.argv[1]) {
-	console.log(JSON.stringify({
-		root,
-		stateContentsFile,
-		current: computeState(),
-		saved: readSavedState(),
-		files: [...collectInputFiles(), stateFile],
-	}));
+	if (process.argv[2] === '--normalize-file') {
+		const filePath = process.argv[3];
+		if (!filePath) {
+			process.exit(1);
+		}
+		process.stdout.write(normalizeFileContent(filePath));
+	} else {
+		console.log(JSON.stringify({
+			root,
+			stateContentsFile,
+			current: computeState(),
+			saved: readSavedState(),
+			files: [...collectInputFiles(), stateFile],
+		}));
+	}
 }

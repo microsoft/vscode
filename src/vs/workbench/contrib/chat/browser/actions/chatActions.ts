@@ -368,6 +368,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		if (opts?.query) {
 
 			if (opts.isPartialQuery) {
+				chatWidget.input.showScrollbarUntilAccept();
 				chatWidget.setInput(opts.query);
 			} else {
 				if (!chatWidget.viewModel) {

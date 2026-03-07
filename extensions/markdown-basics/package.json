@@ -18,14 +18,18 @@
           "markdown"
         ],
         "extensions": [
+          ".litcoffee",
           ".md",
           ".mkd",
+          ".mkdn",
           ".mdwn",
           ".mdown",
           ".markdown",
           ".markdn",
           ".mdtxt",
           ".mdtext",
+          ".ron",
+          ".ronn",
           ".workbook"
         ],
         "filenamePatterns": [

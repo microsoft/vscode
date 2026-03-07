@@ -158,6 +158,8 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		}));
 		this._register(dom.addStandardDisposableListener(this.element, dom.EventType.KEY_DOWN, e => {
 			if (e.keyCode === KeyCode.Backspace || e.keyCode === KeyCode.Delete) {
+				e.preventDefault();
+				e.stopPropagation();
 				this._onDidDelete.fire(e.browserEvent);
 			}
 		}));
@@ -637,6 +639,16 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, async () => {
 				const chatContextService = this.instantiationService.invokeFunction(accessor => accessor.get(IChatContextService));
 				await chatContextService.executeChatContextItemCommand(contextItemHandle);
+			}));
+		}
+
+		// Handle click for debug events attachments
+		if (attachment.kind === 'debugEvents') {
+			this.element.style.cursor = 'pointer';
+			this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, () => {
+				const d = new Date(attachment.snapshotTime);
+				const filter = `before:${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+				this.commandService.executeCommand('workbench.action.chat.openAgentDebugPanelForSession', attachment.sessionResource, filter);
 			}));
 		}
 

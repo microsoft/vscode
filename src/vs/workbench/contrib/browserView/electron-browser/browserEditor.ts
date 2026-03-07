@@ -49,6 +49,7 @@ import { logBrowserOpen } from '../../../../platform/browserView/common/browserV
 import { URI } from '../../../../base/common/uri.js';
 import { ChatConfiguration } from '../../chat/common/constants.js';
 import { Event } from '../../../../base/common/event.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -273,7 +274,8 @@ export class BrowserEditor extends EditorPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserElementsService private readonly browserElementsService: IBrowserElementsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILayoutService private readonly layoutService: ILayoutService
 	) {
 		super(BrowserEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -336,9 +338,13 @@ export class BrowserEditor extends EditorPane {
 		this._browserContainer.tabIndex = 0; // make focusable
 		this._browserContainerWrapper.appendChild(this._browserContainer);
 
+		// Create additional wrapper around placeholder contents for applying border radius clipping.
+		const placeholderContents = $('.browser-placeholder-contents');
+		this._browserContainer.appendChild(placeholderContents);
+
 		// Create placeholder screenshot (background placeholder when WebContentsView is hidden)
 		this._placeholderScreenshot = $('.browser-placeholder-screenshot');
-		this._browserContainer.appendChild(this._placeholderScreenshot);
+		placeholderContents.appendChild(this._placeholderScreenshot);
 
 		// Create overlay pause container (hidden by default via CSS)
 		this._overlayPauseContainer = $('.browser-overlay-paused');
@@ -348,16 +354,16 @@ export class BrowserEditor extends EditorPane {
 		overlayPauseMessage.appendChild(this._overlayPauseHeading);
 		overlayPauseMessage.appendChild(this._overlayPauseDetail);
 		this._overlayPauseContainer.appendChild(overlayPauseMessage);
-		this._browserContainer.appendChild(this._overlayPauseContainer);
+		placeholderContents.appendChild(this._overlayPauseContainer);
 
 		// Create error container (hidden by default)
 		this._errorContainer = $('.browser-error-container');
 		this._errorContainer.style.display = 'none';
-		this._browserContainer.appendChild(this._errorContainer);
+		placeholderContents.appendChild(this._errorContainer);
 
 		// Create welcome container (shown when no URL is loaded)
 		this._welcomeContainer = this.createWelcomeContainer();
-		this._browserContainer.appendChild(this._welcomeContainer);
+		placeholderContents.appendChild(this._welcomeContainer);
 
 		this._register(addDisposableListener(this._browserContainer, EventType.FOCUS, (event) => {
 			// When the browser container gets focus, make sure the browser view also gets focused.
@@ -374,12 +380,6 @@ export class BrowserEditor extends EditorPane {
 			hasFocus: this._model?.focused ?? false,
 			window: this._model?.focused ? this.window : undefined
 		})));
-
-		// Automatically call layoutBrowserContainer() when the browser container changes size.
-		// Be careful to use `ResizeObserver` from the target window to avoid cross-window issues.
-		const resizeObserver = new this.window.ResizeObserver(() => this.layoutBrowserContainer());
-		resizeObserver.observe(this._browserContainer);
-		this._register(toDisposable(() => resizeObserver.disconnect()));
 	}
 
 	override async setInput(input: BrowserEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -399,7 +399,7 @@ export class BrowserEditor extends EditorPane {
 
 		this._storageScopeContext.set(this._model.storageScope);
 		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
-		this._updateSharingState();
+		this._updateSharingState(true);
 
 		// Update find widget with new model
 		this._findWidget.rawValue?.setModel(this._model);
@@ -411,10 +411,10 @@ export class BrowserEditor extends EditorPane {
 
 		// Listen for sharing state changes on the model
 		this._inputDisposables.add(this._model.onDidChangeSharedWithAgent(() => {
-			this._updateSharingState();
+			this._updateSharingState(false);
 		}));
 		this._inputDisposables.add(watchForAgentSharingContextChanges(this.contextKeyService)(() => {
-			this._updateSharingState();
+			this._updateSharingState(false);
 		}));
 
 		// Initialize UI state and context keys from model
@@ -510,12 +510,11 @@ export class BrowserEditor extends EditorPane {
 			if (targetWindowId === this.window.vscodeWindowId) {
 				// Update CSS variable for size calculations
 				this._browserContainerWrapper.style.setProperty('--zoom-factor', String(getZoomFactor(this.window)));
-				this.layoutBrowserContainer();
 			}
 		}));
 
 		this.updateErrorDisplay();
-		this.layoutBrowserContainer();
+		this.layout();
 		this.updateVisibility();
 		this.doScreenshot();
 
@@ -661,11 +660,12 @@ export class BrowserEditor extends EditorPane {
 		return this._model?.url;
 	}
 
-	private _updateSharingState(): void {
+	private _updateSharingState(isInitialState: boolean): void {
 		const sharingEnabled = this.contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext);
 		const isShared = sharingEnabled && !!this._model && this._model.sharedWithAgent;
 
-		this._browserContainerWrapper.classList.toggle('shared', isShared);
+		this._browserContainer.classList.toggle('animate', !isInitialState);
+		this._browserContainer.classList.toggle('shared', isShared);
 		this._navigationBar.setShared(isShared);
 	}
 
@@ -1163,32 +1163,42 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	override layout(dimension: Dimension, _position?: IDomPosition): void {
+	override layout(dimension?: Dimension, _position?: IDomPosition): void {
 		// Layout find widget if it exists
-		this._findWidget.rawValue?.layout(dimension.width);
+		if (dimension && this._findWidget.rawValue) {
+			this._findWidget.rawValue.layout(dimension.width);
+		}
+
+		const whenContainerStylesLoaded = this.layoutService.whenContainerStylesLoaded(this.window);
+		if (whenContainerStylesLoaded) {
+			// In floating windows, we need to ensure that the
+			// container is ready for us to compute certain
+			// layout related properties.
+			whenContainerStylesLoaded.then(() => this.layoutBrowserContainer());
+		} else {
+			this.layoutBrowserContainer();
+		}
 	}
 
 	/**
-	 * This should be called whenever .browser-container changes in size, or when
-	 * there could be any elements, such as the command palette, overlapping with it.
-	 *
-	 * Note that we don't call layoutBrowserContainer() from layout() but instead rely on using a ResizeObserver and on
-	 * making direct calls to it. This is because we have seen cases where the getBoundingClientRect() values of
-	 * the .browser-container element are not correct during layout() calls, especially during "Move into New Window"
-	 * and "Copy into New Window" operations into a different monitor.
+	 * Recompute the layout of the browser container and update the model with the new bounds.
+	 * This should generally only be called via layout() to ensure that the container is ready and all necessary styles are loaded.
 	 */
-	layoutBrowserContainer(): void {
+	private layoutBrowserContainer(): void {
 		if (this._model) {
 			this.checkOverlays();
 
 			const containerRect = this._browserContainer.getBoundingClientRect();
+			const cornerRadius = this.window.getComputedStyle(this._browserContainer).borderTopLeftRadius ?? '0';
+
 			void this._model.layout({
 				windowId: this.group.windowId,
 				x: containerRect.left,
 				y: containerRect.top,
 				width: containerRect.width,
 				height: containerRect.height,
-				zoomFactor: getZoomFactor(this.window)
+				zoomFactor: getZoomFactor(this.window),
+				cornerRadius: parseFloat(cornerRadius)
 			});
 		}
 	}

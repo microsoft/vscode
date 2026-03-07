@@ -320,6 +320,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.mergeAbort();
 	}
 
+	rebase(branch: string): Promise<void> {
+		return this.#repository.rebase(branch);
+	}
+
 	createStash(options?: { message?: string; includeUntracked?: boolean; staged?: boolean }): Promise<void> {
 		return this.#repository.createStash(options?.message, options?.includeUntracked, options?.staged);
 	}

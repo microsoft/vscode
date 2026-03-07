@@ -12,7 +12,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { appendUpdateMenuItems as registerUpdateMenuItems, CONTEXT_UPDATE_STATE } from '../../../../workbench/contrib/update/browser/update.js';
+import { appendUpdateMenuItems as registerUpdateMenuItems } from '../../../../workbench/contrib/update/browser/update.js';
 import { Menus } from '../../../browser/menus.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -23,9 +23,14 @@ import { IAction } from '../../../../base/common/actions.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Downloading, IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
-import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
-import { sessionsUpdateButtonDownloadingBackground, sessionsUpdateButtonDownloadedBackground } from '../../../common/theme.js';
+import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IHostService } from '../../../../workbench/services/host/browser/host.js';
+import { URI } from '../../../../base/common/uri.js';
+import { UpdateHoverWidget } from './updateHoverWidget.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = new MenuId('SessionsAccountMenu');
@@ -83,20 +88,29 @@ MenuRegistry.appendMenuItem(AccountMenu, {
 // Update actions
 registerUpdateMenuItems(AccountMenu, '3_updates');
 
-class AccountWidget extends ActionViewItem {
+export class AccountWidget extends ActionViewItem {
 
 	private accountButton: Button | undefined;
+	private updateButton: Button | undefined;
+	private readonly updateHoverWidget: UpdateHoverWidget;
 	private readonly viewItemDisposables = this._register(new DisposableStore());
 
 	constructor(
 		action: IAction,
 		options: IBaseActionViewItemOptions,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IUpdateService private readonly updateService: IUpdateService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IProductService private readonly productService: IProductService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
+		this.updateHoverWidget = new UpdateHoverWidget(this.updateService, this.productService, this.hoverService);
 	}
 
 	protected override getTooltip(): string | undefined {
@@ -121,14 +135,33 @@ class AccountWidget extends ActionViewItem {
 		}));
 		this.accountButton.element.classList.add('account-widget-account-button', 'sidebar-action-button');
 
+		// Update button (right)
+		const updateContainer = append(container, $('.account-widget-update'));
+		this.updateButton = this.viewItemDisposables.add(new Button(updateContainer, {
+			...defaultButtonStyles,
+			secondary: true,
+			title: false,
+			supportIcons: true,
+			buttonSecondaryBackground: 'transparent',
+			buttonSecondaryHoverBackground: undefined,
+			buttonSecondaryForeground: undefined,
+			buttonSecondaryBorder: undefined,
+		}));
+		this.updateButton.element.classList.add('account-widget-update-button', 'sidebar-action-button');
+		this.viewItemDisposables.add(this.updateHoverWidget.attachTo(this.updateButton.element));
+
 		this.updateAccountButton();
 		this.viewItemDisposables.add(this.defaultAccountService.onDidChangeDefaultAccount(() => this.updateAccountButton()));
+		this.updateUpdateButton();
+		this.viewItemDisposables.add(this.updateService.onStateChange(() => this.updateUpdateButton()));
 
 		this.viewItemDisposables.add(this.accountButton.onDidClick(e => {
 			e?.preventDefault();
 			e?.stopPropagation();
 			this.showAccountMenu(this.accountButton!.element);
 		}));
+
+		this.viewItemDisposables.add(this.updateButton.onDidClick(() => this.update()));
 	}
 
 	private showAccountMenu(anchor: HTMLElement): void {
@@ -156,142 +189,99 @@ class AccountWidget extends ActionViewItem {
 			: `$(${Codicon.account.id}) ${localize('signInLabel', "Sign In")}`;
 	}
 
-
-	override onClick(): void {
-		// Handled by custom click handlers
-	}
-}
-
-export class UpdateWidget extends ActionViewItem {
-
-	private updateButton: Button | undefined;
-	private readonly viewItemDisposables = this._register(new DisposableStore());
-
-	constructor(
-		action: IAction,
-		options: IBaseActionViewItemOptions,
-		@IUpdateService private readonly updateService: IUpdateService,
-	) {
-		super(undefined, action, { ...options, icon: false, label: false });
-	}
-
-	protected override getTooltip(): string | undefined {
-		return undefined;
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-		container.classList.add('update-widget', 'sidebar-action');
-
-		const updateContainer = append(container, $('.update-widget-action'));
-		this.updateButton = this.viewItemDisposables.add(new Button(updateContainer, {
-			...defaultButtonStyles,
-			secondary: true,
-			title: false,
-			supportIcons: true,
-			buttonSecondaryBackground: 'transparent',
-			buttonSecondaryHoverBackground: undefined,
-			buttonSecondaryForeground: undefined,
-			buttonSecondaryBorder: undefined,
-		}));
-		this.updateButton.element.classList.add('update-widget-button', 'sidebar-action-button');
-		this.viewItemDisposables.add(this.updateButton.onDidClick(() => this.update()));
-
-		this.updateUpdateButton();
-		this.viewItemDisposables.add(this.updateService.onStateChange(() => this.updateUpdateButton()));
-	}
-
-	private isUpdateReady(): boolean {
-		return this.updateService.state.type === StateType.Ready;
-	}
-
-	private isUpdatePending(): boolean {
-		const type = this.updateService.state.type;
-		return type === StateType.AvailableForDownload
-			|| type === StateType.CheckingForUpdates
-			|| type === StateType.Downloading
-			|| type === StateType.Downloaded
-			|| type === StateType.Updating
-			|| type === StateType.Overwriting;
-	}
-
 	private updateUpdateButton(): void {
 		if (!this.updateButton) {
 			return;
 		}
 
 		const state = this.updateService.state;
-		if (this.isUpdatePending() && !this.isUpdateReady()) {
-			this.updateButton.enabled = false;
-			this.updateButton.label = `$(${Codicon.loading.id}~spin) ${this.getUpdateProgressMessage(state.type)}`;
-			this.updateDownloadProgress(state);
-		} else {
+
+		// In the embedded app, updates are detected but cannot be installed directly.
+		// Show a hint button to update via VS Code only when an update is actually available.
+		if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
+			this.updateButton.element.classList.remove('hidden');
+			this.updateButton.element.classList.remove('account-widget-update-button-ready');
+			this.updateButton.element.classList.add('account-widget-update-button-hint');
 			this.updateButton.enabled = true;
-			this.updateButton.label = `$(${Codicon.debugRestart.id}) ${localize('update', "Update")}`;
-
-			const el = this.updateButton.element;
-			if (state.type === StateType.Ready) {
-				const color = asCssVariable(sessionsUpdateButtonDownloadedBackground);
-				el.style.backgroundImage = `linear-gradient(to right, ${color} 100%, transparent 100%)`;
-			} else {
-				// Ensure non-update states (e.g. Idle, Disabled, Uninitialized) do not look like a completed download
-				el.style.backgroundImage = '';
-			}
-		}
-	}
-
-	private updateDownloadProgress(state: State): void {
-		if (!this.updateButton) {
+			this.updateButton.label = localize('updateAvailable', "Update Available");
+			this.updateButton.element.title = localize('updateInVSCodeHover', "Updates are managed by VS Code. Click to open VS Code.");
 			return;
 		}
 
-		const el = this.updateButton.element;
-
-		if (state.type === StateType.Downloading) {
-			const { downloadedBytes, totalBytes } = state as Downloading;
-			if (downloadedBytes !== undefined && totalBytes && totalBytes > 0) {
-				const percent = Math.min(100, Math.round((downloadedBytes / totalBytes) * 100));
-				const color = asCssVariable(sessionsUpdateButtonDownloadingBackground);
-				el.style.backgroundImage = `linear-gradient(to right, ${color} ${percent}%, transparent ${percent}%)`;
-			} else {
-				// Indeterminate: show a subtle pulsing background
-				const color = asCssVariable(sessionsUpdateButtonDownloadingBackground);
-				el.style.backgroundImage = `linear-gradient(to right, ${color} 0%, transparent 100%)`;
-			}
-		} else if (state.type === StateType.Downloaded) {
-			const color = asCssVariable(sessionsUpdateButtonDownloadedBackground);
-			el.style.backgroundImage = `linear-gradient(to right, ${color} 100%, transparent 100%)`;
-		} else {
-			this.clearDownloadProgress();
+		if (this.shouldHideUpdateButton(state.type)) {
+			this.clearUpdateButtonStyling();
+			this.updateButton.element.classList.add('hidden');
+			return;
 		}
+
+		this.updateButton.element.classList.remove('hidden');
+		this.updateButton.element.style.backgroundImage = '';
+		this.updateButton.enabled = state.type === StateType.Ready;
+		this.updateButton.label = this.getUpdateProgressMessage(state.type);
+
+		if (state.type === StateType.Ready) {
+			this.updateButton.element.classList.add('account-widget-update-button-ready');
+			return;
+		}
+
+		this.updateButton.element.classList.remove('account-widget-update-button-ready');
 	}
 
-	private clearDownloadProgress(): void {
+	private shouldHideUpdateButton(type: StateType): boolean {
+		return type === StateType.Uninitialized
+			|| type === StateType.Idle
+			|| type === StateType.Disabled
+			|| type === StateType.CheckingForUpdates;
+	}
+
+	private clearUpdateButtonStyling(): void {
 		if (this.updateButton) {
 			this.updateButton.element.style.backgroundImage = '';
+			this.updateButton.element.classList.remove('account-widget-update-button-ready');
 		}
 	}
 
 	private getUpdateProgressMessage(type: StateType): string {
 		switch (type) {
-			case StateType.CheckingForUpdates:
-				return localize('checkingForUpdates', "Checking for Updates...");
+			case StateType.Ready:
+				return localize('update', "Update");
+			case StateType.AvailableForDownload:
 			case StateType.Downloading:
-				return localize('downloadingUpdate', "Downloading Update...");
+			case StateType.Overwriting:
+				return localize('downloadingUpdate', "Downloading...");
 			case StateType.Downloaded:
-				return localize('installingUpdate', "Installing Update...");
+				return localize('installingUpdate', "Installing...");
 			case StateType.Updating:
 				return localize('updatingApp', "Updating...");
-			case StateType.Overwriting:
-				return localize('overwritingUpdate', "Downloading Update...");
 			default:
 				return localize('updating', "Updating...");
 		}
 	}
 
 	private async update(): Promise<void> {
+		const state = this.updateService.state;
+		if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
+			const { confirmed } = await this.dialogService.confirm({
+				message: localize('updateFromVSCode.title', "Update from VS Code"),
+				detail: localize('updateFromVSCode.detail', "This will close the Sessions app and open VS Code so you can install the update.\n\nLaunch Sessions again after the update is complete."),
+				primaryButton: localize('updateFromVSCode.open', "Close and Open VS Code"),
+			});
+			if (confirmed) {
+				await this.openVSCode();
+				await this.hostService.close();
+			}
+			return;
+		}
 		await this.updateService.quitAndInstall();
 	}
+
+	private async openVSCode(): Promise<void> {
+		await this.openerService.open(URI.from({
+			scheme: this.productService.urlProtocol,
+			query: 'windowId=_blank',
+		}), { openExternal: true });
+	}
+
 
 	override onClick(): void {
 		// Handled by custom click handlers
@@ -315,11 +305,6 @@ class AccountWidgetContribution extends Disposable implements IWorkbenchContribu
 			return instantiationService.createInstance(AccountWidget, action, options);
 		}, undefined));
 
-		const sessionsUpdateWidgetAction = 'sessions.action.updateWidget';
-		this._register(actionViewItemService.register(Menus.SidebarFooter, sessionsUpdateWidgetAction, (action, options) => {
-			return instantiationService.createInstance(UpdateWidget, action, options);
-		}, undefined));
-
 		// Register the action with menu item after the view item provider
 		// so the toolbar picks up the custom widget
 		this._register(registerAction2(class extends Action2 {
@@ -339,30 +324,6 @@ class AccountWidgetContribution extends Disposable implements IWorkbenchContribu
 			}
 		}));
 
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: sessionsUpdateWidgetAction,
-					title: localize2('sessionsUpdateWidget', 'Sessions Update'),
-					menu: {
-						id: Menus.SidebarFooter,
-						group: 'navigation',
-						order: 0,
-						when: ContextKeyExpr.or(
-							CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready),
-							CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload),
-							CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading),
-							CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded),
-							CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating),
-							CONTEXT_UPDATE_STATE.isEqualTo(StateType.Overwriting),
-						)
-					}
-				});
-			}
-			async run(): Promise<void> {
-				// Handled by the custom view item
-			}
-		}));
 	}
 }
 

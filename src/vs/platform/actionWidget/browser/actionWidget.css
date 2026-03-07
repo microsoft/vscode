@@ -119,7 +119,7 @@
 
 .action-widget .monaco-list-row.action {
 	display: flex;
-	gap: 6px;
+	gap: 8px;
 	align-items: center;
 }
 
@@ -215,6 +215,31 @@
 	color: var(--vscode-descriptionForeground);
 	margin-left: 0.5em;
 	font-size: 12px;
+}
+
+/* Description below mode — shows descriptions as subtext under the title */
+.action-widget .description-below .monaco-list .monaco-list-row.action {
+	flex-wrap: wrap;
+	align-content: center;
+	padding-top: 6px;
+	padding-right: 2px;
+
+	.title {
+		line-height: 14px;
+	}
+
+	.description {
+		display: block !important;
+		width: 100%;
+		margin-left: 0;
+		padding-left: 20px;
+		font-size: 11px;
+		line-height: 14px;
+		opacity: 0.8;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
 }
 
 /* Item toolbar - shows on hover/focus */
