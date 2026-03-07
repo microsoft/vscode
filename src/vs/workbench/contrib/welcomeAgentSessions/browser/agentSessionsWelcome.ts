@@ -878,6 +878,9 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		if (chatViewLocation === ViewContainerLocation.AuxiliaryBar) {
 			this.layoutService.setAuxiliaryBarMaximized(true);
 		}
+
+		this.chatWidget?.setVisible(false);
+		this.chatWidget?.setModel(undefined);
 	}
 
 	private async getRecentlyOpenedWorkspaces(onlyTrusted: boolean = false): Promise<Array<IRecentWorkspace | IRecentFolder>> {
