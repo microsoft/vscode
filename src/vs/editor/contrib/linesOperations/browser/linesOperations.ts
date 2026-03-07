@@ -1242,6 +1242,7 @@ export class SnakeCaseAction extends AbstractCaseAction {
 
 	public static caseBoundary = new BackwardsCompatibleRegExp('(\\p{Ll})(\\p{Lu})', 'gmu');
 	public static singleLetters = new BackwardsCompatibleRegExp('(\\p{Lu}|\\p{N})(\\p{Lu})(\\p{Ll})', 'gmu');
+	public static hyphenBoundary = new BackwardsCompatibleRegExp('(\\S)(-)(\\S)', 'gm');
 
 	constructor() {
 		super({
@@ -1255,11 +1256,13 @@ export class SnakeCaseAction extends AbstractCaseAction {
 	protected _modifyText(text: string, wordSeparators: string): string {
 		const caseBoundary = SnakeCaseAction.caseBoundary.get();
 		const singleLetters = SnakeCaseAction.singleLetters.get();
-		if (!caseBoundary || !singleLetters) {
+		const hyphenBoundary = SnakeCaseAction.hyphenBoundary.get();
+		if (!caseBoundary || !singleLetters || !hyphenBoundary) {
 			// cannot support this
 			return text;
 		}
 		return (text
+			.replace(hyphenBoundary, '$1_$3')
 			.replace(caseBoundary, '$1_$2')
 			.replace(singleLetters, '$1_$2$3')
 			.toLocaleLowerCase()
