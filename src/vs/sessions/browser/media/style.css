@@ -78,4 +78,5 @@
 	display: inherit !important;
 	/* Align with changes view */
 	padding: 4px 12px 6px 12px !important;
+	box-sizing: border-box;
 }
