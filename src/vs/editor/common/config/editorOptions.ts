@@ -3228,6 +3228,12 @@ export interface IEditorInlayHintsOptions {
 	 * Set to 0 to have an unlimited length.
 	 */
 	maximumLength?: number;
+
+	/**
+	 * Maximum number of inlay hints per editor.
+	 * Set to 0 to have an unlimited number of inlay hints.
+	 */
+	maxHintsCount?: number;
 }
 
 /**
@@ -3238,7 +3244,7 @@ export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions
 class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditorInlayHintsOptions, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlayHintsOptions = { enabled: 'on', fontSize: 0, fontFamily: '', padding: false, maximumLength: 43 };
+		const defaults: EditorInlayHintsOptions = { enabled: 'on', fontSize: 0, fontFamily: '', padding: false, maximumLength: 43, maxHintsCount: 1500 };
 		super(
 			EditorOption.inlayHints, 'inlayHints', defaults,
 			{
@@ -3273,6 +3279,11 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					type: 'number',
 					default: defaults.maximumLength,
 					markdownDescription: nls.localize('inlayHints.maximumLength', "Maximum overall length of inlay hints, for a single line, before they get truncated by the editor. Set to `0` to never truncate")
+				},
+				'editor.inlayHints.maxHintsCount': {
+					type: 'number',
+					default: defaults.maxHintsCount,
+					markdownDescription: nls.localize('inlayHints.maxHintsCount', "Maximum number of inlay hints per editor. Set to `0` to have an unlimited number of inlay hints.")
 				}
 			}
 		);
@@ -3292,6 +3303,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
 			padding: boolean(input.padding, this.defaultValue.padding),
 			maximumLength: EditorIntOption.clampedInt(input.maximumLength, this.defaultValue.maximumLength, 0, Number.MAX_SAFE_INTEGER),
+			maxHintsCount: EditorIntOption.clampedInt(input.maxHintsCount, this.defaultValue.maxHintsCount, 0, Number.MAX_SAFE_INTEGER)
 		};
 	}
 }
