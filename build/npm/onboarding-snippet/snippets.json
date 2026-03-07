@@ -1,0 +1,51 @@
+{
+	"env": {
+		"template": "# Environment Setup\n\n# Verify Node.js version (VS Code requires Node.js 20.18.1+)\nnode --version\n\n# Install dependencies\nnpm install\n\n# See CONTRIBUTING.md for detailed setup instructions\n# https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites",
+		"language": "bash",
+		"requires": ["node"],
+		"links": {
+			"contributing": "https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites"
+		}
+	},
+	"docker": {
+		"template": "# Docker Setup\n\n# Build VS Code in Docker container\ndocker build -t vscode-dev .\n\n# Run VS Code development environment\ndocker run -it vscode-dev\n\n# Note: See CONTRIBUTING.md for Docker-specific requirements\n# https://github.com/microsoft/vscode/wiki/How-to-Contribute",
+		"language": "bash",
+		"requires": ["docker"],
+		"links": {
+			"contributing": "https://github.com/microsoft/vscode/wiki/How-to-Contribute"
+		}
+	},
+	"wsl": {
+		"template": "# WSL Setup Notes\n\n# VS Code development on Windows Subsystem for Linux\n# Ensure you're running in WSL, not Windows CMD/PowerShell\n\n# Install Node.js (if not already installed)\ncurl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -\nsudo apt-get install -y nodejs\n\n# Verify installation\nnode --version\nnpm --version\n\n# See CONTRIBUTING.md for WSL-specific notes\n# https://github.com/microsoft/vscode/wiki/How-to-Contribute",
+		"language": "bash",
+		"requires": ["wsl"],
+		"links": {
+			"contributing": "https://github.com/microsoft/vscode/wiki/How-to-Contribute"
+		}
+	},
+	"lint": {
+		"template": "# Linting Workflow\n\n# Run ESLint checks\nnpm run eslint\n\n# Run stylelint checks\nnpm run stylelint\n\n# Run all linting (via hygiene)\nnpm run hygiene\n\n# See CONTRIBUTING.md for linting guidelines\n# https://github.com/microsoft/vscode/wiki/How-to-Contribute",
+		"language": "bash",
+		"requires": [],
+		"links": {
+			"contributing": "https://github.com/microsoft/vscode/wiki/How-to-Contribute"
+		}
+	},
+	"test": {
+		"template": "# Running Tests\n\n# Run browser tests\nnpm run test-browser\n\n# Run Node.js tests\nnpm run test-node\n\n# Run extension tests\nnpm run test-extension\n\n# See CONTRIBUTING.md for testing guidelines\n# https://github.com/microsoft/vscode/wiki/How-to-Contribute",
+		"language": "bash",
+		"requires": [],
+		"links": {
+			"contributing": "https://github.com/microsoft/vscode/wiki/How-to-Contribute"
+		}
+	},
+	"build": {
+		"template": "# Build Workflow\n\n# Compile TypeScript\nnpm run compile\n\n# Watch mode (auto-recompile on changes)\nnpm run watch\n\n# Launch VS Code in development mode\n.\\scripts\\code.bat  # Windows\n./scripts/code.sh   # Linux/macOS\n\n# See CONTRIBUTING.md for build instructions\n# https://github.com/microsoft/vscode/wiki/How-to-Contribute",
+		"language": "bash",
+		"requires": ["node"],
+		"links": {
+			"contributing": "https://github.com/microsoft/vscode/wiki/How-to-Contribute"
+		}
+	}
+}
+
