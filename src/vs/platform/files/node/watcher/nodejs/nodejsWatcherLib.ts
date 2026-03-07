@@ -223,7 +223,8 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			const folderChildren = new Set<string>();
 			if (isDirectory) {
 				try {
-					for (const child of await Promises.readdir(realPath)) {
+					const children = await Promises.readdir(realPath);
+					for (const child of children) {
 						folderChildren.add(child);
 					}
 				} catch (error) {
