@@ -87,6 +87,7 @@
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
     "@vscode/codicons": "^0.0.45-12",
+    "@vscode/copilot-api": "^0.2.15",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
@@ -132,6 +133,7 @@
     "yazl": "^2.4.3"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "@playwright/test": "^1.56.1",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
     "@types/cookie": "^0.3.3",
@@ -209,6 +211,7 @@
     "mocha-junit-reporter": "^2.2.1",
     "mocha-multi-reporters": "^1.5.1",
     "npm-run-all2": "^8.0.4",
+    "openai": "^6.27.0",
     "os-browserify": "^0.3.0",
     "p-all": "^1.0.0",
     "path-browserify": "^1.0.1",

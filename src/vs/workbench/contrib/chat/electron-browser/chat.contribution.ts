@@ -262,3 +262,29 @@ CommandsRegistry.registerCommand(
 		}
 	}
 );
+
+CommandsRegistry.registerCommand(
+	`workbench.action.chat.openNewChatSessionInPlace.${AgentSessionProviders.AgentHostLocal}`,
+	async (accessor, chatSessionPosition: string) => {
+		const viewsService = accessor.get(IViewsService);
+		const resource = URI.from({
+			scheme: AgentSessionProviders.AgentHostLocal,
+			path: `/untitled-${generateUuid()}`,
+		});
+
+		if (chatSessionPosition === 'editor') {
+			const editorService = accessor.get(IEditorService);
+			await editorService.openEditor({
+				resource,
+				options: {
+					override: ChatEditorInput.EditorID,
+					pinned: true,
+				},
+			});
+		} else {
+			const view = await viewsService.openView(ChatViewId) as ChatViewPane;
+			await view.loadSession(resource);
+			view.focus();
+		}
+	}
+);

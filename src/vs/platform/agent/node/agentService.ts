@@ -7,7 +7,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, IAgentAttachment, IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentService, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession, IAgentDescriptor } from '../common/agentService.js';
+import { AgentProvider, IAgentAttachment, IAgentCreateSessionConfig, IAgentHostInitData, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentService, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession, IAgentDescriptor } from '../common/agentService.js';
 
 /**
  * The agent service implementation that runs inside the agent-host utility
@@ -71,6 +71,17 @@ export class AgentService extends Disposable implements IAgentService {
 		const promises: Promise<void>[] = [];
 		for (const provider of this._providers.values()) {
 			promises.push(provider.setAuthToken(token));
+		}
+		await Promise.all(promises);
+	}
+
+	async initialize(initData: IAgentHostInitData): Promise<void> {
+		this._logService.info('[AgentService] initialize called', { machineId: initData.machineId, version: initData.vscodeVersion });
+		const promises: Promise<void>[] = [];
+		for (const provider of this._providers.values()) {
+			if (provider.initialize) {
+				promises.push(provider.initialize(initData));
+			}
 		}
 		await Promise.all(promises);
 	}
