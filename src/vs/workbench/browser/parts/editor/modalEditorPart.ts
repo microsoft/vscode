@@ -516,7 +516,9 @@ export class ModalEditorPart {
 				resizableElement.domNode.style.top = `${clampedTop}px`;
 			} else {
 				const left = (containerDimension.width - width) / 2;
-				const top = titleBarOffset + (availableHeight - height) / 2;
+				const top = editorPart.maximized
+					? (containerDimension.height - height) / 2 // center in full window to stay close to title bar
+					: titleBarOffset + (availableHeight - height) / 2;
 				resizableElement.domNode.style.left = `${left}px`;
 				resizableElement.domNode.style.top = `${top}px`;
 			}
