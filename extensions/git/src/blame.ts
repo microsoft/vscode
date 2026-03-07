@@ -447,28 +447,42 @@ export class GitBlameController {
 			// may be stale when the selection changes because of a content change and the diff
 			// information is not yet updated.
 			if (!diffInformationWorkingTree || diffInformationWorkingTree.isStale) {
-				this.textEditorBlameInformation = undefined;
-				return;
+				// Check if there's diff information from third-party extensions (e.g., Git Graph, GitLens).
+				// These extensions use their own URI schemes, so getWorkingTreeDiffInformation() returns
+				// undefined. However, we can still show blame information by treating their diff as having
+				// no uncommitted changes (since we're viewing a committed state from the extension).
+				const thirdPartyDiffInformation = textEditor.diffInformation?.find(
+					diff => diff.original && !diff.isStale
+				);
+
+				if (thirdPartyDiffInformation) {
+					// Third-party diff editor: treat as viewing committed content with no local changes
+					workingTreeChanges = allChanges = [];
+					workingTreeAndIndexChanges = undefined;
+				} else {
+					this.textEditorBlameInformation = undefined;
+					return;
+				}
+			} else {
+				// Working tree + index diff information
+				const diffInformationWorkingTreeAndIndex = getWorkingTreeAndIndexDiffInformation(textEditor);
+
+				// Working tree + index diff information is present and it is stale. Diff information
+				// may be stale when the selection changes because of a content change and the diff
+				// information is not yet updated.
+				if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
+					this.textEditorBlameInformation = undefined;
+					return;
+				}
+
+				workingTreeChanges = diffInformationWorkingTree.changes;
+				workingTreeAndIndexChanges = diffInformationWorkingTreeAndIndex?.changes;
+
+				// For staged resources, we provide an additional "original resource" so that the editor
+				// diff information contains both the changes that are in the working tree and the changes
+				// that are in the working tree + index.
+				allChanges = workingTreeAndIndexChanges ?? workingTreeChanges;
 			}
-
-			// Working tree + index diff information
-			const diffInformationWorkingTreeAndIndex = getWorkingTreeAndIndexDiffInformation(textEditor);
-
-			// Working tree + index diff information is present and it is stale. Diff information
-			// may be stale when the selection changes because of a content change and the diff
-			// information is not yet updated.
-			if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
-				this.textEditorBlameInformation = undefined;
-				return;
-			}
-
-			workingTreeChanges = diffInformationWorkingTree.changes;
-			workingTreeAndIndexChanges = diffInformationWorkingTreeAndIndex?.changes;
-
-			// For staged resources, we provide an additional "original resource" so that the editor
-			// diff information contains both the changes that are in the working tree and the changes
-			// that are in the working tree + index.
-			allChanges = workingTreeAndIndexChanges ?? workingTreeChanges;
 		}
 
 		let commit: string;
