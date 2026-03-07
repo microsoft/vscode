@@ -34,6 +34,12 @@
 	white-space: nowrap;
 }
 
+.interactive-session .interactive-input-part > .chat-input-widgets-container .chat-status-widget .chat-status-icon {
+	color: var(--vscode-textLink-foreground);
+	margin-right: 6px;
+	flex-shrink: 0;
+}
+
 .interactive-session .interactive-input-part > .chat-input-widgets-container .chat-status-widget .chat-status-action {
 	flex-shrink: 0;
 	padding-right: 4px;
@@ -44,6 +50,32 @@
 	padding: 2px 8px;
 	min-width: unset;
 	height: 22px;
+}
+
+.interactive-session .interactive-input-part > .chat-input-widgets-container .chat-status-widget .chat-status-dismiss {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+	flex-shrink: 0;
+	margin-right: 4px;
+}
+
+.interactive-session .interactive-input-part > .chat-input-widgets-container .chat-status-widget .chat-status-dismiss:hover {
+	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.interactive-session .interactive-input-part > .chat-input-widgets-container .chat-status-widget .chat-status-dismiss:focus-visible {
+	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
 }
 
 .interactive-session .interactive-input-part > .chat-input-widgets-container:has(.chat-status-widget:not([style*="display: none"])) + .chat-todo-list-widget-container .chat-todo-list-widget {
