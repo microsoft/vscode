@@ -50,14 +50,14 @@ import { ToolOutputTruncationMiddleware } from './middleware/toolOutputTruncatio
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind } from './localToolDisplay.js';
 import { BashTool } from './tools/bashTool.js';
 import { ReadFileTool } from './tools/readFileTool.js';
-import {
+import type {
 	ISessionAssistantMessage,
 	ISessionToolComplete,
 	ISessionToolStart,
 	ISessionUserMessage,
 	SessionEntry,
-	SessionStorage,
-} from './sessionStorage.js';
+} from '../common/sessionTypes.js';
+import { SessionStorage } from './sessionStorage.js';
 
 // -- Session state ------------------------------------------------------------
 
