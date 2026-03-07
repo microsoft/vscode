@@ -1,0 +1,27 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.terminal-selection-decoration {
+	z-index: 10;
+	pointer-events: auto !important;
+}
+
+.terminal-selection-decoration .terminal-selection-action-bar {
+	display: inline-flex;
+	transform: translateY(-100%);
+	background-color: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border);
+	border-radius: 4px;
+	padding: 2px;
+}
+
+.terminal-selection-decoration .terminal-selection-action-bar .monaco-action-bar {
+	background: transparent;
+}
+
+.terminal-selection-decoration .terminal-selection-action-bar .monaco-action-bar .action-item .action-label {
+	padding: 2px 4px;
+	border-radius: 2px;
+}
