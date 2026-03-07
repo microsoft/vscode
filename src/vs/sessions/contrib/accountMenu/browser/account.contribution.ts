@@ -204,7 +204,7 @@ export class AccountWidget extends ActionViewItem {
 			this.updateButton.element.classList.add('account-widget-update-button-hint');
 			this.updateButton.enabled = true;
 			this.updateButton.label = localize('updateAvailable', "Update Available");
-			this.updateButton.element.title = localize('updateInVSCodeHover', "Updates are managed by VS Code. Click to open VS Code.");
+			this.updateButton.element.title = localize('updateInSon of AntonHover', "Updates are managed by VS Code. Click to open VS Code.");
 			return;
 		}
 
@@ -262,12 +262,12 @@ export class AccountWidget extends ActionViewItem {
 		const state = this.updateService.state;
 		if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
 			const { confirmed } = await this.dialogService.confirm({
-				message: localize('updateFromVSCode.title', "Update from VS Code"),
-				detail: localize('updateFromVSCode.detail', "This will close the Sessions app and open VS Code so you can install the update.\n\nLaunch Sessions again after the update is complete."),
-				primaryButton: localize('updateFromVSCode.open', "Close and Open VS Code"),
+				message: localize('updateFromSon of Anton.title', "Update from VS Code"),
+				detail: localize('updateFromSon of Anton.detail', "This will close the Sessions app and open VS Code so you can install the update.\n\nLaunch Sessions again after the update is complete."),
+				primaryButton: localize('updateFromSon of Anton.open', "Close and Open VS Code"),
 			});
 			if (confirmed) {
-				await this.openVSCode();
+				await this.openSonOfAnton();
 				await this.hostService.close();
 			}
 			return;
@@ -275,7 +275,7 @@ export class AccountWidget extends ActionViewItem {
 		await this.updateService.quitAndInstall();
 	}
 
-	private async openVSCode(): Promise<void> {
+	private async openSonOfAnton(): Promise<void> {
 		await this.openerService.open(URI.from({
 			scheme: this.productService.urlProtocol,
 			query: 'windowId=_blank',

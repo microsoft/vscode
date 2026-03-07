@@ -1217,13 +1217,52 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		query = query.withFlags(...query.flags, Flag.IncludeAssetUri, Flag.IncludeCategoryAndTags, Flag.IncludeFiles, Flag.IncludeStatistics, Flag.IncludeVersionProperties);
 		const { galleryExtensions: rawGalleryExtensions, total, context } = await this.queryRawGalleryExtensions(query, extensionGalleryManifest, token);
 
+		const includePreReleaseById = new Map<string, boolean>();
+		const includePreReleaseByUuid = new Map<string, boolean>();
+		if (!isBoolean(criteria.includePreRelease)) {
+			for (const item of criteria.includePreRelease) {
+				if (item.uuid) {
+					includePreReleaseByUuid.set(item.uuid, item.includePreRelease);
+				}
+				includePreReleaseById.set(item.id.toLowerCase(), item.includePreRelease);
+			}
+		}
+
+		const getIncludePreRelease = (extensionIdentifier: { id: string; uuid?: string }): boolean => {
+			if (isBoolean(criteria.includePreRelease)) {
+				return criteria.includePreRelease;
+			}
+			if (extensionIdentifier.uuid && includePreReleaseByUuid.has(extensionIdentifier.uuid)) {
+				return includePreReleaseByUuid.get(extensionIdentifier.uuid)!;
+			}
+			return !!includePreReleaseById.get(extensionIdentifier.id.toLowerCase());
+		};
+
+		const versionsById = new Map<string, string>();
+		const versionsByUuid = new Map<string, string>();
+		if (criteria.versions) {
+			for (const item of criteria.versions) {
+				if (item.uuid) {
+					versionsByUuid.set(item.uuid, item.version);
+				}
+				versionsById.set(item.id.toLowerCase(), item.version);
+			}
+		}
+
+		const getVersion = (extensionIdentifier: { id: string; uuid?: string }): string | undefined => {
+			if (extensionIdentifier.uuid && versionsByUuid.has(extensionIdentifier.uuid)) {
+				return versionsByUuid.get(extensionIdentifier.uuid);
+			}
+			return versionsById.get(extensionIdentifier.id.toLowerCase());
+		};
+
 		const hasAllVersions: boolean = !query.flags.includes(Flag.IncludeLatestVersionOnly);
 		if (hasAllVersions) {
 			const extensions: IGalleryExtension[] = [];
 			for (const rawGalleryExtension of rawGalleryExtensions) {
 				const allTargetPlatforms = getAllTargetPlatforms(rawGalleryExtension);
 				const extensionIdentifier = { id: getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName), uuid: rawGalleryExtension.extensionId };
-				const includePreRelease = isBoolean(criteria.includePreRelease) ? criteria.includePreRelease : !!criteria.includePreRelease.find(extensionIdentifierWithPreRelease => areSameExtensions(extensionIdentifierWithPreRelease, extensionIdentifier))?.includePreRelease;
+				const includePreRelease = getIncludePreRelease(extensionIdentifier);
 				const rawGalleryExtensionVersion = await this.getValidRawGalleryExtensionVersion(
 					rawGalleryExtension,
 					rawGalleryExtension.versions,
@@ -1231,7 +1270,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 						compatible: criteria.compatible,
 						targetPlatform: criteria.targetPlatform,
 						productVersion: criteria.productVersion,
-						version: criteria.versions?.find(extensionIdentifierWithVersion => areSameExtensions(extensionIdentifierWithVersion, extensionIdentifier))?.version
+						version: getVersion(extensionIdentifier)
 							?? (includePreRelease ? VersionKind.Latest : VersionKind.Release)
 					},
 					allTargetPlatforms
@@ -1248,7 +1287,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		for (let index = 0; index < rawGalleryExtensions.length; index++) {
 			const rawGalleryExtension = rawGalleryExtensions[index];
 			const extensionIdentifier = { id: getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName), uuid: rawGalleryExtension.extensionId };
-			const includePreRelease = isBoolean(criteria.includePreRelease) ? criteria.includePreRelease : !!criteria.includePreRelease.find(extensionIdentifierWithPreRelease => areSameExtensions(extensionIdentifierWithPreRelease, extensionIdentifier))?.includePreRelease;
+			const includePreRelease = getIncludePreRelease(extensionIdentifier);
 			const allTargetPlatforms = getAllTargetPlatforms(rawGalleryExtension);
 			if (criteria.compatible) {
 				// Skip looking for all versions if requested for a web-compatible extension and it is not a web extension.
@@ -1267,7 +1306,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 					compatible: criteria.compatible,
 					targetPlatform: criteria.targetPlatform,
 					productVersion: criteria.productVersion,
-					version: criteria.versions?.find(extensionIdentifierWithVersion => areSameExtensions(extensionIdentifierWithVersion, extensionIdentifier))?.version
+					version: getVersion(extensionIdentifier)
 						?? (includePreRelease ? VersionKind.Latest : VersionKind.Release)
 				},
 				allTargetPlatforms

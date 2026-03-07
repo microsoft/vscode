@@ -17,7 +17,7 @@ async function fetchLatestExtensionManifest(extensionId: string): Promise<IExten
 	// First, get the latest version from the gallery endpoint
 	const galleryUrl = `https://main.vscode-unpkg.net/_gallery/${publisher}/${name}/latest`;
 	const galleryResponse = await fetch(galleryUrl, {
-		headers: { 'User-Agent': 'VSCode Build' }
+		headers: { 'User-Agent': 'Son of Anton Build' }
 	});
 
 	if (!galleryResponse.ok) {
@@ -31,7 +31,7 @@ async function fetchLatestExtensionManifest(extensionId: string): Promise<IExten
 	const url = `https://${publisher}.vscode-unpkg.net/${publisher}/${name}/${version}/extension/package.json`;
 
 	const response = await fetch(url, {
-		headers: { 'User-Agent': 'VSCode Build' }
+		headers: { 'User-Agent': 'Son of Anton Build' }
 	});
 
 	if (!response.ok) {

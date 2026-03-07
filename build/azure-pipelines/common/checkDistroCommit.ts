@@ -33,7 +33,7 @@ async function getDistroBranchHead(branch: string, token: string): Promise<strin
 			'Accept': 'application/vnd.github+json',
 			'Authorization': `Bearer ${token}`,
 			'X-GitHub-Api-Version': '2022-11-28',
-			'User-Agent': 'VSCode Build'
+			'User-Agent': 'Son of Anton Build'
 		}
 	});
 

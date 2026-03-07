@@ -287,7 +287,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	/**
 	* Converts IconPath DTO into iconPath/iconClass properties.
 	*/
-	private expandIconPath(target: Pick<TransferQuickPickItem, 'iconPathDto' | 'iconPath' | 'iconClass'>) {
+	private expandIconPath(target: Pick<TransferQuickPickItem, 'iconPathDto'> & { iconPath?: { light?: URI; dark: URI }, iconClass?: string }) {
 		const icon = target.iconPathDto;
 		if (!icon) {
 			return;

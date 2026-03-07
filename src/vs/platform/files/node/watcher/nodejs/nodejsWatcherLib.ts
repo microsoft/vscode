@@ -189,7 +189,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			return;
 		}
 
-		// macOS: watching samba shares can crash VSCode so we do
+		// macOS: watching samba shares can crash Son of Anton so we do
 		// a simple check for the file path pointing to /Volumes
 		// (https://github.com/microsoft/vscode/issues/106879)
 		// TODO@electron this needs a revisit when the crash is
@@ -223,7 +223,8 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			const folderChildren = new Set<string>();
 			if (isDirectory) {
 				try {
-					for (const child of await Promises.readdir(realPath)) {
+					const children = await Promises.readdir(realPath);
+					for (const child of children) {
 						folderChildren.add(child);
 					}
 				} catch (error) {

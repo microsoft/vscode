@@ -31,9 +31,6 @@ const _allApiProposals = {
 	authProviderSpecific: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authProviderSpecific.d.ts',
 	},
-	authSession: {
-		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authSession.d.ts',
-	},
 	authenticationChallenges: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authenticationChallenges.d.ts',
 	},

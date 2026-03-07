@@ -155,10 +155,10 @@ async function main(buildDir?: string, outDir?: string): Promise<void> {
 		throw new Error('Output directory argument is required');
 	}
 
-	const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
+	const appRoot = path.join(buildDir, `Son of Anton-darwin-${arch}`);
 	const appName = product.nameLong + '.app';
 	const appPath = path.join(appRoot, appName);
-	const dmgName = `VSCode-darwin-${arch}`;
+	const dmgName = `Son of Anton-darwin-${arch}`;
 	const artifactPath = path.join(outDir, `${dmgName}.dmg`);
 	const backgroundPath = path.join(import.meta.dirname, `dmg-background-${quality}.tiff`);
 	const diskIconPath = path.join(root, 'resources', 'darwin', 'code.icns');

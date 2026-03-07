@@ -174,7 +174,7 @@ steps:
 
     - script: |
         set -e
-        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_ROOT="$(Agent.BuildDirectory)/Son of Anton-darwin-$(VSCODE_ARCH)"
         APP_NAME="`ls $APP_ROOT | head -n 1`"
         APP_PATH="$APP_ROOT/$APP_NAME"
         unzip $(Build.ArtifactStagingDirectory)/cli/*.zip -d $(Build.ArtifactStagingDirectory)/cli
@@ -186,7 +186,7 @@ steps:
 
     - script: |
         set -e
-        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_ROOT="$(Agent.BuildDirectory)/Son of Anton-darwin-$(VSCODE_ARCH)"
         APP_NAME="`ls $APP_ROOT | head -n 1`"
         APP_PATH="$APP_ROOT/$APP_NAME"
         EXEC_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").nameShort")
@@ -201,7 +201,7 @@ steps:
 
     - script: |
         set -e
-        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_ROOT="$(Agent.BuildDirectory)/Son of Anton-darwin-$(VSCODE_ARCH)"
         APP_NAME="`ls $APP_ROOT | head -n 1`"
         APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.ts $(VSCODE_ARCH)
         APP_PATH="$(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)" node build/darwin/verify-macho.ts $(VSCODE_ARCH)
@@ -209,9 +209,9 @@ steps:
 
     - script: |
         set -e
-        ARCHIVE_PATH="$(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip"
+        ARCHIVE_PATH="$(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/Son of Anton-darwin-$(VSCODE_ARCH).zip"
         mkdir -p $(dirname $ARCHIVE_PATH)
-        (cd ../VSCode-darwin-$(VSCODE_ARCH) && zip -Xry $ARCHIVE_PATH *)
+        (cd ../Son of Anton-darwin-$(VSCODE_ARCH) && zip -Xry $ARCHIVE_PATH *)
         echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
       condition: eq(variables['BUILT_CLIENT'], 'true')
       displayName: Package client
@@ -261,16 +261,16 @@ steps:
         DMG_OUT="$(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_dmg"
         mkdir -p $DMG_OUT
         node build/darwin/create-dmg.ts $(agent.builddirectory) $DMG_OUT
-        python3 build/darwin/patch-dmg.py $DMG_OUT/VSCode-darwin-$(VSCODE_ARCH).dmg resources/darwin/disk.icns
-        echo "##vso[task.setvariable variable=DMG_PATH]$DMG_OUT/VSCode-darwin-$(VSCODE_ARCH).dmg"
+        python3 build/darwin/patch-dmg.py $DMG_OUT/Son of Anton-darwin-$(VSCODE_ARCH).dmg resources/darwin/disk.icns
+        echo "##vso[task.setvariable variable=DMG_PATH]$DMG_OUT/Son of Anton-darwin-$(VSCODE_ARCH).dmg"
       condition: eq(variables['BUILT_CLIENT'], 'true')
       displayName: Create DMG installer
 
     - script: |
         set -e
-        ARCHIVE_PATH="$(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip"
+        ARCHIVE_PATH="$(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/Son of Anton-darwin-$(VSCODE_ARCH).zip"
         mkdir -p $(dirname $ARCHIVE_PATH)
-        (cd ../VSCode-darwin-$(VSCODE_ARCH) && zip -Xry $ARCHIVE_PATH *)
+        (cd ../Son of Anton-darwin-$(VSCODE_ARCH) && zip -Xry $ARCHIVE_PATH *)
         echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
       condition: eq(variables['BUILT_CLIENT'], 'true')
       displayName: Re-package client after entitlement
@@ -334,12 +334,12 @@ steps:
       condition: succeededOrFailed()
       displayName: "Post-job: ✍️ Codesign & Notarize"
 
-    - script: unzip $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+    - script: unzip $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/Son of Anton-darwin-$(VSCODE_ARCH).zip -d $(Build.ArtifactStagingDirectory)/Son of Anton-darwin-$(VSCODE_ARCH)
       displayName: Extract signed app
 
     - script: |
         set -e
-        APP_ROOT="$(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_ROOT="$(Build.ArtifactStagingDirectory)/Son of Anton-darwin-$(VSCODE_ARCH)"
         APP_NAME="`ls $APP_ROOT | head -n 1`"
         APP_PATH="$APP_ROOT/$APP_NAME"
         codesign -dv --deep --verbose=4 "$APP_PATH"
@@ -352,13 +352,13 @@ steps:
         mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive
         if [ "$VSCODE_ARCH" == "x64" ]; then
           # Use legacy name for x64 builds
-          mv $(CLIENT_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
+          mv $(CLIENT_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/Son of Anton-darwin.zip
         else
-          mv $(CLIENT_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip
+          mv $(CLIENT_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/Son of Anton-darwin-$(VSCODE_ARCH).zip
         fi
 
         mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg
-        mv $(DMG_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg/VSCode-darwin-$(VSCODE_ARCH).dmg
+        mv $(DMG_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg/Son of Anton-darwin-$(VSCODE_ARCH).dmg
 
         mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_server_darwin_$(VSCODE_ARCH)_archive
         mv $(SERVER_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_server_darwin_$(VSCODE_ARCH)_archive/vscode-server-darwin-$(VSCODE_ARCH).zip

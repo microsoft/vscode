@@ -22,7 +22,7 @@ export interface INativeEnvironmentPaths {
 	 * The user data directory to use for anything that should be
 	 * persisted except for the content that is meant for the `homeDir`.
 	 *
-	 * Only one instance of VSCode can use the same `userDataDir`.
+	 * Only one instance of Son of Anton can use the same `userDataDir`.
 	 */
 	userDataDir: string;
 

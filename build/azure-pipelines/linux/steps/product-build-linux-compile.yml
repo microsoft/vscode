@@ -115,7 +115,7 @@ steps:
         SYSROOT_ARCH="amd64"
       fi
       export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots/glibc-2.28-gcc-8.5.0
-      SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+      SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e 'import { getSon of AntonSysroot } from "./build/linux/debian/install-sysroot.ts"; (async () => { await getSon of AntonSysroot(process.env["SYSROOT_ARCH"]); })()'
     env:
       VSCODE_ARCH: $(VSCODE_ARCH)
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -219,14 +219,14 @@ steps:
     - script: |
         set -e
         tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(Build.ArtifactStagingDirectory)/cli
-        CLI_APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").tunnelApplicationName")
-        APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").applicationName")
-        mv $(Build.ArtifactStagingDirectory)/cli/$APP_NAME $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
+        CLI_APP_NAME=$(node -p "require(\"$(agent.builddirectory)/Son of Anton-linux-$(VSCODE_ARCH)/resources/app/product.json\").tunnelApplicationName")
+        APP_NAME=$(node -p "require(\"$(agent.builddirectory)/Son of Anton-linux-$(VSCODE_ARCH)/resources/app/product.json\").applicationName")
+        mv $(Build.ArtifactStagingDirectory)/cli/$APP_NAME $(agent.builddirectory)/Son of Anton-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
       displayName: Mix in CLI
 
   - script: |
       set -e
-      tar -czf $CLIENT_PATH -C .. VSCode-linux-$(VSCODE_ARCH)
+      tar -czf $CLIENT_PATH -C .. Son of Anton-linux-$(VSCODE_ARCH)
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Archive client
@@ -431,7 +431,7 @@ steps:
         # SBOM generation uses hard links which are not supported by the Linux kernel
         # for files that have the SUID bit set, so we need to remove the SUID bit from
         # the chrome-sandbox file.
-        sudo ls -l $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/chrome-sandbox
-        sudo chmod u-s $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/chrome-sandbox
-        sudo ls -l $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/chrome-sandbox
+        sudo ls -l $(Agent.BuildDirectory)/Son of Anton-linux-$(VSCODE_ARCH)/chrome-sandbox
+        sudo chmod u-s $(Agent.BuildDirectory)/Son of Anton-linux-$(VSCODE_ARCH)/chrome-sandbox
+        sudo ls -l $(Agent.BuildDirectory)/Son of Anton-linux-$(VSCODE_ARCH)/chrome-sandbox
       displayName: Move artifacts to out directory

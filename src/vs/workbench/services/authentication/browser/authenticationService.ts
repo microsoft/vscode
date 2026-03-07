@@ -23,6 +23,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../../base/common/oauth.js';
 import { raceCancellation, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { IDynamicAuthenticationProviderStorageService } from '../common/dynamicAuthenticationProviderStorage.js';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
@@ -117,7 +118,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IAuthenticationAccessService authenticationAccessService: IAuthenticationAccessService,
 		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IDynamicAuthenticationProviderStorageService private readonly _dynamicAuthenticationProviderStorageService: IDynamicAuthenticationProviderStorageService
 	) {
 		super();
 		this._register(toDisposable(() => this._disposedSource.dispose(true)));
@@ -243,6 +245,11 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			this._onDidUnregisterAuthenticationProvider.fire({ id, label: provider.label });
 		}
 		this._authenticationProviderDisposables.deleteAndDispose(id);
+	}
+
+	async removeDynamicAuthenticationProvider(id: string): Promise<void> {
+		this.unregisterAuthenticationProvider(id);
+		await this._dynamicAuthenticationProviderStorageService.removeDynamicProvider(id);
 	}
 
 	getProviderIds(): string[] {

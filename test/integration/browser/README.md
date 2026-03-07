@@ -26,4 +26,4 @@ Add the `--debug` flag to see a browser window with the tests running.
 
 ## Debug
 
-All integration tests can be run and debugged from within VSCode (both Electron and Web) simply by selecting the related launch configuration and running them.
+All integration tests can be run and debugged from within Son of Anton (both Electron and Web) simply by selecting the related launch configuration and running them.

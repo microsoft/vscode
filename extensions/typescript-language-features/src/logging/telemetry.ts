@@ -14,7 +14,7 @@ export interface TelemetryReporter {
 	logTraceEvent(tracePoint: string, correlationId: string, command?: string): void;
 }
 
-export class VSCodeTelemetryReporter implements TelemetryReporter {
+export class SonOfAntonTelemetryReporter implements TelemetryReporter {
 	constructor(
 		private readonly reporter: IExperimentationTelemetryReporter | undefined,
 		private readonly clientVersionDelegate: () => string

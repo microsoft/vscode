@@ -75,7 +75,7 @@ async function main(buildDir?: string): Promise<void> {
 		throw new Error('$AGENT_TEMPDIRECTORY not set');
 	}
 
-	const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
+	const appRoot = path.join(buildDir, `Son of Anton-darwin-${arch}`);
 	const appName = product.nameLong + '.app';
 	const infoPlistPath = path.resolve(appRoot, appName, 'Contents', 'Info.plist');
 

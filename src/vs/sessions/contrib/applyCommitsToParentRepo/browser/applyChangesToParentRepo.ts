@@ -95,7 +95,7 @@ class ApplyChangesToParentRepoAction extends Action2 {
 
 		const openFolderAction = toAction({
 			id: 'applyChangesToParentRepo.openFolder',
-			label: localize('openInVSCode', "Open in VS Code"),
+			label: localize('openInSon of Anton', "Open in VS Code"),
 			run: () => {
 				const scheme = productService.quality === 'stable'
 					? 'vscode'

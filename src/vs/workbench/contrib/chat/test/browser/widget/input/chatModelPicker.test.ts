@@ -74,7 +74,7 @@ function callBuild(
 		recentModelIds?: string[];
 		controlModels?: IStringDictionary<IModelControlEntry>;
 		entitlement?: ChatEntitlement;
-		currentVSCodeVersion?: string;
+		currentSonOfAntonVersion?: string;
 		updateStateType?: StateType;
 		manageSettingsUrl?: string;
 		anonymous?: boolean;
@@ -90,7 +90,7 @@ function callBuild(
 		opts.selectedModelId,
 		opts.recentModelIds ?? [],
 		opts.controlModels ?? {},
-		opts.currentVSCodeVersion ?? '1.100.0',
+		opts.currentSonOfAntonVersion ?? '1.100.0',
 		opts.updateStateType ?? StateType.Idle,
 		onSelect,
 		opts.manageSettingsUrl,
@@ -150,15 +150,15 @@ suite('buildModelPickerItems', () => {
 		assert.ok(actions[1].item?.checked);
 	});
 
-	test('selected model with failing minVSCodeVersion shows as unavailable with reason update', () => {
+	test('selected model with failing minSon of AntonVersion shows as unavailable with reason update', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
 		const items = callBuild([auto, modelA], {
 			selectedModelId: modelA.identifier,
 			controlModels: {
-				'gpt-4o': { label: 'GPT-4o', minVSCodeVersion: '2.0.0', exists: true },
+				'gpt-4o': { label: 'GPT-4o', minSonOfAntonVersion: '2.0.0', exists: true },
 			},
-			currentVSCodeVersion: '1.90.0',
+			currentSonOfAntonVersion: '1.90.0',
 		});
 		const actions = getActionItems(items);
 		// The promoted section should contain the unavailable model
@@ -202,9 +202,9 @@ suite('buildModelPickerItems', () => {
 		const items = callBuild([auto], {
 			recentModelIds: ['missing-model'],
 			controlModels: {
-				'missing-model': { label: 'Missing Model', minVSCodeVersion: '2.0.0', exists: false },
+				'missing-model': { label: 'Missing Model', minSonOfAntonVersion: '2.0.0', exists: false },
 			},
-			currentVSCodeVersion: '1.90.0',
+			currentSonOfAntonVersion: '1.90.0',
 		});
 		const actions = getActionItems(items);
 		const unavailable = actions.find(a => a.label === 'Missing Model');
@@ -268,14 +268,14 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(unavailable.disabled, true);
 	});
 
-	test('featured model with minVSCodeVersion shows as unavailable (update) when version too low', () => {
+	test('featured model with minSon of AntonVersion shows as unavailable (update) when version too low', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
 		const items = callBuild([auto, modelA], {
 			controlModels: {
-				'gpt-4o': { label: 'GPT-4o', featured: true, minVSCodeVersion: '2.0.0', exists: true },
+				'gpt-4o': { label: 'GPT-4o', featured: true, minSonOfAntonVersion: '2.0.0', exists: true },
 			},
-			currentVSCodeVersion: '1.90.0',
+			currentSonOfAntonVersion: '1.90.0',
 		});
 		const actions = getActionItems(items);
 		const unavailable = actions.find(a => a.label === 'GPT-4o');
@@ -366,14 +366,14 @@ suite('buildModelPickerItems', () => {
 		assert.ok(manageItem.label!.includes('Manage Models'));
 	});
 
-	test('Other Models with minVSCodeVersion that fails shows as disabled', () => {
+	test('Other Models with minSon of AntonVersion that fails shows as disabled', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
 		const items = callBuild([auto, modelA], {
 			controlModels: {
-				'gpt-4o': { label: 'GPT-4o', minVSCodeVersion: '2.0.0', exists: true },
+				'gpt-4o': { label: 'GPT-4o', minSonOfAntonVersion: '2.0.0', exists: true },
 			},
-			currentVSCodeVersion: '1.90.0',
+			currentSonOfAntonVersion: '1.90.0',
 		});
 		const actions = getActionItems(items);
 		const gptItem = actions.find(a => a.label === 'GPT-4o');
@@ -387,9 +387,9 @@ suite('buildModelPickerItems', () => {
 		const unavailableModel = createModel('alpha', 'Alpha');
 		const items = callBuild([auto, availableModel, unavailableModel], {
 			controlModels: {
-				'alpha': { label: 'Alpha', minVSCodeVersion: '2.0.0', exists: true },
+				'alpha': { label: 'Alpha', minSonOfAntonVersion: '2.0.0', exists: true },
 			},
-			currentVSCodeVersion: '1.90.0',
+			currentSonOfAntonVersion: '1.90.0',
 		});
 		const actions = getActionItems(items);
 		const otherModelLabels = actions.slice(2).map(a => a.label!).filter(l => !l.includes('Manage Models'));

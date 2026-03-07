@@ -71,7 +71,7 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 
 	protected abstract getUriTransformer(ctx: T): IURITransformer;
 
-	protected abstract transformIncoming(uriTransformer: IURITransformer, _resource: UriComponents, supportVSCodeResource?: boolean): URI;
+	protected abstract transformIncoming(uriTransformer: IURITransformer, _resource: UriComponents, supportSonOfAntonResource?: boolean): URI;
 
 	//#region File Metadata Resolving
 

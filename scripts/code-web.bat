@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-title VSCode Web Serverless
+title Son of Anton Web Serverless
 
 pushd %~dp0\..
 

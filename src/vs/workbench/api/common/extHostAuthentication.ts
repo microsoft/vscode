@@ -31,6 +31,31 @@ import { raceCancellationError, SequencerByKey } from '../../../base/common/asyn
 export interface IExtHostAuthentication extends ExtHostAuthentication { }
 export const IExtHostAuthentication = createDecorator<IExtHostAuthentication>('IExtHostAuthentication');
 
+export function getAuthenticationSessionOptionsString(options: vscode.AuthenticationGetSessionOptions): string {
+	const keys: (keyof vscode.AuthenticationGetSessionOptions)[] = Object.keys(options) as (keyof vscode.AuthenticationGetSessionOptions)[];
+	return keys
+		.map(key => {
+			switch (key) {
+				case 'account':
+					return `${key}:${options.account?.id}`;
+				case 'createIfNone':
+				case 'forceNewSession': {
+					const value = typeof options[key] === 'boolean'
+						? `${options[key]}`
+						: `'${options[key]?.detail}/${options[key]?.learnMore?.toString()}'`;
+					return `${key}:${value}`;
+				}
+				case 'authorizationServer':
+					return `${key}:${options.authorizationServer?.toString(true)}`;
+				default:
+					return `${key}:${!!options[key]}`;
+			}
+		})
+		.sort()
+		.join(', ');
+}
+
+
 interface ProviderWithMetadata {
 	label: string;
 	provider: vscode.AuthenticationProvider;
@@ -85,28 +110,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined>;
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
-		const keys: (keyof vscode.AuthenticationGetSessionOptions)[] = Object.keys(options) as (keyof vscode.AuthenticationGetSessionOptions)[];
-		// TODO: pull this out into a utility function somewhere
-		const optionsStr = keys
-			.map(key => {
-				switch (key) {
-					case 'account':
-						return `${key}:${options.account?.id}`;
-					case 'createIfNone':
-					case 'forceNewSession': {
-						const value = typeof options[key] === 'boolean'
-							? `${options[key]}`
-							: `'${options[key]?.detail}/${options[key]?.learnMore?.toString()}'`;
-						return `${key}:${value}`;
-					}
-					case 'authorizationServer':
-						return `${key}:${options.authorizationServer?.toString(true)}`;
-					default:
-						return `${key}:${!!options[key]}`;
-				}
-			})
-			.sort()
-			.join(', ');
+		const optionsStr = getAuthenticationSessionOptionsString(options);
 
 		let singlerKey: string;
 		if (isAuthenticationWwwAuthenticateRequest(scopesOrRequest)) {

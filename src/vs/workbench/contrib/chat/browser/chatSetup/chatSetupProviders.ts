@@ -116,7 +116,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 			const disposables = new DisposableStore();
 
-			// Register VSCode agent
+			// Register Son of Anton agent
 			const { disposable: vscodeDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Chat, ChatModeKind.Agent, context, controller);
 			disposables.add(vscodeDisposable);
 

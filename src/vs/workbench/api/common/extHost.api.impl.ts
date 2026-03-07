@@ -332,12 +332,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			getAccounts(providerId: string) {
 				return extHostAuthentication.getAccounts(providerId);
 			},
-			// TODO: remove this after GHPR and Codespaces move off of it
-			async hasSession(providerId: string, scopes: readonly string[]) {
-				checkProposedApiEnabled(extension, 'authSession');
-				// eslint-disable-next-line local/code-no-any-casts
-				return !!(await extHostAuthentication.getSession(extension, providerId, scopes, { silent: true } as any));
-			},
 			get onDidChangeSessions(): vscode.Event<vscode.AuthenticationSessionsChangeEvent> {
 				return _asExtensionEvent(extHostAuthentication.getExtensionScopedSessionsEvent(extension.identifier.value));
 			},

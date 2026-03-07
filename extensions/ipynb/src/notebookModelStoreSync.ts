@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, ExtensionContext, NotebookCellKind, NotebookDocument, NotebookDocumentChangeEvent, NotebookEdit, workspace, WorkspaceEdit, type NotebookCell, type NotebookDocumentWillSaveEvent } from 'vscode';
-import { getCellMetadata, getVSCodeCellLanguageId, removeVSCodeCellLanguageId, setVSCodeCellLanguageId, sortObjectPropertiesRecursively, getNotebookMetadata } from './serializers';
+import { getCellMetadata, getSonOfAntonCellLanguageId, removeSonOfAntonCellLanguageId, setSonOfAntonCellLanguageId, sortObjectPropertiesRecursively, getNotebookMetadata } from './serializers';
 import { CellMetadata } from './common';
 import type * as nbformat from '@jupyterlab/nbformat';
 import { generateUuid } from './helper';
@@ -143,7 +143,7 @@ function onDidChangeNotebookCells(e: NotebookDocumentChangeEventEx) {
 			return;
 		}
 		const currentMetadata = e.metadata ? getCellMetadata({ metadata: e.metadata }) : getCellMetadata({ cell: e.cell });
-		const languageIdInMetadata = getVSCodeCellLanguageId(currentMetadata);
+		const languageIdInMetadata = getSonOfAntonCellLanguageId(currentMetadata);
 		const metadata: CellMetadata = JSON.parse(JSON.stringify(currentMetadata));
 		metadata.metadata = metadata.metadata || {};
 		let metadataUpdated = false;
@@ -175,13 +175,13 @@ function onDidChangeNotebookCells(e: NotebookDocumentChangeEventEx) {
 		}
 
 		if (e.document?.languageId && e.document?.languageId !== preferredCellLanguage && e.document?.languageId !== languageIdInMetadata) {
-			setVSCodeCellLanguageId(metadata, e.document.languageId);
+			setSonOfAntonCellLanguageId(metadata, e.document.languageId);
 			metadataUpdated = true;
 		} else if (e.document?.languageId && e.document.languageId === preferredCellLanguage && languageIdInMetadata) {
-			removeVSCodeCellLanguageId(metadata);
+			removeSonOfAntonCellLanguageId(metadata);
 			metadataUpdated = true;
 		} else if (e.document?.languageId && e.document.languageId === preferredCellLanguage && e.document.languageId === languageIdInMetadata) {
-			removeVSCodeCellLanguageId(metadata);
+			removeSonOfAntonCellLanguageId(metadata);
 			metadataUpdated = true;
 		}
 

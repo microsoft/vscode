@@ -131,14 +131,9 @@ declare module 'vscode' {
 		encoding?: string;
 
 		/**
-		 * Number of lines of context to include before each match.
+		 * Number of lines of context to include before and after each match.
 		 */
-		beforeContext?: number;
-
-		/**
-		 * Number of lines of context to include after each match.
-		 */
-		afterContext?: number;
+		surroundingContext?: number;
 	}
 
 	/**

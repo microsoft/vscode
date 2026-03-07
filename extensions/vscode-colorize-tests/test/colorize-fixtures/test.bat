@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-title VSCode Dev
+title Son of Anton Dev
 
 pushd %~dp0\..
 

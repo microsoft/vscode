@@ -163,12 +163,12 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized snippets`);
 		}
 
-		for (const { previewResource } of accptedResourcePreviews) {
+		await Promise.all(accptedResourcePreviews.map(async ({ previewResource }) => {
 			// Delete the preview
 			try {
 				await this.fileService.del(previewResource);
 			} catch (e) { /* ignore */ }
-		}
+		}));
 
 	}
 

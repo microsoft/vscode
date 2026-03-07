@@ -25,7 +25,7 @@ import { EditSourceTrackingImpl } from './editSourceTrackingImpl.js';
 import { IAnnotatedDocuments } from '../helpers/annotatedDocuments.js';
 import { DataChannelForwardingTelemetryService } from '../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { EDIT_TELEMETRY_DETAILS_SETTING_ID, EDIT_TELEMETRY_SHOW_DECORATIONS, EDIT_TELEMETRY_SHOW_STATUS_BAR } from '../settings.js';
-import { VSCodeWorkspace } from '../helpers/vscodeObservableWorkspace.js';
+import { SonOfAntonWorkspace } from '../helpers/vscodeObservableWorkspace.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 
 export class EditTrackingFeature extends Disposable {
@@ -36,7 +36,7 @@ export class EditTrackingFeature extends Disposable {
 	private readonly _toggleDecorations = 'editTelemetry.toggleDebugDecorations';
 
 	constructor(
-		private readonly _workspace: VSCodeWorkspace,
+		private readonly _workspace: SonOfAntonWorkspace,
 		private readonly _annotatedDocuments: IAnnotatedDocuments,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,

@@ -317,9 +317,9 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 	return result.pipe(createStatsStream(path.basename(extensionPath)));
 }
 
-const userAgent = 'VSCode Build';
+const userAgent = 'Son of Anton Build';
 const baseHeaders = {
-	'X-Market-Client-Id': 'VSCode Build',
+	'X-Market-Client-Id': 'Son of Anton Build',
 	'User-Agent': userAgent,
 	'X-Market-User-Id': '291C1CD0-051A-4123-9B4B-30D60EF52EE2',
 };
@@ -419,10 +419,7 @@ const excludedExtensions = [
 
 const marketplaceWebExtensionsExclude = new Set([
 	'ms-vscode.node-debug',
-	'ms-vscode.node-debug2',
-	'ms-vscode.js-debug-companion',
-	'ms-vscode.js-debug',
-	'ms-vscode.vscode-js-profile-table'
+	'ms-vscode.node-debug2'
 ]);
 
 const productJson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../product.json'), 'utf8'));

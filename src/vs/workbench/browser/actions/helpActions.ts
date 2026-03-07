@@ -332,12 +332,12 @@ class GetStartedWithAccessibilityFeatures extends Action2 {
 	}
 }
 
-class AskVSCodeCopilot extends Action2 {
+class AskSonOfAntonCopilot extends Action2 {
 	static readonly ID = 'workbench.action.askVScode';
 
 	constructor() {
 		super({
-			id: AskVSCodeCopilot.ID,
+			id: AskSonOfAntonCopilot.ID,
 			title: localize2('askVScode', 'Ask @vscode'),
 			category: Categories.Help,
 			f1: true,
@@ -354,7 +354,7 @@ class AskVSCodeCopilot extends Action2 {
 
 MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	command: {
-		id: AskVSCodeCopilot.ID,
+		id: AskSonOfAntonCopilot.ID,
 		title: localize2('askVScode', 'Ask @vscode'),
 	},
 	order: 7,
@@ -402,4 +402,4 @@ if (OpenPrivacyStatementUrlAction.AVAILABLE) {
 
 registerAction2(GetStartedWithAccessibilityFeatures);
 
-registerAction2(AskVSCodeCopilot);
+registerAction2(AskSonOfAntonCopilot);

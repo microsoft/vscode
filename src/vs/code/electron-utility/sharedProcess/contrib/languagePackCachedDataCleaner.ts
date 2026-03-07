@@ -75,34 +75,38 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 			}
 
 			const entries = await Promises.readdir(cacheDir);
-			for (const entry of entries) {
+			await Promise.all(entries.map(async entry => {
 				if (installed[entry]) {
 					this.logService.trace(`[language pack cache cleanup]: Skipping folder ${entry}. Language pack still in use.`);
-					continue;
+					return;
 				}
 
 				this.logService.trace(`[language pack cache cleanup]: Removing unused language pack: ${entry}`);
 
 				await Promises.rm(join(cacheDir, entry));
-			}
+			}));
 
 			const now = Date.now();
-			await Promise.all(Object.keys(installed).map(async (packEntry) => {
-				const folder = join(cacheDir, packEntry);
-				const entries = await Promises.readdir(folder);
-				await Promise.all(entries.map(async (entry) => {
-					if (entry === 'tcf.json') {
-						return;
-					}
+			await Promise.all(Object.keys(installed).map(async packEntry => {
+				try {
+					const folder = join(cacheDir, packEntry);
+					const entries = await Promises.readdir(folder);
+					await Promise.all(entries.map(async entry => {
+						if (entry === 'tcf.json') {
+							return;
+						}
 
-					const candidate = join(folder, entry);
-					const stat = await promises.stat(candidate);
-					if (stat.isDirectory() && (now - stat.mtime.getTime()) > this.dataMaxAge) {
-						this.logService.trace(`[language pack cache cleanup]: Removing language pack cache folder: ${join(packEntry, entry)}`);
+						const candidate = join(folder, entry);
+						const stat = await promises.stat(candidate);
+						if (stat.isDirectory() && (now - stat.mtime.getTime()) > this.dataMaxAge) {
+							this.logService.trace(`[language pack cache cleanup]: Removing language pack cache folder: ${join(packEntry, entry)}`);
 
-						await Promises.rm(candidate);
-					}
-				}));
+							await Promises.rm(candidate);
+						}
+					}));
+				} catch (error) {
+					// Ignore errors like ENOENT when the folder does not exist
+				}
 			}));
 		} catch (error) {
 			onUnexpectedError(error);

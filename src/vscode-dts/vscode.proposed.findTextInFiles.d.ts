@@ -71,14 +71,9 @@ declare module 'vscode' {
 		previewOptions?: TextSearchPreviewOptions;
 
 		/**
-		 * Number of lines of context to include before each match.
+		 * Number of lines of context to include before and after each match.
 		 */
-		beforeContext?: number;
-
-		/**
-		 * Number of lines of context to include after each match.
-		 */
-		afterContext?: number;
+		surroundingContext?: number;
 	}
 
 	export namespace workspace {

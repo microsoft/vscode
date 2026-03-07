@@ -194,7 +194,7 @@ export interface IWorkingCopy extends IWorkingCopyIdentifier {
 	/**
 	 * The workbench may call this method often after it receives
 	 * the `onDidChangeContent` event for the working copy. The motivation
-	 * is to allow to quit VSCode with dirty working copies present.
+	 * is to allow to quit Son of Anton with dirty working copies present.
 	 *
 	 * Providers of working copies should use `IWorkingCopyBackupService.resolve(workingCopy)`
 	 * to retrieve the backup metadata associated when loading the working copy.

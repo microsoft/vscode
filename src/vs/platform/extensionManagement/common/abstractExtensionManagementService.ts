@@ -603,17 +603,30 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 
 		const knownIdentifiers: IExtensionIdentifier[] = [];
 
+		const installedIds = new Set<string>();
+		for (const ext of installed) {
+			installedIds.add(ext.identifier.id.toLowerCase());
+		}
+
 		const allDependenciesAndPacks: { gallery: IGalleryExtension; manifest: IExtensionManifest }[] = [];
 		const collectDependenciesAndPackExtensionsToInstall = async (extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest): Promise<void> => {
 			knownIdentifiers.push(extensionIdentifier);
-			const dependecies: string[] = manifest.extensionDependencies ? manifest.extensionDependencies.filter(dep => !installed.some(e => areSameExtensions(e.identifier, { id: dep }))) : [];
+			const dependecies: string[] = manifest.extensionDependencies ? manifest.extensionDependencies.filter(dep => !installedIds.has(dep.toLowerCase())) : [];
 			const dependenciesAndPackExtensions = [...dependecies];
 			if (manifest.extensionPack) {
 				const existing = installed.find(e => areSameExtensions(e.identifier, extensionIdentifier));
+
+				const existingPackSet = new Set<string>();
+				if (existing?.manifest.extensionPack) {
+					for (const id of existing.manifest.extensionPack) {
+						existingPackSet.add(id.toLowerCase());
+					}
+				}
+
 				for (const extension of manifest.extensionPack) {
 					// add only those extensions which are new in currently installed extension
-					if (!(existing && existing.manifest.extensionPack && existing.manifest.extensionPack.some(old => areSameExtensions({ id: old }, { id: extension })))) {
-						if (dependenciesAndPackExtensions.every(e => !areSameExtensions({ id: e }, { id: extension }))) {
+					if (!existingPackSet.has(extension.toLowerCase())) {
+						if (dependenciesAndPackExtensions.every(e => e.toLowerCase() !== extension.toLowerCase())) {
 							dependenciesAndPackExtensions.push(extension);
 						}
 					}
@@ -622,7 +635,11 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 
 			if (dependenciesAndPackExtensions.length) {
 				// filter out known extensions
-				const ids = dependenciesAndPackExtensions.filter(id => knownIdentifiers.every(galleryIdentifier => !areSameExtensions(galleryIdentifier, { id })));
+				const knownIdentifierIds = new Set<string>();
+				for (const id of knownIdentifiers) {
+					knownIdentifierIds.add(id.id.toLowerCase());
+				}
+				const ids = dependenciesAndPackExtensions.filter(id => !knownIdentifierIds.has(id.toLowerCase()));
 				if (ids.length) {
 					const galleryExtensions = await this.galleryService.getExtensions(ids.map(id => ({ id, preRelease: preferPreRelease })), CancellationToken.None);
 					for (const galleryExtension of galleryExtensions) {
