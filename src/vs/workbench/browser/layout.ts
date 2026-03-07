@@ -47,6 +47,7 @@ import { AuxiliaryBarPart } from './parts/auxiliarybar/auxiliaryBarPart.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IAuxiliaryWindowService } from '../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { CodeWindow, mainWindow } from '../../base/browser/window.js';
+import { IChatEntitlementService } from '../services/chat/common/chatEntitlementService.js';
 
 //#region Layout Implementation
 
@@ -334,7 +335,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.registerLayoutListeners();
 
 		// State
-		this.initLayoutState(accessor.get(ILifecycleService), accessor.get(IFileService));
+		this.initLayoutState(accessor.get(ILifecycleService), accessor.get(IFileService), accessor.get(IChatEntitlementService));
 	}
 
 	private registerLayoutListeners(): void {
@@ -666,10 +667,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
+	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService, chatEntitlementService: IChatEntitlementService): void {
 		this._mainContainerDimension = getClientArea(this.parent, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? DEFAULT_EMPTY_WINDOW_DIMENSIONS : DEFAULT_WORKSPACE_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 
-		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, this.environmentService);
+		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, this.environmentService, chatEntitlementService);
 		this.stateModel.load({
 			mainContainerDimension: this._mainContainerDimension,
 			resetLayout: Boolean(this.layoutOptions?.resetLayout)
@@ -2850,6 +2851,7 @@ class LayoutStateModel extends Disposable {
 		private readonly configurationService: IConfigurationService,
 		private readonly contextService: IWorkspaceContextService,
 		private readonly environmentService: IBrowserWorkbenchEnvironmentService,
+		private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
@@ -2925,6 +2927,14 @@ class LayoutStateModel extends Disposable {
 
 			if (auxiliaryBarForceMaximized === true) {
 				return false; // forced to be visible
+			}
+
+			// Hide auxiliary bar if AI features are disabled
+			// The auxiliary bar primarily contains AI features like Chat, so when
+			// sentiment.hidden is true (user signals no intent in using Chat),
+			// we should keep it hidden by default.
+			if (this.chatEntitlementService.sentiment.hidden) {
+				return true;
 			}
 
 			// Unless auxiliary bar visibility is explicitly configured, make
