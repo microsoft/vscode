@@ -10,6 +10,7 @@
  */
 
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
@@ -29,7 +30,7 @@ import {
 import { SessionWriter } from './sessionStorage.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind } from './localToolDisplay.js';
 
-export class LocalSession {
+export class LocalSession extends Disposable {
 	private readonly _entries: SessionEntry[] = [];
 	private readonly _writer: SessionWriter;
 	private readonly _activeToolCalls = new Map<string, { toolName: string; args: Record<string, unknown> }>();
@@ -49,13 +50,14 @@ export class LocalSession {
 		storageBaseDir: string,
 		logService: ILogService,
 	) {
+		super();
 		this.uri = uri;
 		this.model = model;
 		this.workingDirectory = workingDirectory;
 		this.startTime = Date.now();
 		this._modifiedTime = this.startTime;
 		this._cts = new CancellationTokenSource();
-		this._writer = new SessionWriter(storageBaseDir, AgentSession.id(uri), workingDirectory, logService);
+		this._writer = this._register(new SessionWriter(storageBaseDir, AgentSession.id(uri), workingDirectory, logService));
 	}
 
 	get entries(): readonly SessionEntry[] { return this._entries; }
@@ -150,11 +152,6 @@ export class LocalSession {
 	/** Flush pending writes to disk. */
 	flush(): Promise<void> {
 		return this._writer.flush();
-	}
-
-	/** Dispose the writer (flushes are cancelled, scheduler disposed). */
-	disposeWriter(): void {
-		this._writer.dispose();
 	}
 
 	toMetadata(): IAgentSessionMetadata {

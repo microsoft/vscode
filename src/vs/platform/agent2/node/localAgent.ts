@@ -87,7 +87,7 @@ export class LocalAgent extends Disposable implements IAgent {
 
 	override dispose(): void {
 		for (const session of this._sessionState.values()) {
-			session.disposeWriter();
+			session.dispose();
 		}
 		this._sessionState.clear();
 		super.dispose();
@@ -210,7 +210,7 @@ export class LocalAgent extends Disposable implements IAgent {
 		const session = this._sessionState.get(key);
 		if (session) {
 			await session.flush();
-			session.disposeWriter();
+			session.dispose();
 		}
 		this._sessionState.delete(key);
 		this._sessions.deleteAndDispose(key);
@@ -237,7 +237,7 @@ export class LocalAgent extends Disposable implements IAgent {
 		}
 		await Promise.all(flushPromises);
 		for (const session of this._sessionState.values()) {
-			session.disposeWriter();
+			session.dispose();
 		}
 		this._sessionState.clear();
 		this._sessions.clearAndDisposeAll();
