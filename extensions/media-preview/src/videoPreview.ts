@@ -78,7 +78,7 @@ class VideoPreview extends MediaPreview {
 
 	<link rel="stylesheet" href="${escapeAttribute(this.extensionResource('media', 'videoPreview.css'))}" type="text/css" media="screen" nonce="${nonce}">
 
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${cspSource}; media-src ${cspSource}; script-src 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}';">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${cspSource}; media-src data: ${cspSource}; script-src 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}';">
 	<meta id="settings" data-settings="${escapeAttribute(JSON.stringify(settings))}">
 </head>
 <body class="loading" data-vscode-context='{ "preventDefaultContextMenuItems": true }'>
@@ -101,11 +101,37 @@ class VideoPreview extends MediaPreview {
 			}
 		}
 
+		// Handle untitled scheme (e.g., files opened via Safari's File API)
+		// by reading contents and creating a data URL
+		if (resource.scheme === 'untitled') {
+			try {
+				const contents = await vscode.workspace.fs.readFile(resource);
+				const base64 = Buffer.from(contents).toString('base64');
+				const mimeType = this.getMimeType(resource.path);
+				return `data:${mimeType};base64,${base64}`;
+			} catch {
+				return null;
+			}
+		}
+
 		// Avoid adding cache busting if there is already a query string
 		if (resource.query) {
 			return webviewEditor.webview.asWebviewUri(resource).toString();
 		}
 		return webviewEditor.webview.asWebviewUri(resource).with({ query: `version=${version}` }).toString();
+	}
+
+	private getMimeType(path: string): string {
+		const ext = path.split('.').pop()?.toLowerCase();
+		switch (ext) {
+			case 'mp4': return 'video/mp4';
+			case 'webm': return 'video/webm';
+			case 'ogg': return 'video/ogg';
+			case 'mov': return 'video/quicktime';
+			case 'avi': return 'video/x-msvideo';
+			case 'mkv': return 'video/x-matroska';
+			default: return 'video/mp4';
+		}
 	}
 
 	private extensionResource(...parts: string[]) {
