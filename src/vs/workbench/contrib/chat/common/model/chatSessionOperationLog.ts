@@ -9,7 +9,7 @@ import { equals as objectsEqual } from '../../../../../base/common/objects.js';
 import { isEqual as _urisEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
-import { IChatMarkdownContent, ResponseModelState } from '../chatService/chatService.js';
+import { IChatMarkdownContent, IChatThinkingPart, ResponseModelState } from '../chatService/chatService.js';
 import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatAgentEditedFileEvent, IChatDataSerializerLog, IChatModel, IChatPendingRequest, IChatProgressResponseContent, IChatRequestModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatModelInputState, ISerializableChatRequestData, ISerializablePendingRequestData, SerializedChatResponsePart, serializeSendOptions } from './chatModel.js';
@@ -40,10 +40,6 @@ const toJson = <T>(obj: T): T extends { toJSON?(): infer R } ? R : T => {
 const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatResponsePart>(
 	(obj): SerializedChatResponsePart => obj.kind === 'markdownContent' ? obj.content : toJson(obj),
 	(a, b) => {
-		if (isMarkdownString(a) && isMarkdownString(b)) {
-			return a.value === b.value;
-		}
-
 		if (hasKey(a, { kind: true }) && hasKey(b, { kind: true })) {
 			if (a.kind !== b.kind) {
 				return false;
@@ -76,13 +72,16 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 				case 'progressMessage':
 				case 'pullRequest':
 				case 'questionCarousel':
-				case 'thinking':
 				case 'undoStop':
 				case 'warning':
 				case 'treeData':
 				case 'workspaceEdit':
 				case 'disabledClaudeHooks':
 					return a.kind === b.kind;
+
+				case 'thinking': {
+					return a.kind === b.kind && diffThinkingParts(a, b);
+				}
 
 				default: {
 					// Hello developer! You are probably here because you added a new chat response type.
@@ -93,11 +92,40 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 					assertNever(a);
 				}
 			}
+		} else if (isMarkdownString(a) && isMarkdownString(b)) {
+			return a.value === b.value;
 		}
 
 		return false;
 	}
 );
+
+/**
+ * generatedTitle can change after the thinking part is initially created
+ */
+const diffThinkingParts = (previous: IChatThinkingPart, current: IChatThinkingPart): boolean => {
+	return previous.id === current.id && previous.generatedTitle === current.generatedTitle;
+};
+
+const getLastThinkingContent = (response: ReadonlyArray<SerializedChatResponsePart> | undefined): IChatThinkingPart | undefined => {
+	if (!response || response.length === 0) {
+		return undefined;
+	}
+
+	for (let i = response.length - 1; i >= 0; i--) {
+		const part = response[i];
+		if (hasKey(part, { kind: true }) && part.kind === 'thinking' && !!part.value) {
+			return part;
+		}
+	}
+
+	return undefined;
+};
+
+const hasPendingThinkingTitleGeneration = (response: ReadonlyArray<SerializedChatResponsePart> | undefined): boolean => {
+	const lastThinkingPart = getLastThinkingContent(response);
+	return !!lastThinkingPart && !lastThinkingPart.generatedTitle;
+};
 
 const urisEqual = (a: UriComponents, b: UriComponents): boolean => {
 	return _urisEqual(URI.from(a), URI.from(b));
@@ -149,7 +177,11 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	codeCitations: Adapt.v(m => m.response?.codeCitations, objectsEqual),
 	timeSpentWaiting: Adapt.v(m => m.response?.timestamp), // based on response timestamp
 }, {
-	sealed: (o) => o.modelState?.value === ResponseModelState.Cancelled || o.modelState?.value === ResponseModelState.Failed || o.modelState?.value === ResponseModelState.Complete,
+	sealed: o => {
+		const modelState = o.modelState?.value;
+		const isTerminalState = modelState === ResponseModelState.Cancelled || modelState === ResponseModelState.Failed || modelState === ResponseModelState.Complete;
+		return isTerminalState && !hasPendingThinkingTitleGeneration(o.response);
+	},
 });
 
 const inputStateSchema = Adapt.object<ISerializableChatModelInputState, ISerializableChatModelInputState>({

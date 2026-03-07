@@ -8,6 +8,10 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import * as Adapt from '../../../common/model/objectMutationLog.js';
 import { equals } from '../../../../../../base/common/objects.js';
+import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
+import { IChatModel, IChatRequestModel } from '../../../common/model/chatModel.js';
+import { IChatThinkingPart, ResponseModelState } from '../../../common/chatService/chatService.js';
 
 suite('ChatSessionOperationLog', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -575,5 +579,98 @@ suite('ChatSessionOperationLog', () => {
 
 			assert.deepStrictEqual(result.metadata, { tags: ['b', 'c'] });
 		});
+	});
+
+	suite('Request sealing with thinking titles', () => {
+		interface IFakeChatModel {
+			timestamp: number;
+			hasCustomTitle: boolean;
+			title: string;
+			initialLocation: ChatAgentLocation;
+			inputModel: { toJSON(): undefined };
+			responderUsername: string;
+			sessionId: string;
+			getRequests(): IChatRequestModel[];
+			editingSession: undefined;
+			repoData: undefined;
+			getPendingRequests(): [];
+		}
+
+		const toChatModel = (model: IFakeChatModel): IChatModel => {
+			return model as unknown as IChatModel;
+		};
+
+		const createRequest = (state: ResponseModelState.Complete | ResponseModelState.Cancelled | ResponseModelState.Failed, generatedTitle: string | undefined, followupPrefix: string): IChatRequestModel => {
+			const thinkingPart: IChatThinkingPart = {
+				kind: 'thinking',
+				id: 'last-thinking-part',
+				value: 'Thinking content',
+				generatedTitle,
+			};
+
+			const terminalState = { value: state, completedAt: 1 } as const;
+
+			const request = {
+				id: 'request-1',
+				timestamp: 1,
+				confirmation: undefined,
+				message: { text: 'request text', parts: [{ text: 'request text' }] },
+				shouldBeRemovedOnSend: undefined,
+				modelId: undefined,
+				editedFileEvents: [],
+				variableData: { variables: [] },
+				response: {
+					entireResponse: { value: [thinkingPart] },
+					id: 'response-1',
+					result: undefined,
+					codeBlockInfos: [],
+					followups: [{ kind: 'reply', title: `${followupPrefix} followup` }],
+					stateT: terminalState,
+					vote: undefined,
+					voteDownReason: undefined,
+					slashCommand: undefined,
+					usedContext: undefined,
+					contentReferences: undefined,
+					codeCitations: undefined,
+					timestamp: 1,
+					agent: undefined,
+				},
+			} as unknown as IChatRequestModel;
+
+			return request;
+		};
+
+		const createModel = (state: ResponseModelState.Complete | ResponseModelState.Cancelled | ResponseModelState.Failed, generatedTitle: string | undefined, followupPrefix: string): IChatModel => {
+			return toChatModel({
+				timestamp: 1,
+				hasCustomTitle: false,
+				title: 'chat title',
+				initialLocation: ChatAgentLocation.Chat,
+				inputModel: { toJSON: () => undefined },
+				responderUsername: 'assistant',
+				sessionId: 'session-1',
+				getRequests: () => [createRequest(state, generatedTitle, followupPrefix)],
+				editingSession: undefined,
+				repoData: undefined,
+				getPendingRequests: () => [],
+			});
+		};
+
+		for (const state of [ResponseModelState.Complete, ResponseModelState.Cancelled, ResponseModelState.Failed] as const) {
+			test(`${state}: writes title when last thinking part is pending, then reseals`, () => {
+				const log = new ChatSessionOperationLog();
+
+				const initialModel = createModel(state, undefined, 'initial');
+				log.createInitial(initialModel);
+
+				const modelWithGeneratedTitle = createModel(state, 'Generated thinking title', 'updated');
+				const updateResult = log.write(modelWithGeneratedTitle);
+				assert.notStrictEqual(updateResult.data.toString(), '', 'expected generated title update to produce serialized diff');
+
+				const resealedModel = createModel(state, 'Generated thinking title', 'resealed-change');
+				const resealedResult = log.write(resealedModel);
+				assert.strictEqual(resealedResult.data.toString(), '', 'expected no further diff after title is present and request is sealed');
+			});
+		}
 	});
 });
