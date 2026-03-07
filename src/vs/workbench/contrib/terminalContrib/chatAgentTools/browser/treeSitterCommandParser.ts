@@ -11,6 +11,7 @@ import { Disposable, MutableDisposable, toDisposable } from '../../../../../base
 import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { ICommandFileWriteParser } from './commandParsers/commandFileWriteParser.js';
 import { SedFileWriteParser } from './commandParsers/sedFileWriteParser.js';
+import { TeeFileWriteParser } from './commandParsers/teeFileWriteParser.js';
 
 export const enum TreeSitterCommandParserLanguage {
 	Bash = 'bash',
@@ -22,6 +23,7 @@ export class TreeSitterCommandParser extends Disposable {
 	private readonly _treeCache = this._register(new TreeCache());
 	private readonly _commandFileWriteParsers: ICommandFileWriteParser[] = [
 		new SedFileWriteParser(),
+		new TeeFileWriteParser(),
 	];
 
 	constructor(

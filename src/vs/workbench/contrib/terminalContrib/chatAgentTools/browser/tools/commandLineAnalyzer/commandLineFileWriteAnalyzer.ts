@@ -116,6 +116,26 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			: rawFileWrite;
 	}
 
+	/**
+	 * Checks whether a file URI points to a safe temporary directory.
+	 * Normalizes the path first to prevent traversal bypasses like `/tmp/../etc/config`.
+	 */
+	private _isSafeTmpPath(os: OperatingSystem, fileUri: URI): boolean {
+		if (os === OperatingSystem.Windows) {
+			return false;
+		}
+		const normalized = posix.normalize(fileUri.path);
+		if (normalized.startsWith('/tmp/')) {
+			return true;
+		}
+		// /private/tmp is the real path behind the /tmp symlink on macOS.
+		// This path does not exist on Linux by default
+		if (normalized.startsWith('/private/tmp/')) {
+			return true;
+		}
+		return false;
+	}
+
 	private _getResult(options: ICommandLineAnalyzerOptions, fileWrites: FileWrite[]): ICommandLineAnalyzerResult {
 		let isAutoApproveAllowed = true;
 		if (fileWrites.length > 0) {
@@ -151,7 +171,11 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 								this._log('File write blocked due to likely containing a variable or sub-command', fileUri.toString());
 								break;
 							}
-
+							// Allow writes to /tmp (and /private/tmp on macOS)
+							if (this._isSafeTmpPath(options.os, fileUri)) {
+								this._log('File write to tmp directory allowed', fileUri.toString());
+								continue;
+							}
 							const isInsideWorkspace = workspaceFolders.some(folder =>
 								folder.uri.scheme === fileUri.scheme &&
 								(fileUri.path.startsWith(folder.uri.path + '/') || fileUri.path === folder.uri.path)
@@ -163,9 +187,24 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							}
 						}
 					} else {
-						// No workspace folders, allow safe null device paths even without workspace
-						const hasOnlyNullDevices = fileWrites.every(fw => fw === nullDevice);
-						if (!hasOnlyNullDevices) {
+						// No workspace folders, allow safe null device and tmp paths even without workspace
+						const hasOnlySafeTargets = fileWrites.every(fw => {
+							if (fw === nullDevice) {
+								return true;
+							}
+							const fileUri = URI.isUri(fw) ? fw : isString(fw) ? URI.file(fw) : undefined;
+							if (fileUri) {
+								// Block paths likely containing variables or sub-commands
+								if (fileUri.fsPath.match(/[$\(\){}`]/)) {
+									return false;
+								}
+								if (this._isSafeTmpPath(options.os, fileUri)) {
+									return true;
+								}
+							}
+							return false;
+						});
+						if (!hasOnlySafeTargets) {
 							isAutoApproveAllowed = false;
 							this._log('File writes blocked - no workspace folders');
 						}

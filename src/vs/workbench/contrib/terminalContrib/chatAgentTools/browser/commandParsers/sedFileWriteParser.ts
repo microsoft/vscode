@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICommandFileWriteParser } from './commandFileWriteParser.js';
+import { stripQuotes, tokenizeCommand } from './commandParserUtils.js';
 
 /**
  * Parser for detecting file writes from `sed` commands using in-place editing.
@@ -31,63 +32,8 @@ export class SedFileWriteParser implements ICommandFileWriteParser {
 	}
 
 	extractFileWrites(commandText: string): string[] {
-		const tokens = this._tokenizeCommand(commandText);
+		const tokens = tokenizeCommand(commandText);
 		return this._extractFileTargets(tokens);
-	}
-
-	/**
-	 * Tokenizes a command into individual arguments, handling quotes and escapes.
-	 */
-	private _tokenizeCommand(commandText: string): string[] {
-		const tokens: string[] = [];
-		let current = '';
-		let inSingleQuote = false;
-		let inDoubleQuote = false;
-		let escaped = false;
-
-		for (let i = 0; i < commandText.length; i++) {
-			const char = commandText[i];
-
-			if (escaped) {
-				current += char;
-				escaped = false;
-				continue;
-			}
-
-			if (char === '\\' && !inSingleQuote) {
-				escaped = true;
-				current += char;
-				continue;
-			}
-
-			if (char === '\'' && !inDoubleQuote) {
-				inSingleQuote = !inSingleQuote;
-				current += char;
-				continue;
-			}
-
-			if (char === '"' && !inSingleQuote) {
-				inDoubleQuote = !inDoubleQuote;
-				current += char;
-				continue;
-			}
-
-			if (/\s/.test(char) && !inSingleQuote && !inDoubleQuote) {
-				if (current) {
-					tokens.push(current);
-					current = '';
-				}
-				continue;
-			}
-
-			current += char;
-		}
-
-		if (current) {
-			tokens.push(current);
-		}
-
-		return tokens;
 	}
 
 	/**
@@ -198,12 +144,7 @@ export class SedFileWriteParser implements ICommandFileWriteParser {
 			}
 
 			// Subsequent non-option arguments are files
-			// Strip surrounding quotes from file path
-			let file = token;
-			if ((file.startsWith('\'') && file.endsWith('\'')) || (file.startsWith('"') && file.endsWith('"'))) {
-				file = file.slice(1, -1);
-			}
-			files.push(file);
+			files.push(stripQuotes(token));
 			i++;
 		}
 
