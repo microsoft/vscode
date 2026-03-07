@@ -216,7 +216,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 						run: () => {
 							this._instantiationService.invokeFunction(accessor => {
 								const openerService = accessor.get(IOpenerService);
-								openerService.open('https://aka.ms/vscode-extension-bisect');
+								openerService.open('https://code.visualstudio.com/blogs/2021/02/16/extension-bisect');
 							});
 						}
 					});

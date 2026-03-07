@@ -293,7 +293,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			let done = !extension.isUnderDevelopment;
 			function informOnce() {
 				if (!done) {
-					extHostLogService.info(`Extension '${extension.identifier.value}' uses a document selector without scheme. Learn more about this: https://go.microsoft.com/fwlink/?linkid=872305`);
+					extHostLogService.info(`Extension '${extension.identifier.value}' uses a document selector without scheme. Learn more about this: https://code.visualstudio.com/docs/extensionAPI/document-selectors`);
 					done = true;
 				}
 			}
@@ -1060,7 +1060,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		const workspace: typeof vscode.workspace = {
 			get rootPath() {
 				extHostApiDeprecation.report('workspace.rootPath', extension,
-					`Please use 'workspace.workspaceFolders' instead. More details: https://aka.ms/vscode-eliminating-rootpath`);
+					`Please use 'workspace.workspaceFolders' instead. More details: https://github.com/microsoft/vscode/wiki/Adopting-Multi-Root-Workspace-APIs#eliminating-rootpath`);
 
 				return extHostWorkspace.getPath();
 			},

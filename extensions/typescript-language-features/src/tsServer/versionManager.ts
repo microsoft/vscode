@@ -212,6 +212,6 @@ const LearnMorePickItem: QuickPickItem = {
 	label: vscode.l10n.t("Learn more about managing TypeScript versions"),
 	description: '',
 	run: () => {
-		vscode.env.openExternal(vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=839919'));
+		vscode.env.openExternal(vscode.Uri.parse('https://code.visualstudio.com/docs/typescript/typescript-compiling#_using-newer-typescript-versions'));
 	}
 };

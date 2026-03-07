@@ -285,7 +285,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 								toAction({
 									id: '',
 									label: nls.localize('learn more', "Learn More"),
-									run: () => this.openerService.open('https://aka.ms/vscode-windows-setup')
+									run: () => this.openerService.open('https://code.visualstudio.com/docs/setup/windows')
 								})
 							]
 						},

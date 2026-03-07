@@ -863,7 +863,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 			label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
 			run: () => {
 				this.telemetryService.publicLog2<TrustPublisherEvent, TrustPublisherClassification>('extensions:trustPublisher', { action: 'learn', extensionId: untrustedExtensions.map(e => e.identifier.id).join(',') });
-				this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('vscode.open', URI.parse('https://aka.ms/vscode-extension-security')));
+				this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('vscode.open', URI.parse('https://code.visualstudio.com/docs/editor/extension-runtime-security')));
 				throw new CancellationError();
 			}
 		};
@@ -872,7 +872,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 			return publisherLink ? `[${publisherDisplayName}](${publisherLink})` : publisherDisplayName;
 		};
 
-		const unverifiedLink = 'https://aka.ms/vscode-verify-publisher';
+		const unverifiedLink = 'https://code.visualstudio.com/api/working-with-extensions/publishing-extension#verify-a-publisher';
 
 		const title = allPublishers.length === 1
 			? localize('checkTrustedPublisherTitle', "Do you trust the publisher \"{0}\"?", allPublishers[0].publisherDisplayName)

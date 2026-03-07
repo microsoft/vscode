@@ -103,7 +103,7 @@ export class AtaProgressReporter extends Disposable {
 			const selected = await vscode.window.showWarningMessage(
 				vscode.l10n.t(
 					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed, or configure 'js/ts.tsserver.npm.path' in your user settings. Alternatively, check the [documentation]({0}) to learn more.",
-					'https://go.microsoft.com/fwlink/?linkid=847635'
+					'https://code.visualstudio.com/docs/nodejs/working-with-javascript#_fixing-npm-not-installed-warning-for-automatic-type-acquisition'
 				),
 				dontShowAgain);
 

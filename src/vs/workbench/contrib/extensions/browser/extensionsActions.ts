@@ -116,7 +116,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 				cancelButton: localize('close', "Close")
 			});
 			if (confirmed) {
-				this.openerService.open(isWeb ? URI.parse('https://aka.ms/vscode-web-extensions-guide') : URI.parse('https://aka.ms/vscode-remote'));
+				this.openerService.open(isWeb ? URI.parse('https://code.visualstudio.com/docs/editor/vscode-web#_extensions') : URI.parse('https://code.visualstudio.com/docs/remote/remote-overview'));
 			}
 			return;
 		}

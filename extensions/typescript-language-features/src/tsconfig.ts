@@ -137,8 +137,8 @@ export async function openProjectConfigOrPromptToCreate(
 
 	const selected = await vscode.window.showInformationMessage(
 		(projectType === ProjectType.TypeScript
-			? vscode.l10n.t("File is not part of a TypeScript project. View the [tsconfig.json documentation]({0}) to learn more.", 'https://go.microsoft.com/fwlink/?linkid=841896')
-			: vscode.l10n.t("File is not part of a JavaScript project. View the [jsconfig.json documentation]({0}) to learn more.", 'https://go.microsoft.com/fwlink/?linkid=759670')
+			? vscode.l10n.t("File is not part of a TypeScript project. View the [tsconfig.json documentation]({0}) to learn more.", 'https://code.visualstudio.com/docs/typescript/typescript-compiling#_tsconfigjson')
+			: vscode.l10n.t("File is not part of a JavaScript project. View the [jsconfig.json documentation]({0}) to learn more.", 'https://code.visualstudio.com/docs/nodejs/working-with-javascript#_javascript-projects-jsconfigjson')
 		),
 		CreateConfigItem);
 

@@ -148,7 +148,7 @@ import product from '../../platform/product/common/product.js';
 				'maximum': 120,
 				'included': !isWindows,
 				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription': localize('application.shellEnvironmentResolutionTimeout', "Controls the timeout in seconds before giving up resolving the shell environment when the application is not already launched from a terminal. See our [documentation](https://go.microsoft.com/fwlink/?linkid=2149667) for more information.")
+				'markdownDescription': localize('application.shellEnvironmentResolutionTimeout', "Controls the timeout in seconds before giving up resolving the shell environment when the application is not already launched from a terminal. See our [documentation](https://code.visualstudio.com/docs/supporting/faq#_resolving-shell-environment-fails) for more information.")
 			}
 		}
 	});

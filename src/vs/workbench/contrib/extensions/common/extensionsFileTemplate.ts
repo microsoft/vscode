@@ -39,7 +39,7 @@ export const ExtensionsConfigurationSchema: IJSONSchema = {
 
 export const ExtensionsConfigurationInitialContent: string = [
 	'{',
-	'\t// See https://go.microsoft.com/fwlink/?LinkId=827846 to learn about workspace recommendations.',
+	'\t// See https://code.visualstudio.com/docs/editor/extension-gallery#_workspace-recommended-extensions to learn about workspace recommendations.',
 	'\t// Extension identifier format: ${publisher}.${name}. Example: vscode.csharp',
 	'',
 	'\t// List of extensions which should be recommended for users of this workspace.',

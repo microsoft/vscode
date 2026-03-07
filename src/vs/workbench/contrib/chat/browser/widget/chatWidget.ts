@@ -1119,7 +1119,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const message = providerMessage
 				? new MarkdownString(providerMessage)
 				: (this._lockedAgent?.prefix === '@copilot '
-					? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._lockedAgent.prefix, 'https://aka.ms/coding-agent-docs') + DISCLAIMER, { isTrusted: true })
+					? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._lockedAgent.prefix, 'https://code.visualstudio.com/docs/copilot/agents/overview') + DISCLAIMER, { isTrusted: true })
 					: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._lockedAgent?.prefix) + DISCLAIMER));
 
 			return {

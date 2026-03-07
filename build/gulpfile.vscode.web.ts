@@ -162,12 +162,12 @@ const bundleVSCodeWebTask = task.define('bundle-vscode-web-OLD', task.series(
 const minifyVSCodeWebTask = task.define('minify-vscode-web-OLD', task.series(
 	bundleVSCodeWebTask,
 	util.rimraf('out-vscode-web-min'),
-	optimize.minifyTask('out-vscode-web', `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
+	optimize.minifyTask('out-vscode-web', `https://son-of-anton-sourcemaps.localhost/sourcemaps/${commit}/core`)
 ));
 gulp.task(minifyVSCodeWebTask);
 
 // esbuild-based tasks (new)
-const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
+const sourceMappingURLBase = `https://son-of-anton-sourcemaps.localhost/sourcemaps/${commit}`;
 const esbuildBundleVSCodeWebTask = task.define('esbuild-vscode-web', () => runEsbuildBundle('out-vscode-web', false, true));
 const esbuildBundleVSCodeWebMinTask = task.define('esbuild-vscode-web-min', () => runEsbuildBundle('out-vscode-web-min', true, true, `${sourceMappingURLBase}/core`));
 

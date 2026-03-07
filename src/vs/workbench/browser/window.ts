@@ -360,7 +360,7 @@ export class BrowserWindow extends BaseWindow {
 								type: Severity.Warning,
 								message: localize('unableToOpenExternal', "The browser blocked opening a new tab or window. Press 'Retry' to try again."),
 								custom: {
-									markdownDetails: [{ markdown: new MarkdownString(localize('unableToOpenWindowDetail', "Please allow pop-ups for this website in your [browser settings]({0}).", 'https://aka.ms/allow-vscode-popup'), true) }]
+									markdownDetails: [{ markdown: new MarkdownString(localize('unableToOpenWindowDetail', "Please allow pop-ups for this website in your [browser settings]({0}).", 'https://code.visualstudio.com/docs/remote/codespaces#_how-do-i-allow-vs-code-to-always-open-new-tabs-and-windows'), true) }]
 								},
 								buttons: [
 									{

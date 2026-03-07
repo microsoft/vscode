@@ -550,7 +550,7 @@ suite('buildModelPickerItems', () => {
 			'1.100.0',
 			StateType.Idle,
 			() => { },
-			'https://aka.ms/github-copilot-settings',
+			'https://github.com/settings/copilot',
 			true,
 			stubCommandService,
 			stubChatEntitlementService,
@@ -561,7 +561,7 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(adminItem.disabled, true);
 		const description = adminItem.description;
 		assert.ok(description instanceof MarkdownString);
-		assert.ok(description.value.includes('https://aka.ms/github-copilot-settings'));
+		assert.ok(description.value.includes('https://github.com/settings/copilot'));
 	});
 
 	test('unavailable models keep indentation with blank icon', () => {

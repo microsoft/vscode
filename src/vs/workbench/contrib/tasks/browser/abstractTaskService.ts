@@ -1782,7 +1782,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			};
 			let content = [
 				'{',
-				nls.localize('tasksJsonComment', '\t// See https://go.microsoft.com/fwlink/?LinkId=733558 \n\t// for the documentation about the tasks.json format'),
+				nls.localize('tasksJsonComment', '\t// See https://code.visualstudio.com/docs/editor/tasks \n\t// for the documentation about the tasks.json format'),
 			].join('\n') + JSON.stringify(value, null, '\t').substr(1);
 			const editorConfig = this._configurationService.getValue<{ editor: { insertSpaces: boolean; tabSize: number } }>();
 			if (editorConfig.editor.insertSpaces) {

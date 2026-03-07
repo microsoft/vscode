@@ -33,7 +33,7 @@ const require = createRequire(import.meta.url);
 
 const root = path.dirname(path.dirname(import.meta.dirname));
 const commit = getVersion(root);
-const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
+const sourceMappingURLBase = `https://son-of-anton-sourcemaps.localhost/sourcemaps/${commit}`;
 
 function minifyExtensionResources(input: Stream): Stream {
 	const jsonFilter = filter(['**/*.json', '**/*.code-snippets'], { restore: true });

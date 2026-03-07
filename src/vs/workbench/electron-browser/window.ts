@@ -231,7 +231,7 @@ export class NativeWindow extends BaseWindow {
 				},
 				{
 					label: localize('learnMore', "Learn More"),
-					run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
+					run: () => this.openerService.open('https://code.visualstudio.com/docs/supporting/faq#_resolving-shell-environment-fails')
 				}]
 			);
 		});
@@ -243,7 +243,7 @@ export class NativeWindow extends BaseWindow {
 				localize('keychainWriteError', "Writing login information to the keychain failed with error '{0}'.", message),
 				[{
 					label: localize('troubleshooting', "Troubleshooting Guide"),
-					run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2190713')
+					run: () => this.openerService.open('https://code.visualstudio.com/docs/editor/settings-sync#_troubleshooting-keychain-issues')
 				}]
 			);
 		});
@@ -766,7 +766,7 @@ export class NativeWindow extends BaseWindow {
 					message,
 					[{
 						label: localize('learnMore', "Learn More"),
-						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-macOS'))
+						run: () => this.openerService.open(URI.parse('https://code.visualstudio.com/docs/supporting/faq#_can-i-run-vs-code-on-old-macos-versions'))
 					}],
 					{
 						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
@@ -784,7 +784,7 @@ export class NativeWindow extends BaseWindow {
 			location: ProgressLocation.Window,
 			delay: 1600,
 			buttons: [localize('learnMore', "Learn More")]
-		}, () => shellEnv, () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667'));
+		}, () => shellEnv, () => this.openerService.open('https://code.visualstudio.com/docs/supporting/faq#_resolving-shell-environment-fails'));
 	}
 
 	async resolveExternalUri(uri: URI, options?: OpenOptions): Promise<IResolvedExternalUri | undefined> {
