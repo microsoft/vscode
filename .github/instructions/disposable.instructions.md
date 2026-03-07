@@ -18,3 +18,6 @@ Core symbols:
 	* `value: IDisposable | undefined`
 	* `clear()`
 	* A value that enters a mutable disposable (at least once) will be disposed the latest when the mutable disposable is disposed (or when the value is replaced or cleared).
+
+## Learnings
+* Always register created disposables immediately using `this._register()` to prevent memory leaks. For example: `const someDisposable = this._register(new SomeDisposable())` (1)
