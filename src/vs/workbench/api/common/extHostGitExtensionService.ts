@@ -291,12 +291,16 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 			return [];
 		}
 
-		const changes = await repository.diffBetweenWithStats(ref1, ref2, path);
-		return changes.map(c => ({
-			...toGitChangeDto(c),
-			insertions: c.insertions,
-			deletions: c.deletions,
-		}));
+		try {
+			const changes = await repository.diffBetweenWithStats(ref1, ref2, path);
+			return changes.map(c => ({
+				...toGitChangeDto(c),
+				insertions: c.insertions,
+				deletions: c.deletions,
+			}));
+		} catch {
+			return [];
+		}
 	}
 
 	private async _ensureGitApi(): Promise<GitExtensionAPI | undefined> {
