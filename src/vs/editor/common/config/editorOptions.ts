@@ -3136,6 +3136,14 @@ export interface IEditorStickyScrollOptions {
 	 * Define whether to scroll sticky scroll with editor horizontal scrollbae
 	 */
 	scrollWithEditor?: boolean;
+	/**
+	 * Use heuristics to find a more meaningful scope header by walking back from
+	 * the raw fold-start line. Handles Allman-style braces, trailing return types
+	 * (`-> T`) on their own line, and multi-line signatures. Best-effort;
+	 * primarily designed for C++ and Rust. Has no effect on languages that do not
+	 * use brace-delimited blocks.
+	 */
+	foldHeaderDetection?: boolean;
 }
 
 /**
@@ -3146,7 +3154,7 @@ export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOpt
 class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
 
 	constructor() {
-		const defaults: EditorStickyScrollOptions = { enabled: true, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true };
+		const defaults: EditorStickyScrollOptions = { enabled: true, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true, foldHeaderDetection: false };
 		super(
 			EditorOption.stickyScroll, 'stickyScroll', defaults,
 			{
@@ -3173,6 +3181,12 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 					default: defaults.scrollWithEditor,
 					description: nls.localize('editor.stickyScroll.scrollWithEditor', "Enable scrolling of Sticky Scroll with the editor's horizontal scrollbar.")
 				},
+				'editor.stickyScroll.foldHeaderDetection': {
+					type: 'boolean',
+					default: defaults.foldHeaderDetection,
+					tags: ['experimental'],
+					description: nls.localize('editor.stickyScroll.foldHeaderDetection', "Walk back from the raw fold-start line to find a more meaningful scope header. Handles Allman-style braces, trailing return types on their own line, and multi-line function signatures. Best-effort heuristic; primarily designed for C++ and Rust.")
+				},
 			}
 		);
 	}
@@ -3186,7 +3200,8 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 20),
 			defaultModel: stringSet<'outlineModel' | 'foldingProviderModel' | 'indentationModel'>(input.defaultModel, this.defaultValue.defaultModel, ['outlineModel', 'foldingProviderModel', 'indentationModel']),
-			scrollWithEditor: boolean(input.scrollWithEditor, this.defaultValue.scrollWithEditor)
+			scrollWithEditor: boolean(input.scrollWithEditor, this.defaultValue.scrollWithEditor),
+			foldHeaderDetection: boolean(input.foldHeaderDetection, this.defaultValue.foldHeaderDetection)
 		};
 	}
 }
