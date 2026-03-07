@@ -861,7 +861,7 @@ export async function fetchDynamicRegistration(serverMetadata: IAuthorizationSer
 
 	const requestBody: IAuthorizationDynamicClientRegistrationRequest = {
 		client_name: clientName,
-		client_uri: 'https://code.visualstudio.com',
+		client_uri: 'https://github.com/CodeHalwell/Son-Of-Anton',
 		grant_types: serverMetadata.grant_types_supported
 			? serverMetadata.grant_types_supported.filter(gt => grantTypesSupported.includes(gt))
 			: grantTypesSupported,

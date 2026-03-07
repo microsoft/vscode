@@ -1,6 +1,23 @@
 Son of Anton IDE
 Copyright (c) 2024 - present Son of Anton Contributors
 
-This project is a fork of Microsoft Code - OSS.
+This project is a fork of Microsoft Code - OSS (https://github.com/microsoft/vscode).
 Original copyright (c) 2015 - present Microsoft Corporation.
 Licensed under the MIT License.
+
+Fork origin: https://github.com/microsoft/vscode
+License chain: Code - OSS (MIT) -> Son of Anton (MIT)
+
+Modifications from the original Code - OSS include:
+- Removal of Microsoft proprietary telemetry endpoints and 1DS AppInsights integration
+- Removal of Microsoft Treatment Assignment Service (A/B testing)
+- Replacement of Visual Studio Marketplace with Open VSX Registry
+- Replacement of all Microsoft branding with Son of Anton branding
+- Removal of references to Microsoft service endpoints
+- Disabling of crash reporting to Microsoft servers
+
+"Visual Studio Code", "VS Code", and the Visual Studio Code icon are trademarks
+of Microsoft Corporation. This fork does not use Microsoft trademarks.
+
+All original MIT-licensed code retains its copyright attribution to Microsoft Corporation.
+New contributions are copyright Son of Anton Contributors under the same MIT License.

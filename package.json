@@ -3,7 +3,7 @@
   "version": "1.112.0",
   "distro": "cd72f8f27b485d65c99f5020caa895a5ac5692eb",
   "author": {
-    "name": "Microsoft Corporation"
+    "name": "Son of Anton Contributors"
   },
   "license": "MIT",
   "main": "./out/main.js",
@@ -80,8 +80,6 @@
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.23",
-    "@microsoft/1ds-core-js": "^3.2.13",
-    "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
     "@vscode/codicons": "^0.0.45-12",
@@ -120,7 +118,6 @@
     "node-pty": "^1.2.0-beta.10",
     "open": "^10.1.2",
     "playwright-core": "1.59.0-alpha-2026-02-20",
-    "tas-client": "0.3.1",
     "undici": "^7.18.2",
     "v8-inspect-profiler": "^0.1.1",
     "vscode-oniguruma": "1.7.0",
@@ -243,10 +240,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/CodeHalwell/Son-Of-Anton.git"
   },
   "bugs": {
-    "url": "https://github.com/microsoft/vscode/issues"
+    "url": "https://github.com/CodeHalwell/Son-Of-Anton/issues"
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.6.1"

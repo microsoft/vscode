@@ -32,7 +32,7 @@
   "reportIssueUrl": "https://github.com/son-of-anton/son-of-anton/issues/new",
   "nodejsRepository": "https://nodejs.org",
   "urlProtocol": "son-of-anton",
-  "webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
+  "webviewContentExternalBaseUrlTemplate": "",
   "builtInExtensions": [],
   "enableTelemetry": false,
   "extensionsGallery": {

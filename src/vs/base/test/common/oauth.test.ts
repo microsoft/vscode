@@ -481,7 +481,7 @@ suite('OAuth', () => {
 			// Verify request body
 			const requestBody = JSON.parse(options.body as string);
 			assert.strictEqual(requestBody.client_name, 'Test Client');
-			assert.strictEqual(requestBody.client_uri, 'https://code.visualstudio.com');
+			assert.strictEqual(requestBody.client_uri, 'https://github.com/CodeHalwell/Son-Of-Anton');
 			assert.deepStrictEqual(requestBody.grant_types, ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code']);
 			assert.deepStrictEqual(requestBody.response_types, ['code']);
 			assert.deepStrictEqual(requestBody.redirect_uris, [
