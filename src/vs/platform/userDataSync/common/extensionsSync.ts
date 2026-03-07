@@ -615,13 +615,34 @@ export abstract class AbstractExtensionsInitializer extends AbstractInitializer 
 		const installedExtensions: ILocalExtension[] = [];
 		const newExtensions: (IExtensionIdentifier & { preRelease: boolean })[] = [];
 		const disabledExtensions: IExtensionIdentifier[] = [];
+
+		const localExtensionsByUuid = new Map<string, ILocalExtension>();
+		const localExtensionsById = new Map<string, ILocalExtension>();
+		for (const localExtension of localExtensions) {
+			if (localExtension.identifier.uuid) {
+				localExtensionsByUuid.set(localExtension.identifier.uuid, localExtension);
+			}
+			localExtensionsById.set(localExtension.identifier.id.toLowerCase(), localExtension);
+		}
+
 		for (const extension of remoteExtensions) {
 			if (this.ignoredExtensionsManagementService.hasToNeverSyncExtension(extension.identifier.id)) {
 				// Skip extension ignored to sync
 				continue;
 			}
 
-			const installedExtension = localExtensions.find(i => areSameExtensions(i.identifier, extension.identifier));
+			let installedExtension: ILocalExtension | undefined;
+			if (extension.identifier.uuid) {
+				installedExtension = localExtensionsByUuid.get(extension.identifier.uuid);
+			}
+			if (!installedExtension) {
+				installedExtension = localExtensionsById.get(extension.identifier.id.toLowerCase());
+				// If both have UUIDs and they are different, they are not the same
+				if (installedExtension && installedExtension.identifier.uuid && extension.identifier.uuid && installedExtension.identifier.uuid !== extension.identifier.uuid) {
+					installedExtension = undefined;
+				}
+			}
+
 			if (installedExtension) {
 				installedExtensions.push(installedExtension);
 				if (extension.disabled) {
