@@ -15,7 +15,7 @@ AppUpdatesURL=https://code.visualstudio.com/
 DefaultGroupName={#NameLong}
 AllowNoIcons=yes
 OutputDir={#OutputDir}
-OutputBaseFilename=VSCodeSetup
+OutputBaseFilename=Son of AntonSetup
 Compression=lzma
 SolidCompression=yes
 AppMutex={code:GetAppMutex}
@@ -1667,7 +1667,7 @@ var
 begin
   // Remove the old context menu package
   // Following condition can be removed in v1.111.
-  if QualityIsInsiders() and not SessionEndFileExists() and AppxPackageInstalled('Microsoft.VSCodeInsiders', RemoveAppxPackageResultCode) then begin
+  if QualityIsInsiders() and not SessionEndFileExists() and AppxPackageInstalled('Microsoft.Son of AntonInsiders', RemoveAppxPackageResultCode) then begin
     Log('Deleting old appx ' + AppxPackageFullname + ' installation...');
     ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Remove-AppxPackage -Package ''' + AppxPackageFullname + ''''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
     DeleteFile(ExpandConstant('{app}\appx\code_insiders_explorer_{#Arch}.appx'));
@@ -1782,7 +1782,7 @@ begin
   until Length(Text)=0;
 end;
 
-function NeedsAddToPath(VSCode: string): boolean;
+function NeedsAddToPath(Son of Anton: string): boolean;
 var
   OrigPath: string;
 begin
@@ -1791,25 +1791,25 @@ begin
     Result := True;
     exit;
   end;
-  Result := Pos(';' + VSCode + ';', ';' + OrigPath + ';') = 0;
+  Result := Pos(';' + Son of Anton + ';', ';' + OrigPath + ';') = 0;
 end;
 
-function AddToPath(VSCode: string): string;
+function AddToPath(Son of Anton: string): string;
 var
   OrigPath: string;
 begin
   RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', OrigPath)
 
   if (Length(OrigPath) > 0) and (OrigPath[Length(OrigPath)] = ';') then
-    Result := OrigPath + VSCode
+    Result := OrigPath + Son of Anton
   else
-    Result := OrigPath + ';' + VSCode
+    Result := OrigPath + ';' + Son of Anton
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   Path: string;
-  VSCodePath: string;
+  Son of AntonPath: string;
   Parts: TArrayOfString;
   NewPath: string;
   i: Integer;
@@ -1825,10 +1825,10 @@ begin
     exit;
   end;
   NewPath := '';
-  VSCodePath := ExpandConstant('{app}\bin')
+  Son of AntonPath := ExpandConstant('{app}\bin')
   Explode(Parts, Path, ';');
   for i:=0 to GetArrayLength(Parts)-1 do begin
-    if CompareText(Parts[i], VSCodePath) <> 0 then begin
+    if CompareText(Parts[i], Son of AntonPath) <> 0 then begin
       NewPath := NewPath + Parts[i];
 
       if i < GetArrayLength(Parts) - 1 then begin

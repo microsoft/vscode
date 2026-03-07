@@ -21,7 +21,7 @@ export namespace ClaudeHeaderAttributes {
 }
 
 export function isTarget(value: unknown): value is Target {
-	return value === Target.VSCode || value === Target.GitHubCopilot || value === Target.Claude || value === Target.Undefined;
+	return value === Target.SonOfAnton || value === Target.GitHubCopilot || value === Target.Claude || value === Target.Undefined;
 }
 
 
@@ -413,8 +413,8 @@ export const claudeRulesAttributes: Record<string, IAttributeDefinition> = {
 	},
 };
 
-export function isVSCodeOrDefaultTarget(target: Target): boolean {
-	return target === Target.VSCode || target === Target.Undefined;
+export function isSonOfAntonOrDefaultTarget(target: Target): boolean {
+	return target === Target.SonOfAnton || target === Target.Undefined;
 }
 
 export function getTarget(promptType: PromptsType, header: PromptHeader | URI): Target {
@@ -426,7 +426,7 @@ export function getTarget(promptType: PromptsType, header: PromptHeader | URI): 
 		}
 		if (!(header instanceof URI)) {
 			const target = header.target;
-			if (target === Target.GitHubCopilot || target === Target.VSCode) {
+			if (target === Target.GitHubCopilot || target === Target.SonOfAnton) {
 				return target;
 			}
 		}

@@ -111,7 +111,7 @@ function knownExcludeCmdline(command: string): boolean {
 	}
 	return !!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/)
 		|| (command.indexOf('out/server-main.js') !== -1)
-		|| (command.indexOf('_productName=VSCode') !== -1);
+		|| (command.indexOf('_productName=Son of Anton') !== -1);
 }
 
 export function getRootProcesses(stdout: string) {

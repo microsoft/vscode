@@ -14,7 +14,7 @@ const diagnosticCollection = vscode.languages.createDiagnosticCollection('selfho
 
 type ContentGetter = (uri: vscode.Uri) => Promise<string>;
 
-export const itemData = new WeakMap<vscode.TestItem, VSCodeTest>();
+export const itemData = new WeakMap<vscode.TestItem, SonOfAntonTest>();
 
 export const clearFileDiagnostics = (uri: vscode.Uri) => diagnosticCollection.delete(uri);
 
@@ -180,4 +180,4 @@ export class TestSuite extends TestConstruct { }
 
 export class TestCase extends TestConstruct { }
 
-export type VSCodeTest = TestFile | TestSuite | TestCase;
+export type SonOfAntonTest = TestFile | TestSuite | TestCase;

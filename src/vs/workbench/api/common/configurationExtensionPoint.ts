@@ -158,7 +158,7 @@ const configurationEntrySchema: IJSONSchema = {
 let _configDelta: IConfigurationDelta | undefined;
 
 
-// BEGIN VSCode extension point `configurationDefaults`
+// BEGIN Son of Anton extension point `configurationDefaults`
 const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IStringDictionary<IStringDictionary<unknown>>>({
 	extensionPoint: 'configurationDefaults',
 	jsonSchema: {
@@ -211,10 +211,10 @@ defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 		_configDelta.addedDefaults = addedDefaultConfigurations;
 	}
 });
-// END VSCode extension point `configurationDefaults`
+// END Son of Anton extension point `configurationDefaults`
 
 
-// BEGIN VSCode extension point `configuration`
+// BEGIN Son of Anton extension point `configuration`
 const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>({
 	extensionPoint: 'configuration',
 	deps: [defaultConfigurationExtPoint],
@@ -332,7 +332,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 	configurationRegistry.deltaConfiguration(_configDelta);
 	_configDelta = undefined;
 });
-// END VSCode extension point `configuration`
+// END Son of Anton extension point `configuration`
 
 jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 	allowComments: true,

@@ -234,7 +234,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		// Otherwise, "press any key to continue" from scripts should prompt the user.
 		const isTask = this._execution.task !== undefined;
 		const isTaskInactive = this._execution.isActive ? !(await this._execution.isActive()) : true;
-		if (isTask && isTaskInactive && detectsVSCodeTaskFinishMessage(output)) {
+		if (isTask && isTaskInactive && detectsSonOfAntonTaskFinishMessage(output)) {
 			this._logService.trace('OutputMonitor: Idle -> VS Code task finish message detected for inactive task, stopping');
 			// Task is finished, ignore the "press any key to close" message
 			return { shouldContinuePollling: false, output };
@@ -1088,7 +1088,7 @@ const taskFinishMessages = [
  * Note: These messages may be prefixed with " * " by VS Code and may have line wrapping
  * that can split words across lines (e.g., "t\no" instead of "to").
  */
-export function detectsVSCodeTaskFinishMessage(cursorLine: string): boolean {
+export function detectsSonOfAntonTaskFinishMessage(cursorLine: string): boolean {
 	// Remove all whitespace to handle line wrapping that splits words mid-word
 	const normalized = cursorLine.replace(/\s/g, '').toLowerCase();
 	return taskFinishMessages.some(msg => normalized.includes(msg.replace(/\s/g, '').toLowerCase()));
@@ -1100,7 +1100,7 @@ export function detectsVSCodeTaskFinishMessage(cursorLine: string): boolean {
  */
 export function detectsGenericPressAnyKeyPattern(cursorLine: string): boolean {
 	// Match "press any key" but exclude VS Code task-specific messages
-	if (detectsVSCodeTaskFinishMessage(cursorLine)) {
+	if (detectsSonOfAntonTaskFinishMessage(cursorLine)) {
 		return false;
 	}
 	return /press a(?:ny)? key/i.test(cursorLine);

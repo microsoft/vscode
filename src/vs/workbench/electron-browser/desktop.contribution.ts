@@ -401,7 +401,7 @@ import product from '../../platform/product/common/product.js';
 		id: argvDefinitionFileSchemaId,
 		allowComments: true,
 		allowTrailingCommas: true,
-		description: 'VSCode static command line definition file',
+		description: 'Son of Anton static command line definition file',
 		type: 'object',
 		additionalProperties: false,
 		properties: {

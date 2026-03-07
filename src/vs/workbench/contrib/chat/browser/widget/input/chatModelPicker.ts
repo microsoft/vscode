@@ -125,7 +125,7 @@ export function buildModelPickerItems(
 	selectedModelId: string | undefined,
 	recentModelIds: string[],
 	controlModels: IStringDictionary<IModelControlEntry>,
-	currentVSCodeVersion: string,
+	currentSonOfAntonVersion: string,
 	updateStateType: StateType,
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
 	manageSettingsUrl: string | undefined,
@@ -190,7 +190,7 @@ export function buildModelPickerItems(
 			if (!isPro) {
 				return 'upgrade';
 			}
-			if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
+			if (entry.minSonOfAntonVersion && !isVersionAtLeast(currentSonOfAntonVersion, entry.minSonOfAntonVersion)) {
 				return 'update';
 			}
 			return 'admin';
@@ -219,7 +219,7 @@ export function buildModelPickerItems(
 			if (model && !placed.has(model.identifier)) {
 				markPlaced(model.identifier, model.metadata.id);
 				const entry = controlModels[model.metadata.id];
-				if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
+				if (entry?.minSonOfAntonVersion && !isVersionAtLeast(currentSonOfAntonVersion, entry.minSonOfAntonVersion)) {
 					promotedItems.push({ kind: 'unavailable', id: model.metadata.id, entry, reason: 'update' });
 				} else {
 					promotedItems.push({ kind: 'available', model });
@@ -255,7 +255,7 @@ export function buildModelPickerItems(
 			const model = resolveModel(entryId);
 			if (model && !placed.has(model.identifier)) {
 				markPlaced(model.identifier, model.metadata.id);
-				if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
+				if (entry.minSonOfAntonVersion && !isVersionAtLeast(currentSonOfAntonVersion, entry.minSonOfAntonVersion)) {
 					promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
 				} else {
 					promotedItems.push({ kind: 'available', model });
@@ -294,8 +294,8 @@ export function buildModelPickerItems(
 			.sort((a, b) => {
 				const aEntry = controlModels[a.metadata.id] ?? controlModels[a.identifier];
 				const bEntry = controlModels[b.metadata.id] ?? controlModels[b.identifier];
-				const aAvail = aEntry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, aEntry.minVSCodeVersion) ? 1 : 0;
-				const bAvail = bEntry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, bEntry.minVSCodeVersion) ? 1 : 0;
+				const aAvail = aEntry?.minSonOfAntonVersion && !isVersionAtLeast(currentSonOfAntonVersion, aEntry.minSonOfAntonVersion) ? 1 : 0;
+				const bAvail = bEntry?.minSonOfAntonVersion && !isVersionAtLeast(currentSonOfAntonVersion, bEntry.minSonOfAntonVersion) ? 1 : 0;
 				if (aAvail !== bAvail) {
 					return aAvail - bAvail;
 				}
@@ -331,7 +331,7 @@ export function buildModelPickerItems(
 			});
 			for (const model of otherModels) {
 				const entry = controlModels[model.metadata.id] ?? controlModels[model.identifier];
-				if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
+				if (entry?.minSonOfAntonVersion && !isVersionAtLeast(currentSonOfAntonVersion, entry.minSonOfAntonVersion)) {
 					items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other));
 				} else {
 					items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, ModelPickerSection.Other), model));

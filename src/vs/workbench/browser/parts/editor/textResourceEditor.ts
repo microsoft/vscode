@@ -188,12 +188,12 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		let candidateLanguage: { id: string; source: 'event' | 'guess' } | undefined = undefined;
 
 		// A languageId is provided via the paste event so text was copied using
-		// VSCode. As such we trust this languageId and use it if specific
+		// Son of Anton. As such we trust this languageId and use it if specific
 		if (e.languageId) {
 			candidateLanguage = { id: e.languageId, source: 'event' };
 		}
 
-		// A languageId was not provided, so the data comes from outside VSCode
+		// A languageId was not provided, so the data comes from outside Son of Anton
 		// We can still try to guess a good languageId from the first line if
 		// the paste changed the first line
 		else {

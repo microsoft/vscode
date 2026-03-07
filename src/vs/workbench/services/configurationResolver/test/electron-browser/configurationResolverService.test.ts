@@ -46,7 +46,7 @@ class TestEditorServiceWithActiveEditor extends TestEditorService {
 	override get activeEditor(): any {
 		return {
 			get resource(): any {
-				return URI.parse('file:///VSCode/workspaceLocation/file');
+				return URI.parse('file:///Son of Anton/workspaceLocation/file');
 			}
 		};
 	}
@@ -84,7 +84,7 @@ suite('Configuration Resolver Service', () => {
 		labelService = new MockLabelService();
 		pathService = new MockPathService();
 		extensionService = new TestExtensionService();
-		containingWorkspace = testWorkspace(URI.parse('file:///VSCode/workspaceLocation'));
+		containingWorkspace = testWorkspace(URI.parse('file:///Son of Anton/workspaceLocation'));
 		workspace = containingWorkspace.folders[0];
 		configurationResolverService = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), editorService, new MockInputsConfigurationService(), mockCommandService, new TestContextService(containingWorkspace), quickInputService, labelService, pathService, extensionService, disposables.add(new TestStorageService()));
 	});
@@ -95,9 +95,9 @@ suite('Configuration Resolver Service', () => {
 
 	test('substitute one', async () => {
 		if (platform.isWindows) {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder} xyz'), 'abc \\VSCode\\workspaceLocation xyz');
+			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder} xyz'), 'abc \\Son of Anton\\workspaceLocation xyz');
 		} else {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder} xyz'), 'abc /VSCode/workspaceLocation xyz');
+			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder} xyz'), 'abc /Son of Anton/workspaceLocation xyz');
 		}
 	});
 
@@ -146,9 +146,9 @@ suite('Configuration Resolver Service', () => {
 
 	test('workspace folder with argument', async () => {
 		if (platform.isWindows) {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder:workspaceLocation} xyz'), 'abc \\VSCode\\workspaceLocation xyz');
+			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder:workspaceLocation} xyz'), 'abc \\Son of Anton\\workspaceLocation xyz');
 		} else {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder:workspaceLocation} xyz'), 'abc /VSCode/workspaceLocation xyz');
+			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder:workspaceLocation} xyz'), 'abc /Son of Anton/workspaceLocation xyz');
 		}
 	});
 
@@ -162,9 +162,9 @@ suite('Configuration Resolver Service', () => {
 
 	test('workspace folder with argument and undefined workspace folder', async () => {
 		if (platform.isWindows) {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(undefined, 'abc ${workspaceFolder:workspaceLocation} xyz'), 'abc \\VSCode\\workspaceLocation xyz');
+			assert.strictEqual(await configurationResolverService!.resolveAsync(undefined, 'abc ${workspaceFolder:workspaceLocation} xyz'), 'abc \\Son of Anton\\workspaceLocation xyz');
 		} else {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(undefined, 'abc ${workspaceFolder:workspaceLocation} xyz'), 'abc /VSCode/workspaceLocation xyz');
+			assert.strictEqual(await configurationResolverService!.resolveAsync(undefined, 'abc ${workspaceFolder:workspaceLocation} xyz'), 'abc /Son of Anton/workspaceLocation xyz');
 		}
 	});
 
@@ -194,9 +194,9 @@ suite('Configuration Resolver Service', () => {
 
 	test('relative file with undefined workspace folder', async () => {
 		if (platform.isWindows) {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(undefined, 'abc ${relativeFile} xyz'), 'abc \\VSCode\\workspaceLocation\\file xyz');
+			assert.strictEqual(await configurationResolverService!.resolveAsync(undefined, 'abc ${relativeFile} xyz'), 'abc \\Son of Anton\\workspaceLocation\\file xyz');
 		} else {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(undefined, 'abc ${relativeFile} xyz'), 'abc /VSCode/workspaceLocation/file xyz');
+			assert.strictEqual(await configurationResolverService!.resolveAsync(undefined, 'abc ${relativeFile} xyz'), 'abc /Son of Anton/workspaceLocation/file xyz');
 		}
 	});
 
@@ -210,25 +210,25 @@ suite('Configuration Resolver Service', () => {
 
 	test('substitute many', async () => {
 		if (platform.isWindows) {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${workspaceFolder} - ${workspaceFolder}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation');
+			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${workspaceFolder} - ${workspaceFolder}'), '\\Son of Anton\\workspaceLocation - \\Son of Anton\\workspaceLocation');
 		} else {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${workspaceFolder} - ${workspaceFolder}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation');
+			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${workspaceFolder} - ${workspaceFolder}'), '/Son of Anton/workspaceLocation - /Son of Anton/workspaceLocation');
 		}
 	});
 
 	test('substitute one env variable', async () => {
 		if (platform.isWindows) {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc \\VSCode\\workspaceLocation Value for key1 xyz');
+			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc \\Son of Anton\\workspaceLocation Value for key1 xyz');
 		} else {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc /VSCode/workspaceLocation Value for key1 xyz');
+			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc /Son of Anton/workspaceLocation Value for key1 xyz');
 		}
 	});
 
 	test('substitute many env variable', async () => {
 		if (platform.isWindows) {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for key1 - Value for key2');
+			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), '\\Son of Anton\\workspaceLocation - \\Son of Anton\\workspaceLocation Value for key1 - Value for key2');
 		} else {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation Value for key1 - Value for key2');
+			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), '/Son of Anton/workspaceLocation - /Son of Anton/workspaceLocation Value for key1 - Value for key2');
 		}
 	});
 
@@ -331,9 +331,9 @@ suite('Configuration Resolver Service', () => {
 
 		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), disposables.add(new TestEditorServiceWithActiveEditor()), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService, disposables.add(new TestStorageService()));
 		if (platform.isWindows) {
-			assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo \\VSCode\\workspaceLocation Value for key1 xyz');
+			assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo \\Son of Anton\\workspaceLocation Value for key1 xyz');
 		} else {
-			assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo /VSCode/workspaceLocation Value for key1 xyz');
+			assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo /Son of Anton/workspaceLocation Value for key1 xyz');
 		}
 	});
 
@@ -362,9 +362,9 @@ suite('Configuration Resolver Service', () => {
 
 		const service = new TestConfigurationResolverService(nullContext, Promise.resolve(envVariables), disposables.add(new TestEditorServiceWithActiveEditor()), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService, extensionService, disposables.add(new TestStorageService()));
 		if (platform.isWindows) {
-			assert.strictEqual(await service.resolveAsync(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), 'foo bar \\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for key1 - Value for key2');
+			assert.strictEqual(await service.resolveAsync(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), 'foo bar \\Son of Anton\\workspaceLocation - \\Son of Anton\\workspaceLocation Value for key1 - Value for key2');
 		} else {
-			assert.strictEqual(await service.resolveAsync(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), 'foo bar /VSCode/workspaceLocation - /VSCode/workspaceLocation Value for key1 - Value for key2');
+			assert.strictEqual(await service.resolveAsync(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), 'foo bar /Son of Anton/workspaceLocation - /Son of Anton/workspaceLocation Value for key1 - Value for key2');
 		}
 	});
 
@@ -734,7 +734,7 @@ suite('Configuration Resolver Service', () => {
 					'name': 'Test',
 					'mappings': {
 						'pos1': 'value1',
-						'\\VSCode\\workspaceLocation/test1': '\\VSCode\\workspaceLocation/test2',
+						'\\Son of Anton\\workspaceLocation/test1': '\\Son of Anton\\workspaceLocation/test2',
 						'pos3': 'value3'
 					}
 				});
@@ -743,7 +743,7 @@ suite('Configuration Resolver Service', () => {
 					'name': 'Test',
 					'mappings': {
 						'pos1': 'value1',
-						'/VSCode/workspaceLocation/test1': '/VSCode/workspaceLocation/test2',
+						'/Son of Anton/workspaceLocation/test1': '/Son of Anton/workspaceLocation/test2',
 						'pos3': 'value3'
 					}
 				});

@@ -11,7 +11,7 @@ const https = require('https');
 const url = require('url');
 const minimatch = require('minimatch');
 
-// list of languagesId not shipped with VSCode. The information is used to associate an icon with a language association
+// list of languagesId not shipped with Son of Anton. The information is used to associate an icon with a language association
 // Please try and keep this list in alphabetical order! Thank you.
 const nonBuiltInLanguages = { // { fileNames, extensions  }
 	"argdown": { extensions: ['ad', 'adown', 'argdown', 'argdn'] },

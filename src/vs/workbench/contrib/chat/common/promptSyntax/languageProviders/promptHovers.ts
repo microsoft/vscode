@@ -16,7 +16,7 @@ import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { IHeaderAttribute, ISequenceValue, parseCommaSeparatedList, PromptBody, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
-import { ClaudeHeaderAttributes, getAttributeDefinition, getTarget, isVSCodeOrDefaultTarget, knownClaudeModels, knownClaudeTools } from './promptFileAttributes.js';
+import { ClaudeHeaderAttributes, getAttributeDefinition, getTarget, isSonOfAntonOrDefaultTarget, knownClaudeModels, knownClaudeTools } from './promptFileAttributes.js';
 import { HOOKS_BY_TARGET, HOOK_METADATA } from '../hookTypes.js';
 import { HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../hookSchema.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -300,7 +300,7 @@ export class PromptHoverProvider implements HoverProvider {
 
 	private getHandsOffHover(attribute: IHeaderAttribute, position: Position, target: Target): Hover | undefined {
 		const handoffsBaseMessage = getAttributeDefinition(PromptHeaderAttributes.handOffs, PromptsType.agent, target)?.description!;
-		if (!isVSCodeOrDefaultTarget(target)) {
+		if (!isSonOfAntonOrDefaultTarget(target)) {
 			return this.createHover(handoffsBaseMessage + '\n\n' + localize('promptHeader.agent.handoffs.githubCopilot', 'Note: This attribute is not used in GitHub Copilot or Claude targets.'), attribute.range);
 		}
 		return this.createHover(handoffsBaseMessage, attribute.range);

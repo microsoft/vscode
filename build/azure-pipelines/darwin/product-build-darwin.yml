@@ -47,12 +47,12 @@ jobs:
             condition: succeededOrFailed()
         - output: pipelineArtifact
           ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
-            targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
+            targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/Son of Anton-darwin.zip
           ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
-            targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-arm64.zip
+            targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/Son of Anton-darwin-arm64.zip
           artifactName: vscode_client_darwin_$(VSCODE_ARCH)_archive
           displayName: Publish client archive
-          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/Son of Anton-darwin-$(VSCODE_ARCH)
           sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
           sbomPackageVersion: $(Build.SourceVersion)
         - output: pipelineArtifact
@@ -70,10 +70,10 @@ jobs:
           sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Web"
           sbomPackageVersion: $(Build.SourceVersion)
         - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg/VSCode-darwin-$(VSCODE_ARCH).dmg
+          targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg/Son of Anton-darwin-$(VSCODE_ARCH).dmg
           artifactName: vscode_client_darwin_$(VSCODE_ARCH)_dmg
           displayName: Publish client DMG
-          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/Son of Anton-darwin-$(VSCODE_ARCH)
           sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
           sbomPackageVersion: $(Build.SourceVersion)
     steps:

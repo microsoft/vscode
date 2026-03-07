@@ -19,7 +19,7 @@ import {
 	guessWorkspaceFolder,
 	itemData,
 } from './testTree';
-import { BrowserTestRunner, PlatformTestRunner, VSCodeTestRunner } from './vscodeTestRunner';
+import { BrowserTestRunner, PlatformTestRunner, SonOfAntonTestRunner } from './vscodeTestRunner';
 import { ImportGraph } from './importGraph';
 
 const TEST_FILE_PATTERN = 'src/vs/**/*.{test,integrationTest}.ts';
@@ -94,7 +94,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	});
 
 	const createRunHandler = (
-		runnerCtor: { new(folder: vscode.WorkspaceFolder): VSCodeTestRunner },
+		runnerCtor: { new(folder: vscode.WorkspaceFolder): SonOfAntonTestRunner },
 		kind: vscode.TestRunProfileKind,
 		args: string[] = []
 	) => {

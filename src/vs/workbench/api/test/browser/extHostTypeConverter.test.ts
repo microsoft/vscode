@@ -127,7 +127,7 @@ suite('ExtHostTypeConverter', function () {
 		});
 	});
 
-	test('JS/TS Surround With Code Actions provide bad Workspace Edits when obtained by VSCode Command API #178654', function () {
+	test('JS/TS Surround With Code Actions provide bad Workspace Edits when obtained by Son of Anton Command API #178654', function () {
 
 		const uri = URI.parse('file:///foo/bar');
 		const ws = new extHostTypes.WorkspaceEdit();

@@ -7,7 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import * as platform from '../../../base/common/platform.js';
 import type { IExperimentationFilterProvider } from 'tas-client';
 
-export const ASSIGNMENT_STORAGE_KEY = 'VSCode.ABExp.FeatureData';
+export const ASSIGNMENT_STORAGE_KEY = 'Son of Anton.ABExp.FeatureData';
 export const ASSIGNMENT_REFETCH_INTERVAL = 60 * 60 * 1000; // 1 hour
 
 export interface IAssignmentService {
@@ -24,20 +24,20 @@ export enum TargetPopulation {
 }
 
 /*
-Based upon the official VSCode currently existing filters in the
-ExP backend for the VSCode cluster.
+Based upon the official Son of Anton currently existing filters in the
+ExP backend for the Son of Anton cluster.
 https://experimentation.visualstudio.com/Analysis%20and%20Experimentation/_git/AnE.ExP.TAS.TachyonHost.Configuration?path=%2FConfigurations%2Fvscode%2Fvscode.json&version=GBmaster
 "X-MSEdge-Market": "detection.market",
 "X-FD-Corpnet": "detection.corpnet",
-"X-VSCode-AppVersion": "appversion",
-"X-VSCode-Build": "build",
+"X-Son of Anton-AppVersion": "appversion",
+"X-Son of Anton-Build": "build",
 "X-MSEdge-ClientId": "clientid",
-"X-VSCode-ExtensionName": "extensionname",
-"X-VSCode-ExtensionVersion": "extensionversion",
-"X-VSCode-TargetPopulation": "targetpopulation",
-"X-VSCode-Language": "language",
-"X-VSCode-Platform": "platform",
-"X-VSCode-ReleaseDate": "releasedate"
+"X-Son of Anton-ExtensionName": "extensionname",
+"X-Son of Anton-ExtensionVersion": "extensionversion",
+"X-Son of Anton-TargetPopulation": "targetpopulation",
+"X-Son of Anton-Language": "language",
+"X-Son of Anton-Platform": "platform",
+"X-Son of Anton-ReleaseDate": "releasedate"
 */
 export enum Filters {
 	/**
@@ -53,12 +53,12 @@ export enum Filters {
 	/**
 	 * Version of the application which uses experimentation service.
 	 */
-	ApplicationVersion = 'X-VSCode-AppVersion',
+	ApplicationVersion = 'X-Son of Anton-AppVersion',
 
 	/**
 	 * Insiders vs Stable.
 	 */
-	Build = 'X-VSCode-Build',
+	Build = 'X-Son of Anton-Build',
 
 	/**
 	 * Client Id which is used as primary unit for the experimentation.
@@ -68,38 +68,38 @@ export enum Filters {
 	/**
 	 * Developer Device Id which can be used as an alternate unit for experimentation.
 	 */
-	DeveloperDeviceId = 'X-VSCode-DevDeviceId',
+	DeveloperDeviceId = 'X-Son of Anton-DevDeviceId',
 
 	/**
 	 * Extension header.
 	 */
-	ExtensionName = 'X-VSCode-ExtensionName',
+	ExtensionName = 'X-Son of Anton-ExtensionName',
 
 	/**
 	 * The version of the extension.
 	 */
-	ExtensionVersion = 'X-VSCode-ExtensionVersion',
+	ExtensionVersion = 'X-Son of Anton-ExtensionVersion',
 
 	/**
 	 * The language in use by VS Code
 	 */
-	Language = 'X-VSCode-Language',
+	Language = 'X-Son of Anton-Language',
 
 	/**
 	 * The target population.
 	 * This is used to separate internal, early preview, GA, etc.
 	 */
-	TargetPopulation = 'X-VSCode-TargetPopulation',
+	TargetPopulation = 'X-Son of Anton-TargetPopulation',
 
 	/**
 	 * The platform (OS) on which VS Code is running.
 	 */
-	Platform = 'X-VSCode-Platform',
+	Platform = 'X-Son of Anton-Platform',
 
 	/**
 	 * The release/build date of VS Code (UTC) in the format yyyymmddHH.
 	 */
-	ReleaseDate = 'X-VSCode-ReleaseDate',
+	ReleaseDate = 'X-Son of Anton-ReleaseDate',
 }
 
 export class AssignmentFilterProvider implements IExperimentationFilterProvider {
@@ -115,7 +115,7 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 	/**
 	 * Returns a version string that can be parsed by the TAS client.
 	 * The tas client cannot handle suffixes lke "-insider"
-	 * Ref: https://github.com/microsoft/tas-client/blob/30340d5e1da37c2789049fcf45928b954680606f/vscode-tas-client/src/vscode-tas-client/VSCodeFilterProvider.ts#L35
+	 * Ref: https://github.com/microsoft/tas-client/blob/30340d5e1da37c2789049fcf45928b954680606f/vscode-tas-client/src/vscode-tas-client/Son of AntonFilterProvider.ts#L35
 	 *
 	 * @param version Version string to be trimmed.
 	*/
@@ -179,8 +179,8 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 }
 
 export function getInternalOrg(organisations: string[] | undefined): 'vscode' | 'github' | 'microsoft' | undefined {
-	const isVSCodeInternal = organisations?.includes('Visual-Studio-Code');
+	const isSonOfAntonInternal = organisations?.includes('Visual-Studio-Code');
 	const isGitHubInternal = organisations?.includes('github');
 	const isMicrosoftInternal = organisations?.includes('microsoft') || organisations?.includes('ms-copilot') || organisations?.includes('MicrosoftCopilot');
-	return isVSCodeInternal ? 'vscode' : isGitHubInternal ? 'github' : isMicrosoftInternal ? 'microsoft' : undefined;
+	return isSonOfAntonInternal ? 'vscode' : isGitHubInternal ? 'github' : isMicrosoftInternal ? 'microsoft' : undefined;
 }

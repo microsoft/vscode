@@ -127,7 +127,7 @@ export class PromptValidator {
 		}
 
 		// Validate variable references (tool or toolset names)
-		if (body.variableReferences.length && isVSCodeOrDefaultTarget(target)) {
+		if (body.variableReferences.length && isSonOfAntonOrDefaultTarget(target)) {
 			const headerTools = promptAST.header?.tools;
 			const headerToolsMap = headerTools ? this.languageModelToolsService.toToolAndToolSetEnablementMap(headerTools, undefined) : undefined;
 
@@ -198,7 +198,7 @@ export class PromptValidator {
 				if (this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)) {
 					this.validateHooks(attributes, target, report);
 				}
-				if (isVSCodeOrDefaultTarget(target)) {
+				if (isSonOfAntonOrDefaultTarget(target)) {
 					this.validateModel(attributes, ChatModeKind.Agent, report);
 					this.validateHandoffs(attributes, report);
 					await this.validateAgentsAttribute(attributes, header, report);
@@ -462,11 +462,11 @@ export class PromptValidator {
 		if (target === Target.GitHubCopilot || target === Target.Claude) {
 			// no validation for github-copilot target and claude
 		} else {
-			this.validateVSCodeTools(value, report);
+			this.validateSonOfAntonTools(value, report);
 		}
 	}
 
-	private validateVSCodeTools(valueItem: ISequenceValue, report: (markers: IMarkerData) => void) {
+	private validateSonOfAntonTools(valueItem: ISequenceValue, report: (markers: IMarkerData) => void) {
 		if (valueItem.items.length > 0) {
 			const available = new Set<string>(this.languageModelToolsService.getFullReferenceNames());
 			const deprecatedNames = this.languageModelToolsService.getDeprecatedFullReferenceNames();
@@ -1149,8 +1149,8 @@ export const claudeRulesAttributes: Record<string, { type: string; description: 
 	},
 };
 
-export function isVSCodeOrDefaultTarget(target: Target): boolean {
-	return target === Target.VSCode || target === Target.Undefined;
+export function isSonOfAntonOrDefaultTarget(target: Target): boolean {
+	return target === Target.SonOfAnton || target === Target.Undefined;
 }
 
 export function getTarget(promptType: PromptsType, header: PromptHeader | URI): Target {
@@ -1162,7 +1162,7 @@ export function getTarget(promptType: PromptsType, header: PromptHeader | URI): 
 		}
 		if (!(header instanceof URI)) {
 			const target = header.target;
-			if (target === Target.GitHubCopilot || target === Target.VSCode) {
+			if (target === Target.GitHubCopilot || target === Target.SonOfAnton) {
 				return target;
 			}
 		}

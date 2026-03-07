@@ -72,7 +72,7 @@ function code-wsl()
 			$WSL_CODE "$ROOT" "$@"
 			exit $?
 		else
-			echo "Remote WSL not installed, trying to run VSCode in WSL."
+			echo "Remote WSL not installed, trying to run Son of Anton in WSL."
 		fi
 	fi
 }

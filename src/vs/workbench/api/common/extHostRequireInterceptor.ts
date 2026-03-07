@@ -59,7 +59,7 @@ export abstract class RequireInterceptor {
 		performance.mark('code/extHost/didWaitForConfig');
 		const extensionPaths = await this._extHostExtensionService.getExtensionPathIndex();
 
-		this.register(new VSCodeNodeModuleFactory(this._apiFactory, extensionPaths, this._extensionRegistry, configProvider, this._logService));
+		this.register(new SonOfAntonNodeModuleFactory(this._apiFactory, extensionPaths, this._extensionRegistry, configProvider, this._logService));
 		this.register(this._instaService.createInstance(NodeModuleAliasingModuleFactory));
 		if (this._initData.remote.isRemote) {
 			this.register(this._instaService.createInstance(OpenNodeModuleFactory, extensionPaths, this._initData.environment.appUriScheme));
@@ -144,7 +144,7 @@ class NodeModuleAliasingModuleFactory implements IAlternativeModuleProvider {
 
 //#region --- vscode-module
 
-class VSCodeNodeModuleFactory implements INodeModuleFactory {
+class SonOfAntonNodeModuleFactory implements INodeModuleFactory {
 	public readonly nodeModuleName = 'vscode';
 
 	private readonly _extApiImpl = new ExtensionIdentifierMap<typeof vscode>();

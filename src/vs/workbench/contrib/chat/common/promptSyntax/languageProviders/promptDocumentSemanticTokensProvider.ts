@@ -8,7 +8,7 @@ import { DocumentSemanticTokensProvider, ProviderResult, SemanticTokens, Semanti
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
-import { getTarget, isVSCodeOrDefaultTarget } from './promptFileAttributes.js';
+import { getTarget, isSonOfAntonOrDefaultTarget } from './promptFileAttributes.js';
 
 export class PromptDocumentSemanticTokensProvider implements DocumentSemanticTokensProvider {
 	/**
@@ -33,7 +33,7 @@ export class PromptDocumentSemanticTokensProvider implements DocumentSemanticTok
 			return undefined;
 		}
 		const target = getTarget(promptType, promptAST.header ?? model.uri);
-		if (!isVSCodeOrDefaultTarget(target)) {
+		if (!isSonOfAntonOrDefaultTarget(target)) {
 			// variables syntax is only support for VS Code and default targets, not for GitHub Copilot or Claude custom agents
 			return undefined;
 		}

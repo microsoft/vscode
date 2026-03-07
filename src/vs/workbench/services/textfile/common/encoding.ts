@@ -313,7 +313,7 @@ export function detectEncodingByBOMFromBuffer(buffer: VSBuffer | null, bytesRead
 // - ASCII: we never want this encoding (most UTF-8 files would happily detect as
 //          ASCII files and then you could not type non-ASCII characters anymore)
 // - UTF-16: we have our own detection logic for UTF-16
-// - UTF-32: we do not support this encoding in VSCode
+// - UTF-32: we do not support this encoding in Son of Anton
 const IGNORE_ENCODINGS = ['ascii', 'utf-16', 'utf-32'];
 
 /**

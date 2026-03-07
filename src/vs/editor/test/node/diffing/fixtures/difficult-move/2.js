@@ -26,7 +26,7 @@ const fs = require('fs');
 const glob = require('glob');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
-const { vscodeWebEntryPoints, vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } = require('./gulpfile.vscode.web');
+const { vscodeWebEntryPoints, vscodeWebResourceIncludes, createSonOfAntonWebFileContentMapper } = require('./gulpfile.vscode.web');
 const cp = require('child_process');
 const log = require('fancy-log');
 
@@ -406,7 +406,7 @@ function tweakProductForServerWeb(product) {
 					loaderConfig: optimize.loaderConfig(),
 					inlineAmdImages: true,
 					bundleInfo: undefined,
-					fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
+					fileContentMapper: createSonOfAntonWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
 				},
 				commonJS: {
 					src: 'out-build',

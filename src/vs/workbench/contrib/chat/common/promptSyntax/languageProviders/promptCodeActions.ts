@@ -19,7 +19,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { MARKERS_OWNER_ID } from './promptValidator.js';
 import { IMarkerData, IMarkerService } from '../../../../../../platform/markers/common/markers.js';
 import { CodeActionKind } from '../../../../../../editor/contrib/codeAction/common/types.js';
-import { getTarget, isVSCodeOrDefaultTarget } from './promptFileAttributes.js';
+import { getTarget, isSonOfAntonOrDefaultTarget } from './promptFileAttributes.js';
 
 export class PromptCodeActionProvider implements CodeActionProvider {
 	/**
@@ -115,7 +115,7 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 			return;
 		}
 		const target = getTarget(promptType, promptFile.header);
-		if (!isVSCodeOrDefaultTarget(target)) {
+		if (!isSonOfAntonOrDefaultTarget(target)) {
 			// GitHub Copilot and Claude custom agents use a fixed set of tool names that are not deprecated
 			return;
 		}

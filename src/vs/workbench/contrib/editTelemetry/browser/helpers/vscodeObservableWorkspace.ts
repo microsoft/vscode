@@ -14,7 +14,7 @@ import { offsetEditFromContentChanges } from '../../../../../editor/common/model
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IObservableDocument, ObservableWorkspace, StringEditWithReason } from './observableWorkspace.js';
 
-export class VSCodeWorkspace extends ObservableWorkspace implements IDisposable {
+export class SonOfAntonWorkspace extends ObservableWorkspace implements IDisposable {
 	private readonly _documents;
 	public get documents() { return this._documents; }
 
@@ -39,7 +39,7 @@ export class VSCodeWorkspace extends ObservableWorkspace implements IDisposable 
 			if (m.isTooLargeForSyncing()) {
 				return undefined;
 			}
-			return store.add(new VSCodeDocument(m));
+			return store.add(new SonOfAntonDocument(m));
 		}).recomputeInitiallyAndOnChange(this._store).map(d => d.filter(isDefined));
 
 		this._documents = documents;
@@ -50,7 +50,7 @@ export class VSCodeWorkspace extends ObservableWorkspace implements IDisposable 
 	}
 }
 
-export class VSCodeDocument extends Disposable implements IObservableDocument {
+export class SonOfAntonDocument extends Disposable implements IObservableDocument {
 	get uri(): URI { return this.textModel.uri; }
 	private readonly _value;
 	private readonly _version;

@@ -827,8 +827,8 @@ export namespace Config {
 		base?: string;
 
 		/**
-		 * The owner of the produced VSCode problem. This is typically
-		 * the identifier of a VSCode language service if the problems are
+		 * The owner of the produced Son of Anton problem. This is typically
+		 * the identifier of a Son of Anton language service if the problems are
 		 * to be merged with the one produced by the language service
 		 * or a generated internal id. Defaults to the generated internal id.
 		 */
@@ -853,7 +853,7 @@ export namespace Config {
 		applyTo?: string;
 
 		/**
-		* The severity of the VSCode problem produced by this problem matcher.
+		* The severity of the Son of Anton problem produced by this problem matcher.
 		*
 		* Valid values are:
 		*   "error": to produce errors.

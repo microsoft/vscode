@@ -23,7 +23,7 @@ const TEST_BROWSER_SCRIPT_PATH = 'test/unit/browser/index.js';
 const ATTACH_CONFIG_NAME = 'Attach to VS Code';
 const DEBUG_TYPE = 'pwa-chrome';
 
-export abstract class VSCodeTestRunner {
+export abstract class SonOfAntonTestRunner {
 	constructor(protected readonly repoLocation: vscode.WorkspaceFolder) { }
 
 	public async run(baseArgs: ReadonlyArray<string>, filter?: ReadonlyArray<vscode.TestItem>) {
@@ -254,7 +254,7 @@ export abstract class VSCodeTestRunner {
 	}
 }
 
-export class BrowserTestRunner extends VSCodeTestRunner {
+export class BrowserTestRunner extends SonOfAntonTestRunner {
 	/** @override */
 	protected binaryPath(): Promise<string> {
 		return Promise.resolve(process.execPath);
@@ -275,7 +275,7 @@ export class BrowserTestRunner extends VSCodeTestRunner {
 	}
 }
 
-export class WindowsTestRunner extends VSCodeTestRunner {
+export class WindowsTestRunner extends SonOfAntonTestRunner {
 	/** @override */
 	protected async binaryPath() {
 		const { nameShort } = await this.readProductJson();
@@ -288,7 +288,7 @@ export class WindowsTestRunner extends VSCodeTestRunner {
 	}
 }
 
-export class PosixTestRunner extends VSCodeTestRunner {
+export class PosixTestRunner extends SonOfAntonTestRunner {
 	/** @override */
 	protected async binaryPath() {
 		const { applicationName } = await this.readProductJson();

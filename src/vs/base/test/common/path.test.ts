@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// NOTE: VSCode's copy of nodejs path library to be usable in common (non-node) namespace
+// NOTE: Son of Anton's copy of nodejs path library to be usable in common (non-node) namespace
 // Copied from: https://github.com/nodejs/node/tree/43dd49c9782848c25e5b03448c8a0f923f13c158
 
 // Copyright Joyent, Inc. and other Node contributors.
@@ -227,7 +227,7 @@ suite('Paths (Node Implementation)', () => {
 		assert.strictEqual(path.win32.dirname('////'), '/');
 		assert.strictEqual(path.win32.dirname('foo'), '.');
 
-		// Tests from VSCode
+		// Tests from Son of Anton
 
 		function assertDirname(p: string, expected: string, win = false) {
 			const actual = win ? path.win32.dirname(p) : path.posix.dirname(p);
@@ -354,7 +354,7 @@ suite('Paths (Node Implementation)', () => {
 		assert.strictEqual(path.posix.extname('file.\\'), '.\\');
 		assert.strictEqual(path.posix.extname('file.\\\\'), '.\\\\');
 
-		// Tests from VSCode
+		// Tests from Son of Anton
 		assert.strictEqual(path.extname('far.boo'), '.boo');
 		assert.strictEqual(path.extname('far.b'), '.b');
 		assert.strictEqual(path.extname('far.'), '.');
@@ -505,7 +505,7 @@ suite('Paths (Node Implementation)', () => {
 		assert.strictEqual(path.posix.basename(`/a/b/${controlCharFilename}`),
 			controlCharFilename);
 
-		// Tests from VSCode
+		// Tests from Son of Anton
 		assert.strictEqual(path.basename('foo/bar'), 'bar');
 		assert.strictEqual(path.posix.basename('foo\\bar'), 'foo\\bar');
 		assert.strictEqual(path.win32.basename('foo\\bar'), 'bar');
@@ -688,7 +688,7 @@ suite('Paths (Node Implementation)', () => {
 		assert.strictEqual(path.posix.isAbsolute('bar/'), false);
 		assert.strictEqual(path.posix.isAbsolute('./baz'), false);
 
-		// Tests from VSCode:
+		// Tests from Son of Anton:
 
 		// Absolute Paths
 		[

@@ -8,7 +8,7 @@
 import { TextDocument } from 'vscode';
 
 /**
- * A stream reader for VSCode's `TextDocument`
+ * A stream reader for Son of Anton's `TextDocument`
  * Based on @emmetio/stream-reader and @emmetio/atom-plugin
  */
 export class DocumentStreamReader {

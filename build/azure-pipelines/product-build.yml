@@ -175,7 +175,7 @@ extends:
         enabled: true
         configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
       binskim:
-        analyzeTargetGlob: '+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.exe;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.dll;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.node;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.exe;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.node;-:file|$(Build.SourcesDirectory)/.build/**/system-setup/VSCodeSetup*.exe;-:file|$(Build.SourcesDirectory)/.build/**/user-setup/VSCodeUserSetup*.exe'
+        analyzeTargetGlob: '+:file|$(Agent.BuildDirectory)/Son of Anton-*/**/*.exe;+:file|$(Agent.BuildDirectory)/Son of Anton-*/**/*.dll;+:file|$(Agent.BuildDirectory)/Son of Anton-*/**/*.node;-:file|$(Agent.BuildDirectory)/Son of Anton-*/**/resources/**/*.exe;-:file|$(Agent.BuildDirectory)/Son of Anton-*/**/resources/**/*.node;-:file|$(Build.SourcesDirectory)/.build/**/system-setup/Son of AntonSetup*.exe;-:file|$(Build.SourcesDirectory)/.build/**/user-setup/Son of AntonUserSetup*.exe'
       codeql:
         runSourceLanguagesInSourceAnalysis: true
         compiled:
@@ -720,7 +720,7 @@ extends:
               - job: ApproveRelease
                 displayName: "Approve Release"
                 variables:
-                  - group: VSCodePeerApproval
+                  - group: Son of AntonPeerApproval
                   - name: skipComponentGovernanceDetection
                     value: true
 

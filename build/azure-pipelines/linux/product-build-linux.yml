@@ -35,7 +35,7 @@ jobs:
     templateContext:
       sdl:
         binskim:
-          analyzeTargetGlob: '$(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web/**/*.node'
+          analyzeTargetGlob: '$(Agent.BuildDirectory)/Son of Anton-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web/**/*.node'
           preReleaseVersion: '4.3.1'
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:
@@ -65,7 +65,7 @@ jobs:
           targetPath: $(Build.ArtifactStagingDirectory)/out/client/$(CLIENT_ARCHIVE_NAME)
           artifactName: vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
           displayName: Publish client archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)
+          sbomBuildDropPath: $(Agent.BuildDirectory)/Son of Anton-linux-$(VSCODE_ARCH)
           sbomPackageName: "VS Code Linux $(VSCODE_ARCH) (unsigned)"
           sbomPackageVersion: $(Build.SourceVersion)
         - output: pipelineArtifact

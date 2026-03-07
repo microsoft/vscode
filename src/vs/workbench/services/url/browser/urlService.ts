@@ -16,7 +16,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 export interface IURLCallbackProvider {
 
 	/**
-	 * Indicates that a Uri has been opened outside of VSCode. The Uri
+	 * Indicates that a Uri has been opened outside of Son of Anton. The Uri
 	 * will be forwarded to all installed Uri handlers in the system.
 	 */
 	readonly onCallback: Event<URI>;
