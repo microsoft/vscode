@@ -41,12 +41,11 @@ export class RipgrepSearchProvider implements TextSearchProvider2 {
 			} else {
 				return this.withToken(token, token => engine.provideTextSearchResultsWithRgOptions(query, extendedOptions, progress, token));
 			}
-		})).then((e => {
-			const complete: TextSearchComplete2 = {
-				// todo: get this to actually check
-				limitHit: e.some(complete => !!complete && complete.limitHit)
-			};
-			return complete;
+		})).then((results => {
+			// If any folder search hit its result limit, the overall search hit the limit.
+			// This indicates that there may be more results available beyond what was returned.
+			const limitHit = results.some(result => result?.limitHit === true);
+			return { limitHit };
 		}));
 
 	}
