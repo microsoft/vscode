@@ -595,37 +595,24 @@ export class ChangesViewPane extends ViewPane {
 		// Create observable for last turn changes using diffBetweenWithStats
 		// Reactively computes the diff between HEAD^ and HEAD. Memoize the diff observable so
 		// that we only recompute it when the HEAD commit id actually changes.
-		let lastHeadCommit: string | undefined;
-		let lastChangesObs: IObservableWithChange<unknown> | undefined;
+		const headCommitObs = derived(reader => {
+			const repository = this.activeSessionRepositoryObs.read(reader)?.read(reader)?.value;
+			return repository?.state.read(reader)?.HEAD?.commit;
+		});
 
 		const lastTurnChangesObs = derived(reader => {
-			const repositoryHolder = this.activeSessionRepositoryObs.read(reader)?.read(reader);
-			const repository = repositoryHolder?.value;
-			if (!repository) {
+			const repository = this.activeSessionRepositoryObs.read(reader)?.read(reader)?.value;
+			const headCommit = headCommitObs.read(reader);
+			if (!repository || !headCommit) {
 				return undefined;
 			}
 
-			const state = repository.state.read(reader);
-			const headCommit = state?.HEAD?.commit;
-			if (!headCommit) {
-				return undefined;
-			}
-
-			if (!lastChangesObs || headCommit !== lastHeadCommit) {
-				lastHeadCommit = headCommit;
-				lastChangesObs = observableFromPromise(
-					repository.diffBetweenWithStats(`${headCommit}^`, headCommit)
-				);
-			}
-
-			return {
-				headCommit,
-				changes: lastChangesObs
-			};
+			return observableFromPromise(repository.diffBetweenWithStats(`${headCommit}^`, headCommit));
 		});
 
 		// Combine both entry sources for display
 		const combinedEntriesObs = derived(reader => {
+			const headCommit = headCommitObs.read(reader);
 			const editEntries = editSessionEntriesObs.read(reader);
 			const sessionFiles = sessionFilesObs.read(reader);
 			const repositoryFiles = this.activeSessionRepositoryChangesObs.read(reader) ?? [];
@@ -636,8 +623,7 @@ export class ChangesViewPane extends ViewPane {
 				sourceEntries = repositoryFiles;
 			} else if (versionMode === ChangesVersionMode.LastTurn) {
 				const lastTurn = lastTurnChangesObs.read(reader);
-				const diffChanges = lastTurn?.changes.read(reader)?.value ?? [];
-				const headCommit = lastTurn?.headCommit;
+				const diffChanges = lastTurn?.read(reader).value ?? [];
 				const parentRef = headCommit ? `${headCommit}^` : '';
 				sourceEntries = diffChanges.map(change => {
 					const isDeletion = change.modifiedUri === undefined;
