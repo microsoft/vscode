@@ -89,6 +89,7 @@ const enum ChangesVersionMode {
 }
 
 const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('changesVersionMode', ChangesVersionMode.AllChanges);
+const hasUncommittedChangesContextKey = new RawContextKey<boolean>('hasUncommittedChanges', false);
 
 // --- List Item
 
@@ -336,13 +337,16 @@ export class ChangesViewPane extends ViewPane {
 			}
 
 			const state = repository.value?.state.read(reader);
+			const headCommit = state?.HEAD?.commit;
 			return (state?.workingTreeChanges ?? []).map(change => {
 				const isDeletion = change.modifiedUri === undefined;
 				const isAddition = change.originalUri === undefined;
+				const fileUri = change.modifiedUri ?? change.uri;
 				return {
 					type: 'file',
-					uri: change.modifiedUri ?? change.uri,
-					originalUri: change.originalUri,
+					uri: fileUri,
+					originalUri: isDeletion || !headCommit ? change.originalUri
+						: fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: headCommit }) }),
 					state: ModifiedFileEntryState.Accepted,
 					isDeletion,
 					changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
@@ -720,6 +724,12 @@ export class ChangesViewPane extends ViewPane {
 			this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.scopedContextKeyService, r => {
 				const { files } = topLevelStats.read(r);
 				return files > 0;
+			}));
+
+			// Track whether there are uncommitted (working tree) changes
+			this.renderDisposables.add(bindContextKey(hasUncommittedChangesContextKey, this.scopedContextKeyService, r => {
+				const repositoryFiles = this.activeSessionRepositoryChangesObs.read(r);
+				return (repositoryFiles?.length ?? 0) > 0;
 			}));
 
 			// Set context key for PR state from session metadata
@@ -1320,6 +1330,7 @@ class UncommittedChangesAction extends Action2 {
 			title: localize2('chatEditing.versionsUncommittedChanges', 'Uncommitted Changes'),
 			category: CHAT_CATEGORY,
 			toggled: changesVersionModeContextKey.isEqualTo(ChangesVersionMode.Uncommitted),
+			precondition: hasUncommittedChangesContextKey,
 			menu: [{
 				id: MenuId.ChatEditingSessionChangesVersionsSubmenu,
 				group: '2_uncommitted',
