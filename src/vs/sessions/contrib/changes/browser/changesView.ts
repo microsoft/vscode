@@ -18,10 +18,10 @@ import { basename, dirname } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { MenuId, Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -44,6 +44,9 @@ import { IResourceLabel, ResourceLabels } from '../../../../workbench/browser/la
 import { ViewPane, IViewPaneOptions, ViewAction } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -58,7 +61,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
-import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
+import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 
 const $ = dom.$;
 
@@ -76,6 +79,17 @@ export const enum ChangesViewMode {
 }
 
 const changesViewModeContextKey = new RawContextKey<ChangesViewMode>('changesViewMode', ChangesViewMode.List);
+
+// --- Versions Mode
+
+const enum ChangesVersionMode {
+	AllChanges = 'allChanges',
+	LastTurn = 'lastTurn',
+	Uncommitted = 'uncommitted'
+}
+
+const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('changesVersionMode', ChangesVersionMode.AllChanges);
+const hasUncommittedChangesContextKey = new RawContextKey<boolean>('hasUncommittedChanges', false);
 
 // --- List Item
 
@@ -229,11 +243,24 @@ export class ChangesViewPane extends ViewPane {
 		this.storageService.store('changesView.viewMode', mode, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
+	// Version mode (all changes, last turn, uncommitted)
+	private readonly versionModeObs = observableValue<ChangesVersionMode>(this, ChangesVersionMode.AllChanges);
+	private readonly versionModeContextKey: IContextKey<ChangesVersionMode>;
+
+	setVersionMode(mode: ChangesVersionMode): void {
+		if (this.versionModeObs.get() === mode) {
+			return;
+		}
+		this.versionModeObs.set(mode, undefined);
+		this.versionModeContextKey.set(mode);
+	}
+
 	// Track the active session used by this view
 	private readonly activeSession: IObservableWithChange<IActiveSession | undefined>;
 	private readonly activeSessionFileCountObs: IObservableWithChange<number>;
 	private readonly activeSessionHasChangesObs: IObservableWithChange<boolean>;
 	private readonly activeSessionRepositoryChangesObs: IObservableWithChange<IChangesFileItem[] | undefined>;
+	private readonly activeSessionRepositoryObs: IObservableWithChange<IObservable<{ value?: IGitRepository }> | undefined>;
 
 	get activeSessionHasChanges(): IObservable<boolean> {
 		return this.activeSessionHasChangesObs;
@@ -272,6 +299,10 @@ export class ChangesViewPane extends ViewPane {
 		this.viewModeContextKey = changesViewModeContextKey.bindTo(contextKeyService);
 		this.viewModeContextKey.set(initialMode);
 
+		// Version mode
+		this.versionModeContextKey = changesVersionModeContextKey.bindTo(contextKeyService);
+		this.versionModeContextKey.set(ChangesVersionMode.AllChanges);
+
 		// Track active session from sessions management service
 		this.activeSession = derivedOpts<IActiveSession | undefined>({
 			equalsFn: (a, b) => isEqual(a?.resource, b?.resource),
@@ -290,7 +321,7 @@ export class ChangesViewPane extends ViewPane {
 		}).recomputeInitiallyAndOnChange(this._store);
 
 		// Track active session repository changes
-		const repositoryObs = derived(reader => {
+		this.activeSessionRepositoryObs = derived(reader => {
 			const activeSessionWorktree = this.activeSession.read(reader)?.worktree;
 			if (!activeSessionWorktree) {
 				return undefined;
@@ -300,19 +331,22 @@ export class ChangesViewPane extends ViewPane {
 		});
 
 		this.activeSessionRepositoryChangesObs = derived(reader => {
-			const repository = repositoryObs.read(reader)?.read(reader);
+			const repository = this.activeSessionRepositoryObs.read(reader)?.read(reader);
 			if (!repository) {
 				return undefined;
 			}
 
 			const state = repository.value?.state.read(reader);
+			const headCommit = state?.HEAD?.commit;
 			return (state?.workingTreeChanges ?? []).map(change => {
 				const isDeletion = change.modifiedUri === undefined;
 				const isAddition = change.originalUri === undefined;
+				const fileUri = change.modifiedUri ?? change.uri;
 				return {
 					type: 'file',
-					uri: change.modifiedUri ?? change.uri,
-					originalUri: change.originalUri,
+					uri: fileUri,
+					originalUri: isDeletion || !headCommit ? change.originalUri
+						: fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: headCommit }) }),
 					state: ModifiedFileEntryState.Accepted,
 					isDeletion,
 					changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
@@ -558,15 +592,65 @@ export class ChangesViewPane extends ViewPane {
 			});
 		});
 
+		// Create observable for last turn changes using diffBetweenWithStats
+		// Reactively computes the diff between HEAD^ and HEAD. Memoize the diff observable so
+		// that we only recompute it when the HEAD commit id actually changes.
+		const headCommitObs = derived(reader => {
+			const repository = this.activeSessionRepositoryObs.read(reader)?.read(reader)?.value;
+			return repository?.state.read(reader)?.HEAD?.commit;
+		});
+
+		const lastTurnChangesObs = derived(reader => {
+			const repository = this.activeSessionRepositoryObs.read(reader)?.read(reader)?.value;
+			const headCommit = headCommitObs.read(reader);
+			if (!repository || !headCommit) {
+				return undefined;
+			}
+
+			return observableFromPromise(repository.diffBetweenWithStats(`${headCommit}^`, headCommit));
+		});
+
 		// Combine both entry sources for display
 		const combinedEntriesObs = derived(reader => {
+			const headCommit = headCommitObs.read(reader);
 			const editEntries = editSessionEntriesObs.read(reader);
 			const sessionFiles = sessionFilesObs.read(reader);
 			const repositoryFiles = this.activeSessionRepositoryChangesObs.read(reader) ?? [];
+			const versionMode = this.versionModeObs.read(reader);
+
+			let sourceEntries: IChangesFileItem[];
+			if (versionMode === ChangesVersionMode.Uncommitted) {
+				sourceEntries = repositoryFiles;
+			} else if (versionMode === ChangesVersionMode.LastTurn) {
+				const lastTurn = lastTurnChangesObs.read(reader);
+				const diffChanges = lastTurn?.read(reader).value ?? [];
+				const parentRef = headCommit ? `${headCommit}^` : '';
+				sourceEntries = diffChanges.map(change => {
+					const isDeletion = change.modifiedUri === undefined;
+					const isAddition = change.originalUri === undefined;
+					const fileUri = change.modifiedUri ?? change.uri;
+					const originalUri = isAddition ? change.originalUri
+						: headCommit ? fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: parentRef }) })
+							: change.originalUri;
+					return {
+						type: 'file',
+						uri: fileUri,
+						originalUri,
+						state: ModifiedFileEntryState.Accepted,
+						isDeletion,
+						changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
+						linesAdded: change.insertions,
+						linesRemoved: change.deletions,
+						reviewCommentCount: 0,
+					} satisfies IChangesFileItem;
+				});
+			} else {
+				sourceEntries = [...editEntries, ...sessionFiles, ...repositoryFiles];
+			}
 
 			const resources = new Set();
 			const entries: IChangesFileItem[] = [];
-			for (const item of [...editEntries, ...sessionFiles, ...repositoryFiles]) {
+			for (const item of sourceEntries) {
 				if (!resources.has(item.uri.fsPath)) {
 					resources.add(item.uri.fsPath);
 					entries.push(item);
@@ -632,6 +716,18 @@ export class ChangesViewPane extends ViewPane {
 			this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, scopedContextKeyService, r => {
 				const { files } = topLevelStats.read(r);
 				return files > 0;
+			}));
+
+			// Also bind to the ViewPane's scoped context key service so the ViewTitle menu can evaluate it
+			this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.scopedContextKeyService, r => {
+				const { files } = topLevelStats.read(r);
+				return files > 0;
+			}));
+
+			// Track whether there are uncommitted (working tree) changes
+			this.renderDisposables.add(bindContextKey(hasUncommittedChangesContextKey, this.scopedContextKeyService, r => {
+				const repositoryFiles = this.activeSessionRepositoryChangesObs.read(r);
+				return (repositoryFiles?.length ?? 0) > 0;
 			}));
 
 			// Set context key for PR state from session metadata
@@ -1163,3 +1259,84 @@ class SetChangesTreeViewModeAction extends ViewAction<ChangesViewPane> {
 
 registerAction2(SetChangesListViewModeAction);
 registerAction2(SetChangesTreeViewModeAction);
+
+// --- Versions Submenu
+
+MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+	submenu: MenuId.ChatEditingSessionChangesVersionsSubmenu,
+	title: localize2('versionsActions', 'Versions'),
+	icon: Codicon.versions,
+	group: 'navigation',
+	order: 9,
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHANGES_VIEW_ID), IsSessionsWindowContext, ChatContextKeys.hasAgentSessionChanges),
+});
+
+class AllChangesAction extends Action2 {
+	constructor() {
+		super({
+			id: 'chatEditing.versionsAllChanges',
+			title: localize2('chatEditing.versionsAllChanges', 'All Changes'),
+			category: CHAT_CATEGORY,
+			toggled: changesVersionModeContextKey.isEqualTo(ChangesVersionMode.AllChanges),
+			menu: [{
+				id: MenuId.ChatEditingSessionChangesVersionsSubmenu,
+				group: '1_changes',
+				order: 1,
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getActiveViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
+		view?.setVersionMode(ChangesVersionMode.AllChanges);
+	}
+}
+registerAction2(AllChangesAction);
+
+class LastTurnChangesAction extends Action2 {
+	constructor() {
+		super({
+			id: 'chatEditing.versionsLastTurnChanges',
+			title: localize2('chatEditing.versionsLastTurnChanges', "Last Turn's Changes"),
+			category: CHAT_CATEGORY,
+			toggled: changesVersionModeContextKey.isEqualTo(ChangesVersionMode.LastTurn),
+			menu: [{
+				id: MenuId.ChatEditingSessionChangesVersionsSubmenu,
+				group: '1_changes',
+				order: 2,
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getActiveViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
+		view?.setVersionMode(ChangesVersionMode.LastTurn);
+	}
+}
+registerAction2(LastTurnChangesAction);
+
+class UncommittedChangesAction extends Action2 {
+	constructor() {
+		super({
+			id: 'chatEditing.versionsUncommittedChanges',
+			title: localize2('chatEditing.versionsUncommittedChanges', 'Uncommitted Changes'),
+			category: CHAT_CATEGORY,
+			toggled: changesVersionModeContextKey.isEqualTo(ChangesVersionMode.Uncommitted),
+			precondition: hasUncommittedChangesContextKey,
+			menu: [{
+				id: MenuId.ChatEditingSessionChangesVersionsSubmenu,
+				group: '2_uncommitted',
+				order: 1,
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getActiveViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
+		view?.setVersionMode(ChangesVersionMode.Uncommitted);
+	}
+}
+registerAction2(UncommittedChangesAction);

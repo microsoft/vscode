@@ -8,9 +8,9 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { GitRepository } from '../../contrib/git/browser/gitService.js';
-import { IGitExtensionDelegate, IGitService, GitRef, GitRefQuery, GitRefType, GitRepositoryState, GitBranch, GitChange, IGitRepository } from '../../contrib/git/common/gitService.js';
+import { IGitExtensionDelegate, IGitService, GitRef, GitRefQuery, GitRefType, GitRepositoryState, GitBranch, GitChange, GitDiffChange, IGitRepository } from '../../contrib/git/common/gitService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { ExtHostContext, ExtHostGitExtensionShape, GitRefTypeDto, GitRepositoryStateDto, MainContext, MainThreadGitExtensionShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostGitExtensionShape, GitDiffChangeDto, GitRefTypeDto, GitRepositoryStateDto, MainContext, MainThreadGitExtensionShape } from '../common/extHost.protocol.js';
 
 function toGitRefType(type: GitRefTypeDto): GitRefType {
 	switch (type) {
@@ -19,6 +19,16 @@ function toGitRefType(type: GitRefTypeDto): GitRefType {
 		case GitRefTypeDto.Tag: return GitRefType.Tag;
 		default: throw new Error(`Unknown GitRefType: ${type}`);
 	}
+}
+
+function toGitDiffChange(dto: GitDiffChangeDto): GitDiffChange {
+	return {
+		uri: URI.revive(dto.uri),
+		originalUri: dto.originalUri ? URI.revive(dto.originalUri) : undefined,
+		modifiedUri: dto.modifiedUri ? URI.revive(dto.modifiedUri) : undefined,
+		insertions: dto.insertions,
+		deletions: dto.deletions,
+	};
 }
 
 function toGitRepositoryState(dto: GitRepositoryStateDto | undefined): GitRepositoryState {
@@ -142,6 +152,16 @@ export class MainThreadGitExtensionService extends Disposable implements MainThr
 			...ref,
 			type: toGitRefType(ref.type)
 		} satisfies GitRef));
+	}
+
+	async diffBetweenWithStats(root: URI, ref1: string, ref2: string, path?: string): Promise<GitDiffChange[]> {
+		const handle = this._repositoryHandles.get(root);
+		if (handle === undefined) {
+			return [];
+		}
+
+		const result = await this._proxy.$diffBetweenWithStats(handle, ref1, ref2, path);
+		return result.map(toGitDiffChange);
 	}
 
 	async $onDidChangeRepository(handle: number): Promise<void> {

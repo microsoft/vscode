@@ -11,7 +11,7 @@ import { ExtensionIdentifier } from '../../../platform/extensions/common/extensi
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostExtensionService } from './extHostExtensionService.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
-import { ExtHostGitExtensionShape, GitBranchDto, GitChangeDto, GitRefDto, GitRefQueryDto, GitRefTypeDto, GitRepositoryStateDto, GitUpstreamRefDto, MainContext, MainThreadGitExtensionShape } from './extHost.protocol.js';
+import { ExtHostGitExtensionShape, GitBranchDto, GitChangeDto, GitDiffChangeDto, GitRefDto, GitRefQueryDto, GitRefTypeDto, GitRepositoryStateDto, GitUpstreamRefDto, MainContext, MainThreadGitExtensionShape } from './extHost.protocol.js';
 import { ResourceMap } from '../../../base/common/map.js';
 
 const GIT_EXTENSION_ID = 'vscode.git';
@@ -91,12 +91,18 @@ function toGitRepositoryStateDto(state: RepositoryState): GitRepositoryStateDto 
 	};
 }
 
+interface DiffChange extends Change {
+	readonly insertions: number;
+	readonly deletions: number;
+}
+
 interface Repository {
 	readonly rootUri: vscode.Uri;
 	readonly state: RepositoryState;
 
 	status(): Promise<void>;
 	getRefs(query: GitRefQuery, token?: vscode.CancellationToken): Promise<GitRef[]>;
+	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]>;
 }
 
 interface Change {
@@ -277,6 +283,24 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 		}
 
 		return toGitRepositoryStateDto(repository.state);
+	}
+
+	async $diffBetweenWithStats(handle: number, ref1: string, ref2: string, path?: string): Promise<GitDiffChangeDto[]> {
+		const repository = this._repositories.get(handle);
+		if (!repository) {
+			return [];
+		}
+
+		try {
+			const changes = await repository.diffBetweenWithStats(ref1, ref2, path);
+			return changes.map(c => ({
+				...toGitChangeDto(c),
+				insertions: c.insertions,
+				deletions: c.deletions,
+			}));
+		} catch {
+			return [];
+		}
 	}
 
 	private async _ensureGitApi(): Promise<GitExtensionAPI | undefined> {
