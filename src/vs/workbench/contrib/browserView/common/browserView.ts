@@ -27,7 +27,8 @@ import {
 	IBrowserViewCaptureScreenshotOptions,
 	IBrowserViewFindInPageOptions,
 	IBrowserViewFindInPageResult,
-	IBrowserViewVisibilityEvent
+	IBrowserViewVisibilityEvent,
+	IBrowserViewCertificateError
 } from '../../../../platform/browserView/common/browserView.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -113,6 +114,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly isDevToolsOpen: boolean;
 	readonly canGoForward: boolean;
 	readonly error: IBrowserViewLoadError | undefined;
+	readonly certificateError: IBrowserViewCertificateError | undefined;
 	readonly storageScope: BrowserViewStorageScope;
 	readonly sharedWithAgent: boolean;
 	readonly zoomFactor: number;
@@ -148,6 +150,8 @@ export interface IBrowserViewModel extends IDisposable {
 	getSelectedText(): Promise<string>;
 	clearStorage(): Promise<void>;
 	setSharedWithAgent(shared: boolean): Promise<void>;
+	trustCertificate(host: string, fingerprint: string): Promise<void>;
+	untrustCertificate(host: string, fingerprint: string): Promise<void>;
 }
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
@@ -162,6 +166,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _canGoBack: boolean = false;
 	private _canGoForward: boolean = false;
 	private _error: IBrowserViewLoadError | undefined = undefined;
+	private _certificateError: IBrowserViewCertificateError | undefined = undefined;
 	private _storageScope: BrowserViewStorageScope = BrowserViewStorageScope.Ephemeral;
 	private _sharedWithAgent: boolean = false;
 	private _zoomFactor: number = 1;
@@ -197,6 +202,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get canGoForward(): boolean { return this._canGoForward; }
 	get screenshot(): VSBuffer | undefined { return this._screenshot; }
 	get error(): IBrowserViewLoadError | undefined { return this._error; }
+	get certificateError(): IBrowserViewCertificateError | undefined { return this._certificateError; }
 	get storageScope(): BrowserViewStorageScope { return this._storageScope; }
 	get sharedWithAgent(): boolean { return this._sharedWithAgent; }
 	get zoomFactor(): number { return this._zoomFactor; }
@@ -280,6 +286,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._screenshot = state.lastScreenshot;
 		this._favicon = state.lastFavicon;
 		this._error = state.lastError;
+		this._certificateError = state.certificateError;
 		this._storageScope = state.storageScope;
 		this._sharedWithAgent = await this.playwrightService.isPageTracked(this.id);
 		this._zoomFactor = state.zoomFactor;
@@ -296,6 +303,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._title = e.title;
 			this._canGoBack = e.canGoBack;
 			this._canGoForward = e.canGoForward;
+			this._certificateError = e.certificateError;
 		}));
 
 		this._register(this.onDidChangeLoadingState(e => {
@@ -393,6 +401,14 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async clearStorage(): Promise<void> {
 		return this.browserViewService.clearStorage(this.id);
+	}
+
+	async trustCertificate(host: string, fingerprint: string): Promise<void> {
+		return this.browserViewService.trustCertificate(this.id, host, fingerprint);
+	}
+
+	async untrustCertificate(host: string, fingerprint: string): Promise<void> {
+		return this.browserViewService.untrustCertificate(this.id, host, fingerprint);
 	}
 
 	private static readonly SHARE_DONT_ASK_KEY = 'browserView.shareWithAgent.dontAskAgain';
