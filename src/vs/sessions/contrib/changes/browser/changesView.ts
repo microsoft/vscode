@@ -593,24 +593,34 @@ export class ChangesViewPane extends ViewPane {
 		});
 
 		// Create observable for last turn changes using diffBetweenWithStats
-		// Reactively computes the diff between HEAD^ and HEAD when the repository state changes
+		// Reactively computes the diff between HEAD^ and HEAD. Memoize the diff observable so
+		// that we only recompute it when the HEAD commit id actually changes.
+		let lastHeadCommit: string | undefined;
+		let lastChangesObs: IObservableWithChange<unknown> | undefined;
+
 		const lastTurnChangesObs = derived(reader => {
-			const repository = this.activeSessionRepositoryObs.read(reader)?.read(reader);
-			if (!repository?.value) {
+			const repositoryHolder = this.activeSessionRepositoryObs.read(reader)?.read(reader);
+			const repository = repositoryHolder?.value;
+			if (!repository) {
 				return undefined;
 			}
 
-			const state = repository.value.state.read(reader);
+			const state = repository.state.read(reader);
 			const headCommit = state?.HEAD?.commit;
 			if (!headCommit) {
 				return undefined;
 			}
 
+			if (!lastChangesObs || headCommit !== lastHeadCommit) {
+				lastHeadCommit = headCommit;
+				lastChangesObs = observableFromPromise(
+					repository.diffBetweenWithStats(`${headCommit}^`, headCommit)
+				);
+			}
+
 			return {
 				headCommit,
-				changes: observableFromPromise(
-					repository.value.diffBetweenWithStats(`${headCommit}^`, headCommit)
-				),
+				changes: lastChangesObs
 			};
 		});
 
