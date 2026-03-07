@@ -35,6 +35,7 @@ import { SearchModelImpl } from '../searchTreeModel/searchModel.js';
 import { SearchModelLocation, RenderableMatch, ISearchTreeFileMatch, ISearchTreeMatch, ISearchResult } from '../searchTreeModel/searchTreeCommon.js';
 import { searchComparer } from '../searchCompare.js';
 import { IMatch } from '../../../../../base/common/filters.js';
+import { UseExcludesAndIgnoreFilesToggle } from '../useExcludesAndIgnoreFilesToggle.js';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
@@ -63,14 +64,18 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		messages: []
 	});
 	private readonly editorViewState: PickerEditorState;
+	private excludeToggle?: UseExcludesAndIgnoreFilesToggle;
 
 	private _getTextQueryBuilderOptions(charsPerLine: number): ITextQueryBuilderOptions {
+		const disregardExcludes = this.excludeToggle ? (!this.excludeToggle.checked) : false;
 		return {
 			...DEFAULT_TEXT_QUERY_BUILDER_OPTIONS,
 			... {
 				extraFileResources: this._instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 				maxResults: this.configuration.maxResults ?? undefined,
 				isSmartCase: this.configuration.smartCase,
+				disregardExcludeSettings: disregardExcludes,
+				disregardIgnoreFiles: disregardExcludes,
 			},
 
 			previewOptions: {
@@ -86,7 +91,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IViewsService private readonly _viewsService: IViewsService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super(TEXT_SEARCH_QUICK_ACCESS_PREFIX, { canAcceptInBackground: true, shouldSkipTrimPickFilter: true });
 
@@ -116,6 +121,19 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		disposables.add(picker.onDidTriggerButton(async () => {
 			await this.moveToSearchViewlet(undefined);
 			picker.hide();
+		}));
+
+		// Each picker instance needs its own toggle instance to ensure
+		// that onChange listeners are properly scoped to the lifecycle of that picker.
+		// Reusing the same toggle instance across multiple pickers causes event listeners
+		// to not fire properly.
+		this.excludeToggle = disposables.add(this._instantiationService.createInstance(UseExcludesAndIgnoreFilesToggle));
+		picker.toggles = [this.excludeToggle];
+
+		// Handle exclude toggle state changes
+		disposables.add(this.excludeToggle.onChange(_ => {
+			// Reload the picker to reflect the query parameter change
+			picker.reload();
 		}));
 
 		const onDidChangeActive = () => {
