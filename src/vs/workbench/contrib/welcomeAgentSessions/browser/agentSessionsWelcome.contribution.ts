@@ -153,8 +153,24 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 			return;
 		}
 
-		// Check if there's prefill data from a workspace transfer - always show welcome page in that case
-		const hasPrefillData = !!this.storageService.get('chat.welcomeViewPrefill', StorageScope.APPLICATION);
+		// Check if there's valid (non-expired) prefill data from a workspace transfer - always show welcome page in that case
+		const rawPrefillData = this.storageService.get('chat.welcomeViewPrefill', StorageScope.APPLICATION);
+		let hasPrefillData = false;
+		if (rawPrefillData) {
+			try {
+				const { timestamp } = JSON.parse(rawPrefillData);
+				// Treat missing timestamp as valid for backwards compatibility; only reject if explicitly expired
+				if (!timestamp || Date.now() - timestamp <= 60 * 1000) {
+					hasPrefillData = true;
+				} else {
+					// Remove expired prefill data
+					this.storageService.remove('chat.welcomeViewPrefill', StorageScope.APPLICATION);
+				}
+			} catch {
+				// Remove malformed prefill data
+				this.storageService.remove('chat.welcomeViewPrefill', StorageScope.APPLICATION);
+			}
+		}
 
 		// Don't open if there are already editors open (unless we have prefill data)
 		if (this.editorService.activeEditor && !hasPrefillData) {
