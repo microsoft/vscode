@@ -10,7 +10,19 @@ if ((Test-Path variable:global:__VSCodeState) -and $null -ne $Global:__VSCodeSta
 
 # Disable shell integration when the language mode is restricted
 if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
-	return;
+	$LanguageMode = $ExecutionContext.SessionState.LanguageMode
+	if (-not $IsWindows -or $LanguageMode -ne "ConstrainedLanguage") {
+		return;
+	}
+	try {
+		# Allow ConstrainedLanguage only when Windows lockdown policy is Audit (PS 7.4+).
+		$Lockdown = [System.Management.Automation.Security.SystemPolicy]::GetSystemLockdownPolicy()
+		if ($Lockdown -and $Lockdown -ne "Audit") {
+			return;
+		}
+	} catch {
+		return;
+	}
 }
 
 $Global:__VSCodeState = @{
