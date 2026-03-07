@@ -1287,8 +1287,6 @@ class AllChangesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const contextKeyService = accessor.get(IContextKeyService);
-		changesVersionModeContextKey.bindTo(contextKeyService).set(ChangesVersionMode.AllChanges);
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getActiveViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
 		view?.setVersionMode(ChangesVersionMode.AllChanges);
@@ -1312,8 +1310,6 @@ class LastTurnChangesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const contextKeyService = accessor.get(IContextKeyService);
-		changesVersionModeContextKey.bindTo(contextKeyService).set(ChangesVersionMode.LastTurn);
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getActiveViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
 		view?.setVersionMode(ChangesVersionMode.LastTurn);
@@ -1338,8 +1334,6 @@ class UncommittedChangesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const contextKeyService = accessor.get(IContextKeyService);
-		changesVersionModeContextKey.bindTo(contextKeyService).set(ChangesVersionMode.Uncommitted);
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getActiveViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
 		view?.setVersionMode(ChangesVersionMode.Uncommitted);
