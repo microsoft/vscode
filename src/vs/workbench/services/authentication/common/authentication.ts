@@ -272,6 +272,12 @@ export interface IAuthenticationService {
 	 * @param serverMetadata The metadata for the server that is being authenticated against
 	 */
 	createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined): Promise<IAuthenticationProvider | undefined>;
+
+	/**
+	 * Removes a dynamic authentication provider and its associated storage
+	 * @param id The id of the dynamic authentication provider to remove
+	 */
+	removeDynamicAuthenticationProvider(id: string): Promise<void>;
 }
 
 export function isAuthenticationSession(thing: unknown): thing is AuthenticationSession {

@@ -340,6 +340,7 @@ export class TestAuthenticationService extends BaseTestService implements IAuthe
 	registerDeclaredAuthenticationProvider(): void { }
 	unregisterDeclaredAuthenticationProvider(): void { }
 	unregisterAuthenticationProvider(): void { }
+	async removeDynamicAuthenticationProvider(): Promise<void> { }
 	registerAuthenticationProviderHostDelegate(): IDisposable { return { dispose: () => { } }; }
 	createDynamicAuthenticationProvider(): Promise<any> { return Promise.resolve(undefined); }
 	async requestNewSession(): Promise<AuthenticationSession> { return createSession(); }
