@@ -9,6 +9,7 @@ import { RenderingContext } from '../../view/renderingContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../common/viewEvents.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 
 export class LinesDecorationsOverlay extends DedupOverlay {
@@ -95,7 +96,8 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 
 		const left = this._decorationsLeft.toString();
 		const width = this._decorationsWidth.toString();
-		const common = '" style="left:' + left + 'px;width:' + width + 'px;"></div>';
+		const layoutClassName = 'decoration-layout-' + Math.random().toString(36).substring(2);
+		const common = mainWindow.cspNonce ? '"><style nonce="' + mainWindow.cspNonce + '">.' + layoutClassName + '{left:' + left + 'px;width:' + width + 'px;}</style></div>' : '" style="left:' + left + 'px;width:' + width + 'px;"></div>';
 
 		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
@@ -103,7 +105,7 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 			const decorations = toRender[lineIndex].getDecorations();
 			let lineOutput = '';
 			for (const decoration of decorations) {
-				let addition = '<div class="cldr ' + decoration.className;
+				let addition = '<div class="cldr ' + decoration.className + ' ' + layoutClassName;
 				if (decoration.tooltip !== null) {
 					addition += '" title="' + decoration.tooltip; // The tooltip is already escaped.
 				}

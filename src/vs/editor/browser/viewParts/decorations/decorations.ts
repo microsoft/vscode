@@ -11,6 +11,7 @@ import { Range } from '../../../common/core/range.js';
 import * as viewEvents from '../../../common/viewEvents.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { ViewModelDecoration } from '../../../common/viewModel/viewModelDecoration.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 export class DecorationsOverlay extends DynamicViewOverlay {
 
@@ -210,17 +211,32 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 			for (let k = 0, lenK = lineVisibleRanges.ranges.length; k < lenK; k++) {
 				const expandToLeft = shouldFillLineOnLineBreak && lineVisibleRanges.continuesOnNextLine && lenK === 1;
 				const visibleRange = lineVisibleRanges.ranges[k];
+				const className = 'line-decoration-' + Math.random().toString(36).substring(2);
 				const decorationOutput = (
 					'<div class="cdr '
 					+ className
-					+ '" style="left:'
+					+ (mainWindow.cspNonce ?
+						' '
+						+ className
+						+ '"><style nonce="'
+						+ mainWindow.cspNonce
+						+ '">.'
+						+ className
+						+ '{' :
+						'" style="'
+					)
+					+ 'left:'
 					+ String(visibleRange.left)
 					+ 'px;width:'
 					+ (expandToLeft ?
 						'100%;' :
 						(String(visibleRange.width) + 'px;')
 					)
-					+ '"></div>'
+					+ (mainWindow.cspNonce ?
+						'}</style>' :
+						'">'
+					)
+					+ '</div>'
 				);
 				output[lineIndex] += decorationOutput;
 			}

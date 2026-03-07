@@ -14,6 +14,7 @@ import { StringBuilder } from '../../common/core/stringBuilder.js';
 import { InjectedTextOptions } from '../../common/model.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
 import { LineInjectedText } from '../../common/textModelEvents.js';
+import { mainWindow } from '../../../base/browser/window.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
 
@@ -194,18 +195,36 @@ const enum Constants {
 
 function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number): [number[], number[]] {
 
+	if (mainWindow.cspNonce) {
+		const className = 'line-breaks-' + Math.random().toString(36).substring(2);
+		sb.appendString('<div class="');
+		sb.appendString(className);
+		sb.appendString('">');
+		sb.appendString('<style nonce="');
+		sb.appendString(mainWindow.cspNonce);
+		sb.appendString('">.');
+		sb.appendString(className);
+		sb.appendString('{');
+	} else {
+		sb.appendString('<div style="');
+	}
 	if (wrappingIndentLength !== 0) {
 		const hangingOffset = String(wrappingIndentLength);
-		sb.appendString('<div style="text-indent: -');
+		sb.appendString('text-indent: -');
 		sb.appendString(hangingOffset);
 		sb.appendString('px; padding-left: ');
 		sb.appendString(hangingOffset);
 		sb.appendString('px; box-sizing: border-box; width:');
 	} else {
-		sb.appendString('<div style="width:');
+		sb.appendString('width:');
 	}
 	sb.appendString(String(width));
-	sb.appendString('px;">');
+	sb.appendString('px;');
+	if (mainWindow.cspNonce) {
+		sb.appendString('}</style>');
+	} else {
+		sb.appendString('">');
+	}
 	// if (containsRTL) {
 	// 	sb.appendASCIIString('" dir="ltr');
 	// }
