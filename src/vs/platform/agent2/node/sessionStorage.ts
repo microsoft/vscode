@@ -9,17 +9,19 @@
  * Each agent session is persisted as a `.jsonl` file under
  * `<userDataPath>/agentSessions/<workspaceKey>/<sessionId>.jsonl`.
  * Each line is a JSON record representing a session event. Files are
- * strictly append-only - no line is ever modified or deleted.
+ * strictly append-only -- no line is ever modified or deleted.
  *
- * The workspace key is derived from the `workingDirectory` path (hashed)
- * so that sessions naturally follow workspace identity. Sessions created
- * without a workspace go under a `no-workspace` subfolder.
+ * Write path: each session creates a {@link SessionWriter} that owns a
+ * single debounce scheduler and buffer for that session.
+ *
+ * Read path: {@link SessionStorage} provides read-only operations for
+ * listing and restoring persisted sessions from disk.
  */
 
 import { createHash } from 'crypto';
-import { existsSync } from 'fs';
 import * as fs from 'fs/promises';
 import { join } from '../../../base/common/path.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
@@ -55,43 +57,42 @@ export interface IRestoredSession {
 	readonly entries: readonly SessionEntry[];
 }
 
-// -- Write buffer (per session) -----------------------------------------------
+// -- Per-session writer -------------------------------------------------------
 
 const FLUSH_DELAY_MS = 500;
 
-interface ISessionWriteBuffer {
-	readonly workingDirectory: string;
-	readonly lines: string[];
-	readonly scheduler: RunOnceScheduler;
-	flushPromise: Promise<void> | undefined;
-}
-
-// -- Storage implementation ---------------------------------------------------
-
-export class SessionStorage {
-	private readonly _baseDir: string;
-	private readonly _buffers = new Map<string, ISessionWriteBuffer>();
+/**
+ * Per-session append-only JSONL writer. Owns a single debounce scheduler
+ * and buffer. Created by the session and disposed when the session is
+ * disposed.
+ */
+export class SessionWriter extends Disposable {
+	private readonly _filePath: string;
+	private readonly _dirPath: string;
+	private readonly _buffer: string[] = [];
+	private readonly _scheduler: RunOnceScheduler;
+	private _flushPromise: Promise<void> | undefined;
+	private _dirCreated = false;
 
 	constructor(
-		userDataPath: string,
+		baseDir: string,
+		sessionId: string,
+		workingDirectory: string,
 		private readonly _logService: ILogService,
 	) {
-		this._baseDir = join(userDataPath, 'agentSessions');
+		super();
+		const key = workingDirectory
+			? createHash('sha256').update(workingDirectory).digest('hex').substring(0, 16)
+			: 'no-workspace';
+		this._dirPath = join(baseDir, key);
+		this._filePath = join(this._dirPath, `${sessionId}.jsonl`);
+		this._scheduler = this._register(new RunOnceScheduler(() => this._doFlush(), FLUSH_DELAY_MS));
 	}
 
-	// -- Public API -----------------------------------------------------------
-
 	/**
-	 * Create the JSONL file for a new session and write the initial record.
+	 * Write the initial session-created record and flush immediately.
 	 */
-	async createSession(
-		sessionUri: URI,
-		model: string,
-		workingDirectory: string,
-		startTime: number,
-	): Promise<void> {
-		const sessionId = AgentSession.id(sessionUri);
-
+	async writeHeader(model: string, workingDirectory: string, startTime: number, sessionId: string): Promise<void> {
 		const record: ISessionCreatedRecord = {
 			v: SESSION_ENTRY_VERSION,
 			type: 'session-created',
@@ -100,16 +101,74 @@ export class SessionStorage {
 			workingDirectory,
 			startTime,
 		};
-		this._appendRecord(workingDirectory, sessionId, record);
-		await this.flush(sessionId);
+		this._buffer.push(JSON.stringify(record) + '\n');
+		await this.flush();
 	}
 
 	/**
-	 * Buffer a session entry for writing to the JSONL file.
+	 * Buffer an entry for debounced writing.
 	 */
-	append(sessionUri: URI, workingDirectory: string, entry: SessionEntry): void {
-		this._appendRecord(workingDirectory, AgentSession.id(sessionUri), entry);
+	append(entry: SessionEntry): void {
+		this._buffer.push(JSON.stringify(entry) + '\n');
+		this._scheduler.schedule();
 	}
+
+	/**
+	 * Immediately flush all buffered records to disk.
+	 */
+	async flush(): Promise<void> {
+		this._scheduler.cancel();
+		if (this._flushPromise) {
+			await this._flushPromise;
+		}
+		await this._doFlush();
+	}
+
+	private async _doFlush(): Promise<void> {
+		if (this._buffer.length === 0) {
+			return;
+		}
+
+		const lines = this._buffer.splice(0);
+		const data = lines.join('');
+
+		const op = (async () => {
+			try {
+				if (!this._dirCreated) {
+					await fs.mkdir(this._dirPath, { recursive: true });
+					this._dirCreated = true;
+				}
+				await fs.appendFile(this._filePath, data, 'utf-8');
+			} catch (err) {
+				this._logService.warn(`[SessionWriter] Failed to flush to ${this._filePath}`, err);
+			}
+		})();
+
+		this._flushPromise = op;
+		await op;
+		this._flushPromise = undefined;
+	}
+}
+
+// -- Read-only storage --------------------------------------------------------
+
+/**
+ * Read-only operations for listing and restoring persisted sessions.
+ * Does not own any write state -- writing is handled per-session by
+ * {@link SessionWriter}.
+ */
+export class SessionStorage {
+	private readonly _baseDir: string;
+
+	constructor(
+		userDataPath: string,
+		private readonly _logService: ILogService,
+	) {
+		this._baseDir = join(userDataPath, 'agentSessions');
+	}
+
+	/** The base directory for all session JSONL files. */
+	get baseDir(): string { return this._baseDir; }
 
 	/**
 	 * List all persisted sessions for a given workspace.
@@ -124,10 +183,12 @@ export class SessionStorage {
 				: await this._allWorkspaceDirs();
 
 			for (const dir of workspaceDirs) {
-				if (!existsSync(dir)) {
-					continue;
+				let files: string[];
+				try {
+					files = await fs.readdir(dir);
+				} catch {
+					continue; // Directory doesn't exist
 				}
-				const files = await fs.readdir(dir);
 				for (const file of files) {
 					if (!file.endsWith('.jsonl')) {
 						continue;
@@ -156,15 +217,10 @@ export class SessionStorage {
 		const sessionId = AgentSession.id(sessionUri);
 		const filePath = this._sessionPath(workingDirectory, sessionId);
 
-		if (!existsSync(filePath)) {
-			return undefined;
-		}
-
 		try {
 			const content = await fs.readFile(filePath, 'utf-8');
-			return this._parseSessionFile(sessionUri, content);
-		} catch (err) {
-			this._logService.warn(`[SessionStorage] Failed to restore session ${sessionId}`, err);
+			return this._parseSessionFile(content);
+		} catch {
 			return undefined;
 		}
 	}
@@ -179,10 +235,11 @@ export class SessionStorage {
 		try {
 			const dirs = await this._allWorkspaceDirs();
 			for (const dir of dirs) {
-				const filePath = join(dir, fileName);
-				if (existsSync(filePath)) {
-					const content = await fs.readFile(filePath, 'utf-8');
-					return this._parseSessionFile(sessionUri, content);
+				try {
+					const content = await fs.readFile(join(dir, fileName), 'utf-8');
+					return this._parseSessionFile(content);
+				} catch {
+					continue;
 				}
 			}
 		} catch (err) {
@@ -197,14 +254,6 @@ export class SessionStorage {
 	async deleteSession(sessionUri: URI, workingDirectory: string): Promise<void> {
 		const sessionId = AgentSession.id(sessionUri);
 		const filePath = this._sessionPath(workingDirectory, sessionId);
-
-		// Dispose the write buffer for this session
-		const buffer = this._buffers.get(sessionId);
-		if (buffer) {
-			buffer.scheduler.dispose();
-			this._buffers.delete(sessionId);
-		}
-
 		try {
 			await fs.unlink(filePath);
 		} catch {
@@ -212,22 +261,11 @@ export class SessionStorage {
 		}
 	}
 
-	/**
-	 * Flush all pending session buffers. Call before shutdown.
-	 */
-	async flushAll(): Promise<void> {
-		const promises: Promise<void>[] = [];
-		for (const sessionId of this._buffers.keys()) {
-			promises.push(this.flush(sessionId));
-		}
-		await Promise.all(promises);
-	}
-
 	// -- Private helpers ------------------------------------------------------
 
 	private _sessionDir(workingDirectory: string): string {
 		const key = workingDirectory
-			? this._hashPath(workingDirectory)
+			? createHash('sha256').update(workingDirectory).digest('hex').substring(0, 16)
 			: 'no-workspace';
 		return join(this._baseDir, key);
 	}
@@ -236,83 +274,8 @@ export class SessionStorage {
 		return join(this._sessionDir(workingDirectory), `${sessionId}.jsonl`);
 	}
 
-	private _hashPath(fsPath: string): string {
-		return createHash('sha256').update(fsPath).digest('hex').substring(0, 16);
-	}
-
-	/**
-	 * Buffer a record for writing. The actual write is debounced --
-	 * multiple records are batched into a single `appendFile` call.
-	 */
-	private _appendRecord(workingDirectory: string, sessionId: string, record: SessionRecord): void {
-		const line = JSON.stringify(record) + '\n';
-
-		let buffer = this._buffers.get(sessionId);
-		if (!buffer) {
-			buffer = {
-				workingDirectory,
-				lines: [],
-				scheduler: new RunOnceScheduler(() => this._flush(sessionId), FLUSH_DELAY_MS),
-				flushPromise: undefined,
-			};
-			this._buffers.set(sessionId, buffer);
-		}
-
-		buffer.lines.push(line);
-		buffer.scheduler.schedule();
-	}
-
-	/**
-	 * Immediately flush all buffered records for a session to disk.
-	 * Returns a promise that resolves when the write completes.
-	 */
-	async flush(sessionId: string): Promise<void> {
-		const buffer = this._buffers.get(sessionId);
-		if (!buffer) {
-			return;
-		}
-
-		// Cancel pending scheduled flush since we're flushing now
-		buffer.scheduler.cancel();
-
-		// Wait for any in-flight flush, then flush remaining
-		if (buffer.flushPromise) {
-			await buffer.flushPromise;
-		}
-		await this._flush(sessionId);
-	}
-
-	private async _flush(sessionId: string): Promise<void> {
-		const buffer = this._buffers.get(sessionId);
-		if (!buffer || buffer.lines.length === 0) {
-			return;
-		}
-
-		// Drain the buffer
-		const lines = buffer.lines.splice(0);
-		const data = lines.join('');
-
-		const op = (async () => {
-			try {
-				const dir = this._sessionDir(buffer.workingDirectory);
-				const filePath = this._sessionPath(buffer.workingDirectory, sessionId);
-				await fs.mkdir(dir, { recursive: true });
-				await fs.appendFile(filePath, data, 'utf-8');
-			} catch (err) {
-				this._logService.warn(`[SessionStorage] Failed to flush ${sessionId}.jsonl`, err);
-			}
-		})();
-
-		buffer.flushPromise = op;
-		await op;
-		buffer.flushPromise = undefined;
-	}
-
 	private async _allWorkspaceDirs(): Promise<string[]> {
 		try {
-			if (!existsSync(this._baseDir)) {
-				return [];
-			}
 			const entries = await fs.readdir(this._baseDir, { withFileTypes: true });
 			return entries
 				.filter(e => e.isDirectory())
@@ -322,9 +285,6 @@ export class SessionStorage {
 		}
 	}
 
-	/**
-	 * Read just the metadata from a JSONL file (first line + scan for latest modified time).
-	 */
 	private async _readSessionMetadata(filePath: string): Promise<IAgentSessionMetadata | undefined> {
 		const [content, stat] = await Promise.all([
 			fs.readFile(filePath, 'utf-8'),
@@ -340,9 +300,6 @@ export class SessionStorage {
 			return undefined;
 		}
 
-		const modifiedTime = stat.mtimeMs;
-
-		// Extract a summary from the first user message if present
 		let summary: string | undefined;
 		for (const line of lines) {
 			try {
@@ -358,19 +315,15 @@ export class SessionStorage {
 			}
 		}
 
-		const sessionUri = AgentSession.uri('local', firstRecord.sessionId);
 		return {
-			session: sessionUri,
+			session: AgentSession.uri('local', firstRecord.sessionId),
 			startTime: firstRecord.startTime,
-			modifiedTime,
+			modifiedTime: stat.mtimeMs,
 			summary,
 		};
 	}
 
-	/**
-	 * Parse a full JSONL file into a restored session.
-	 */
-	private _parseSessionFile(_sessionUri: URI, content: string): IRestoredSession | undefined {
+	private _parseSessionFile(content: string): IRestoredSession | undefined {
 		const lines = content.split('\n').filter(l => l.trim());
 		if (lines.length === 0) {
 			return undefined;
@@ -382,17 +335,14 @@ export class SessionStorage {
 		}
 
 		const entries: SessionEntry[] = [];
-
 		for (const line of lines) {
-			let record: SessionRecord;
 			try {
-				record = JSON.parse(line) as SessionRecord;
+				const record = JSON.parse(line) as SessionRecord;
+				if (record.type !== 'session-created') {
+					entries.push(record);
+				}
 			} catch {
 				continue;
-			}
-
-			if (record.type !== 'session-created') {
-				entries.push(record);
 			}
 		}
 

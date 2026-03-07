@@ -10,20 +10,28 @@ import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../../agent/common/agentService.js';
-import { SessionStorage } from '../../node/sessionStorage.js';
+import { SessionStorage, SessionWriter } from '../../node/sessionStorage.js';
 import { SESSION_ENTRY_VERSION } from '../../common/sessionTypes.js';
 
 const V = SESSION_ENTRY_VERSION;
+const log = new NullLogService();
 
 suite('SessionStorage', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let tmpDir: string;
 	let storage: SessionStorage;
 
+	/** Create a writer, write the header, and register for disposal. */
+	async function createWriter(sessionId: string, wd: string): Promise<SessionWriter> {
+		const writer = store.add(new SessionWriter(join(tmpDir, 'agentSessions'), sessionId, wd, log));
+		await writer.writeHeader('claude-sonnet-4-20250514', wd, Date.now(), sessionId);
+		return writer;
+	}
+
 	setup(async () => {
 		tmpDir = await fs.promises.mkdtemp(join(os.tmpdir(), 'agent2-storage-'));
-		storage = new SessionStorage(tmpDir, new NullLogService());
+		storage = new SessionStorage(tmpDir, log);
 	});
 
 	teardown(async () => {
@@ -31,8 +39,7 @@ suite('SessionStorage', () => {
 	});
 
 	test('creates and lists a session', async () => {
-		const uri = AgentSession.uri('local', 'test-session-1');
-		await storage.createSession(uri, 'claude-sonnet-4-20250514', '/workspace', Date.now());
+		await createWriter('test-session-1', '/workspace');
 
 		const sessions = await storage.listSessions('/workspace');
 		assert.strictEqual(sessions.length, 1);
@@ -40,18 +47,18 @@ suite('SessionStorage', () => {
 	});
 
 	test('persists and restores entries', async () => {
-		const uri = AgentSession.uri('local', 'test-session-2');
 		const wd = '/workspace';
-		await storage.createSession(uri, 'claude-sonnet-4-20250514', wd, Date.now());
+		const writer = await createWriter('test-session-2', wd);
 
-		storage.append(uri, wd, { v: V, type: 'user-message', messageId: 'msg-1', content: 'Hello world' });
-		storage.append(uri, wd, {
+		writer.append({ v: V, type: 'user-message', messageId: 'msg-1', content: 'Hello world' });
+		writer.append({
 			v: V, type: 'assistant-message', messageId: 'msg-2',
 			contentParts: [{ type: 'text', text: 'Hi there!' }],
 			modelIdentity: { provider: 'anthropic', modelId: 'claude-sonnet-4-20250514' },
 		});
-		await storage.flush('test-session-2');
+		await writer.flush();
 
+		const uri = AgentSession.uri('local', 'test-session-2');
 		const restored = await storage.restoreSession(uri, wd);
 		assert.ok(restored);
 		assert.strictEqual(restored.entries.length, 2);
@@ -66,29 +73,20 @@ suite('SessionStorage', () => {
 	});
 
 	test('persists tool start and complete entries', async () => {
-		const uri = AgentSession.uri('local', 'test-session-3');
 		const wd = '/workspace';
-		await storage.createSession(uri, 'claude-sonnet-4-20250514', wd, Date.now());
+		const writer = await createWriter('test-session-3', wd);
 
-		storage.append(uri, wd, {
-			v: V,
-			type: 'tool-start',
-			toolCallId: 'tc-1',
-			toolName: 'readFile',
-			displayName: 'Read File',
-			invocationMessage: 'Reading test.txt',
+		writer.append({
+			v: V, type: 'tool-start', toolCallId: 'tc-1', toolName: 'readFile',
+			displayName: 'Read File', invocationMessage: 'Reading test.txt',
 		});
-		storage.append(uri, wd, {
-			v: V,
-			type: 'tool-complete',
-			toolCallId: 'tc-1',
-			toolName: 'readFile',
-			success: true,
-			pastTenseMessage: 'Read test.txt',
-			toolOutput: 'file contents',
+		writer.append({
+			v: V, type: 'tool-complete', toolCallId: 'tc-1', toolName: 'readFile',
+			success: true, pastTenseMessage: 'Read test.txt', toolOutput: 'file contents',
 		});
-		await storage.flush('test-session-3');
+		await writer.flush();
 
+		const uri = AgentSession.uri('local', 'test-session-3');
 		const restored = await storage.restoreSession(uri, wd);
 		assert.ok(restored);
 		assert.strictEqual(restored.entries.length, 2);
@@ -97,14 +95,12 @@ suite('SessionStorage', () => {
 	});
 
 	test('JSONL file is append-only', async () => {
-		const uri = AgentSession.uri('local', 'test-session-4');
 		const wd = '/workspace';
-		await storage.createSession(uri, 'claude-sonnet-4-20250514', wd, Date.now());
-		storage.append(uri, wd, { v: V, type: 'user-message', messageId: 'msg-1', content: 'First message' });
-		storage.append(uri, wd, { v: V, type: 'user-message', messageId: 'msg-2', content: 'Second message' });
-		await storage.flush('test-session-4');
+		const writer = await createWriter('test-session-4', wd);
+		writer.append({ v: V, type: 'user-message', messageId: 'msg-1', content: 'First message' });
+		writer.append({ v: V, type: 'user-message', messageId: 'msg-2', content: 'Second message' });
+		await writer.flush();
 
-		// Read raw file and verify it has exactly 3 lines (created + 2 messages)
 		const sessionDir = join(tmpDir, 'agentSessions');
 		const dirs = await fs.promises.readdir(sessionDir);
 		assert.strictEqual(dirs.length, 1);
@@ -116,35 +112,29 @@ suite('SessionStorage', () => {
 		const lines = content.split('\n').filter(l => l.trim());
 		assert.strictEqual(lines.length, 3);
 
-		// Each line is valid JSON
 		for (const line of lines) {
-			JSON.parse(line); // should not throw
+			JSON.parse(line);
 		}
 	});
 
 	test('lists sessions across workspaces', async () => {
-		const uri1 = AgentSession.uri('local', 'session-ws1');
-		const uri2 = AgentSession.uri('local', 'session-ws2');
-		await storage.createSession(uri1, 'claude-sonnet-4-20250514', '/workspace1', Date.now());
-		await storage.createSession(uri2, 'claude-sonnet-4-20250514', '/workspace2', Date.now());
+		await createWriter('session-ws1', '/workspace1');
+		await createWriter('session-ws2', '/workspace2');
 
-		// List all sessions (no workspace filter)
 		const all = await storage.listSessions();
 		assert.strictEqual(all.length, 2);
 
-		// List per workspace
 		const ws1 = await storage.listSessions('/workspace1');
 		assert.strictEqual(ws1.length, 1);
 		assert.strictEqual(AgentSession.id(ws1[0].session), 'session-ws1');
 	});
 
 	test('findAndRestoreSession scans all workspaces', async () => {
-		const uri = AgentSession.uri('local', 'session-find');
-		await storage.createSession(uri, 'claude-sonnet-4-20250514', '/some-workspace', Date.now());
-		storage.append(uri, '/some-workspace', { v: V, type: 'user-message', messageId: 'msg-1', content: 'test' });
-		await storage.flush('session-find');
+		const writer = await createWriter('session-find', '/some-workspace');
+		writer.append({ v: V, type: 'user-message', messageId: 'msg-1', content: 'test' });
+		await writer.flush();
 
-		// Should find it without knowing the workspace
+		const uri = AgentSession.uri('local', 'session-find');
 		const restored = await storage.findAndRestoreSession(uri);
 		assert.ok(restored);
 		assert.strictEqual(restored.sessionId, 'session-find');
@@ -152,10 +142,9 @@ suite('SessionStorage', () => {
 	});
 
 	test('extracts summary from first user message', async () => {
-		const uri = AgentSession.uri('local', 'session-summary');
-		await storage.createSession(uri, 'claude-sonnet-4-20250514', '/workspace', Date.now());
-		storage.append(uri, '/workspace', { v: V, type: 'user-message', messageId: 'msg-1', content: 'Help me refactor this function' });
-		await storage.flush('session-summary');
+		const writer = await createWriter('session-summary', '/workspace');
+		writer.append({ v: V, type: 'user-message', messageId: 'msg-1', content: 'Help me refactor this function' });
+		await writer.flush();
 
 		const sessions = await storage.listSessions('/workspace');
 		assert.strictEqual(sessions.length, 1);
@@ -163,27 +152,24 @@ suite('SessionStorage', () => {
 	});
 
 	test('deletes a session', async () => {
-		const uri = AgentSession.uri('local', 'session-delete');
 		const wd = '/workspace';
-		await storage.createSession(uri, 'claude-sonnet-4-20250514', wd, Date.now());
+		await createWriter('session-delete', wd);
 
 		let sessions = await storage.listSessions(wd);
 		assert.strictEqual(sessions.length, 1);
 
+		const uri = AgentSession.uri('local', 'session-delete');
 		await storage.deleteSession(uri, wd);
 		sessions = await storage.listSessions(wd);
 		assert.strictEqual(sessions.length, 0);
 	});
 
 	test('modifiedTime reflects file modification time', async () => {
-		const uri = AgentSession.uri('local', 'session-modified');
 		const wd = '/workspace';
 		const startTime = Date.now() - 10000;
-		await storage.createSession(uri, 'claude-sonnet-4-20250514', wd, startTime);
-
-		// Append an entry so the file mtime updates
-		storage.append(uri, wd, { v: V, type: 'user-message', messageId: 'msg-1', content: 'test' });
-		await storage.flush('session-modified');
+		const writer = await createWriter('session-modified', wd);
+		writer.append({ v: V, type: 'user-message', messageId: 'msg-1', content: 'test' });
+		await writer.flush();
 
 		const sessions = await storage.listSessions(wd);
 		assert.strictEqual(sessions.length, 1);

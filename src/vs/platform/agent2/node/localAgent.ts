@@ -58,7 +58,7 @@ import {
 	type ISessionUserMessage,
 	type SessionEntry,
 } from '../common/sessionTypes.js';
-import { SessionStorage } from './sessionStorage.js';
+import { SessionStorage, SessionWriter } from './sessionStorage.js';
 
 // -- Session state ------------------------------------------------------------
 
@@ -72,6 +72,7 @@ import { SessionStorage } from './sessionStorage.js';
  */
 class LocalSession {
 	private readonly _entries: SessionEntry[] = [];
+	private readonly _writer: SessionWriter;
 	private readonly _activeToolCalls = new Map<string, { toolName: string; args: Record<string, unknown> }>();
 	private _currentAssistantMessageId: string | undefined;
 	private _modifiedTime: number;
@@ -87,7 +88,8 @@ class LocalSession {
 		uri: URI,
 		model: string,
 		workingDirectory: string,
-		private readonly _storage: SessionStorage,
+		storageBaseDir: string,
+		logService: ILogService,
 	) {
 		this.uri = uri;
 		this.model = model;
@@ -95,6 +97,7 @@ class LocalSession {
 		this.startTime = Date.now();
 		this._modifiedTime = this.startTime;
 		this._cts = new CancellationTokenSource();
+		this._writer = new SessionWriter(storageBaseDir, AgentSession.id(uri), workingDirectory, logService);
 	}
 
 	get entries(): readonly SessionEntry[] { return this._entries; }
@@ -104,7 +107,7 @@ class LocalSession {
 
 	/** Persist the initial session-created record. Must be awaited before any other writes. */
 	persistCreation(): Promise<void> {
-		return this._storage.createSession(this.uri, this.model, this.workingDirectory, this.startTime);
+		return this._writer.writeHeader(this.model, this.workingDirectory, this.startTime, AgentSession.id(this.uri));
 	}
 
 	beginTurn(): void {
@@ -135,7 +138,7 @@ class LocalSession {
 			content: prompt,
 		};
 		this._entries.push(entry);
-		this._storage.append(this.uri, this.workingDirectory, entry);
+		this._writer.append(entry);
 		return entry;
 	}
 
@@ -150,7 +153,7 @@ class LocalSession {
 		};
 		this._entries.push(entry);
 		this._currentAssistantMessageId = undefined;
-		this._storage.append(this.uri, this.workingDirectory, entry);
+		this._writer.append(entry);
 		return entry;
 	}
 
@@ -169,7 +172,7 @@ class LocalSession {
 			language: getShellLanguage(toolName),
 		};
 		this._entries.push(entry);
-		this._storage.append(this.uri, this.workingDirectory, entry);
+		this._writer.append(entry);
 		return entry;
 	}
 
@@ -188,13 +191,23 @@ class LocalSession {
 			toolOutput: result,
 		};
 		this._entries.push(entry);
-		this._storage.append(this.uri, this.workingDirectory, entry);
+		this._writer.append(entry);
 		return entry;
 	}
 
 	abort(): void {
 		this._cts.cancel();
 		this._cts = new CancellationTokenSource();
+	}
+
+	/** Flush pending writes to disk. */
+	flush(): Promise<void> {
+		return this._writer.flush();
+	}
+
+	/** Dispose the writer (flushes are cancelled, scheduler disposed). */
+	disposeWriter(): void {
+		this._writer.dispose();
 	}
 
 	toMetadata(): IAgentSessionMetadata {
@@ -235,6 +248,14 @@ export class LocalAgent extends Disposable implements IAgent {
 		this._modelProviderService.registerFactory(createOpenAIFactory(this._apiService, _logService));
 		this._tools = [new ReadFileTool(), new BashTool()];
 		this._storage = new SessionStorage(environmentService.userDataPath, _logService);
+	}
+
+	override dispose(): void {
+		for (const session of this._sessionState.values()) {
+			session.disposeWriter();
+		}
+		this._sessionState.clear();
+		super.dispose();
 	}
 
 
@@ -314,7 +335,7 @@ export class LocalAgent extends Disposable implements IAgent {
 		const model = config?.model ?? DEFAULT_MODEL;
 		const workingDirectory = config?.workingDirectory ?? '';
 
-		const session = new LocalSession(sessionUri, model, workingDirectory, this._storage);
+		const session = new LocalSession(sessionUri, model, workingDirectory, this._storage.baseDir, this._logService);
 		this._sessionState.set(sessionUri.toString(), session);
 		this._sessions.set(sessionUri.toString(), session.cts);
 
@@ -351,6 +372,11 @@ export class LocalAgent extends Disposable implements IAgent {
 
 	async disposeSession(sessionUri: URI): Promise<void> {
 		const key = sessionUri.toString();
+		const session = this._sessionState.get(key);
+		if (session) {
+			await session.flush();
+			session.disposeWriter();
+		}
 		this._sessionState.delete(key);
 		this._sessions.deleteAndDispose(key);
 		this._logService.info(`[LocalAgent] Disposed session ${AgentSession.id(sessionUri)}`);
@@ -369,10 +395,15 @@ export class LocalAgent extends Disposable implements IAgent {
 	}
 
 	async shutdown(): Promise<void> {
+		const flushPromises: Promise<void>[] = [];
 		for (const session of this._sessionState.values()) {
 			session.cts.cancel();
+			flushPromises.push(session.flush());
 		}
-		await this._storage.flushAll();
+		await Promise.all(flushPromises);
+		for (const session of this._sessionState.values()) {
+			session.disposeWriter();
+		}
 		this._sessionState.clear();
 		this._sessions.clearAndDisposeAll();
 	}
