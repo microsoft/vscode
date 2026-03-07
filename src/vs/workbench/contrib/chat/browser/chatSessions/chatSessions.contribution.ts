@@ -266,7 +266,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly _itemControllers = new Map</* type */ string, { readonly controller: IChatSessionItemController; readonly initialRefresh: Promise<void> }>();
 
-	private readonly _contributions: Map</* type */ string, { readonly contribution: IChatSessionsExtensionPoint; readonly extension: IRelaxedExtensionDescription }> = new Map();
+	private readonly _contributions: Map</* type */ string, { readonly contribution: IChatSessionsExtensionPoint; readonly extension: IRelaxedExtensionDescription | undefined }> = new Map();
 	private readonly _contributionDisposables = this._register(new DisposableMap</* type */ string>());
 
 	private readonly _contentProviders: Map</* scheme */ string, IChatSessionContentProvider> = new Map();
@@ -654,7 +654,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				hasChanges = true;
 			} else if (!isCurrentlyRegistered && shouldBeRegistered) {
 				// Enable the contribution by registering it
-				this._enableContribution(contribution, extension);
+				if (extension) {
+					this._enableContribution(contribution, extension);
+				}
 				hasChanges = true;
 			}
 		}
@@ -756,6 +758,20 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		return this._isContributionAvailable(contribution) ? contribution : undefined;
+	}
+
+	registerChatSessionContribution(contribution: IChatSessionsExtensionPoint): IDisposable {
+		if (this._contributions.has(contribution.type)) {
+			return { dispose: () => { } };
+		}
+
+		this._contributions.set(contribution.type, { contribution, extension: undefined });
+		this._onDidChangeAvailability.fire();
+
+		return toDisposable(() => {
+			this._contributions.delete(contribution.type);
+			this._onDidChangeAvailability.fire();
+		});
 	}
 
 	async activateChatSessionItemProvider(chatViewType: string): Promise<void> {

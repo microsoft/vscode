@@ -436,12 +436,36 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(filter(depFilterPattern))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
+			.pipe(filter((() => {
+				// Strip @github/copilot platform packages for wrong architectures.
+				const copilotPlatforms = [
+					'darwin-arm64', 'darwin-x64',
+					'linux-arm64', 'linux-x64',
+					'win32-arm64', 'win32-x64',
+				];
+				const targetPlatformArch = `${platform}-${arch}`;
+				const excludes = copilotPlatforms
+					.filter(p => p !== targetPlatformArch)
+					.map(p => `!**/node_modules/@github/copilot-${p}/**`);
+
+				// Strip agent host SDK dependencies entirely from stable builds
+				if (quality === 'stable') {
+					excludes.push(
+						'!**/node_modules/@github/copilot/**',
+						'!**/node_modules/@github/copilot-sdk/**',
+						'!**/node_modules/@github/copilot-*/**',
+					);
+				}
+
+				return ['**', ...excludes];
+			})()))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
 				'**/*.node',
 				'**/@vscode/ripgrep/bin/*',
+				'**/@github/copilot-*/**',
 				'**/node-pty/build/Release/*',
 				'**/node-pty/build/Release/conpty/*',
 				'**/node-pty/lib/worker/conoutSocketWorker.js',

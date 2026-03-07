@@ -77,6 +77,8 @@ import { RemoteExtensionsScannerChannel, RemoteExtensionsScannerService } from '
 import { RemoteExtensionsScannerChannelName } from '../../platform/remote/common/remoteExtensionsScanner.js';
 import { RemoteUserDataProfilesServiceChannel } from '../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { NodePtyHostStarter } from '../../platform/terminal/node/nodePtyHostStarter.js';
+import { NodeAgentHostStarter } from '../../platform/agent/node/nodeAgentHostStarter.js';
+import { AgentHostProcessManager } from '../../platform/agent/node/agentHostService.js';
 import { CSSDevelopmentService, ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
 import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
 import { TelemetryLogAppender } from '../../platform/telemetry/common/telemetryLogAppender.js';
@@ -227,6 +229,9 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	);
 	const ptyHostService = instantiationService.createInstance(PtyHostService, ptyHostStarter);
 	services.set(IPtyService, ptyHostService);
+
+	const agentHostStarter = instantiationService.createInstance(NodeAgentHostStarter);
+	disposables.add(instantiationService.createInstance(AgentHostProcessManager, agentHostStarter));
 
 	services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService));
 	services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService));

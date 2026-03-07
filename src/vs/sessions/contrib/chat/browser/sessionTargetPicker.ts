@@ -121,6 +121,8 @@ function getTargetLabel(provider: AgentSessionProviders): string {
 			return 'Codex';
 		case AgentSessionProviders.Growth:
 			return 'Growth';
+		case AgentSessionProviders.AgentHostCopilot:
+			return 'Agent Host - Copilot';
 	}
 }
 

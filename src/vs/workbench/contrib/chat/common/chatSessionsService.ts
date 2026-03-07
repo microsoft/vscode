@@ -225,6 +225,12 @@ export interface IChatSessionsService {
 
 	getChatSessionContribution(chatSessionType: string): IChatSessionsExtensionPoint | undefined;
 
+	/**
+	 * Programmatically register a chat session contribution (for internal session types
+	 * that don't go through the extension point).
+	 */
+	registerChatSessionContribution(contribution: IChatSessionsExtensionPoint): IDisposable;
+
 	registerChatSessionItemController(chatSessionType: string, controller: IChatSessionItemController): IDisposable;
 	activateChatSessionItemProvider(chatSessionType: string): Promise<void>;
 
