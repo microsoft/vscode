@@ -67,7 +67,7 @@ Every loop action produces a typed `AgentLoopEvent`. Events are the only output 
 
 Composable interception points that allow features to observe and transform data flowing through the loop without modifying the core:
 
-- **Pre-request**: runs before each model call, can modify messages and tools
+- **Pre-request**: runs before each model call, can modify the system prompt, messages, and tools
 - **Post-response**: runs after each model response, can inspect or request a retry
 - **Pre-tool**: runs before each tool call, can modify args, skip, or deny
 - **Post-tool**: runs after each tool call, can modify the result
@@ -109,7 +109,7 @@ The following middleware are implemented and active:
 | `ContextWindowMiddleware` | `preRequest` | Estimates token usage, prunes old tool outputs when approaching context limit |
 | `PermissionMiddleware` | `preTool` | Checks tool calls against a policy (allow/deny/ask). Currently uses `AllowAllPolicy`. |
 | `ToolOutputTruncationMiddleware` | `postTool` | Truncates large tool outputs (default 50K chars) |
-| `CustomInstructionsMiddleware` | `preRequest` | Injects caller-provided instruction content |
+| `CustomInstructionsMiddleware` | `preRequest` | Appends caller-provided instruction content to the system prompt |
 
 ## File Layout
 

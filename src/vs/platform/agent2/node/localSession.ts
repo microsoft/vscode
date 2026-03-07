@@ -10,7 +10,7 @@
  */
 
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
@@ -66,6 +66,7 @@ export class LocalSession extends Disposable {
 		this.startTime = restoredTimestamps?.startTime ?? Date.now();
 		this._modifiedTime = restoredTimestamps?.modifiedTime ?? this.startTime;
 		this._cts = new CancellationTokenSource();
+		this._register(toDisposable(() => this._cts.dispose()));
 		this._writer = this._register(new SessionWriter(storageBaseDir, AgentSession.id(uri), workingDirectory, logService));
 	}
 
@@ -151,6 +152,7 @@ export class LocalSession extends Disposable {
 
 	abort(): void {
 		this._cts.cancel();
+		this._cts.dispose();
 		this._cts = new CancellationTokenSource();
 	}
 

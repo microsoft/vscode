@@ -69,7 +69,7 @@ A tool has a name, a description, a schema (for the model), and an execute funct
 
 Tools do not know about the loop, the conversation, or the model. They receive input and return output. The loop orchestrates calling them.
 
-The tool context provides: an abort signal, a session-scoped scratchpad for tools that need to coordinate (e.g., a shell tool maintaining a persistent process), and a callback for permission checks.
+The tool context provides: a cancellation token, a session-scoped scratchpad for tools that need to coordinate (e.g., a shell tool maintaining a persistent process), the working directory, and a `registerDisposable` callback for tools to register session-scoped cleanup of long-lived resources (e.g., child processes).
 
 The tool set is **dynamic**. The caller provides the initial set of tools at invocation time, but the set can change during the loop's execution:
 - Tools can be **enabled or disabled** at any point. The caller signals that the available tool set has changed, and the loop picks up the new set on the next model call.
@@ -220,7 +220,7 @@ A shadow-git pattern (separate git directory, lightweight tree objects via write
 
 ### Tool state is not loop state
 
-Persistent tool state (e.g., a shell process that lives across multiple tool calls) is the tool's concern, not the loop's. The loop provides a session-scoped context scratchpad, and tools use it to manage their own state. This keeps the loop clean and tools portable.
+Persistent tool state (e.g., a shell process that lives across multiple tool calls) is the tool's concern, not the loop's. The loop provides a session-scoped context scratchpad, and tools use it to manage their own state. Tools that create long-lived resources must register cleanup via `registerDisposable` on the tool context, which wires disposal to the session lifetime. This keeps the loop clean and tools portable.
 
 ### Compaction strategy
 

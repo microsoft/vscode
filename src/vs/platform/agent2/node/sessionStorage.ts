@@ -58,6 +58,7 @@ export interface IRestoredSession {
 	readonly model: string;
 	readonly workingDirectory: string;
 	readonly startTime: number;
+	readonly modifiedTime: number;
 	readonly entries: readonly SessionEntry[];
 }
 
@@ -246,8 +247,11 @@ export class SessionStorage {
 		const filePath = this._sessionPath(workingDirectory, sessionId);
 
 		try {
-			const content = await fs.readFile(filePath, 'utf-8');
-			return this._parseSessionFile(content);
+			const [content, stat] = await Promise.all([
+				fs.readFile(filePath, 'utf-8'),
+				fs.stat(filePath),
+			]);
+			return this._parseSessionFile(content, stat.mtimeMs);
 		} catch {
 			return undefined;
 		}
@@ -264,8 +268,12 @@ export class SessionStorage {
 			const dirs = await this._allWorkspaceDirs();
 			for (const dir of dirs) {
 				try {
-					const content = await fs.readFile(join(dir, fileName), 'utf-8');
-					return this._parseSessionFile(content);
+					const filePath = join(dir, fileName);
+					const [content, stat] = await Promise.all([
+						fs.readFile(filePath, 'utf-8'),
+						fs.stat(filePath),
+					]);
+					return this._parseSessionFile(content, stat.mtimeMs);
 				} catch {
 					continue;
 				}
@@ -351,7 +359,7 @@ export class SessionStorage {
 		};
 	}
 
-	private _parseSessionFile(content: string): IRestoredSession | undefined {
+	private _parseSessionFile(content: string, modifiedTime: number): IRestoredSession | undefined {
 		const lines = content.split('\n').filter(l => l.trim());
 		if (lines.length === 0) {
 			return undefined;
@@ -384,6 +392,7 @@ export class SessionStorage {
 			model: header.model,
 			workingDirectory: header.workingDirectory,
 			startTime: header.startTime,
+			modifiedTime,
 			entries,
 		};
 	}

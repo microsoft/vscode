@@ -282,7 +282,7 @@ export class LocalAgent extends Disposable implements IAgent {
 			restored.workingDirectory,
 			this._storage.baseDir,
 			this._logService,
-			{ startTime: restored.startTime, modifiedTime: restored.startTime },
+			{ startTime: restored.startTime, modifiedTime: restored.modifiedTime },
 		);
 
 		// Replay entries into the session (entries are already the source of truth)
