@@ -60,10 +60,7 @@
 	border: 1px solid var(--vscode-commandCenter-border, transparent);
 }
 
-.agent-status-pill:hover {
-	background-color: var(--vscode-commandCenter-activeBackground);
-	border-color: var(--vscode-commandCenter-activeBorder, transparent);
-}
+/* Hover only applies to individual buttons, not the entire pill */
 
 .agent-status-pill.chat-input-mode {
 	cursor: pointer;
@@ -95,13 +92,50 @@
 	color: var(--vscode-commandCenter-activeForeground);
 }
 
-/* Label */
+/* Label - styled as placeholder text */
 .agent-status-label {
 	flex: 1;
 	text-align: center;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	opacity: 0.6;
+}
+
+/* Compact mode: left-aligned label, no icon */
+.agent-status-pill.compact-mode .agent-status-label {
+	text-align: left;
+}
+
+/* Compact mode: inline status sections inside the pill */
+.agent-status-pill.compact-mode .agent-status-badge-section {
+	flex-shrink: 0;
+}
+
+/* First badge section in compact mode also gets a left separator */
+.agent-status-pill.compact-mode .agent-status-badge-section:first-of-type::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 4px;
+	bottom: 4px;
+	width: 1px;
+	background-color: var(--vscode-commandCenter-border, rgba(128, 128, 128, 0.35));
+}
+
+/* Input hover target - only this area triggers hover, not badge sections */
+.agent-status-pill .agent-status-input-area {
+	display: flex;
+	align-items: center;
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	cursor: pointer;
+	gap: 6px;
+}
+
+.agent-status-pill .agent-status-input-area:hover {
+	background-color: var(--vscode-commandCenter-activeBackground);
 }
 
 .agent-status-label.has-progress {
@@ -291,103 +325,90 @@
 	background-color: var(--vscode-commandCenter-border, rgba(128, 128, 128, 0.35));
 }
 
-/* Sparkle section */
+/* Sparkle section - uses same padding as other sections */
 .agent-status-badge-section.sparkle {
 	gap: 0;
-	padding: 0;
 }
 
 .agent-status-badge-section.sparkle:hover {
-	background-color: transparent;
-}
-
-.agent-status-badge-section.sparkle .monaco-dropdown-with-primary {
-	display: flex;
-	align-items: center;
-	height: 100%;
-}
-
-.agent-status-badge-section.sparkle .action-container,
-.agent-status-badge-section.sparkle .dropdown-action-container {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	height: 100%;
-	overflow: hidden;
-}
-
-.agent-status-badge-section.sparkle .action-container {
-	padding: 0 4px;
-	border-radius: 5px 0 0 5px;
-}
-
-.agent-status-badge-section.sparkle .dropdown-action-container {
-	width: 18px;
-	padding: 0;
-	border-radius: 0;
-}
-
-/* When sparkle is the only section, dropdown needs rounded right corners */
-.agent-status-badge-section.sparkle:last-child .dropdown-action-container {
-	border-radius: 0 5px 5px 0;
-}
-
-.agent-status-badge-section.sparkle .action-container:hover,
-.agent-status-badge-section.sparkle .dropdown-action-container:hover {
 	background-color: var(--vscode-commandCenter-activeBackground);
 }
 
-.agent-status-badge-section.sparkle .action-container:focus-within,
-.agent-status-badge-section.sparkle .dropdown-action-container:focus-within {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.agent-status-badge-section.sparkle .action-label {
+/* Sparkle button (simple icon button inside the section) */
+.agent-status-sparkle-button {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: none !important;
+	height: 100%;
+	cursor: pointer;
 }
 
-.agent-status-badge-section.sparkle .action-container .action-label {
-	width: 16px;
-	height: 16px;
-}
-
-.agent-status-badge-section.sparkle .dropdown-action-container .action-label {
-	width: 18px;
-	height: 18px;
-	font-size: 18px;
-}
-
-.agent-status-badge-section.sparkle .dropdown-action-container .codicon {
-	transform: translateY(1px);
-}
-
-/* Disable toolbar hover effects in sparkle, but preserve focus */
-.agent-status-badge-section.sparkle .action-label:hover,
-.agent-status-badge-section.sparkle .action-label:active,
-.agent-status-badge-section.sparkle .action-item.active .action-label,
-.agent-status-badge-section.sparkle .monaco-dropdown.active .action-label {
-	background-color: transparent !important;
-}
-
-.agent-status-badge-section.sparkle .action-label:focus {
+.agent-status-sparkle-button:focus {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 
-/* Unread section - smaller dot with adjusted padding for visual balance */
-.agent-status-badge-section.unread {
-	padding: 0 8px 0 6px;
-}
-
+/* Unread section - smaller dot icon, constrain icon width for centering */
 .agent-status-badge-section.unread .agent-status-icon {
 	font-size: 8px;
+	width: 10px;
+	justify-content: center;
 }
 
 /* Active section in needs-input state - uses report icon with warning color */
 .agent-status-badge-section.active.needs-input .agent-status-icon {
 	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+/* Clicked state - shows hover-like background while sticky hover is open */
+.agent-status-badge-section.active.needs-input.clicked {
+	background-color: var(--vscode-commandCenter-activeBackground);
+}
+
+/* Attention text cycling animation - left-to-right expansion */
+.agent-status-attention-text {
+	display: inline-flex;
+	align-items: center;
+	white-space: nowrap;
+	font-size: 11px;
+	font-weight: 500;
+	position: relative;
+}
+
+.agent-status-cycle-count {
+	opacity: 1;
+	transition: opacity 0.4s ease 0.5s;
+}
+
+.agent-status-cycle-desc {
+	display: inline-block;
+	max-width: 0;
+	overflow: hidden;
+	opacity: 0;
+	transition: max-width 0.6s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.4s ease 0.15s;
+	white-space: nowrap;
+}
+
+/* When showing description: count fades out, desc expands */
+.agent-status-attention-text.show-desc .agent-status-cycle-count {
+	opacity: 0;
+	width: 0;
+	overflow: hidden;
+	transition: opacity 0.25s ease, width 0s linear 0.25s;
+}
+
+.agent-status-attention-text.show-desc .agent-status-cycle-desc {
+	max-width: 200px;
+	opacity: 1;
+}
+
+/* Collapsing: fade desc first, then contract width, count fades in after */
+.agent-status-attention-text:not(.show-desc) .agent-status-cycle-desc {
+	transition: opacity 0.3s ease, max-width 0.5s cubic-bezier(0.25, 0.1, 0.25, 1) 0.15s;
+}
+
+.agent-status-attention-text:not(.show-desc) .agent-status-cycle-count {
+	width: auto;
+	overflow: visible;
+	transition: opacity 0.4s ease 0.5s;
 }

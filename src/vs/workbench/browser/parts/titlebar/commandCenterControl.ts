@@ -22,6 +22,7 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { WindowTitle } from './windowTitle.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class CommandCenterControl {
 
@@ -86,6 +87,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IInstantiationService private _instaService: IInstantiationService,
 		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
+		@IConfigurationService private _configurationService: IConfigurationService,
 	) {
 		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
 		this._hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('mouse');
@@ -143,9 +145,16 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							container.classList.toggle('command-center-quick-pick');
 							container.role = 'button';
 							container.setAttribute('aria-description', this.getTooltip());
+
+							// When both unified agents bar and agent status are enabled,
+							// hide search icon and left-align the label
+							const isCompactMode = that._configurationService.getValue<boolean>('chat.unifiedAgentsBar.enabled') === true
+								&& that._configurationService.getValue<boolean>('chat.agentsControl.enabled') === true;
+							container.classList.toggle('compact-mode', isCompactMode);
+
 							const action = this.action;
 
-							// icon (search)
+							// icon (search) - hidden in compact mode
 							const searchIcon = document.createElement('span');
 							searchIcon.ariaHidden = 'true';
 							searchIcon.className = action.class ?? '';
@@ -156,7 +165,11 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							const labelElement = document.createElement('span');
 							labelElement.classList.add('search-label');
 							labelElement.textContent = label;
-							reset(container, searchIcon, labelElement);
+							if (isCompactMode) {
+								reset(container, labelElement);
+							} else {
+								reset(container, searchIcon, labelElement);
+							}
 
 							const hover = this._store.add(that._hoverService.setupManagedHover(that._hoverDelegate, container, this.getTooltip()));
 
