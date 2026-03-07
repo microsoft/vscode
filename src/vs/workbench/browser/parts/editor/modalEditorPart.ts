@@ -388,9 +388,6 @@ export class ModalEditorPart {
 					if (Math.abs(currentLeft - centerLeft) < 1 && Math.abs(currentTop - centerTop) < 1) {
 						editorPart.position = undefined;
 					} else {
-						if (!editorPart.size) {
-							editorPart.size = new Dimension(resizableElement.size.width, resizableElement.size.height);
-						}
 						editorPart.position = { left: currentLeft, top: currentTop };
 					}
 				}
