@@ -10,6 +10,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IUntypedEditorInput } from '../../../common/editor.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import product from '../../../../platform/product/common/product.js';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 
@@ -79,6 +82,10 @@ export class GettingStartedInput extends EditorInput {
 
 	override getName() {
 		return this.walkthroughPageTitle ? localize('walkthroughPageTitle', 'Walkthrough: {0}', this.walkthroughPageTitle) : localize('getStarted', "Welcome");
+	}
+
+	override getIcon(): ThemeIcon {
+		return product.quality === 'stable' ? Codicon.vscode : Codicon.vscodeInsiders;
 	}
 
 	get selectedCategory() {
