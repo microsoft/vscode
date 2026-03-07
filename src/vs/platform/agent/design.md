@@ -2,7 +2,7 @@
 
 > **Keep this document in sync with the code.** Any change to the agent-host protocol, tool rendering approach, or architectural boundaries must be reflected here. If you add a new `toolKind`, change how tool-specific data is populated, or modify the separation between agent-specific and generic code, update this document as part of the same change.
 
-Design decisions and principles for the agent-host feature. For process architecture and IPC details, see [architecture.md](architecture.md). For the task backlog, see [backlog.md](backlog.md).
+Design decisions and principles for the agent-host feature. For process architecture and IPC details, see [architecture.md](architecture.md). For the client-server state protocol, see [protocol.md](protocol.md). For the task backlog, see [backlog.md](backlog.md).
 
 ## Agent-agnostic protocol
 
@@ -79,3 +79,14 @@ The entire feature is controlled by `chat.agentHost.enabled` (default `false`), 
 ## Separate contributions per provider
 
 Each agent provider (Copilot) has its own independent workbench contribution class. Providers can be added, removed, or modified independently without affecting each other.
+
+## Multi-client state synchronization
+
+The sessions process uses a redux-like state model where all mutations flow through a discriminated union of actions processed by pure reducer functions. This design supports multiple connected clients seeing a synchronized view:
+
+- **Server-authoritative state**: The server holds the canonical state tree. Clients receive snapshots and incremental actions.
+- **Write-ahead with reconciliation**: Clients optimistically apply their own actions locally (e.g., approving a permission, sending a message) and reconcile when the server echoes them back. Actions carry `(clientId, clientSeq)` tags for echo matching.
+- **Lazy loading**: Clients connect with lightweight session metadata (enough for a sidebar list) and subscribe to full session state on demand. Large content (images, tool outputs) uses `ContentRef` placeholders fetched separately.
+- **Forward-compatible versioning**: A single protocol version number maps to a `ProtocolCapabilities` object. Newer clients check capabilities before using features unavailable on older servers.
+
+Details and type definitions are in [protocol.md](protocol.md) and `common/state/`.

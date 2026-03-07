@@ -2,7 +2,7 @@
 
 > **Keep this document in sync with the code.** If you change the IPC contract, add new event types, modify the process lifecycle, or restructure files, update this document as part of the same change.
 
-For design decisions, see [design.md](design.md). For the task backlog, see [backlog.md](backlog.md). For chat session wiring, see [sessions.md](sessions.md).
+For design decisions, see [design.md](design.md). For the client-server state protocol, see [protocol.md](protocol.md). For the task backlog, see [backlog.md](backlog.md). For chat session wiring, see [sessions.md](sessions.md).
 
 ## Overview
 
@@ -51,6 +51,16 @@ src/vs/platform/agent/
 |   +-- agentService.ts       # IAgent, IAgentService, IAgentHostService interfaces,
 |                              # IPC data types, AgentSession namespace (URI helpers),
 |                              # AgentHostEnabledSettingId
+|   +-- state/
+|       +-- sessionState.ts        # Immutable state types (RootState, SessionState, Turn)
+|       +-- sessionActions.ts      # Action discriminated union + ActionEnvelope
+|       +-- sessionReducers.ts     # Pure reducer functions (rootReducer, sessionReducer)
+|       +-- sessionProtocol.ts     # Protocol messages (handshake, subscribe, reconnect)
+|       +-- sessionCapabilities.ts # Re-exports version constants + ProtocolCapabilities
+|       +-- sessionClientState.ts  # Client-side state manager with write-ahead reconciliation
+|       +-- versions/
+|           +-- v1.ts              # v1 wire format types (tip -- editable, compiler-enforced compat)
+|           +-- versionRegistry.ts # Compile-time compat checks + runtime action->version map
 +-- electron-browser/
 |   +-- agentHostService.ts   # AgentHostServiceClient (renderer singleton, direct MessagePort)
 +-- electron-main/
