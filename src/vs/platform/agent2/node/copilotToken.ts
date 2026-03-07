@@ -234,7 +234,7 @@ export class CopilotApiService implements ICopilotApiService {
 	private _identity: ICopilotApiIdentity;
 
 	constructor(
-		private readonly _logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 		identity?: ICopilotApiIdentity,
 		fetcherService?: ICAPIFetcherService,
 	) {

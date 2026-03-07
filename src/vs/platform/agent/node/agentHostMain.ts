@@ -25,6 +25,7 @@ import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
+import { SyncDescriptor } from '../../instantiation/common/descriptors.js';
 import { localize } from '../../../nls.js';
 
 // Entry point for the agent host utility process.
@@ -58,7 +59,7 @@ function startAgentHost(): void {
 	const logService = new LogService(logger);
 	services.set(ILogService, logService);
 
-	services.set(ICopilotApiService, new CopilotApiService(logService));
+	services.set(ICopilotApiService, new SyncDescriptor(CopilotApiService));
 
 	const instantiationService = new InstantiationService(services);
 
