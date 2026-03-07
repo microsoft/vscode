@@ -71,8 +71,8 @@ class SimpleBrowserOverlayWidget {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		this._showStore.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('chat.sendElementsToChat.enabled')) {
-				if (this.configurationService.getValue('chat.sendElementsToChat.enabled')) {
+			if (e.affectsConfiguration('workbench.browser.sendElementsToChat.enabled')) {
+				if (this.configurationService.getValue('workbench.browser.sendElementsToChat.enabled')) {
 					this.showElement(this._domNode);
 				} else {
 					this.hideElement(this._domNode);
@@ -230,7 +230,7 @@ class SimpleBrowserOverlayWidget {
 		}));
 
 		this._showStore.add(addDisposableListener(configure.element, 'click', () => {
-			this._preferencesService.openSettings({ jsonEditor: false, query: '@id:chat.sendElementsToChat.enabled,chat.sendElementsToChat.attachCSS,chat.sendElementsToChat.attachImages' });
+			this._preferencesService.openSettings({ jsonEditor: false, query: '@id:workbench.browser.sendElementsToChat.enabled,workbench.browser.sendElementsToChat.attachCSS,workbench.browser.sendElementsToChat.attachImages' });
 		}));
 	}
 
@@ -285,7 +285,7 @@ class SimpleBrowserOverlayWidget {
 		const toAttach: IChatRequestVariableEntry[] = [];
 
 		const widget = await this._chatWidgetService.revealWidget() ?? this._chatWidgetService.lastFocusedWidget;
-		const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
+		const attachCss = this.configurationService.getValue<boolean>('workbench.browser.sendElementsToChat.attachCSS');
 		let value = (attachCss ? 'Attached HTML and CSS Context' : 'Attached HTML Context') + '\n\n' + elementData.outerHTML;
 		if (attachCss) {
 			value += '\n\n' + elementData.computedStyle;
@@ -305,7 +305,7 @@ class SimpleBrowserOverlayWidget {
 			innerText: elementData.innerText,
 		});
 
-		if (this.configurationService.getValue('chat.sendElementsToChat.attachImages')) {
+		if (this.configurationService.getValue('workbench.browser.sendElementsToChat.attachImages')) {
 			// remove container so we don't block anything on screenshot
 			this._domNode.style.display = 'none';
 
@@ -339,8 +339,8 @@ class SimpleBrowserOverlayWidget {
 
 		type SimpleBrowserAddElementToChatAddedClassification = {
 			browserType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of browser extension: simpleBrowser or livePreview.' };
-			attachCss: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachCSS was enabled.' };
-			attachImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachImages was enabled.' };
+			attachCss: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether workbench.browser.sendElementsToChat.attachCSS was enabled.' };
+			attachImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether workbench.browser.sendElementsToChat.attachImages was enabled.' };
 			owner: 'kycutler';
 			comment: 'An element was successfully added to chat from Simple Browser overlay.';
 		};
@@ -348,7 +348,7 @@ class SimpleBrowserOverlayWidget {
 		this.telemetryService.publicLog2<SimpleBrowserAddElementToChatAddedEvent, SimpleBrowserAddElementToChatAddedClassification>('simpleBrowser.addElementToChat.added', {
 			browserType: this._browserType!,
 			attachCss,
-			attachImages: this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages') ?? false
+			attachImages: this.configurationService.getValue<boolean>('workbench.browser.sendElementsToChat.attachImages') ?? false
 		});
 	}
 
@@ -450,7 +450,7 @@ class SimpleBrowserOverlayController {
 
 		// Observe chat enabled state and sendElementsToChat configuration
 		const chatEnabledObs = observableContextKey<boolean>(ChatContextKeys.enabled.key, this.contextKeyService);
-		const sendElementsEnabledObs = observableConfigValue<boolean>('chat.sendElementsToChat.enabled', true, this.configurationService);
+		const sendElementsEnabledObs = observableConfigValue<boolean>('workbench.browser.sendElementsToChat.enabled', true, this.configurationService);
 
 		this._store.add(autorun(r => {
 
