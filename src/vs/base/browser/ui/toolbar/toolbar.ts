@@ -211,6 +211,14 @@ export class ToolBar extends Disposable {
 		return itemsWidth;
 	}
 
+	getItemsMinWidth(): number {
+		let itemsMinWidth = 0;
+		for (let i = 0; i < this.actionBar.length(); i++) {
+			itemsMinWidth += this.actionBar.getMinWidth(i);
+		}
+		return itemsMinWidth;
+	}
+
 	getItemAction(indexOrElement: number | HTMLElement) {
 		return this.actionBar.getAction(indexOrElement);
 	}
