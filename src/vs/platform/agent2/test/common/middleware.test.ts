@@ -15,15 +15,17 @@ suite('Middleware runners', () => {
 		test('passes through with no middleware', async () => {
 			const messages = [createUserMessage('hello')];
 			const tools = [{ name: 'test', description: 'test tool', parametersSchema: {} }];
-			const result = await runPreRequestMiddleware([], { messages, tools });
+			const result = await runPreRequestMiddleware([], { systemPrompt: 'prompt', messages, tools });
 			assert.strictEqual(result.messages, messages);
 			assert.strictEqual(result.tools, tools);
+			assert.strictEqual(result.systemPrompt, 'prompt');
 		});
 
 		test('applies middleware transforms in order', async () => {
 			const mw1: IMiddleware = {
 				preRequest(ctx) {
 					return {
+						systemPrompt: ctx.systemPrompt,
 						messages: [...ctx.messages, createUserMessage('injected by mw1')],
 						tools: ctx.tools,
 					};
@@ -32,6 +34,7 @@ suite('Middleware runners', () => {
 			const mw2: IMiddleware = {
 				preRequest(ctx) {
 					return {
+						systemPrompt: ctx.systemPrompt,
 						messages: [...ctx.messages, createUserMessage('injected by mw2')],
 						tools: ctx.tools,
 					};
@@ -39,6 +42,7 @@ suite('Middleware runners', () => {
 			};
 
 			const result = await runPreRequestMiddleware([mw1, mw2], {
+				systemPrompt: 'prompt',
 				messages: [createUserMessage('original')],
 				tools: [],
 			});
@@ -54,7 +58,7 @@ suite('Middleware runners', () => {
 				postResponse() { return {}; },
 			};
 			const messages = [createUserMessage('hello')];
-			const result = await runPreRequestMiddleware([mw], { messages, tools: [] });
+			const result = await runPreRequestMiddleware([mw], { systemPrompt: 'prompt', messages, tools: [] });
 			assert.strictEqual(result.messages, messages);
 		});
 	});

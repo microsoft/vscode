@@ -42,11 +42,11 @@
 
 ## P1 -- Essential Infrastructure (MOSTLY COMPLETE)
 
-- [x] Context window management middleware -- token estimation, old tool output pruning
-- [x] Permission system middleware -- allow/deny/ask per tool, IPermissionPolicy, AllowAllPolicy, DefaultPermissionPolicy
-- [x] Tool output truncation middleware -- configurable max length (default 50K chars)
-- [x] Sub-agent invocation tool -- nested loop with isolated conversation, configurable tools/system prompt
-- [x] Custom instructions injection -- IInstructionProvider interface, pre-request middleware
+- [x] Context window management middleware -- token estimation, old tool output pruning (wired in LocalAgent)
+- [x] Permission system middleware -- allow/deny/ask per tool, IPermissionPolicy, AllowAllPolicy, DefaultPermissionPolicy (wired with AllowAllPolicy -- effectively permits all tools; approval flow not yet connected)
+- [x] Tool output truncation middleware -- configurable max length (default 50K chars) (wired in LocalAgent)
+- [x] Sub-agent invocation tool -- nested loop with isolated conversation, configurable tools/system prompt (**not wired** in LocalAgent tool set -- implemented in isolation)
+- [x] Custom instructions injection -- IInstructionProvider interface, pre-request middleware that appends to system prompt (**not wired** in LocalAgent middleware chain -- implemented in isolation)
 - [x] Dynamic tool management -- tools config accepts `() => IAgentTool[]`, resolved per iteration
 - [x] Turn tracking (turn numbers on all events) -- built into event types
 - [x] Usage metrics (per-model-call token counts with correct model identity) -- usage events
@@ -62,13 +62,15 @@
 - [x] Sessions not showing up in the sessions list
 	- AgentHostSessionListController now subscribes to onDidSessionProgress idle events and auto-refreshes
 - [x] Upgrade BashTool to persistent shell sessions
-	- Shell process persisted in session scratchpad across invocations
+	- Shell process persisted in session-scoped scratchpad across turns
+	- Scratchpad owned by LocalSession, passed to AgentLoop via config
 	- Preserves cwd, environment variables, shell state between commands
 - [x] Persist sessions to jsonl files on disk
 	- Append-only JSONL under `<userDataPath>/agentSessions/<workspaceKeyHash>/`
 	- SessionStorage: create, append events, list, restore, delete
 	- LocalAgent wires up persistence for session creation, messages, tool events, modified timestamps
 	- Sessions survive process restarts and show up in `listSessions`
+	- Sessions are resumable: `sendMessage` restores from storage when session is not in memory
 	- 10 dedicated SessionStorage tests
 - Hook up vscode terminal tool (IPC bridge to workbench terminal service)
 - Expand the tool set. How much do we copy from current vscode tools or start from scratch?

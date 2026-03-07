@@ -17,6 +17,7 @@ function createContext(workingDirectory: string): IToolContext {
 		token: CancellationToken.None,
 		workingDirectory,
 		scratchpad: new Map(),
+		registerDisposable: () => { /* no-op in tests */ },
 	};
 }
 

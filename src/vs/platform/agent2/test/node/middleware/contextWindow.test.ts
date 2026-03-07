@@ -16,7 +16,7 @@ suite('ContextWindowMiddleware', () => {
 			maxContextTokens: 100000,
 		});
 		const messages = [createUserMessage('Hello')];
-		const result = mw.preRequest({ messages, tools: [] });
+		const result = mw.preRequest({ systemPrompt: 'prompt', messages, tools: [] });
 		assert.strictEqual(result.messages, messages);
 	});
 
@@ -36,7 +36,7 @@ suite('ContextWindowMiddleware', () => {
 			createToolResultMessage('c3', 'read_file', 'recent result'), // Most recent
 		];
 
-		const result = mw.preRequest({ messages, tools: [] });
+		const result = mw.preRequest({ systemPrompt: 'prompt', messages, tools: [] });
 
 		// First two tool results should be pruned
 		assert.strictEqual(result.messages.length, 4);
@@ -69,7 +69,7 @@ suite('ContextWindowMiddleware', () => {
 			createToolResultMessage('c3', 'tool', longContent),  // Recent - kept
 		];
 
-		const result = mw.preRequest({ messages, tools: [] });
+		const result = mw.preRequest({ systemPrompt: 'prompt', messages, tools: [] });
 
 		// c1 should be pruned
 		const firstToolResult = result.messages[1] as { content: string };
@@ -96,7 +96,7 @@ suite('ContextWindowMiddleware', () => {
 			createToolResultMessage('c1', 'tool', shortContent),
 		];
 
-		const result = mw.preRequest({ messages, tools: [] });
+		const result = mw.preRequest({ systemPrompt: 'prompt', messages, tools: [] });
 
 		// Short content should not be truncated even when marked for pruning
 		const toolResult = result.messages[1] as { content: string };
@@ -109,6 +109,7 @@ suite('ContextWindowMiddleware', () => {
 		});
 		const tools = [{ name: 'test', description: 'test', parametersSchema: {} }];
 		const result = mw.preRequest({
+			systemPrompt: 'prompt',
 			messages: [createUserMessage('Hello')],
 			tools,
 		});

@@ -181,7 +181,10 @@ export class LocalAgent extends Disposable implements IAgent {
 	}
 
 	async sendMessage(sessionUri: URI, prompt: string, _attachments?: IAgentAttachment[]): Promise<void> {
-		const session = this._getSession(sessionUri);
+		const session = await this._getOrRestoreSession(sessionUri);
+		if (!session) {
+			throw new Error(`Session not found: ${sessionUri.toString()}`);
+		}
 		if (session.running) {
 			throw new Error('Session is already running');
 		}
@@ -257,11 +260,39 @@ export class LocalAgent extends Disposable implements IAgent {
 		];
 	}
 
-	private _getSession(uri: URI): LocalSession {
-		const session = this._sessionState.get(uri.toString());
-		if (!session) {
-			throw new Error(`Session not found: ${uri.toString()}`);
+	/**
+	 * Get the session, restoring from storage if needed.
+	 * Returns `undefined` if the session doesn't exist anywhere.
+	 */
+	private async _getOrRestoreSession(uri: URI): Promise<LocalSession | undefined> {
+		const existing = this._sessionState.get(uri.toString());
+		if (existing) {
+			return existing;
 		}
+
+		// Try to restore from disk
+		const restored = await this._storage.findAndRestoreSession(uri);
+		if (!restored) {
+			return undefined;
+		}
+
+		const session = new LocalSession(
+			uri,
+			restored.model,
+			restored.workingDirectory,
+			this._storage.baseDir,
+			this._logService,
+			{ startTime: restored.startTime, modifiedTime: restored.startTime },
+		);
+
+		// Replay entries into the session (entries are already the source of truth)
+		for (const entry of restored.entries) {
+			session.replayEntry(entry);
+		}
+
+		this._sessionState.set(uri.toString(), session);
+		this._sessions.set(uri.toString(), session.cts);
+		this._logService.info(`[LocalAgent] Restored session ${AgentSession.id(uri)} from storage`);
 		return session;
 	}
 
@@ -275,6 +306,8 @@ export class LocalAgent extends Disposable implements IAgent {
 			tools: [...this._tools],
 			workingDirectory: session.workingDirectory,
 			middleware: this._buildMiddleware(),
+			scratchpad: session.scratchpad,
+			registerDisposable: session.registerDisposable,
 		};
 
 		try {

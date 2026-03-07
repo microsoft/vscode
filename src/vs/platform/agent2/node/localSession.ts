@@ -10,7 +10,7 @@
  */
 
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
@@ -37,6 +37,15 @@ export class LocalSession extends Disposable {
 	private _cts: CancellationTokenSource;
 	private _running = false;
 
+	/** Session-scoped scratchpad for tools that maintain state across turns. */
+	readonly scratchpad = new Map<string, unknown>();
+
+	/**
+	 * Register a disposable for session-scoped cleanup. Tools use this to
+	 * register long-lived resources (e.g., child processes).
+	 */
+	readonly registerDisposable = (disposable: IDisposable) => this._register(disposable);
+
 	readonly uri: URI;
 	readonly model: string;
 	readonly workingDirectory: string;
@@ -48,13 +57,14 @@ export class LocalSession extends Disposable {
 		workingDirectory: string,
 		storageBaseDir: string,
 		logService: ILogService,
+		restoredTimestamps?: { startTime: number; modifiedTime: number },
 	) {
 		super();
 		this.uri = uri;
 		this.model = model;
 		this.workingDirectory = workingDirectory;
-		this.startTime = Date.now();
-		this._modifiedTime = this.startTime;
+		this.startTime = restoredTimestamps?.startTime ?? Date.now();
+		this._modifiedTime = restoredTimestamps?.modifiedTime ?? this.startTime;
 		this._cts = new CancellationTokenSource();
 		this._writer = this._register(new SessionWriter(storageBaseDir, AgentSession.id(uri), workingDirectory, logService));
 	}
@@ -142,6 +152,14 @@ export class LocalSession extends Disposable {
 	abort(): void {
 		this._cts.cancel();
 		this._cts = new CancellationTokenSource();
+	}
+
+	/**
+	 * Replay a previously persisted entry into the in-memory entries list
+	 * without re-persisting it. Used when restoring a session from storage.
+	 */
+	replayEntry(entry: SessionEntry): void {
+		this._entries.push(entry);
 	}
 
 	/** Flush pending writes to disk. */

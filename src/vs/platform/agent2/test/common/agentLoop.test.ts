@@ -476,6 +476,7 @@ suite('Agent Loop', () => {
 			const mw: IMiddleware = {
 				preRequest(ctx) {
 					return {
+						systemPrompt: ctx.systemPrompt,
 						messages: [...ctx.messages, createUserMessage('injected')],
 						tools: ctx.tools,
 					};

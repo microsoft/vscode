@@ -25,11 +25,13 @@ import { IAgentToolDefinition } from './tools.js';
  * messages and tools before they are sent to the model.
  */
 export interface IPreRequestContext {
+	readonly systemPrompt: string;
 	readonly messages: readonly IConversationMessage[];
 	readonly tools: readonly IAgentToolDefinition[];
 }
 
 export interface IPreRequestResult {
+	readonly systemPrompt: string;
 	readonly messages: readonly IConversationMessage[];
 	readonly tools: readonly IAgentToolDefinition[];
 }
@@ -132,10 +134,10 @@ export async function runPreRequestMiddleware(
 	middlewares: readonly IMiddleware[],
 	context: IPreRequestContext,
 ): Promise<IPreRequestResult> {
-	let result: IPreRequestResult = { messages: context.messages, tools: context.tools };
+	let result: IPreRequestResult = { systemPrompt: context.systemPrompt, messages: context.messages, tools: context.tools };
 	for (const mw of middlewares) {
 		if (mw.preRequest) {
-			result = await mw.preRequest({ messages: result.messages, tools: result.tools });
+			result = await mw.preRequest({ systemPrompt: result.systemPrompt, messages: result.messages, tools: result.tools });
 		}
 	}
 	return result;

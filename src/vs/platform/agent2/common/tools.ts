@@ -13,6 +13,7 @@
  */
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
 
 // -- Tool definition (passed to the model) ------------------------------------
 
@@ -47,6 +48,12 @@ export interface IToolContext {
 	 * (e.g., a shell tool maintaining a persistent process).
 	 */
 	readonly scratchpad: Map<string, unknown>;
+	/**
+	 * Register a disposable that will be cleaned up when the session is
+	 * disposed. Tools that create long-lived resources (child processes,
+	 * file handles, etc.) must register cleanup here.
+	 */
+	registerDisposable(disposable: IDisposable): void;
 }
 
 // -- Tool result --------------------------------------------------------------

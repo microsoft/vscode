@@ -104,12 +104,12 @@ export class ContextWindowMiddleware implements IMiddleware {
 		const threshold = this._maxContextTokens * this._compactionThreshold;
 
 		if (estimatedTokens <= threshold) {
-			return { messages: context.messages, tools: context.tools };
+			return { systemPrompt: context.systemPrompt, messages: context.messages, tools: context.tools };
 		}
 
 		// Phase 1: Prune old tool outputs
 		const compacted = this._pruneToolOutputs(context.messages);
-		return { messages: compacted, tools: context.tools };
+		return { systemPrompt: context.systemPrompt, messages: compacted, tools: context.tools };
 	}
 
 	/**

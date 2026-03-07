@@ -5,6 +5,7 @@
 
 import { ChildProcess, spawn } from 'child_process';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { IAgentTool, IToolContext, IToolResult } from '../../common/tools.js';
 
 const DEFAULT_TIMEOUT_MS = 120_000; // 2 minutes
@@ -75,7 +76,14 @@ export class BashTool implements IAgentTool {
 		shell = { process: child, buffer: '' };
 		context.scratchpad.set(SCRATCHPAD_KEY, shell);
 
-		// Clean up on exit
+		// Register cleanup so the child process is killed when the session is disposed.
+		context.registerDisposable(toDisposable(() => {
+			if (!child.killed) {
+				child.kill();
+			}
+		}));
+
+		// Clean up scratchpad reference on exit
 		child.on('exit', () => {
 			const current = context.scratchpad.get(SCRATCHPAD_KEY) as IPersistentShell | undefined;
 			if (current?.process === child) {

@@ -75,13 +75,10 @@ suite('LocalAgent', () => {
 		const sessionUri = await agent.createSession();
 		await agent.disposeSession(sessionUri);
 
-		// Session is removed from in-memory state but persisted sessions
-		// remain on disk, so listSessions may still return it.
-		// Verify that sendMessage throws (session no longer active).
-		await assert.rejects(
-			() => agent.sendMessage(sessionUri, 'hello'),
-			/Session not found/,
-		);
+		// Session is removed from in-memory state but remains on disk.
+		// getSessionMessages still works (reads from persisted storage).
+		const messages = await agent.getSessionMessages(sessionUri);
+		assert.strictEqual(messages.length, 0);
 	});
 
 	test('getSessionMessages returns empty for new session', async () => {
@@ -114,15 +111,55 @@ suite('LocalAgent', () => {
 	});
 
 	test('shutdown clears in-memory sessions', async () => {
-		const s1 = await agent.createSession();
+		await agent.createSession();
 		await agent.createSession();
 
 		await agent.shutdown();
 
-		// In-memory sessions are gone
+		// In-memory sessions are gone, but a truly nonexistent session
+		// (never persisted anywhere) still fails.
+		const fakeUri = AgentSession.uri('local', 'never-existed');
 		await assert.rejects(
-			() => agent.sendMessage(s1, 'hello'),
+			() => agent.sendMessage(fakeUri, 'hello'),
 			/Session not found/,
 		);
+	});
+
+	test('persisted sessions survive dispose and are listed', async () => {
+		const s1 = await agent.createSession({ workingDirectory: '/workspace' });
+		await agent.disposeSession(s1);
+
+		// Session was disposed from memory but persisted on disk.
+		// listSessions should still find it.
+		const sessions = await agent.listSessions();
+		assert.ok(sessions.some(s => s.session.toString() === s1.toString()));
+	});
+
+	test('getSessionMessages works after dispose (reads from storage)', async () => {
+		const s1 = await agent.createSession();
+
+		// Verify messages are empty on new session
+		const before = await agent.getSessionMessages(s1);
+		assert.strictEqual(before.length, 0);
+
+		// Dispose removes from memory
+		await agent.disposeSession(s1);
+
+		// getSessionMessages still reads from persisted storage
+		const after = await agent.getSessionMessages(s1);
+		assert.strictEqual(after.length, 0);
+	});
+
+	test('persisted sessions show up after shutdown', async () => {
+		const s1 = await agent.createSession({ workingDirectory: '/workspace' });
+		const s2 = await agent.createSession({ workingDirectory: '/workspace' });
+
+		await agent.shutdown();
+
+		// After shutdown, sessions are gone from memory but persisted.
+		// listSessions still returns them from storage.
+		const sessions = await agent.listSessions();
+		assert.ok(sessions.some(s => s.session.toString() === s1.toString()));
+		assert.ok(sessions.some(s => s.session.toString() === s2.toString()));
 	});
 });

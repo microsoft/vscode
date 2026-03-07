@@ -19,6 +19,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
 import {
 	createAssistantMessage,
 	createToolResultMessage,
@@ -61,6 +62,17 @@ export interface IAgentLoopConfig {
 	readonly middleware?: readonly IMiddleware[];
 	/** Maximum number of model-call/tool-execution iterations. */
 	readonly maxIterations?: number;
+	/**
+	 * Session-scoped scratchpad for tools that need to maintain state across
+	 * loop invocations (e.g., a persistent shell process). If not provided,
+	 * a fresh scratchpad is created per invocation.
+	 */
+	readonly scratchpad?: Map<string, unknown>;
+	/**
+	 * Register a disposable for session-scoped cleanup. Tools use this to
+	 * register long-lived resources (e.g., child processes).
+	 */
+	readonly registerDisposable?: (disposable: IDisposable) => void;
 	/** Working directory for tool execution. */
 	readonly workingDirectory?: string;
 }
@@ -109,7 +121,7 @@ export class AgentLoop {
 		messages: readonly IConversationMessage[],
 		token: CancellationToken,
 	): AsyncGenerator<AgentLoopEvent> {
-		const scratchpad = new Map<string, unknown>();
+		const scratchpad = this._config.scratchpad ?? new Map<string, unknown>();
 		let currentMessages = [...messages];
 		let turn = 0;
 
@@ -127,9 +139,11 @@ export class AgentLoop {
 
 			// -- Pre-request middleware ----------------------------------------
 			const preResult = await runPreRequestMiddleware(this._middleware, {
+				systemPrompt: this._config.systemPrompt,
 				messages: currentMessages,
 				tools: toolDefinitions,
 			});
+			const requestSystemPrompt = preResult.systemPrompt;
 			const requestMessages = preResult.messages;
 			const requestTools = preResult.tools;
 
@@ -150,6 +164,7 @@ export class AgentLoop {
 				}
 
 				const accumulated = await this._accumulateResponse(
+					requestSystemPrompt,
 					requestMessages,
 					requestTools,
 					token,
@@ -228,6 +243,7 @@ export class AgentLoop {
 	 * Also collects the streaming events to be yielded by the caller.
 	 */
 	private async _accumulateResponse(
+		systemPrompt: string,
 		messages: readonly IConversationMessage[],
 		tools: readonly IAgentToolDefinition[],
 		token: CancellationToken,
@@ -245,7 +261,7 @@ export class AgentLoop {
 		let currentThinking: { text: string; signature?: string } | undefined;
 
 		for await (const chunk of this._config.modelProvider.sendRequest(
-			this._config.systemPrompt, messages, tools,
+			systemPrompt, messages, tools,
 			this._config.requestConfig ?? {}, token,
 		)) {
 			if (token.isCancellationRequested) {
@@ -476,11 +492,13 @@ export class AgentLoop {
 				resultContent = formatValidationErrors(validationErrors);
 				isError = true;
 			} else {
+				const noopDisposable = () => { /* no session disposal tracking */ };
 				try {
 					const toolResult = await tool.execute(preResult.arguments, {
 						token,
 						workingDirectory: this._config.workingDirectory ?? '',
 						scratchpad,
+						registerDisposable: this._config.registerDisposable ?? noopDisposable,
 					});
 					resultContent = toolResult.content;
 					isError = toolResult.isError ?? false;

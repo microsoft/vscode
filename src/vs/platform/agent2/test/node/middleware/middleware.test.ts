@@ -159,21 +159,21 @@ suite('PermissionMiddleware', () => {
 suite('CustomInstructionsMiddleware', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('injects instructions as first message', () => {
+	test('appends instructions to system prompt', () => {
 		const mw = new CustomInstructionsMiddleware({
 			getInstructions: () => 'Always use TypeScript.',
 		});
 
 		const result = mw.preRequest({
+			systemPrompt: 'You are a coding assistant.',
 			messages: [createUserMessage('Hello')],
 			tools: [],
 		});
 
-		assert.strictEqual(result.messages.length, 2);
-		assert.strictEqual(result.messages[0].role, 'user');
-		assert.ok((result.messages[0] as { content: string }).content.includes('Always use TypeScript'));
-		assert.ok((result.messages[0] as { content: string }).content.includes('custom_instructions'));
-		assert.strictEqual(result.messages[1].role, 'user');
+		assert.strictEqual(result.messages.length, 1);
+		assert.ok(result.systemPrompt.includes('Always use TypeScript'));
+		assert.ok(result.systemPrompt.includes('custom_instructions'));
+		assert.ok(result.systemPrompt.includes('You are a coding assistant'));
 	});
 
 	test('passes through when no instructions', () => {
@@ -182,9 +182,10 @@ suite('CustomInstructionsMiddleware', () => {
 		});
 
 		const messages = [createUserMessage('Hello')];
-		const result = mw.preRequest({ messages, tools: [] });
+		const result = mw.preRequest({ systemPrompt: 'base', messages, tools: [] });
 		assert.strictEqual(result.messages.length, 1);
 		assert.strictEqual(result.messages, messages);
+		assert.strictEqual(result.systemPrompt, 'base');
 	});
 
 	test('preserves tools', () => {
@@ -194,6 +195,7 @@ suite('CustomInstructionsMiddleware', () => {
 
 		const tools = [{ name: 'test', description: 'test', parametersSchema: {} }];
 		const result = mw.preRequest({
+			systemPrompt: 'base',
 			messages: [createUserMessage('Hello')],
 			tools,
 		});
