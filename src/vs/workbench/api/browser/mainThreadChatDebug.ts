@@ -16,8 +16,6 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 	private readonly _proxy: Proxied<ExtHostChatDebugShape>;
 	private readonly _providerDisposables = new Map<number, DisposableStore>();
 	private readonly _activeSessionResources = new Map<number, URI>();
-	/** Tracks core events already forwarded to the extension to avoid duplicates. */
-	private readonly _forwardedCoreEvents = new WeakSet<IChatDebugEvent>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -34,17 +32,6 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 		disposables.add(this._chatDebugService.registerProvider({
 			provideChatDebugLog: async (sessionResource, token) => {
 				this._activeSessionResources.set(handle, sessionResource);
-
-				// Send existing core events for this session to the extension
-				// so they are captured for export even when the panel is
-				// opened after events have already been logged.
-				for (const event of this._chatDebugService.getEvents(sessionResource)) {
-					if (this._chatDebugService.isCoreEvent(event) && !this._forwardedCoreEvents.has(event)) {
-						this._forwardedCoreEvents.add(event);
-						this._proxy.$handleCoreDebugEvent(handle, this._serializeEvent(event));
-					}
-				}
-
 				const dtos = await this._proxy.$provideChatDebugLog(handle, sessionResource, token);
 				return dtos?.map(dto => this._reviveEvent(dto, sessionResource));
 			},
@@ -52,30 +39,18 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 				return this._proxy.$resolveChatDebugLogEvent(handle, eventId, token);
 			},
 			provideChatDebugLogExport: async (sessionResource, token) => {
-				const result = await this._proxy.$exportChatDebugLog(handle, sessionResource, token);
+				// Gather core events for this session and pass them to the
+				// extension so it can merge them into the export.
+				const coreEventDtos = this._chatDebugService.getEvents(sessionResource)
+					.filter(e => this._chatDebugService.isCoreEvent(e))
+					.map(e => this._serializeEvent(e));
+				const result = await this._proxy.$exportChatDebugLog(handle, sessionResource, coreEventDtos, token);
 				return result?.buffer;
 			},
 			resolveChatDebugLogImport: async (data, token) => {
 				const result = await this._proxy.$importChatDebugLog(handle, VSBuffer.wrap(data), token);
 				return result ? URI.revive(result) : undefined;
 			}
-		}));
-
-		// Forward core-originated events to the extension so it can include
-		// them in its data pipeline (e.g., OTel export).
-		disposables.add(this._chatDebugService.onDidAddEvent(event => {
-			if (!this._chatDebugService.isCoreEvent(event)) {
-				return;
-			}
-			const activeSession = this._activeSessionResources.get(handle);
-			if (!activeSession || event.sessionResource.toString() !== activeSession.toString()) {
-				return;
-			}
-			if (this._forwardedCoreEvents.has(event)) {
-				return;
-			}
-			this._forwardedCoreEvents.add(event);
-			this._proxy.$handleCoreDebugEvent(handle, this._serializeEvent(event));
 		}));
 	}
 

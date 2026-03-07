@@ -646,20 +646,23 @@ declare module 'vscode' {
 		/**
 		 * Export the debug log for a chat session as a serialized byte array.
 		 * The extension controls the format (e.g., OTLP JSON with Copilot extensions).
-		 * Provides the save dialog and writes the returned bytes to disk.
+		 * Core provides the save dialog and writes the returned bytes to disk.
 		 *
 		 * @param sessionResource The resource URI of the chat session to export.
+		 * @param coreEvents Core-originated debug events (prompt discovery, skill loading, etc.)
+		 *   for the session. The extension may include these in the export alongside its own data.
 		 * @param token A cancellation token.
 		 * @returns The serialized debug log data, or undefined if export is not available.
 		 */
 		provideChatDebugLogExport?(
 			sessionResource: Uri,
+			coreEvents: readonly ChatDebugEvent[],
 			token: CancellationToken
 		): ProviderResult<Uint8Array>;
 
 		/**
 		 * Import a previously exported debug log from a serialized byte array.
-		 * Provides the open dialog and reads the file bytes.
+		 * Core provides the open dialog and reads the file bytes.
 		 * The extension deserializes the data and returns a session URI that can be
 		 * opened in the debug panel via {@link provideChatDebugLog}.
 		 *
@@ -671,16 +674,6 @@ declare module 'vscode' {
 			data: Uint8Array,
 			token: CancellationToken
 		): ProviderResult<Uri>;
-
-		/**
-		 * Called when core emits a debug event for the active session.
-		 * Core events include prompt discovery, skill loading, and other
-		 * internal diagnostics that the extension may want to include in
-		 * its data pipeline (e.g., OTel export).
-		 *
-		 * @param event The debug event emitted by core.
-		 */
-		resolveChatDebugLogCoreEvent?(event: ChatDebugEvent, token: CancellationToken): void;
 	}
 
 	export namespace chat {

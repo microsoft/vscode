@@ -6,7 +6,6 @@
 import type * as vscode from 'vscode';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { onUnexpectedExternalError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -293,20 +292,6 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 		}
 	}
 
-	$handleCoreDebugEvent(_handle: number, dto: IChatDebugEventDto): void {
-		if (!this._provider?.resolveChatDebugLogCoreEvent) {
-			return;
-		}
-		const event = this._deserializeEvent(dto);
-		if (event) {
-			try {
-				this._provider.resolveChatDebugLogCoreEvent(event, CancellationToken.None);
-			} catch (err) {
-				onUnexpectedExternalError(err);
-			}
-		}
-	}
-
 	private _deserializeEvent(dto: IChatDebugEventDto): vscode.ChatDebugEvent | undefined {
 		const created = new Date(dto.created);
 		const sessionResource = dto.sessionResource ? URI.revive(dto.sessionResource) : undefined;
@@ -382,12 +367,13 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 		}
 	}
 
-	async $exportChatDebugLog(_handle: number, sessionResource: UriComponents, token: CancellationToken): Promise<VSBuffer | undefined> {
+	async $exportChatDebugLog(_handle: number, sessionResource: UriComponents, coreEventDtos: IChatDebugEventDto[], token: CancellationToken): Promise<VSBuffer | undefined> {
 		if (!this._provider?.provideChatDebugLogExport) {
 			return undefined;
 		}
 		const sessionUri = URI.revive(sessionResource);
-		const result = await this._provider.provideChatDebugLogExport(sessionUri, token);
+		const coreEvents = coreEventDtos.map(dto => this._deserializeEvent(dto)).filter((e): e is vscode.ChatDebugEvent => e !== undefined);
+		const result = await this._provider.provideChatDebugLogExport(sessionUri, coreEvents, token);
 		if (!result) {
 			return undefined;
 		}
