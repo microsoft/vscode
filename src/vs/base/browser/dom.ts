@@ -393,15 +393,19 @@ export class WindowIntervalTimer extends IntervalTimer {
 	}
 }
 
+let _animationFrameQueueItemSeq = 0;
+
 class AnimationFrameQueueItem implements IDisposable {
 
 	private _runner: () => void;
 	public priority: number;
+	private _seq: number;
 	private _canceled: boolean;
 
 	constructor(runner: () => void, priority: number = 0) {
 		this._runner = runner;
 		this.priority = priority;
+		this._seq = _animationFrameQueueItemSeq++;
 		this._canceled = false;
 	}
 
@@ -421,21 +425,29 @@ class AnimationFrameQueueItem implements IDisposable {
 		}
 	}
 
-	// Sort by priority (largest to lowest)
+	// Sort by priority (largest to lowest), then by sequence (oldest first)
 	static sort(a: AnimationFrameQueueItem, b: AnimationFrameQueueItem): number {
-		return b.priority - a.priority;
+		return (b.priority - a.priority) || (a._seq - b._seq);
 	}
 }
 
 (function () {
+	interface TriBuffer {
+		A: AnimationFrameQueueItem[];
+		headA: number;
+		B: AnimationFrameQueueItem[];
+		headB: number;
+		bDirty: boolean;
+		C: AnimationFrameQueueItem[];
+	}
+
 	/**
-	 * The runners scheduled at the next animation frame
+	 * Tri-buffer structure per window to avoid Array.splice allocations
+	 * A: current queue (sorted, consumed via head pointer during frame)
+	 * B: in-frame insertion accumulator (lazy sorted)
+	 * C: next-frame accumulator
 	 */
-	const NEXT_QUEUE = new Map<number /* window ID */, AnimationFrameQueueItem[]>();
-	/**
-	 * The runners scheduled at the current animation frame
-	 */
-	const CURRENT_QUEUE = new Map<number /* window ID */, AnimationFrameQueueItem[]>();
+	const triBuffers = new Map<number /* window ID */, TriBuffer>();
 	/**
 	 * A flag to keep track if the native requestAnimationFrame was already called
 	 */
@@ -445,32 +457,87 @@ class AnimationFrameQueueItem implements IDisposable {
 	 */
 	const inAnimationFrameRunner = new Map<number /* window ID */, boolean>();
 
+	function getOrCreateTriBuffer(windowId: number): TriBuffer {
+		let buffer = triBuffers.get(windowId);
+		if (!buffer) {
+			buffer = {
+				A: [],
+				headA: 0,
+				B: [],
+				headB: 0,
+				bDirty: false,
+				C: []
+			};
+			triBuffers.set(windowId, buffer);
+		}
+		return buffer;
+	}
+
 	const animationFrameRunner = (targetWindowId: number) => {
 		animFrameRequested.set(targetWindowId, false);
 
-		const currentQueue = NEXT_QUEUE.get(targetWindowId) ?? [];
-		CURRENT_QUEUE.set(targetWindowId, currentQueue);
-		NEXT_QUEUE.set(targetWindowId, []);
+		const buffer = getOrCreateTriBuffer(targetWindowId);
+
+		const oldA = buffer.A;
+		buffer.A = buffer.C;
+		buffer.headA = 0;
+		buffer.C = oldA;
+		buffer.C.length = 0;
+
+		if (buffer.A.length > 0) {
+			buffer.A.sort(AnimationFrameQueueItem.sort);
+		}
+
+		// Ensure B is empty at frame start
+		buffer.B.length = 0;
+		buffer.headB = 0;
+		buffer.bDirty = false;
 
 		inAnimationFrameRunner.set(targetWindowId, true);
-		while (currentQueue.length > 0) {
-			currentQueue.sort(AnimationFrameQueueItem.sort);
-			const top = currentQueue.shift()!;
-			top.execute();
+
+		while (buffer.headA < buffer.A.length || buffer.headB < buffer.B.length) {
+			if (buffer.bDirty) {
+				if (buffer.headB > 0) {
+					buffer.B = buffer.B.slice(buffer.headB);
+					buffer.headB = 0;
+				}
+				if (buffer.B.length > 0) {
+					buffer.B.sort(AnimationFrameQueueItem.sort);
+				}
+				buffer.bDirty = false;
+			}
+
+			let item: AnimationFrameQueueItem;
+			if (buffer.headA >= buffer.A.length) {
+				item = buffer.B[buffer.headB++];
+			} else if (buffer.headB >= buffer.B.length) {
+				item = buffer.A[buffer.headA++];
+			} else {
+				const cmp = AnimationFrameQueueItem.sort(buffer.A[buffer.headA], buffer.B[buffer.headB]);
+				if (cmp <= 0) {
+					item = buffer.A[buffer.headA++];
+				} else {
+					item = buffer.B[buffer.headB++];
+				}
+			}
+
+			item.execute();
 		}
+
 		inAnimationFrameRunner.set(targetWindowId, false);
+
+		buffer.A.length = 0;
+		buffer.headA = 0;
+		buffer.B.length = 0;
+		buffer.headB = 0;
 	};
 
 	scheduleAtNextAnimationFrame = (targetWindow: Window, runner: () => void, priority: number = 0) => {
 		const targetWindowId = getWindowId(targetWindow);
 		const item = new AnimationFrameQueueItem(runner, priority);
 
-		let nextQueue = NEXT_QUEUE.get(targetWindowId);
-		if (!nextQueue) {
-			nextQueue = [];
-			NEXT_QUEUE.set(targetWindowId, nextQueue);
-		}
-		nextQueue.push(item);
+		const buffer = getOrCreateTriBuffer(targetWindowId);
+		buffer.C.push(item);
 
 		if (!animFrameRequested.get(targetWindowId)) {
 			animFrameRequested.set(targetWindowId, true);
@@ -484,12 +551,9 @@ class AnimationFrameQueueItem implements IDisposable {
 		const targetWindowId = getWindowId(targetWindow);
 		if (inAnimationFrameRunner.get(targetWindowId)) {
 			const item = new AnimationFrameQueueItem(runner, priority);
-			let currentQueue = CURRENT_QUEUE.get(targetWindowId);
-			if (!currentQueue) {
-				currentQueue = [];
-				CURRENT_QUEUE.set(targetWindowId, currentQueue);
-			}
-			currentQueue.push(item);
+			const buffer = getOrCreateTriBuffer(targetWindowId);
+			buffer.B.push(item);
+			buffer.bDirty = true;
 			return item;
 		} else {
 			return scheduleAtNextAnimationFrame(targetWindow, runner, priority);
