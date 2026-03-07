@@ -1,0 +1,167 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/**
+ * A live agent session. Owns the in-memory conversation state (a flat
+ * list of {@link SessionEntry} items) and transparently persists entries
+ * to the JSONL storage. The entry list is the single source of truth.
+ */
+
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { ILogService } from '../../log/common/log.js';
+import {
+	AgentSession,
+	IAgentSessionMetadata,
+} from '../../agent/common/agentService.js';
+import { IAssistantMessage } from '../common/conversation.js';
+import {
+	SESSION_ENTRY_VERSION,
+	type ISessionAssistantMessage,
+	type ISessionToolComplete,
+	type ISessionToolStart,
+	type ISessionUserMessage,
+	type SessionEntry,
+} from '../common/sessionTypes.js';
+import { SessionWriter } from './sessionStorage.js';
+import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind } from './localToolDisplay.js';
+
+export class LocalSession {
+	private readonly _entries: SessionEntry[] = [];
+	private readonly _writer: SessionWriter;
+	private readonly _activeToolCalls = new Map<string, { toolName: string; args: Record<string, unknown> }>();
+	private _modifiedTime: number;
+	private _cts: CancellationTokenSource;
+	private _running = false;
+
+	readonly uri: URI;
+	readonly model: string;
+	readonly workingDirectory: string;
+	readonly startTime: number;
+
+	constructor(
+		uri: URI,
+		model: string,
+		workingDirectory: string,
+		storageBaseDir: string,
+		logService: ILogService,
+	) {
+		this.uri = uri;
+		this.model = model;
+		this.workingDirectory = workingDirectory;
+		this.startTime = Date.now();
+		this._modifiedTime = this.startTime;
+		this._cts = new CancellationTokenSource();
+		this._writer = new SessionWriter(storageBaseDir, AgentSession.id(uri), workingDirectory, logService);
+	}
+
+	get entries(): readonly SessionEntry[] { return this._entries; }
+	get modifiedTime(): number { return this._modifiedTime; }
+	get running(): boolean { return this._running; }
+	get cts(): CancellationTokenSource { return this._cts; }
+
+	/** Persist the initial session-created record. Must be awaited before any other writes. */
+	persistCreation(): Promise<void> {
+		return this._writer.writeHeader(this.model, this.workingDirectory, this.startTime, AgentSession.id(this.uri));
+	}
+
+	beginTurn(): void {
+		this._running = true;
+		this._modifiedTime = Date.now();
+	}
+
+	endTurn(): void {
+		this._running = false;
+		this._modifiedTime = Date.now();
+	}
+
+	addUserMessage(prompt: string): ISessionUserMessage {
+		const entry: ISessionUserMessage = {
+			v: SESSION_ENTRY_VERSION,
+			type: 'user-message',
+			messageId: generateUuid(),
+			content: prompt,
+		};
+		this._entries.push(entry);
+		this._writer.append(entry);
+		return entry;
+	}
+
+	addAssistantMessage(msg: IAssistantMessage, messageId: string): ISessionAssistantMessage {
+		const entry: ISessionAssistantMessage = {
+			v: SESSION_ENTRY_VERSION,
+			type: 'assistant-message',
+			messageId,
+			contentParts: msg.content,
+			modelIdentity: msg.modelIdentity,
+			providerMetadata: msg.providerMetadata,
+		};
+		this._entries.push(entry);
+		this._writer.append(entry);
+		return entry;
+	}
+
+	addToolStart(toolCallId: string, toolName: string, args: Record<string, unknown>): ISessionToolStart {
+		this._activeToolCalls.set(toolCallId, { toolName, args });
+
+		const entry: ISessionToolStart = {
+			v: SESSION_ENTRY_VERSION,
+			type: 'tool-start',
+			toolCallId,
+			toolName,
+			displayName: getToolDisplayName(toolName),
+			invocationMessage: getInvocationMessage(toolName, args),
+			toolInput: getToolInputString(toolName, args),
+			toolKind: getToolKind(toolName),
+			language: getShellLanguage(toolName),
+		};
+		this._entries.push(entry);
+		this._writer.append(entry);
+		return entry;
+	}
+
+	addToolComplete(toolCallId: string, toolName: string, result: string, isError: boolean): ISessionToolComplete {
+		const tracked = this._activeToolCalls.get(toolCallId);
+		this._activeToolCalls.delete(toolCallId);
+		const toolArgs = tracked?.args ?? {};
+
+		const entry: ISessionToolComplete = {
+			v: SESSION_ENTRY_VERSION,
+			type: 'tool-complete',
+			toolCallId,
+			toolName,
+			success: !isError,
+			pastTenseMessage: getPastTenseMessage(toolName, toolArgs),
+			toolOutput: result,
+		};
+		this._entries.push(entry);
+		this._writer.append(entry);
+		return entry;
+	}
+
+	abort(): void {
+		this._cts.cancel();
+		this._cts = new CancellationTokenSource();
+	}
+
+	/** Flush pending writes to disk. */
+	flush(): Promise<void> {
+		return this._writer.flush();
+	}
+
+	/** Dispose the writer (flushes are cancelled, scheduler disposed). */
+	disposeWriter(): void {
+		this._writer.dispose();
+	}
+
+	toMetadata(): IAgentSessionMetadata {
+		return {
+			session: this.uri,
+			startTime: this.startTime,
+			modifiedTime: this._modifiedTime,
+		};
+	}
+}
