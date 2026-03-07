@@ -5,11 +5,14 @@
 
 import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
 import { $, addDisposableListener, EventType, getActiveElement, getWindow, isAncestor, isHTMLElement } from '../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { Menu } from '../../../base/browser/ui/menu/menu.js';
 import { ActionRunner, IRunEvent, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
 import { isCancellationError } from '../../../base/common/errors.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
 import { combinedDisposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { isLinux, isMacintosh } from '../../../base/common/platform.js';
 import { IContextViewService } from './contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { INotificationService } from '../../notification/common/notification.js';
@@ -26,6 +29,7 @@ export class ContextMenuHandler {
 	private lastContainer: HTMLElement | null = null;
 	private block: HTMLElement | null = null;
 	private blockDisposable: IDisposable | null = null;
+	private keyUpDisposable: IDisposable | null = null;
 	private options: IContextMenuHandlerOptions = { blockMouse: true };
 
 	constructor(
@@ -144,6 +148,15 @@ export class ContextMenuHandler {
 				}
 
 				this.lastContainer = null;
+
+				// Clean up keyup listener if it wasn't triggered
+				// Use a timeout to ensure any pending keyup has a chance to be handled
+				if (this.keyUpDisposable) {
+					setTimeout(() => {
+						this.keyUpDisposable?.dispose();
+						this.keyUpDisposable = null;
+					}, 100);
+				}
 			}
 		}, shadowRootElement, !!shadowRootElement);
 	}
@@ -151,6 +164,27 @@ export class ContextMenuHandler {
 	private onActionRun(e: IRunEvent, logTelemetry: boolean): void {
 		if (logTelemetry) {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
+		}
+
+		// When an action is triggered via keyboard (Enter or Space), we need to prevent
+		// the keyup event from being processed after focus is restored. This prevents
+		// unwanted actions from being triggered (e.g., renaming files in the explorer).
+		// The menu triggers actions on keydown, so we suppress the corresponding keyup.
+		if (this.focusToReturn) {
+			const targetWindow = getWindow(this.focusToReturn);
+			this.keyUpDisposable?.dispose();
+			this.keyUpDisposable = addDisposableListener(targetWindow, EventType.KEY_UP, (e: KeyboardEvent) => {
+				const event = new StandardKeyboardEvent(e);
+				// Check if this is a trigger key (Enter or Space on Mac/Linux)
+				if (event.keyCode === KeyCode.Enter || ((isMacintosh || isLinux) && event.keyCode === KeyCode.Space)) {
+					// Consume the event to prevent it from triggering other actions
+					e.preventDefault();
+					e.stopPropagation();
+					// Clean up the listener after handling the keyup
+					this.keyUpDisposable?.dispose();
+					this.keyUpDisposable = null;
+				}
+			}, true); // Use capture phase to intercept before it reaches other handlers
 		}
 
 		this.contextViewService.hideContextView(false);
