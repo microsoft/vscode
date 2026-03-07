@@ -1998,7 +1998,7 @@ export class Repository implements Disposable {
 		}
 
 		try {
-			const startTime = Date.now();
+			const startTime = performance.now();
 			const limiter = new Limiter<void>(15);
 			const files = Array.from(worktreeIncludePaths);
 
@@ -2008,6 +2008,7 @@ export class Repository implements Disposable {
 					const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
 					await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
 
+					const cpStart = performance.now();
 					if (nativeCp) {
 						// Use the native cp implementation
 						await nativeCp(sourceFile, targetFile, {
@@ -2015,6 +2016,7 @@ export class Repository implements Disposable {
 							recursive: true,
 							verbatimSymlinks: true
 						});
+						this.logger.trace(`[Repository][_copyWorktreeIncludeFiles] nativeCp: ${sourceFile} -> ${targetFile} [${(performance.now() - cpStart).toFixed(2)}ms]`);
 					} else {
 						// Fallback to regular copy
 						await fsPromises.cp(sourceFile, targetFile, {
@@ -2023,13 +2025,14 @@ export class Repository implements Disposable {
 							recursive: true,
 							verbatimSymlinks: true
 						});
+						this.logger.trace(`[Repository][_copyWorktreeIncludeFiles] fsPromises.cp: ${sourceFile} -> ${targetFile} [${(performance.now() - cpStart).toFixed(2)}ms]`);
 					}
 				});
 			}));
 
 			// Log any failed operations
 			const failedOperations = results.filter(r => r.status === 'rejected');
-			this.logger.info(`[Repository][_copyWorktreeIncludeFiles] Copied ${files.length - failedOperations.length}/${files.length} folder(s)/file(s) to worktree. [${Date.now() - startTime}ms]`);
+			this.logger.info(`[Repository][_copyWorktreeIncludeFiles] Copied ${files.length - failedOperations.length}/${files.length} folder(s)/file(s) to worktree. [${(performance.now() - startTime).toFixed(2)}ms]`);
 
 			if (failedOperations.length > 0) {
 				window.showWarningMessage(l10n.t('Failed to copy {0} folder(s)/file(s) to the worktree.', failedOperations.length));
