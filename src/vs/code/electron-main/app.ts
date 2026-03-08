@@ -64,6 +64,12 @@ import { ILoggerService, ILogService } from '../../platform/log/common/log.js';
 import { IMenubarMainService, MenubarMainService } from '../../platform/menubar/electron-main/menubarMainService.js';
 import { INativeHostMainService, NativeHostMainService } from '../../platform/native/electron-main/nativeHostMainService.js';
 import { IPhononCliMainService, PhononCliMainService } from '../../platform/phonon/electron-main/phononCliMainService.js';
+import { IPhononAgentMainService } from '../../platform/phonon/common/phononAgentService.js';
+import { PhononAgentMainService } from '../../platform/phonon/electron-main/phononAgentMainService.js';
+import { IPhononPlaywrightService } from '../../platform/phonon/common/phononPlaywrightService.js';
+import { PhononPlaywrightMainService } from '../../platform/phonon/electron-main/phononPlaywrightService.js';
+import { IPhononTeamsService } from '../../platform/phonon/common/phononTeamsService.js';
+import { PhononTeamsMainService } from '../../platform/phonon/electron-main/phononTeamsService.js';
 import { IMeteredConnectionService } from '../../platform/meteredConnection/common/meteredConnection.js';
 import { METERED_CONNECTION_CHANNEL } from '../../platform/meteredConnection/common/meteredConnectionIpc.js';
 import { MeteredConnectionChannel } from '../../platform/meteredConnection/electron-main/meteredConnectionChannel.js';
@@ -1057,6 +1063,15 @@ export class CodeApplication extends Disposable {
 		// Phonon CLI
 		services.set(IPhononCliMainService, new SyncDescriptor(PhononCliMainService));
 
+		// Phonon Agent Pool
+		services.set(IPhononAgentMainService, new SyncDescriptor(PhononAgentMainService));
+
+		// Phonon Playwright (self-instrumenting screenshot/click/type)
+		services.set(IPhononPlaywrightService, new SyncDescriptor(PhononPlaywrightMainService));
+
+		// Phonon Teams (SDK-based agent delegation)
+		services.set(IPhononTeamsService, new SyncDescriptor(PhononTeamsMainService));
+
 		// Metered Connection
 		const meteredConnectionService = new MeteredConnectionMainService(this.configurationService);
 		services.set(IMeteredConnectionService, meteredConnectionService);
@@ -1235,6 +1250,18 @@ export class CodeApplication extends Disposable {
 		// Phonon CLI
 		const phononCliChannel = ProxyChannel.fromService(accessor.get(IPhononCliMainService), disposables);
 		mainProcessElectronServer.registerChannel('phononCli', phononCliChannel);
+
+		// Phonon Agent Pool
+		const phononAgentChannel = ProxyChannel.fromService(accessor.get(IPhononAgentMainService), disposables);
+		mainProcessElectronServer.registerChannel('phononAgent', phononAgentChannel);
+
+		// Phonon Playwright
+		const phononPlaywrightChannel = ProxyChannel.fromService(accessor.get(IPhononPlaywrightService), disposables);
+		mainProcessElectronServer.registerChannel('phononPlaywright', phononPlaywrightChannel);
+
+		// Phonon Teams
+		const phononTeamsChannel = ProxyChannel.fromService(accessor.get(IPhononTeamsService), disposables);
+		mainProcessElectronServer.registerChannel('phononTeams', phononTeamsChannel);
 
 		// Web Content Extractor
 		const webContentExtractorChannel = ProxyChannel.fromService(accessor.get(IWebContentExtractorService), disposables);

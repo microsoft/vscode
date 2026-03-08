@@ -8,7 +8,11 @@
 
 ## Core Concept
 
-A **Liquid App** is an application that composes itself from modules at runtime, guided by an LLM. The user describes what they need; the AI assembles it from available components. No fixed layouts, no rigid navigation -- the app is fluid, personal, adaptive.
+A **Liquid App** is a **composition platform** where the AI is the runtime composer and developers at every level contribute to their layer. It is not an IDE. It is not a framework. It is an ecosystem that gives life back to developers.
+
+A Liquid App composes itself from modules at runtime, guided by an LLM. The user describes what they need; the AI assembles it from available components. No fixed layouts, no rigid navigation -- the app is fluid, personal, adaptive.
+
+The platform enables the full spectrum: from the industrial SaaS with senior backend engineers writing high-level services in Rust/Go/Python, to the small frontend developer building cards in React/HTML, to the end user who simply talks to Claude. Each layer is independent, connected through the bridge API (`window.phonon`). This is no longer exclusive -- anyone can contribute at their level.
 
 ## Architecture: Three Layers
 
@@ -65,34 +69,80 @@ Data Provider (extension host)
 Backend (Supabase, REST, GraphQL, local DB)
 ```
 
-## Why This Matters (Pitch Points)
+## Value Proposition
 
-### 1. Any Developer Can Build Cards
-A restaurant owner's nephew who knows React can build a "daily specials" card. A data scientist who knows Python can build an "analytics" card. A design agency can build a "brand dashboard" card. No VS Code extension knowledge required.
+### The Problem with Building Apps
 
-### 2. Safe by Default, Powerful When Needed
-- **Card level**: sandboxed, safe, marketplace-publishable
-- **Module level**: VS Code extension, more power, reviewed
-- **Platform level**: full source access, maximum power
+The market already has products for known needs. But every business has a *contingent* need -- the specific, contextual, "next step" that no off-the-shelf product covers. Today, that next step requires hiring a dev team, building from scratch, or living without it.
 
-Each layer has its own SDK, docs, and publishing path.
+Liquid App doesn't replace existing products. It lets any business take the next step -- customize, extend, compose -- on top of a liquid infrastructure. Not building garbage from zero. Making the incremental step that matters.
 
-### 3. AI-Native Composition
-The LLM doesn't just help you code -- it IS the runtime composer. Onboarding: Claude asks what you need, assembles your dashboard from available cards. Daily use: "aggiungi il food cost" and a new card appears. The UI is a conversation outcome, not a design artifact.
+### Who Benefits and How
 
-### 4. Marketplace as Business Model
-- **Free cards**: community-built, open source
-- **Premium cards**: specialized (accounting, compliance, analytics)
-- **Module bundles**: "Gestionale Ristorazione Complete" = 30 cards + entities + data providers
-- **Platform licensing**: Liquid App runtime is the engine, modules are the content
+**The restaurateur / shop owner / freelancer** (Layer 3): Doesn't write code. Doesn't need technical language. Talks to Claude: "Ho bisogno di sapere il food cost di ogni piatto". Claude assembles the dashboard. The need is met without a dev team.
 
-### 5. Not Locked to One Domain
-The same platform serves:
-- Restaurant management
-- Hotel management
-- Freelance CRM
-- Inventory systems
-- Any domain where data + views + AI composition makes sense
+**The junior frontend developer** (Layer 2): Knows HTML and React. Can build a card, publish it, get paid. No VS Code extension knowledge, no backend complexity. Just `window.phonon.data.fetch()` and render.
+
+**The senior backend engineer / agency** (Layer 1): Full access. Custom data providers in Rust/Go/Python. Deep integrations. The serious, industrial customization for enterprises that need it.
+
+**Everyone earns.** The platform distributes value across all levels. The ragazzino who builds a card earns alongside the agency that builds the module infrastructure. Access is universal.
+
+### Pitch Points
+
+1. **Not from zero, the next step.** Existing market products cover the known needs. Liquid App covers the contingent, specific, contextual need -- the one that differs between every business.
+
+2. **Any developer can contribute.** From HTML-only card developer to full-stack platform engineer. Each level has its own SDK, publishing path, and revenue share.
+
+3. **AI-native composition.** The LLM IS the runtime composer. Not a helper -- the runtime. "Aggiungi il food cost" and a card appears. The UI is a conversation outcome, not a design artifact.
+
+4. **Safe by default, powerful when needed.** Card level: sandboxed, safe, marketplace-publishable. Module level: VS Code extension, more power, reviewed. Platform level: full source access, maximum power.
+
+5. **Domain-agnostic.** Restaurant, hotel, freelance CRM, inventory, compliance -- any domain where data + views + AI composition makes sense.
+
+6. **Marketplace as business model.** Free cards (community), premium cards (specialized), module bundles ("Gestionale Ristorazione Complete"), platform licensing.
+
+## Onboarding: Meeting Users Where They Are
+
+The critical insight: most users (Layer 3) cannot express their need in technical language. They know what they want ("voglio sapere quanto mi costa ogni piatto") but not how to ask for it ("I need a food cost analytics dashboard with entity filtering").
+
+### Onboarding Flow Design
+
+```
+Step 1: WHO ARE YOU?
+  "Che tipo di attività gestisci?"
+  [ ] Ristorante / Bar
+  [ ] Hotel / B&B
+  [ ] Negozio / Alimentari
+  [ ] Freelancer / Consulente
+  [ ] Altro: ___________
+
+Step 2: WHAT DO YOU NEED?
+  Based on Step 1, Claude asks 2-3 domain-specific questions in plain language.
+
+  For Ristorante:
+  "Cosa vorresti tenere sotto controllo?"
+  [ ] Quanto spendo per ogni piatto (food cost)
+  [ ] Ordini e servizio in tempo reale
+  [ ] Fornitori e consegne
+  [ ] Menu del giorno e disponibilità
+  [ ] Incassi e statistiche
+
+  Multiple selection. No technical jargon.
+
+Step 3: BUILD
+  Claude generates a composition intent based on selections.
+  Installs the relevant module (e.g., "Gestionale Ristorazione").
+  Composes the initial dashboard from selected cards.
+  User sees their app. Ready to use.
+```
+
+### Design Principles for Onboarding
+
+- **Zero technical language.** Every question in the user's domain vocabulary.
+- **2-3 questions max.** Respect the user's time. Claude can refine later.
+- **Visual result immediately.** After onboarding, the user sees their dashboard. Not a configuration page. Not a "getting started" guide. Their data, their cards, working.
+- **Iterative refinement.** "Non mi serve il food cost, aggiungimi gli ordini" -- Claude adapts in real-time. Onboarding is the start, not the end.
+- **Domain-specific question banks.** Each module bundle declares its onboarding questions in the manifest. The platform composes the right questions for the right user.
 
 ## Card SDK (Future -- Fase 4+)
 

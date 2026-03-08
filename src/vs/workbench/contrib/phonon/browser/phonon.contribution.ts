@@ -59,6 +59,7 @@ import { PhononEditor } from './views/phononEditor.js';
 import { PhononEditorInput } from './views/phononEditorInput.js';
 import { LiquidCanvasEditor } from './views/liquidCanvasEditor.js';
 import { LiquidCanvasEditorInput } from './views/liquidCanvasEditorInput.js';
+import './liquidMockDataProvider.js'; // Side-effect: registers ILiquidDataResolver singleton
 
 // --- Singleton registration ---
 

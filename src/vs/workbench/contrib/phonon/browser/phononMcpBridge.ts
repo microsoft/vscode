@@ -39,8 +39,6 @@ export interface IMcpToolCallResult {
  */
 export class PhononMcpBridge extends Disposable {
 
-	private static readonly INTENT_BLOCK_RE = /```phonon-intent\s*\n([\s\S]*?)\n```/g;
-
 	private readonly _serverToolMap = new Map<string, { server: IMcpServer; toolName: string }>();
 
 	private readonly _onDidReceiveIntent = this._register(new Emitter<ICompositionIntent>());
@@ -197,18 +195,63 @@ export class PhononMcpBridge extends Disposable {
 	}
 
 	/**
-	 * Scan output for ```phonon-intent blocks, validate them via the liquid
-	 * module registry, and fire onDidReceiveIntent for valid intents.
+	 * Process arbitrary chat output for intent blocks.
+	 * Used by the chat agent for solo mode output (which bypasses the agent pool).
+	 */
+	processOutput(output: string): void {
+		this._processIntentBlocks(output);
+	}
+
+	/**
+	 * Scan output for composition intent blocks, validate via the liquid
+	 * module registry, and fire onDidReceiveIntent.
+	 *
+	 * Strategy:
+	 *   1. Extract content from ```phonon-intent fenced blocks (preferred)
+	 *   2. If none found, extract from ```json fenced blocks that look like intents
+	 *   3. If still none, scan for bare JSON objects with bracket-counting
 	 */
 	private _processIntentBlocks(output: string): void {
+		const candidates: string[] = [];
+
+		// Pattern 1: ```phonon-intent fenced blocks (unambiguous)
+		const phononFenceRe = /```phonon-intent\s*\n([\s\S]*?)\n```/g;
 		let match: RegExpExecArray | null;
-		PhononMcpBridge.INTENT_BLOCK_RE.lastIndex = 0;
-		while ((match = PhononMcpBridge.INTENT_BLOCK_RE.exec(output)) !== null) {
+		while ((match = phononFenceRe.exec(output)) !== null) {
+			candidates.push(match[1]);
+		}
+
+		// Pattern 2: ```json fenced blocks, only if they contain "layout" and "slots"
+		if (candidates.length === 0) {
+			const jsonFenceRe = /```json\s*\n([\s\S]*?)\n```/g;
+			while ((match = jsonFenceRe.exec(output)) !== null) {
+				const content = match[1];
+				if (content.includes('"layout"') && content.includes('"slots"')) {
+					candidates.push(content);
+				}
+			}
+		}
+
+		// allow-any-unicode-next-line
+		// Pattern 3: bare JSON — bracket-counting parser for nested objects
+		if (candidates.length === 0) {
+			const bareResults = this._extractBareIntentJSON(output);
+			for (const result of bareResults) {
+				candidates.push(result);
+			}
+		}
+
+		for (const raw of candidates) {
 			let intent: ICompositionIntent;
 			try {
-				intent = JSON.parse(match[1]) as ICompositionIntent;
+				intent = JSON.parse(raw) as ICompositionIntent;
 			} catch {
 				this.logService.warn('[Phonon MCP Bridge] Failed to parse phonon-intent JSON');
+				continue;
+			}
+
+			// Structural check: must have layout and slots array
+			if (!intent.layout || !Array.isArray(intent.slots)) {
 				continue;
 			}
 
@@ -220,5 +263,59 @@ export class PhononMcpBridge extends Disposable {
 				this.logService.warn(`[Phonon MCP Bridge] Invalid composition intent: ${validation.errors.join('; ')}`);
 			}
 		}
+	}
+
+	/**
+	 * Bracket-counting JSON extraction: finds `{` characters in text,
+	 * counts nested braces to find the matching `}`, and attempts
+	 * JSON.parse. Only returns objects that have "layout" and "slots".
+	 */
+	private _extractBareIntentJSON(output: string): string[] {
+		const results: string[] = [];
+		// allow-any-unicode-next-line
+		// Find positions where `"layout"` appears — only scan from nearby `{`
+		const layoutRe = /"layout"\s*:/g;
+		let layoutMatch: RegExpExecArray | null;
+
+		while ((layoutMatch = layoutRe.exec(output)) !== null) {
+			// Walk backwards to find the opening `{`
+			let start = layoutMatch.index;
+			while (start > 0 && output[start] !== '{') {
+				start--;
+			}
+			if (output[start] !== '{') {
+				continue;
+			}
+
+			// Bracket-counting forward to find matching `}`
+			let depth = 0;
+			let end = start;
+			for (; end < output.length; end++) {
+				if (output[end] === '{') {
+					depth++;
+				} else if (output[end] === '}') {
+					depth--;
+					if (depth === 0) {
+						break;
+					}
+				}
+			}
+
+			if (depth !== 0) {
+				continue;
+			}
+
+			const candidate = output.substring(start, end + 1);
+			if (candidate.includes('"slots"')) {
+				try {
+					JSON.parse(candidate); // validate it's parseable
+					results.push(candidate);
+				} catch {
+					// not valid JSON, skip
+				}
+			}
+		}
+
+		return results;
 	}
 }

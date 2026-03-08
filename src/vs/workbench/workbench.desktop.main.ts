@@ -194,6 +194,15 @@ import './contrib/policyExport/electron-browser/policyExport.contribution.js';
 // Phonon CLI (renderer → main process IPC proxy)
 import './contrib/phonon/electron-browser/phononCliService.js';
 
+// Phonon Agent Pool (renderer → main process IPC proxy)
+import './contrib/phonon/electron-browser/phononAgentService.js';
+
+// Phonon Playwright (renderer → main process IPC proxy)
+import './contrib/phonon/electron-browser/phononPlaywrightService.js';
+
+// Phonon Teams (renderer → main process IPC proxy)
+import './contrib/phonon/electron-browser/phononTeamsService.js';
+
 //#endregion
 
 

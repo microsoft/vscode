@@ -3,11 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Phonon Card Bridge - injected into card iframe by the platform.
+// Phonon Card Bridge - injected into card webview by the platform.
 // Provides window.phonon API for card developers.
+//
+// Dual transport: detects VS Code WebviewElement (acquireVsCodeApi) and falls
+// back to raw iframe postMessage. This lets the same bridge work in sandboxed
+// webviews (production) and plain iframes (testing).
 
 (function () {
 	'use strict';
+
+	// -- Transport detection --
+	const vscodeApi = (typeof acquireVsCodeApi === 'function') ? acquireVsCodeApi() : null;
+
+	function sendToHost(msg) {
+		if (vscodeApi) {
+			vscodeApi.postMessage(msg);
+		} else {
+			window.parent.postMessage(msg, '*');
+		}
+	}
 
 	const pending = new Map();
 	let readyCallbacks = [];
@@ -23,16 +38,16 @@
 			}
 		},
 		navigate: function (viewId, params) {
-			window.parent.postMessage({ type: 'phonon:navigate', viewId: viewId, params: params }, '*');
+			sendToHost({ type: 'phonon:navigate', viewId: viewId, params: params });
 		},
 		intent: function (description) {
-			window.parent.postMessage({ type: 'phonon:intent', description: description }, '*');
+			sendToHost({ type: 'phonon:intent', description: description });
 		},
 		setTitle: function (title) {
-			window.parent.postMessage({ type: 'phonon:setTitle', title: title }, '*');
+			sendToHost({ type: 'phonon:setTitle', title: title });
 		},
 		setLoading: function (loading) {
-			window.parent.postMessage({ type: 'phonon:setLoading', loading: loading }, '*');
+			sendToHost({ type: 'phonon:setLoading', loading: loading });
 		},
 		onReady: function (callback) {
 			if (initialized) { callback(); }
@@ -56,7 +71,7 @@
 					msg[key] = payload[key];
 				}
 			}
-			window.parent.postMessage(msg, '*');
+			sendToHost(msg);
 		});
 	}
 
@@ -82,5 +97,5 @@
 	});
 
 	// Signal readiness to host
-	window.parent.postMessage({ type: 'phonon:ready' }, '*');
+	sendToHost({ type: 'phonon:ready' });
 })();

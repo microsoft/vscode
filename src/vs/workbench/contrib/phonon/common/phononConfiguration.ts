@@ -12,6 +12,9 @@ export const PHONON_SECTION = 'phonon';
 export const enum PhononConfigurationKey {
 	DefaultModel = 'phonon.defaultModel',
 	MaxTokens = 'phonon.maxTokens',
+	MaxParallelAgents = 'phonon.agentPool.maxParallelAgents',
+	AgentPoolDefaultModel = 'phonon.agentPool.defaultModel',
+	AgentPoolEnabled = 'phonon.agentPool.enabled',
 }
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -40,6 +43,33 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			minimum: 256,
 			maximum: 32000,
 			description: nls.localize('phonon.maxTokens', "Maximum number of tokens in Claude responses."),
+		},
+		[PhononConfigurationKey.MaxParallelAgents]: {
+			type: 'number',
+			default: 3,
+			minimum: 1,
+			maximum: 10,
+			description: nls.localize('phonon.agentPool.maxParallelAgents', "Maximum number of parallel agents in the Agent Pool."),
+		},
+		[PhononConfigurationKey.AgentPoolDefaultModel]: {
+			type: 'string',
+			default: 'claude-sonnet-4-6',
+			enum: [
+				'claude-opus-4-6',
+				'claude-sonnet-4-6',
+				'claude-haiku-4-5-20251001',
+			],
+			enumDescriptions: [
+				nls.localize('phonon.agentPool.model.opus', "Claude Opus 4.6 - Most capable"),
+				nls.localize('phonon.agentPool.model.sonnet', "Claude Sonnet 4.6 - Balanced"),
+				nls.localize('phonon.agentPool.model.haiku', "Claude Haiku 4.5 - Fastest"),
+			],
+			description: nls.localize('phonon.agentPool.defaultModel', "The default Claude model for Agent Pool agents."),
+		},
+		[PhononConfigurationKey.AgentPoolEnabled]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('phonon.agentPool.enabled', "Enable the Agent Pool feature in the Chat sidebar."),
 		},
 	}
 });

@@ -28,29 +28,31 @@ interface WatermarkEntry {
 
 const showChatContextKey = ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), ContextKeyExpr.equals('chatSetupDisabled', false));
 
-const openChat: WatermarkEntry = { text: localize('watermark.openChat', "Open Chat"), id: 'workbench.action.chat.open', when: { native: showChatContextKey, web: showChatContextKey } };
+// --- Phonon-specific entries ---
+const openChat: WatermarkEntry = { text: localize('watermark.newChat', "New Chat"), id: 'phonon.newChat', when: { native: showChatContextKey, web: showChatContextKey } };
+const spawnAgent: WatermarkEntry = { text: localize('watermark.spawnAgent', "Spawn Agent"), id: 'phonon.spawnAgent' };
+const setApiKey: WatermarkEntry = { text: localize('watermark.setApiKey', "Set API Key"), id: 'phonon.setApiKey' };
+
+// --- Standard entries ---
 const showCommands: WatermarkEntry = { text: localize('watermark.showCommands', "Show All Commands"), id: 'workbench.action.showCommands' };
 const gotoFile: WatermarkEntry = { text: localize('watermark.quickAccess', "Go to File"), id: 'workbench.action.quickOpen' };
 const openFile: WatermarkEntry = { text: localize('watermark.openFile', "Open File"), id: 'workbench.action.files.openFile' };
 const openFolder: WatermarkEntry = { text: localize('watermark.openFolder', "Open Folder"), id: 'workbench.action.files.openFolder' };
 const openFileOrFolder: WatermarkEntry = { text: localize('watermark.openFileFolder', "Open File or Folder"), id: 'workbench.action.files.openFileFolder' };
 const openRecent: WatermarkEntry = { text: localize('watermark.openRecent', "Open Recent"), id: 'workbench.action.openRecent' };
-const newUntitledFile: WatermarkEntry = { text: localize('watermark.newUntitledFile', "New Untitled Text File"), id: 'workbench.action.files.newUntitledFile' };
-const findInFiles: WatermarkEntry = { text: localize('watermark.findInFiles', "Find in Files"), id: 'workbench.action.findInFiles' };
 const toggleTerminal: WatermarkEntry = { text: localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: 'workbench.action.terminal.toggleTerminal', when: { web: ContextKeyExpr.equals('terminalProcessSupported', true) } };
-const startDebugging: WatermarkEntry = { text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start', when: { web: ContextKeyExpr.equals('terminalProcessSupported', true) } };
-const openSettings: WatermarkEntry = { text: localize('watermark.openSettings', "Open Settings"), id: 'workbench.action.openSettings' };
 
 const baseEntries: WatermarkEntry[] = [
 	openChat,
+	spawnAgent,
 	showCommands,
 ];
 
 const emptyWindowEntries: WatermarkEntry[] = coalesce([
 	...baseEntries,
+	setApiKey,
 	...(isMacintosh && !isWeb ? [openFileOrFolder] : [openFile, openFolder]),
 	openRecent,
-	isMacintosh && !isWeb ? newUntitledFile : undefined, // fill in one more on macOS to get to 5 entries
 ]);
 
 const workspaceEntries: WatermarkEntry[] = [
@@ -59,10 +61,8 @@ const workspaceEntries: WatermarkEntry[] = [
 
 const otherEntries: WatermarkEntry[] = [
 	gotoFile,
-	findInFiles,
-	startDebugging,
 	toggleTerminal,
-	openSettings,
+	setApiKey,
 ];
 
 export class EditorGroupWatermark extends Disposable {
