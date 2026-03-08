@@ -1,11 +1,27 @@
 {
-  "name": "soa-indexer",
-  "version": "0.1.0",
-  "description": "Son of Anton — Tree-sitter code indexer",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "test": "echo \"No tests yet\" && exit 0"
-  },
-  "private": true
+	"name": "soa-indexer",
+	"version": "1.0.0",
+	"description": "Son of Anton — Tree-sitter code indexer with FalkorDB graph and Qdrant embeddings",
+	"main": "dist/index.js",
+	"scripts": {
+		"build": "tsc",
+		"start": "node dist/index.js",
+		"dev": "tsc --watch & nodemon dist/index.js",
+		"test": "node --test test/**/*.test.js",
+		"lint": "eslint src/**/*.ts"
+	},
+	"dependencies": {
+		"@qdrant/js-client-rest": "^1.12.0",
+		"chokidar": "^4.0.0",
+		"redis": "^4.7.0",
+		"tree-sitter": "^0.22.0",
+		"tree-sitter-javascript": "^0.23.0",
+		"tree-sitter-python": "^0.23.0",
+		"tree-sitter-typescript": "^0.23.0"
+	},
+	"devDependencies": {
+		"@types/node": "^20.0.0",
+		"typescript": "^5.6.0"
+	},
+	"private": true
 }
