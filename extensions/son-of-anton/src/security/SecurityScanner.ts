@@ -149,9 +149,7 @@ export class SecurityScanner {
 	async runSemgrepOnDiff(): Promise<SarifReport> {
 		const command = [
 			'cd /workspace',
-			'git diff --cached --name-only > /tmp/changed_files.txt',
-			'semgrep --config=auto --sarif --output=/tmp/semgrep.sarif $(cat /tmp/changed_files.txt) 2>/dev/null',
-			'cat /tmp/semgrep.sarif',
+			'git diff --cached --name-only -z | xargs -0 --no-run-if-empty semgrep --config=auto --sarif 2>/dev/null',
 		].join(' && ');
 
 		const result = await this.sandbox.execute(command);
