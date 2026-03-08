@@ -213,11 +213,14 @@ export class ValidationAgent {
 		const bodyLower = responseBody.toLowerCase();
 
 		switch (testType) {
-			case 'sql-injection':
-				return statusCode === 500 ||
-					['syntax error', 'mysql', 'postgresql', 'sqlite', 'sql server'].some(
-						i => bodyLower.includes(i),
-					);
+			case 'sql-injection': {
+				const dbErrorIndicators = ['syntax error', 'mysql', 'postgresql', 'sqlite', 'sql server'];
+				const genericDb500Indicators = ['sql', 'database', 'db error', 'query'];
+				const hasExplicitDbError = dbErrorIndicators.some(i => bodyLower.includes(i));
+				const has500WithDbContext =
+					statusCode === 500 && genericDb500Indicators.some(i => bodyLower.includes(i));
+				return hasExplicitDbError || has500WithDbContext;
+			}
 
 			case 'nosql-injection':
 				return ['mongoerror', 'bsontype', 'cast to objectid'].some(
