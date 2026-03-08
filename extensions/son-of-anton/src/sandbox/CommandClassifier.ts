@@ -39,7 +39,7 @@ const BLOCKED_PATTERNS: { pattern: RegExp; reason: string }[] = [
  * Patterns for commands that modify .env files.
  */
 const ENV_FILE_PATTERNS: RegExp[] = [
-	/\b(cat|echo|printf|tee|sed|awk|vi|vim|nano|>\s*)\s*.*\.env\b/,
+    /\b(echo|printf|tee|sed|awk|vi|vim|nano|>\s*)\s*.*\.env\b/,
 	/\.env\b.*\b(>>|>)\b/,
 ];
 
