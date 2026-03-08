@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -16,7 +17,6 @@ import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorOpenContext } from '../../../../common/editor.js';
 import { IWebviewService } from '../../../webview/browser/webview.js';
-import { asWebviewUri } from '../../../webview/common/webview.js';
 import { ILiquidModuleRegistry } from '../../common/liquidModule.js';
 import { ICompositionIntent, ICompositionSlot, ILiquidCard, CompositionLayout } from '../../common/liquidModuleTypes.js';
 import { ILiquidDataResolver, LiquidCardSlotHost } from '../liquidCardBridge.js';
@@ -116,6 +116,7 @@ export class LiquidCanvasEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IWebviewService private readonly webviewService: IWebviewService,
+		@IFileService private readonly fileService: IFileService,
 		@ILiquidDataResolver private readonly dataResolver: ILiquidDataResolver,
 		@ILiquidModuleRegistry private readonly registry: ILiquidModuleRegistry,
 		@ILogService private readonly logService: ILogService,
@@ -211,19 +212,25 @@ export class LiquidCanvasEditor extends EditorPane {
 	/**
 	 * Render a card inside a WebviewElement.
 	 *
-	 * The webview loads the card HTML via `asWebviewUri` so the service worker
-	 * resolves local resources properly. The bridge script is inlined in the
-	 * HTML head and uses `acquireVsCodeApi()` for message transport.
+	 * Reads the card HTML from disk via IFileService, wraps it with the bridge
+	 * script, and sets it via setHtml(). No in-webview fetch -- avoids CSP issues.
 	 */
-	private _renderCardWebview(
+	private async _renderCardWebview(
 		container: HTMLElement,
 		card: ILiquidCard,
 		params?: Record<string, unknown>,
-	): void {
-		// Derive resource root from entry URI (parent directory)
-		const entryPath = card.entryUri.path;
-		const lastSlash = entryPath.lastIndexOf('/');
-		const resourceRoot = card.entryUri.with({ path: entryPath.substring(0, lastSlash) });
+	): Promise<void> {
+		// Read card HTML content from disk
+		let cardHtmlContent: string;
+		try {
+			const fileContent = await this.fileService.readFile(card.entryUri);
+			cardHtmlContent = fileContent.value.toString();
+		} catch (err) {
+			this.logService.warn(`[Phonon Canvas] Failed to read card HTML: ${card.id}`, err);
+			const errEl = dom.append(container, dom.$('div'));
+			errEl.textContent = `Card load error: ${card.id}`;
+			return;
+		}
 
 		// Create a managed webview element
 		const webview = this.webviewService.createWebviewElement({
@@ -234,15 +241,12 @@ export class LiquidCanvasEditor extends EditorPane {
 			},
 			contentOptions: {
 				allowScripts: true,
-				localResourceRoots: [resourceRoot],
+				localResourceRoots: [],
 			},
 			extension: undefined,
 		});
 
-		// Convert entry URI to a webview-safe URI
-		const cardEntryUrl = asWebviewUri(card.entryUri).toString();
-
-		// Build HTML with bridge script + card loader
+		// Build full HTML: bridge script + card content inlined
 		const bridgeScript = getBridgeScript();
 		webview.setHtml([
 			'<!DOCTYPE html>',
@@ -255,26 +259,10 @@ export class LiquidCanvasEditor extends EditorPane {
 			'color:var(--vscode-foreground,#ccc);background:transparent;padding:8px;',
 			'font-size:var(--vscode-font-size,13px);}',
 			'</style>',
-			`<script>${bridgeScript}</script>`,
+			`<script>${bridgeScript}<\/script>`,
 			'</head>',
 			'<body>',
-			'<div id="phonon-card-root">Loading...</div>',
-			'<script>',
-			'(function(){',
-			'var root=document.getElementById("phonon-card-root");',
-			`fetch("${cardEntryUrl}")`,
-			'.then(function(r){return r.text();})',
-			'.then(function(html){',
-			'root.innerHTML="";',
-			'var range=document.createRange();',
-			'var fragment=range.createContextualFragment(html);',
-			'root.appendChild(fragment);',
-			'})',
-			'.catch(function(err){',
-			'root.textContent="Card load error: "+err.message;',
-			'});',
-			'})();',
-			'</script>',
+			cardHtmlContent,
 			'</body>',
 			'</html>',
 		].join('\n'));
