@@ -1,0 +1,22 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"properties": {
+		"id": { "type": "string" },
+		"supplier_id": { "type": "string" },
+		"items": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"product": { "type": "string" },
+					"quantity": { "type": "number" },
+					"unit": { "type": "string" }
+				}
+			}
+		},
+		"status": { "type": "string", "enum": ["draft", "sent", "confirmed", "delivered"] },
+		"created_at": { "type": "string", "format": "date-time" }
+	},
+	"required": ["id", "supplier_id", "items"]
+}

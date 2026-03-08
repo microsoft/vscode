@@ -1,0 +1,35 @@
+{
+	"name": "phonon-module-ristorazione",
+	"displayName": "Gestionale Ristorazione",
+	"description": "Restaurant management module for Phonon IDE Liquid App platform",
+	"version": "0.0.1",
+	"publisher": "phonon",
+	"engines": {
+		"vscode": "^1.110.0"
+	},
+	"main": "./out/extension.js",
+	"contributes": {
+		"liquidEntities": [
+			{ "id": "dish", "label": "Piatto", "schema": "./schemas/dish.json", "icon": "symbol-class" },
+			{ "id": "supplier", "label": "Fornitore", "schema": "./schemas/supplier.json", "icon": "organization" },
+			{ "id": "order", "label": "Ordine", "schema": "./schemas/order.json", "icon": "package" }
+		],
+		"liquidViews": [
+			{ "id": "ristDashboard", "label": "Dashboard", "component": "./views/Dashboard.js", "mode": "canvas" },
+			{ "id": "ristDishList", "label": "Piatti", "component": "./views/DishList.js", "mode": "canvas", "entity": "dish" },
+			{ "id": "ristSupplierList", "label": "Fornitori", "component": "./views/SupplierList.js", "mode": "canvas", "entity": "supplier" },
+			{ "id": "ristOrderList", "label": "Ordini", "component": "./views/OrderList.js", "mode": "canvas", "entity": "order" }
+		],
+		"liquidDataProviders": [
+			{ "id": "rist-mock", "entities": ["dish", "supplier", "order"], "provider": "./providers/mock" }
+		],
+		"liquidSidebar": [
+			{ "id": "rist-dashboard", "label": "Dashboard", "view": "ristDashboard", "icon": "dashboard", "order": 0 },
+			{ "id": "rist-menu", "label": "Menu", "icon": "book", "order": 1, "children": [
+				{ "id": "rist-dishes", "label": "Piatti", "view": "ristDishList" },
+				{ "id": "rist-suppliers", "label": "Fornitori", "view": "ristSupplierList" }
+			]},
+			{ "id": "rist-orders", "label": "Ordini", "view": "ristOrderList", "icon": "package", "order": 2 }
+		]
+	}
+}

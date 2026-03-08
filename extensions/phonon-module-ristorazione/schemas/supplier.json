@@ -1,0 +1,13 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"properties": {
+		"id": { "type": "string" },
+		"name": { "type": "string" },
+		"contact_email": { "type": "string", "format": "email" },
+		"phone": { "type": "string" },
+		"categories": { "type": "array", "items": { "type": "string" } },
+		"lead_time_days": { "type": "integer", "minimum": 0 }
+	},
+	"required": ["id", "name"]
+}

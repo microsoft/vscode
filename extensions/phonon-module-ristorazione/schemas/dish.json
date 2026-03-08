@@ -1,0 +1,14 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"type": "object",
+	"properties": {
+		"id": { "type": "string" },
+		"name": { "type": "string" },
+		"category": { "type": "string", "enum": ["antipasto", "primo", "secondo", "contorno", "dolce", "bevanda"] },
+		"price": { "type": "number", "minimum": 0 },
+		"food_cost": { "type": "number", "minimum": 0, "maximum": 1 },
+		"allergens": { "type": "array", "items": { "type": "string" } },
+		"available": { "type": "boolean" }
+	},
+	"required": ["id", "name", "price"]
+}
