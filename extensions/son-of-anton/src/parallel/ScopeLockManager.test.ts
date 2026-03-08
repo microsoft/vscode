@@ -81,30 +81,25 @@ describe('ScopeLockManager', () => {
 		assert.strictEqual(locks.length, 2);
 	});
 
-	test('expired locks are automatically cleaned up', () => {
+	test('expired locks are automatically cleaned up', async () => {
 		// Use a very short TTL
 		manager.acquireLock('agent-1', ['file-a.ts'], 1); // 1ms TTL
 
-		// Wait for expiry
-		const start = Date.now();
-		while (Date.now() - start < 10) {
-			// busy-wait for 10ms
-		}
+		// Wait for expiry without busy-waiting
+		await new Promise<void>(resolve => setTimeout(resolve, 10));
 
 		const result = manager.acquireLock('agent-2', ['file-a.ts']);
 		assert.strictEqual(result.success, true);
 	});
 
-	test('lock expired callback fires on TTL expiry', () => {
+	test('lock expired callback fires on TTL expiry', async () => {
 		const expired: string[] = [];
 		manager.onLockExpired(lock => expired.push(lock.agentId));
 
 		manager.acquireLock('agent-1', ['file-a.ts'], 1); // 1ms TTL
 
-		const start = Date.now();
-		while (Date.now() - start < 10) {
-			// busy-wait
-		}
+		// Allow TTL to expire without busy-waiting
+		await new Promise<void>(resolve => setTimeout(resolve, 10));
 
 		// Trigger expiry check
 		manager.checkConflict(['file-a.ts']);
