@@ -1,0 +1,288 @@
+:root {
+	--container-padding: 12px;
+	--input-padding: 8px;
+	--border-radius: 4px;
+}
+
+body {
+	margin: 0;
+	padding: 0;
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size);
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-editor-background);
+}
+
+.chat-container {
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+	overflow: hidden;
+}
+
+.message-list {
+	flex: 1;
+	overflow-y: auto;
+	padding: var(--container-padding);
+}
+
+.message {
+	margin-bottom: 12px;
+	padding: 8px 12px;
+	border-radius: var(--border-radius);
+	line-height: 1.5;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+}
+
+.message.user {
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, transparent);
+}
+
+.message.assistant {
+	background-color: var(--vscode-editor-inactiveSelectionBackground);
+}
+
+.message .role-label {
+	font-weight: bold;
+	margin-bottom: 4px;
+	font-size: 0.85em;
+	text-transform: uppercase;
+	color: var(--vscode-descriptionForeground);
+}
+
+.message code {
+	font-family: var(--vscode-editor-font-family);
+	font-size: var(--vscode-editor-font-size);
+	background-color: var(--vscode-textCodeBlock-background);
+	padding: 1px 4px;
+	border-radius: 3px;
+}
+
+.message pre {
+	position: relative;
+	background-color: var(--vscode-textCodeBlock-background);
+	padding: 12px;
+	border-radius: var(--border-radius);
+	overflow-x: auto;
+	margin: 8px 0;
+}
+
+.message pre code {
+	padding: 0;
+	background: none;
+}
+
+.copy-button {
+	position: absolute;
+	top: 4px;
+	right: 4px;
+	padding: 2px 8px;
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 0.8em;
+	opacity: 0;
+	transition: opacity 0.2s;
+}
+
+.message pre:hover .copy-button {
+	opacity: 1;
+}
+
+.copy-button:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.diff-block {
+	margin: 8px 0;
+	border: 1px solid var(--vscode-diffEditor-border, var(--vscode-panel-border));
+	border-radius: var(--border-radius);
+	overflow: hidden;
+}
+
+.diff-block .diff-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 4px 8px;
+	background-color: var(--vscode-editor-background);
+	border-bottom: 1px solid var(--vscode-panel-border);
+	font-size: 0.85em;
+}
+
+.diff-block .diff-content {
+	font-family: var(--vscode-editor-font-family);
+	font-size: var(--vscode-editor-font-size);
+	padding: 8px;
+	overflow-x: auto;
+}
+
+.diff-block .diff-line-added {
+	background-color: var(--vscode-diffEditor-insertedLineBackground);
+	color: var(--vscode-diffEditor-insertedTextColor, inherit);
+}
+
+.diff-block .diff-line-removed {
+	background-color: var(--vscode-diffEditor-removedLineBackground);
+	color: var(--vscode-diffEditor-removedTextColor, inherit);
+}
+
+.diff-actions {
+	display: flex;
+	gap: 4px;
+}
+
+.diff-actions button {
+	padding: 2px 8px;
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 0.85em;
+}
+
+.diff-actions .accept-btn {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.diff-actions .accept-btn:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.diff-actions .reject-btn {
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.reject-btn:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.input-area {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: var(--container-padding);
+	border-top: 1px solid var(--vscode-panel-border);
+	background-color: var(--vscode-editor-background);
+}
+
+.input-controls {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+
+.model-selector {
+	padding: 4px 8px;
+	background-color: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+	border: 1px solid var(--vscode-dropdown-border);
+	border-radius: var(--border-radius);
+	font-size: 0.85em;
+}
+
+.context-buttons {
+	display: flex;
+	gap: 4px;
+}
+
+.context-btn {
+	padding: 2px 8px;
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 0.8em;
+}
+
+.context-btn:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.message-input-row {
+	display: flex;
+	gap: 8px;
+}
+
+.message-input {
+	flex: 1;
+	padding: var(--input-padding);
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: var(--border-radius);
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size);
+	resize: none;
+	min-height: 36px;
+	max-height: 200px;
+}
+
+.message-input:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.send-btn {
+	padding: 4px 16px;
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	border-radius: var(--border-radius);
+	cursor: pointer;
+	font-size: var(--vscode-font-size);
+	align-self: flex-end;
+}
+
+.send-btn:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.send-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.session-stats {
+	display: flex;
+	justify-content: space-between;
+	padding: 4px var(--container-padding);
+	font-size: 0.8em;
+	color: var(--vscode-descriptionForeground);
+	border-top: 1px solid var(--vscode-panel-border);
+}
+
+.clear-btn {
+	padding: 2px 8px;
+	background: none;
+	color: var(--vscode-descriptionForeground);
+	border: none;
+	cursor: pointer;
+	font-size: 0.8em;
+	text-decoration: underline;
+}
+
+.clear-btn:hover {
+	color: var(--vscode-foreground);
+}
+
+.streaming-indicator {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background-color: var(--vscode-progressBar-background);
+	animation: pulse 1s infinite;
+	margin-left: 4px;
+	vertical-align: middle;
+}
+
+@keyframes pulse {
+	0%, 100% { opacity: 0.3; }
+	50% { opacity: 1; }
+}

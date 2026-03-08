@@ -1,0 +1,17 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Launch Son of Anton Extension",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/son-of-anton"
+			],
+			"outFiles": [
+				"${workspaceFolder}/extensions/son-of-anton/dist/**/*.js"
+			],
+			"preLaunchTask": "npm: watch - extensions/son-of-anton"
+		}
+	]
+}
