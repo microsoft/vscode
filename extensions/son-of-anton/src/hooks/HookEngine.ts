@@ -115,12 +115,16 @@ export class HookEngine {
 			const pattern = hook.filter ?? '**/*';
 			const watcher = vscode.workspace.createFileSystemWatcher(pattern);
 
-			const handleChange = (uri: vscode.Uri) => {
-				if (this.isDisabled(hook.name)) {
-					return;
-				}
-				this.executeHook(hook, { filePath: uri.fsPath, trigger: 'onFileSave' });
-			};
+            const handleChange = async (uri: vscode.Uri) => {
+                if (this.isDisabled(hook.name)) {
+                    return;
+                }
+                try {
+                    await this.executeHook(hook, { filePath: uri.fsPath, trigger: 'onFileSave' });
+                } catch (err) {
+                    console.error(`Error executing onFileSave hook '${hook.name}':`, err);
+                }
+            };
 
 			watcher.onDidChange(handleChange);
 			watcher.onDidCreate(handleChange);
