@@ -146,15 +146,20 @@ export class SecurityScannerAgent extends BaseAgent {
 				return [];
 			}
 
-			return parsed.findings.map((f: Record<string, unknown>) => ({
-				ruleId: String(f.ruleId ?? 'unknown'),
-				severity: this.validateSeverity(String(f.severity ?? 'low')),
-				message: String(f.message ?? ''),
-				filePath: String(f.filePath ?? ''),
-				line: typeof f.line === 'number' ? f.line : undefined,
-				suggestedFix: f.suggestedFix ? String(f.suggestedFix) : undefined,
-				blocking: f.severity === 'critical' || f.severity === 'high',
-			}));
+			return parsed.findings.map((f: Record<string, unknown>) => {
+				const severity = this.validateSeverity(String(f.severity ?? 'low'));
+				const blocking = severity === 'critical' || severity === 'high';
+
+				return {
+					ruleId: String(f.ruleId ?? 'unknown'),
+					severity,
+					message: String(f.message ?? ''),
+					filePath: String(f.filePath ?? ''),
+					line: typeof f.line === 'number' ? f.line : undefined,
+					suggestedFix: f.suggestedFix ? String(f.suggestedFix) : undefined,
+					blocking,
+				};
+			});
 		} catch {
 			return [];
 		}
