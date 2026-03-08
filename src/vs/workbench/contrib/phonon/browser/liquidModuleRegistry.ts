@@ -29,6 +29,9 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 	private readonly _onDidChangeViews = this._register(new Emitter<void>());
 	readonly onDidChangeViews: Event<void> = this._onDidChangeViews.event;
 
+	private readonly _onDidChangeDataProviders = this._register(new Emitter<void>());
+	readonly onDidChangeDataProviders: Event<void> = this._onDidChangeDataProviders.event;
+
 	private readonly _onDidChangeSidebar = this._register(new Emitter<void>());
 	readonly onDidChangeSidebar: Event<void> = this._onDidChangeSidebar.event;
 
@@ -49,11 +52,21 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 
 	updateDataProviders(providers: ILiquidDataProvider[]): void {
 		this._dataProviders = providers;
+		this._onDidChangeDataProviders.fire();
 	}
 
 	updateSidebar(nodes: ILiquidSidebarNode[]): void {
-		this._sidebarTree = [...nodes].sort((a, b) => a.order - b.order);
+		this._sidebarTree = this._sortNodes(nodes);
 		this._onDidChangeSidebar.fire();
+	}
+
+	private _sortNodes(nodes: readonly ILiquidSidebarNode[]): ILiquidSidebarNode[] {
+		return [...nodes]
+			.sort((a, b) => a.order - b.order)
+			.map(n => n.children.length > 0
+				? { ...n, children: this._sortNodes(n.children) }
+				: n
+			);
 	}
 
 	getViewsForEntity(entityId: string): ILiquidView[] {

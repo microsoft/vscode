@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { LiquidModuleRegistry } from '../../browser/liquidModuleRegistry.js';
-import type { ILiquidEntity, ILiquidView, ILiquidSidebarNode, ICompositionIntent } from '../../common/liquidModuleTypes.js';
+import type { ILiquidEntity, ILiquidView, ILiquidDataProvider, ILiquidSidebarNode, ICompositionIntent } from '../../common/liquidModuleTypes.js';
 
 suite('LiquidModuleRegistry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -48,6 +48,20 @@ suite('LiquidModuleRegistry', () => {
 		registry.updateViews(views);
 
 		assert.strictEqual(registry.views.length, 2);
+		assert.ok(fired);
+	});
+
+	test('updateDataProviders populates and fires event', () => {
+		let fired = false;
+		store.add(registry.onDidChangeDataProviders(() => { fired = true; }));
+
+		const providers: ILiquidDataProvider[] = [
+			{ id: 'supabase-rist', entities: ['dish', 'supplier'], extensionId: 'test.module' },
+		];
+		registry.updateDataProviders(providers);
+
+		assert.strictEqual(registry.dataProviders.length, 1);
+		assert.strictEqual(registry.dataProviders[0].id, 'supabase-rist');
 		assert.ok(fired);
 	});
 
@@ -125,6 +139,24 @@ suite('LiquidModuleRegistry', () => {
 		assert.strictEqual(registry.sidebarTree[1].id, 'menu');
 		assert.strictEqual(registry.sidebarTree[2].id, 'orders');
 		assert.ok(fired);
+	});
+
+	test('updateSidebar sorts children recursively', () => {
+		const nodes: ILiquidSidebarNode[] = [
+			{
+				id: 'menu', label: 'Menu', order: 0, children: [
+					{ id: 'suppliers', label: 'Fornitori', order: 2, children: [], extensionId: 'test' },
+					{ id: 'dishes', label: 'Piatti', view: 'dishList', order: 0, children: [], extensionId: 'test' },
+					{ id: 'ingredients', label: 'Ingredienti', order: 1, children: [], extensionId: 'test' },
+				], extensionId: 'test'
+			},
+		];
+		registry.updateSidebar(nodes);
+
+		const children = registry.sidebarTree[0].children;
+		assert.strictEqual(children[0].id, 'dishes');
+		assert.strictEqual(children[1].id, 'ingredients');
+		assert.strictEqual(children[2].id, 'suppliers');
 	});
 
 	test('getCapabilities returns summary', () => {

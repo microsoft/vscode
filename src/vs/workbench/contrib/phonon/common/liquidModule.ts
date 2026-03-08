@@ -28,6 +28,7 @@ export interface ILiquidModuleRegistry {
 	// React
 	readonly onDidChangeEntities: Event<void>;
 	readonly onDidChangeViews: Event<void>;
+	readonly onDidChangeDataProviders: Event<void>;
 	readonly onDidChangeSidebar: Event<void>;
 
 	// Query (for AI)
