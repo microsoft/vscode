@@ -1,11 +1,12 @@
 {
-  "name": "code-oss-dev",
-  "version": "1.107.0",
-  "distro": "14448fdebff821982801580aba09897633a6e91b",
-  "author": {
-    "name": "Microsoft Corporation"
-  },
-  "license": "MIT",
+"name": "nexora-ide",
+"version": "1.0.0",
+"distro": "14448fdebff821982801580aba09897633a6e91b",
+"author": {
+  "name": "Nexora Team - Muhammad Atif & Talha Asif"
+},
+"description": "Nexora - Agentic IDE for AI Orchestration",
+"license": "MIT",
   "main": "./out/main.js",
   "type": "module",
   "private": true,
