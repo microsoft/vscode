@@ -132,13 +132,15 @@ export function createMcpServer(db: FalkorDBClient, qdrant: QdrantClient): McpSe
 				const embedQuery = async (text: string): Promise<number[]> => {
 					// Generate a deterministic placeholder vector for testing.
 					// In production, replace with a call to an embedding API.
-					const vector = new Array(384).fill(0).map((_, i) => {
-						let hash = 0;
-						for (let j = 0; j < text.length; j++) {
-							hash = ((hash << 5) - hash + text.charCodeAt(j)) | 0;
-						}
-						return Math.sin(hash + i) * 0.5;
-					});
+					// Compute the hash of the text once, then use it to generate all dimensions.
+					let hash = 0;
+					for (let j = 0; j < text.length; j++) {
+						hash = ((hash << 5) - hash + text.charCodeAt(j)) | 0;
+					}
+					const vector = new Array(384);
+					for (let i = 0; i < 384; i++) {
+						vector[i] = Math.sin(hash + i) * 0.5;
+					}
 					return vector;
 				};
 
