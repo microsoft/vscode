@@ -36,6 +36,8 @@ export interface ILiquidModuleRegistry {
 
 	// Query (for AI)
 	getViewsForEntity(entityId: string): ILiquidView[];
+	getCardsForEntity(entityId: string): ILiquidCard[];
+	getCardsByTag(tag: string): ILiquidCard[];
 	getEntitySchema(entityId: string): object | undefined;
 	getCapabilities(): ILiquidCapabilitySummary;
 

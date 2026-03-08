@@ -84,6 +84,14 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 		return this._views.filter(v => v.entity === entityId);
 	}
 
+	getCardsForEntity(entityId: string): ILiquidCard[] {
+		return this._cards.filter(c => c.entity === entityId);
+	}
+
+	getCardsByTag(tag: string): ILiquidCard[] {
+		return this._cards.filter(c => c.tags.includes(tag));
+	}
+
 	getEntitySchema(entityId: string): object | undefined {
 		return this._entities.find(e => e.id === entityId)?.schema;
 	}

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { LiquidModuleRegistry } from '../../browser/liquidModuleRegistry.js';
-import type { ILiquidEntity, ILiquidView, ILiquidDataProvider, ILiquidSidebarNode, ICompositionIntent } from '../../common/liquidModuleTypes.js';
+import type { ILiquidEntity, ILiquidView, ILiquidCard, ILiquidDataProvider, ILiquidSidebarNode, ICompositionIntent } from '../../common/liquidModuleTypes.js';
 
 suite('LiquidModuleRegistry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -83,6 +83,45 @@ suite('LiquidModuleRegistry', () => {
 
 		assert.deepStrictEqual(registry.getEntitySchema('dish'), { type: 'object' });
 		assert.strictEqual(registry.getEntitySchema('nonexistent'), undefined);
+	});
+
+	test('getCardsForEntity returns cards bound to the given entity', () => {
+		const cards: ILiquidCard[] = [
+			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://a'), entity: 'dish', tags: ['cost'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test' },
+			{ id: 'stockCard', label: 'Giacenze', entryUri: URI.parse('test://b'), entity: 'ingredient', tags: ['stock'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test' },
+			{ id: 'dishPhoto', label: 'Foto Piatto', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['media'], size: { minWidth: 300, minHeight: 200 }, extensionId: 'test' },
+			{ id: 'global', label: 'KPI', entryUri: URI.parse('test://d'), tags: [], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test' },
+		];
+		registry.updateCards(cards);
+
+		assert.deepStrictEqual(
+			registry.getCardsForEntity('dish').map(c => c.id),
+			['costCard', 'dishPhoto']
+		);
+		assert.deepStrictEqual(
+			registry.getCardsForEntity('ingredient').map(c => c.id),
+			['stockCard']
+		);
+		assert.deepStrictEqual(registry.getCardsForEntity('nonexistent'), []);
+	});
+
+	test('getCardsByTag returns cards matching the given tag', () => {
+		const cards: ILiquidCard[] = [
+			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://a'), entity: 'dish', tags: ['cost', 'analytics'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test' },
+			{ id: 'revenueCard', label: 'Ricavi', entryUri: URI.parse('test://b'), entity: 'order', tags: ['revenue', 'analytics'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test' },
+			{ id: 'dishPhoto', label: 'Foto', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['media'], size: { minWidth: 300, minHeight: 200 }, extensionId: 'test' },
+		];
+		registry.updateCards(cards);
+
+		assert.deepStrictEqual(
+			registry.getCardsByTag('analytics').map(c => c.id),
+			['costCard', 'revenueCard']
+		);
+		assert.deepStrictEqual(
+			registry.getCardsByTag('media').map(c => c.id),
+			['dishPhoto']
+		);
+		assert.deepStrictEqual(registry.getCardsByTag('nonexistent'), []);
 	});
 
 	test('validateIntent catches unknown viewId', () => {

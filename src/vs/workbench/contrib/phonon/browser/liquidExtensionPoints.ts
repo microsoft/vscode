@@ -10,10 +10,12 @@ import { ExtensionsRegistry, type IExtensionPointUser } from '../../../services/
 import type {
 	ILiquidEntityContribution,
 	ILiquidViewContribution,
+	ILiquidCardContribution,
 	ILiquidDataProviderContribution,
 	ILiquidSidebarContribution,
 	ILiquidEntity,
 	ILiquidView,
+	ILiquidCard,
 	ILiquidDataProvider,
 	ILiquidSidebarNode,
 } from '../common/liquidModuleTypes.js';
@@ -75,6 +77,52 @@ const viewSchema: IJSONSchema = {
 			entity: {
 				type: 'string',
 				description: nls.localize('phonon.liquid.view.entity', "Entity this view is bound to. Omit for entity-agnostic views."),
+			},
+		},
+	},
+};
+
+const cardSchema: IJSONSchema = {
+	description: nls.localize('phonon.liquid.card', "Declares a Liquid Module card (sandboxed HTML webview)."),
+	type: 'array',
+	items: {
+		type: 'object',
+		required: ['id', 'label', 'entry'],
+		properties: {
+			id: {
+				type: 'string',
+				description: nls.localize('phonon.liquid.card.id', "Unique identifier for this card."),
+			},
+			label: {
+				type: 'string',
+				description: nls.localize('phonon.liquid.card.label', "Human-readable label for this card."),
+			},
+			entry: {
+				type: 'string',
+				description: nls.localize('phonon.liquid.card.entry', "Relative path to the card's HTML entry file within the extension."),
+			},
+			entity: {
+				type: 'string',
+				description: nls.localize('phonon.liquid.card.entity', "Entity this card displays data for."),
+			},
+			tags: {
+				type: 'array',
+				items: { type: 'string' },
+				description: nls.localize('phonon.liquid.card.tags', "Tags for AI-driven composition (e.g. analytics, cost, dashboard)."),
+			},
+			size: {
+				type: 'object',
+				description: nls.localize('phonon.liquid.card.size', "Minimum card dimensions in pixels."),
+				properties: {
+					minWidth: {
+						type: 'number',
+						description: nls.localize('phonon.liquid.card.size.minWidth', "Minimum width in pixels (default 200)."),
+					},
+					minHeight: {
+						type: 'number',
+						description: nls.localize('phonon.liquid.card.size.minHeight', "Minimum height in pixels (default 150)."),
+					},
+				},
 			},
 		},
 	},
@@ -152,6 +200,11 @@ const liquidViewsExtPoint = ExtensionsRegistry.registerExtensionPoint<ILiquidVie
 	jsonSchema: viewSchema,
 });
 
+const liquidCardsExtPoint = ExtensionsRegistry.registerExtensionPoint<ILiquidCardContribution[]>({
+	extensionPoint: 'liquidCards',
+	jsonSchema: cardSchema,
+});
+
 const liquidDataProvidersExtPoint = ExtensionsRegistry.registerExtensionPoint<ILiquidDataProviderContribution[]>({
 	extensionPoint: 'liquidDataProviders',
 	jsonSchema: dataProviderSchema,
@@ -177,7 +230,7 @@ function resolveSidebarNode(contrib: ILiquidSidebarContribution, extensionId: st
 }
 
 /**
- * Registers handlers on the four Liquid extension points that resolve
+ * Registers handlers on the five Liquid extension points that resolve
  * contributions into the registry's resolved types and push them through.
  */
 export function registerLiquidExtensionPointHandlers(registry: LiquidModuleRegistry): void {
@@ -215,6 +268,25 @@ export function registerLiquidExtensionPointHandlers(registry: LiquidModuleRegis
 			}
 		}
 		registry.updateViews(resolved);
+	});
+
+	liquidCardsExtPoint.setHandler((extensions: readonly IExtensionPointUser<ILiquidCardContribution[]>[]) => {
+		const resolved: ILiquidCard[] = [];
+		for (const ext of extensions) {
+			const extensionId = ext.description.identifier.value;
+			for (const contrib of ext.value) {
+				resolved.push({
+					id: contrib.id,
+					label: contrib.label,
+					entryUri: URI.joinPath(ext.description.extensionLocation, contrib.entry),
+					entity: contrib.entity,
+					tags: Object.freeze([...(contrib.tags ?? [])]),
+					size: { minWidth: contrib.size?.minWidth ?? 200, minHeight: contrib.size?.minHeight ?? 150 },
+					extensionId,
+				});
+			}
+		}
+		registry.updateCards(resolved);
 	});
 
 	liquidDataProvidersExtPoint.setHandler((extensions: readonly IExtensionPointUser<ILiquidDataProviderContribution[]>[]) => {
