@@ -71,7 +71,7 @@ export class ParallelExecutor {
 			maxConcurrent: options.maxConcurrent,
 		});
 
-		this.conflictCheckIntervalMs = DEFAULT_CONFLICT_CHECK_INTERVAL_MS;
+		this.conflictCheckIntervalMs = options.conflictCheckIntervalMs ?? DEFAULT_CONFLICT_CHECK_INTERVAL_MS;
 
 		// Register deadlock handler
 		this.lockManager.onDeadlock((agents) => {
