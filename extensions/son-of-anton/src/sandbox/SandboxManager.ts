@@ -242,19 +242,26 @@ export class SandboxManager {
 			throw new Error('No active container.');
 		}
 
-		const result = await Promise.race([
-			this.docker.exec(this.container.id, command),
-			new Promise<never>((_, reject) =>
-				setTimeout(() => reject(new Error('Command timed out')), this.config.timeoutMs)
-			),
-		]).catch(err => {
-			if (err instanceof Error && err.message === 'Command timed out') {
-				return { exitCode: 137, stdout: '', stderr: 'Execution timed out.', timedOut: true };
-			}
-			throw err;
-		});
+		let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+		try {
+			const result = await Promise.race([
+				this.docker.exec(this.container.id, command),
+				new Promise<never>((_, reject) => {
+					timeoutHandle = setTimeout(() => reject(new Error('Command timed out')), this.config.timeoutMs);
+				}),
+			]).catch(err => {
+				if (err instanceof Error && err.message === 'Command timed out') {
+					return { exitCode: 137, stdout: '', stderr: 'Execution timed out.', timedOut: true };
+				}
+				throw err;
+			});
 
-		return result as { exitCode: number; stdout: string; stderr: string; timedOut: boolean };
+			return result as { exitCode: number; stdout: string; stderr: string; timedOut: boolean };
+		} finally {
+			if (timeoutHandle !== undefined) {
+				clearTimeout(timeoutHandle);
+			}
+		}
 	}
 
 	/**
