@@ -1410,7 +1410,7 @@ export interface IChatService {
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
-	cancelCurrentRequestForSession(sessionResource: URI, source?: string): void;
+	cancelCurrentRequestForSession(sessionResource: URI, source?: string): Promise<void>;
 	/**
 	 * Sets yieldRequested on the active request for the given session.
 	 */
@@ -1490,7 +1490,7 @@ export type ChatStopCancellationNoopEvent = {
 	pendingRequests: number;
 	sessionScheme?: string;
 	lastRequestId?: string;
-	sessionId?: string;
+	chatSessionId?: string;
 };
 
 export type ChatStopCancellationNoopClassification = {
@@ -1500,7 +1500,7 @@ export type ChatStopCancellationNoopClassification = {
 	pendingRequests: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of queued pending requests at no-op time when known.'; isMeasurement: true };
 	sessionScheme?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The URI scheme of the session resource (e.g. vscodeLocalChatSession vs remote).' };
 	lastRequestId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the last request in the session, for correlating with tool invocations.' };
-	sessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat session ID.' };
+	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat session ID.' };
 	owner: 'roblourens';
 	comment: 'Tracks possible no-op stop cancellation paths.';
 };
@@ -1511,14 +1511,14 @@ export type ChatPendingRequestChangeEvent = {
 	action: 'add' | 'remove' | 'notCancelable';
 	source: string;
 	requestId?: string;
-	sessionId?: string;
+	chatSessionId?: string;
 };
 
 export type ChatPendingRequestChangeClassification = {
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a pending request was added or removed.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The method that triggered the pending request change.' };
 	requestId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The request ID associated with the pending request change.' };
-	sessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat session ID.' };
+	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat session ID.' };
 	owner: 'roblourens';
 	comment: 'Tracks pending request lifecycle changes in the chat service.';
 };

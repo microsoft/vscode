@@ -54,11 +54,17 @@
 .agent-sessions-workbench .interactive-session .interactive-item-container {
 	max-width: 950px;
 	margin: 0 auto;
+	padding-left: 12px;
+	padding-right: 12px;
+	box-sizing: border-box;
 }
 
 .agent-sessions-workbench .interactive-session > .chat-suggest-next-widget {
 	max-width: 950px;
 	margin: 0 auto;
+	padding-left: 12px;
+	padding-right: 12px;
+	box-sizing: border-box;
 }
 
 /* ---- Chat Input ---- */
@@ -73,5 +79,6 @@
 	margin: 0 auto !important;
 	display: inherit !important;
 	/* Align with changes view */
-	padding: 4px 0 6px 0 !important;
+	padding: 4px 12px 6px 12px !important;
+	box-sizing: border-box;
 }

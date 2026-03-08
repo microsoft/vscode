@@ -3634,6 +3634,11 @@ export interface GitChangeDto {
 	readonly modifiedUri: UriComponents | undefined;
 }
 
+export interface GitDiffChangeDto extends GitChangeDto {
+	readonly insertions: number;
+	readonly deletions: number;
+}
+
 export interface GitRepositoryStateDto {
 	readonly HEAD?: GitBranchDto;
 	readonly mergeChanges: readonly GitChangeDto[];
@@ -3663,6 +3668,7 @@ export interface ExtHostGitExtensionShape {
 	$openRepository(root: UriComponents): Promise<{ handle: number; rootUri: UriComponents; state: GitRepositoryStateDto } | undefined>;
 	$getRefs(handle: number, query: GitRefQueryDto, token?: CancellationToken): Promise<GitRefDto[]>;
 	$getRepositoryState(handle: number): Promise<GitRepositoryStateDto | undefined>;
+	$diffBetweenWithStats(handle: number, ref1: string, ref2: string, path?: string): Promise<GitDiffChangeDto[]>;
 }
 
 // --- proxy identifiers
