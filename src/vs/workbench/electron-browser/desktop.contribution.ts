@@ -446,7 +446,7 @@ import product from '../../platform/product/common/product.js';
 			},
 			'disable-chromium-sandbox': {
 				type: 'boolean',
-				description: localize('argv.disableChromiumSandbox', "Disables the Chromium sandbox. This is useful when running Son of Anton as elevated on Linux and running under Applocker on Windows.")
+				description: localize('argv.disableChromiumSandbox', "Disables the Chromium sandbox. This is useful when running Son of Anton with elevated privileges on Linux or under AppLocker on Windows.")
 			},
 			'use-inmemory-secretstorage': {
 				type: 'boolean',
