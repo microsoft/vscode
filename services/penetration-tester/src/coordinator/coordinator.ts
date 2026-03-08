@@ -190,7 +190,7 @@ export class Coordinator {
 			'A07-auth-failures': ['brute-force', 'session-management', 'password-reset'],
 			'A08-software-integrity-failures': ['zap-baseline'],
 			'A09-logging-failures': ['zap-baseline'],
-			'A10-ssrf': ['command-injection'],
+			'A10-ssrf': ['zap-baseline'],
 		};
 
 		return mapping[category] ?? ['zap-baseline'];
