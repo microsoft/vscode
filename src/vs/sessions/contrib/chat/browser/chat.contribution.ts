@@ -46,7 +46,7 @@ export class OpenSessionWorktreeInSonOfAntonAction extends Action2 {
 		super({
 			id: OpenSessionWorktreeInSonOfAntonAction.ID,
 			title: localize2('openInSon of Anton', 'Open in Son of Anton'),
-			icon: Codicon.vscodeInsiders,
+			icon: Codicon.linkExternal,
 			precondition: IsActiveSessionBackgroundProviderContext,
 			menu: [{
 				id: Menus.TitleBarSessionMenu,
