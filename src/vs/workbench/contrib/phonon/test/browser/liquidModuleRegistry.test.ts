@@ -105,6 +105,42 @@ suite('LiquidModuleRegistry', () => {
 		assert.ok(result.errors[0].includes('nonexistent'));
 	});
 
+	test('validateIntent accepts valid cardId slot', () => {
+		registry.updateCards([
+			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test' },
+		]);
+
+		const intent: ICompositionIntent = {
+			layout: 'single',
+			slots: [{ cardId: 'costCard' }],
+		};
+		assert.deepStrictEqual(registry.validateIntent(intent), { valid: true, errors: [] });
+	});
+
+	test('validateIntent catches unknown cardId', () => {
+		registry.updateCards([
+			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test' },
+		]);
+
+		const intent: ICompositionIntent = {
+			layout: 'single',
+			slots: [{ cardId: 'nonexistent' }],
+		};
+		const result = registry.validateIntent(intent);
+		assert.ok(!result.valid);
+		assert.ok(result.errors[0].includes('nonexistent'));
+	});
+
+	test('validateIntent rejects slot with neither viewId nor cardId', () => {
+		const intent: ICompositionIntent = {
+			layout: 'single',
+			slots: [{}],
+		};
+		const result = registry.validateIntent(intent);
+		assert.ok(!result.valid);
+		assert.ok(result.errors[0].includes('neither'));
+	});
+
 	test('validateIntent rejects structured-only views', () => {
 		registry.updateViews([
 			{ id: 'dishList', label: 'Piatti', componentUri: URI.parse('test://a'), mode: 'structured', extensionId: 'test' },
