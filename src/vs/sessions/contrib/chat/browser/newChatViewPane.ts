@@ -243,12 +243,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}));
 
 		this._register(this._repoPicker.onDidSelectRepo((repoId) => {
-			const repoUri = URI.from({
-				scheme: GITHUB_REMOTE_FILE_SCHEME,
-				authority: 'github',
-				path: `/${repoId}/HEAD`,
-			});
-			this._newSession.value?.setRepoUri(repoUri);
+			this._newSession.value?.setRepoUri(this._getRepoUri(repoId));
 			this._updateDraftState();
 		}));
 
@@ -379,11 +374,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		} else {
 			const selectedRepo = this._repoPicker.selectedRepo;
 			if (selectedRepo) {
-				session.setRepoUri(URI.from({
-					scheme: GITHUB_REMOTE_FILE_SCHEME,
-					authority: 'github',
-					path: `/${selectedRepo}/HEAD`,
-				}));
+				session.setRepoUri(this._getRepoUri(selectedRepo));
 			}
 		}
 
@@ -619,14 +610,18 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// For cloud targets, use the repo picker's selection
 		const selectedRepo = this._repoPicker.selectedRepo;
 		if (selectedRepo && selectedRepo.includes('/')) {
-			return URI.from({
-				scheme: GITHUB_REMOTE_FILE_SCHEME,
-				authority: 'github',
-				path: `/${selectedRepo}/HEAD`,
-			});
+			return this._getRepoUri(selectedRepo);
 		}
 
 		return undefined;
+	}
+
+	private _getRepoUri(repoId: string): URI {
+		return URI.from({
+			scheme: GITHUB_REMOTE_FILE_SCHEME,
+			authority: 'github',
+			path: `/${repoId}/HEAD`,
+		});
 	}
 
 	private _createBottomToolbar(container: HTMLElement): void {
