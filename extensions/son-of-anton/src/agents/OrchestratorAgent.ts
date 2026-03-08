@@ -281,7 +281,7 @@ export class OrchestratorAgent extends BaseAgent {
 		let result: SubtaskResult | undefined;
 		let retryCount = 0;
 
-		while (retryCount <= this.config.maxRetries) {
+		while (retryCount < this.config.maxRetries) {
 			result = await specialist.execute(context);
 			const latencyMs = Date.now() - startTime;
 
