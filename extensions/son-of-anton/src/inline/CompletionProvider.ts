@@ -65,8 +65,9 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
 		const prefix = document.getText(
 			new vscode.Range(startLine, 0, position.line, position.character)
 		);
+		const suffixEnd = document.lineAt(endLine).range.end;
 		const suffix = document.getText(
-			new vscode.Range(position.line, position.character, endLine + 1, 0)
+			new vscode.Range(position, suffixEnd)
 		);
 
 		const prompt = [
