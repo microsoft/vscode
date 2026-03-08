@@ -123,8 +123,16 @@ export function registerAgentParticipants(
 		llmClient, mcpClient, agentManager, metricsTracker, projectMemory,
 	);
 
-	const reviewAgent = new ReviewAgent(
-		configs.get('anton-code')!, // Review uses sonnet
+const reviewAgent = new ReviewAgent(
+		// The review agent should have its own identity for metrics and clarity.
+		{
+			handle: 'anton-review',
+			displayName: 'Anton Review',
+			description: 'Code quality and review specialist',
+			defaultModel: 'sonnet',
+			maxRetries: 3,
+			slashCommands: [],
+		},
 		llmClient, mcpClient, agentManager, metricsTracker, projectMemory,
 	);
 
