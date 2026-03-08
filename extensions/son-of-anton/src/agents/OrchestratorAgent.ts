@@ -296,24 +296,38 @@ export class OrchestratorAgent extends BaseAgent {
 					parentTaskId,
 				});
 
-				if (!reviewResult.success && retryCount < this.config.maxRetries) {
-					// Retry with review feedback
-					retryCount++;
-					subtask.retryCount = retryCount;
-					this.metricsTracker.recordRetry(subtask.assignee);
+				if (!reviewResult.success) {
+					if (retryCount < this.config.maxRetries) {
+						// Retry with review feedback
+						retryCount++;
+						subtask.retryCount = retryCount;
+						this.metricsTracker.recordRetry(subtask.assignee);
 
-					context.instruction = [
-						subtask.instruction,
+						context.instruction = [
+							subtask.instruction,
+							'',
+							'## Previous Attempt Feedback',
+							reviewResult.summary,
+						].join('\n');
+
+						stream.markdown(`*Retry ${retryCount}/${this.config.maxRetries}: incorporating review feedback...*\n`);
+						continue;
+					}
+
+					// No retries left: mark subtask as failed according to review result
+					result.success = false;
+					result.reviewFeedback = reviewResult.reviewFeedback;
+					result.summary = [
+						result.summary || 'Subtask failed final review.',
 						'',
-						'## Previous Attempt Feedback',
+						'Final review feedback:',
 						reviewResult.summary,
 					].join('\n');
 
-					stream.markdown(`*Retry ${retryCount}/${this.config.maxRetries}: incorporating review feedback...*\n`);
-					continue;
+					this.metricsTracker.recordEscalation(subtask.assignee);
+				} else {
+					result.reviewFeedback = reviewResult.reviewFeedback;
 				}
-
-				result.reviewFeedback = reviewResult.reviewFeedback;
 			}
 
 			if (retryCount === 0 && result.success) {
