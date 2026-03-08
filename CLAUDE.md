@@ -52,7 +52,7 @@ Every PR description must state which tier of modification it contains.
 
 ### Languages
 - **IDE and extensions:** TypeScript
-- **Backend services:** TypeScript (Node.js)
+- **Backend services:** TypeScript (Node.js) for all production code. Early service stubs under `services/*` may use JavaScript `index.js` files, but must be migrated to TypeScript before the service is considered stable or production-ready.
 - **MCP servers:** TypeScript or Python
 
 ### Formatting
