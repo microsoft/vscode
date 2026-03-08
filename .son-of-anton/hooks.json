@@ -25,7 +25,7 @@
 		{
 			"name": "dependency-scan",
 			"trigger": "onFileSave",
-			"filter": "**/package.json|**/requirements.txt|**/Cargo.toml",
+            "filter": "**/{package.json,requirements.txt,Cargo.toml}",
 			"agent": "anton-security",
 			"instruction": "Run dependency vulnerability scan on the changed package file.",
 			"blocking": false
