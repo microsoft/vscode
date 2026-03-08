@@ -135,11 +135,14 @@ function createServer(): McpServer {
 		},
 		async ({ query: sqlQuery, limit }) => {
 			try {
-				validateReadOnly(sqlQuery);
+				// Normalize query to avoid syntax errors when embedding in a subquery.
+				// This removes any trailing semicolons and whitespace.
+				const normalizedQuery = sqlQuery.replace(/[;\s]+$/g, '');
+				validateReadOnly(normalizedQuery);
 
 				const rowLimit = Math.min(limit ?? DEFAULT_ROW_LIMIT, MAX_ROW_LIMIT);
 				// Wrap in a subquery to enforce row limit server-side
-				const wrappedQuery = `SELECT * FROM (${sqlQuery}) AS _q LIMIT $1`;
+				const wrappedQuery = `SELECT * FROM (${normalizedQuery}) AS _q LIMIT $1`;
 				const result = await pool.query(wrappedQuery, [rowLimit]);
 				return {
 					content: [{
