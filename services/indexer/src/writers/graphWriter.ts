@@ -289,13 +289,45 @@ export class GraphWriter {
 
 			// Try to create IMPORTS edge between files
 			// Resolve the import source to a file path (best effort)
+			const rawSource = imp.source;
+			// Normalize the source by stripping leading "./" or "/" segments.
+			const normalizedSource = rawSource.replace(/^(?:\.\/|\/)+/, '');
+			// Generate a small set of plausible file suffixes to match against.
+			const sourceCandidates = [
+				normalizedSource,
+				`${normalizedSource}.ts`,
+				`${normalizedSource}.tsx`,
+				`${normalizedSource}.js`,
+				`${normalizedSource}.jsx`,
+				`${normalizedSource}/index.ts`,
+				`${normalizedSource}/index.tsx`,
+				`${normalizedSource}/index.js`,
+				`${normalizedSource}/index.jsx`,
+			];
+
 			await this.db.write(
 				`MATCH (src:File {path: $srcPath}), (tgt:File)
-				WHERE tgt.path CONTAINS $source
+				WHERE tgt.path ENDS WITH $source1
+					OR tgt.path ENDS WITH $source2
+					OR tgt.path ENDS WITH $source3
+					OR tgt.path ENDS WITH $source4
+					OR tgt.path ENDS WITH $source5
+					OR tgt.path ENDS WITH $source6
+					OR tgt.path ENDS WITH $source7
+					OR tgt.path ENDS WITH $source8
+					OR tgt.path ENDS WITH $source9
 				CREATE (src)-[:IMPORTS {specifiers: $specifiers, line: $line}]->(tgt)`,
 				{
 					srcPath: filePath,
-					source: imp.source,
+					source1: sourceCandidates[0],
+					source2: sourceCandidates[1],
+					source3: sourceCandidates[2],
+					source4: sourceCandidates[3],
+					source5: sourceCandidates[4],
+					source6: sourceCandidates[5],
+					source7: sourceCandidates[6],
+					source8: sourceCandidates[7],
+					source9: sourceCandidates[8],
 					specifiers: imp.specifiers.join(', '),
 					line: imp.line,
 				}
