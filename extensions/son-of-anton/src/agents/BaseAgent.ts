@@ -221,14 +221,53 @@ export abstract class BaseAgent {
 	 */
 	protected parseFileChanges(llmOutput: string): FileChange[] {
 		const changes: FileChange[] = [];
-		const fileBlockRegex = /```(?:diff|patch)?\s*\n(?:---\s+a\/(.+)\n\+\+\+\s+b\/(.+)\n)?([\s\S]*?)```/g;
+		const fileBlockRegex = /```(?:diff|patch)?\s*\n([\s\S]*?)```/g;
 
 		let match;
 		while ((match = fileBlockRegex.exec(llmOutput)) !== null) {
-			const filePath = match[2] ?? match[1] ?? '';
-			const diff = match[3] ?? '';
+			const block = match[1] ?? '';
+			const lines = block.split('\n');
 
-			if (filePath) {
+			let filePath = '';
+			let startIndex = 0;
+
+			for (let i = 0; i < lines.length; i++) {
+				const line = lines[i];
+
+				// Prefer +++ b/<path> when available
+				const plusMatch = line.match(/^\+\+\+\s+b\/(.+)\s*$/);
+				if (plusMatch) {
+					filePath = plusMatch[1];
+					startIndex = i + 1;
+					break;
+				}
+
+				// Support diff --git a/... b/... headers
+				const gitMatch = line.match(/^diff --git a\/.+ b\/(.+)\s*$/);
+				if (gitMatch) {
+					filePath = gitMatch[1];
+					startIndex = i + 1;
+					// Don't break yet; there may still be a +++ line later
+				}
+
+				// Fallback: use --- a/<path> if nothing else is found
+				if (!filePath) {
+					const minusMatch = line.match(/^---\s+a\/(.+)\s*$/);
+					if (minusMatch) {
+						filePath = minusMatch[1];
+						startIndex = i + 1;
+					}
+				}
+			}
+
+			// If we couldn't determine a file path, skip this block
+			if (!filePath) {
+				continue;
+			}
+
+			const diff = lines.slice(startIndex).join('\n');
+
+			if (diff.trim()) {
 				changes.push({
 					filePath,
 					changeType: 'modify',
