@@ -78,8 +78,11 @@ services:
       - FALKORDB_HOST=${FALKORDB_HOST:-falkordb}
       - FALKORDB_PORT=${FALKORDB_PORT:-6379}
       - PROJECT_PATH=${PROJECT_PATH:-/workspace}
+      - LANGUAGES=${LANGUAGES:-typescript,python,rust,csharp,cpp}
+      - PREFER_SCIP=${PREFER_SCIP:-false}
     volumes:
       - ${PROJECT_PATH:-.}:/workspace:ro
+      - lsif-snapshots:/data/lsif-snapshots
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8081/health || exit 1"]
       interval: 15s
@@ -120,4 +123,6 @@ volumes:
   falkordb-data:
     driver: local
   qdrant-data:
+    driver: local
+  lsif-snapshots:
     driver: local
