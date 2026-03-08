@@ -1,0 +1,37 @@
+{
+	"servers": [
+		{
+			"name": "code-graph",
+			"url": "http://localhost:3100",
+			"type": "internal",
+			"trusted": true,
+			"rateLimit": { "requestsPerMinute": 120 }
+		},
+		{
+			"name": "database",
+			"url": "http://localhost:3102",
+			"type": "internal",
+			"trusted": true,
+			"rateLimit": { "requestsPerMinute": 30 }
+		},
+		{
+			"name": "deployment",
+			"url": "http://localhost:3103",
+			"type": "internal",
+			"trusted": true,
+			"rateLimit": { "requestsPerMinute": 20 }
+		},
+		{
+			"name": "tickets",
+			"url": "http://localhost:3104",
+			"type": "internal",
+			"trusted": true,
+			"rateLimit": { "requestsPerMinute": 30 }
+		}
+	],
+	"defaultPolicy": {
+		"allowExternal": false,
+		"requireAuthentication": true,
+		"logAllCalls": true
+	}
+}

@@ -1,0 +1,10 @@
+{
+	"name": "son-of-anton-mcp",
+	"version": "1.0.0",
+	"description": "Son of Anton — MCP server definitions and gateway configuration",
+	"scripts": {
+		"build": "npm --prefix servers/database run build && npm --prefix servers/deployment run build && npm --prefix servers/tickets run build",
+		"test": "bash scripts/test-all.sh"
+	},
+	"private": true
+}

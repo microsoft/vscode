@@ -119,6 +119,66 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  mcp-database:
+    build:
+      context: ./son-of-anton-mcp/servers/database
+      dockerfile: Dockerfile
+    container_name: soa-mcp-database
+    ports:
+      - "${MCP_DATABASE_PORT:-3102}:3102"
+    environment:
+      - DB_HOST=${DB_HOST:-localhost}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-son_of_anton}
+      - DB_USER=${DB_USER:-readonly}
+      - DB_PASSWORD=${DB_PASSWORD:-}
+      - MCP_DATABASE_PORT=3102
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3102/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  mcp-deployment:
+    build:
+      context: ./son-of-anton-mcp/servers/deployment
+      dockerfile: Dockerfile
+    container_name: soa-mcp-deployment
+    ports:
+      - "${MCP_DEPLOYMENT_PORT:-3103}:3103"
+    environment:
+      - GITHUB_REPOSITORY=${GITHUB_REPOSITORY:-CodeHalwell/Son-Of-Anton}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - MCP_DEPLOYMENT_PORT=3103
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3103/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  mcp-tickets:
+    build:
+      context: ./son-of-anton-mcp/servers/tickets
+      dockerfile: Dockerfile
+    container_name: soa-mcp-tickets
+    ports:
+      - "${MCP_TICKETS_PORT:-3104}:3104"
+    environment:
+      - GITHUB_REPOSITORY=${GITHUB_REPOSITORY:-CodeHalwell/Son-Of-Anton}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - MCP_TICKETS_PORT=3104
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3104/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
 volumes:
   falkordb-data:
     driver: local

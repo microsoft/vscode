@@ -1,0 +1,219 @@
+// Copyright (c) Son of Anton Contributors. All rights reserved.
+// Licensed under the MIT License.
+
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
+import { FalkorDBClient } from './clients/falkordb';
+import { QdrantClient } from './clients/qdrant';
+import { symbolLookup } from './tools/symbolLookup';
+import { findReferences } from './tools/findReferences';
+import { dependencyTraversal } from './tools/dependencyTraversal';
+import { impactAnalysis } from './tools/impactAnalysis';
+import { semanticSearch } from './tools/semanticSearch';
+import { fileSummary } from './tools/fileSummary';
+import { projectOverview } from './tools/projectOverview';
+
+export function createMcpServer(db: FalkorDBClient, qdrant: QdrantClient): McpServer {
+	const server = new McpServer({
+		name: 'son-of-anton-code-graph',
+		version: '1.0.0',
+	});
+
+	// --- symbol_lookup ---
+	server.tool(
+		'symbol_lookup',
+		'Look up a symbol (function, class, type, module) by name. Returns definition location, type, signature, file path, and line range.',
+		{
+			name: z.string().describe('Symbol name to look up'),
+			type: z.enum(['function', 'class', 'type', 'module']).optional()
+				.describe('Filter by symbol type'),
+		},
+		async ({ name, type }) => {
+			try {
+				const results = await symbolLookup(db, { name, type });
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('symbol_lookup', error);
+			}
+		}
+	);
+
+	// --- find_references ---
+	server.tool(
+		'find_references',
+		'Find all references to a symbol across the codebase. Returns file, line, column, and context for each reference.',
+		{
+			name: z.string().describe('Symbol name to find references for'),
+			file: z.string().optional().describe('Limit to references of the symbol defined in this file'),
+		},
+		async ({ name, file }) => {
+			try {
+				const results = await findReferences(db, { name, file });
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('find_references', error);
+			}
+		}
+	);
+
+	// --- dependency_traversal ---
+	server.tool(
+		'dependency_traversal',
+		'Traverse the dependency tree of a file or function. Shows what a symbol/file depends on (imports, calls) at configurable depth.',
+		{
+			file: z.string().optional().describe('File path to traverse dependencies for'),
+			function: z.string().optional().describe('Function name to traverse call dependencies for'),
+			depth: z.number().min(1).max(5).optional().describe('Traversal depth (default 2, max 5)'),
+		},
+		async (params) => {
+			try {
+				const results = await dependencyTraversal(db, {
+					file: params.file,
+					function: params.function,
+					depth: params.depth,
+				});
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('dependency_traversal', error);
+			}
+		}
+	);
+
+	// --- impact_analysis ---
+	server.tool(
+		'impact_analysis',
+		'Analyze the downstream impact of changing a symbol. Returns all callers, test files, and documentation referencing this symbol, categorised as direct or transitive.',
+		{
+			symbol: z.string().describe('Symbol name to analyze impact for'),
+			file: z.string().optional().describe('File where the symbol is defined (for disambiguation)'),
+		},
+		async ({ symbol, file }) => {
+			try {
+				const results = await impactAnalysis(db, { symbol, file });
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('impact_analysis', error);
+			}
+		}
+	);
+
+	// --- semantic_search ---
+	server.tool(
+		'semantic_search',
+		'Search for code semantically using natural language. Results are ranked by a combination of semantic similarity and structural importance (PageRank-style).',
+		{
+			query: z.string().describe('Natural language search query'),
+			maxResults: z.number().min(1).max(50).optional().describe('Maximum results to return (default 10)'),
+			language: z.string().optional().describe('Filter results by programming language'),
+		},
+		async ({ query, maxResults, language }) => {
+			try {
+				// Placeholder embedding function — in production this calls the embedding model
+				const embedQuery = async (text: string): Promise<number[]> => {
+					// Generate a deterministic placeholder vector for testing.
+					// In production, replace with a call to an embedding API.
+					// Compute the hash of the text once, then use it to generate all dimensions.
+					let hash = 0;
+					for (let j = 0; j < text.length; j++) {
+						hash = ((hash << 5) - hash + text.charCodeAt(j)) | 0;
+					}
+					const vector = new Array(384);
+					for (let i = 0; i < 384; i++) {
+						vector[i] = Math.sin(hash + i) * 0.5;
+					}
+					return vector;
+				};
+
+				const results = await semanticSearch(qdrant, db, { query, maxResults, language }, embedQuery);
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('semantic_search', error);
+			}
+		}
+	);
+
+	// --- file_summary ---
+	server.tool(
+		'file_summary',
+		'Get a structural summary of a file: exports, classes, functions, imports, and dependencies.',
+		{
+			path: z.string().describe('Project-relative file path'),
+		},
+		async ({ path }) => {
+			try {
+				const results = await fileSummary(db, { path });
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('file_summary', error);
+			}
+		}
+	);
+
+	// --- project_overview ---
+	server.tool(
+		'project_overview',
+		'Get a high-level overview of the project: modules, entry points, key abstractions, file count, and language breakdown.',
+		{},
+		async () => {
+			try {
+				const results = await projectOverview(db);
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('project_overview', error);
+			}
+		}
+	);
+
+	return server;
+}
+
+function errorResponse(tool: string, error: unknown) {
+	const message = error instanceof Error ? error.message : String(error);
+	return {
+		content: [{
+			type: 'text' as const,
+			text: JSON.stringify({
+				error: true,
+				tool,
+				message: `${tool} failed: ${message}`,
+				suggestion: 'Check that the graph database is running and has been indexed. Run the indexer service if you haven\'t already.',
+			}, null, 2),
+		}],
+		isError: true,
+	};
+}

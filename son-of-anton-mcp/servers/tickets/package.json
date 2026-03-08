@@ -1,19 +1,16 @@
 {
-	"name": "soa-mcp-gateway",
+	"name": "soa-mcp-tickets",
 	"version": "1.0.0",
-	"description": "Son of Anton — MCP gateway exposing code graph and vector search tools",
+	"description": "Son of Anton — Ticketing System MCP server",
 	"main": "dist/index.js",
 	"scripts": {
 		"build": "tsc",
 		"start": "node dist/index.js",
 		"dev": "tsc --watch & nodemon dist/index.js",
-		"test": "node --test test/**/*.test.js",
-		"lint": "eslint src/**/*.ts"
+		"test": "node --test test/**/*.test.js"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.12.0",
-		"@qdrant/js-client-rest": "^1.12.0",
-		"redis": "^4.7.0",
 		"zod": "^3.23.0"
 	},
 	"devDependencies": {
