@@ -152,7 +152,13 @@ jobs:
 
       - name: Verify all services are healthy
         run: |
-          docker compose ps --format json | jq -e '.[] | select(.Health != "healthy")' && exit 1 || true
+          set -euo pipefail
+          unhealthy_count="$(docker compose ps --format json | jq '[.[] | select(.Health != "healthy")] | length')"
+          if [ "$unhealthy_count" -gt 0 ]; then
+            echo "Found $unhealthy_count unhealthy services:"
+            docker compose ps
+            exit 1
+          fi
           echo "All services healthy"
 
       - name: Test FalkorDB connectivity
