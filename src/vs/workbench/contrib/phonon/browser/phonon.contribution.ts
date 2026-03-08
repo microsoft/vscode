@@ -102,7 +102,14 @@ class PhononContribution extends Disposable implements IWorkbenchContribution {
 		this._wireIntentToCanvas();
 		this._registerPlaywrightTools();
 		registerLiquidExtensionPointHandlers(this.liquidModuleRegistry as LiquidModuleRegistry);
-		registerLiquidSidebarTreeView(this.instantiationService, this.liquidModuleRegistry, this.logService);
+		const sidebarDataProvider = registerLiquidSidebarTreeView(this.instantiationService, this.liquidModuleRegistry, this.logService);
+		this._register(sidebarDataProvider.onDidRequestNavigation(async (intent) => {
+			const input = this.instantiationService.createInstance(LiquidCanvasEditorInput);
+			const pane = await this.editorService.openEditor(input, { pinned: false }, ACTIVE_GROUP);
+			if (pane instanceof LiquidCanvasEditor) {
+				pane.composeIntent(intent);
+			}
+		}));
 		this._wireAppMode();
 	}
 

@@ -25,7 +25,7 @@ import {
 	ViewContainerLocation,
 } from '../../../common/views.js';
 import { ILiquidModuleRegistry } from '../common/liquidModule.js';
-import type { ILiquidSidebarNode } from '../common/liquidModuleTypes.js';
+import type { ICompositionIntent, ILiquidSidebarNode } from '../common/liquidModuleTypes.js';
 
 export const LIQUID_VIEW_CONTAINER_ID = 'workbench.view.phonon.liquid';
 export const LIQUID_TREE_VIEW_ID = 'workbench.view.phonon.liquid.tree';
@@ -41,6 +41,9 @@ export class LiquidSidebarDataProvider extends Disposable implements ITreeViewDa
 	private _isEmpty = true;
 	private readonly _onDidChangeEmpty = this._register(new Emitter<void>());
 	readonly onDidChangeEmpty: Event<void> = this._onDidChangeEmpty.event;
+
+	private readonly _onDidRequestNavigation = this._register(new Emitter<ICompositionIntent>());
+	readonly onDidRequestNavigation: Event<ICompositionIntent> = this._onDidRequestNavigation.event;
 
 	get isTreeEmpty(): boolean {
 		return this._isEmpty;
@@ -105,15 +108,33 @@ export class LiquidSidebarDataProvider extends Disposable implements ITreeViewDa
 
 	/**
 	 * Called when the user clicks a tree item.
-	 * Task 7 will wire actual navigation; for now we log.
+	 * Fires a composition intent so the canvas opens the corresponding view.
 	 */
 	handleClick(item: ITreeItem): void {
 		const node = this._findNode(item.handle, this.registry.sidebarTree);
-		if (node?.view) {
-			this.logService.info(`[Phonon] Liquid sidebar click: node="${node.id}", view="${node.view}" -- navigation TBD (Task 7)`);
-		} else {
-			this.logService.info(`[Phonon] Liquid sidebar click: node="${item.handle}" -- no view bound`);
+		if (!node?.view) { return; }
+
+		// Dashboard: compose grid from dashboard-tagged cards
+		if (node.view.includes('Dashboard')) {
+			const dashCards = this.registry.getCardsByTag('dashboard');
+			if (dashCards.length > 0) {
+				this.logService.info(`[Phonon] Sidebar navigation: dashboard grid with ${dashCards.length} cards`);
+				this._onDidRequestNavigation.fire({
+					layout: 'grid',
+					slots: dashCards.map(c => ({ cardId: c.id, label: c.label })),
+					title: node.label,
+				});
+				return;
+			}
 		}
+
+		// Regular view
+		this.logService.info(`[Phonon] Sidebar navigation: single view="${node.view}"`);
+		this._onDidRequestNavigation.fire({
+			layout: 'single',
+			slots: [{ viewId: node.view }],
+			title: node.label,
+		});
 	}
 }
 
@@ -125,7 +146,7 @@ export function registerLiquidSidebarTreeView(
 	instantiationService: IInstantiationService,
 	registry: ILiquidModuleRegistry,
 	logService: ILogService,
-): void {
+): LiquidSidebarDataProvider {
 	// 1. Register ViewContainer in the activity bar (Sidebar location)
 	const viewContainer = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
 		id: LIQUID_VIEW_CONTAINER_ID,
@@ -175,4 +196,6 @@ export function registerLiquidSidebarTreeView(
 	Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews([viewDescriptor], viewContainer);
 
 	logService.info('[Phonon] Liquid sidebar TreeView registered');
+
+	return dataProvider;
 }
