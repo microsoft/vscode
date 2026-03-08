@@ -134,8 +134,9 @@ class GitHubIssuesProvider implements TicketingProvider {
 					return source.issue?.html_url ?? '';
 				})
 				.filter(url => url.includes('/pull/'));
-		} catch {
-			// Timeline API may not be available
+		} catch (error) {
+			// Timeline API may not be available, log for debugging
+			console.warn(`[mcp-tickets] Failed to fetch timeline for issue ${id}:`, error);
 		}
 
 		return {
