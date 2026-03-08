@@ -166,7 +166,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(action, {
-			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, location, contextKeyService),
+			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, location),
 			actionBarActions: ChatContinueInSessionActionItem.getActionBarActions(openerService),
 			reporter: { id: 'ChatContinueInSession', name: 'ChatContinueInSession', includeOptions: true },
 		}, actionWidgetService, keybindingService, contextKeyService, telemetryService);
@@ -186,33 +186,28 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		}];
 	}
 
-	private static actionProvider(chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, location: ActionLocation, contextKeyService: IContextKeyService): IActionWidgetDropdownActionProvider {
+	private static actionProvider(chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, location: ActionLocation): IActionWidgetDropdownActionProvider {
 		return {
 			getActions: () => {
 				const actions: IActionWidgetDropdownAction[] = [];
 				const contributions = chatSessionsService.getAllChatSessionContributions();
-				const currentSessionType = contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatSessionType.key);
 
 				// Continue in Background
 				const backgroundContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Background);
-				if (backgroundContrib && backgroundContrib.canDelegate && currentSessionType !== AgentSessionProviders.Background) {
+				if (backgroundContrib && backgroundContrib.canDelegate) {
 					actions.push(this.toAction(AgentSessionProviders.Background, backgroundContrib, instantiationService, location));
 				}
 
 				// Continue in Cloud
 				const cloudContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Cloud);
-				if (cloudContrib && cloudContrib.canDelegate && currentSessionType !== AgentSessionProviders.Cloud) {
+				if (cloudContrib && cloudContrib.canDelegate) {
 					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService, location));
 				}
 
 				// Offer actions to enter setup if we have no contributions
 				if (actions.length === 0) {
-					if (currentSessionType !== AgentSessionProviders.Background) {
-						actions.push(this.toSetupAction(AgentSessionProviders.Background, instantiationService));
-					}
-					if (currentSessionType !== AgentSessionProviders.Cloud) {
-						actions.push(this.toSetupAction(AgentSessionProviders.Cloud, instantiationService));
-					}
+					actions.push(this.toSetupAction(AgentSessionProviders.Background, instantiationService));
+					actions.push(this.toSetupAction(AgentSessionProviders.Cloud, instantiationService));
 				}
 
 				return actions;
