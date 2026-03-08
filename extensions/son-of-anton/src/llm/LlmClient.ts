@@ -67,12 +67,13 @@ export class LlmClient {
 	/**
 	 * Map our model shorthand to the full model ID.
 	 */
-	getModelId(model: ModelId): string {
+getModelId(model: ModelId): string {
 		switch (model) {
-			case 'opus': return 'claude-opus-4-6';
-			case 'sonnet': return 'claude-sonnet-4-6';
-			case 'haiku': return 'claude-haiku-4-5-20251001';
+			case 'opus': return 'claude-3-opus-20240229';
+			case 'sonnet': return 'claude-3-sonnet-20240229';
+			case 'haiku': return 'claude-3-haiku-20240307';
 		}
+	}
 	}
 
 	/**
