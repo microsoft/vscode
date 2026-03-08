@@ -1430,21 +1430,27 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 		e.dataTransfer?.setDragImage(widget, 0, 0);
 	}));
 
-	// Context menu (context key service created eagerly for keybinding preconditions,
-	// but resource context and provider contexts are initialized lazily on first use)
-	const scopedContextKeyService = store.add(parentContextKeyService.createScoped(widget));
-	chatAttachmentResourceContextKey.bindTo(scopedContextKeyService).set(attachment.value.uri.toString());
-	setResourceContext(accessor, scopedContextKeyService, attachment.value.uri);
-
+	// Context menu (context key service and resource contexts are initialized lazily on first context menu open)
+	let scopedContextKeyService: IScopedContextKeyService | undefined;
 	let providerContexts: ReadonlyArray<[IContextKey<boolean>, LanguageFeatureRegistry<unknown>]> | undefined;
 
+	const ensureContextKeyService = () => {
+		if (!scopedContextKeyService) {
+			scopedContextKeyService = store.add(parentContextKeyService.createScoped(widget));
+			chatAttachmentResourceContextKey.bindTo(scopedContextKeyService).set(attachment.value.uri.toString());
+			setResourceContext(accessor, scopedContextKeyService, attachment.value.uri);
+		}
+		return scopedContextKeyService;
+	};
+
 	const ensureProviderContexts = () => {
+		const cks = ensureContextKeyService();
 		if (!providerContexts) {
 			providerContexts = [
-				[EditorContextKeys.hasDefinitionProvider.bindTo(scopedContextKeyService), languageFeaturesService.definitionProvider],
-				[EditorContextKeys.hasReferenceProvider.bindTo(scopedContextKeyService), languageFeaturesService.referenceProvider],
-				[EditorContextKeys.hasImplementationProvider.bindTo(scopedContextKeyService), languageFeaturesService.implementationProvider],
-				[EditorContextKeys.hasTypeDefinitionProvider.bindTo(scopedContextKeyService), languageFeaturesService.typeDefinitionProvider],
+				[EditorContextKeys.hasDefinitionProvider.bindTo(cks), languageFeaturesService.definitionProvider],
+				[EditorContextKeys.hasReferenceProvider.bindTo(cks), languageFeaturesService.referenceProvider],
+				[EditorContextKeys.hasImplementationProvider.bindTo(cks), languageFeaturesService.implementationProvider],
+				[EditorContextKeys.hasTypeDefinitionProvider.bindTo(cks), languageFeaturesService.typeDefinitionProvider],
 			];
 		}
 	};
@@ -1466,6 +1472,8 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 		const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
 		dom.EventHelper.stop(domEvent, true);
 
+		const cks = ensureContextKeyService();
+
 		try {
 			await updateContextKeys();
 		} catch (e) {
@@ -1473,10 +1481,10 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 		}
 
 		contextMenuService.showContextMenu({
-			contextKeyService: scopedContextKeyService,
+			contextKeyService: cks,
 			getAnchor: () => event,
 			getActions: () => {
-				const menu = menuService.getMenuActions(contextMenuId, scopedContextKeyService, { arg: attachment.value });
+				const menu = menuService.getMenuActions(contextMenuId, cks, { arg: attachment.value });
 				return getFlatContextMenuActions(menu);
 			},
 		});
