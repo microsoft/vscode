@@ -116,12 +116,27 @@ export class SpecPipelineManager {
 			const content = await vscode.workspace.fs.readFile(reqUri);
 			const requirementsContent = Buffer.from(content).toString('utf-8');
 
-			// Call the spec-pipeline service to generate property tests
+			// First, parse the markdown requirements into a structured RequirementsSpec
+			const parseResponse = await fetch('http://localhost:8090/parse/requirements', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					requirementsContent,
+				}),
+			});
+
+			if (!parseResponse.ok) {
+				throw new Error(`Spec pipeline parse service returned ${parseResponse.status}`);
+			}
+
+			const parsedSpec = await parseResponse.json();
+
+			// Call the spec-pipeline service to generate property tests from the structured spec
 			const response = await fetch('http://localhost:8090/generate/property-tests', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					spec: requirementsContent,
+					spec: parsedSpec,
 					featureName,
 				}),
 			});
