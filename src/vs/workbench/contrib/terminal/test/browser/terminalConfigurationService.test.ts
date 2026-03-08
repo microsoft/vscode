@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { notStrictEqual, ok, strictEqual } from 'assert';
+import { deepStrictEqual, notStrictEqual, ok, strictEqual } from 'assert';
 import { getActiveWindow } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { isLinux } from '../../../../../base/common/platform.js';
@@ -13,6 +13,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../platf
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITerminalConfigurationService, LinuxDistro } from '../../browser/terminal.js';
+import { getDefaultCommandsToSkipShell } from '../../common/terminal.js';
 import { TestTerminalConfigurationService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('Workbench - TerminalConfigurationService', () => {
@@ -50,6 +51,19 @@ suite('Workbench - TerminalConfigurationService', () => {
 						source: ConfigurationTarget.USER
 					});
 				});
+			});
+		});
+	});
+
+	suite('getDefaultCommandsToSkipShell', () => {
+		test('should include generic clipboard commands only on macOS', () => {
+			const clipboardCommands = ['editor.action.clipboardCopyAction', 'editor.action.clipboardCutAction'];
+			deepStrictEqual({
+				mac: getDefaultCommandsToSkipShell(true).filter(command => clipboardCommands.includes(command)),
+				other: getDefaultCommandsToSkipShell(false).filter(command => clipboardCommands.includes(command))
+			}, {
+				mac: clipboardCommands,
+				other: []
 			});
 		});
 	});
