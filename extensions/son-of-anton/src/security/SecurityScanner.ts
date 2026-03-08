@@ -134,8 +134,7 @@ export class SecurityScanner {
 	 * Returns the parsed SARIF report.
 	 */
 	async runSemgrep(filePaths: string[]): Promise<SarifReport> {
-		const targets = filePaths.map(f => `/workspace/${f}`).join(' ');
-		const command = `semgrep --config=auto --sarif --output=/tmp/semgrep.sarif ${targets} 2>/dev/null; cat /tmp/semgrep.sarif`;
+        const targets = filePaths.map(f => "'/workspace/${f}'").join(' ');
 
 		const result = await this.sandbox.execute(command);
 		const report = parseSarif(result.stdout, 'Semgrep');
