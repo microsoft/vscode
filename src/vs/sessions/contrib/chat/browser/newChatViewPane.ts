@@ -234,6 +234,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}));
 
 		this._register(this._isolationModePicker.onDidChange((mode) => {
+			this._newSession.value?.setIsolationMode(mode);
 			this._branchPicker.setVisible(mode === 'worktree');
 			this._syncIndicator.setVisible(mode === 'worktree');
 			this._updateDraftState();
@@ -364,11 +365,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Wire pickers to the new session and disconnect inactive ones
 		const target = this._targetPicker.selectedTarget;
 		if (target === AgentSessionProviders.Background) {
-			this._isolationModePicker.setNewSession(session);
+			session.setIsolationMode(this._isolationModePicker.isolationMode);
 			this._branchPicker.setNewSession(session);
 			this._repoPicker.setNewSession(undefined);
 		} else {
-			this._isolationModePicker.setNewSession(undefined);
 			this._branchPicker.setNewSession(undefined);
 			this._repoPicker.setNewSession(session);
 		}
