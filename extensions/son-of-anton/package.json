@@ -1,0 +1,111 @@
+{
+	"name": "son-of-anton",
+	"displayName": "Son of Anton",
+	"description": "Agentic IDE capabilities for Son of Anton",
+	"publisher": "son-of-anton",
+	"license": "MIT",
+	"version": "0.1.0",
+	"engines": {
+		"vscode": "^1.96.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"main": "./dist/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "sota.openChat",
+				"title": "Son of Anton: Open Chat"
+			},
+			{
+				"command": "sota.inlineEdit",
+				"title": "Son of Anton: Inline Edit"
+			},
+			{
+				"command": "sota.showTraces",
+				"title": "Son of Anton: Show Agent Traces"
+			},
+			{
+				"command": "sota.clearChat",
+				"title": "Son of Anton: Clear Chat"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "sota.inlineEdit",
+				"key": "ctrl+k",
+				"mac": "cmd+k",
+				"when": "editorTextFocus"
+			}
+		],
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "sota-sidebar",
+					"title": "Son of Anton",
+					"icon": "media/icon.svg"
+				}
+			]
+		},
+		"views": {
+			"sota-sidebar": [
+				{
+					"id": "sota.agentStatus",
+					"name": "Agent Status"
+				},
+				{
+					"id": "sota.taskQueue",
+					"name": "Task Queue"
+				}
+			]
+		},
+		"configuration": {
+			"title": "Son of Anton",
+			"properties": {
+				"sota.defaultModel": {
+					"type": "string",
+					"default": "sonnet",
+					"enum": [
+						"opus",
+						"sonnet",
+						"haiku"
+					],
+					"description": "Default model for chat interactions"
+				},
+				"sota.completions.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable inline ghost-text completions"
+				},
+				"sota.completions.debounceMs": {
+					"type": "number",
+					"default": 300,
+					"description": "Debounce time in milliseconds before triggering completions"
+				},
+				"sota.traces.maxSessions": {
+					"type": "number",
+					"default": 50,
+					"description": "Maximum number of trace sessions to retain"
+				},
+				"sota.apiKey": {
+					"type": "string",
+					"default": "",
+					"description": "Anthropic API key (prefer environment variable ANTHROPIC_API_KEY)"
+				}
+			}
+		}
+	},
+	"scripts": {
+		"build": "npx tsx esbuild.mts",
+		"watch": "npx tsx esbuild.mts --watch",
+		"test": "node ./out/test/runTests.js"
+	},
+	"devDependencies": {
+		"@types/vscode": "^1.96.0",
+		"esbuild": "^0.24.0"
+	}
+}
