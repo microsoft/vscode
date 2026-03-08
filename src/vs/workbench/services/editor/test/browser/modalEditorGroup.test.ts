@@ -615,6 +615,64 @@ suite('Modal Editor Group', () => {
 
 			assert.strictEqual(parts.activeModalEditorPart, undefined);
 		});
+
+		test('shows tabs when multiple editors are open', async () => {
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration('workbench.editor.useModal', 'all');
+			instantiationService.stub(IConfigurationService, configurationService);
+			const parts = await createEditorParts(instantiationService, disposables);
+			instantiationService.stub(IEditorGroupsService, parts);
+
+			const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
+			instantiationService.stub(IEditorService, editorService);
+
+			const input1 = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+			await editorService.openEditor(input1, { pinned: true }, MODAL_GROUP);
+
+			const modalPart = parts.activeModalEditorPart!;
+			assert.ok(modalPart);
+
+			// With 1 editor, tabs should be hidden
+			assert.strictEqual(modalPart.partOptions.showTabs, 'none');
+
+			// Open a second editor
+			const input2 = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
+			await editorService.openEditor(input2, { pinned: true }, MODAL_GROUP);
+
+			// With 2 editors, tabs should be visible
+			assert.strictEqual(modalPart.partOptions.showTabs, 'multiple');
+
+			modalPart.close();
+		});
+
+		test('hides tabs when not in all mode even with multiple editors', async () => {
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration('workbench.editor.useModal', 'some');
+			instantiationService.stub(IConfigurationService, configurationService);
+			const parts = await createEditorParts(instantiationService, disposables);
+			instantiationService.stub(IEditorGroupsService, parts);
+
+			const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
+			instantiationService.stub(IEditorService, editorService);
+
+			const input1 = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+			await editorService.openEditor(input1, { pinned: true }, MODAL_GROUP);
+
+			const modalPart = parts.activeModalEditorPart!;
+			assert.ok(modalPart);
+
+			const input2 = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
+			await editorService.openEditor(input2, { pinned: true }, MODAL_GROUP);
+
+			// With 'some' mode, tabs should remain hidden even with multiple editors
+			assert.strictEqual(modalPart.partOptions.showTabs, 'none');
+
+			modalPart.close();
+		});
 	});
 
 	test('modal editor part editors can be moved to another group', async () => {

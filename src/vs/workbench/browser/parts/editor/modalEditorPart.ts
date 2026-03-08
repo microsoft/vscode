@@ -103,6 +103,8 @@ const defaultModalEditorAllowableCommands = new Set([
 	NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID,
 ]);
 
+const USE_MODAL_EDITOR_SETTING = 'workbench.editor.useModal';
+
 export interface ICreateModalEditorPartResult {
 	readonly part: ModalEditorPartImpl;
 	readonly instantiationService: IInstantiationService;
@@ -139,10 +141,10 @@ export class ModalEditorPart {
 			}
 		}));
 
-		let useModalMode = this.configurationService.getValue<string>('workbench.editor.useModal');
+		let useModalMode = this.configurationService.getValue<string>(USE_MODAL_EDITOR_SETTING);
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.editor.useModal')) {
-				useModalMode = this.configurationService.getValue<string>('workbench.editor.useModal');
+			if (e.affectsConfiguration(USE_MODAL_EDITOR_SETTING)) {
+				useModalMode = this.configurationService.getValue<string>(USE_MODAL_EDITOR_SETTING);
 			}
 		}));
 
@@ -271,6 +273,7 @@ export class ModalEditorPart {
 			setVisibility(hasActions, editorActionsSeparator);
 		};
 		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => updateEditorActions()));
+		disposables.add(modalEditorService.onDidEditorsChange(() => editorPart.enforceModalPartOptions()));
 
 		// Create global toolbar
 		disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.ModalEditorTitle, {
@@ -346,20 +349,19 @@ export class ModalEditorPart {
 				const titleBarOffset = this.layoutService.mainContainerOffset.top;
 				const dialogWidth = resizableElement.size.width;
 				const dialogHeight = resizableElement.size.height;
-				const availableHeight = Math.max(containerDimension.height - titleBarOffset, 0);
 
 				// Clamp to window bounds
 				const minLeft = 0;
 				const minTop = titleBarOffset;
 				const maxLeft = Math.max(minLeft, containerDimension.width - dialogWidth);
-				const maxTop = Math.max(minTop, titleBarOffset + availableHeight - dialogHeight);
+				const maxTop = Math.max(minTop, containerDimension.height - dialogHeight);
 
 				let newLeft = Math.max(minLeft, Math.min(maxLeft, startLeft + (moveEvent.clientX - startX)));
 				let newTop = Math.max(minTop, Math.min(maxTop, startTop + (moveEvent.clientY - startY)));
 
 				// Snap to center position when close
 				const centerLeft = (containerDimension.width - dialogWidth) / 2;
-				const centerTop = titleBarOffset + (availableHeight - dialogHeight) / 2;
+				const centerTop = Math.max(titleBarOffset, (containerDimension.height - dialogHeight) / 2);
 
 				if (Math.abs(newLeft - centerLeft) < MODAL_SNAP_THRESHOLD && Math.abs(newTop - centerTop) < MODAL_SNAP_THRESHOLD) {
 					newLeft = centerLeft;
@@ -381,9 +383,8 @@ export class ModalEditorPart {
 					// Check if snapped to center — if so, clear custom position
 					const containerDimension = this.layoutService.mainContainerDimension;
 					const titleBarOffset = this.layoutService.mainContainerOffset.top;
-					const availableHeight = Math.max(containerDimension.height - titleBarOffset, 0);
 					const centerLeft = (containerDimension.width - resizableElement.size.width) / 2;
-					const centerTop = titleBarOffset + (availableHeight - resizableElement.size.height) / 2;
+					const centerTop = Math.max(titleBarOffset, (containerDimension.height - resizableElement.size.height) / 2);
 
 					if (Math.abs(currentLeft - centerLeft) < 1 && Math.abs(currentTop - centerTop) < 1) {
 						editorPart.position = undefined;
@@ -516,9 +517,7 @@ export class ModalEditorPart {
 				resizableElement.domNode.style.top = `${clampedTop}px`;
 			} else {
 				const left = (containerDimension.width - width) / 2;
-				const top = editorPart.maximized
-					? (containerDimension.height - height) / 2 // center in full window to stay close to title bar
-					: titleBarOffset + (availableHeight - height) / 2;
+				const top = Math.max(titleBarOffset, (containerDimension.height - height) / 2); // center in full window, but clamp to stay below the title bar
 				resizableElement.domNode.style.left = `${left}px`;
 				resizableElement.domNode.style.top = `${top}px`;
 			}
@@ -615,6 +614,12 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		}
 
 		this.enforceModalPartOptions();
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(USE_MODAL_EDITOR_SETTING)) {
+				this.enforceModalPartOptions();
+			}
+		}));
 	}
 
 	override create(parent: HTMLElement, options?: object): void {
@@ -623,12 +628,16 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		super.create(parent, options);
 	}
 
-	private enforceModalPartOptions(): void {
+	enforceModalPartOptions(): void {
+		const useModalForAll = this.configurationService.getValue<string>(USE_MODAL_EDITOR_SETTING) === 'all';
+		const editorCount = this.groups.reduce((count, group) => count + group.count, 0);
+		const showTabs = useModalForAll && editorCount > 1 ? 'multiple' : 'none';
+
 		this.optionsDisposable.value = this.enforcePartOptions({
-			showTabs: 'none',
+			showTabs,
 			enablePreview: true,
 			closeEmptyGroups: true,
-			tabActionCloseVisibility: false,
+			tabActionCloseVisibility: showTabs !== 'none',
 			editorActionsLocation: 'hidden',
 			tabHeight: 'default',
 			wrapTabs: false,
