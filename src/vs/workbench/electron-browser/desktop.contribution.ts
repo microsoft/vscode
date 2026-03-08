@@ -450,7 +450,7 @@ import product from '../../platform/product/common/product.js';
 			},
 			'use-inmemory-secretstorage': {
 				type: 'boolean',
-				description: localize('argv.useInMemorySecretStorage', "Ensures that an in-memory store will be used for secret storage instead of using the OS's credential store. This is often used when running extension tests or when you're experiencing difficulties with the credential store.")
+description: localize('argv.useInMemorySecretStorage', "Ensures that an in-memory store will be used for secret storage instead of using the OS's credential store. This is often used when running Son of Anton extension tests or when you're experiencing difficulties with the credential store.")
 			},
 			'remote-debugging-port': {
 				type: 'string',
