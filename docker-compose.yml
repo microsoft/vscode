@@ -180,11 +180,9 @@ services:
     restart: unless-stopped
 
   owasp-zap:
-    image: zaproxy/zap-stable:latest
+    image: zaproxy/zap-stable:2.14.0
     container_name: soa-owasp-zap
     command: zap.sh -daemon -host 0.0.0.0 -port 8090 -config api.disablekey=true
-    ports:
-      - "${ZAP_PORT:-8090}:8090"
     networks:
       - sandbox-net
     healthcheck:
