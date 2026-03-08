@@ -280,6 +280,6 @@ After making changes, reload window (Ctrl+Shift+P ? "Reload Window") instead of 
 
 ---
 
-**Document Created:** Week 1 - Day 1-2  
-**Last Updated:** [Current Date]  
+**Document Created:** Week 1 - Day 1-2
+**Last Updated:** [Current Date]
 **Team:** Muhammad Atif & Talha Asif
