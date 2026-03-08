@@ -1,5 +1,4 @@
 {
-	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"description": "Son of Anton — Approved extensions from Open VSX. All extensions must be verified before adding. Submit a PR to add new entries.",
 	"allowedExtensions": [
 		{
