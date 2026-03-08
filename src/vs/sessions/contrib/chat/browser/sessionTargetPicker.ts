@@ -163,6 +163,9 @@ export class IsolationModePicker extends Disposable {
 	 */
 	setNewSession(session: INewSession | undefined): void {
 		this._newSession = session;
+		if (session) {
+			session.setIsolationMode(this._isolationMode);
+		}
 	}
 
 	/**
