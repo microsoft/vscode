@@ -37,8 +37,13 @@ window.phonon.onReady(function() {
 			var d = outOfStock[j];
 			var row = document.createElement('div');
 			row.className = 'ia-row ia-alert-border';
-			row.innerHTML = '<span class="ia-icon">\u26a0</span>' +
-				'<span>' + d.name + ' \u2014 esaurito</span>';
+			var iconSpan = document.createElement('span');
+			iconSpan.className = 'ia-icon';
+			iconSpan.textContent = '\u26a0';
+			var textSpan = document.createElement('span');
+			textSpan.textContent = d.name + ' \u2014 esaurito';
+			row.appendChild(iconSpan);
+			row.appendChild(textSpan);
 			list.appendChild(row);
 		}
 	});

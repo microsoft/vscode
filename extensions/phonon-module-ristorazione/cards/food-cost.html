@@ -29,7 +29,12 @@ window.phonon.onReady(function() {
 		for (var j = 0; j < Math.min(3, sorted.length); j++) {
 			var item = document.createElement('div');
 			item.className = 'fc-item';
-			item.innerHTML = '<span>' + sorted[j].name + '</span><span>' + sorted[j].foodCostPercent + '%</span>';
+			var nameSpan = document.createElement('span');
+			nameSpan.textContent = sorted[j].name;
+			var costSpan = document.createElement('span');
+			costSpan.textContent = sorted[j].foodCostPercent + '%';
+			item.appendChild(nameSpan);
+			item.appendChild(costSpan);
 			list.appendChild(item);
 		}
 	});

@@ -43,6 +43,7 @@ export class LiquidCanvasEditorInput extends EditorInput {
 	}
 
 	override matches(otherInput: EditorInput | unknown): boolean {
-		return otherInput instanceof LiquidCanvasEditorInput;
+		return otherInput instanceof LiquidCanvasEditorInput
+			&& otherInput.resource.toString() === this.resource.toString();
 	}
 }

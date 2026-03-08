@@ -5,14 +5,21 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorOpenContext } from '../../../../common/editor.js';
-import { ICompositionIntent, ICompositionSlot, CompositionLayout } from '../../common/liquidModuleTypes.js';
+import { IWebviewService } from '../../../webview/browser/webview.js';
+import { asWebviewUri } from '../../../webview/common/webview.js';
+import { ILiquidModuleRegistry } from '../../common/liquidModule.js';
+import { ICompositionIntent, ICompositionSlot, ILiquidCard, CompositionLayout } from '../../common/liquidModuleTypes.js';
+import { ILiquidDataResolver, LiquidCardSlotHost } from '../liquidCardBridge.js';
 import { LiquidCanvasEditorInput } from './liquidCanvasEditorInput.js';
 
 /**
@@ -34,20 +41,66 @@ const LAYOUT_STRATEGY: Record<CompositionLayout, (slots: readonly ICompositionSl
 	},
 	'grid': (slots) => {
 		const colCount = Math.ceil(Math.sqrt(slots.length));
-		return { columns: `repeat(${colCount}, 1fr)`, rows: 'auto' };
+		const rowCount = Math.ceil(slots.length / colCount);
+		return { columns: `repeat(${colCount}, 1fr)`, rows: `repeat(${rowCount}, 1fr)` };
 	},
 	'stack': (slots) => {
-		const rows = slots.map(() => 'auto').join(' ');
+		const rows = slots.map(s => s.weight ? `${s.weight}fr` : 'minmax(150px, 1fr)').join(' ');
 		return { columns: '1fr', rows };
 	},
 };
 
 /**
+ * Bridge script injected into every card webview.
+ * Provides the `window.phonon` API for card developers. Inlined to avoid
+ * a runtime file read -- the source of truth is phonon-card-bridge.js.
+ */
+function getBridgeScript(): string {
+	// The bridge detects acquireVsCodeApi for WebviewElement transport and
+	// falls back to window.parent.postMessage for raw iframe transport.
+	return [
+		'(function(){',
+		'"use strict";',
+		'var vscodeApi=(typeof acquireVsCodeApi==="function")?acquireVsCodeApi():null;',
+		'function sendToHost(m){if(vscodeApi){vscodeApi.postMessage(m);}else{window.parent.postMessage(m,"*");}}',
+		'var pending=new Map();var readyCallbacks=[];var initialized=false;',
+		'window.phonon={data:{',
+		'fetch:function(e,q){return sendReq("phonon:data:fetch",{entity:e,query:q});},',
+		'mutate:function(e,op,d){return sendReq("phonon:data:mutate",{entity:e,operation:op,data:d});}',
+		'},',
+		'navigate:function(v,p){sendToHost({type:"phonon:navigate",viewId:v,params:p});},',
+		'intent:function(d){sendToHost({type:"phonon:intent",description:d});},',
+		'setTitle:function(t){sendToHost({type:"phonon:setTitle",title:t});},',
+		'setLoading:function(l){sendToHost({type:"phonon:setLoading",loading:l});},',
+		'onReady:function(cb){if(initialized){cb();}else{readyCallbacks.push(cb);}},',
+		'params:{}};',
+		'function genId(){return Date.now().toString(36)+"-"+Math.random().toString(36).substring(2,10);}',
+		'function sendReq(type,payload){return new Promise(function(resolve,reject){',
+		'var rid=genId();pending.set(rid,{resolve:resolve,reject:reject});',
+		'var msg={type:type,requestId:rid};for(var k in payload){if(Object.prototype.hasOwnProperty.call(payload,k)){msg[k]=payload[k];}}',
+		'sendToHost(msg);});}',
+		'window.addEventListener("message",function(event){',
+		'var msg=event.data;if(!msg||!msg.type){return;}',
+		'if(msg.type==="phonon:data:response"){var p=pending.get(msg.requestId);if(p){pending.delete(msg.requestId);if(msg.success){p.resolve(msg.data);}else{p.reject(new Error(msg.error||"Unknown error"));}}}',
+		'else if(msg.type==="phonon:params"){window.phonon.params=msg.params||{};}',
+		'else if(msg.type==="phonon:init"){initialized=true;var cbs=readyCallbacks;readyCallbacks=[];for(var i=0;i<cbs.length;i++){cbs[i]();}}',
+		'});',
+		'sendToHost({type:"phonon:ready"});',
+		'})();',
+	].join('\n');
+}
+
+/**
  * Editor pane that renders composition intents as CSS grid layouts.
  *
- * MVP: pure DOM rendering -- no webview. Each composition slot is a styled
- * div showing the viewId and params. Actual component loading deferred to
- * future tasks.
+ * Each card slot is rendered as a VS Code WebviewElement (sandboxed, CSP-managed,
+ * remote-lifecycle-safe). The webview communicates with the host via postMessage
+ * and the host routes data requests through ILiquidDataResolver.
+ *
+ * Relationship graph:
+ *   LiquidCanvasEditor -> (IWebviewService) -> WebviewElement per card
+ *   WebviewElement <-> LiquidCardSlotHost <-> ILiquidDataResolver
+ *   ILiquidModuleRegistry -> card metadata (entryUri, entity, tags)
  */
 export class LiquidCanvasEditor extends EditorPane {
 
@@ -55,18 +108,26 @@ export class LiquidCanvasEditor extends EditorPane {
 
 	private _container: HTMLElement | undefined;
 	private _currentIntent: ICompositionIntent | undefined;
+	private readonly _slotHosts = this._register(new DisposableStore());
 
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
+		@IWebviewService private readonly webviewService: IWebviewService,
+		@ILiquidDataResolver private readonly dataResolver: ILiquidDataResolver,
+		@ILiquidModuleRegistry private readonly registry: ILiquidModuleRegistry,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(LiquidCanvasEditor.ID, group, telemetryService, themeService, storageService);
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
 		this._container = dom.append(parent, dom.$('.liquid-canvas-container'));
+		if (this._currentIntent) {
+			this._renderIntent(this._currentIntent);
+		}
 	}
 
 	override async setInput(input: LiquidCanvasEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -101,6 +162,9 @@ export class LiquidCanvasEditor extends EditorPane {
 			return;
 		}
 
+		// Dispose previous slot hosts and webviews before clearing the DOM
+		this._slotHosts.clear();
+
 		dom.clearNode(this._container);
 
 		const grid = dom.append(this._container, dom.$('.liquid-canvas-grid'));
@@ -125,12 +189,118 @@ export class LiquidCanvasEditor extends EditorPane {
 		// -- Body --
 		const body = dom.append(slotEl, dom.$('.liquid-canvas-slot-body'));
 
-		const targetLine = dom.append(body, dom.$('div'));
-		targetLine.textContent = slot.cardId ? `Card: ${slot.cardId}` : `View: ${slotTargetId}`;
+		// Attempt card rendering via WebviewElement
+		if (slot.cardId) {
+			const card = this.registry.cards.find(c => c.id === slot.cardId);
+			if (card) {
+				this._renderCardWebview(body, card, slot.params);
+				return;
+			}
+		}
+
+		// Fallback: placeholder for views or unknown cards
+		const viewLine = dom.append(body, dom.$('div'));
+		viewLine.textContent = slot.cardId ? `Card: ${slot.cardId}` : `View: ${slotTargetId}`;
 
 		if (slot.params && Object.keys(slot.params).length > 0) {
 			const paramsBlock = dom.append(body, dom.$('pre.liquid-canvas-slot-params'));
 			paramsBlock.textContent = JSON.stringify(slot.params, null, 2);
 		}
+	}
+
+	/**
+	 * Render a card inside a WebviewElement.
+	 *
+	 * The webview loads the card HTML via `asWebviewUri` so the service worker
+	 * resolves local resources properly. The bridge script is inlined in the
+	 * HTML head and uses `acquireVsCodeApi()` for message transport.
+	 */
+	private _renderCardWebview(
+		container: HTMLElement,
+		card: ILiquidCard,
+		params?: Record<string, unknown>,
+	): void {
+		// Derive resource root from entry URI (parent directory)
+		const entryPath = card.entryUri.path;
+		const lastSlash = entryPath.lastIndexOf('/');
+		const resourceRoot = card.entryUri.with({ path: entryPath.substring(0, lastSlash) });
+
+		// Create a managed webview element
+		const webview = this.webviewService.createWebviewElement({
+			providedViewType: 'phonon.liquidCard',
+			title: card.label,
+			options: {
+				enableFindWidget: false,
+			},
+			contentOptions: {
+				allowScripts: true,
+				localResourceRoots: [resourceRoot],
+			},
+			extension: undefined,
+		});
+
+		// Convert entry URI to a webview-safe URI
+		const cardEntryUrl = asWebviewUri(card.entryUri).toString();
+
+		// Build HTML with bridge script + card loader
+		const bridgeScript = getBridgeScript();
+		webview.setHtml([
+			'<!DOCTYPE html>',
+			'<html>',
+			'<head>',
+			'<meta charset="utf-8">',
+			'<style>',
+			'*{margin:0;padding:0;box-sizing:border-box;}',
+			'body{font-family:var(--vscode-font-family,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);',
+			'color:var(--vscode-foreground,#ccc);background:transparent;padding:8px;',
+			'font-size:var(--vscode-font-size,13px);}',
+			'</style>',
+			`<script>${bridgeScript}</script>`,
+			'</head>',
+			'<body>',
+			'<div id="phonon-card-root">Loading...</div>',
+			'<script>',
+			'(function(){',
+			'var root=document.getElementById("phonon-card-root");',
+			`fetch("${cardEntryUrl}")`,
+			'.then(function(r){return r.text();})',
+			'.then(function(html){',
+			'root.innerHTML="";',
+			'var range=document.createRange();',
+			'var fragment=range.createContextualFragment(html);',
+			'root.appendChild(fragment);',
+			'})',
+			'.catch(function(err){',
+			'root.textContent="Card load error: "+err.message;',
+			'});',
+			'})();',
+			'</script>',
+			'</body>',
+			'</html>',
+		].join('\n'));
+
+		// Mount the webview DOM element into the slot body
+		webview.mountTo(container, this.window);
+
+		// Wire host-side message routing through the abstraction layer.
+		// WebviewElement.onMessage carries { message, transfer? } -- unwrap to get
+		// the raw CardToHostMessage that LiquidCardSlotHost expects.
+		const host = new LiquidCardSlotHost(
+			{
+				postMessage: (msg) => webview.postMessage(msg),
+				onDidReceiveMessage: Event.map(webview.onMessage, e => e.message),
+			},
+			card.id,
+			card.entity,
+			params,
+			this.dataResolver,
+			this.logService,
+		);
+
+		// Track both disposables so they are cleaned up on re-render
+		this._slotHosts.add(webview);
+		this._slotHosts.add(host);
+
+		this.logService.info(`[Phonon Canvas] Rendered card webview: ${card.id}`);
 	}
 }

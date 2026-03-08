@@ -146,7 +146,14 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 				delegationListener.dispose();
 				outputListener.dispose();
 				statusListener.dispose();
+				cancelListener.dispose();
 			};
+
+			// Register cancellation listener so late cancellations resolve the promise
+			const cancelListener = token.onCancellationRequested(() => {
+				cleanup();
+				resolve({ timings: { totalElapsed: stopWatch.elapsed() } });
+			});
 
 			// Wait for all agents to complete
 			const statusListener = this.agentPoolService.onDidAgentStatusChange((agent) => {
@@ -166,12 +173,6 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 					}
 				}
 			});
-
-			// Safety: resolve on cancellation
-			if (token.isCancellationRequested) {
-				cleanup();
-				resolve({ timings: { totalElapsed: stopWatch.elapsed() } });
-			}
 		});
 	}
 

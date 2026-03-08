@@ -40,9 +40,17 @@ window.phonon.onReady(function() {
 			else if (order.status === 'ready') { statusClass += ' oi-status-ready'; }
 			else { statusClass += ' oi-status-pending'; }
 
-			row.innerHTML = '<span>Tavolo ' + order.table + '</span>' +
-				'<span class="' + statusClass + '">' + order.status + '</span>' +
-				'<span class="oi-time">' + order.time + '</span>';
+			var tableSpan = document.createElement('span');
+			tableSpan.textContent = 'Tavolo ' + order.table;
+			var statusSpan = document.createElement('span');
+			statusSpan.className = statusClass;
+			statusSpan.textContent = order.status;
+			var timeSpan = document.createElement('span');
+			timeSpan.className = 'oi-time';
+			timeSpan.textContent = order.time;
+			row.appendChild(tableSpan);
+			row.appendChild(statusSpan);
+			row.appendChild(timeSpan);
 			list.appendChild(row);
 		}
 	});

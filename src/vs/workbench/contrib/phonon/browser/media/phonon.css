@@ -542,10 +542,11 @@
 }
 
 .liquid-canvas-grid {
+	width: 100%;
+	height: 100%;
 	display: grid;
 	gap: 8px;
 	padding: 8px;
-	min-height: 100%;
 }
 
 .liquid-canvas-slot {
@@ -555,6 +556,7 @@
 	overflow: hidden;
 	display: flex;
 	flex-direction: column;
+	min-height: 150px;
 	animation: phonon-fade-in 0.15s ease-out;
 }
 
@@ -574,6 +576,13 @@
 	font-size: 12px;
 	color: var(--vscode-foreground);
 	flex: 1;
+	overflow: hidden;
+	position: relative;
+}
+
+.liquid-canvas-slot-body .webview {
+	width: 100%;
+	height: 100%;
 }
 
 .liquid-canvas-slot-params {

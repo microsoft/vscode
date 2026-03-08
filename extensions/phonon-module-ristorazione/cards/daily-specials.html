@@ -38,8 +38,13 @@ window.phonon.onReady(function() {
 			row.className = 'ds-row';
 
 			var price = d.price.toFixed(2).replace('.', ',');
-			row.innerHTML = '<span>' + d.name + '</span>' +
-				'<span class="ds-price">\u20ac' + price + '</span>';
+			var nameSpan = document.createElement('span');
+			nameSpan.textContent = d.name;
+			var priceSpan = document.createElement('span');
+			priceSpan.className = 'ds-price';
+			priceSpan.textContent = '\u20ac' + price;
+			row.appendChild(nameSpan);
+			row.appendChild(priceSpan);
 			list.appendChild(row);
 		}
 	});

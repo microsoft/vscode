@@ -36,9 +36,18 @@ window.phonon.onReady(function() {
 				stars += j < rating ? '\u2605' : '\u2606';
 			}
 
-			row.innerHTML = '<span class="ss-name">' + s.name + '</span>' +
-				'<span class="' + badgeClass + '">' + s.status + '</span>' +
-				'<span class="ss-rating">' + stars + '</span>';
+			var nameSpan = document.createElement('span');
+			nameSpan.className = 'ss-name';
+			nameSpan.textContent = s.name;
+			var badgeSpan = document.createElement('span');
+			badgeSpan.className = badgeClass;
+			badgeSpan.textContent = s.status;
+			var ratingSpan = document.createElement('span');
+			ratingSpan.className = 'ss-rating';
+			ratingSpan.textContent = stars;
+			row.appendChild(nameSpan);
+			row.appendChild(badgeSpan);
+			row.appendChild(ratingSpan);
 			list.appendChild(row);
 		}
 	});
