@@ -1,0 +1,35 @@
+{
+	"extensionAllowlist": [
+		{
+			"id": "son-of-anton.son-of-anton",
+			"publisher": "son-of-anton",
+			"reason": "Core Son of Anton extension"
+		}
+	],
+	"mcpServerTrustList": [
+		{
+			"name": "code-graph",
+			"url": "http://localhost:3100",
+			"trusted": true,
+			"reason": "Local code graph MCP server"
+		},
+		{
+			"name": "mcp-database",
+			"url": "http://localhost:3200",
+			"trusted": true,
+			"reason": "Local database MCP server"
+		},
+		{
+			"name": "mcp-deployment",
+			"url": "http://localhost:3300",
+			"trusted": true,
+			"reason": "Local deployment MCP server"
+		},
+		{
+			"name": "mcp-tickets",
+			"url": "http://localhost:3400",
+			"trusted": true,
+			"reason": "Local tickets MCP server"
+		}
+	]
+}

@@ -89,6 +89,18 @@
 				"title": "Son of Anton: Clear Chat"
 			},
 			{
+				"command": "sota.exportTraces",
+				"title": "Son of Anton: Export Traces"
+			},
+			{
+				"command": "sota.showSandbox",
+				"title": "Son of Anton: Show Sandbox Terminal"
+			},
+			{
+				"command": "sota.triggerPreCommitHook",
+				"title": "Son of Anton: Trigger Pre-Commit Hook"
+			},
+			{
 				"command": "sota.recordMemory",
 				"title": "Son of Anton: Record Project Memory"
 			}
