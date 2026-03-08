@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -27,6 +28,13 @@ import {
 import { IChatFollowup, IChatProgress } from '../../chat/common/chatService/chatService.js';
 
 export class PhononChatAgentImpl extends Disposable implements IChatAgentImplementation {
+
+	private readonly _onDidSoloOutput = this._register(new Emitter<string>());
+	/**
+	 * Fires with accumulated text when a solo-mode API call completes.
+	 * Used by PhononMcpBridge to intercept composition intents from solo output.
+	 */
+	readonly onDidSoloOutput: Event<string> = this._onDidSoloOutput.event;
 
 	constructor(
 		@IPhononService private readonly phononService: IPhononService,
@@ -177,6 +185,7 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 		stopWatch: StopWatch,
 		token: CancellationToken,
 	): Promise<IChatAgentResult> {
+		const accumulatedText: string[] = [];
 		try {
 			const messages = this._buildMessages(request, history);
 			const rawModelId = request.userSelectedModelId || this.phononService.defaultModelId;
@@ -197,6 +206,7 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 				const parts = Array.isArray(part) ? part : [part];
 				for (const p of parts) {
 					if (p.type === 'text') {
+						accumulatedText.push(p.value);
 						progress([{
 							kind: 'markdownContent',
 							content: new MarkdownString(p.value),
@@ -226,6 +236,14 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 				errorDetails: { message: err instanceof Error ? err.message : String(err) },
 				timings: { totalElapsed: stopWatch.elapsed() },
 			};
+		} finally {
+			// Fire solo output for intent interception by MCP bridge.
+			// In finally: even if response.result rejects, the user already saw
+			// the streamed output (including any intent), so we must process it.
+			const fullOutput = accumulatedText.join('');
+			if (fullOutput.length > 0) {
+				this._onDidSoloOutput.fire(fullOutput);
+			}
 		}
 	}
 
@@ -331,8 +349,9 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 		const capabilities = this.liquidModuleRegistry.getCapabilities();
 		const hasEntities = capabilities.entities.length > 0;
 		const hasViews = capabilities.views.length > 0;
+		const hasCards = capabilities.cards && capabilities.cards.length > 0;
 
-		if (!hasEntities && !hasViews) {
+		if (!hasEntities && !hasViews && !hasCards) {
 			return base;
 		}
 
@@ -357,12 +376,29 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 			}
 		}
 
+		if (hasCards) {
+			sections.push('', '### Available Cards (Micro-Widgets)');
+			sections.push('Cards are sandboxed HTML components. Use cardId in composition intents.');
+			for (const card of capabilities.cards) {
+				const parts: string[] = [];
+				if (card.entity) { parts.push(`entity=${card.entity}`); }
+				if (card.tags.length > 0) { parts.push(`tags=${card.tags.join(',')}`); }
+				sections.push(`- ${card.id} (${card.label}): ${parts.join(', ')}`);
+			}
+		}
+
 		sections.push(
 			'',
 			'### Canvas Composition',
-			'When the user asks to see data visually, emit a composition intent:',
+			'When the user asks to see data visually, emit a composition intent.',
+			'Use cardId for micro-cards (preferred for dashboards) or viewId for full views.',
+			'Example with cards:',
 			'```phonon-intent',
-			'{ "layout": "single", "slots": [{ "viewId": "<viewId>", "params": { "filter": {} } }] }',
+			'{ "layout": "grid", "slots": [{ "cardId": "rist-food-cost" }, { "cardId": "rist-orders-incoming" }, { "cardId": "rist-revenue-today" }] }',
+			'```',
+			'Example with view:',
+			'```phonon-intent',
+			'{ "layout": "single", "slots": [{ "viewId": "ristDashboard" }] }',
 			'```',
 			'Available layouts: single, split-horizontal, split-vertical, grid, stack.',
 			'Do NOT generate HTML. The compositor renders the intent.',
