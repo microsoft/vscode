@@ -3,7 +3,7 @@
 
 const http = require('http');
 
-const PORT = process.env.MCP_PORT || 3100;
+const PORT = 3100;
 
 const server = http.createServer((req, res) => {
 	if (req.url === '/health') {
