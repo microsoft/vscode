@@ -5627,9 +5627,18 @@ export class CommandCenter {
 							.split(/[\r\n]/)
 							.filter((line: string) => !!line);
 
-						message = hintLines.length > 0
-							? l10n.t('Git: {0}', err.stdout ? hintLines[hintLines.length - 1] : hintLines[0])
+						const selectedHint = hintLines.length > 0
+							? (err.stdout ? hintLines[hintLines.length - 1] : hintLines[0])
+							: undefined;
+
+						message = selectedHint
+							? l10n.t('Git: {0}', selectedHint)
 							: l10n.t('Git error');
+
+						if (/^warning:/i.test(selectedHint ?? '')) {
+							type = 'warning';
+							options.modal = false;
+						}
 
 						break;
 					}
