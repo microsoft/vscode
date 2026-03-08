@@ -1,0 +1,589 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Phi-Based Spacing Scale (Golden Ratio, Fibonacci):
+ *   xs=2px, s=3px, m=5px, l=8px, xl=13px, xxl=21px
+ */
+
+/* -- Container -- */
+
+.phonon-agent-pool {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow: hidden;
+}
+
+/* -- Toolbar -- */
+
+.phonon-agent-pool-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 2px 8px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	flex-shrink: 0;
+	height: 28px;
+}
+
+/* -- Buttons (toolbar) -- */
+
+.phonon-btn {
+	cursor: pointer;
+	padding: 2px 5px;
+	border: none;
+	background: transparent;
+	color: var(--vscode-textLink-foreground);
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 11px;
+	border-radius: 2px;
+	transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.phonon-btn .codicon {
+	font-size: 14px;
+}
+
+.phonon-btn:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.phonon-btn:disabled {
+	cursor: default;
+	opacity: 0.5;
+}
+
+.phonon-btn-destructive {
+	color: var(--vscode-descriptionForeground);
+	margin-left: auto;
+}
+
+.phonon-btn-destructive:hover {
+	color: var(--vscode-errorForeground);
+}
+
+/* -- Send Buttons -- */
+
+.phonon-btn-send {
+	cursor: pointer;
+	padding: 2px 5px;
+	border: none;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-radius: 2px;
+	display: flex;
+	align-items: center;
+	transition: background-color 0.1s ease, opacity 0.15s ease;
+}
+
+.phonon-btn-send .codicon {
+	font-size: 14px;
+}
+
+.phonon-btn-send:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.phonon-btn-send:disabled {
+	cursor: default;
+	opacity: 0.5;
+}
+
+/* -- Master Input Bar -- */
+
+.phonon-master-input {
+	display: none;
+	align-items: center;
+	gap: 5px;
+	padding: 5px 8px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	flex-shrink: 0;
+}
+
+.phonon-master-input.visible {
+	display: flex;
+}
+
+.phonon-master-input-label {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+/* -- Input Fields -- */
+
+.phonon-input {
+	flex: 1;
+	padding: 3px 5px;
+	border: 1px solid var(--vscode-input-border);
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-size: 12px;
+	border-radius: 2px;
+	outline: none;
+	font-family: inherit;
+	transition: border-color 0.15s ease;
+}
+
+.phonon-input:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+.phonon-input:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+/* -- Agent List -- */
+
+.phonon-agent-list {
+	overflow: auto;
+	flex-shrink: 0;
+}
+
+.phonon-agent-empty {
+	padding: 5px 8px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	font-size: 11px;
+}
+
+/* -- Agent Rows -- */
+
+.phonon-agent-row {
+	padding: 3px 8px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 12px;
+	animation: phonon-fade-in 0.15s ease-out;
+	transition: background-color 0.1s ease;
+}
+
+.phonon-agent-row:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.phonon-agent-row.selected {
+	background: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.phonon-agent-row.selected:hover {
+	background: var(--vscode-list-activeSelectionBackground);
+}
+
+/* Master-Worker Visual Hierarchy */
+
+.phonon-agent-row.master {
+	border-left: 2px solid var(--vscode-textLink-foreground);
+}
+
+.phonon-agent-row.worker {
+	padding-left: 21px;
+}
+
+/* -- Agent Row Content -- */
+
+.phonon-agent-role {
+	font-weight: 500;
+}
+
+.phonon-agent-role.master {
+	color: var(--vscode-textLink-foreground);
+}
+
+.phonon-agent-row.selected .phonon-agent-role.master {
+	color: inherit;
+}
+
+.phonon-agent-status {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	margin-left: auto;
+}
+
+.phonon-agent-snippet {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 120px;
+}
+
+/* -- Status Icons -- */
+
+.phonon-status-icon {
+	font-size: 12px;
+	flex-shrink: 0;
+	transition: color 0.2s ease;
+}
+
+.phonon-status-icon.working {
+	animation: codicon-spin 1.5s steps(30) infinite;
+}
+
+.phonon-status-icon.waiting {
+	animation: phonon-pulse 2s ease-in-out infinite;
+}
+
+/* -- Detail Panel -- */
+
+.phonon-agent-detail {
+	display: none;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+	border-top: 1px solid var(--vscode-panel-border);
+}
+
+.phonon-agent-detail.visible {
+	display: flex;
+}
+
+/* -- Output Area -- */
+
+.phonon-agent-output {
+	flex: 1;
+	overflow: auto;
+	padding: 5px 8px;
+	font-size: 12px;
+	min-height: 0;
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
+	transition: opacity 0.15s ease;
+}
+
+.phonon-agent-output .rendered-markdown {
+	font-family: inherit;
+	font-size: 12px;
+}
+
+.phonon-agent-output .rendered-markdown code {
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--editor-font-size, 12px);
+}
+
+.phonon-agent-output::-webkit-scrollbar {
+	width: 5px;
+}
+
+.phonon-agent-output::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background);
+	border-radius: 2px;
+}
+
+.phonon-agent-output::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.phonon-agent-output-hint {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
+/* -- Actions Bar -- */
+
+.phonon-agent-actions {
+	padding: 2px 8px;
+	display: flex;
+	gap: 5px;
+	border-top: 1px solid var(--vscode-panel-border);
+	flex-shrink: 0;
+}
+
+/* -- Agent Input Bar -- */
+
+.phonon-agent-input-bar {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 5px 8px;
+	border-top: 1px solid var(--vscode-panel-border);
+	flex-shrink: 0;
+}
+
+/* -- Animations -- */
+
+@keyframes phonon-fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes phonon-pulse {
+	0%, 100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.4;
+	}
+}
+
+/* -- Wall View -- */
+
+.phonon-wall {
+	flex: 1;
+	overflow: auto;
+	padding: 5px 8px;
+	min-height: 0;
+}
+
+.phonon-wall::-webkit-scrollbar {
+	width: 5px;
+}
+
+.phonon-wall::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background);
+	border-radius: 2px;
+}
+
+.phonon-wall-block {
+	margin-bottom: 13px;
+	border-left: 2px solid var(--vscode-panel-border);
+	padding-left: 8px;
+	animation: phonon-fade-in 0.15s ease-out;
+}
+
+.phonon-wall-block.master {
+	border-left-color: var(--vscode-textLink-foreground);
+}
+
+.phonon-wall-header {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding-bottom: 3px;
+	cursor: pointer;
+}
+
+.phonon-wall-header:hover {
+	opacity: 0.8;
+}
+
+.phonon-wall-role {
+	font-weight: 600;
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.phonon-wall-block.master .phonon-wall-role {
+	color: var(--vscode-textLink-foreground);
+}
+
+.phonon-wall-output {
+	font-size: 12px;
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
+}
+
+.phonon-wall-output .rendered-markdown {
+	font-family: inherit;
+	font-size: 12px;
+}
+
+.phonon-wall-output .rendered-markdown code {
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--editor-font-size, 12px);
+}
+
+/* -- Wall Block Status -- */
+
+.phonon-wall-status {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	margin-left: auto;
+}
+
+/* -- Wall Block Actions -- */
+
+.phonon-wall-actions {
+	padding: 2px 0;
+	display: flex;
+	gap: 5px;
+}
+
+/* -- Wall Inline Input -- */
+
+.phonon-wall-input {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	padding-top: 5px;
+}
+
+.phonon-wall-block.working {
+	opacity: 0.7;
+}
+
+/* -- Delegation Badges -- */
+
+.phonon-delegation-badge {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 3px 8px;
+	margin: 3px 0;
+	background: var(--vscode-textBlockQuote-background);
+	border-left: 2px solid var(--vscode-textLink-foreground);
+	border-radius: 2px;
+	font-size: 11px;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	flex-wrap: wrap;
+}
+
+.phonon-delegation-badge:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.phonon-delegation-raw {
+	width: 100%;
+	margin-top: 3px;
+	padding: 3px 5px;
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--editor-font-size, 12px);
+	color: var(--vscode-descriptionForeground);
+	background: var(--vscode-editor-background);
+	border-radius: 2px;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+/* -- Agent HUD Overlay -- */
+
+.phonon-agent-hud {
+	min-width: 160px;
+	max-width: 280px;
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border);
+	border-radius: 3px;
+	padding: 5px 8px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 300ms cubic-bezier(0.25, 0.1, 0.25, 1.0);
+	z-index: 10;
+	font-size: 11px;
+	line-height: 1.618;
+}
+
+.phonon-agent-hud.visible {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.phonon-agent-hud-item {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 2px 0;
+}
+
+.phonon-agent-hud-dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	flex-shrink: 0;
+	background: var(--vscode-descriptionForeground);
+}
+
+.phonon-agent-hud-dot.working {
+	background: var(--vscode-terminal-ansiGreen);
+	animation: phonon-pulse 2s ease-in-out infinite;
+}
+
+.phonon-agent-hud-role {
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.phonon-agent-hud-activity {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* -- Editor Host -- */
+
+.phonon-editor {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow: hidden;
+}
+
+/* -- Liquid Canvas Compositor -- */
+
+.liquid-canvas-container {
+	width: 100%;
+	height: 100%;
+	overflow: auto;
+	background: var(--vscode-editor-background);
+}
+
+.liquid-canvas-grid {
+	display: grid;
+	gap: 8px;
+	padding: 8px;
+	min-height: 100%;
+}
+
+.liquid-canvas-slot {
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 4px;
+	background: var(--vscode-editorWidget-background);
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	animation: phonon-fade-in 0.15s ease-out;
+}
+
+.liquid-canvas-slot-header {
+	padding: 5px 8px;
+	font-weight: 600;
+	font-size: 12px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	background: var(--vscode-sideBarSectionHeader-background);
+	color: var(--vscode-sideBarSectionHeader-foreground);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.liquid-canvas-slot-body {
+	padding: 8px;
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	flex: 1;
+}
+
+.liquid-canvas-slot-params {
+	margin-top: 5px;
+	padding: 5px 8px;
+	background: var(--vscode-textBlockQuote-background);
+	border-radius: 3px;
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--editor-font-size, 12px);
+	white-space: pre-wrap;
+	word-break: break-word;
+	color: var(--vscode-descriptionForeground);
+}

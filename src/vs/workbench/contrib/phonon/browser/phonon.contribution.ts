@@ -56,6 +56,8 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { URI } from '../../../../base/common/uri.js';
 import { PhononEditor } from './views/phononEditor.js';
 import { PhononEditorInput } from './views/phononEditorInput.js';
+import { LiquidCanvasEditor } from './views/liquidCanvasEditor.js';
+import { LiquidCanvasEditorInput } from './views/liquidCanvasEditorInput.js';
 
 // --- Singleton registration ---
 
@@ -69,6 +71,8 @@ class PhononContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.phonon';
 
+	private _mcpBridge: PhononMcpBridge | undefined;
+
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
@@ -80,6 +84,7 @@ class PhononContribution extends Disposable implements IWorkbenchContribution {
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@ISpeechService private readonly speechService: ISpeechService,
 		@ILiquidModuleRegistry private readonly liquidModuleRegistry: ILiquidModuleRegistry,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 		this._markChatProviderInstalled();
@@ -87,10 +92,12 @@ class PhononContribution extends Disposable implements IWorkbenchContribution {
 		this._registerChatAgent();
 		this._wireAgentPoolService();
 		this._registerEditorResolver();
+		this._registerCanvasEditorResolver();
 		this._registerSessionOpener();
 		this._overrideRevealWidget();
 		this._registerSpeechProvider();
 		this._registerMcpBridge();
+		this._wireIntentToCanvas();
 		this._registerPlaywrightTools();
 		registerLiquidExtensionPointHandlers(this.liquidModuleRegistry as LiquidModuleRegistry);
 		registerLiquidSidebarTreeView(this.instantiationService, this.liquidModuleRegistry, this.logService);
@@ -198,6 +205,46 @@ class PhononContribution extends Disposable implements IWorkbenchContribution {
 		));
 	}
 
+	private _registerCanvasEditorResolver(): void {
+		this._register(this.editorResolverService.registerEditor(
+			`phonon-canvas:**/**`,
+			{
+				id: LiquidCanvasEditorInput.EditorID,
+				label: localize('phononCanvas', "Phonon Canvas"),
+				priority: RegisteredEditorPriority.builtin
+			},
+			{
+				singlePerResource: true,
+				canSupportResource: resource => resource.scheme === 'phonon-canvas',
+			},
+			{
+				createEditorInput: ({ resource, options }) => {
+					return {
+						editor: this.instantiationService.createInstance(LiquidCanvasEditorInput, resource),
+						options
+					};
+				}
+			}
+		));
+	}
+
+	private _wireIntentToCanvas(): void {
+		if (!this._mcpBridge) {
+			return;
+		}
+
+		this._register(this._mcpBridge.onDidReceiveIntent(async (intent) => {
+			this.logService.info(`[Phonon] Composition intent received: layout=${intent.layout}, slots=${intent.slots.length}`);
+
+			const input = this.instantiationService.createInstance(LiquidCanvasEditorInput);
+			const pane = await this.editorService.openEditor(input, { pinned: !intent.transient }, ACTIVE_GROUP);
+
+			if (pane instanceof LiquidCanvasEditor) {
+				pane.composeIntent(intent);
+			}
+		}));
+	}
+
 	private _overrideRevealWidget(): void {
 		// Override ChatWidgetService.revealWidget to open Phonon Agent Pool
 		// in the editor area instead of the sidebar ChatViewPane.
@@ -251,8 +298,8 @@ class PhononContribution extends Disposable implements IWorkbenchContribution {
 
 	private _registerMcpBridge(): void {
 		try {
-			const bridge = this.instantiationService.createInstance(PhononMcpBridge);
-			this._register(bridge);
+			this._mcpBridge = this.instantiationService.createInstance(PhononMcpBridge);
+			this._register(this._mcpBridge);
 			this.logService.info('[Phonon] MCP Bridge registered');
 		} catch {
 			this.logService.info('[Phonon] MCP Bridge not available (IMcpService not registered?)');
@@ -332,6 +379,42 @@ class PhononEditorInputSerializer implements IEditorSerializer {
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
 	PhononEditorInput.TypeID,
 	PhononEditorInputSerializer
+);
+
+// --- LiquidCanvasEditor pane registration ---
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		LiquidCanvasEditor,
+		LiquidCanvasEditorInput.EditorID,
+		localize('phononCanvas', "Phonon Canvas")
+	),
+	[new SyncDescriptor(LiquidCanvasEditorInput)]
+);
+
+// --- LiquidCanvasEditor serializer (tab persistence across reload) ---
+
+class LiquidCanvasEditorInputSerializer implements IEditorSerializer {
+	canSerialize(input: EditorInput): boolean {
+		return input instanceof LiquidCanvasEditorInput;
+	}
+	serialize(input: EditorInput): string | undefined {
+		if (!(input instanceof LiquidCanvasEditorInput)) { return undefined; }
+		return JSON.stringify({ resource: input.resource.toString() });
+	}
+	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
+		try {
+			const { resource } = JSON.parse(serializedEditor);
+			return new LiquidCanvasEditorInput(URI.parse(resource));
+		} catch {
+			return new LiquidCanvasEditorInput();
+		}
+	}
+}
+
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
+	LiquidCanvasEditorInput.TypeID,
+	LiquidCanvasEditorInputSerializer
 );
 
 // --- Agent Pool View registration ---
