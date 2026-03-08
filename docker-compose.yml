@@ -179,6 +179,55 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  owasp-zap:
+    image: zaproxy/zap-stable:latest
+    container_name: soa-owasp-zap
+    command: zap.sh -daemon -host 0.0.0.0 -port 8090 -config api.disablekey=true
+    ports:
+      - "${ZAP_PORT:-8090}:8090"
+    networks:
+      - sandbox-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8090/JSON/core/view/version/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    restart: unless-stopped
+
+  penetration-tester:
+    build:
+      context: ./services/penetration-tester
+      dockerfile: Dockerfile
+    container_name: soa-penetration-tester
+    depends_on:
+      owasp-zap:
+        condition: service_healthy
+    ports:
+      - "${PEN_TEST_PORT:-8092}:8092"
+    environment:
+      - PEN_TEST_PORT=${PEN_TEST_PORT:-8092}
+      - ZAP_HOST=${ZAP_HOST:-owasp-zap}
+      - ZAP_PORT=${ZAP_PORT:-8090}
+      - TARGET_BASE_URL=${TARGET_BASE_URL:-http://localhost:3000}
+      - FALKORDB_HOST=${FALKORDB_HOST:-falkordb}
+      - FALKORDB_PORT=${FALKORDB_PORT:-6379}
+      - MAX_REQUESTS_PER_TEST=${MAX_REQUESTS_PER_TEST:-100}
+      - TEST_TIMEOUT_MS=${TEST_TIMEOUT_MS:-60000}
+    networks:
+      - sandbox-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8092/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   spec-pipeline:
     build:
       context: ./services/spec-pipeline
@@ -198,6 +247,10 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+
+networks:
+  sandbox-net:
+    driver: bridge
 
 volumes:
   falkordb-data:

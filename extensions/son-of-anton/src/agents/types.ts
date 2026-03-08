@@ -13,6 +13,7 @@ export type AgentHandle =
 	| 'anton-code'
 	| 'anton-test'
 	| 'anton-security'
+	| 'anton-pentest'
 	| 'anton-docs';
 
 /**
@@ -164,4 +165,50 @@ export interface MemoryEntry {
 	category: 'decision' | 'convention' | 'warning' | 'context';
 	content: string;
 	source: string;
+}
+
+/**
+ * OWASP Top 10 categories (2021).
+ */
+export type OwaspCategory =
+	| 'A01-broken-access-control'
+	| 'A02-cryptographic-failures'
+	| 'A03-injection'
+	| 'A04-insecure-design'
+	| 'A05-security-misconfiguration'
+	| 'A06-vulnerable-components'
+	| 'A07-auth-failures'
+	| 'A08-software-integrity-failures'
+	| 'A09-logging-failures'
+	| 'A10-ssrf';
+
+/**
+ * A confirmed vulnerability finding from pen testing.
+ */
+export interface PenTestFinding {
+	id: string;
+	owaspCategory: OwaspCategory;
+	testType: string;
+	severity: 'critical' | 'high' | 'medium' | 'low';
+	endpoint: string;
+	payload: string;
+	evidence: string;
+	impact: string;
+	suggestedFix: string;
+	filePath?: string;
+	line?: number;
+	confirmed: boolean;
+	reproducible: boolean;
+}
+
+/**
+ * Summary of a pen test scan session.
+ */
+export interface PenTestScanSummary {
+	sessionId: string;
+	status: 'pending' | 'running' | 'completed' | 'failed';
+	findingsCount: number;
+	findings: PenTestFinding[];
+	startedAt: number;
+	completedAt: number | null;
 }

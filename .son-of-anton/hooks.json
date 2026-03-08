@@ -52,6 +52,21 @@
 			"agent": "anton-code",
 			"instruction": "A spec file was updated. Check if downstream spec phases or code files need updating to stay consistent.",
 			"blocking": false
+		},
+		{
+			"name": "pentest-baseline-on-pr",
+			"trigger": "onPRCreate",
+			"agent": "anton-pentest",
+			"instruction": "Run a ZAP baseline (passive) scan against the local application. Report any findings as non-blocking advisories.",
+			"blocking": false
+		},
+		{
+			"name": "pentest-security-file-change",
+			"trigger": "onFileSave",
+			"filter": "**/src/{auth,middleware,security}/**/*.{ts,tsx,js,jsx}",
+			"agent": "anton-pentest",
+			"instruction": "A security-sensitive file was modified. Run a focused penetration test on related endpoints to verify no vulnerabilities were introduced.",
+			"blocking": false
 		}
 	]
 }
