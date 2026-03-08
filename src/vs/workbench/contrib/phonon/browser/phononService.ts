@@ -7,10 +7,12 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IPhononService } from '../common/phonon.js';
 import { PhononConfigurationKey } from '../common/phononConfiguration.js';
 
 const PHONON_API_KEY_SECRET = 'phonon.anthropicApiKey';
+const PHONON_APP_MODE_KEY = 'phonon.appMode';
 
 export class PhononService extends Disposable implements IPhononService {
 
@@ -18,15 +20,22 @@ export class PhononService extends Disposable implements IPhononService {
 
 	private _apiKeySet = false;
 	private _cliAvailable = false;
+	private _isAppMode: boolean;
 
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<void>());
 	readonly onDidChangeConfiguration: Event<void> = this._onDidChangeConfiguration.event;
 
+	private readonly _onDidChangeAppMode = this._register(new Emitter<boolean>());
+	readonly onDidChangeAppMode: Event<boolean> = this._onDidChangeAppMode.event;
+
 	constructor(
 		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
+
+		this._isAppMode = this.storageService.getBoolean(PHONON_APP_MODE_KEY, StorageScope.WORKSPACE, false);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(PhononConfigurationKey.DefaultModel) || e.affectsConfiguration(PhononConfigurationKey.MaxTokens)) {
@@ -57,6 +66,16 @@ export class PhononService extends Disposable implements IPhononService {
 			this._cliAvailable = available;
 			this._onDidChangeConfiguration.fire();
 		}
+	}
+
+	get isAppMode(): boolean {
+		return this._isAppMode;
+	}
+
+	toggleAppMode(): void {
+		this._isAppMode = !this._isAppMode;
+		this.storageService.store(PHONON_APP_MODE_KEY, this._isAppMode, StorageScope.WORKSPACE, StorageTarget.USER);
+		this._onDidChangeAppMode.fire(this._isAppMode);
 	}
 
 	get defaultModelId(): string {

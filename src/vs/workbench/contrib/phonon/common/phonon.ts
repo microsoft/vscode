@@ -70,9 +70,24 @@ export interface IPhononService {
 	readonly defaultModelId: string;
 
 	/**
+	 * Whether App Mode is active (Layer 3: canvas + sidebar + chat, no VS Code chrome).
+	 */
+	readonly isAppMode: boolean;
+
+	/**
+	 * Fires when App Mode is toggled.
+	 */
+	readonly onDidChangeAppMode: Event<boolean>;
+
+	/**
 	 * Fires when the configuration changes (API key, model, CLI availability, etc.).
 	 */
 	readonly onDidChangeConfiguration: Event<void>;
+
+	/**
+	 * Toggle App Mode on/off.
+	 */
+	toggleAppMode(): void;
 
 	/**
 	 * Mark the CLI as available or unavailable.

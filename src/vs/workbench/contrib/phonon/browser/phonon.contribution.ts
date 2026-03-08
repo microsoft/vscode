@@ -32,6 +32,7 @@ import { sessionOpenerRegistry } from '../../chat/browser/agentSessions/agentSes
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ISpeechService } from '../../speech/common/speechService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IPhononService, PHONON_CLAUDE_AGENT_ID, PHONON_CLAUDE_VENDOR } from '../common/phonon.js';
 import { IPhononAgentPoolService } from '../common/phononAgentPool.js';
 import '../common/phononConfiguration.js';
@@ -72,6 +73,7 @@ class PhononContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.phonon';
 
 	private _mcpBridge: PhononMcpBridge | undefined;
+	private _chatAgent: PhononChatAgentImpl | undefined;
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -101,6 +103,27 @@ class PhononContribution extends Disposable implements IWorkbenchContribution {
 		this._registerPlaywrightTools();
 		registerLiquidExtensionPointHandlers(this.liquidModuleRegistry as LiquidModuleRegistry);
 		registerLiquidSidebarTreeView(this.instantiationService, this.liquidModuleRegistry, this.logService);
+		this._wireAppMode();
+	}
+
+	private _wireAppMode(): void {
+		const layoutService = this.instantiationService.invokeFunction(
+			accessor => accessor.get(IWorkbenchLayoutService)
+		);
+
+		// Apply stored mode on startup
+		if (this.phononService.isAppMode) {
+			layoutService.setPartHidden(true, Parts.ACTIVITYBAR_PART);
+			layoutService.setPartHidden(true, Parts.STATUSBAR_PART);
+			layoutService.setPartHidden(true, Parts.PANEL_PART);
+		}
+
+		// React to toggles
+		this._register(this.phononService.onDidChangeAppMode(isApp => {
+			layoutService.setPartHidden(isApp, Parts.ACTIVITYBAR_PART);
+			layoutService.setPartHidden(isApp, Parts.STATUSBAR_PART);
+			layoutService.setPartHidden(isApp, Parts.PANEL_PART);
+		}));
 	}
 
 	private _markChatProviderInstalled(): void {
@@ -230,7 +253,15 @@ class PhononContribution extends Disposable implements IWorkbenchContribution {
 
 	private _wireIntentToCanvas(): void {
 		if (!this._mcpBridge) {
+			this.logService.warn('[Phonon] Cannot wire intent-to-canvas: MCP bridge not available');
 			return;
+		}
+
+		// Route solo mode chat output to the MCP bridge for intent interception
+		if (this._chatAgent) {
+			this._register(this._chatAgent.onDidSoloOutput(output => {
+				this._mcpBridge?.processOutput(output);
+			}));
 		}
 
 		this._register(this._mcpBridge.onDidReceiveIntent(async (intent) => {
@@ -317,6 +348,7 @@ class PhononContribution extends Disposable implements IWorkbenchContribution {
 
 	private _registerChatAgent(): void {
 		const agentImpl = this.instantiationService.createInstance(PhononChatAgentImpl);
+		this._chatAgent = agentImpl;
 		this._register(agentImpl);
 		this._register(this.chatAgentService.registerDynamicAgent({
 			id: PHONON_CLAUDE_AGENT_ID,
@@ -523,5 +555,24 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const agentPoolService = accessor.get(IPhononAgentPoolService);
 		await agentPoolService.terminateAll();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'phonon.toggleAppMode',
+			title: localize2('phonon.toggleAppMode', "Phonon: Toggle App Mode"),
+			category: Categories.Preferences,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(IPhononService).toggleAppMode();
 	}
 });
