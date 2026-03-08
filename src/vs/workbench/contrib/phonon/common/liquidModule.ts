@@ -8,6 +8,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import type {
 	ILiquidEntity,
 	ILiquidView,
+	ILiquidCard,
 	ILiquidDataProvider,
 	ILiquidSidebarNode,
 	ILiquidCapabilitySummary,
@@ -22,12 +23,14 @@ export interface ILiquidModuleRegistry {
 	// Read
 	readonly entities: ReadonlyArray<ILiquidEntity>;
 	readonly views: ReadonlyArray<ILiquidView>;
+	readonly cards: ReadonlyArray<ILiquidCard>;
 	readonly dataProviders: ReadonlyArray<ILiquidDataProvider>;
 	readonly sidebarTree: ReadonlyArray<ILiquidSidebarNode>;
 
 	// React
 	readonly onDidChangeEntities: Event<void>;
 	readonly onDidChangeViews: Event<void>;
+	readonly onDidChangeCards: Event<void>;
 	readonly onDidChangeDataProviders: Event<void>;
 	readonly onDidChangeSidebar: Event<void>;
 

@@ -116,16 +116,17 @@ export class LiquidCanvasEditor extends EditorPane {
 
 	private _renderSlot(parent: HTMLElement, slot: ICompositionSlot): void {
 		const slotEl = dom.append(parent, dom.$('.liquid-canvas-slot'));
+		const slotTargetId = slot.viewId ?? slot.cardId ?? 'unknown';
 
 		// -- Header --
 		const header = dom.append(slotEl, dom.$('.liquid-canvas-slot-header'));
-		header.textContent = slot.label ?? slot.viewId;
+		header.textContent = slot.label ?? slotTargetId;
 
 		// -- Body --
 		const body = dom.append(slotEl, dom.$('.liquid-canvas-slot-body'));
 
-		const viewLine = dom.append(body, dom.$('div'));
-		viewLine.textContent = `View: ${slot.viewId}`;
+		const targetLine = dom.append(body, dom.$('div'));
+		targetLine.textContent = slot.cardId ? `Card: ${slot.cardId}` : `View: ${slotTargetId}`;
 
 		if (slot.params && Object.keys(slot.params).length > 0) {
 			const paramsBlock = dom.append(body, dom.$('pre.liquid-canvas-slot-params'));

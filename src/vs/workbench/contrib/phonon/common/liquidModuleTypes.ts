@@ -48,6 +48,24 @@ export interface ILiquidViewContribution {
 }
 
 /**
+ * Card contribution from an extension's package.json.
+ * A card is a sandboxed HTML webview: any language, any framework.
+ * The `entry` path points to an HTML file loaded in an iframe.
+ */
+export interface ILiquidCardContribution {
+	readonly id: string;
+	readonly label: string;
+	/** Relative path to the card's HTML entry file within the extension. */
+	readonly entry: string;
+	/** Entity this card displays data for. */
+	readonly entity?: string;
+	/** Tags for AI-driven composition (e.g. "analytics", "cost", "dashboard"). */
+	readonly tags?: readonly string[];
+	/** Minimum card dimensions in pixels. */
+	readonly size?: { readonly minWidth?: number; readonly minHeight?: number };
+}
+
+/**
  * Data provider contribution from an extension's package.json.
  * Supplies CRUD operations for one or more entities.
  */
@@ -103,6 +121,21 @@ export interface ILiquidView {
 }
 
 /**
+ * Resolved card - entry path resolved to URI, extensionId attached.
+ * The entryUri points to an HTML file that will be loaded in a sandboxed iframe.
+ */
+export interface ILiquidCard {
+	readonly id: string;
+	readonly label: string;
+	/** Fully resolved URI to the card's HTML entry file. */
+	readonly entryUri: URI;
+	readonly entity?: string;
+	readonly tags: readonly string[];
+	readonly size: { readonly minWidth: number; readonly minHeight: number };
+	readonly extensionId: string;
+}
+
+/**
  * Resolved data provider - entities list frozen, extensionId attached.
  */
 export interface ILiquidDataProvider {
@@ -134,10 +167,13 @@ export interface ILiquidSidebarNode {
 export type CompositionLayout = 'single' | 'split-horizontal' | 'split-vertical' | 'grid' | 'stack';
 
 /**
- * A slot in a composition - one view instance with optional parameters.
+ * A slot in a composition - one view or card instance with optional parameters.
  */
 export interface ICompositionSlot {
-	readonly viewId: string;
+	/** View ID for macro views. Mutually exclusive with cardId. */
+	readonly viewId?: string;
+	/** Card ID for micro-cards. Mutually exclusive with viewId. */
+	readonly cardId?: string;
 	readonly params?: Record<string, unknown>;
 	readonly weight?: number;
 	readonly label?: string;
@@ -177,5 +213,11 @@ export interface ILiquidCapabilitySummary {
 		readonly label: string;
 		readonly mode: 'structured' | 'canvas';
 		readonly entity?: string;
+	}[];
+	readonly cards: readonly {
+		readonly id: string;
+		readonly label: string;
+		readonly entity?: string;
+		readonly tags: readonly string[];
 	}[];
 }

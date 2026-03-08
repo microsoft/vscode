@@ -159,17 +159,23 @@ suite('LiquidModuleRegistry', () => {
 		assert.strictEqual(children[2].id, 'suppliers');
 	});
 
-	test('getCapabilities returns summary', () => {
+	test('getCapabilities returns summary with cards', () => {
 		registry.updateEntities([
 			{ id: 'dish', label: 'Piatto', schema: { type: 'object', properties: { name: { type: 'string' }, cost: { type: 'number' } } }, extensionId: 'test' },
 		]);
 		registry.updateViews([
 			{ id: 'dishList', label: 'Piatti', componentUri: URI.parse('test://a'), mode: 'structured', entity: 'dish', extensionId: 'test' },
 		]);
+		registry.updateCards([
+			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test' },
+		]);
 
 		const caps = registry.getCapabilities();
 		assert.strictEqual(caps.entities.length, 1);
 		assert.deepStrictEqual(caps.entities[0].fields, ['name', 'cost']);
 		assert.strictEqual(caps.views.length, 1);
+		assert.strictEqual(caps.cards.length, 1);
+		assert.strictEqual(caps.cards[0].id, 'costCard');
+		assert.deepStrictEqual(caps.cards[0].tags, ['cost']);
 	});
 });

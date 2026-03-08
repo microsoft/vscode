@@ -9,10 +9,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import type {
 	ILiquidEntityContribution,
 	ILiquidViewContribution,
+	ILiquidCardContribution,
 	ILiquidDataProviderContribution,
 	ILiquidSidebarContribution,
 	ILiquidEntity,
 	ILiquidView,
+	ILiquidCard,
 	ILiquidDataProvider,
 	ILiquidSidebarNode,
 	CompositionLayout,
@@ -74,6 +76,32 @@ suite('LiquidModuleTypes', () => {
 			};
 			assert.strictEqual(contribution.mode, 'canvas');
 			assert.strictEqual(contribution.entity, undefined);
+		});
+	});
+
+	suite('ILiquidCardContribution', () => {
+		test('accepts card with all fields', () => {
+			const contribution: ILiquidCardContribution = {
+				id: 'ristorante.costi-card',
+				label: 'Costi',
+				entry: './cards/costi.html',
+				entity: 'ristorante.ordine',
+				tags: ['analytics', 'cost'],
+				size: { minWidth: 320, minHeight: 240 },
+			};
+			assert.strictEqual(contribution.entry, './cards/costi.html');
+			assert.strictEqual(contribution.tags?.length, 2);
+		});
+
+		test('accepts minimal card without optional fields', () => {
+			const contribution: ILiquidCardContribution = {
+				id: 'ristorante.info-card',
+				label: 'Info',
+				entry: './cards/info.html',
+			};
+			assert.strictEqual(contribution.entity, undefined);
+			assert.strictEqual(contribution.tags, undefined);
+			assert.strictEqual(contribution.size, undefined);
 		});
 	});
 
@@ -156,6 +184,23 @@ suite('LiquidModuleTypes', () => {
 		});
 	});
 
+	suite('ILiquidCard', () => {
+		test('holds resolved entryUri and extensionId', () => {
+			const card: ILiquidCard = {
+				id: 'ristorante.costi-card',
+				label: 'Costi',
+				entryUri: URI.parse('file:///extensions/ristorante/cards/costi.html'),
+				entity: 'ristorante.ordine',
+				tags: ['analytics', 'cost'],
+				size: { minWidth: 320, minHeight: 240 },
+				extensionId: 'phonon.ristorante',
+			};
+			assert.strictEqual(card.entryUri.scheme, 'file');
+			assert.strictEqual(card.extensionId, 'phonon.ristorante');
+			assert.strictEqual(card.tags.length, 2);
+		});
+	});
+
 	suite('ILiquidDataProvider', () => {
 		test('holds readonly entities array and extensionId', () => {
 			const provider: ILiquidDataProvider = {
@@ -202,7 +247,7 @@ suite('LiquidModuleTypes', () => {
 	});
 
 	suite('ICompositionSlot', () => {
-		test('accepts slot with all fields', () => {
+		test('accepts view slot with all fields', () => {
 			const slot: ICompositionSlot = {
 				viewId: 'ristorante.tavoli-view',
 				params: { filtro: 'liberi' },
@@ -210,10 +255,21 @@ suite('LiquidModuleTypes', () => {
 				label: 'Tavoli Liberi',
 			};
 			assert.strictEqual(slot.viewId, 'ristorante.tavoli-view');
+			assert.strictEqual(slot.cardId, undefined);
 			assert.strictEqual(slot.weight, 2);
 		});
 
-		test('accepts minimal slot', () => {
+		test('accepts card slot', () => {
+			const slot: ICompositionSlot = {
+				cardId: 'ristorante.costi-card',
+				weight: 1,
+				label: 'Costi',
+			};
+			assert.strictEqual(slot.viewId, undefined);
+			assert.strictEqual(slot.cardId, 'ristorante.costi-card');
+		});
+
+		test('accepts minimal view slot', () => {
 			const slot: ICompositionSlot = {
 				viewId: 'ristorante.dashboard',
 			};
@@ -264,11 +320,16 @@ suite('LiquidModuleTypes', () => {
 					{ id: 'ristorante.tavoli-view', label: 'Tavoli', mode: 'structured', entity: 'ristorante.tavolo' },
 					{ id: 'ristorante.dashboard', label: 'Dashboard', mode: 'canvas' },
 				],
+				cards: [
+					{ id: 'ristorante.costi-card', label: 'Costi', entity: 'ristorante.ordine', tags: ['analytics', 'cost'] },
+				],
 			};
 			assert.strictEqual(summary.modules.length, 1);
 			assert.strictEqual(summary.entities.length, 2);
 			assert.strictEqual(summary.views.length, 2);
 			assert.strictEqual(summary.views[1].entity, undefined);
+			assert.strictEqual(summary.cards.length, 1);
+			assert.strictEqual(summary.cards[0].tags.length, 2);
 		});
 
 		test('accepts empty capability summary', () => {
@@ -276,8 +337,10 @@ suite('LiquidModuleTypes', () => {
 				modules: [],
 				entities: [],
 				views: [],
+				cards: [],
 			};
 			assert.strictEqual(summary.modules.length, 0);
+			assert.strictEqual(summary.cards.length, 0);
 		});
 	});
 });

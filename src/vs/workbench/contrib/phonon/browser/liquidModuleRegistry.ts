@@ -9,6 +9,7 @@ import { ILiquidModuleRegistry } from '../common/liquidModule.js';
 import type {
 	ILiquidEntity,
 	ILiquidView,
+	ILiquidCard,
 	ILiquidDataProvider,
 	ILiquidSidebarNode,
 	ILiquidCapabilitySummary,
@@ -20,6 +21,7 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 
 	private _entities: ILiquidEntity[] = [];
 	private _views: ILiquidView[] = [];
+	private _cards: ILiquidCard[] = [];
 	private _dataProviders: ILiquidDataProvider[] = [];
 	private _sidebarTree: ILiquidSidebarNode[] = [];
 
@@ -29,6 +31,9 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 	private readonly _onDidChangeViews = this._register(new Emitter<void>());
 	readonly onDidChangeViews: Event<void> = this._onDidChangeViews.event;
 
+	private readonly _onDidChangeCards = this._register(new Emitter<void>());
+	readonly onDidChangeCards: Event<void> = this._onDidChangeCards.event;
+
 	private readonly _onDidChangeDataProviders = this._register(new Emitter<void>());
 	readonly onDidChangeDataProviders: Event<void> = this._onDidChangeDataProviders.event;
 
@@ -37,6 +42,7 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 
 	get entities(): ReadonlyArray<ILiquidEntity> { return this._entities; }
 	get views(): ReadonlyArray<ILiquidView> { return this._views; }
+	get cards(): ReadonlyArray<ILiquidCard> { return this._cards; }
 	get dataProviders(): ReadonlyArray<ILiquidDataProvider> { return this._dataProviders; }
 	get sidebarTree(): ReadonlyArray<ILiquidSidebarNode> { return this._sidebarTree; }
 
@@ -48,6 +54,11 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 	updateViews(views: ILiquidView[]): void {
 		this._views = views;
 		this._onDidChangeViews.fire();
+	}
+
+	updateCards(cards: ILiquidCard[]): void {
+		this._cards = cards;
+		this._onDidChangeCards.fire();
 	}
 
 	updateDataProviders(providers: ILiquidDataProvider[]): void {
@@ -93,19 +104,34 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 				mode: v.mode,
 				entity: v.entity,
 			})),
+			cards: this._cards.map(c => ({
+				id: c.id,
+				label: c.label,
+				entity: c.entity,
+				tags: c.tags,
+			})),
 		};
 	}
 
 	validateIntent(intent: ICompositionIntent): { valid: boolean; errors: string[] } {
 		const errors: string[] = [];
 		for (const slot of intent.slots) {
-			const view = this._views.find(v => v.id === slot.viewId);
-			if (!view) {
-				errors.push(`View "${slot.viewId}" not found in registry`);
-				continue;
-			}
-			if (view.mode === 'structured') {
-				errors.push(`View "${slot.viewId}" is structured-only, cannot be used in canvas`);
+			if (slot.cardId) {
+				const card = this._cards.find(c => c.id === slot.cardId);
+				if (!card) {
+					errors.push(`Card "${slot.cardId}" not found in registry`);
+				}
+			} else if (slot.viewId) {
+				const view = this._views.find(v => v.id === slot.viewId);
+				if (!view) {
+					errors.push(`View "${slot.viewId}" not found in registry`);
+					continue;
+				}
+				if (view.mode === 'structured') {
+					errors.push(`View "${slot.viewId}" is structured-only, cannot be used in canvas`);
+				}
+			} else {
+				errors.push('Slot has neither viewId nor cardId');
 			}
 		}
 		return { valid: errors.length === 0, errors };
