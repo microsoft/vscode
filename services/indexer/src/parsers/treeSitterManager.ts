@@ -45,10 +45,6 @@ export class TreeSitterManager {
 		if (language && this.enabledLanguages.has(language)) {
 			return language;
 		}
-		// Handle TypeScript files matching both 'typescript' and 'javascript'
-		if (language === 'javascript' && this.enabledLanguages.has('javascript')) {
-			return 'javascript';
-		}
 		return undefined;
 	}
 
