@@ -159,15 +159,21 @@ function createServer(): McpServer {
 }
 
 function validateReadOnly(query: string): void {
-	const normalized = query.trim().toUpperCase();
+	const trimmed = query.trim();
+	const upper = trimmed.toUpperCase();
+
+	// Only allow queries that begin with known read-only statement types.
+	if (!upper.startsWith('SELECT') && !upper.startsWith('WITH') && !upper.startsWith('EXPLAIN')) {
+		throw new Error('Only SELECT, WITH, and EXPLAIN queries are allowed.');
+	}
+
+	// Reject any query that contains obviously write-capable keywords anywhere in the statement.
 	const forbidden = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'CREATE', 'TRUNCATE', 'GRANT', 'REVOKE', 'COPY'];
 	for (const keyword of forbidden) {
-		if (normalized.startsWith(keyword)) {
-			throw new Error(`Write operations are not allowed. Only SELECT queries are permitted. Rejected: ${keyword}`);
+		const pattern = new RegExp(`\\b${keyword}\\b`, 'i');
+		if (pattern.test(trimmed)) {
+			throw new Error(`Write operations are not allowed. Only read-only queries are permitted. Rejected keyword: ${keyword}`);
 		}
-	}
-	if (!normalized.startsWith('SELECT') && !normalized.startsWith('WITH') && !normalized.startsWith('EXPLAIN')) {
-		throw new Error('Only SELECT, WITH, and EXPLAIN queries are allowed.');
 	}
 }
 
