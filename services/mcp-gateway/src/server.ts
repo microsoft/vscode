@@ -13,6 +13,7 @@ import { semanticSearch } from './tools/semanticSearch';
 import { fileSummary } from './tools/fileSummary';
 import { projectOverview } from './tools/projectOverview';
 import { memoryQuery, memoryRecord, memoryHistory } from './tools/memoryQuery';
+import { specList, specRead, specSyncCheck } from './tools/specPipeline';
 
 export function createMcpServer(db: FalkorDBClient, qdrant: QdrantClient): McpServer {
 	const server = new McpServer({
@@ -287,6 +288,76 @@ export function createMcpServer(db: FalkorDBClient, qdrant: QdrantClient): McpSe
 				};
 			} catch (error) {
 				return errorResponse('memory_history', error);
+			}
+		}
+	);
+
+	// --- spec_list ---
+	server.tool(
+		'spec_list',
+		'List all features that have spec definitions in .son-of-anton/specs/. Returns feature names and which phases (requirements, design, tasks, properties) exist.',
+		{},
+		async () => {
+			try {
+				const projectPath = process.env['PROJECT_PATH'] ?? '/workspace';
+				const results = await specList(projectPath);
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('spec_list', error);
+			}
+		}
+	);
+
+	// --- spec_read ---
+	server.tool(
+		'spec_read',
+		'Read the content of a spec file (requirements, design, tasks, or properties) for a specific feature.',
+		{
+			feature: z.string().describe('Feature name (or slug)'),
+			phase: z.enum(['requirements', 'design', 'tasks', 'properties'])
+				.describe('Which spec phase to read'),
+		},
+		async ({ feature, phase }) => {
+			try {
+				const projectPath = process.env['PROJECT_PATH'] ?? '/workspace';
+				const results = await specRead(projectPath, { feature, phase });
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('spec_read', error);
+			}
+		}
+	);
+
+	// --- spec_sync_check ---
+	server.tool(
+		'spec_sync_check',
+		'Check if a changed file affects any spec for a feature. Returns warnings if the code change may put the spec out of sync.',
+		{
+			feature: z.string().describe('Feature name to check sync for'),
+			changedFile: z.string().describe('Path of the changed file'),
+		},
+		async ({ feature, changedFile }) => {
+			try {
+				const projectPath = process.env['PROJECT_PATH'] ?? '/workspace';
+				const results = await specSyncCheck(projectPath, { feature, changedFile });
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('spec_sync_check', error);
 			}
 		}
 	);

@@ -179,6 +179,26 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  spec-pipeline:
+    build:
+      context: ./services/spec-pipeline
+      dockerfile: Dockerfile
+    container_name: soa-spec-pipeline
+    ports:
+      - "${SPEC_PIPELINE_PORT:-8090}:8090"
+    environment:
+      - SPEC_PIPELINE_PORT=${SPEC_PIPELINE_PORT:-8090}
+      - SPECS_DIR=${SPECS_DIR:-.son-of-anton/specs}
+    volumes:
+      - ${PROJECT_PATH:-.}:/workspace:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8090/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
 volumes:
   falkordb-data:
     driver: local
