@@ -90,11 +90,13 @@ export class LsifGraphWriter {
 					AND caller.startLine <= $refLine
 					AND caller.endLine >= $refLine
 				MATCH (called:Function {name: $symbolName})
-				CREATE (caller)-[:CALLS {line: $refLine, column: $refColumn}]->(called)`,
+				WHERE called.file = $defFile OR $defFile = ''
+				MERGE (caller)-[:CALLS {line: $refLine, column: $refColumn}]->(called)`,
 				{
 					refFile: ref.referenceFile,
 					refLine: ref.referenceLine,
 					symbolName: ref.symbolName,
+					defFile: ref.definitionFile,
 					refColumn: ref.referenceColumn,
 				}
 			);
