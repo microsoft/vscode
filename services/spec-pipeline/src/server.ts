@@ -123,7 +123,8 @@ export class SpecPipelineServer {
 		// POST /generate/property-tests — generate property tests from requirements spec
 		if (method === 'POST' && url.pathname === '/generate/property-tests') {
 			const body = await readBody(req);
-			const { spec, featureName } = JSON.parse(body);
+			const { spec: requirementsContent, featureName } = JSON.parse(body);
+			const spec = parseRequirements(requirementsContent);
 			const testFile = generatePropertyTestFile(spec, featureName ?? 'Feature');
 			res.writeHead(200, { 'Content-Type': 'text/typescript' });
 			res.end(testFile);
