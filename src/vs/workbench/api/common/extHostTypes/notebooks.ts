@@ -9,8 +9,6 @@ import { illegalArgument } from '../../../../base/common/errors.js';
 import { Mimes, normalizeMimeType, isTextStreamMime } from '../../../../base/common/mime.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 
-/* eslint-disable local/code-no-native-private */
-
 export enum NotebookCellKind {
 	Markup = 1,
 	Code = 2

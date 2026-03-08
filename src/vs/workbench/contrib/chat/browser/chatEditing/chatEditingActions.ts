@@ -25,7 +25,6 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IEditorPane } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
@@ -39,6 +38,7 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IAgentSession, isAgentSession } from '../agentSessions/agentSessionsModel.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 
 export abstract class EditingSessionAction extends Action2 {
 
@@ -363,7 +363,7 @@ export class ViewAllSessionChangesAction extends Action2 {
 					id: MenuId.AgentSessionItemToolbar,
 					group: 'navigation',
 					order: 0,
-					when: ChatContextKeys.hasAgentSessionChanges
+					when: ContextKeyExpr.and(ChatContextKeys.hasAgentSessionChanges, IsSessionsWindowContext.negate())
 				}
 			],
 		});
@@ -515,7 +515,7 @@ registerAction2(class RemoveAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				},
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), ChatContextKeys.inChatQuestionCarousel.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -564,7 +564,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				},
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), ChatContextKeys.inChatQuestionCarousel.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -612,15 +612,7 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 				ChatContextKeys.inChatSession,
 				ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true),
 				ChatContextKeys.lockedToCodingAgent.negate()
-			),
-			menu: [
-				{
-					id: MenuId.ChatMessageFooter,
-					group: 'navigation',
-					order: 1,
-					when: ContextKeyExpr.and(ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true), ChatContextKeys.lockedToCodingAgent.negate()),
-				}
-			]
+			)
 		});
 	}
 
@@ -896,71 +888,3 @@ CommandsRegistry.registerCommand('_chat.editSessions.accept', async (accessor: S
 		await editingSession.accept(...uris);
 	}
 });
-
-//#region View as Tree / View as List toggle
-
-export const CHAT_EDITS_VIEW_MODE_STORAGE_KEY = 'chat.editsViewMode';
-export const ChatEditsViewAsTreeActionId = 'chatEditing.viewAsTree';
-export const ChatEditsViewAsListActionId = 'chatEditing.viewAsList';
-
-registerAction2(class ChatEditsViewAsTreeAction extends Action2 {
-	constructor() {
-		super({
-			id: ChatEditsViewAsTreeActionId,
-			title: localize2('chatEditing.viewAsTree', "View as Tree"),
-			icon: Codicon.listFlat,
-			category: CHAT_CATEGORY,
-			menu: [
-				{
-					id: MenuId.ChatEditingWidgetToolbar,
-					group: 'navigation',
-					order: 5,
-					when: ContextKeyExpr.and(hasAppliedChatEditsContextKey, ChatContextKeys.chatEditsInTreeView.negate()),
-				},
-				{
-					id: MenuId.ChatEditingSessionChangesToolbar,
-					group: 'navigation',
-					order: 5,
-					when: ContextKeyExpr.and(ChatContextKeys.hasAgentSessionChanges, ChatContextKeys.chatEditsInTreeView.negate()),
-				},
-			],
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const storageService = accessor.get(IStorageService);
-		storageService.store(CHAT_EDITS_VIEW_MODE_STORAGE_KEY, 'tree', StorageScope.PROFILE, StorageTarget.USER);
-	}
-});
-
-registerAction2(class ChatEditsViewAsListAction extends Action2 {
-	constructor() {
-		super({
-			id: ChatEditsViewAsListActionId,
-			title: localize2('chatEditing.viewAsList', "View as List"),
-			icon: Codicon.listTree,
-			category: CHAT_CATEGORY,
-			menu: [
-				{
-					id: MenuId.ChatEditingWidgetToolbar,
-					group: 'navigation',
-					order: 5,
-					when: ContextKeyExpr.and(hasAppliedChatEditsContextKey, ChatContextKeys.chatEditsInTreeView),
-				},
-				{
-					id: MenuId.ChatEditingSessionChangesToolbar,
-					group: 'navigation',
-					order: 5,
-					when: ContextKeyExpr.and(ChatContextKeys.hasAgentSessionChanges, ChatContextKeys.chatEditsInTreeView),
-				},
-			],
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const storageService = accessor.get(IStorageService);
-		storageService.store(CHAT_EDITS_VIEW_MODE_STORAGE_KEY, 'list', StorageScope.PROFILE, StorageTarget.USER);
-	}
-});
-
-//#endregion

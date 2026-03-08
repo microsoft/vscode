@@ -19,7 +19,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 /**
  * Action ID for the `Configure Skills` action.
  */
-const CONFIGURE_SKILLS_ACTION_ID = 'workbench.action.chat.configure.skills';
+export const CONFIGURE_SKILLS_ACTION_ID = 'workbench.action.chat.configure.skills';
 
 
 class ManageSkillsAction extends Action2 {

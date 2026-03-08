@@ -40,7 +40,6 @@ class MockChatService implements IChatService {
 	private readonly _chatModels: ISettableObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
 	readonly chatModels = this._chatModels;
 	requestInProgressObs = observableValue('name', false);
-	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
 	editingSessions = [];
 	transferredSessionResource = undefined;
@@ -98,7 +97,7 @@ class MockChatService implements IChatService {
 		return [];
 	}
 
-	startSession(_location: ChatAgentLocation, _options?: IChatSessionStartOptions): any {
+	startNewLocalSession(_location: ChatAgentLocation, _options?: IChatSessionStartOptions): any {
 		throw new Error('Method not implemented.');
 	}
 
@@ -106,7 +105,11 @@ class MockChatService implements IChatService {
 		return this.sessions.get(sessionResource.toString());
 	}
 
-	getOrRestoreSession(_sessionResource: URI): Promise<any> {
+	getLatestRequest(): IChatRequestModel | undefined {
+		return undefined;
+	}
+
+	acquireOrRestoreSession(_sessionResource: URI): Promise<any> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -114,19 +117,19 @@ class MockChatService implements IChatService {
 		return undefined;
 	}
 
-	loadSessionFromContent(_data: any): any {
+	loadSessionFromData(_data: any): any {
 		throw new Error('Method not implemented.');
 	}
 
-	loadSessionForResource(_resource: URI, _position: ChatAgentLocation, _token: CancellationToken): Promise<any> {
+	acquireOrLoadSession(_resource: URI, _position: ChatAgentLocation, _token: CancellationToken): Promise<any> {
 		throw new Error('Method not implemented.');
 	}
 
-	getActiveSessionReference(_sessionResource: URI): any {
+	acquireExistingSession(_sessionResource: URI): any {
 		return undefined;
 	}
 
-	setTitle(_sessionResource: URI, _title: string): void { }
+	setSessionTitle(_sessionResource: URI, _title: string): void { }
 
 	appendProgress(_request: IChatRequestModel, _progress: any): void { }
 
@@ -146,7 +149,7 @@ class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	cancelCurrentRequestForSession(_sessionResource: URI): void { }
+	async cancelCurrentRequestForSession(_sessionResource: URI, _source?: string): Promise<void> { }
 
 	setYieldRequested(_sessionResource: URI): void { }
 

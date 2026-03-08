@@ -13,18 +13,16 @@ import { Disposable, MutableDisposable, type IDisposable } from '../../../../../
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
-import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatElicitationRequestPart } from '../../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatModel } from '../../../../../chat/common/model/chatModel.js';
 import { ElicitationState, IChatService } from '../../../../../chat/common/chatService/chatService.js';
-import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
-import { ChatMessageRole, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
+import { ChatAgentLocation, ChatPermissionLevel } from '../../../../../chat/common/constants.js';
+import { ChatMessageRole, getTextResponseFromStream, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
 import { ILinkLocation } from '../../taskHelpers.js';
 import { IConfirmationPrompt, IExecution, IPollingResult, OutputMonitorState, PollingConsts } from './types.js';
-import { getTextResponseFromStream } from './utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
@@ -61,7 +59,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			return '<empty>';
 		}
 		// Avoid logging potentially sensitive values from common secret prompts.
-		if (/(password|passphrase|token|api\s*key|secret)/i.test(lastLine)) {
+		if (this._isSensitivePrompt(lastLine)) {
 			return '<redacted>';
 		}
 		// Keep logs bounded.
@@ -110,6 +108,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
 	readonly onDidFinishCommand: Event<void> = this._onDidFinishCommand.event;
 
+	/** The chat session resource for this tool invocation, used to check permission level. */
+	private readonly _sessionResource: URI | undefined;
+
 	constructor(
 		private readonly _execution: IExecution,
 		private readonly _pollFn: ((execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined>) | undefined,
@@ -125,6 +126,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
+
+		this._sessionResource = invocationContext?.sessionResource;
 
 		// Start async to ensure listeners are set up
 		timeout(0).then(() => {
@@ -238,9 +241,15 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 
 		// Check for generic "press any key" prompts from scripts.
-		// These should be treated as free-form input to let the user press a key.
 		if ((!isTask || !isTaskInactive) && detectsGenericPressAnyKeyPattern(output)) {
-			this._logService.trace('OutputMonitor: Idle -> generic "press any key" detected, requesting free-form input');
+			this._logService.trace('OutputMonitor: Idle -> generic "press any key" detected');
+			// In autopilot mode, auto-reply to "press any key" prompts
+			if (this._isAutopilotMode()) {
+				this._logService.trace('OutputMonitor: Autopilot mode -> auto-replying to "press any key"');
+				await this._execution.instance.sendText('', true);
+				return { shouldContinuePollling: true };
+			}
+			this._logService.trace('OutputMonitor: Requesting free-form input for "press any key"');
 			// Register a marker to track this prompt position so we don't re-detect it
 			const currentMarker = this._execution.instance.registerMarker();
 			if (currentMarker) {
@@ -288,6 +297,18 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				this._logService.trace('OutputMonitor: User input arrived before showing free-form prompt; continuing polling');
 				this._cleanupIdleInputListener();
 				return { shouldContinuePollling: true };
+			}
+			const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts) || this._isAutopilotMode();
+			if (autoReply && !this._isSensitivePrompt(confirmationPrompt.prompt)) {
+				const explicitInput = confirmationPrompt.suggestedInput ?? this._extractExplicitInputFromPrompt(confirmationPrompt.prompt);
+				const normalizedInput = this._normalizeAutoReplyInput(explicitInput);
+				if (normalizedInput !== undefined) {
+					this._logService.trace('OutputMonitor: Auto-replying to free-form prompt');
+					await this._execution.instance.sendText(normalizedInput, true);
+					this._outputMonitorTelemetryCounters.inputToolAutoAcceptCount++;
+					this._outputMonitorTelemetryCounters.inputToolAutoChars += normalizedInput.length;
+					return { shouldContinuePollling: true };
+				}
 			}
 			// Clean up the input listener now - the prompt will set up its own
 			this._cleanupIdleInputListener();
@@ -345,7 +366,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const custom = await this._pollFn?.(this._execution, token, this._taskService);
 		this._logService.trace(`OutputMonitor: Custom poller result: ${custom ? 'provided' : 'none'}`);
 		const resources = custom?.resources;
-		const modelOutputEvalResponse = await this._assessOutputForErrors(this._execution.getOutput(), token);
+		const modelOutputEvalResponse = this._pollFn ? undefined : await this._assessOutputForErrors(this._execution.getOutput(), token);
 		return { resources, modelOutputEvalResponse, shouldContinuePollling: false, output: custom?.output ?? output };
 	}
 
@@ -463,16 +484,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		const response = await this._languageModelsService.sendChatRequest(
 			model,
-			new ExtensionIdentifier('core'),
+			undefined,
 			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors. If there are errors, return them. Otherwise, return undefined: ${buffer}.` }] }],
 			{},
 			token
 		);
 
 		try {
-			const responseFromStream = getTextResponseFromStream(response);
-			await Promise.all([response.result, responseFromStream]);
-			return await responseFromStream;
+			return await getTextResponseFromStream(response);
 		} catch (err) {
 			return 'Error occurred ' + err;
 		}
@@ -496,7 +515,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 
 		const promptText =
-			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) that appears at the VERY END of the output and has NOT already been answered (i.e., there is no user response or subsequent output after the prompt), extract the prompt text. IMPORTANT: Only detect prompts that are at the end of the output with no content following them - if there is any output after the prompt, the prompt has already been answered and you should return null. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null. If the option is ambiguous, return null.
+			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) that appears at the VERY END of the output and has NOT already been answered (i.e., there is no user response or subsequent output after the prompt), extract the prompt text. IMPORTANT: Only detect prompts that are at the end of the output with no content following them - if there is any output after the prompt, the prompt has already been answered and you should return null. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, return a JSON object with keys 'prompt', 'options', 'freeFormInput': true, and 'input'. The 'input' field should be the exact text to type only when the output explicitly states what to type (for example, Type "exit" to quit). If there is no explicit input, set 'input' to null. For Enter, set 'input' to "\\r". If the option is ambiguous, return null.
 			Examples:
 			1. Output: "Do you want to overwrite? (y/n)"
 				Response: {"prompt": "Do you want to overwrite?", "options": ["y", "n"], "freeFormInput": false}
@@ -517,7 +536,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				Response: {"prompt": "Continue", "options": ["y", "N"], "freeFormInput": false}
 
 			7. Output: "Password:"
-				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
+				Response: {"prompt": "Password:", "freeFormInput": true, "options": [], "input": null}
 			8. Output: "press ctrl-c to detach, ctrl-d to kill"
 				Response: null
 			9. Output: "Continue (y/n)? y"
@@ -527,16 +546,18 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 			Alternatively, the prompt may request free form input, for example:
 			1. Output: "Enter your username:"
-				Response: {"prompt": "Enter your username:", "freeFormInput": true, "options": []}
+				Response: {"prompt": "Enter your username:", "freeFormInput": true, "options": [], "input": null}
 			2. Output: "Password:"
-				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
+				Response: {"prompt": "Password:", "freeFormInput": true, "options": [], "input": null}
 			3. Output: "Press any key to continue..."
-				Response: {"prompt": "Press any key to continue...", "freeFormInput": true, "options": []}
+				Response: {"prompt": "Press any key to continue...", "freeFormInput": true, "options": [], "input": "\\r"}
+			4. Output: "Type 'exit' to quit the game."
+				Response: {"prompt": "Type 'exit' to quit the game.", "freeFormInput": true, "options": [], "input": "exit"}
 			Now, analyze this output:
 			${lastLines}
 			`;
 
-		const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('core'), [{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }], {}, token);
+		const response = await this._languageModelsService.sendChatRequest(model, undefined, [{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }], {}, token);
 		const responseText = await getTextResponseFromStream(response);
 		try {
 			const match = responseText.match(/\{[\s\S]*\}/);
@@ -548,13 +569,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					Object.hasOwn(parsed, 'options') &&
 					Object.hasOwn(parsed, 'freeFormInput') && typeof (parsed as Record<string, unknown>).freeFormInput === 'boolean'
 				) {
-					const obj = parsed as { prompt: string; options: unknown; freeFormInput: boolean };
+					const obj = parsed as { prompt: string; options: unknown; freeFormInput: boolean; input?: unknown };
 					if (this._lastPrompt === obj.prompt) {
 						this._logService.trace('OutputMonitor: determineUserInputOptions ignoring duplicate prompt');
 						return;
 					}
 					if (obj.freeFormInput === true) {
-						return { prompt: obj.prompt, options: [], detectedRequestForFreeFormInput: true };
+						const suggestedInput = isString(obj.input) && obj.input.trim().length ? obj.input.trim() : undefined;
+						return { prompt: obj.prompt, options: [], detectedRequestForFreeFormInput: true, suggestedInput };
 					}
 					if (Array.isArray(obj.options) && obj.options.every(isString)) {
 						return { prompt: obj.prompt, options: obj.options, detectedRequestForFreeFormInput: obj.freeFormInput };
@@ -574,6 +596,62 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return undefined;
 	}
 
+	private _isSensitivePrompt(prompt: string): boolean {
+		return /(password|passphrase|token|api\s*key|secret)/i.test(prompt);
+	}
+
+	/**
+	 * Returns true if the current session is in Autopilot mode (not Bypass Approvals).
+	 * In Autopilot, terminal prompts should be auto-replied to so the agent can
+	 * work autonomously from start to finish.
+	 */
+	private _isAutopilotMode(): boolean {
+		if (!this._sessionResource) {
+			return false;
+		}
+		// Check the live widget picker level
+		const widget = this._chatWidgetService.getWidgetBySessionResource(this._sessionResource)
+			?? this._chatWidgetService.lastFocusedWidget;
+		if (widget?.input.currentModeInfo.permissionLevel === ChatPermissionLevel.Autopilot) {
+			return true;
+		}
+		// Fall back to the request-stamped level
+		const model = this._chatService.getSession(this._sessionResource);
+		const request = model?.getRequests().at(-1);
+		return request?.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot;
+	}
+
+	private _normalizeAutoReplyInput(input: string | undefined): string | undefined {
+		if (!input) {
+			return undefined;
+		}
+		const trimmed = input.trim();
+		if (!trimmed) {
+			return undefined;
+		}
+		const lowered = trimmed.toLowerCase();
+		if (lowered === '\\r' || lowered === '\\n' || lowered === 'enter' || lowered === 'return') {
+			return '';
+		}
+		return trimmed;
+	}
+
+	private _extractExplicitInputFromPrompt(prompt: string): string | undefined {
+		const normalizedPrompt = prompt.trim();
+		if (!normalizedPrompt) {
+			return undefined;
+		}
+		const directCommandMatch = normalizedPrompt.match(/\b(?:type|enter|input)\s+["'`]([^"'`]+)["'`]/i);
+		if (directCommandMatch?.[1]) {
+			return directCommandMatch[1];
+		}
+		const bareCommandMatch = normalizedPrompt.match(/\b(?:type|enter|input)\s+([\w.-]+)\b/i);
+		if (bareCommandMatch?.[1]) {
+			return bareCommandMatch[1];
+		}
+		return undefined;
+	}
+
 	private async _selectAndHandleOption(
 		confirmationPrompt: IConfirmationPrompt | undefined,
 		token: CancellationToken,
@@ -581,14 +659,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!confirmationPrompt?.options.length) {
 			return undefined;
 		}
-		const model = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)[0]?.input.currentLanguageModel;
-		if (!model) {
-			return undefined;
+		const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts) || this._isAutopilotMode();
+		let model = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)[0]?.input.currentLanguageModel;
+		if (model) {
+			const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: model.replaceAll('copilot/', '') });
+			model = models[0];
 		}
-
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: model.replaceAll('copilot/', '') });
-		if (!models.length) {
-			return undefined;
+		if (!model) {
+			model = await this._getLanguageModel();
 		}
 		const prompt = confirmationPrompt.prompt;
 		const options = confirmationPrompt.options;
@@ -602,13 +680,22 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		this._lastPromptMarker = currentMarker;
 		this._lastPrompt = prompt;
 
-		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
-		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [
-			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
-		], {}, token);
+		let suggestedOption = '';
+		if (model) {
+			try {
+				const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
+				const response = await this._languageModelsService.sendChatRequest(model, undefined, [
+					{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
+				], {}, token);
 
-		const suggestedOption = (await getTextResponseFromStream(response)).trim();
-		const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts);
+				suggestedOption = (await getTextResponseFromStream(response)).trim();
+			} catch (err) {
+				this._logService.trace('OutputMonitor: Failed to get suggested option from model', err);
+			}
+		} else if (!autoReply) {
+			return undefined;
+		}
+
 		let validOption: string;
 		let index: number;
 

@@ -11,6 +11,7 @@ import { createSingleCallFunction } from './functional.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from './lifecycle.js';
 import { LinkedList } from './linkedList.js';
 import { IObservable, IObservableWithChange, IObserver } from './observable.js';
+import { env } from './process.js';
 import { StopWatch } from './stopwatch.js';
 import { MicrotaskDelay } from './symbols.js';
 
@@ -30,6 +31,14 @@ const _enableDisposeWithListenerWarning = false
 const _enableSnapshotPotentialLeakWarning = false
 	// || Boolean("TRUE") // causes a linter warning so that it cannot be pushed
 	;
+
+
+const _bufferLeakWarnCountThreshold = 100;
+const _bufferLeakWarnTimeThreshold = 60_000; // 1 minute
+
+function _isBufferLeakWarningEnabled(): boolean {
+	return !!env['VSCODE_DEV'];
+}
 
 /**
  * An event with zero or one parameters that can be subscribed to. The event is a function itself.
@@ -490,6 +499,7 @@ export namespace Event {
 	 * returned event causes this utility to leak a listener on the original event.
 	 *
 	 * @param event The event source for the new event.
+	 * @param debugName A name for this buffer, used in leak detection warnings.
 	 * @param flushAfterTimeout Determines whether to flush the buffer after a timeout immediately or after a
 	 * `setTimeout` when the first event listener is added.
 	 * @param _buffer Internal: A source event array used for tests.
@@ -499,15 +509,46 @@ export namespace Event {
 	 * // Start accumulating events, when the first listener is attached, flush
 	 * // the event after a timeout such that multiple listeners attached before
 	 * // the timeout would receive the event
-	 * this.onInstallExtension = Event.buffer(service.onInstallExtension, true);
+	 * this.onInstallExtension = Event.buffer(service.onInstallExtension, 'onInstallExtension', true);
 	 * ```
 	 */
-	export function buffer<T>(event: Event<T>, flushAfterTimeout = false, _buffer: T[] = [], disposable?: DisposableStore): Event<T> {
+	export function buffer<T>(event: Event<T>, debugName: string, flushAfterTimeout = false, _buffer: T[] = [], disposable?: DisposableStore): Event<T> {
 		let buffer: T[] | null = _buffer.slice();
+
+		// Dev-only leak detection: track when buffer was created and warn
+		// if events accumulate without ever being consumed.
+		let bufferLeakWarningData: { stack: Stacktrace; timerId: ReturnType<typeof setTimeout>; warned: boolean } | undefined;
+		if (_isBufferLeakWarningEnabled()) {
+			bufferLeakWarningData = {
+				stack: Stacktrace.create(),
+				timerId: setTimeout(() => {
+					if (buffer && buffer.length > 0 && bufferLeakWarningData && !bufferLeakWarningData.warned) {
+						bufferLeakWarningData.warned = true;
+						console.warn(`[Event.buffer][${debugName}] potential LEAK detected: ${buffer.length} events buffered for ${_bufferLeakWarnTimeThreshold / 1000}s without being consumed. Buffered here:`);
+						bufferLeakWarningData.stack.print();
+					}
+				}, _bufferLeakWarnTimeThreshold),
+				warned: false
+			};
+			if (disposable) {
+				disposable.add(toDisposable(() => clearTimeout(bufferLeakWarningData!.timerId)));
+			}
+		}
+
+		const clearLeakWarningTimer = () => {
+			if (bufferLeakWarningData) {
+				clearTimeout(bufferLeakWarningData.timerId);
+			}
+		};
 
 		let listener: IDisposable | null = event(e => {
 			if (buffer) {
 				buffer.push(e);
+				if (_isBufferLeakWarningEnabled() && bufferLeakWarningData && !bufferLeakWarningData.warned && buffer.length >= _bufferLeakWarnCountThreshold) {
+					bufferLeakWarningData.warned = true;
+					console.warn(`[Event.buffer][${debugName}] potential LEAK detected: ${buffer.length} events buffered without being consumed. Buffered here:`);
+					bufferLeakWarningData.stack.print();
+				}
 			} else {
 				emitter.fire(e);
 			}
@@ -520,6 +561,7 @@ export namespace Event {
 		const flush = () => {
 			buffer?.forEach(e => emitter.fire(e));
 			buffer = null;
+			clearLeakWarningTimer();
 		};
 
 		const emitter = new Emitter<T>({
@@ -547,6 +589,7 @@ export namespace Event {
 					listener.dispose();
 				}
 				listener = null;
+				clearLeakWarningTimer();
 			}
 		});
 

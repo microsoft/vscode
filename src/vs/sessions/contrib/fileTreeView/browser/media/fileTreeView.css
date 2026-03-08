@@ -1,0 +1,36 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.file-tree-view-body {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow: hidden;
+}
+
+.file-tree-view-body .file-tree-welcome {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 16px;
+	gap: 8px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.file-tree-view-body .file-tree-welcome-icon {
+	font-size: 24px;
+	opacity: 0.6;
+}
+
+.file-tree-view-body .file-tree-welcome-message {
+	font-size: 12px;
+	text-align: center;
+}
+
+.file-tree-view-body .file-tree-container {
+	flex: 1;
+	overflow: hidden;
+}

@@ -15,7 +15,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participa
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatModel, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
 import { IChatProgress, IChatService, IChatSessionTiming } from './chatService/chatService.js';
-import { Target } from './promptSyntax/service/promptsService.js';
+import { Target } from './promptSyntax/promptTypes.js';
 
 export const enum ChatSessionStatus {
 	Failed = 0,
@@ -93,6 +93,7 @@ export interface IChatSessionsExtensionPoint {
 	 * Custom agents without a `target` property are also shown in all filtered lists
 	 */
 	readonly customAgentTarget?: Target;
+	readonly requiresCustomModels?: boolean;
 }
 
 export interface IChatSessionItem {
@@ -135,6 +136,7 @@ export type IChatSessionHistoryItem = {
 	participant: string;
 	command?: string;
 	variableData?: IChatRequestVariableData;
+	modelId?: string;
 } | {
 	type: 'response';
 	parts: IChatProgress[];
@@ -155,6 +157,8 @@ export interface IChatSession extends IDisposable {
 	readonly onWillDispose: Event<void>;
 
 	readonly sessionResource: URI;
+
+	readonly title?: string;
 
 	readonly history: readonly IChatSessionHistoryItem[];
 
@@ -196,6 +200,8 @@ export interface IChatSessionItemController {
 	get items(): readonly IChatSessionItem[];
 
 	refresh(token: CancellationToken): Promise<void>;
+
+	newChatSessionItem?(request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 }
 
 /**
@@ -250,7 +256,7 @@ export interface IChatSessionsService {
 	getContentProviderSchemes(): string[];
 
 	registerChatSessionContentProvider(scheme: string, provider: IChatSessionContentProvider): IDisposable;
-	canResolveChatSession(sessionResource: URI): Promise<boolean>;
+	canResolveChatSession(sessionType: string): Promise<boolean>;
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
 	hasAnySessionOptions(sessionResource: URI): boolean;
@@ -260,7 +266,7 @@ export interface IChatSessionsService {
 	/**
 	 * Fired when options for a chat session change.
 	 */
-	onDidChangeSessionOptions: Event<URI>;
+	readonly onDidChangeSessionOptions: Event<URI>;
 
 	/**
 	 * Get the capabilities for a specific session type
@@ -273,10 +279,17 @@ export interface IChatSessionsService {
 	 */
 	getCustomAgentTargetForSessionType(chatSessionType: string): Target;
 
-	onDidChangeOptionGroups: Event<string>;
+	/**
+	 * Returns whether the session type requires custom models. When true, the model picker should show filtered custom models.
+	 */
+	requiresCustomModelsForSessionType(chatSessionType: string): boolean;
+	readonly onDidChangeOptionGroups: Event<string>;
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
 	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;
+
+	getNewSessionOptionsForSessionType(chatSessionType: string): Record<string, string | IChatSessionProviderOptionItem> | undefined;
+	setNewSessionOptionsForSessionType(chatSessionType: string, options: Record<string, string | IChatSessionProviderOptionItem>): void;
 	/**
 	 * Event fired when session options change and need to be sent to the extension.
 	 * MainThreadChatSessions subscribes to this to forward changes to the extension host.
@@ -287,6 +300,18 @@ export interface IChatSessionsService {
 
 	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable;
 	getInProgressSessionDescription(chatModel: IChatModel): string | undefined;
+
+	/**
+	 * Creates a new chat session item using the controller's newChatSessionItemHandler.
+	 * Returns undefined if the controller doesn't have a handler or if no controller is registered.
+	 */
+	createNewChatSessionItem(chatSessionType: string, request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	/**
+	 * Registers an alias so that session-option lookups by the real resource
+	 * are redirected to the canonical (untitled) resource in the internal session map.
+	 */
+	registerSessionResourceAlias(untitledResource: URI, realResource: URI): void;
 }
 
 export function isSessionInProgressStatus(state: ChatSessionStatus): boolean {

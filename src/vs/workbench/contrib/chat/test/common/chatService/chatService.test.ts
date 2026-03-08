@@ -12,6 +12,7 @@ import { constObservable, observableValue } from '../../../../../../base/common/
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -33,13 +34,14 @@ import { IExtensionService, nullExtensionDescription } from '../../../../../serv
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
-import { InMemoryTestFileService, mock, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { InMemoryTestFileService, mock, TestChatEntitlementService, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../common/editing/chatEditingService.js';
 import { ChatModel, IChatModel, ISerializableChatData } from '../../../common/model/chatModel.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
@@ -48,6 +50,11 @@ import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
+import { IChatDebugService } from '../../../common/chatDebugService.js';
+import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -143,12 +150,12 @@ suite('ChatService', () => {
 	}
 
 	function startSessionModel(service: IChatService, location: ChatAgentLocation = ChatAgentLocation.Chat): IChatModelReference {
-		const ref = testDisposables.add(service.startSession(location));
+		const ref = testDisposables.add(service.startNewLocalSession(location));
 		return ref;
 	}
 
 	async function getOrRestoreModel(service: IChatService, resource: URI): Promise<IChatModel | undefined> {
-		const ref = await service.getOrRestoreSession(resource);
+		const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 		if (!ref) {
 			return undefined;
 		}
@@ -161,8 +168,10 @@ suite('ChatService', () => {
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[IMcpService, new TestMcpService()],
 			[IPromptsService, new MockPromptsService()],
+			[ILanguageModelToolsService, testDisposables.add(new MockLanguageModelToolsService())]
 		)));
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
+		instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -176,6 +185,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
+		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl()));
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
 				return {
@@ -216,11 +226,11 @@ suite('ChatService', () => {
 	test('retrieveSession', async () => {
 		const testService = createChatService();
 		// Don't add refs to testDisposables so we can control disposal
-		const session1Ref = testService.startSession(ChatAgentLocation.Chat);
+		const session1Ref = testService.startNewLocalSession(ChatAgentLocation.Chat);
 		const session1 = session1Ref.object as ChatModel;
 		session1.addRequest({ parts: [], text: 'request 1' }, { variables: [] }, 0);
 
-		const session2Ref = testService.startSession(ChatAgentLocation.Chat);
+		const session2Ref = testService.startNewLocalSession(ChatAgentLocation.Chat);
 		const session2 = session2Ref.object as ChatModel;
 		session2.addRequest({ parts: [], text: 'request 2' }, { variables: [] }, 0);
 
@@ -368,7 +378,7 @@ suite('ChatService', () => {
 
 		const testService2 = createChatService();
 
-		const chatModel2Ref = testService2.loadSessionFromContent(serializedChatData);
+		const chatModel2Ref = testService2.loadSessionFromData(serializedChatData);
 		assert(chatModel2Ref);
 		testDisposables.add(chatModel2Ref);
 		const chatModel2 = chatModel2Ref.object;
@@ -399,7 +409,7 @@ suite('ChatService', () => {
 
 		const testService2 = createChatService();
 
-		const chatModel2Ref = testService2.loadSessionFromContent(serializedChatData);
+		const chatModel2Ref = testService2.loadSessionFromData(serializedChatData);
 		assert(chatModel2Ref);
 		testDisposables.add(chatModel2Ref);
 		const chatModel2 = chatModel2Ref.object;
@@ -409,7 +419,7 @@ suite('ChatService', () => {
 
 	test('onDidDisposeSession', async () => {
 		const testService = createChatService();
-		const modelRef = testService.startSession(ChatAgentLocation.Chat);
+		const modelRef = testService.startNewLocalSession(ChatAgentLocation.Chat);
 		const model = modelRef.object;
 
 		let disposed = false;
@@ -437,7 +447,7 @@ suite('ChatService', () => {
 				await completeRequest.p;
 				return {};
 			},
-			setYieldRequested(requestId: string) {
+			setYieldRequested(requestId: string, value: boolean) {
 				setYieldRequestedCalled = true;
 			},
 		};
@@ -467,6 +477,135 @@ suite('ChatService', () => {
 		assert.strictEqual(setYieldRequestedCalled, true, 'setYieldRequested should be called when a steering message is queued');
 
 		// Complete the first request
+		completeRequest.complete();
+		await response.data.responseCompletePromise;
+	});
+
+	test('multiple steering messages are combined into a single request', async () => {
+		const requestStarted = new DeferredPromise<void>();
+		const completeRequest = new DeferredPromise<void>();
+		const invokedRequests: string[] = [];
+
+		const slowAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				invokedRequests.push(request.message);
+				if (invokedRequests.length === 1) {
+					requestStarted.complete();
+					await completeRequest.p;
+				}
+				return {};
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('slowAgent', { ...getAgentData('slowAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('slowAgent', slowAgent));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		// Start a request that will wait
+		const response = await testService.sendRequest(model.sessionResource, 'first request', { agentId: 'slowAgent' });
+		ChatSendResult.assertSent(response);
+
+		// Wait for the agent to start processing
+		await requestStarted.p;
+
+		// Queue 3 steering messages while the first request is in progress
+		const steering1 = await testService.sendRequest(model.sessionResource, 'steering1', { agentId: 'slowAgent', queue: ChatRequestQueueKind.Steering });
+		const steering2 = await testService.sendRequest(model.sessionResource, 'steering2', { agentId: 'slowAgent', queue: ChatRequestQueueKind.Steering });
+		const steering3 = await testService.sendRequest(model.sessionResource, 'steering3', { agentId: 'slowAgent', queue: ChatRequestQueueKind.Steering });
+		assert.ok(ChatSendResult.isQueued(steering1));
+		assert.ok(ChatSendResult.isQueued(steering2));
+		assert.ok(ChatSendResult.isQueued(steering3));
+
+		// Complete the first request - should trigger processing of combined steering requests
+		completeRequest.complete();
+		await response.data.responseCompletePromise;
+
+		// Wait for all deferred promises to resolve
+		await steering1.deferred;
+		await steering2.deferred;
+		await steering3.deferred;
+
+		// Should have only invoked 2 requests: the initial and the combined steering
+		assert.strictEqual(invokedRequests.length, 2, 'Should have only 2 invocations (initial + combined steering)');
+		// The combined message includes all steering texts joined with \n\n
+		assert.ok(invokedRequests[1].includes('steering1'), 'Combined message should include steering1');
+		assert.ok(invokedRequests[1].includes('steering2'), 'Combined message should include steering2');
+		assert.ok(invokedRequests[1].includes('steering3'), 'Combined message should include steering3');
+		assert.ok(invokedRequests[1].includes('\n\n'), 'Combined message should use \\n\\n as separator');
+	});
+	test('cancelCurrentRequestForSession waits for response completion', async () => {
+		const requestStarted = new DeferredPromise<void>();
+		const completeRequest = new DeferredPromise<void>();
+
+		const slowAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				requestStarted.complete();
+				const listener = token.onCancellationRequested(() => {
+					listener.dispose();
+					// Simulate some cleanup delay before completing
+					setTimeout(() => completeRequest.complete(), 10);
+				});
+				await completeRequest.p;
+				return {};
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('slowAgent', { ...getAgentData('slowAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('slowAgent', slowAgent));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		const response = await testService.sendRequest(model.sessionResource, 'test request', { agentId: 'slowAgent' });
+		ChatSendResult.assertSent(response);
+
+		await requestStarted.p;
+
+		// Cancel and await - should wait for the response to complete
+		await testService.cancelCurrentRequestForSession(model.sessionResource, 'test');
+
+		// After cancel resolves, the response model should have a result
+		const lastRequest = model.getRequests()[0];
+		assert.ok(lastRequest.response, 'Response should exist after cancellation completes');
+		assert.strictEqual(lastRequest.response.state, ResponseModelState.Cancelled, 'Response should be in Cancelled state');
+	});
+
+	test('cancelCurrentRequestForSession returns after timeout if response does not complete', async () => {
+		const requestStarted = new DeferredPromise<void>();
+		const completeRequest = new DeferredPromise<void>();
+
+		const hangingAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				requestStarted.complete();
+				// Wait for external signal, ignoring cancellation to simulate a hung agent
+				await completeRequest.p;
+				return {};
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('hangingAgent', { ...getAgentData('hangingAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('hangingAgent', hangingAgent));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		const response = await testService.sendRequest(model.sessionResource, 'test request', { agentId: 'hangingAgent' });
+		ChatSendResult.assertSent(response);
+
+		await requestStarted.p;
+
+		// Cancel should return after timeout even though the agent has not completed.
+		// Use faked timers so raceTimeout's 1s setTimeout fires instantly.
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await testService.cancelCurrentRequestForSession(model.sessionResource, 'test');
+		});
+
+		// Let the agent finish so the test cleans up properly
 		completeRequest.complete();
 		await response.data.responseCompletePromise;
 	});

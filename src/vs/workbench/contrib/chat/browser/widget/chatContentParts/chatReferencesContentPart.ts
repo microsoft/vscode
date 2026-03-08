@@ -47,6 +47,7 @@ import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
 const $ = dom.$;
 
@@ -72,11 +73,13 @@ export class ChatCollapsibleListContentPart extends ChatCollapsibleContentPart {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(labelOverride ?? (data.length > 1 ?
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
 			localize('usedReferencesSingular', "Used {0} reference", 1)), context, hoverMessage,
-			hoverService);
+			hoverService, configurationService);
+		this.icon = Codicon.check;
 	}
 
 	protected override initContent(): HTMLElement {
@@ -160,8 +163,9 @@ export class ChatUsedReferencesListContentPart extends ChatCollapsibleListConten
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(data, labelOverride, context, contentReferencesListPool, undefined, openerService, menuService, instantiationService, contextMenuService, hoverService);
+		super(data, labelOverride, context, contentReferencesListPool, undefined, openerService, menuService, instantiationService, contextMenuService, hoverService, configurationService);
 		if (data.length === 0) {
 			dom.hide(this.domNode);
 		}
@@ -299,7 +303,7 @@ class CollapsibleListDelegate implements IListVirtualDelegate<IChatCollapsibleLi
 	}
 }
 
-export interface ICollapsibleListTemplate {
+interface ICollapsibleListTemplate {
 	readonly contextKeyService?: IContextKeyService;
 	readonly label: IResourceLabel;
 	readonly templateDisposables: DisposableStore;
@@ -310,7 +314,7 @@ export interface ICollapsibleListTemplate {
 	removedSpan?: HTMLElement;
 }
 
-export class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem, ICollapsibleListTemplate> {
+class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem, ICollapsibleListTemplate> {
 	static TEMPLATE_ID = 'chatCollapsibleListRenderer';
 	readonly templateId: string = CollapsibleListRenderer.TEMPLATE_ID;
 
@@ -385,8 +389,7 @@ export class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleLi
 				const label = `Kernel variable`;
 				templateData.label.setLabel(label, asVariableName, { title: data.options?.status?.description });
 			} else {
-				// Nothing else is expected to fall into here
-				templateData.label.setLabel('Unknown variable type: ' + reference.variableName);
+				templateData.label.setLabel(reference.variableName, undefined, { title: data.options?.status?.description ?? data.title });
 			}
 		} else if (typeof reference === 'string') {
 			templateData.label.setLabel(reference, undefined, { iconPath: URI.isUri(icon) ? icon : undefined, title: data.options?.status?.description ?? data.title });

@@ -21,11 +21,15 @@ import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.
 import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../attachments/chatContextPickService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
-import { IChatWidget } from '../chat.js';
+import { ILanguageModelToolsService, isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
+import { createDebugEventsAttachment } from '../chatDebug/chatDebugAttachment.js';
+import { IChatDebugService } from '../../common/chatDebugService.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -38,8 +42,28 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatContextPickService contextPickService: IChatContextPickService,
+		@IChatDebugService chatDebugService: IChatDebugService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super();
+
+		// Bind at the global context key service level so the tools service can evaluate it.
+		// Widget-scoped keys are not reliably visible to singleton services during async request processing.
+		const hasAttachedDebugDataKey = ChatContextKeys.chatSessionHasAttachedDebugData.bindTo(contextKeyService);
+		this._store.add(chatWidgetService.onDidChangeFocusedSession(() => {
+			const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+			hasAttachedDebugDataKey.set(!!sessionResource && chatDebugService.hasAttachedDebugData(sessionResource));
+			languageModelToolsService.flushToolUpdates();
+		}));
+		this._store.add(chatDebugService.onDidAttachDebugData(sessionResource => {
+			const focusedSession = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+			if (focusedSession && focusedSession.toString() === sessionResource.toString()) {
+				hasAttachedDebugDataKey.set(true);
+				languageModelToolsService.flushToolUpdates();
+			}
+		}));
 
 		// ###############################################################################################
 		//
@@ -54,6 +78,7 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(DebugEventsSnapshotContextValuePick)));
 	}
 }
 
@@ -283,5 +308,30 @@ class ScreenshotContextValuePick implements IChatContextValueItem {
 	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
 		const blob = await this._hostService.getScreenshot();
 		return blob && convertBufferToScreenshotVariable(blob);
+	}
+}
+
+class DebugEventsSnapshotContextValuePick implements IChatContextValueItem {
+
+	readonly type = 'valuePick';
+	readonly icon = Codicon.output;
+	readonly label = localize('chatContext.debugEventsSnapshot', 'Debug Events Snapshot');
+	readonly ordinal = -600;
+
+	constructor(
+		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
+	) { }
+
+	isEnabled(widget: IChatWidget): boolean {
+		const sessionResource = widget.viewModel?.sessionResource;
+		return !!sessionResource && this._chatDebugService.getEvents(sessionResource).length > 0;
+	}
+
+	async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry | undefined> {
+		const sessionResource = widget.viewModel?.sessionResource;
+		if (!sessionResource) {
+			return undefined;
+		}
+		return createDebugEventsAttachment(sessionResource, this._chatDebugService);
 	}
 }

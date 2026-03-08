@@ -15,6 +15,9 @@ import * as task from './lib/task.ts';
 import * as util from './lib/util.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 
+// Extension point names
+gulp.task(compilation.compileExtensionPointNamesTask);
+
 const require = createRequire(import.meta.url);
 
 // API proposal names
@@ -30,12 +33,12 @@ const transpileClientTask = task.define('transpile-client', task.series(util.rim
 gulp.task(transpileClientTask);
 
 // Fast compile for development time
-const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compilation.copyCodiconsTask, compilation.compileApiProposalNamesTask, compilation.compileTask('src', 'out', false)));
+const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compilation.copyCodiconsTask, compilation.compileApiProposalNamesTask, compilation.compileExtensionPointNamesTask, compilation.compileTask('src', 'out', false)));
 gulp.task(compileClientTask);
 
 const watchClientTask = useEsbuildTranspile
-	? task.define('watch-client', task.parallel(compilation.watchTask('out', false, 'src', { noEmit: true }), compilation.watchApiProposalNamesTask, compilation.watchCodiconsTask))
-	: task.define('watch-client', task.series(util.rimraf('out'), task.parallel(compilation.watchTask('out', false), compilation.watchApiProposalNamesTask, compilation.watchCodiconsTask)));
+	? task.define('watch-client', task.parallel(compilation.watchTask('out', false, 'src', { noEmit: true }), compilation.watchApiProposalNamesTask, compilation.watchExtensionPointNamesTask, compilation.watchCodiconsTask))
+	: task.define('watch-client', task.series(util.rimraf('out'), task.parallel(compilation.watchTask('out', false), compilation.watchApiProposalNamesTask, compilation.watchExtensionPointNamesTask, compilation.watchCodiconsTask)));
 gulp.task(watchClientTask);
 
 // All

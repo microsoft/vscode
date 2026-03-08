@@ -14,8 +14,11 @@ import { MockScopableContextKeyService } from '../../../../../platform/keybindin
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { MODAL_GROUP, MODAL_GROUP_TYPE } from '../../common/editorService.js';
+import { IEditorService, MODAL_GROUP, MODAL_GROUP_TYPE } from '../../common/editorService.js';
 import { findGroup } from '../../common/editorGroupFinder.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { EditorService } from '../../browser/editorService.js';
 
 suite('Modal Editor Group', () => {
 
@@ -502,6 +505,161 @@ suite('Modal Editor Group', () => {
 		assert.deepStrictEqual(events, [true, false]);
 
 		modalPart.close();
+	});
+
+	test('modal editor part remembers maximized state across instances', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		// Open modal and maximize it
+		const modalPart1 = await parts.createModalEditorPart();
+		modalPart1.toggleMaximized();
+		assert.strictEqual(modalPart1.maximized, true);
+		modalPart1.close();
+
+		// Open a new modal - should remember maximized state
+		const modalPart2 = await parts.createModalEditorPart();
+		assert.strictEqual(modalPart2.maximized, true);
+		modalPart2.close();
+
+		// Open another modal after un-maximizing
+		const modalPart3 = await parts.createModalEditorPart();
+		assert.strictEqual(modalPart3.maximized, true);
+		modalPart3.toggleMaximized();
+		assert.strictEqual(modalPart3.maximized, false);
+		modalPart3.close();
+
+		// Should now remember non-maximized state
+		const modalPart4 = await parts.createModalEditorPart();
+		assert.strictEqual(modalPart4.maximized, false);
+		modalPart4.close();
+	});
+
+	suite('useModal: all', () => {
+
+		test('findGroup creates modal and returns its active group', async () => {
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration('workbench.editor.useModal', 'all');
+			instantiationService.stub(IConfigurationService, configurationService);
+			const parts = await createEditorParts(instantiationService, disposables);
+			instantiationService.stub(IEditorGroupsService, parts);
+
+			// findGroup with undefined preferredGroup should create modal and return its group
+			const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+			const result = instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: input.resource }, undefined));
+
+			// Should return a promise (async modal creation)
+			assert.ok(result instanceof Promise);
+			const [group] = await result;
+
+			// The group should be in the modal part
+			assert.ok(parts.activeModalEditorPart);
+			assert.strictEqual(group.id, parts.activeModalEditorPart.activeGroup.id);
+
+			parts.activeModalEditorPart.close();
+		});
+
+		test('findGroup does not auto-close modal', async () => {
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration('workbench.editor.useModal', 'all');
+			instantiationService.stub(IConfigurationService, configurationService);
+			const parts = await createEditorParts(instantiationService, disposables);
+			instantiationService.stub(IEditorGroupsService, parts);
+
+			// Create modal first
+			const modalPart = await parts.createModalEditorPart();
+			const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+			await modalPart.activeGroup.openEditor(input, { pinned: true });
+
+			// findGroup without MODAL_GROUP should NOT close the modal
+			const newInput = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
+			const result = instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource }, undefined));
+
+			// Since the setting is 'on', modal stays open
+			const [group] = result instanceof Promise ? await result : result;
+
+			assert.ok(parts.activeModalEditorPart);
+			assert.strictEqual(group.id, modalPart.activeGroup.id);
+
+			modalPart.close();
+		});
+
+		test('findGroup auto-closes modal when setting is not all', async () => {
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration('workbench.editor.useModal', 'off');
+			instantiationService.stub(IConfigurationService, configurationService);
+			const parts = await createEditorParts(instantiationService, disposables);
+			instantiationService.stub(IEditorGroupsService, parts);
+
+			// Create modal
+			const modalPart = await parts.createModalEditorPart();
+			const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+			await modalPart.activeGroup.openEditor(input, { pinned: true });
+
+			assert.ok(parts.activeModalEditorPart);
+
+			// findGroup without MODAL_GROUP should close the modal
+			const newInput = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
+			instantiationService.invokeFunction(accessor => findGroup(accessor, { resource: newInput.resource }, undefined));
+
+			assert.strictEqual(parts.activeModalEditorPart, undefined);
+		});
+	});
+
+	test('modal editor part editors can be moved to another group', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		// Create modal and open editors
+		const modalPart = await parts.createModalEditorPart();
+		const input1 = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const input2 = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
+		await modalPart.activeGroup.openEditor(input1, { pinned: true });
+		await modalPart.activeGroup.openEditor(input2, { pinned: true });
+
+		assert.strictEqual(modalPart.activeGroup.count, 2);
+
+		// Move editors from modal to main part group
+		const targetGroup = parts.mainPart.activeGroup;
+		for (const group of modalPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			group.moveEditors(group.editors.map(editor => ({ editor, options: { preserveFocus: true } })), targetGroup);
+		}
+
+		// Editors should be in the target group now
+		assert.strictEqual(targetGroup.count, 2);
+		assert.strictEqual(modalPart.activeGroup.count, 0);
+
+		// Close modal
+		modalPart.close();
+		assert.strictEqual(parts.activeModalEditorPart, undefined);
+	});
+
+	test('openEditor with MODAL_GROUP ignores preserveFocus', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
+		instantiationService.stub(IEditorService, editorService);
+
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const pane = await editorService.openEditor(input, { pinned: true, preserveFocus: true }, MODAL_GROUP);
+
+		assert.ok(pane);
+		assert.strictEqual(pane.options?.preserveFocus, false);
+
+		parts.activeModalEditorPart?.close();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

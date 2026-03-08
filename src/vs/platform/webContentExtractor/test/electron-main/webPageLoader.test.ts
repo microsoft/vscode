@@ -19,6 +19,7 @@ interface MockElectronEvent {
 
 class MockWebContents {
 	private readonly _listeners = new Map<string, ((...args: unknown[]) => void)[]>();
+	private readonly _onceListeners = new Set<(...args: unknown[]) => void>();
 	public readonly debugger: MockDebugger;
 	public loadURL = sinon.stub().resolves();
 	public getTitle = sinon.stub().returns('Test Page Title');
@@ -26,8 +27,10 @@ class MockWebContents {
 
 	public session = {
 		webRequest: {
-			onBeforeSendHeaders: sinon.stub()
-		}
+			onBeforeSendHeaders: sinon.stub(),
+			onHeadersReceived: sinon.stub()
+		},
+		on: sinon.stub()
 	};
 
 	constructor() {
@@ -39,6 +42,7 @@ class MockWebContents {
 			this._listeners.set(event, []);
 		}
 		this._listeners.get(event)!.push(listener);
+		this._onceListeners.add(listener);
 		return this;
 	}
 
@@ -55,7 +59,16 @@ class MockWebContents {
 		for (const listener of listeners) {
 			listener(...args);
 		}
-		this._listeners.delete(event);
+		// Remove once listeners, keep on listeners
+		const remaining = listeners.filter(l => !this._onceListeners.has(l));
+		for (const listener of listeners) {
+			this._onceListeners.delete(listener);
+		}
+		if (remaining.length > 0) {
+			this._listeners.set(event, remaining);
+		} else {
+			this._listeners.delete(event);
+		}
 	}
 
 	beginFrameSubscription(_onlyDirty: boolean, callback: () => void): void {
@@ -230,6 +243,27 @@ suite('WebPageLoader', () => {
 		}
 	}));
 
+	test('ERR_BLOCKED_BY_CLIENT is ignored and content extraction continues', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+
+		const loader = createWebPageLoader(uri);
+		setupDebuggerMock();
+
+		const loadPromise = loader.load();
+
+		// Simulate ERR_BLOCKED_BY_CLIENT (-27) which should be ignored
+		const mockEvent: MockElectronEvent = {};
+		window.webContents.emit('did-fail-load', mockEvent, -27, 'ERR_BLOCKED_BY_CLIENT');
+
+		const result = await loadPromise;
+
+		// ERR_BLOCKED_BY_CLIENT should not cause an error status, content should be extracted
+		assert.strictEqual(result.status, 'ok');
+		if (result.status === 'ok') {
+			assert.ok(result.result.includes('Test content from page'));
+		}
+	}));
+
 	//#endregion
 
 	//#region Redirect Tests
@@ -390,6 +424,68 @@ suite('WebPageLoader', () => {
 
 		const result = await loadPromise;
 		assert.strictEqual(result.status, 'ok');
+	}));
+
+	test('post-load navigation to different domain is blocked silently and content is extracted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const adRedirectUrl = 'https://eus.rubiconproject.com/usync.html?p=12776';
+
+		const loader = createWebPageLoader(uri, { followRedirects: false });
+		setupDebuggerMock();
+
+		const loadPromise = loader.load();
+
+		// Simulate successful page load
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		// Simulate ad/tracker script redirecting after page load
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-navigate', mockEvent, adRedirectUrl);
+
+		const result = await loadPromise;
+
+		// Navigation should be prevented
+		assert.ok((mockEvent.preventDefault!).called);
+		// But result should be ok (content extracted), NOT redirect
+		assert.strictEqual(result.status, 'ok');
+		assert.ok(result.result.includes('Test content from page'));
+	}));
+
+	test('initial same-domain navigation is allowed but later cross-domain navigation is blocked', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const sameDomainUrl = 'https://example.com/otherpage';
+		const crossDomainUrl = 'https://eus.rubiconproject.com/usync.html?p=12776';
+
+		const loader = createWebPageLoader(uri, { followRedirects: false });
+		setupDebuggerMock();
+
+		const loadPromise = loader.load();
+
+		// First navigation: same-authority, should be allowed
+		const initialEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-navigate', initialEvent, sameDomainUrl);
+		assert.ok(!(initialEvent.preventDefault!).called);
+
+		// Simulate successful page load
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		// Second navigation: cross-domain after load, should be blocked
+		const crossDomainEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-navigate', crossDomainEvent, crossDomainUrl);
+
+		const result = await loadPromise;
+
+		assert.ok((crossDomainEvent.preventDefault!).called);
+		assert.strictEqual(result.status, 'ok');
+		assert.ok(result.result.includes('Test content from page'));
 	}));
 
 	test('redirect to non-trusted domain is blocked', async () => {
@@ -880,6 +976,152 @@ suite('WebPageLoader', () => {
 		assert.strictEqual(modifiedHeaders['DNT'], '1');
 		assert.strictEqual(modifiedHeaders['Sec-GPC'], '1');
 		assert.strictEqual(modifiedHeaders['TestHeader'], 'TestValue');
+	});
+
+	//#endregion
+
+	//#region Download Prevention Tests
+
+	test('onHeadersReceived replaces Content-Disposition attachment with inline for text content', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
+
+		// Get the callback passed to onHeadersReceived
+		assert.ok(window.webContents.session.webRequest.onHeadersReceived.called);
+		const listener = window.webContents.session.webRequest.onHeadersReceived.getCall(0).args[0];
+
+		for (const contentType of ['application/xml', 'text/html', 'text/plain', 'application/json', 'application/xhtml+xml', 'application/rss+xml', 'application/vnd.custom+json']) {
+			let response: { responseHeaders?: Record<string, string[]>; cancel?: boolean } | undefined;
+			const mockCallback = (result: { responseHeaders?: Record<string, string[]>; cancel?: boolean }) => {
+				response = result;
+			};
+
+			listener(
+				{
+					url: 'https://example.com/file',
+					responseHeaders: {
+						'Content-Disposition': ['attachment; filename="file.xml"'],
+						'Content-Type': [contentType]
+					}
+				},
+				mockCallback
+			);
+
+			assert.ok(response, `Expected response for ${contentType}`);
+			assert.deepStrictEqual(response!.responseHeaders!['Content-Disposition'], ['inline'], `Expected inline for ${contentType}`);
+			assert.strictEqual(response!.cancel, false, `Should not cancel for ${contentType}`);
+		}
+	});
+
+	test('onHeadersReceived cancels Content-Disposition attachment for binary content', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
+
+		const listener = window.webContents.session.webRequest.onHeadersReceived.getCall(0).args[0];
+
+		for (const contentType of ['application/octet-stream', 'application/zip', 'application/pdf', 'image/png', 'video/mp4']) {
+			let response: { cancel?: boolean } | undefined;
+			const mockCallback = (result: { cancel?: boolean }) => {
+				response = result;
+			};
+
+			listener(
+				{
+					url: 'https://example.com/file.bin',
+					responseHeaders: {
+						'Content-Disposition': ['attachment; filename="file.bin"'],
+						'Content-Type': [contentType]
+					}
+				},
+				mockCallback
+			);
+
+			assert.ok(response, `Expected response for ${contentType}`);
+			assert.strictEqual(response!.cancel, true, `Expected cancel for ${contentType}`);
+		}
+	});
+
+	test('onHeadersReceived cancels Content-Disposition attachment when content type is missing', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
+
+		const listener = window.webContents.session.webRequest.onHeadersReceived.getCall(0).args[0];
+
+		let response: { cancel?: boolean } | undefined;
+		const mockCallback = (result: { cancel?: boolean }) => {
+			response = result;
+		};
+
+		listener(
+			{
+				url: 'https://example.com/file',
+				responseHeaders: {
+					'Content-Disposition': ['attachment; filename="file"']
+				}
+			},
+			mockCallback
+		);
+
+		assert.ok(response);
+		assert.strictEqual(response!.cancel, true);
+	});
+
+	test('onHeadersReceived allows normal responses without Content-Disposition attachment', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
+
+		const listener = window.webContents.session.webRequest.onHeadersReceived.getCall(0).args[0];
+
+		let response: { responseHeaders?: Record<string, string[]> } | undefined;
+		const mockCallback = (result: { responseHeaders?: Record<string, string[]> }) => {
+			response = result;
+		};
+
+		// Simulate a normal HTML response
+		listener(
+			{
+				url: 'https://example.com/page',
+				responseHeaders: {
+					'Content-Type': ['text/html'],
+					'Content-Disposition': ['inline']
+				}
+			},
+			mockCallback
+		);
+
+		assert.ok(response);
+		assert.strictEqual(response!.responseHeaders, undefined);
+	});
+
+	test('will-download handler cancels download and returns error', async () => {
+		const uri = URI.parse('https://dl.google.com/linux/chrome/rpm/stable/x86_64/repodata/repomd.xml');
+
+		const loader = createWebPageLoader(uri);
+		setupDebuggerMock();
+
+		// Get the will-download handler
+		assert.ok(window.webContents.session.on.called);
+		const willDownloadCall = window.webContents.session.on.getCalls()
+			.find(call => call.args[0] === 'will-download');
+		assert.ok(willDownloadCall);
+		const willDownloadHandler = willDownloadCall!.args[1];
+
+		const loadPromise = loader.load();
+
+		// Simulate a download being triggered
+		const mockItem = {
+			cancel: sinon.stub(),
+			getFilename: sinon.stub().returns('repomd.xml')
+		};
+		willDownloadHandler({}, mockItem);
+
+		const result = await loadPromise;
+
+		// Verify download was cancelled
+		assert.ok(mockItem.cancel.called);
+
+		// Verify error result
+		assert.strictEqual(result.status, 'error');
+		if (result.status === 'error') {
+			assert.ok(result.error.includes('Download not allowed'));
+			assert.ok(result.error.includes('repomd.xml'));
+		}
 	});
 
 	//#endregion

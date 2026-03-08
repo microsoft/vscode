@@ -68,12 +68,14 @@ export class ChatUsageWidget extends Disposable {
 
 			// Premium requests
 			if (premiumChatQuota) {
-				this.renderQuotaItem(this.usageSection, localize('plan.premiumRequests', 'Premium requests'), premiumChatQuota);
+				const premiumLabel = premiumChatQuota.overageEnabled ? localize('plan.includedPremiumRequests', 'Included premium requests') : localize('plan.premiumRequests', 'Premium requests');
+				this.renderQuotaItem(this.usageSection, premiumLabel, premiumChatQuota, premiumChatQuota.overageEnabled);
 
-				// Additional overage message
-				if (premiumChatQuota.overageEnabled) {
+				if (premiumChatQuota.overageEnabled && !premiumChatQuota.unlimited) {
 					const overageMessage = DOM.append(this.usageSection, $('.overage-message'));
-					overageMessage.textContent = localize('plan.additionalPaidEnabled', 'Additional paid premium requests enabled.');
+					overageMessage.append(localize('plan.overageApprovedLine1', "Additional premium requests approved."));
+					DOM.append(overageMessage, $('br'));
+					overageMessage.append(localize('plan.overageApprovedLine2', "You can continue after included premium requests limit reaches 100%."));
 				}
 			}
 
@@ -89,7 +91,7 @@ export class ChatUsageWidget extends Disposable {
 		this._onDidChangeContentHeight.fire(height);
 	}
 
-	private renderQuotaItem(container: HTMLElement, label: string, quota: IQuotaSnapshot): void {
+	private renderQuotaItem(container: HTMLElement, label: string, quota: IQuotaSnapshot, overageEnabled: boolean = false): void {
 		const quotaItem = DOM.append(container, $('.quota-item'));
 
 		const quotaItemHeader = DOM.append(quotaItem, $('.quota-item-header'));
@@ -109,10 +111,10 @@ export class ChatUsageWidget extends Disposable {
 		const percentageUsed = this.getQuotaPercentageUsed(quota);
 		progressBar.style.width = percentageUsed + '%';
 
-		// Apply warning/error classes based on usage
-		if (percentageUsed >= 90) {
+		// Apply warning/error classes based on usage (don't show error/warning if overage is enabled)
+		if (percentageUsed >= 90 && !overageEnabled) {
 			quotaItem.classList.add('error');
-		} else if (percentageUsed >= 75) {
+		} else if (percentageUsed >= 75 && !overageEnabled) {
 			quotaItem.classList.add('warning');
 		}
 	}

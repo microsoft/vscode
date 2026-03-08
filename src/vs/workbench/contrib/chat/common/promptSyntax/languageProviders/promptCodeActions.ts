@@ -16,9 +16,10 @@ import { Selection } from '../../../../../../editor/common/core/selection.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { getTarget, isVSCodeOrDefaultTarget, MARKERS_OWNER_ID } from './promptValidator.js';
+import { MARKERS_OWNER_ID } from './promptValidator.js';
 import { IMarkerData, IMarkerService } from '../../../../../../platform/markers/common/markers.js';
 import { CodeActionKind } from '../../../../../../editor/contrib/codeAction/common/types.js';
+import { getTarget, isVSCodeOrDefaultTarget } from './promptFileAttributes.js';
 
 export class PromptCodeActionProvider implements CodeActionProvider {
 	/**
@@ -119,17 +120,17 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 			return;
 		}
 		let value = toolsAttr.value;
-		if (value.type === 'string') {
+		if (value.type === 'scalar') {
 			value = parseCommaSeparatedList(value);
 		}
-		if (value.type !== 'array') {
+		if (value.type !== 'sequence') {
 			return;
 		}
 		const values = value.items;
 		const deprecatedNames = new Lazy(() => this.languageModelToolsService.getDeprecatedFullReferenceNames());
 		const edits: TextEdit[] = [];
 		for (const item of values) {
-			if (item.type !== 'string') {
+			if (item.type !== 'scalar') {
 				continue;
 			}
 			const newNames = deprecatedNames.value.get(item.value);

@@ -95,9 +95,12 @@ Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{
 Name: "{app}"; AfterInstall: DisableAppDirInheritance
 
 [Files]
-Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\policies,\policies\*,\appx,\appx\*,\resources\app\product.json,\{#ExeBasename}.exe,\{#ExeBasename}.VisualElementsManifest.xml,\bin,\bin\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\policies,\policies\*,\appx,\appx\*,\resources\app\product.json,\{#ExeBasename}.exe,{#ifdef ProxyExeBasename}\{#ProxyExeBasename}.exe,{#endif}\{#ExeBasename}.VisualElementsManifest.xml,\bin,\bin\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#ExeBasename}.exe"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetExeBasename}"; Flags: ignoreversion
 Source: "{#ExeBasename}.VisualElementsManifest.xml"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetVisualElementsManifest}"; Flags: ignoreversion
+#ifdef ProxyExeBasename
+Source: "{#ProxyExeBasename}.exe"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetProxyExeBasename}"; Flags: ignoreversion
+#endif
 Source: "tools\*"; DestDir: "{app}\{#VersionedResourcesFolder}\tools"; Flags: ignoreversion
 Source: "policies\*"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\policies"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "bin\{#TunnelApplicationName}.exe"; DestDir: "{code:GetDestDir}\bin"; DestName: "{code:GetBinDirTunnelApplicationFilename}"; Flags: ignoreversion skipifsourcedoesntexist
@@ -113,6 +116,11 @@ Source: "appx\{#AppxPackageDll}"; DestDir: "{code:GetDestDir}\{#VersionedResourc
 Name: "{group}\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; AppUserModelID: "{#AppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{group}\{#NameLong}.lnk'))
 Name: "{autodesktop}\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; Tasks: desktopicon; AppUserModelID: "{#AppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{autodesktop}\{#NameLong}.lnk'))
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; Tasks: quicklaunchicon; AppUserModelID: "{#AppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}.lnk'))
+#ifdef ProxyExeBasename
+Name: "{group}\{#ProxyExeBasename}"; Filename: "{app}\{#ProxyExeBasename}.exe"; AppUserModelID: "{#ProxyAppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{group}\{#ProxyExeBasename}.lnk'))
+Name: "{autodesktop}\{#ProxyNameLong}"; Filename: "{app}\{#ProxyExeBasename}.exe"; Tasks: desktopicon; AppUserModelID: "{#ProxyAppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{autodesktop}\{#ProxyNameLong}.lnk'))
+Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#ProxyNameLong}"; Filename: "{app}\{#ProxyExeBasename}.exe"; Tasks: quicklaunchicon; AppUserModelID: "{#ProxyAppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#ProxyNameLong}.lnk'))
+#endif
 
 [Run]
 Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Tasks: runcode; Flags: nowait postinstall; Check: ShouldRunAfterUpdate
@@ -1365,6 +1373,36 @@ end;
 
 // Updates
 
+function GetUpdateProgressFilePath(): String;
+begin
+  Result := ExpandConstant('{param:progress}');
+end;
+
+var
+  LastReportedProgressPct: Integer;
+
+procedure CurInstallProgressChanged(CurProgress, MaxProgress: Integer);
+var
+  ProgressFilePath: String;
+  ProgressContent: String;
+  CurrentPct: Integer;
+begin
+  if IsBackgroundUpdate() then begin
+    ProgressFilePath := GetUpdateProgressFilePath();
+    if ProgressFilePath <> '' then begin
+      if MaxProgress > 0 then
+        CurrentPct := (CurProgress * 100) div MaxProgress
+      else
+        CurrentPct := 0;
+      if CurrentPct <> LastReportedProgressPct then begin
+        LastReportedProgressPct := CurrentPct;
+        ProgressContent := IntToStr(CurProgress) + ',' + IntToStr(MaxProgress);
+        SaveStringToFile(ProgressFilePath, ProgressContent, False);
+      end;
+    end;
+  end;
+end;
+
 var
 	ShouldRestartTunnelService: Boolean;
 
@@ -1478,7 +1516,7 @@ var
 begin
   // Check if the user has forced Windows 10 style context menus on Windows 11
   SubKey := 'Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32';
-  Result := RegKeyExists(HKEY_CURRENT_USER, SubKey) or RegKeyExists(HKEY_LOCAL_MACHINE, SubKey);
+  Result := RegKeyExists(HKEY_CURRENT_USER, SubKey);
 end;
 
 function ShouldUseWindows11ContextMenu(): Boolean;
@@ -1531,6 +1569,16 @@ begin
   else
     Result := ExpandConstant('{#ExeBasename}.exe');
 end;
+
+#ifdef ProxyExeBasename
+function GetProxyExeBasename(Value: string): string;
+begin
+  if IsBackgroundUpdate() and IsVersionedUpdate() then
+    Result := ExpandConstant('new_{#ProxyExeBasename}.exe')
+  else
+    Result := ExpandConstant('{#ProxyExeBasename}.exe');
+end;
+#endif
 
 function GetBinDirTunnelApplicationFilename(Value: string): string;
 begin
@@ -1645,6 +1693,12 @@ begin
   if CurStep = ssPostInstall then
   begin
 #ifdef AppxPackageName
+    // Remove the appx package when user has forced Windows 10 context menus via
+    // registry. This handles the case where the user previously had the appx
+    // installed but now wants the classic context menu style.
+    if IsWindows10ContextMenuForced() then begin
+      RemoveAppxPackage();
+    end;
     // Remove the old context menu registry keys
     if ShouldUseWindows11ContextMenu() then begin
       RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\*\shell\{#RegValueName}');
@@ -1658,6 +1712,7 @@ begin
     begin
       SaveStringToFile(ExpandConstant('{app}\updating_version'), '{#Commit}', False);
       CreateMutex('{#AppMutex}-ready');
+      DeleteFile(GetUpdateProgressFilePath());
 
       Log('Checking whether application is still running...');
       while (CheckForMutexes('{#AppMutex}')) do

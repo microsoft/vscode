@@ -9,7 +9,7 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { createMarkdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, isDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { DelayedPagedModel, IPagedModel, PagedModel, IterativePagedModel } from '../../../../base/common/paging.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -52,6 +52,8 @@ import { IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../.
 import { ProductQualityContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { buildModalNavigationForPagedList } from '../../extensions/browser/extensionsViewer.js';
 
 export interface McpServerListViewOptions {
 	showWelcome?: boolean;
@@ -81,6 +83,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		mcpServersList: HTMLElement;
 	} | undefined;
 	private readonly contextMenuActionRunner = this._register(new ActionRunner());
+	private readonly modalNavigationDisposable = this._register(new MutableDisposable());
 	private input: IQueryResult | undefined;
 
 	constructor(
@@ -100,6 +103,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		@IMcpGalleryManifestService protected readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IMarkdownRendererService protected readonly markdownRendererService: IMarkdownRendererService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
@@ -161,7 +165,17 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 				openOnSingleClick: true,
 			}) as WorkbenchPagedList<IWorkbenchMcpServer>);
 		this._register(Event.debounce(Event.filter(this.list.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
-			this.mcpWorkbenchService.open(options.element!, options.editorOptions);
+			this.mcpWorkbenchService.open(options.element!, {
+				...options.editorOptions,
+				modal: options.sideBySide ? undefined : buildModalNavigationForPagedList(
+					options.element!,
+					() => this.list?.model,
+					(serverA, serverB) => serverA.id === serverB.id,
+					(server, modal) => this.mcpWorkbenchService.open(server, { pinned: false, modal }),
+					this.modalNavigationDisposable,
+					this.logService
+				),
+			});
 		}));
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
 
@@ -256,7 +270,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		const title = dom.append(welcomeContent, dom.$('.mcp-welcome-title'));
 		title.textContent = localize('mcp.welcome.title', "MCP Servers");
 
-		const settingsCommandLink = createMarkdownCommandLink({ id: 'workbench.action.openSettings', arguments: [`@id:${mcpGalleryServiceEnablementConfig}`], title: mcpGalleryServiceEnablementConfig, tooltip: localize('mcp.welcome.settings.tooltip', "Open Settings") }).toString();
+		const settingsCommandLink = createMarkdownCommandLink({ id: 'workbench.action.openSettings', arguments: [`@id:${mcpGalleryServiceEnablementConfig}`], text: mcpGalleryServiceEnablementConfig, tooltip: localize('mcp.welcome.settings.tooltip', "Open Settings") }).toString();
 		const description = dom.append(welcomeContent, dom.$('.mcp-welcome-description'));
 		const markdownResult = this._register(this.markdownRendererService.render(
 			new MarkdownString(
