@@ -319,26 +319,46 @@ export class Indexer {
 	}
 
 	private resolveCallSiteCallers(extraction: FileExtractionResult): void {
-		// Build a mapping of line ranges to function names
-		const lineToFunction = new Map<number, string>();
+		// Build an array of function/method line ranges for efficient lookup
+		const ranges: { start: number; end: number; name: string }[] = [];
 
 		for (const fn of extraction.functions) {
-			for (let line = fn.startLine; line <= fn.endLine; line++) {
-				lineToFunction.set(line, fn.name);
-			}
+			ranges.push({ start: fn.startLine, end: fn.endLine, name: fn.name });
 		}
 
 		for (const cls of extraction.classes) {
 			for (const method of cls.methods) {
-				for (let line = method.startLine; line <= method.endLine; line++) {
-					lineToFunction.set(line, method.qualifiedName);
-				}
+				ranges.push({
+					start: method.startLine,
+					end: method.endLine,
+					name: method.qualifiedName,
+				});
 			}
 		}
 
-		// Assign caller names to call sites
+		// Sort ranges by start line so we can binary-search by call site line
+		ranges.sort((a, b) => a.start - b.start || a.end - b.end);
+
+		// Assign caller names to call sites using binary search over ranges
 		for (const call of extraction.callSites) {
-			const caller = lineToFunction.get(call.line);
+			const line = call.line;
+			let lo = 0;
+			let hi = ranges.length - 1;
+			let caller: string | undefined;
+
+			while (lo <= hi) {
+				const mid = (lo + hi) >> 1;
+				const range = ranges[mid];
+
+				if (line < range.start) {
+					hi = mid - 1;
+				} else if (line > range.end) {
+					lo = mid + 1;
+				} else {
+					caller = range.name;
+					break;
+				}
+			}
 			if (caller) {
 				call.callerName = caller;
 			}
