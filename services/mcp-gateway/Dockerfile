@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && \
     rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
-RUN npm ci --production 2>/dev/null || npm init -y
+RUN npm ci --omit=dev
 
 COPY . .
 
