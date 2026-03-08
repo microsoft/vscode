@@ -285,7 +285,7 @@ export function generatePropertyTestFile(spec: RequirementsSpec, featureName: st
 	sections.push('// Each test maps to an EARS requirement in requirements.md.');
 	sections.push('// Replace TODO stubs with actual implementations.');
 	sections.push('');
-	sections.push("import { fc } from 'fast-check';");
+	sections.push("import fc from 'fast-check';");
 	sections.push('');
 	sections.push(`describe('${escapeTestName(featureName)} — Property-Based Tests', () => {`);
 
