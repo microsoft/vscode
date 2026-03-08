@@ -36,6 +36,22 @@
 			"agent": "anton-docs",
 			"instruction": "Review the PR diff. If any public API changed, check that documentation is updated.",
 			"blocking": false
+		},
+		{
+			"name": "spec-sync-code-to-spec",
+			"trigger": "onFileSave",
+			"filter": "**/*.{ts,tsx,js,jsx,py,rs}",
+			"agent": "anton-code",
+			"instruction": "Check if this code file is referenced by any spec in .son-of-anton/specs/. If so, verify the spec is still consistent with the code change.",
+			"blocking": false
+		},
+		{
+			"name": "spec-sync-spec-to-code",
+			"trigger": "onFileSave",
+			"filter": "**/.son-of-anton/specs/**/*.md",
+			"agent": "anton-code",
+			"instruction": "A spec file was updated. Check if downstream spec phases or code files need updating to stay consistent.",
+			"blocking": false
 		}
 	]
 }

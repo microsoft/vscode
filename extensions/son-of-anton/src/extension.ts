@@ -20,6 +20,7 @@ import { SandboxTerminal } from './sandbox/SandboxTerminal';
 import { SecurityScanner } from './security/SecurityScanner';
 import { SupplyChainGuard } from './security/SupplyChainGuard';
 import { HookEngine } from './hooks/HookEngine';
+import { SpecSyncWatcher } from './hooks/SpecSyncWatcher';
 
 export function activate(context: vscode.ExtensionContext): void {
 	const llmClient = new LlmClient(context);
@@ -62,6 +63,21 @@ export function activate(context: vscode.ExtensionContext): void {
 		hookEngine.registerFileWatchers();
 		hookEngine.registerGitHooks();
 	});
+
+	// --- Spec Sync ---
+	const specSyncWatcher = new SpecSyncWatcher();
+	specSyncWatcher.start();
+
+	// Surface spec sync warnings in the output channel
+	const specSyncChannel = vscode.window.createOutputChannel('Son of Anton: Spec Sync');
+	context.subscriptions.push(specSyncChannel);
+	context.subscriptions.push(
+		specSyncWatcher.onDidDetectSync(warning => {
+			specSyncChannel.appendLine(
+				`[${warning.direction}] ${warning.message}`
+			);
+		})
+	);
 
 	// --- Tracing ---
 	const traceExporter = new TraceExporter();
@@ -169,7 +185,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		})
 	);
 
-	// Dispose sandbox and security on deactivation
+	// Dispose sandbox, security, and spec sync on deactivation
 	context.subscriptions.push({
 		dispose: () => {
 			sandboxManager.destroy();
@@ -177,6 +193,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			supplyChainGuard.dispose();
 			hookEngine.dispose();
 			sandboxTerminal.dispose();
+			specSyncWatcher.dispose();
 		}
 	});
 }

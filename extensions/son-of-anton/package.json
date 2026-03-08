@@ -69,6 +69,19 @@
 					{ "name": "document", "description": "Generate documentation for code" },
 					{ "name": "changelog", "description": "Generate a changelog entry" }
 				]
+			},
+			{
+				"id": "sota.anton-spec",
+				"name": "anton-spec",
+				"fullName": "Anton Spec",
+				"description": "Spec pipeline specialist — generates requirements, designs, and tasks from natural language",
+				"commands": [
+					{ "name": "spec", "description": "Start a new spec pipeline from a feature description" },
+					{ "name": "requirements", "description": "Generate EARS requirements from a description" },
+					{ "name": "design", "description": "Generate technical design from approved requirements" },
+					{ "name": "tasks", "description": "Generate implementation tasks from approved design" },
+					{ "name": "properties", "description": "Generate property-based tests from requirements" }
+				]
 			}
 		],
 		"commands": [
@@ -103,6 +116,14 @@
 			{
 				"command": "sota.recordMemory",
 				"title": "Son of Anton: Record Project Memory"
+			},
+			{
+				"command": "sota.startSpec",
+				"title": "Son of Anton: Start Spec Pipeline"
+			},
+			{
+				"command": "sota.listSpecs",
+				"title": "Son of Anton: List Spec Features"
 			}
 		],
 		"keybindings": [
