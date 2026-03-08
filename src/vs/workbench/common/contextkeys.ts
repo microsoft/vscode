@@ -39,7 +39,7 @@ export const HasWebFileSystemAccess = new RawContextKey<boolean>('hasWebFileSyst
 
 export const EmbedderIdentifierContext = new RawContextKey<string | undefined>('embedderIdentifier', undefined, localize('embedderIdentifier', 'The identifier of the embedder according to the product service, if one is defined'));
 
-export const InAutomationContext = new RawContextKey<boolean>('inAutomation', false, localize('inAutomation', "Whether VS Code is running under automation/smoke test"));
+export const InAutomationContext = new RawContextKey<boolean>('inAutomation', false, localize('inAutomation', "Whether Son of Anton is running under automation/smoke test"));
 
 //#endregion
 

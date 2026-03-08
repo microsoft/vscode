@@ -22,7 +22,6 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 	private static readonly URGENT_NOTIFICATION_SOURCES = [
 		'vscode.github-authentication',
-		'vscode.microsoft-authentication'
 	];
 
 	constructor(

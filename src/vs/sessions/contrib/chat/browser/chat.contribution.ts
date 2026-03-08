@@ -45,8 +45,8 @@ export class OpenSessionWorktreeInSonOfAntonAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenSessionWorktreeInSonOfAntonAction.ID,
-			title: localize2('openInSon of Anton', 'Open in VS Code'),
-			icon: Codicon.vscodeInsiders,
+			title: localize2('openInSon of Anton', 'Open in Son of Anton'),
+			icon: Codicon.linkExternal,
 			precondition: IsActiveSessionBackgroundProviderContext,
 			menu: [{
 				id: Menus.TitleBarSessionMenu,

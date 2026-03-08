@@ -197,14 +197,14 @@ export class AccountWidget extends ActionViewItem {
 		const state = this.updateService.state;
 
 		// In the embedded app, updates are detected but cannot be installed directly.
-		// Show a hint button to update via VS Code only when an update is actually available.
+		// Show a hint button to update via Son of Anton only when an update is actually available.
 		if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
 			this.updateButton.element.classList.remove('hidden');
 			this.updateButton.element.classList.remove('account-widget-update-button-ready');
 			this.updateButton.element.classList.add('account-widget-update-button-hint');
 			this.updateButton.enabled = true;
 			this.updateButton.label = localize('updateAvailable', "Update Available");
-			this.updateButton.element.title = localize('updateInSon of AntonHover', "Updates are managed by VS Code. Click to open VS Code.");
+			this.updateButton.element.title = localize('updateInSon of AntonHover', "Updates are managed by Son of Anton. Click to open Son of Anton.");
 			return;
 		}
 
@@ -262,9 +262,9 @@ export class AccountWidget extends ActionViewItem {
 		const state = this.updateService.state;
 		if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
 			const { confirmed } = await this.dialogService.confirm({
-				message: localize('updateFromSon of Anton.title', "Update from VS Code"),
-				detail: localize('updateFromSon of Anton.detail', "This will close the Sessions app and open VS Code so you can install the update.\n\nLaunch Sessions again after the update is complete."),
-				primaryButton: localize('updateFromSon of Anton.open', "Close and Open VS Code"),
+				message: localize('updateFromSon of Anton.title', "Update from Son of Anton"),
+				detail: localize('updateFromSon of Anton.detail', "This will close the Sessions app and open Son of Anton so you can install the update.\n\nLaunch Sessions again after the update is complete."),
+				primaryButton: localize('updateFromSon of Anton.open', "Close and Open Son of Anton"),
 			});
 			if (confirmed) {
 				await this.openSonOfAnton();
