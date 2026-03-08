@@ -1,0 +1,47 @@
+<style>
+	.ds-title { font-size: 14px; font-weight: 600; color: #e0e0e0; margin-bottom: 10px; }
+	.ds-empty { font-size: 12px; color: #666; font-style: italic; }
+	.ds-list { margin-top: 4px; }
+	.ds-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #333; font-size: 12px; color: #ccc; }
+	.ds-row:last-child { border-bottom: none; }
+	.ds-price { font-weight: 600; color: #e0e0e0; }
+</style>
+
+<div id="ds-root">
+	<div class="ds-title">Piatti del Giorno</div>
+	<div class="ds-list" id="ds-list"></div>
+</div>
+
+<script>
+window.phonon.onReady(function() {
+	window.phonon.data.fetch('dish').then(function(dishes) {
+		var available = [];
+		for (var i = 0; i < dishes.length; i++) {
+			if (dishes[i].available === true) {
+				available.push(dishes[i]);
+			}
+		}
+
+		var list = document.getElementById('ds-list');
+
+		if (available.length === 0) {
+			var empty = document.createElement('div');
+			empty.className = 'ds-empty';
+			empty.textContent = 'Nessun piatto disponibile';
+			list.appendChild(empty);
+			return;
+		}
+
+		for (var j = 0; j < available.length; j++) {
+			var d = available[j];
+			var row = document.createElement('div');
+			row.className = 'ds-row';
+
+			var price = d.price.toFixed(2).replace('.', ',');
+			row.innerHTML = '<span>' + d.name + '</span>' +
+				'<span class="ds-price">\u20ac' + price + '</span>';
+			list.appendChild(row);
+		}
+	});
+});
+</script>

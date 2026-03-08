@@ -1,0 +1,50 @@
+<style>
+	.oi-count { font-size: 32px; font-weight: 700; color: #e0e0e0; }
+	.oi-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+	.oi-list { margin-top: 12px; }
+	.oi-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #333; font-size: 12px; color: #ccc; }
+	.oi-row:last-child { border-bottom: none; }
+	.oi-status { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px; text-transform: uppercase; }
+	.oi-status-pending { background: #e65100; color: #fff; }
+	.oi-status-preparing { background: #f9a825; color: #000; }
+	.oi-status-ready { background: #2e7d32; color: #fff; }
+	.oi-time { font-size: 11px; color: #666; }
+</style>
+
+<div id="oi-root">
+	<div class="oi-count" id="oi-count">--</div>
+	<div class="oi-label">Ordini in Arrivo</div>
+	<div class="oi-list" id="oi-list"></div>
+</div>
+
+<script>
+window.phonon.onReady(function() {
+	window.phonon.data.fetch('order').then(function(orders) {
+		var active = [];
+		for (var i = 0; i < orders.length; i++) {
+			if (orders[i].status !== 'delivered') {
+				active.push(orders[i]);
+			}
+		}
+
+		document.getElementById('oi-count').textContent = active.length;
+
+		var list = document.getElementById('oi-list');
+		for (var j = 0; j < active.length; j++) {
+			var order = active[j];
+			var row = document.createElement('div');
+			row.className = 'oi-row';
+
+			var statusClass = 'oi-status';
+			if (order.status === 'preparing') { statusClass += ' oi-status-preparing'; }
+			else if (order.status === 'ready') { statusClass += ' oi-status-ready'; }
+			else { statusClass += ' oi-status-pending'; }
+
+			row.innerHTML = '<span>Tavolo ' + order.table + '</span>' +
+				'<span class="' + statusClass + '">' + order.status + '</span>' +
+				'<span class="oi-time">' + order.time + '</span>';
+			list.appendChild(row);
+		}
+	});
+});
+</script>

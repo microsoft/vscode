@@ -1,0 +1,46 @@
+<style>
+	.ia-title { font-size: 14px; font-weight: 600; color: #e0e0e0; margin-bottom: 10px; }
+	.ia-ok { font-size: 13px; color: #4caf50; font-weight: 600; }
+	.ia-list { margin-top: 4px; }
+	.ia-row { display: flex; align-items: center; padding: 4px 0; border-bottom: 1px solid #333; font-size: 12px; color: #ccc; }
+	.ia-row:last-child { border-bottom: none; }
+	.ia-icon { color: #c62828; margin-right: 6px; font-size: 14px; }
+	.ia-alert-border { border-left: 3px solid #c62828; padding-left: 8px; }
+</style>
+
+<div id="ia-root">
+	<div class="ia-title">Avvisi Scorte</div>
+	<div class="ia-list" id="ia-list"></div>
+</div>
+
+<script>
+window.phonon.onReady(function() {
+	window.phonon.data.fetch('dish').then(function(dishes) {
+		var outOfStock = [];
+		for (var i = 0; i < dishes.length; i++) {
+			if (dishes[i].available === false) {
+				outOfStock.push(dishes[i]);
+			}
+		}
+
+		var list = document.getElementById('ia-list');
+
+		if (outOfStock.length === 0) {
+			var ok = document.createElement('div');
+			ok.className = 'ia-ok';
+			ok.textContent = '\u2713 Tutto disponibile';
+			list.appendChild(ok);
+			return;
+		}
+
+		for (var j = 0; j < outOfStock.length; j++) {
+			var d = outOfStock[j];
+			var row = document.createElement('div');
+			row.className = 'ia-row ia-alert-border';
+			row.innerHTML = '<span class="ia-icon">\u26a0</span>' +
+				'<span>' + d.name + ' \u2014 esaurito</span>';
+			list.appendChild(row);
+		}
+	});
+});
+</script>

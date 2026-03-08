@@ -23,6 +23,56 @@
 		"liquidDataProviders": [
 			{ "id": "rist-mock", "entities": ["dish", "supplier", "order"], "provider": "./providers/mock" }
 		],
+		"liquidCards": [
+			{
+				"id": "rist-food-cost",
+				"label": "Food Cost",
+				"entry": "./cards/food-cost.html",
+				"entity": "dish",
+				"tags": ["analytics", "cost", "dashboard"],
+				"size": { "minWidth": 250, "minHeight": 180 }
+			},
+			{
+				"id": "rist-orders-incoming",
+				"label": "Ordini in Arrivo",
+				"entry": "./cards/orders-incoming.html",
+				"entity": "order",
+				"tags": ["operations", "dashboard"],
+				"size": { "minWidth": 300, "minHeight": 200 }
+			},
+			{
+				"id": "rist-supplier-status",
+				"label": "Stato Fornitori",
+				"entry": "./cards/supplier-status.html",
+				"entity": "supplier",
+				"tags": ["operations", "dashboard"],
+				"size": { "minWidth": 250, "minHeight": 180 }
+			},
+			{
+				"id": "rist-daily-specials",
+				"label": "Piatti del Giorno",
+				"entry": "./cards/daily-specials.html",
+				"entity": "dish",
+				"tags": ["menu", "dashboard"],
+				"size": { "minWidth": 200, "minHeight": 150 }
+			},
+			{
+				"id": "rist-revenue-today",
+				"label": "Incasso Oggi",
+				"entry": "./cards/revenue-today.html",
+				"entity": "order",
+				"tags": ["analytics", "dashboard"],
+				"size": { "minWidth": 200, "minHeight": 120 }
+			},
+			{
+				"id": "rist-inventory-alert",
+				"label": "Avvisi Scorte",
+				"entry": "./cards/inventory-alert.html",
+				"entity": "dish",
+				"tags": ["operations", "alerts"],
+				"size": { "minWidth": 250, "minHeight": 150 }
+			}
+		],
 		"liquidSidebar": [
 			{ "id": "rist-dashboard", "label": "Dashboard", "view": "ristDashboard", "icon": "dashboard", "order": 0 },
 			{ "id": "rist-menu", "label": "Menu", "icon": "book", "order": 1, "children": [

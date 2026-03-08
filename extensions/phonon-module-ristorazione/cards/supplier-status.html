@@ -1,0 +1,46 @@
+<style>
+	.ss-title { font-size: 14px; font-weight: 600; color: #e0e0e0; margin-bottom: 10px; }
+	.ss-list { margin-top: 4px; }
+	.ss-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #333; font-size: 12px; color: #ccc; }
+	.ss-row:last-child { border-bottom: none; }
+	.ss-name { flex: 1; }
+	.ss-badge { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px; text-transform: uppercase; margin-left: 8px; }
+	.ss-active { background: #2e7d32; color: #fff; }
+	.ss-delayed { background: #f9a825; color: #000; }
+	.ss-expired { background: #c62828; color: #fff; }
+	.ss-rating { font-size: 11px; color: #888; margin-left: 8px; white-space: nowrap; }
+</style>
+
+<div id="ss-root">
+	<div class="ss-title">Fornitori</div>
+	<div class="ss-list" id="ss-list"></div>
+</div>
+
+<script>
+window.phonon.onReady(function() {
+	window.phonon.data.fetch('supplier').then(function(suppliers) {
+		var list = document.getElementById('ss-list');
+		for (var i = 0; i < suppliers.length; i++) {
+			var s = suppliers[i];
+			var row = document.createElement('div');
+			row.className = 'ss-row';
+
+			var badgeClass = 'ss-badge';
+			if (s.status === 'active') { badgeClass += ' ss-active'; }
+			else if (s.status === 'delayed') { badgeClass += ' ss-delayed'; }
+			else { badgeClass += ' ss-expired'; }
+
+			var stars = '';
+			var rating = s.rating || 0;
+			for (var j = 0; j < 5; j++) {
+				stars += j < rating ? '\u2605' : '\u2606';
+			}
+
+			row.innerHTML = '<span class="ss-name">' + s.name + '</span>' +
+				'<span class="' + badgeClass + '">' + s.status + '</span>' +
+				'<span class="ss-rating">' + stars + '</span>';
+			list.appendChild(row);
+		}
+	});
+});
+</script>

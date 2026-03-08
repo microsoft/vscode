@@ -1,0 +1,30 @@
+<style>
+	.rt-value { font-size: 32px; font-weight: 700; color: #e0e0e0; }
+	.rt-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+	.rt-orders { font-size: 12px; color: #666; margin-top: 8px; }
+</style>
+
+<div id="rt-root">
+	<div class="rt-value" id="rt-total">--</div>
+	<div class="rt-label">Incasso Oggi</div>
+	<div class="rt-orders" id="rt-orders"></div>
+</div>
+
+<script>
+window.phonon.onReady(function() {
+	window.phonon.data.fetch('order').then(function(orders) {
+		var total = 0;
+		for (var i = 0; i < orders.length; i++) {
+			total += orders[i].total || 0;
+		}
+
+		var formatted = total.toFixed(2).replace('.', ',');
+		var parts = formatted.split(',');
+		parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+		formatted = parts.join(',');
+
+		document.getElementById('rt-total').textContent = '\u20ac' + formatted;
+		document.getElementById('rt-orders').textContent = orders.length + ' ordini';
+	});
+});
+</script>

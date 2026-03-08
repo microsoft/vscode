@@ -1,0 +1,37 @@
+<style>
+	.fc-value { font-size: 32px; font-weight: 700; color: #e0e0e0; }
+	.fc-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+	.fc-trend { font-size: 12px; margin-top: 8px; color: #4caf50; }
+	.fc-list { margin-top: 12px; }
+	.fc-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #333; font-size: 12px; color: #ccc; }
+	.fc-item:last-child { border-bottom: none; }
+</style>
+
+<div id="fc-root">
+	<div class="fc-value" id="fc-avg">--</div>
+	<div class="fc-label">Food Cost Medio</div>
+	<div class="fc-trend" id="fc-trend"></div>
+	<div class="fc-list" id="fc-list"></div>
+</div>
+
+<script>
+window.phonon.onReady(function() {
+	window.phonon.data.fetch('dish').then(function(dishes) {
+		var sum = 0;
+		for (var i = 0; i < dishes.length; i++) { sum += dishes[i].foodCostPercent; }
+		var avg = sum / dishes.length;
+
+		document.getElementById('fc-avg').textContent = avg.toFixed(1) + '%';
+		document.getElementById('fc-trend').textContent = '\u2193 1.2% vs settimana scorsa';
+
+		var sorted = dishes.slice().sort(function(a, b) { return b.foodCostPercent - a.foodCostPercent; });
+		var list = document.getElementById('fc-list');
+		for (var j = 0; j < Math.min(3, sorted.length); j++) {
+			var item = document.createElement('div');
+			item.className = 'fc-item';
+			item.innerHTML = '<span>' + sorted[j].name + '</span><span>' + sorted[j].foodCostPercent + '%</span>';
+			list.appendChild(item);
+		}
+	});
+});
+</script>
