@@ -1,0 +1,16 @@
+{
+	"name": "soa-mcp-gateway-proxy",
+	"version": "1.0.0",
+	"description": "Son of Anton — MCP gateway monitoring and rate limiting proxy",
+	"main": "dist/index.js",
+	"scripts": {
+		"build": "tsc",
+		"start": "node dist/index.js",
+		"dev": "tsc --watch & nodemon dist/index.js"
+	},
+	"devDependencies": {
+		"@types/node": "^20.0.0",
+		"typescript": "^5.6.0"
+	},
+	"private": true
+}

@@ -1,6 +1,4 @@
-# Son of Anton — MCP Gateway
-# Model Context Protocol gateway that exposes graph and vector queries
-# as MCP tools for Claude-based agents.
+# Son of Anton — Deployment Pipeline MCP Server
 
 FROM node:20-slim
 
@@ -15,9 +13,9 @@ RUN npm ci
 COPY src/ ./src/
 RUN npx tsc
 
-EXPOSE 3100
+EXPOSE 3103
 
 HEALTHCHECK --interval=15s --timeout=5s --retries=5 --start-period=30s \
-    CMD curl -sf http://localhost:3100/health || exit 1
+    CMD curl -sf http://localhost:3103/health || exit 1
 
 CMD ["node", "dist/index.js"]
