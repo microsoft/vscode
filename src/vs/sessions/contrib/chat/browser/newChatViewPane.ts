@@ -1124,6 +1124,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private _clearDraftState(): void {
 		// Preserve picker preferences so they survive widget recreation
+		const target = this._targetPicker.selectedTarget;
+		const isLocal = target === AgentSessionProviders.Background;
 		const preserved: IDraftState = {
 			inputText: '',
 			attachments: [],
@@ -1131,11 +1133,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selectedModel: this._draftState?.selectedModel,
 			selections: [],
 			contrib: {},
-			target: this._targetPicker.selectedTarget,
-			isolationMode: this._isolationModePicker.isolationMode,
-			branch: this._branchPicker.selectedBranch,
-			folderUri: this._folderPicker.selectedFolderUri?.toString(),
-			repo: this._repoPicker.selectedRepo,
+			target,
+			isolationMode: isLocal ? this._isolationModePicker.isolationMode : undefined,
+			branch: isLocal ? this._branchPicker.selectedBranch : undefined,
+			folderUri: isLocal ? this._folderPicker.selectedFolderUri?.toString() : undefined,
+			repo: isLocal ? undefined : this._repoPicker.selectedRepo,
 		};
 		this._draftState = preserved;
 		this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(preserved), StorageScope.WORKSPACE, StorageTarget.MACHINE);
