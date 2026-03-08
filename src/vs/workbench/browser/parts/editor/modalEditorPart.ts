@@ -273,7 +273,7 @@ export class ModalEditorPart {
 			setVisibility(hasActions, editorActionsSeparator);
 		};
 		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => updateEditorActions()));
-		disposables.add(modalEditorService.onDidVisibleEditorsChange(() => editorPart.enforceModalPartOptions()));
+		disposables.add(modalEditorService.onDidEditorsChange(() => editorPart.enforceModalPartOptions()));
 
 		// Create global toolbar
 		disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.ModalEditorTitle, {
