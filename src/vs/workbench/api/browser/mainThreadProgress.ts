@@ -17,7 +17,6 @@ export class MainThreadProgress implements MainThreadProgressShape {
 
 	private static readonly URGENT_PROGRESS_SOURCES = [
 		'vscode.github-authentication',
-		'vscode.microsoft-authentication'
 	];
 
 	private readonly _progressService: IProgressService;

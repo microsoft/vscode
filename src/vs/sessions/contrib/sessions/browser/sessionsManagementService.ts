@@ -30,7 +30,7 @@ export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSess
 
 /**
  * True when the active session uses the Background provider type (copilotcli).
- * Used to gate actions that require a local worktree (run script, open in VS Code, terminal).
+ * Used to gate actions that require a local worktree (run script, open in Son of Anton, terminal).
  */
 export const IsActiveSessionBackgroundProviderContext = new RawContextKey<boolean>('isActiveSessionBackgroundProvider', false, localize('isActiveSessionBackgroundProvider', "Whether the active session uses the background agent provider"));
 

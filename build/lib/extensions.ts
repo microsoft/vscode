@@ -404,9 +404,7 @@ export function fromGithub({ name, version, repo, sha256, metadata }: IExtension
  * All extensions that are known to have some native component and thus must be built on the
  * platform that is being built.
  */
-const nativeExtensions = [
-	'microsoft-authentication',
-];
+const nativeExtensions: string[] = [];
 
 const excludedExtensions = [
 	'vscode-api-tests',
