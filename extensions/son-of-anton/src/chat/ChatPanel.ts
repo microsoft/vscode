@@ -231,7 +231,7 @@ export class ChatPanel {
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${this.panel.webview.cspSource} 'unsafe-inline'; script-src 'unsafe-inline';">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${this.panel.webview.cspSource}; script-src 'nonce-YourNonceHere';">
 	<link href="${cssUri}" rel="stylesheet">
 	<title>Son of Anton Chat</title>
 </head>
