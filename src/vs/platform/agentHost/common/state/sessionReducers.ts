@@ -17,6 +17,7 @@
 import type { IRootAction, ISessionAction } from './sessionActions.js';
 import {
 	type ICompletedToolCall,
+	type IErrorInfo,
 	type IRootState,
 	type ISessionState,
 	type IToolCallState,
@@ -36,9 +37,6 @@ import {
  */
 export function rootReducer(state: IRootState, action: IRootAction): IRootState {
 	switch (action.type) {
-		case 'root/modelsChanged': {
-			return { ...state, models: action.models };
-		}
 		case 'root/agentsChanged': {
 			return { ...state, agents: action.agents };
 		}
@@ -118,6 +116,9 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 			toolCalls.set(action.toolCallId, {
 				...toolCall,
 				status: action.result.success ? ToolCallStatus.Completed : ToolCallStatus.Failed,
+				pastTenseMessage: action.result.pastTenseMessage,
+				toolOutput: action.result.toolOutput,
+				error: action.result.error,
 			});
 			return {
 				...state,
@@ -161,7 +162,9 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 					const mutable = new Map(toolCalls);
 					mutable.set(resolved.toolCallId, {
 						...toolCall,
-						status: action.approved ? ToolCallStatus.Running : ToolCallStatus.Failed,
+						status: action.approved ? ToolCallStatus.Running : ToolCallStatus.Cancelled,
+						confirmed: action.approved ? 'user-action' : 'denied',
+						cancellationReason: action.approved ? undefined : 'denied',
 					});
 					toolCalls = mutable;
 				}
@@ -178,18 +181,31 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 			return finalizeTurn(state, action.turnId, TurnState.Cancelled);
 		}
 		case 'session/error': {
-			return finalizeTurn(state, action.turnId, TurnState.Error);
+			return finalizeTurn(state, action.turnId, TurnState.Error, action.error);
 		}
 		case 'session/titleChanged': {
 			return {
 				...state,
-				summary: { ...state.summary, title: action.title },
+				summary: { ...state.summary, title: action.title, modifiedAt: Date.now() },
+			};
+		}
+		case 'session/modelChanged': {
+			return {
+				...state,
+				summary: { ...state.summary, model: action.model, modifiedAt: Date.now() },
 			};
 		}
 		case 'session/usage': {
-			// Usage is informational; stored on the active turn for now,
-			// then captured on the finalized Turn.
-			return state;
+			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
+				return state;
+			}
+			return {
+				...state,
+				activeTurn: {
+					...state.activeTurn,
+					usage: action.usage,
+				},
+			};
 		}
 		case 'session/reasoning': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
@@ -211,7 +227,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 /**
  * Moves the active turn into the completed turns array and clears `activeTurn`.
  */
-function finalizeTurn(state: ISessionState, turnId: string, turnState: TurnState): ISessionState {
+function finalizeTurn(state: ISessionState, turnId: string, turnState: TurnState, error?: IErrorInfo): ISessionState {
 	if (!state.activeTurn || state.activeTurn.id !== turnId) {
 		return state;
 	}
@@ -223,25 +239,32 @@ function finalizeTurn(state: ISessionState, turnId: string, turnState: TurnState
 			toolCallId: tc.toolCallId,
 			toolName: tc.toolName,
 			displayName: tc.displayName,
+			invocationMessage: tc.invocationMessage,
 			success: tc.status === ToolCallStatus.Completed,
-			pastTenseMessage: tc.invocationMessage,
-			toolOutput: tc.toolInput,
+			pastTenseMessage: tc.pastTenseMessage ?? tc.invocationMessage,
+			toolInput: tc.toolInput,
+			toolKind: tc.toolKind,
+			language: tc.language,
+			toolOutput: tc.toolOutput,
+			error: tc.error,
 		});
 	}
 
 	const finalizedTurn: ITurn = {
 		id: active.id,
 		userMessage: active.userMessage,
+		responseText: active.streamingText,
 		responseParts: active.responseParts,
 		toolCalls: completedToolCalls,
-		usage: undefined,
+		usage: active.usage,
 		state: turnState,
+		error,
 	};
 
 	return {
 		...state,
 		turns: [...state.turns, finalizedTurn],
 		activeTurn: undefined,
-		summary: { ...state.summary, status: SessionStatus.Idle },
+		summary: { ...state.summary, status: SessionStatus.Idle, modifiedAt: Date.now() },
 	};
 }

@@ -37,6 +37,7 @@ export interface ISessionSummary {
 	readonly status: SessionStatus;
 	readonly createdAt: number;
 	readonly modifiedAt: number;
+	readonly model?: string;
 }
 
 // ---- Model info -------------------------------------------------------------
@@ -45,6 +46,9 @@ export interface ISessionModelInfo {
 	readonly id: string;
 	readonly provider: AgentProvider;
 	readonly name: string;
+	readonly maxContextWindow?: number;
+	readonly supportsVision?: boolean;
+	readonly policyState?: 'enabled' | 'disabled' | 'unconfigured';
 }
 
 // ---- Root state (subscribable at ROOT_STATE_URI) ----------------------------
@@ -56,13 +60,13 @@ export interface ISessionModelInfo {
  */
 export interface IRootState {
 	readonly agents: readonly IAgentInfo[];
-	readonly models: readonly ISessionModelInfo[];
 }
 
 export interface IAgentInfo {
 	readonly provider: AgentProvider;
 	readonly displayName: string;
 	readonly description: string;
+	readonly models: readonly ISessionModelInfo[];
 }
 
 // ---- Session lifecycle ------------------------------------------------------
@@ -109,10 +113,14 @@ export interface IMessageAttachment {
 export interface ITurn {
 	readonly id: string;
 	readonly userMessage: IUserMessage;
+	/** The final assistant response text (captured from streamingText on turn completion). */
+	readonly responseText: string;
 	readonly responseParts: readonly IResponsePart[];
 	readonly toolCalls: readonly ICompletedToolCall[];
 	readonly usage: IUsageInfo | undefined;
 	readonly state: TurnState;
+	/** Error info if the turn ended with {@link TurnState.Error}. */
+	readonly error?: IErrorInfo;
 }
 
 export const enum TurnState {
@@ -132,6 +140,7 @@ export interface IActiveTurn {
 	readonly toolCalls: ReadonlyMap<string, IToolCallState>;
 	readonly pendingPermissions: ReadonlyMap<string, IPermissionRequest>;
 	readonly reasoning: string;
+	readonly usage: IUsageInfo | undefined;
 }
 
 // ---- Response parts ---------------------------------------------------------
@@ -162,12 +171,22 @@ export type IResponsePart = IMarkdownResponsePart | IContentRef;
 // ---- Tool calls -------------------------------------------------------------
 
 export const enum ToolCallStatus {
+	/** Tool is actively executing. */
 	Running = 'running',
+	/** Waiting for user to approve before execution. */
 	PendingPermission = 'pending-permission',
+	/** Tool finished successfully. */
 	Completed = 'completed',
+	/** Tool failed with an error. */
 	Failed = 'failed',
+	/** Tool was denied or skipped by the user. */
+	Cancelled = 'cancelled',
 }
 
+/**
+ * Represents the full lifecycle state of a tool invocation within an active turn.
+ * Modeled after {@link IChatToolInvocation.State} to enable direct mapping to the chat UI.
+ */
 export interface IToolCallState {
 	readonly toolCallId: string;
 	readonly toolName: string;
@@ -176,16 +195,34 @@ export interface IToolCallState {
 	readonly toolInput?: string;
 	readonly toolKind?: 'terminal';
 	readonly language?: string;
+	readonly toolArguments?: string;
 	readonly status: ToolCallStatus;
+	/** Parsed tool parameters (from toolArguments). */
+	readonly parameters?: unknown;
+	/** How the tool was confirmed before execution (set after PendingPermission → Running). */
+	readonly confirmed?: 'not-needed' | 'user-action' | 'setting' | 'denied' | 'skipped';
+	/** Set when status transitions to Completed or Failed. */
+	readonly pastTenseMessage?: string;
+	/** Set when status transitions to Completed or Failed. */
+	readonly toolOutput?: string;
+	/** Set when status transitions to Failed. */
+	readonly error?: { readonly message: string; readonly code?: string };
+	/** Why the tool was cancelled (set when status is Cancelled). */
+	readonly cancellationReason?: 'denied' | 'skipped';
 }
 
 export interface ICompletedToolCall {
 	readonly toolCallId: string;
 	readonly toolName: string;
 	readonly displayName: string;
+	readonly invocationMessage: string;
 	readonly success: boolean;
 	readonly pastTenseMessage: string;
+	readonly toolInput?: string;
+	readonly toolKind?: 'terminal';
+	readonly language?: string;
 	readonly toolOutput?: string;
+	readonly error?: { readonly message: string; readonly code?: string };
 }
 
 // ---- Permission requests ----------------------------------------------------
@@ -197,6 +234,9 @@ export interface IPermissionRequest {
 	readonly path?: string;
 	readonly fullCommandText?: string;
 	readonly intention?: string;
+	readonly serverName?: string;
+	readonly toolName?: string;
+	readonly rawRequest?: string;
 }
 
 // ---- Usage info -------------------------------------------------------------
@@ -221,7 +261,6 @@ export interface IErrorInfo {
 export function createRootState(): IRootState {
 	return {
 		agents: [],
-		models: [],
 	};
 }
 
@@ -243,5 +282,6 @@ export function createActiveTurn(id: string, userMessage: IUserMessage): IActive
 		toolCalls: new Map(),
 		pendingPermissions: new Map(),
 		reasoning: '',
+		usage: undefined,
 	};
 }

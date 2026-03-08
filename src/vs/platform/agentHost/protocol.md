@@ -2,6 +2,8 @@
 
 > **Keep this document in sync with the code.** Changes to the state model, action types, protocol messages, or versioning strategy must be reflected here. Implementation lives in `common/state/`.
 
+> **Pre-production.** This protocol is under active development and is not shipped yet. Breaking changes to wire types, actions, and state shapes are fine — do not worry about backward compatibility until the protocol is in production. The versioning machinery exists for future use.
+
 For process architecture and IPC details, see [architecture.md](architecture.md). For design decisions, see [design.md](design.md). For the task backlog, see [backlog.md](backlog.md).
 
 ## Goal
@@ -13,11 +15,62 @@ The sessions process is a portable, standalone server that multiple clients can 
 3. **Write-ahead with reconciliation** — clients optimistically apply their own actions locally, then reconcile when the server echoes them back alongside any concurrent actions from other clients or the server itself.
 4. **Forward-compatible versioning** — newer clients can connect to older servers. A single protocol version number maps to a capabilities object; clients check capabilities before using features.
 
+## Protocol development checklist
+
+Use this checklist when adding a new action, command, state field, or notification to the protocol.
+
+### Adding a new action type
+
+1. **Write an E2E test first** in `protocolWebSocket.integrationTest.ts` that exercises the action end-to-end through the WebSocket server. The test should fail until the implementation is complete.
+2. **Add mock agent support** if the test needs a new prompt/behavior in `mockAgent.ts`.
+3. **Define the action interface** in `sessionActions.ts`. Extend `ISessionActionBase` (for session-scoped) or define a standalone root action. Add it to the `ISessionAction` or `IRootAction` union.
+4. **Add a reducer case** in `sessionReducers.ts`. The switch must remain exhaustive — the compiler will error if a case is missing.
+5. **Add a v1 wire type** in `versions/v1.ts`. Mirror the action interface shape. Add it to the `IV1_SessionAction` or `IV1_RootAction` union.
+6. **Register in `versionRegistry.ts`**:
+   - Import the new `IV1_*` type.
+   - Add an `AssertCompatible` check.
+   - Add the type to the `ISessionAction_v1` union.
+   - Add the type string to the suppress-warnings `void` expression.
+   - Add an entry to `ACTION_INTRODUCED_IN` (compiler enforces this).
+7. **Update `protocol.md`** (this file) — add the action to the Actions table.
+8. **Verify the E2E test passes.**
+
+### Adding a new command
+
+1. **Write an E2E test first** in `protocolWebSocket.integrationTest.ts`. The test should fail until the implementation is complete.
+2. **Define the request params and result interfaces** in `sessionProtocol.ts`.
+3. **Handle it in `protocolServerHandler.ts`** `_handleRequestAsync()`. The method returns the result; the caller wraps it in a JSON-RPC response or error automatically.
+4. **Add the side-effect** in `IProtocolSideEffectHandler` if the command requires I/O or agent interaction. Implement it in `agentHostServerMain.ts`.
+5. **Update `protocol.md`** — add the command to the Commands table.
+6. **Verify the E2E test passes.**
+
+### Adding a new state field
+
+1. **Add the field** to the relevant interface in `sessionState.ts` (e.g. `ISessionSummary`, `IActiveTurn`, `ITurn`).
+2. **Update the factory** (`createSessionState()`, `createActiveTurn()`) to initialize the field.
+3. **Add to the v1 wire type** in `versions/v1.ts`. Optional fields are safe; required fields break the bidirectional `AssertCompatible` check (intentionally — add as optional or bump the protocol version).
+4. **Update reducers** in `sessionReducers.ts` if the field needs to be mutated by actions.
+5. **Update `finalizeTurn()`** if the field lives on `IActiveTurn` and should transfer to `ITurn` on completion.
+
+### Adding a new notification
+
+1. **Write an E2E test first** in `protocolWebSocket.integrationTest.ts`.
+2. **Define the notification interface** in `sessionActions.ts`. Add it to the `INotification` union.
+3. **Add to `NOTIFICATION_INTRODUCED_IN`** in `versionRegistry.ts`.
+4. **Emit it** from `SessionStateManager` or the relevant server-side code.
+5. **Verify the E2E test passes.**
+
+### Adding mock agent support (for testing)
+
+1. **Add a prompt case** in `mockAgent.ts` `sendMessage()` to trigger the behavior.
+2. **Fire the corresponding `IAgentProgressEvent`** via `_fireSequence()` or manually through `_onDidSessionProgress`.
+
+
 ## URI-based subscriptions
 
 All state is identified by URIs. Clients subscribe to a URI to receive its current state snapshot and subsequent action updates. This is the single universal mechanism for state synchronization:
 
-- **Root state** (`agenthost:root`) — always-present global state (agents, models). Clients subscribe to this on connect.
+- **Root state** (`agenthost:root`) — always-present global state (agents and their models). Clients subscribe to this on connect.
 - **Session state** (`copilot:/<uuid>`, etc.) — per-session state loaded on demand. Clients subscribe when opening a session.
 
 The `subscribe(uri)` / `unsubscribe(uri)` mechanism works identically for all resource types.
@@ -31,6 +84,16 @@ Subscribable at `agenthost:root`. Contains global, lightweight data that all cli
 ```
 RootState {
     agents: AgentInfo[]
+}
+```
+
+Each `AgentInfo` includes the models available for that agent:
+
+```
+AgentInfo {
+    provider: string
+    displayName: string
+    description: string
     models: ModelInfo[]
 }
 ```
@@ -69,6 +132,7 @@ ActiveTurn {
     toolCalls: Map<toolCallId, ToolCallState>
     pendingPermissions: Map<requestId, PermissionRequest>
     reasoning: string
+    usage: UsageInfo | undefined
 }
 ```
 
@@ -114,8 +178,7 @@ These mutate the root state. **All root actions are server-only** — clients ob
 
 | Type | Payload | When |
 |---|---|---|
-| `root/modelsChanged` | `ModelInfo[]` | Available models changed |
-| `root/agentsChanged` | `AgentInfo[]` | Available agent backends changed |
+| `root/agentsChanged` | `AgentInfo[]` | Available agent backends or their models changed |
 
 ### Session actions
 
@@ -140,6 +203,7 @@ When a client dispatches an action, the server applies it to the state and also 
 | `session/titleChanged` | `title` | No | Session title updated |
 | `session/usage` | `turnId, UsageInfo` | No | Token usage report |
 | `session/reasoning` | `turnId, content` | No | Reasoning/thinking text |
+| `session/modelChanged` | `model` | Yes | Model changed for this session |
 
 ### Notifications
 
@@ -190,45 +254,88 @@ Clients interact with the server in two ways:
 
 ## Client-server protocol
 
+The protocol uses **JSON-RPC 2.0** framing over the transport (WebSocket, MessagePort, etc.).
+
+### Message categories
+
+- **Client → Server notifications** (fire-and-forget): `initialize`, `reconnect`, `unsubscribe`, `dispatchAction`
+- **Client → Server requests** (expect a correlated response): `subscribe`, `createSession`, `disposeSession`, `listSessions`, `fetchTurns`, `fetchContent`
+- **Server → Client notifications** (pushed): `serverHello`, `reconnectResponse`, `action`, `notification`
+- **Server → Client responses** (correlated to requests by `id`): success result or JSON-RPC error
+
 ### Connection handshake
 
 ```
-1. Client → Server:  ClientHello { protocolVersion, clientId, initialSubscriptions?: URI[] }
-2. Server → Client:  ServerHello { protocolVersion, serverSeq, snapshots[] }
+1. Client → Server:  { "jsonrpc": "2.0", "method": "initialize", "params": { protocolVersion, clientId, initialSubscriptions? } }
+2. Server → Client:  { "jsonrpc": "2.0", "method": "serverHello", "params": { protocolVersion, serverSeq, snapshots[] } }
 ```
 
 `initialSubscriptions` allows the client to subscribe to root state (and any previously-open sessions on reconnect) in the same round-trip as the handshake. The server responds with snapshots for each.
 
 ### URI subscription
 
-After handshake, clients can subscribe/unsubscribe at any time:
+`subscribe` is a JSON-RPC **request** — the client receives the snapshot as the response result:
 
 ```
-Client → Server:  Subscribe { resource: URI }
-Server → Client:  StateSnapshot { resource: URI, state, fromSeq }
+Client → Server:  { "jsonrpc": "2.0", "id": 1, "method": "subscribe", "params": { "resource": "copilot:/session-1" } }
+Server → Client:  { "jsonrpc": "2.0", "id": 1, "result": { "resource": ..., "state": ..., "fromSeq": 5 } }
 ```
 
 After subscribing, the client receives all actions scoped to that URI with `serverSeq > fromSeq`. Multiple concurrent subscriptions are supported.
 
+`unsubscribe` is a notification (no response needed):
+
 ```
-Client → Server:  Unsubscribe { resource: URI }
+Client → Server:  { "jsonrpc": "2.0", "method": "unsubscribe", "params": { "resource": "copilot:/session-1" } }
 ```
 
 ### Action delivery
 
-The server broadcasts `ActionEnvelope`s to subscribed clients:
+The server broadcasts action envelopes as JSON-RPC notifications:
+
+```
+Server → Client:  { "jsonrpc": "2.0", "method": "action", "params": { "envelope": { action, serverSeq, origin } } }
+```
+
 - Root actions go to all clients subscribed to root state.
 - Session actions go to all clients subscribed to that session's URI.
 
-Notifications go to all connected clients (no subscription required).
+Protocol notifications (sessionAdded/sessionRemoved) are broadcast similarly:
+
+```
+Server → Client:  { "jsonrpc": "2.0", "method": "notification", "params": { "notification": { type, ... } } }
+```
+
+### Commands as JSON-RPC requests
+
+Commands are JSON-RPC requests. The server returns a result or a JSON-RPC error:
+
+```
+Client → Server:  { "jsonrpc": "2.0", "id": 2, "method": "createSession", "params": { session, provider?, model? } }
+Server → Client:  { "jsonrpc": "2.0", "id": 2, "result": null }
+```
+
+On failure:
+
+```
+Server → Client:  { "jsonrpc": "2.0", "id": 2, "error": { "code": -32603, "message": "No agent for provider" } }
+```
+
+### Client-dispatched actions
+
+Actions are sent as notifications (fire-and-forget, write-ahead):
+
+```
+Client → Server:  { "jsonrpc": "2.0", "method": "dispatchAction", "params": { clientSeq, action } }
+```
 
 ### Reconnection
 
 ```
-Client → Server:  ClientReconnect { clientId, lastSeenServerSeq, subscriptions: URI[] }
+Client → Server:  { "jsonrpc": "2.0", "method": "reconnect", "params": { clientId, lastSeenServerSeq, subscriptions } }
 ```
 
-Server replays actions since `lastSeenServerSeq` from a bounded replay buffer. If the gap exceeds the buffer, sends fresh snapshots. Notifications are **not** replayed — the client should re-fetch the session list.
+Server replays actions since `lastSeenServerSeq` from a bounded replay buffer. If the gap exceeds the buffer, sends fresh snapshots via a `reconnectResponse` notification. Notifications are **not** replayed — the client should re-fetch the session list.
 
 ## Write-ahead reconciliation
 
@@ -303,7 +410,7 @@ The registry also maintains an exhaustive runtime map:
 
 ```typescript
 export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: number } = {
-    'root/modelsChanged': 1,
+    'root/agentsChanged': 1,
     'session/turnStarted': 1,
     // ...every action type must have an entry
 };
@@ -383,7 +490,7 @@ src/vs/platform/agent/common/state/
 ├── sessionState.ts          # Immutable state types (RootState, SessionState, Turn, etc.)
 ├── sessionActions.ts        # Action + notification discriminated unions, ActionEnvelope
 ├── sessionReducers.ts       # Pure reducer functions (rootReducer, sessionReducer)
-├── sessionProtocol.ts       # Protocol messages (handshake, subscribe, reconnect, RPC)
+├── sessionProtocol.ts       # JSON-RPC message types, request params/results, type guards
 ├── sessionCapabilities.ts   # Re-exports version constants + ProtocolCapabilities
 ├── sessionClientState.ts    # Client-side state manager (confirmed + pending + reconciliation)
 └── versions/

@@ -11,7 +11,7 @@
 // or sends concurrent actions from other sources.
 //
 // This operates on two kinds of subscribable state:
-//   - Root state (agents, models) — server-only mutations, no write-ahead.
+//   - Root state (agents + their models) — server-only mutations, no write-ahead.
 //   - Session state — mixed: some actions client-sendable (write-ahead),
 //     others server-only.
 
