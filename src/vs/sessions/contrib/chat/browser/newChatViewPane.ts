@@ -1123,8 +1123,22 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	private _clearDraftState(): void {
-		this._draftState = undefined;
-		this.storageService.remove(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE);
+		// Preserve picker preferences so they survive widget recreation
+		const preserved: IDraftState = {
+			inputText: '',
+			attachments: [],
+			mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent },
+			selectedModel: this._draftState?.selectedModel,
+			selections: [],
+			contrib: {},
+			target: this._targetPicker.selectedTarget,
+			isolationMode: this._isolationModePicker.isolationMode,
+			branch: this._branchPicker.selectedBranch,
+			folderUri: this._folderPicker.selectedFolderUri?.toString(),
+			repo: this._repoPicker.selectedRepo,
+		};
+		this._draftState = preserved;
+		this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(preserved), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	saveState(): void {
