@@ -39,7 +39,6 @@ export class RepoPicker extends Disposable {
 
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
-	private _browseGeneration = 0;
 
 	private _selectedRepo: IRepoItem | undefined;
 	private _recentlyPickedRepos: IRepoItem[] = [];
@@ -168,10 +167,9 @@ export class RepoPicker extends Disposable {
 	}
 
 	private async _browseForRepo(): Promise<void> {
-		const generation = this._browseGeneration;
 		try {
 			const result: string | undefined = await this.commandService.executeCommand(OPEN_REPO_COMMAND);
-			if (result && generation === this._browseGeneration) {
+			if (result) {
 				this._selectRepo({ id: result, name: result });
 			}
 		} catch {
