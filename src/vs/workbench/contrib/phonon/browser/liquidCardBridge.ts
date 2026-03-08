@@ -6,6 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
 // ==================== Card <-> Host Message Protocol ====================
@@ -33,9 +34,12 @@ export type HostToCardMessage =
  * Implemented by mock provider (dev/testing) and real providers (production).
  */
 export interface ILiquidDataResolver {
+	readonly _serviceBrand: undefined;
 	fetch(entity: string, query?: Record<string, unknown>): Promise<unknown[]>;
 	mutate(entity: string, operation: 'create' | 'update' | 'delete', data: unknown): Promise<void>;
 }
+
+export const ILiquidDataResolver = createDecorator<ILiquidDataResolver>('liquidDataResolver');
 
 // ==================== Host-side Message Handler ====================
 
