@@ -290,12 +290,18 @@ export class ChatPanel {
 
 		function renderMarkdown(text) {
 			// Simple markdown rendering: code blocks, inline code, bold, italic
-			let html = escapeHtml(text);
-
-			// Code blocks
-			html = html.replace(/\`\`\`(\\w*?)\\n([\\s\\S]*?)\`\`\`/g, (_, lang, code) => {
-				return '<pre><code class="language-' + lang + '">' + code + '</code><button class="copy-button" onclick="copyCode(this)">Copy</button></pre>';
+			// First, extract fenced code blocks so that newline-to-<br> replacement
+			// does not affect their contents.
+			const codeBlocks = [];
+			let placeholderIndex = 0;
+			const withoutCode = text.replace(/\`\`\`(\\w*?)\\n([\\s\\S]*?)\`\`\`/g, (_, lang, code) => {
+				const index = placeholderIndex++;
+				codeBlocks[index] = { lang, code };
+				return '@@CODE_BLOCK_' + index + '@@';
 			});
+
+			// Escape HTML in the non-code content.
+			let html = escapeHtml(withoutCode);
 
 			// Inline code
 			html = html.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
@@ -303,9 +309,21 @@ export class ChatPanel {
 			// Bold
 			html = html.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
 
-			// Newlines to <br>
+			// Newlines to <br> (only applied to non-code content, since code blocks
+			// have been replaced with placeholders that do not contain newlines).
 			html = html.replace(/\\n/g, '<br>');
 
+			// Restore code blocks, escaping their contents to prevent HTML injection.
+			html = html.replace(/@@CODE_BLOCK_(\\d+)@@/g, (_match, indexStr) => {
+				const index = parseInt(indexStr, 10);
+				const block = codeBlocks[index];
+				if (!block) {
+					return '';
+				}
+				const lang = block.lang || '';
+				const escapedCode = escapeHtml(block.code);
+				return '<pre><code class="language-' + lang + '">' + escapedCode + '</code><button class="copy-button" onclick="copyCode(this)">Copy</button></pre>';
+			});
 			return html;
 		}
 
