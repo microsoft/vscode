@@ -223,48 +223,94 @@ export class HookEngine {
 			return result;
 		}
 
-		try {
-			const invokeResult = hook.blocking
-				? await this.invokeCallback(hook, context)
-				: await this.invokeInBackground(hook, context);
+		if (hook.blocking) {
+			try {
+				const invokeResult = await this.invokeCallback(hook, context);
 
-			const result: HookExecutionResult = {
-				hookName: hook.name,
-				trigger: hook.trigger,
-				agent: hook.agent,
-				blocking: hook.blocking,
-				success: invokeResult.success,
-				durationMs: Date.now() - startTime,
-				message: invokeResult.message,
-			};
+				const result: HookExecutionResult = {
+					hookName: hook.name,
+					trigger: hook.trigger,
+					agent: hook.agent,
+					blocking: hook.blocking,
+					success: invokeResult.success,
+					durationMs: Date.now() - startTime,
+					message: invokeResult.message,
+				};
 
-			this._onDidExecuteHook.fire(result);
-			return result;
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			const result: HookExecutionResult = {
-				hookName: hook.name,
-				trigger: hook.trigger,
-				agent: hook.agent,
-				blocking: hook.blocking,
-				success: false,
-				durationMs: Date.now() - startTime,
-				message,
-			};
-			this._onDidExecuteHook.fire(result);
-			return result;
+				this._onDidExecuteHook.fire(result);
+				return result;
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				const result: HookExecutionResult = {
+					hookName: hook.name,
+					trigger: hook.trigger,
+					agent: hook.agent,
+					blocking: hook.blocking,
+					success: false,
+					durationMs: Date.now() - startTime,
+					message,
+				};
+				this._onDidExecuteHook.fire(result);
+				return result;
+			}
 		}
+
+		// Non-blocking hooks: run in background and return immediately.
+		this.invokeInBackground(hook, context);
+
+		// For non-blocking hooks, we return a placeholder result indicating that
+		// execution has been started. The actual completion result will be
+		// reported via _onDidExecuteHook when the background task finishes.
+		const result: HookExecutionResult = {
+			hookName: hook.name,
+			trigger: hook.trigger,
+			agent: hook.agent,
+			blocking: hook.blocking,
+			success: true,
+			durationMs: 0,
+			message: 'Hook execution started in background.',
+		};
+
+		return result;
 	}
 
 	/**
 	 * Run a non-blocking hook in the background.
 	 */
-	private async invokeInBackground(
+	private invokeInBackground(
 		hook: HookConfig,
 		context: Record<string, unknown>,
-	): Promise<{ success: boolean; message?: string }> {
-		// Fire and forget for non-blocking hooks, but still track results
-		return this.invokeCallback!(hook, context);
+	): void {
+		const startTime = Date.now();
+
+		this.invokeCallback!(hook, context)
+			.then(invokeResult => {
+				const result: HookExecutionResult = {
+					hookName: hook.name,
+					trigger: hook.trigger,
+					agent: hook.agent,
+					blocking: hook.blocking,
+					success: invokeResult.success,
+					durationMs: Date.now() - startTime,
+					message: invokeResult.message,
+				};
+
+				this._onDidExecuteHook.fire(result);
+			})
+			.catch(err => {
+				const message = err instanceof Error ? err.message : String(err);
+				const result: HookExecutionResult = {
+					hookName: hook.name,
+					trigger: hook.trigger,
+					agent: hook.agent,
+					blocking: hook.blocking,
+					success: false,
+					durationMs: Date.now() - startTime,
+					message,
+				};
+
+				this._onDidExecuteHook.fire(result);
+			});
 	}
 
 	/**
