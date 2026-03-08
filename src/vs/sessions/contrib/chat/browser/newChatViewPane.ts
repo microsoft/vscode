@@ -243,7 +243,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}));
 
 		this._register(this._repoPicker.onDidSelectRepo((repoId) => {
-			this._newSession.value?.setRepoUri(this._getRepoUri(repoId));
+			if (this._targetPicker.selectedTarget !== AgentSessionProviders.Background) {
+				this._newSession.value?.setRepoUri(this._getRepoUri(repoId));
+			}
 			this._updateDraftState();
 		}));
 
