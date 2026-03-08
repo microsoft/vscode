@@ -148,6 +148,85 @@ Extensions can contribute:
 - `keybindings` - Keyboard shortcuts
 - `menus` - Context menu items
 - `configuration` - Settings
+
+---
+
+## Week 2 Preparation: Nexora Extension Architecture
+
+### Planned Extensions for Nexora
+
+| Extension | Purpose | Priority |
+|-----------|---------|----------|
+| `nexora-chat` | AI Chat Panel | Week 2 |
+| `nexora-platform-browser` | Platform registry UI | Week 2 |
+| `nexora-orchestrator` | Workflow orchestration | Week 3 |
+| `nexora-mcp` | MCP protocol integration | Week 4 |
+
+### Key Files for Extension Development
+
+```
+extensions/nexora-chat/           # Week 2 target
+├── package.json                  # Extension manifest
+├── src/
+│   ├── extension.ts              # Entry point
+│   ├── chatPanel.ts              # Webview-based chat UI
+│   └── services/
+│       └── aiService.ts          # LLM communication
+```
+
+### Webview API for Rich UI
+
+For the Chat Panel and Platform Browser, we'll use VS Code's Webview API:
+
+```typescript
+// Create a webview panel
+const panel = vscode.window.createWebviewPanel(
+  'nexoraChat',           // Panel ID
+  'Nexora Chat',          // Title
+  vscode.ViewColumn.One,  // Position
+  {
+    enableScripts: true,  // Allow JavaScript
+    localResourceRoots: [extensionUri]
+  }
+);
+
+// Set HTML content
+panel.webview.html = getWebviewContent();
+
+// Handle messages from webview
+panel.webview.onDidReceiveMessage(message => {
+  if (message.command === 'sendMessage') {
+    // Handle AI chat message
+  }
+});
+```
+
+---
+
+## Development Workflow Summary
+
+1. **Terminal 1:** `yarn watch` (continuous compilation)
+2. **Terminal 2:** `.\scripts\code.bat` (launch Nexora)
+3. **Edit code** → Wait for recompile → `Ctrl+Shift+P` → "Reload Window"
+4. **Debug extensions:** Use "Launch Extension" config in `.vscode/launch.json`
+
+---
+
+## Git Branch Strategy
+
+- `main` - Stable releases
+- `Week1-Atif` - Week 1 setup (current)
+- `week-2-chat-panel` - Chat panel development
+- `week-2-platform-browser` - Platform browser development
+
+---
+
+## Resources
+
+- [VS Code Extension API](https://code.visualstudio.com/api)
+- [Webview API Guide](https://code.visualstudio.com/api/extension-guides/webview)
+- [Source Code Organization](https://github.com/microsoft/vscode/wiki/Source-Code-Organization)
+- [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute)
 - `themes` - Color themes
 - `icons` - Icon themes
 
