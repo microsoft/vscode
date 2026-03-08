@@ -239,6 +239,19 @@
 	font-size: 11px;
 }
 
+.changes-view-body .chat-editing-session-list .changes-review-comments-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	margin-right: 6px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.changes-view-body .chat-editing-session-list .changes-review-comments-badge .codicon {
+	font-size: 12px;
+}
+
 .changes-view-body .chat-editing-session-list .working-set-lines-added {
 	color: var(--vscode-chat-linesAddedForeground);
 }

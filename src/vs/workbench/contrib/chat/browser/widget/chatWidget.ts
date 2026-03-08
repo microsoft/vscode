@@ -1542,7 +1542,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				ChatContextKeys.currentlyEditing.bindTo(item.contextKeyService).set(true);
 			}
 
-			const isEditingSentRequest = currentElement.pendingKind === undefined ? ChatContextKeys.EditingRequestType.Sent : ChatContextKeys.EditingRequestType.QueueOrSteer;
+			const isEditingSentRequest = currentElement.pendingKind === undefined
+				? ChatContextKeys.EditingRequestType.Sent
+				: currentElement.pendingKind === ChatRequestQueueKind.Queued
+					? ChatContextKeys.EditingRequestType.Queue
+					: ChatContextKeys.EditingRequestType.Steer;
 			const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
 			this.inputPart?.setEditing(!!this.viewModel?.editing && isInput, isEditingSentRequest);
 
@@ -2242,7 +2246,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.chatService.removePendingRequest(this.viewModel.sessionResource, editingRequestId);
 				options.queue ??= editingPendingRequest;
 			} else {
-				this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-editing');
+				await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-editing');
 				options.queue = undefined;
 			}
 
@@ -2262,7 +2266,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
 		if (model.requestNeedsInput.get() && !model.getPendingRequests().length) {
-			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-needsInput');
+			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-needsInput');
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
 		if (requestInProgress) {

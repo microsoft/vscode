@@ -276,7 +276,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 	private async _getSandboxEnvVariables(baseEnv: McpServerTransportStdio['env'], tempDir: URI | undefined, rgPath: string | undefined, remoteAuthority?: string): Promise<McpServerTransportStdio['env']> {
 		let env: McpServerTransportStdio['env'] = { ...baseEnv };
 		if (tempDir) {
-			env = { ...env, TMPDIR: tempDir.path, SRT_DEBUG: 'true' };
+			env = { ...env, TMPDIR: tempDir.path, SRT_DEBUG: 'true', NODE_USE_ENV_PROXY: '1' };
 		}
 		if (rgPath) {
 			env = { ...env, PATH: env['PATH'] ? `${env['PATH']}${await this._getPathDelimiter(remoteAuthority)}${dirname(rgPath)}` : dirname(rgPath) };
