@@ -16,6 +16,9 @@ import { ProjectMemory } from './ProjectMemory';
 import { ReviewAgent } from './ReviewAgent';
 import { SecurityScannerAgent } from './SecurityScannerAgent';
 import { TestWriterAgent } from './TestWriterAgent';
+import { E2eTestAgent } from './E2eTestAgent';
+import { CiRetryAgent } from './CiRetryAgent';
+import { PrGenerationAgent } from './PrGenerationAgent';
 import { AgentConfig } from './types';
 
 /**
@@ -79,6 +82,38 @@ const AGENT_CONFIGS: AgentConfig[] = [
 			{ name: 'changelog', description: 'Generate a changelog entry' },
 		],
 	},
+	{
+		handle: 'anton-e2e',
+		displayName: 'Anton E2E',
+		description: 'E2E test specialist — generates browser-based end-to-end tests',
+		defaultModel: 'sonnet',
+		maxRetries: 3,
+		slashCommands: [
+			{ name: 'e2e', description: 'Generate E2E tests for user flows' },
+			{ name: 'visual', description: 'Run visual regression tests' },
+		],
+	},
+	{
+		handle: 'anton-ci',
+		displayName: 'Anton CI',
+		description: 'CI/CD specialist — monitors pipelines and fixes failures',
+		defaultModel: 'sonnet',
+		maxRetries: 3,
+		slashCommands: [
+			{ name: 'ci-status', description: 'Check CI pipeline status' },
+			{ name: 'ci-fix', description: 'Analyse and fix CI failures' },
+		],
+	},
+	{
+		handle: 'anton-pr',
+		displayName: 'Anton PR',
+		description: 'PR generation specialist — creates merge-ready pull requests',
+		defaultModel: 'sonnet',
+		maxRetries: 3,
+		slashCommands: [
+			{ name: 'pr', description: 'Generate a pull request for changes' },
+		],
+	},
 ];
 
 /**
@@ -123,7 +158,22 @@ export function registerAgentParticipants(
 		llmClient, mcpClient, agentManager, metricsTracker, projectMemory,
 	);
 
-const reviewAgent = new ReviewAgent(
+	const e2eTestAgent = new E2eTestAgent(
+		configs.get('anton-e2e')!,
+		llmClient, mcpClient, agentManager, metricsTracker, projectMemory,
+	);
+
+	const ciRetryAgent = new CiRetryAgent(
+		configs.get('anton-ci')!,
+		llmClient, mcpClient, agentManager, metricsTracker, projectMemory,
+	);
+
+	const prGenerationAgent = new PrGenerationAgent(
+		configs.get('anton-pr')!,
+		llmClient, mcpClient, agentManager, metricsTracker, projectMemory,
+	);
+
+	const reviewAgent = new ReviewAgent(
 		// The review agent should have its own identity for metrics and clarity.
 		{
 			handle: 'anton-review',
@@ -144,8 +194,11 @@ const reviewAgent = new ReviewAgent(
 
 	orchestrator.registerSpecialist(codeAgent);
 	orchestrator.registerSpecialist(testAgent);
+	orchestrator.registerSpecialist(e2eTestAgent);
 	orchestrator.registerSpecialist(securityAgent);
 	orchestrator.registerSpecialist(docsAgent);
+	orchestrator.registerSpecialist(ciRetryAgent);
+	orchestrator.registerSpecialist(prGenerationAgent);
 	orchestrator.setReviewAgent(reviewAgent);
 
 	// Register chat participants
@@ -155,6 +208,9 @@ const reviewAgent = new ReviewAgent(
 		[configs.get('anton-test')!, testAgent],
 		[configs.get('anton-security')!, securityAgent],
 		[configs.get('anton-docs')!, docsAgent],
+		[configs.get('anton-e2e')!, e2eTestAgent],
+		[configs.get('anton-ci')!, ciRetryAgent],
+		[configs.get('anton-pr')!, prGenerationAgent],
 	];
 
 	for (const [config, agent] of agents) {

@@ -12,9 +12,12 @@ export type AgentHandle =
 	| 'anton'
 	| 'anton-code'
 	| 'anton-test'
+	| 'anton-e2e'
 	| 'anton-security'
 	| 'anton-pentest'
-	| 'anton-docs';
+	| 'anton-docs'
+	| 'anton-ci'
+	| 'anton-pr';
 
 /**
  * A subtask decomposed by the orchestrator.

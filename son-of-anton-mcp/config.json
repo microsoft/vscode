@@ -27,6 +27,13 @@
 			"type": "internal",
 			"trusted": true,
 			"rateLimit": { "requestsPerMinute": 30 }
+		},
+		{
+			"name": "playwright",
+			"url": "http://localhost:3105",
+			"type": "internal",
+			"trusted": true,
+			"rateLimit": { "requestsPerMinute": 60 }
 		}
 	],
 	"defaultPolicy": {
