@@ -83,7 +83,7 @@ export class WorkspaceWatcher extends Disposable {
 				localize('enospcError', "Unable to watch for file changes. Please follow the instructions link to resolve this issue."),
 				[{
 					label: localize('learnMore', "Instructions"),
-					run: () => this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=867693'))
+					run: () => this.openerService.open(URI.parse('https://code.visualstudio.com/docs/setup/linux#_visual-studio-code-is-unable-to-watch-for-file-changes-in-this-large-workspace-error-enospc'))
 				}],
 				{
 					sticky: true,

@@ -162,7 +162,7 @@ const bundleSonOfAntonWebTask = task.define('bundle-vscode-web-OLD', task.series
 const minifySonOfAntonWebTask = task.define('minify-vscode-web-OLD', task.series(
 	bundleSonOfAntonWebTask,
 	util.rimraf('out-vscode-web-min'),
-	optimize.minifyTask('out-vscode-web', `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
+	optimize.minifyTask('out-vscode-web', `https://son-of-anton-sourcemaps.localhost/sourcemaps/${commit}/core`)
 ));
 gulp.task(minifySonOfAntonWebTask);
 

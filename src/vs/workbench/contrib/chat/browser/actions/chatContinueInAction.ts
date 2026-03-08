@@ -173,7 +173,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 	}
 
 	protected static getActionBarActions(openerService: IOpenerService) {
-		const learnMoreUrl = 'https://aka.ms/vscode-continue-chat-in';
+		const learnMoreUrl = 'https://code.visualstudio.com/docs/copilot/agents/overview#_hand-off-a-session-to-another-agent';
 		return [{
 			id: 'workbench.action.chat.continueChatInSession.learnMore',
 			label: localize('chat.learnMore', "Learn More"),

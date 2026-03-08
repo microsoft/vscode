@@ -491,7 +491,7 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
 		bundleTask,
 		util.rimraf(`out-vscode-${type}-min`),
-		optimize.minifyTask(`out-vscode-${type}`, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
+		optimize.minifyTask(`out-vscode-${type}`, `https://son-of-anton-sourcemaps.localhost/sourcemaps/${commit}/core`)
 	));
 	gulp.task(minifyTask);
 

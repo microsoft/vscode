@@ -116,7 +116,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 				cancelButton: localize('close', "Close")
 			});
 			if (confirmed) {
-				this.openerService.open(isWeb ? URI.parse('https://aka.ms/vscode-web-extensions-guide') : URI.parse('https://aka.ms/vscode-remote'));
+				this.openerService.open(isWeb ? URI.parse('https://code.visualstudio.com/docs/editor/vscode-web#_extensions') : URI.parse('https://code.visualstudio.com/docs/remote/remote-overview'));
 			}
 			return;
 		}
@@ -940,7 +940,7 @@ export class UninstallAction extends ExtensionAction {
 
 		try {
 			await this.extensionsWorkbenchService.uninstall(this.extension);
-			alert(localize('uninstallExtensionComplete', "Please reload Visual Studio Code to complete the uninstallation of the extension {0}.", this.extension.displayName));
+			alert(localize('uninstallExtensionComplete', "Please reload the window to complete the uninstallation of the extension {0}.", this.extension.displayName));
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				this.dialogService.error(getErrorMessage(error));

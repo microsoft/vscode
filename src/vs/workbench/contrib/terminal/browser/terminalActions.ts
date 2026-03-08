@@ -130,7 +130,7 @@ export class TerminalLaunchHelpAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this._openerService.open('https://aka.ms/vscode-troubleshoot-terminal-launch');
+		this._openerService.open('https://code.visualstudio.com/docs/supporting/troubleshoot-terminal-launch');
 	}
 }
 

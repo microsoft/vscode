@@ -1266,7 +1266,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		if (response === 2) {
-			shell.openExternal('https://aka.ms/vscode-windows-unc');
+			shell.openExternal('https://code.visualstudio.com/docs/setup/windows#_working-with-unc-paths');
 
 			return this.onUNCHostNotAllowed(path, options); // keep showing the dialog until decision (https://github.com/microsoft/vscode/issues/181956)
 		}

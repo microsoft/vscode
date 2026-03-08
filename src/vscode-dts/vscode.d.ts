@@ -9976,7 +9976,7 @@ declare module 'vscode' {
 		 * Keep in mind that even though webviews are sandboxed, they still allow running scripts and loading arbitrary content,
 		 * so extensions must follow all standard web security best practices when working with webviews. This includes
 		 * properly sanitizing all untrusted input (including content from the workspace) and
-		 * setting a [content security policy](https://aka.ms/vscode-api-webview-csp).
+		 * setting a [content security policy](https://code.visualstudio.com/api/extension-guides/webview#content-security-policy).
 		 */
 		html: string;
 

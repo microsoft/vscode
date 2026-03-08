@@ -58,7 +58,7 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 				},
 				{
 					label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
-					run: async () => { await this.openerService.open('https://aka.ms/vscode-remote/faq/old-linux'); return ConnectionChoice.LearnMore; }
+					run: async () => { await this.openerService.open('https://code.visualstudio.com/docs/remote/faq#_can-i-run-vs-code-server-on-older-linux-distributions'); return ConnectionChoice.LearnMore; }
 				}
 			],
 			cancelButton: {
@@ -98,7 +98,7 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 						const actions = [
 							{
 								label: localize('unsupportedGlibcBannerLearnMore', "Learn More"),
-								href: 'https://aka.ms/vscode-remote/faq/old-linux'
+								href: 'https://code.visualstudio.com/docs/remote/faq#_can-i-run-vs-code-server-on-older-linux-distributions'
 							}
 						];
 						this.bannerService.show({

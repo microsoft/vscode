@@ -84,7 +84,7 @@ const args = minimist(process.argv.slice(2), {
 
 	Module._load = function (request: string) {
 		if (request === 'natives') {
-			throw new Error('Either the extension or an NPM dependency is using the [unsupported "natives" node module](https://go.microsoft.com/fwlink/?linkid=871887).');
+			throw new Error('Either the extension or an NPM dependency is using the [unsupported "natives" node module](https://github.com/Microsoft/vscode/issues/47569).');
 		}
 
 		return originalLoad.apply(this, arguments);
@@ -142,7 +142,7 @@ function patchProcess(allowExit: boolean) {
 if (!args.supportGlobalNavigator) {
 	Object.defineProperty(globalThis, 'navigator', {
 		get: () => {
-			onUnexpectedExternalError(new PendingMigrationError('navigator is now a global in nodejs, please see https://aka.ms/vscode-extensions/navigator for additional info on this error.'));
+			onUnexpectedExternalError(new PendingMigrationError('navigator is now a global in nodejs, please see https://code.visualstudio.com/updates/v1_101#_web-environment-detection for additional info on this error.'));
 			return undefined;
 		}
 	});

@@ -526,7 +526,7 @@ function configureCrashReporter(): void {
 
 	// Start crash reporter for all processes
 	const productName = (product.crashReporter ? product.crashReporter.productName : undefined) || product.nameShort;
-	const companyName = (product.crashReporter ? product.crashReporter.companyName : undefined) || 'Microsoft';
+	const companyName = (product.crashReporter ? product.crashReporter.companyName : undefined) || 'Son of Anton';
 	const uploadToServer = Boolean(!process.env['VSCODE_DEV'] && submitURL && !crashReporterDirectory);
 	crashReporter.start({
 		companyName,

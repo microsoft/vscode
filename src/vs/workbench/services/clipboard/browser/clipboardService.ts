@@ -68,7 +68,7 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 						}
 					}, {
 						label: localize('learnMore', "Learn More"),
-						run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2151362')
+						run: () => this.openerService.open('https://code.visualstudio.com/docs/remote/codespaces#_how-do-i-allow-vs-code-to-access-my-clipboard-for-reading')
 					}],
 					{
 						sticky: true

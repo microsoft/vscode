@@ -409,7 +409,7 @@ registerTerminalAction({
 		order: 2
 	},
 	run: (c, accessor) => {
-		(accessor.get(IOpenerService)).open('https://aka.ms/vscode-terminal-intellisense');
+		(accessor.get(IOpenerService)).open('https://code.visualstudio.com/docs/terminal/shell-integration#_intellisense');
 	}
 });
 

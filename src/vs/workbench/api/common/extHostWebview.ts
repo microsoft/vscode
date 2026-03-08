@@ -105,7 +105,7 @@ export class ExtHostWebview implements vscode.Webview {
 			if (this.#shouldRewriteOldResourceUris && !this.#hasCalledAsWebviewUri && /(["'])vscode-resource:([^\s'"]+?)(["'])/i.test(value)) {
 				this.#hasCalledAsWebviewUri = true;
 				this.#deprecationService.report('Webview vscode-resource: uris', this.#extension,
-					`Please migrate to use the 'webview.asWebviewUri' api instead: https://aka.ms/vscode-webview-use-aswebviewuri`);
+					`Please migrate to use the 'webview.asWebviewUri' api instead: https://code.visualstudio.com/api/extension-guides/webview#loading-local-content`);
 			}
 			this.#proxy.$setHtml(this.#handle, this.rewriteOldResourceUrlsIfNeeded(value));
 		}
@@ -231,7 +231,7 @@ export class ExtHostWebviews extends Disposable implements extHostProtocol.ExtHo
 		_handle: extHostProtocol.WebviewHandle,
 		extensionId: string
 	): void {
-		this._logService.warn(`${extensionId} created a webview without a content security policy: https://aka.ms/vscode-webview-missing-csp`);
+		this._logService.warn(`${extensionId} created a webview without a content security policy: https://code.visualstudio.com/api/extension-guides/webview#content-security-policy`);
 	}
 
 	public createNewWebview(handle: string, options: extHostProtocol.IWebviewContentOptions, extension: IExtensionDescription): ExtHostWebview {

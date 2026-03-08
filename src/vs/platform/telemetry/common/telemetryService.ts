@@ -243,8 +243,8 @@ export class TelemetryService implements ITelemetryService {
 function getTelemetryLevelSettingDescription(): string {
 	const telemetryText = localize('telemetry.telemetryLevelMd', "Controls {0} telemetry, first-party extension telemetry, and participating third-party extension telemetry. Some third party extensions might not respect this setting. Consult the specific extension's documentation to be sure. Telemetry helps us better understand how {0} is performing, where improvements need to be made, and how features are being used.", product.nameLong);
 	const externalLinksStatement = !product.privacyStatementUrl ?
-		localize("telemetry.docsStatement", "Read more about the [data we collect]({0}).", 'https://aka.ms/vscode-telemetry') :
-		localize("telemetry.docsAndPrivacyStatement", "Read more about the [data we collect]({0}) and our [privacy statement]({1}).", 'https://aka.ms/vscode-telemetry', product.privacyStatementUrl);
+		localize("telemetry.docsStatement", "Telemetry is disabled by default in Son of Anton.") :
+		localize("telemetry.docsAndPrivacyStatement", "Read more about our [privacy statement]({0}).", product.privacyStatementUrl);
 	const restartString = !isWeb ? localize('telemetry.restart', 'A full restart of the application is necessary for crash reporting changes to take effect.') : '';
 
 	const crashReportsHeader = localize('telemetry.crashReports', "Crash Reports");

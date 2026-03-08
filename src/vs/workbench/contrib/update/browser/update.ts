@@ -285,7 +285,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 								toAction({
 									id: '',
 									label: nls.localize('learn more', "Learn More"),
-									run: () => this.openerService.open('https://aka.ms/vscode-windows-setup')
+									run: () => this.openerService.open('https://code.visualstudio.com/docs/setup/windows')
 								})
 							]
 						},
@@ -618,8 +618,8 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 							type: 'info',
 							message: nls.localize('relaunchMessage', "Changing the version requires a reload to take effect"),
 							detail: newQuality === 'insider' ?
-								nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the Insiders version of VS Code.") :
-								nls.localize('relaunchDetailStable', "Press the reload button to switch to the Stable version of VS Code."),
+								nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the Insiders version.") :
+								nls.localize('relaunchDetailStable', "Press the reload button to switch to the Stable version."),
 							primaryButton: nls.localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload")
 						});
 
@@ -654,7 +654,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 					const { result } = await dialogService.prompt<UserDataSyncStoreType>({
 						type: Severity.Info,
 						message: nls.localize('selectSyncService.message', "Choose the settings sync service to use after changing the version"),
-						detail: nls.localize('selectSyncService.detail', "The Insiders version of VS Code will synchronize your settings, keybindings, extensions, snippets and UI State using separate insiders settings sync service by default."),
+						detail: nls.localize('selectSyncService.detail', "The Insiders version will synchronize your settings, keybindings, extensions, snippets and UI State using separate insiders settings sync service by default."),
 						buttons: [
 							{
 								label: nls.localize({ key: 'use insiders', comment: ['&& denotes a mnemonic'] }, "&&Insiders"),

@@ -49,7 +49,7 @@ export class AutoFetcher {
 		const yes: MessageItem = { title: l10n.t('Yes') };
 		const no: MessageItem = { isCloseAffordance: true, title: l10n.t('No') };
 		const askLater: MessageItem = { title: l10n.t('Ask Me Later') };
-		const result = await window.showInformationMessage(l10n.t('Would you like {0} to [periodically run "git fetch"]({1})?', env.appName, 'https://go.microsoft.com/fwlink/?linkid=865294'), yes, no, askLater);
+		const result = await window.showInformationMessage(l10n.t('Would you like {0} to [periodically run "git fetch"]({1})?', env.appName, 'https://code.visualstudio.com/docs/editor/versioncontrol#_remotes'), yes, no, askLater);
 
 		if (result === askLater) {
 			return;

@@ -237,7 +237,7 @@ function runTsGoTypeCheck(): Promise<void> {
 	});
 }
 
-const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
+const sourceMappingURLBase = `https://son-of-anton-sourcemaps.localhost/sourcemaps/${commit}`;
 const isCI = !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
 const useCdnSourceMapsForPackagingTasks = isCI;
 const stripSourceMapsInPackagingTasks = isCI;

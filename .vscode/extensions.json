@@ -1,5 +1,5 @@
 {
-	// See https://go.microsoft.com/fwlink/?LinkId=827846
+	// See https://code.visualstudio.com/docs/editor/extension-gallery#_workspace-recommended-extensions
 	// for the documentation about the extensions.json format
 	"recommendations": [
 		"dbaeumer.vscode-eslint",

@@ -98,7 +98,7 @@ const compilations = [
 	'.vscode/extensions/vscode-extras/tsconfig.json',
 ];
 
-const getBaseUrl = (out: string) => `https://main.vscode-cdn.net/sourcemaps/${commit}/${out}`;
+const getBaseUrl = (out: string) => `https://son-of-anton-sourcemaps.localhost/sourcemaps/${commit}/${out}`;
 
 function rewriteTsgoSourceMappingUrlsIfNeeded(build: boolean, out: string, baseUrl: string): Promise<void> {
 	if (!build) {

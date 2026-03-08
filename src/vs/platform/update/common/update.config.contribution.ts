@@ -21,7 +21,7 @@ configurationRegistry.registerConfiguration({
 			enum: ['none', 'manual', 'start', 'default'],
 			default: 'default',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
+			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from an online service."),
 			tags: ['usesOnlineServices'],
 			enumDescriptions: [
 				localize('none', "Disable updates."),
@@ -34,7 +34,7 @@ configurationRegistry.registerConfiguration({
 				category: PolicyCategory.Update,
 				minimumVersion: '1.67',
 				localization: {
-					description: { key: 'updateMode', value: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."), },
+					description: { key: 'updateMode', value: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from an online service."), },
 					enumDescriptions: [
 						{
 							key: 'none',
@@ -60,7 +60,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			default: 'default',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
+			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from an online service."),
 			deprecationMessage: localize('deprecated', "This setting is deprecated, please use '{0}' instead.", 'update.mode')
 		},
 		'update.enableWindowsBackgroundUpdates': {
@@ -68,14 +68,14 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			title: localize('enableWindowsBackgroundUpdatesTitle', "Enable Background Updates"),
-			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new VS Code versions in the background."),
+			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new versions in the background."),
 			included: isWindows && !isWeb
 		},
 		'update.showReleaseNotes': {
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from a Microsoft online service."),
+			description: localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from an online service."),
 			tags: ['usesOnlineServices']
 		},
 		'update.statusBar': {

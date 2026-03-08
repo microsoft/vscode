@@ -135,7 +135,7 @@ class ManageTrustedMcpServersForAccountActionImpl {
 
 		return [
 			...otherServers.sort(sortByLastUsed).map(this._toQuickPickItem),
-			{ type: 'separator', label: localize('trustedMcpServers', "Trusted by Microsoft") } satisfies IQuickPickSeparator,
+			{ type: 'separator', label: localize('trustedMcpServers', "Trusted by Son of Anton") } satisfies IQuickPickSeparator,
 			...trustedServers.sort(sortByLastUsed).map(this._toQuickPickItem)
 		];
 	}
@@ -148,7 +148,7 @@ class ManageTrustedMcpServersForAccountActionImpl {
 		let tooltip: string | undefined;
 		let disabled: boolean | undefined;
 		if (mcpServer.trusted) {
-			tooltip = localize('trustedMcpServerTooltip', "This MCP server is trusted by Microsoft and\nalways has access to this account");
+			tooltip = localize('trustedMcpServerTooltip', "This MCP server is trusted by Son of Anton and\nalways has access to this account");
 			disabled = true;
 		}
 		return {

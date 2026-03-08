@@ -107,7 +107,7 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 	}
 
 	protected override _getLearnMore(): IAction {
-		const learnMoreUrl = 'https://aka.ms/vscode-continue-chat-in';
+		const learnMoreUrl = 'https://code.visualstudio.com/docs/copilot/agents/overview#_hand-off-a-session-to-another-agent';
 		return {
 			id: 'workbench.action.chat.agentOverview.learnMoreHandOff',
 			label: localize('chat.learnMoreAgentHandOff', "Learn about agent handoff..."),

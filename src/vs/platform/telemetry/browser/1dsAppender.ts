@@ -5,20 +5,16 @@
 
 import { AbstractOneDataSystemAppender, IAppInsightsCore } from '../common/1dsAppender.js';
 
+// Son of Anton: Microsoft 1DS telemetry has been removed.
+// This class is a no-op stub that preserves the constructor signature.
 
 export class OneDataSystemWebAppender extends AbstractOneDataSystemAppender {
 	constructor(
 		isInternalTelemetry: boolean,
 		eventPrefix: string,
 		defaultData: { [key: string]: unknown } | null,
-		iKeyOrClientFactory: string | (() => IAppInsightsCore), // allow factory function for testing
+		iKeyOrClientFactory: string | (() => IAppInsightsCore),
 	) {
 		super(isInternalTelemetry, eventPrefix, defaultData, iKeyOrClientFactory);
-
-		// If we cannot fetch the endpoint it means it is down and we should not send any telemetry.
-		// This is most likely due to ad blockers
-		fetch(this.endPointHealthUrl, { method: 'GET' }).catch(err => {
-			this._aiCoreOrKey = undefined;
-		});
 	}
 }
