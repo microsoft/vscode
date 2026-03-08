@@ -89,6 +89,18 @@
 				"title": "Son of Anton: Clear Chat"
 			},
 			{
+				"command": "sota.exportTraces",
+				"title": "Son of Anton: Export Traces"
+			},
+			{
+				"command": "sota.showSandbox",
+				"title": "Son of Anton: Show Sandbox Terminal"
+			},
+			{
+				"command": "sota.triggerPreCommitHook",
+				"title": "Son of Anton: Trigger Pre-Commit Hook"
+			},
+			{
 				"command": "sota.recordMemory",
 				"title": "Son of Anton: Record Project Memory"
 			}
@@ -154,6 +166,39 @@
 					"type": "string",
 					"default": "",
 					"description": "Anthropic API key (prefer environment variable ANTHROPIC_API_KEY)"
+				},
+				"sota.sandbox.image": {
+					"type": "string",
+					"default": "son-of-anton-sandbox:latest",
+					"description": "Docker image for agent sandbox execution"
+				},
+				"sota.sandbox.timeoutMs": {
+					"type": "number",
+					"default": 300000,
+					"description": "Maximum execution time per sandbox command (ms)"
+				},
+				"sota.sandbox.memoryLimitMb": {
+					"type": "number",
+					"default": 2048,
+					"description": "Memory limit for sandbox containers (MB)"
+				},
+				"sota.sandbox.cpuQuota": {
+					"type": "number",
+					"default": 2,
+					"description": "CPU core quota for sandbox containers"
+				},
+				"sota.hooks.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable the agent hooks system"
+				},
+				"sota.hooks.disabledHooks": {
+					"type": "array",
+					"default": [],
+					"description": "List of hook names to disable",
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		}

@@ -1,0 +1,41 @@
+{
+	"hooks": [
+		{
+			"name": "lint-on-save",
+			"trigger": "onFileSave",
+			"filter": "**/*.{ts,tsx,js,jsx}",
+			"agent": "anton-code",
+			"instruction": "Run the linter on this file and fix any issues",
+			"blocking": false
+		},
+		{
+			"name": "security-scan-pre-commit",
+			"trigger": "preCommit",
+			"agent": "anton-security",
+			"instruction": "Run Semgrep on all staged files. Report any critical or high findings.",
+			"blocking": true
+		},
+		{
+			"name": "debug-on-test-failure",
+			"trigger": "onTestFailure",
+			"agent": "anton-code",
+			"instruction": "Analyse the test failure output. Determine if the test or the code is wrong. Suggest a fix.",
+			"blocking": false
+		},
+		{
+			"name": "dependency-scan",
+			"trigger": "onFileSave",
+			"filter": "**/package.json|**/requirements.txt|**/Cargo.toml",
+			"agent": "anton-security",
+			"instruction": "Run dependency vulnerability scan on the changed package file.",
+			"blocking": false
+		},
+		{
+			"name": "doc-review-on-pr",
+			"trigger": "onPRCreate",
+			"agent": "anton-docs",
+			"instruction": "Review the PR diff. If any public API changed, check that documentation is updated.",
+			"blocking": false
+		}
+	]
+}
