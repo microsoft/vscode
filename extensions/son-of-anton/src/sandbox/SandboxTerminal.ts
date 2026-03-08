@@ -54,7 +54,8 @@ export class SandboxTerminal implements vscode.Pseudoterminal {
 	 * Write a raw line to the terminal.
 	 */
 	writeLine(text: string): void {
-		this.writeEmitter.fire(text + '\r\n');
+		const normalized = text.replace(/[\r\n]+$/g, '');
+		this.writeEmitter.fire(normalized + '\r\n');
 	}
 
 	/**
