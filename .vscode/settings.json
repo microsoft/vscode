@@ -213,5 +213,5 @@
 	],
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
-	"chat.tools.terminal.outputLocation": "none"
+	"chat.tools.terminal.outputLocation": "chat"
 }
