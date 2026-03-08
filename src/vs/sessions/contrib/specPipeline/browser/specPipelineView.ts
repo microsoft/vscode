@@ -22,7 +22,6 @@ import { ISpecPipelineService, ISpecFeature, SpecPhase, SpecPhaseStatus } from '
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 
 const $ = dom.$;
 
