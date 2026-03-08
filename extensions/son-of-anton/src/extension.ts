@@ -11,14 +11,23 @@ import { TaskQueueProvider } from './sidebar/TaskQueueProvider';
 import { TraceViewerPanel } from './trace/TraceViewerPanel';
 import { LlmClient } from './llm/LlmClient';
 import { AgentManager } from './agents/AgentManager';
+import { McpClient } from './mcp/McpClient';
 import { StatusBarManager } from './sidebar/StatusBarManager';
+import { registerAgentParticipants } from './agents/AgentParticipants';
 
 export function activate(context: vscode.ExtensionContext): void {
 	const llmClient = new LlmClient(context);
+	const mcpClient = new McpClient();
 	const agentManager = new AgentManager(llmClient);
 	const agentStatusProvider = new AgentStatusProvider(agentManager);
 	const taskQueueProvider = new TaskQueueProvider(agentManager);
 	const statusBarManager = new StatusBarManager(agentManager);
+
+	// Register multi-agent chat participants
+	const agentDisposables = registerAgentParticipants(
+		context, llmClient, mcpClient, agentManager,
+	);
+	context.subscriptions.push(...agentDisposables);
 
 	// Chat Panel
 	context.subscriptions.push(

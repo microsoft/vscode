@@ -16,6 +16,61 @@
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
+		"chatParticipants": [
+			{
+				"id": "sota.anton",
+				"name": "anton",
+				"fullName": "Anton",
+				"description": "AI orchestrator — routes requests to specialist agents",
+				"isSticky": true,
+				"commands": [
+					{ "name": "plan", "description": "Create an execution plan for a request" },
+					{ "name": "approve", "description": "Approve and execute the current plan" },
+					{ "name": "status", "description": "Show status of active agents" },
+					{ "name": "metrics", "description": "Show agent performance metrics" }
+				]
+			},
+			{
+				"id": "sota.anton-code",
+				"name": "anton-code",
+				"fullName": "Anton Code",
+				"description": "Code generation specialist — writes and modifies code",
+				"commands": [
+					{ "name": "generate", "description": "Generate code for a specific task" },
+					{ "name": "refactor", "description": "Refactor existing code" }
+				]
+			},
+			{
+				"id": "sota.anton-test",
+				"name": "anton-test",
+				"fullName": "Anton Test",
+				"description": "Test writing specialist — generates comprehensive tests",
+				"commands": [
+					{ "name": "test", "description": "Generate tests for specified code" },
+					{ "name": "coverage", "description": "Analyse test coverage gaps" }
+				]
+			},
+			{
+				"id": "sota.anton-security",
+				"name": "anton-security",
+				"fullName": "Anton Security",
+				"description": "Security analysis specialist — scans for vulnerabilities",
+				"commands": [
+					{ "name": "scan", "description": "Scan code for security vulnerabilities" },
+					{ "name": "audit", "description": "Full security audit of changed files" }
+				]
+			},
+			{
+				"id": "sota.anton-docs",
+				"name": "anton-docs",
+				"fullName": "Anton Docs",
+				"description": "Documentation specialist — generates and updates docs",
+				"commands": [
+					{ "name": "document", "description": "Generate documentation for code" },
+					{ "name": "changelog", "description": "Generate a changelog entry" }
+				]
+			}
+		],
 		"commands": [
 			{
 				"command": "sota.openChat",
@@ -32,6 +87,10 @@
 			{
 				"command": "sota.clearChat",
 				"title": "Son of Anton: Clear Chat"
+			},
+			{
+				"command": "sota.recordMemory",
+				"title": "Son of Anton: Record Project Memory"
 			}
 		],
 		"keybindings": [
