@@ -36,7 +36,9 @@ export function registerImpactAnalysisCommand(
 			);
 
 			const targetSymbol = findSymbolAtPosition(symbols ?? [], position);
-			const symbolName = targetSymbol?.name ?? document.getText(document.getWordRangeAtPosition(position));
+			const wordRange = document.getWordRangeAtPosition(position);
+			const fallbackSymbolName = wordRange ? document.getText(wordRange) : undefined;
+			const symbolName = targetSymbol?.name ?? fallbackSymbolName;
 
 			if (!symbolName) {
 				vscode.window.showWarningMessage('No symbol found at cursor position.');
