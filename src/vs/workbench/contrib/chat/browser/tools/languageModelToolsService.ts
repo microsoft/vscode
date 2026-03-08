@@ -47,7 +47,7 @@ import { ChatToolInvocation } from '../../common/model/chatProgressTypes/chatToo
 import { chatSessionResourceToId } from '../../common/model/chatUri.js';
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
-import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, IExternalPreToolUseHookResult, ILanguageModelToolsService, IPreparedToolInvocation, isToolSet, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolResultInputOutputDetails, IToolSet, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolInvocationPresentation, toolMatchesModel, ToolSet, ToolSetForModel, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, IExternalPreToolUseHookResult, ILanguageModelToolsService, IPreparedToolInvocation, isToolSet, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolResultInputOutputDetails, IToolSet, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolInvocationPresentation, toolMatchesModel, ToolSet, ToolSetForModel, SonOfAntonToolReference } from '../../common/tools/languageModelToolsService.js';
 import { getToolConfirmationAlert } from '../accessibility/chatAccessibilityProvider.js';
 import { IChatWidgetService } from '../chat.js';
 
@@ -164,7 +164,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		this.vscodeToolSet = this._register(this.createToolSet(
 			ToolDataSource.Internal,
 			'vscode',
-			VSCodeToolReference.vscode,
+			SonOfAntonToolReference.vscode,
 			{
 				icon: ThemeIcon.fromId(Codicon.vscode.id),
 				description: localize('copilot.toolSet.vscode.description', 'Use VS Code features'),
@@ -1270,7 +1270,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				yield 'shell'; // legacy alias
 				break;
 			case SpecedToolAliases.agent: // 'agent'
-				yield VSCodeToolReference.runSubagent; // prefer the tool set over th old tool name
+				yield SonOfAntonToolReference.runSubagent; // prefer the tool set over th old tool name
 				yield 'custom-agent'; // legacy alias
 				break;
 		}
@@ -1278,7 +1278,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private * getToolAliases(toolSet: IToolData, fullReferenceName: string): Iterable<string> {
 		const referenceName = toolSet.toolReferenceName ?? toolSet.displayName;
-		if (fullReferenceName !== referenceName && referenceName !== VSCodeToolReference.runSubagent) {
+		if (fullReferenceName !== referenceName && referenceName !== SonOfAntonToolReference.runSubagent) {
 			yield referenceName; // simple name, without toolset name
 		}
 		if (toolSet.legacyToolReferenceFullNames) {

@@ -138,7 +138,7 @@ const bootstrapEntryPoints = [
 	'out-build/bootstrap-fork.js'
 ];
 
-const bundleVSCodeTask = task.define('bundle-vscode', task.series(
+const bundleSonOfAntonTask = task.define('bundle-vscode', task.series(
 	util.rimraf('out-vscode'),
 	// Optimize: bundles source files automatically based on
 	// import statements based on the passed in entry points.
@@ -159,7 +159,7 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 		}
 	)
 ));
-gulp.task(bundleVSCodeTask);
+gulp.task(bundleSonOfAntonTask);
 
 // esbuild-based bundle tasks (drop-in replacement for bundle-vscode / minify-vscode)
 function runEsbuildTranspile(outDir: string, excludeTests: boolean): Promise<void> {
@@ -241,12 +241,12 @@ const sourceMappingURLBase = `https://son-of-anton-sourcemaps.localhost/sourcema
 const isCI = !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
 const useCdnSourceMapsForPackagingTasks = isCI;
 const stripSourceMapsInPackagingTasks = isCI;
-const minifyVSCodeTask = task.define('minify-vscode', task.series(
-	bundleVSCodeTask,
+const minifySonOfAntonTask = task.define('minify-vscode', task.series(
+	bundleSonOfAntonTask,
 	util.rimraf('out-vscode-min'),
 	optimize.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
 ));
-gulp.task(minifyVSCodeTask);
+gulp.task(minifySonOfAntonTask);
 
 gulp.task(task.define('core-ci-old', task.series(
 	gulp.task('compile-build-with-mangling') as task.Task,
@@ -695,7 +695,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 	const [vscode, vscodeMin] = ['', 'min'].map(minified => {
 		const sourceFolderName = `out-vscode${dashed(minified)}`;
-		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
+		const destinationFolderName = `Son of Anton${dashed(platform)}${dashed(arch)}`;
 
 		const packageTasks: task.Task[] = [
 			compileNativeExtensionsBuildTask,
@@ -737,7 +737,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
 				compileExtensionMediaBuildTask,
-				minified ? minifyVSCodeTask : bundleVSCodeTask,
+				minified ? minifySonOfAntonTask : bundleSonOfAntonTask,
 				vscodeTaskCI
 			));
 		}

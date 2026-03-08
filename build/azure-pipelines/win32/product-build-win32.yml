@@ -48,24 +48,24 @@ jobs:
             isProduction: false
             condition: succeededOrFailed()
         - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/system-setup/VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe
+          targetPath: $(Build.ArtifactStagingDirectory)/out/system-setup/Son of AntonSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe
           artifactName: vscode_client_win32_$(VSCODE_ARCH)_setup
           displayName: Publish system setup
-          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+          sbomBuildDropPath: $(Agent.BuildDirectory)/Son of Anton-win32-$(VSCODE_ARCH)
           sbomPackageName: "VS Code Windows $(VSCODE_ARCH) System Setup"
           sbomPackageVersion: $(Build.SourceVersion)
         - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/user-setup/VSCodeUserSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe
+          targetPath: $(Build.ArtifactStagingDirectory)/out/user-setup/Son of AntonUserSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe
           artifactName: vscode_client_win32_$(VSCODE_ARCH)_user-setup
           displayName: Publish user setup
-          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+          sbomBuildDropPath: $(Agent.BuildDirectory)/Son of Anton-win32-$(VSCODE_ARCH)
           sbomPackageName: "VS Code Windows $(VSCODE_ARCH) User Setup"
           sbomPackageVersion: $(Build.SourceVersion)
         - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/archive/VSCode-win32-$(VSCODE_ARCH)-$(VSCODE_VERSION).zip
+          targetPath: $(Build.ArtifactStagingDirectory)/out/archive/Son of Anton-win32-$(VSCODE_ARCH)-$(VSCODE_VERSION).zip
           artifactName: vscode_client_win32_$(VSCODE_ARCH)_archive
           displayName: Publish archive
-          sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
+          sbomBuildDropPath: $(Agent.BuildDirectory)/Son of Anton-win32-$(VSCODE_ARCH)
           sbomPackageName: "VS Code Windows $(VSCODE_ARCH)"
           sbomPackageVersion: $(Build.SourceVersion)
         - output: pipelineArtifact

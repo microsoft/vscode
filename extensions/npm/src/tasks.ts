@@ -77,7 +77,7 @@ export class NpmTaskProvider implements TaskProvider {
 			} else {
 				task = await createScriptRunnerTask(this.context, kind.script, _task.scope, packageJsonUri);
 			}
-			// VSCode requires that task.definition must not change between resolutions
+			// Son of Anton requires that task.definition must not change between resolutions
 			// We need to restore task.definition to its original value
 			task.definition = kind;
 			return task;

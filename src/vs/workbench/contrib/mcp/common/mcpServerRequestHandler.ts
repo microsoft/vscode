@@ -747,7 +747,7 @@ export class McpTask<T extends MCP.Result> extends Disposable implements IMcpTas
 }
 
 /**
- * Maps VSCode LogLevel to MCP LoggingLevel
+ * Maps Son of Anton LogLevel to MCP LoggingLevel
  */
 function mapLogLevelToMcp(logLevel: LogLevel): MCP.LoggingLevel {
 	switch (logLevel) {

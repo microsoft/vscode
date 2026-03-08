@@ -10858,7 +10858,7 @@ declare module 'vscode' {
 		 * used scheme this can be:
 		 * * a browser (`http:`, `https:`)
 		 * * a mail client (`mailto:`)
-		 * * VSCode itself (`vscode:` from `vscode.env.uriScheme`)
+		 * * Son of Anton itself (`vscode:` from `vscode.env.uriScheme`)
 		 *
 		 * *Note* that {@linkcode window.showTextDocument showTextDocument} is the right
 		 * way to open a text document inside the editor, not this function.

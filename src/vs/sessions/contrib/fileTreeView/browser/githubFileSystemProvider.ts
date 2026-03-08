@@ -187,7 +187,7 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 			headers: {
 				'Authorization': `token ${token}`,
 				'Accept': 'application/vnd.github.v3+json',
-				'User-Agent': 'VSCode-SessionRepoFS',
+				'User-Agent': 'Son of Anton-SessionRepoFS',
 			},
 		}, CancellationToken.None);
 
@@ -297,7 +297,7 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 			headers: {
 				'Authorization': `token ${token}`,
 				'Accept': 'application/vnd.github.v3+json',
-				'User-Agent': 'VSCode-SessionRepoFS',
+				'User-Agent': 'Son of Anton-SessionRepoFS',
 			},
 		}, CancellationToken.None);
 

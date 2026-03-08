@@ -141,7 +141,7 @@ suite('Render Functions', () => {
 		};
 
 		test('should render ADMX with correct XML structure', () => {
-			const result = renderADMX('VSCode', ['1.85'], [mockCategory], [mockPolicy]);
+			const result = renderADMX('Son of Anton', ['1.85'], [mockCategory], [mockPolicy]);
 
 			assert.ok(result.includes('<?xml version="1.0" encoding="utf-8"?>'));
 			assert.ok(result.includes('<policyDefinitions'));
@@ -155,7 +155,7 @@ suite('Render Functions', () => {
 		});
 
 		test('should replace dots in versions with underscores', () => {
-			const result = renderADMX('VSCode', ['1.85.0', '1.90.1'], [mockCategory], [mockPolicy]);
+			const result = renderADMX('Son of Anton', ['1.85.0', '1.90.1'], [mockCategory], [mockPolicy]);
 
 			assert.ok(result.includes('Supported_1_85_0'));
 			assert.ok(result.includes('Supported_1_90_1'));
@@ -163,7 +163,7 @@ suite('Render Functions', () => {
 		});
 
 		test('should include categories in correct structure', () => {
-			const result = renderADMX('VSCode', ['1.0'], [mockCategory], [mockPolicy]);
+			const result = renderADMX('Son of Anton', ['1.0'], [mockCategory], [mockPolicy]);
 
 			assert.ok(result.includes('<categories>'));
 			assert.ok(result.includes('<category displayName="$(string.Application)" name="Application"'));
@@ -172,7 +172,7 @@ suite('Render Functions', () => {
 		});
 
 		test('should include policies section', () => {
-			const result = renderADMX('VSCode', ['1.0'], [mockCategory], [mockPolicy]);
+			const result = renderADMX('Son of Anton', ['1.0'], [mockCategory], [mockPolicy]);
 
 			assert.ok(result.includes('<policies>'));
 			assert.ok(result.includes('TestPolicy'));
@@ -180,7 +180,7 @@ suite('Render Functions', () => {
 		});
 
 		test('should handle multiple versions', () => {
-			const result = renderADMX('VSCode', ['1.0', '1.5', '2.0'], [mockCategory], [mockPolicy]);
+			const result = renderADMX('Son of Anton', ['1.0', '1.5', '2.0'], [mockCategory], [mockPolicy]);
 
 			assert.ok(result.includes('Supported_1_0'));
 			assert.ok(result.includes('Supported_1_5'));
@@ -191,7 +191,7 @@ suite('Render Functions', () => {
 			const category1: Category = { moduleName: 'testModule', name: { value: 'Cat1', nlsKey: 'cat1' } };
 			const category2: Category = { moduleName: 'testModule', name: { value: 'Cat2', nlsKey: 'cat2' } };
 
-			const result = renderADMX('VSCode', ['1.0'], [category1, category2], [mockPolicy]);
+			const result = renderADMX('Son of Anton', ['1.0'], [category1, category2], [mockPolicy]);
 
 			assert.ok(result.includes('Category_cat1'));
 			assert.ok(result.includes('Category_cat2'));
@@ -214,7 +214,7 @@ suite('Render Functions', () => {
 				renderProfileManifest: () => '<dict><key>pfm_name</key><string>TestPolicy2</string></dict>',
 				renderJsonValue: () => null
 			};
-			const result = renderADMX('VSCode', ['1.0'], [mockCategory], [mockPolicy, policy2]);
+			const result = renderADMX('Son of Anton', ['1.0'], [mockCategory], [mockPolicy, policy2]);
 
 			assert.ok(result.includes('TestPolicy'));
 			assert.ok(result.includes('TestPolicy2'));
@@ -477,7 +477,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.microsoft.vscode',
 				darwinProfilePayloadUUID: 'payload-uuid',
 				darwinProfileUUID: 'uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const result = renderMacOSPolicy(product, [mockPolicy], []);
 
@@ -530,7 +530,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.microsoft.vscode',
 				darwinProfilePayloadUUID: 'payload-uuid',
 				darwinProfileUUID: 'uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const result = renderMacOSPolicy(product, [mockPolicy], []);
 
@@ -545,7 +545,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.microsoft.vscode',
 				darwinProfilePayloadUUID: 'payload-uuid',
 				darwinProfileUUID: 'uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const translations = [
 				{ languageId: 'fr-fr', languageTranslations: { 'testModule': { 'test.desc': 'Description Française' } } },
@@ -575,7 +575,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.microsoft.vscode',
 				darwinProfilePayloadUUID: 'payload-uuid',
 				darwinProfileUUID: 'uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const result = renderMacOSPolicy(product, [mockPolicy, policy2], []);
 
@@ -591,7 +591,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.example.app',
 				darwinProfilePayloadUUID: 'custom-payload-uuid',
 				darwinProfileUUID: 'custom-uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const result = renderMacOSPolicy(product, [mockPolicy], []);
 
@@ -606,7 +606,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.microsoft.vscode',
 				darwinProfilePayloadUUID: 'payload-uuid',
 				darwinProfileUUID: 'uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const result = renderMacOSPolicy(product, [mockPolicy], []);
 
@@ -619,7 +619,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.microsoft.vscode',
 				darwinProfilePayloadUUID: 'payload-uuid',
 				darwinProfileUUID: 'uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const result = renderMacOSPolicy(product, [mockPolicy], []);
 
@@ -660,7 +660,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.microsoft.vscode',
 				darwinProfilePayloadUUID: 'payload-uuid',
 				darwinProfileUUID: 'uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const result = renderGP(product, [mockPolicy], []);
 
@@ -689,7 +689,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.microsoft.vscode',
 				darwinProfilePayloadUUID: 'payload-uuid',
 				darwinProfileUUID: 'uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const result = renderGP(product, [mockPolicy], []);
 
@@ -704,7 +704,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.microsoft.vscode',
 				darwinProfilePayloadUUID: 'payload-uuid',
 				darwinProfileUUID: 'uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const translations = [
 				{ languageId: 'fr-fr', languageTranslations: { 'testModule': { 'test.policy': 'Politique de test' } } },
@@ -728,7 +728,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.microsoft.vscode',
 				darwinProfilePayloadUUID: 'payload-uuid',
 				darwinProfileUUID: 'uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const result = renderGP(product, [mockPolicy], []);
 
@@ -741,7 +741,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.microsoft.vscode',
 				darwinProfilePayloadUUID: 'payload-uuid',
 				darwinProfileUUID: 'uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const result = renderGP(product, [mockPolicy], []);
 
@@ -754,7 +754,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.microsoft.vscode',
 				darwinProfilePayloadUUID: 'payload-uuid',
 				darwinProfileUUID: 'uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const result = renderGP(product, [mockPolicy], []);
 
@@ -767,7 +767,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.microsoft.vscode',
 				darwinProfilePayloadUUID: 'payload-uuid',
 				darwinProfileUUID: 'uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const result = renderGP(product, [mockPolicy], []);
 
@@ -791,7 +791,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.microsoft.vscode',
 				darwinProfilePayloadUUID: 'payload-uuid',
 				darwinProfileUUID: 'uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const result = renderGP(product, [mockPolicy, policy2], []);
 
@@ -807,7 +807,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.microsoft.vscode',
 				darwinProfilePayloadUUID: 'payload-uuid',
 				darwinProfileUUID: 'uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const result = renderGP(product, [mockPolicy], []);
 
@@ -820,7 +820,7 @@ suite('Render Functions', () => {
 				darwinBundleIdentifier: 'com.microsoft.vscode',
 				darwinProfilePayloadUUID: 'payload-uuid',
 				darwinProfileUUID: 'uuid',
-				win32RegValueName: 'VSCode'
+				win32RegValueName: 'Son of Anton'
 			};
 			const result = renderGP(product, [mockPolicy], []);
 

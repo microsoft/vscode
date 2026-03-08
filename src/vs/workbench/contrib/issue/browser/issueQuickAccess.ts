@@ -48,7 +48,7 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 				label: productLabel,
 				ariaLabel: productLabel,
 				highlights: { label: productFilter },
-				accept: () => this.commandService.executeCommand('workbench.action.openIssueReporter', { issueSource: IssueSource.VSCode })
+				accept: () => this.commandService.executeCommand('workbench.action.openIssueReporter', { issueSource: IssueSource.SonOfAnton })
 			});
 		}
 

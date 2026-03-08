@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { detectsGenericPressAnyKeyPattern, detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsVSCodeTaskFinishMessage, matchTerminalPromptOption, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
+import { detectsGenericPressAnyKeyPattern, detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsSonOfAntonTaskFinishMessage, matchTerminalPromptOption, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IExecution, IPollingResult, OutputMonitorState } from '../../browser/tools/monitoring/types.js';
@@ -389,29 +389,29 @@ suite('OutputMonitor', () => {
 		});
 	});
 
-	suite('detectsVSCodeTaskFinishMessage', () => {
+	suite('detectsSon of AntonTaskFinishMessage', () => {
 		test('detects VS Code task completion messages', () => {
-			assert.strictEqual(detectsVSCodeTaskFinishMessage('Press any key to close the terminal.'), true);
-			assert.strictEqual(detectsVSCodeTaskFinishMessage('Terminal will be reused by tasks, press any key to close it.'), true);
+			assert.strictEqual(detectsSonOfAntonTaskFinishMessage('Press any key to close the terminal.'), true);
+			assert.strictEqual(detectsSonOfAntonTaskFinishMessage('Terminal will be reused by tasks, press any key to close it.'), true);
 			// Case insensitive
-			assert.strictEqual(detectsVSCodeTaskFinishMessage('press any key to close the terminal.'), true);
-			assert.strictEqual(detectsVSCodeTaskFinishMessage('PRESS ANY KEY TO CLOSE THE TERMINAL.'), true);
+			assert.strictEqual(detectsSonOfAntonTaskFinishMessage('press any key to close the terminal.'), true);
+			assert.strictEqual(detectsSonOfAntonTaskFinishMessage('PRESS ANY KEY TO CLOSE THE TERMINAL.'), true);
 			// With " * " prefix (VS Code adds this to task messages)
-			assert.strictEqual(detectsVSCodeTaskFinishMessage(' *  Terminal will be reused by tasks, press any key to close it.'), true);
-			assert.strictEqual(detectsVSCodeTaskFinishMessage(' *  Press any key to close the terminal.'), true);
+			assert.strictEqual(detectsSonOfAntonTaskFinishMessage(' *  Terminal will be reused by tasks, press any key to close it.'), true);
+			assert.strictEqual(detectsSonOfAntonTaskFinishMessage(' *  Press any key to close the terminal.'), true);
 		});
 
 		test('does not match generic press any key messages', () => {
 			// Regular script messages should NOT be matched
-			assert.strictEqual(detectsVSCodeTaskFinishMessage('Press any key to continue...'), false);
-			assert.strictEqual(detectsVSCodeTaskFinishMessage('Press any key to exit'), false);
-			assert.strictEqual(detectsVSCodeTaskFinishMessage('Press any key'), false);
+			assert.strictEqual(detectsSonOfAntonTaskFinishMessage('Press any key to continue...'), false);
+			assert.strictEqual(detectsSonOfAntonTaskFinishMessage('Press any key to exit'), false);
+			assert.strictEqual(detectsSonOfAntonTaskFinishMessage('Press any key'), false);
 		});
 
 		test('does not match other prompts', () => {
-			assert.strictEqual(detectsVSCodeTaskFinishMessage('Continue? (y/n)'), false);
-			assert.strictEqual(detectsVSCodeTaskFinishMessage('Password:'), false);
-			assert.strictEqual(detectsVSCodeTaskFinishMessage('press h to show help'), false);
+			assert.strictEqual(detectsSonOfAntonTaskFinishMessage('Continue? (y/n)'), false);
+			assert.strictEqual(detectsSonOfAntonTaskFinishMessage('Password:'), false);
+			assert.strictEqual(detectsSonOfAntonTaskFinishMessage('press h to show help'), false);
 		});
 	});
 
@@ -426,7 +426,7 @@ suite('OutputMonitor', () => {
 		});
 
 		test('does not match VS Code task finish messages', () => {
-			// These should be handled by detectsVSCodeTaskFinishMessage, not this function
+			// These should be handled by detectsSon of AntonTaskFinishMessage, not this function
 			assert.strictEqual(detectsGenericPressAnyKeyPattern('Press any key to close the terminal.'), false);
 			assert.strictEqual(detectsGenericPressAnyKeyPattern('Terminal will be reused by tasks, press any key to close it.'), false);
 			// With " * " prefix

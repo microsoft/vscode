@@ -24,7 +24,7 @@ import { createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitSt
 import { getLanguageParticipants, LanguageParticipants } from './languageParticipants';
 import { matchesUrlPattern } from './utils/urlMatch';
 
-namespace VSCodeContentRequest {
+namespace SonOfAntonContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
 }
 
@@ -163,7 +163,7 @@ export enum SchemaRequestServiceErrors {
 	OpenTextDocumentAccessError = 3,
 	HTTPDisabledError = 4,
 	HTTPError = 5,
-	VSCodeAccessError = 6,
+	SonOfAntonAccessError = 6,
 	UntitledAccessError = 7,
 }
 
@@ -392,7 +392,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	const schemaDocuments: { [uri: string]: boolean } = {};
 
 	// handle content request
-	client.onRequest(VSCodeContentRequest.type, async (uriPath: string) => {
+	client.onRequest(SonOfAntonContentRequest.type, async (uriPath: string) => {
 		const uri = Uri.parse(uriPath);
 		const uriString = uri.toString(true);
 		if (uri.scheme === 'untitled') {
@@ -405,7 +405,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 				const content = await workspace.fs.readFile(uri);
 				return new TextDecoder().decode(content);
 			} catch (e) {
-				throw new ResponseError(SchemaRequestServiceErrors.VSCodeAccessError, e.toString(), e);
+				throw new ResponseError(SchemaRequestServiceErrors.SonOfAntonAccessError, e.toString(), e);
 			}
 		} else if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 			try {

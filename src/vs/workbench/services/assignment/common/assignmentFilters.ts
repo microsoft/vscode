@@ -29,7 +29,7 @@ export enum ExtensionsFilter {
 	/**
 	 * Version of the completions version.
 	 */
-	CompletionsVersionInCopilotChat = 'X-VSCode-CompletionsInChatExtensionVersion',
+	CompletionsVersionInCopilotChat = 'X-Son of Anton-CompletionsInChatExtensionVersion',
 
 	/**
 	 * SKU of the copilot entitlement.
@@ -199,7 +199,7 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 	/**
 	 * Returns a version string that can be parsed by the TAS client.
 	 * The tas client cannot handle suffixes lke "-insider"
-	 * Ref: https://github.com/microsoft/tas-client/blob/30340d5e1da37c2789049fcf45928b954680606f/vscode-tas-client/src/vscode-tas-client/VSCodeFilterProvider.ts#L35
+	 * Ref: https://github.com/microsoft/tas-client/blob/30340d5e1da37c2789049fcf45928b954680606f/vscode-tas-client/src/vscode-tas-client/Son of AntonFilterProvider.ts#L35
 	 *
 	 * @param version Version string to be trimmed.
 	*/

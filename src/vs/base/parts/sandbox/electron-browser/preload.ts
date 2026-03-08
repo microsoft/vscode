@@ -71,7 +71,7 @@
 	//#region Resolve Shell Environment
 
 	/**
-	 * If VSCode is not run from a terminal, we should resolve additional
+	 * If Son of Anton is not run from a terminal, we should resolve additional
 	 * shell specific environment from the OS shell to ensure we are seeing
 	 * all development related environment variables. We do this from the
 	 * main process because it may involve spawning a shell.
@@ -247,7 +247,7 @@
 	};
 
 	try {
-		// Use `contextBridge` APIs to expose globals to VSCode
+		// Use `contextBridge` APIs to expose globals to Son of Anton
 		contextBridge.exposeInMainWorld('vscode', globals);
 	} catch (error) {
 		console.error(error);

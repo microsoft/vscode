@@ -106,7 +106,7 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 
 const ghApiHeaders: Record<string, string> = {
 	Accept: 'application/vnd.github.v3+json',
-	'User-Agent': 'VSCode Build',
+	'User-Agent': 'Son of Anton Build',
 };
 if (process.env.GITHUB_TOKEN) {
 	ghApiHeaders.Authorization = 'Basic ' + Buffer.from(process.env.GITHUB_TOKEN).toString('base64');

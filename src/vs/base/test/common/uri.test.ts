@@ -283,7 +283,7 @@ suite('URI', () => {
 		}
 	});
 
-	test('VSCode URI module\'s driveLetterPath regex is incorrect, #32961', function () {
+	test('Son of Anton URI module\'s driveLetterPath regex is incorrect, #32961', function () {
 		const uri = URI.parse('file:///_:/path');
 		assert.strictEqual(uri.fsPath, isWindows ? '\\_:\\path' : '/_:/path');
 	});

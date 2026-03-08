@@ -147,7 +147,7 @@ steps:
       exec { npm run gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
       exec { npm run gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
       echo "##vso[task.setvariable variable=BUILT_CLIENT]true"
-      echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)"
+      echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(Agent.BuildDirectory)/Son of Anton-win32-$(VSCODE_ARCH)"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Build client
@@ -164,9 +164,9 @@ steps:
         $sdk = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64"
         $env:PATH = "$sdk;$env:PATH"
         $AppxName = if ('$(VSCODE_QUALITY)' -eq 'stable') { 'code' } else { 'code_insider' }
-        makeappx pack /d "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/appx/manifest" /p "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/appx/${AppxName}_$(VSCODE_ARCH).appx" /nv
+        makeappx pack /d "$(Agent.BuildDirectory)/Son of Anton-win32-$(VSCODE_ARCH)/appx/manifest" /p "$(Agent.BuildDirectory)/Son of Anton-win32-$(VSCODE_ARCH)/appx/${AppxName}_$(VSCODE_ARCH).appx" /nv
         # Remove the raw manifest folder
-        Remove-Item -Path "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/appx/manifest" -Recurse -Force
+        Remove-Item -Path "$(Agent.BuildDirectory)/Son of Anton-win32-$(VSCODE_ARCH)/appx/manifest" -Recurse -Force
       displayName: Prepare appx package
 
   - powershell: |
@@ -209,11 +209,11 @@ steps:
         $ErrorActionPreference = "Stop"
         $ArtifactName = (gci -Path "$(Build.ArtifactStagingDirectory)/cli" | Select-Object -last 1).FullName
         Expand-Archive -Path $ArtifactName -DestinationPath "$(Build.ArtifactStagingDirectory)/cli"
-        $ProductJsonPath = (Get-ChildItem -Path "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)" -Name "product.json" -Recurse | Select-Object -First 1)
-        $AppProductJson = Get-Content -Raw -Path "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\$ProductJsonPath" | ConvertFrom-Json
+        $ProductJsonPath = (Get-ChildItem -Path "$(Agent.BuildDirectory)\Son of Anton-win32-$(VSCODE_ARCH)" -Name "product.json" -Recurse | Select-Object -First 1)
+        $AppProductJson = Get-Content -Raw -Path "$(Agent.BuildDirectory)\Son of Anton-win32-$(VSCODE_ARCH)\$ProductJsonPath" | ConvertFrom-Json
         $CliAppName = $AppProductJson.tunnelApplicationName
         $AppName = $AppProductJson.applicationName
-        Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/$AppName.exe" -Destination "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe"
+        Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/$AppName.exe" -Destination "$(Agent.BuildDirectory)/Son of Anton-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe"
       displayName: Move VS Code CLI
 
     - task: UseDotNet@2
@@ -267,18 +267,18 @@ steps:
     - powershell: |
         $ErrorActionPreference = "Stop"
 
-        $PackageJsonPath = (Get-ChildItem -Path "..\VSCode-win32-$(VSCODE_ARCH)" -Name "package.json" -Recurse | Select-Object -First 1)
-        $PackageJson = Get-Content -Raw -Path ..\VSCode-win32-$(VSCODE_ARCH)\$PackageJsonPath | ConvertFrom-Json
+        $PackageJsonPath = (Get-ChildItem -Path "..\Son of Anton-win32-$(VSCODE_ARCH)" -Name "package.json" -Recurse | Select-Object -First 1)
+        $PackageJson = Get-Content -Raw -Path ..\Son of Anton-win32-$(VSCODE_ARCH)\$PackageJsonPath | ConvertFrom-Json
         $Version = $PackageJson.version
 
         mkdir $(Build.ArtifactStagingDirectory)\out\system-setup -Force
-        mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $(Build.ArtifactStagingDirectory)\out\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$Version.exe
+        mv .build\win32-$(VSCODE_ARCH)\system-setup\Son of AntonSetup.exe $(Build.ArtifactStagingDirectory)\out\system-setup\Son of AntonSetup-$(VSCODE_ARCH)-$Version.exe
 
         mkdir $(Build.ArtifactStagingDirectory)\out\user-setup -Force
-        mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $(Build.ArtifactStagingDirectory)\out\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$Version.exe
+        mv .build\win32-$(VSCODE_ARCH)\user-setup\Son of AntonSetup.exe $(Build.ArtifactStagingDirectory)\out\user-setup\Son of AntonUserSetup-$(VSCODE_ARCH)-$Version.exe
 
         mkdir $(Build.ArtifactStagingDirectory)\out\archive -Force
-        mv .build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH).zip $(Build.ArtifactStagingDirectory)\out\archive\VSCode-win32-$(VSCODE_ARCH)-$Version.zip
+        mv .build\win32-$(VSCODE_ARCH)\Son of Anton-win32-$(VSCODE_ARCH).zip $(Build.ArtifactStagingDirectory)\out\archive\Son of Anton-win32-$(VSCODE_ARCH)-$Version.zip
 
         mkdir $(Build.ArtifactStagingDirectory)\out\server -Force
         mv .build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH).zip $(Build.ArtifactStagingDirectory)\out\server\vscode-server-win32-$(VSCODE_ARCH).zip

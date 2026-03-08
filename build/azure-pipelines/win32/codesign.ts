@@ -44,8 +44,8 @@ async function main() {
 	// Package client
 	if (process.env['BUILT_CLIENT']) {
 		printBanner('Package client');
-		const clientArchivePath = `.build/win32-${arch}/VSCode-win32-${arch}.zip`;
-		await $`7z.exe a -tzip ${clientArchivePath} ../VSCode-win32-${arch}/* "-xr!CodeSignSummary*.md"`.pipe(process.stdout);
+		const clientArchivePath = `.build/win32-${arch}/Son of Anton-win32-${arch}.zip`;
+		await $`7z.exe a -tzip ${clientArchivePath} ../Son of Anton-win32-${arch}/* "-xr!CodeSignSummary*.md"`.pipe(process.stdout);
 		await $`7z.exe l ${clientArchivePath}`.pipe(process.stdout);
 	}
 

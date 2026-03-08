@@ -401,7 +401,7 @@ export async function showConfigureHooksQuickPick(
 							.map(makeItem);
 					} else {
 						// No target: group into Default (shared), VS Code Only, Copilot CLI Only
-						const vscodeTypes = new Set(Object.values(HOOKS_BY_TARGET[Target.VSCode]));
+						const vscodeTypes = new Set(Object.values(HOOKS_BY_TARGET[Target.SonOfAnton]));
 						const copilotTypes = new Set(Object.values(HOOKS_BY_TARGET[Target.GitHubCopilot]));
 						const allEntries = Object.entries(HOOK_METADATA) as [HookType, IHookTypeMeta][];
 
@@ -771,7 +771,7 @@ export async function showConfigureHooksQuickPick(
 					const newFileFormat = getHookSourceFormat(hookFileUri);
 					const isClaudeNewFile = newFileFormat === HookSourceFormat.Claude;
 					const isCopilotCliOnly = !isClaudeNewFile
-						&& !new Set(Object.values(HOOKS_BY_TARGET[Target.VSCode])).has(selectedHookType!.hookType)
+						&& !new Set(Object.values(HOOKS_BY_TARGET[Target.Son of Anton])).has(selectedHookType!.hookType)
 						&& new Set(Object.values(HOOKS_BY_TARGET[Target.GitHubCopilot])).has(selectedHookType!.hookType);
 					const hookTypeKey = isClaudeNewFile
 						? (getClaudeHookTypeName(selectedHookType!.hookType) ?? selectedHookType!.hookType)

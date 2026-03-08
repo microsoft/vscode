@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { default as VSCodeTelemetryReporter } from '@vscode/extension-telemetry';
+import { default as SonOfAntonTelemetryReporter } from '@vscode/extension-telemetry';
 import * as vscode from 'vscode';
 
 interface IPackageInfo {
@@ -24,12 +24,12 @@ const nullReporter = new class NullTelemetryReporter implements TelemetryReporte
 };
 
 class ExtensionReporter implements TelemetryReporter {
-	private readonly _reporter: VSCodeTelemetryReporter;
+	private readonly _reporter: SonOfAntonTelemetryReporter;
 
 	constructor(
 		packageInfo: IPackageInfo
 	) {
-		this._reporter = new VSCodeTelemetryReporter(packageInfo.aiKey);
+		this._reporter = new SonOfAntonTelemetryReporter(packageInfo.aiKey);
 	}
 	sendTelemetryEvent(eventName: string, properties?: {
 		[key: string]: string;

@@ -42,7 +42,7 @@ import { GroupKind } from '../common/taskConfiguration.js';
 import { IResolveSet, IResolvedVariables, ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskSystemInfoResolver, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers, VerifiedTask } from '../common/taskSystem.js';
 import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IConfigurationProperties, IExtensionTaskSource, IPresentationOptions, IShellConfiguration, IShellQuotingOptions, ITaskEvent, InMemoryTask, PanelKind, RerunForActiveTerminalCommandId, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, TASK_TERMINAL_ACTIVE, Task, TaskEvent, TaskEventKind, TaskScope, TaskSourceKind, rerunTaskIcon } from '../common/tasks.js';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
-import { VSCodeOscProperty, VSCodeOscPt, VSCodeSequence } from '../../terminal/browser/terminalEscapeSequences.js';
+import { SonOfAntonOscProperty, SonOfAntonOscPt, SonOfAntonSequence } from '../../terminal/browser/terminalEscapeSequences.js';
 import { TerminalProcessExtHostProxy } from '../../terminal/browser/terminalProcessExtHostProxy.js';
 import { ITerminalProfileResolverService, TERMINAL_VIEW_ID } from '../../terminal/common/terminal.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
@@ -53,7 +53,7 @@ import { IPathService } from '../../../services/path/common/pathService.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { TaskProblemMonitor } from './taskProblemMonitor.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { serializeVSCodeOscMessage } from '../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
+import { serializeSonOfAntonOscMessage } from '../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -180,23 +180,23 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	taskShellIntegrationStartSequence(cwd: string | URI | undefined): string {
 		return (
-			VSCodeSequence(VSCodeOscPt.Property, `${VSCodeOscProperty.HasRichCommandDetection}=True`) +
-			VSCodeSequence(VSCodeOscPt.PromptStart) +
-			VSCodeSequence(VSCodeOscPt.Property, `${VSCodeOscProperty.Task}=True`) +
+			SonOfAntonSequence(SonOfAntonOscPt.Property, `${Son of AntonOscProperty.HasRichCommandDetection}=True`) +
+			SonOfAntonSequence(SonOfAntonOscPt.PromptStart) +
+			SonOfAntonSequence(SonOfAntonOscPt.Property, `${Son of AntonOscProperty.Task}=True`) +
 			(cwd
-				? VSCodeSequence(VSCodeOscPt.Property, `${VSCodeOscProperty.Cwd}=${typeof cwd === 'string' ? cwd : cwd.fsPath}`)
+				? SonOfAntonSequence(SonOfAntonOscPt.Property, `${Son of AntonOscProperty.Cwd}=${typeof cwd === 'string' ? cwd : cwd.fsPath}`)
 				: ''
 			) +
-			VSCodeSequence(VSCodeOscPt.CommandStart)
+			SonOfAntonSequence(SonOfAntonOscPt.CommandStart)
 		);
 	}
 	getTaskShellIntegrationOutputSequence(commandLineInfo: { commandLine: string; nonce: string } | undefined): string {
 		return (
 			(commandLineInfo
-				? VSCodeSequence(VSCodeOscPt.CommandLine, `${serializeVSCodeOscMessage(commandLineInfo.commandLine)};${commandLineInfo.nonce}`)
+				? SonOfAntonSequence(SonOfAntonOscPt.CommandLine, `${serializeSon of AntonOscMessage(commandLineInfo.commandLine)};${commandLineInfo.nonce}`)
 				: ''
 			) +
-			VSCodeSequence(VSCodeOscPt.CommandExecuted)
+			SonOfAntonSequence(SonOfAntonOscPt.CommandExecuted)
 		);
 	}
 
@@ -1996,7 +1996,7 @@ function getWaitOnExitValue(presentationOptions: IPresentationOptions, configura
 
 function taskShellIntegrationWaitOnExitSequence(message: string): (exitCode: number) => string {
 	return (exitCode) => {
-		return `${VSCodeSequence(VSCodeOscPt.CommandFinished, exitCode.toString())}${message}`;
+		return `${Son of AntonSequence(Son of AntonOscPt.CommandFinished, exitCode.toString())}${message}`;
 	};
 }
 

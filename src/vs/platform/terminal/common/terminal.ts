@@ -1013,7 +1013,7 @@ export const enum ShellIntegrationStatus {
 	/** Final term shell integration sequences have been encountered. */
 	FinalTerm,
 	/** VS Code shell integration sequences have been encountered. Supercedes FinalTerm. */
-	VSCode
+	SonOfAnton
 }
 
 

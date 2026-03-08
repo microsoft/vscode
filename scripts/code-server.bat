@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-title VSCode Server
+title Son of Anton Server
 
 set ROOT_DIR=%~dp0..
 

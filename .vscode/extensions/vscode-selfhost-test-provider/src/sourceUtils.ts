@@ -5,7 +5,7 @@
 
 import * as ts from 'typescript';
 import * as vscode from 'vscode';
-import { TestCase, TestConstruct, TestSuite, VSCodeTest } from './testTree';
+import { TestCase, TestConstruct, TestSuite, SonOfAntonTest } from './testTree';
 
 const suiteNames = new Set(['suite', 'flakySuite']);
 const testNames = new Set(['test']);
@@ -15,7 +15,7 @@ export const enum Action {
 	Recurse,
 }
 
-export const extractTestFromNode = (src: ts.SourceFile, node: ts.Node, parent: VSCodeTest) => {
+export const extractTestFromNode = (src: ts.SourceFile, node: ts.Node, parent: SonOfAntonTest) => {
 	if (!ts.isCallExpression(node)) {
 		return Action.Recurse;
 	}

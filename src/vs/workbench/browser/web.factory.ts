@@ -33,7 +33,7 @@ export function create(domElement: HTMLElement, options: IWorkbenchConstructionO
 	// Assert that the workbench is not created more than once. We currently
 	// do not support this and require a full context switch to clean-up.
 	if (created) {
-		throw new Error('Unable to create the VSCode workbench more than once.');
+		throw new Error('Unable to create the Son of Anton workbench more than once.');
 	} else {
 		created = true;
 	}
