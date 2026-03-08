@@ -1,0 +1,11 @@
+{
+  "name": "soa-lsif",
+  "version": "0.1.0",
+  "description": "Son of Anton — LSIF/SCIP generator",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "private": true
+}

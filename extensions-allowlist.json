@@ -1,0 +1,47 @@
+{
+	"description": "Son of Anton — Approved extensions from Open VSX. All extensions must be verified before adding. Submit a PR to add new entries.",
+	"allowedExtensions": [
+		{
+			"id": "vscodevim.vim",
+			"publisher": "vscodevim",
+			"registry": "open-vsx",
+			"verified": true,
+			"notes": "Vim emulation"
+		},
+		{
+			"id": "esbenp.prettier-vscode",
+			"publisher": "esbenp",
+			"registry": "open-vsx",
+			"verified": true,
+			"notes": "Prettier formatter"
+		},
+		{
+			"id": "dbaeumer.vscode-eslint",
+			"publisher": "dbaeumer",
+			"registry": "open-vsx",
+			"verified": true,
+			"notes": "ESLint integration"
+		},
+		{
+			"id": "eamodio.gitlens",
+			"publisher": "eamodio",
+			"registry": "open-vsx",
+			"verified": true,
+			"notes": "Git supercharged"
+		},
+		{
+			"id": "rust-lang.rust-analyzer",
+			"publisher": "rust-lang",
+			"registry": "open-vsx",
+			"verified": true,
+			"notes": "Rust language support"
+		},
+		{
+			"id": "ms-python.python",
+			"publisher": "ms-python",
+			"registry": "open-vsx",
+			"verified": true,
+			"notes": "Python language support"
+		}
+	]
+}

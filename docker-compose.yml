@@ -1,0 +1,123 @@
+# Son of Anton — Backend Services
+# Start all services: docker compose up -d
+# Tear down everything: docker compose down -v
+
+services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: soa-falkordb
+    ports:
+      - "${FALKORDB_PORT:-6379}:6379"
+    volumes:
+      - falkordb-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: soa-qdrant
+    ports:
+      - "${QDRANT_REST_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:6333/readyz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  indexer:
+    build:
+      context: ./services/indexer
+      dockerfile: Dockerfile
+    container_name: soa-indexer
+    depends_on:
+      falkordb:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    environment:
+      - FALKORDB_HOST=${FALKORDB_HOST:-falkordb}
+      - FALKORDB_PORT=${FALKORDB_PORT:-6379}
+      - QDRANT_HOST=${QDRANT_HOST:-qdrant}
+      - QDRANT_REST_PORT=${QDRANT_REST_PORT:-6333}
+      - QDRANT_GRPC_PORT=${QDRANT_GRPC_PORT:-6334}
+      - PROJECT_PATH=${PROJECT_PATH:-/workspace}
+      - LANGUAGES=${LANGUAGES:-typescript,python,rust,csharp,cpp}
+    volumes:
+      - ${PROJECT_PATH:-.}:/workspace:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  lsif:
+    build:
+      context: ./services/lsif
+      dockerfile: Dockerfile
+    container_name: soa-lsif
+    depends_on:
+      falkordb:
+        condition: service_healthy
+    environment:
+      - FALKORDB_HOST=${FALKORDB_HOST:-falkordb}
+      - FALKORDB_PORT=${FALKORDB_PORT:-6379}
+      - PROJECT_PATH=${PROJECT_PATH:-/workspace}
+    volumes:
+      - ${PROJECT_PATH:-.}:/workspace:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8081/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  mcp-gateway:
+    build:
+      context: ./services/mcp-gateway
+      dockerfile: Dockerfile
+    container_name: soa-mcp-gateway
+    depends_on:
+      falkordb:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    ports:
+      - "${MCP_PORT:-3100}:3100"
+    environment:
+      - FALKORDB_HOST=${FALKORDB_HOST:-falkordb}
+      - FALKORDB_PORT=${FALKORDB_PORT:-6379}
+      - QDRANT_HOST=${QDRANT_HOST:-qdrant}
+      - QDRANT_REST_PORT=${QDRANT_REST_PORT:-6333}
+      - QDRANT_GRPC_PORT=${QDRANT_GRPC_PORT:-6334}
+      - MCP_PORT=${MCP_PORT:-3100}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3100/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  falkordb-data:
+    driver: local
+  qdrant-data:
+    driver: local
