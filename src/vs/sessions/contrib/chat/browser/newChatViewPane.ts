@@ -242,7 +242,13 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._focusEditor();
 		}));
 
-		this._register(this._repoPicker.onDidSelectRepo(() => {
+		this._register(this._repoPicker.onDidSelectRepo((repoId) => {
+			const repoUri = URI.from({
+				scheme: GITHUB_REMOTE_FILE_SCHEME,
+				authority: 'github',
+				path: `/${repoId}/HEAD`,
+			});
+			this._newSession.value?.setRepoUri(repoUri);
 			this._updateDraftState();
 		}));
 
@@ -370,9 +376,15 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			if (this._branchPicker.selectedBranch) {
 				session.setBranch(this._branchPicker.selectedBranch);
 			}
-			this._repoPicker.setNewSession(undefined);
 		} else {
-			this._repoPicker.setNewSession(session);
+			const selectedRepo = this._repoPicker.selectedRepo;
+			if (selectedRepo) {
+				session.setRepoUri(URI.from({
+					scheme: GITHUB_REMOTE_FILE_SCHEME,
+					authority: 'github',
+					path: `/${selectedRepo}/HEAD`,
+				}));
+			}
 		}
 
 		// Set the current model on the session (for local sessions)
