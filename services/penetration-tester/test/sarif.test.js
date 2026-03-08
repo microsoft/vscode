@@ -5,71 +5,9 @@
 
 const { describe, test } = require('node:test');
 const assert = require('node:assert/strict');
+const { toSarif, severityToLevel } = require('../dist/sarif');
 
 describe('SARIF Report Generation', () => {
-	function severityToLevel(severity) {
-		switch (severity) {
-			case 'critical':
-			case 'high':
-				return 'error';
-			case 'medium':
-				return 'warning';
-			case 'low':
-				return 'note';
-			default:
-				return 'note';
-		}
-	}
-
-	function toSarif(reports) {
-		const rules = [];
-		const results = [];
-		const ruleIndex = new Map();
-
-		for (const report of reports) {
-			const finding = report.finding;
-			const ruleId = `soa-pentest/${finding.testType}`;
-
-			if (!ruleIndex.has(ruleId)) {
-				ruleIndex.set(ruleId, rules.length);
-				rules.push({
-					id: ruleId,
-					name: finding.testType,
-					shortDescription: { text: `${finding.owaspCategory}: ${finding.testType}` },
-					helpUri: `https://owasp.org/Top10/${finding.owaspCategory}/`,
-				});
-			}
-
-			const locations = [];
-			if (finding.filePath) {
-				locations.push({
-					physicalLocation: {
-						artifactLocation: { uri: finding.filePath },
-						region: {
-							startLine: finding.line ?? 1,
-							startColumn: 1,
-							endLine: finding.line ?? 1,
-							endColumn: 1,
-						},
-					},
-				});
-			}
-
-			results.push({
-				ruleId,
-				level: severityToLevel(finding.severity),
-				message: { text: finding.evidence },
-				locations,
-			});
-		}
-
-		return {
-			$schema: 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json',
-			version: '2.1.0',
-			runs: [{ tool: { driver: { name: 'Son-of-Anton Penetration Tester', version: '1.0.0', rules } }, results }],
-		};
-	}
-
 	test('generates valid SARIF structure', () => {
 		const reports = [{
 			finding: {
