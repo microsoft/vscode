@@ -54,10 +54,17 @@ export class InlineEditProvider {
 		const beforeContext = document.getText(
 			new vscode.Range(startLine, 0, selection.start.line, 0)
 		);
-		const afterContext = document.getText(
-			new vscode.Range(selection.end.line + 1, 0, endLine + 1, 0)
-		);
 
+		// Safely compute context after the selection without going past the end of the document
+		let afterContext = '';
+		if (selection.end.line < document.lineCount - 1) {
+			const afterStartLine = Math.min(document.lineCount - 1, selection.end.line + 1);
+			if (afterStartLine <= endLine) {
+				const afterStartPos = new vscode.Position(afterStartLine, 0);
+				const afterEndPos = document.lineAt(endLine).range.end;
+				afterContext = document.getText(new vscode.Range(afterStartPos, afterEndPos));
+			}
+		}
 		const prompt = this.buildPrompt({
 			filePath: document.fileName,
 			language: document.languageId,
