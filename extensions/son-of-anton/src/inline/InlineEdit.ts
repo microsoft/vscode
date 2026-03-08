@@ -152,11 +152,11 @@ export class InlineEditProvider {
 		);
 	}
 
-	private getIndentLevel(line: string): number {
+private getIndentLevel(line: string, tabSize: number): number {
 		let count = 0;
 		for (const ch of line) {
 			if (ch === '\t') {
-				count += 4;
+				count += tabSize;
 			} else if (ch === ' ') {
 				count += 1;
 			} else {
