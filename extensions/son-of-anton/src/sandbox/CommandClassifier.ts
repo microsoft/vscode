@@ -32,7 +32,7 @@ const BLOCKED_PATTERNS: { pattern: RegExp; reason: string }[] = [
 	{ pattern: /\bmkfs\b/, reason: 'Filesystem formatting not permitted' },
 	{ pattern: /\bdd\s+.*of=\/dev\//, reason: 'Raw device write not permitted' },
 	{ pattern: />\s*\/dev\/[sh]d/, reason: 'Raw device write not permitted' },
-	{ pattern: /\b:(){ :\|:& };:/, reason: 'Fork bomb detected' },
+	{ pattern: /\b:\(\)\s*\{\s*:\|\:&\s*\};:/, reason: 'Fork bomb detected' },
 ];
 
 /**
