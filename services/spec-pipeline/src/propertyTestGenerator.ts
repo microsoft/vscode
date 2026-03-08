@@ -314,7 +314,7 @@ function sanitiseForComment(text: string): string {
  * Escape single quotes in test names.
  */
 function escapeTestName(name: string): string {
-	return name.replace(/'/g, "\\'");
+return name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
 /**
