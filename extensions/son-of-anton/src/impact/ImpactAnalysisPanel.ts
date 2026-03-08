@@ -307,7 +307,11 @@ export class ImpactAnalysisPanel {
 		function filterNodes(filter) {
 			activeFilter = filter;
 			document.querySelectorAll('.filter-btn').forEach(btn => {
-				btn.classList.toggle('active', btn.textContent.toLowerCase().includes(filter) || filter === 'all' && btn.textContent === 'All');
+				const btnText = (btn.textContent || '').trim().toLowerCase();
+				const mappedFilter = btn.getAttribute('data-filter') || (btnText === 'docs' ? 'documentation' : btnText);
+				const isActiveByFilter = filter === 'all' ? mappedFilter === 'all' : mappedFilter === filter;
+				const isActiveFallback = btnText.includes(filter) || (filter === 'all' && btnText === 'all');
+				btn.classList.toggle('active', isActiveByFilter || isActiveFallback);
 			});
 			renderNodes(filter);
 		}
