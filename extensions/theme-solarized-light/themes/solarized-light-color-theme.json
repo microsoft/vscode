@@ -372,7 +372,7 @@
 		"editorCursor.foreground": "#657B83",
 		"editorWhitespace.foreground": "#586E7580",
 		"editor.lineHighlightBackground": "#EEE8D5",
-		"editor.selectionBackground": "#EEE8D5",
+		"editor.selectionBackground": "#878b9180",
 		"minimap.selectionHighlight": "#EEE8D5",
 		"editorIndentGuide.background": "#586E7580",
 		"editorIndentGuide.activeBackground": "#081E2580",
