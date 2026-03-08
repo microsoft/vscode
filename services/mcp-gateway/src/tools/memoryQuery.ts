@@ -89,7 +89,23 @@ export async function memoryRecord(
 		});
 	}
 
-	const topics = params.topics.map(t => `'${t}'`).join(', ');
+const createQuery =
+    `CREATE (:${params.type} {` +
+    `id: '${id}', ` +
+    `content: $content, ` +
+    `source: $source, ` +
+    `createdAt: ${now}, ` +
+    `validFrom: ${now}, ` +
+    `validUntil: null, ` +
+    `supersededBy: null, ` +
+    `topics: $topics` +
+    `})`;
+
+await db.query(createQuery, {
+    content: params.content,
+    source: params.source,
+    topics: params.topics,
+});
 	const createQuery =
 		`CREATE (:${params.type} {` +
 		`id: '${id}', ` +
