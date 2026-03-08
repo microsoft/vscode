@@ -91,15 +91,24 @@ export class LsifServer {
 		if (method === 'POST' && url.pathname.startsWith('/run/')) {
 			const language = url.pathname.substring('/run/'.length);
 
-			const result = await this.pipeline.runForLanguage(language);
-			if (!result) {
-				res.writeHead(404, { 'Content-Type': 'application/json' });
-				res.end(JSON.stringify({ error: `No indexer available for language: ${language}` }));
+			const stats = this.pipeline.getStats();
+			if (stats.isRunning) {
+				res.writeHead(409, { 'Content-Type': 'application/json' });
+				res.end(JSON.stringify({ error: 'Pipeline already running' }));
 				return;
 			}
 
-			res.writeHead(200, { 'Content-Type': 'application/json' });
-			res.end(JSON.stringify(result));
+			// Run language-specific pipeline in background
+			this.pipeline.runForLanguage(language).catch(err => {
+				console.error('[server] Language-specific pipeline run failed:', err);
+			});
+
+			res.writeHead(202, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({
+				status: 'accepted',
+				message: `LSIF/SCIP pipeline started for language: ${language}`,
+				language,
+			}));
 			return;
 		}
 
