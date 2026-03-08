@@ -9,6 +9,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IPhononService } from '../common/phonon.js';
+import { IPhononAgentPoolService } from '../common/phononAgentPool.js';
+import { ILiquidModuleRegistry } from '../common/liquidModule.js';
 import {
 	IChatAgentHistoryEntry,
 	IChatAgentImplementation,
@@ -30,6 +32,8 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 		@IPhononService private readonly phononService: IPhononService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILogService private readonly logService: ILogService,
+		@IPhononAgentPoolService private readonly agentPoolService: IPhononAgentPoolService,
+		@ILiquidModuleRegistry private readonly liquidModuleRegistry: ILiquidModuleRegistry,
 	) {
 		super();
 	}
@@ -57,16 +61,127 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 			};
 		}
 
+		// Auto-spawn analysis: decides solo vs team mode
 		try {
-			// Build the conversation messages
-			const messages = this._buildMessages(request, history);
+			const result = await this.agentPoolService.submitPrompt(request.message);
 
-			// Determine which model to use
+			if (result.mode === 'solo') {
+				return this._directApiCall(request, progress, history, stopWatch, token);
+			}
+
+			// Team mode -- stream all agent activity via native ChatWidget progress
+			return this._streamTeamActivity(progress, stopWatch, token);
+		} catch (err) {
+			this.logService.error('[Phonon] submitPrompt failed, falling back to solo:', err);
+			return this._directApiCall(request, progress, history, stopWatch, token);
+		}
+	}
+
+	/**
+	 * Stream team activity into the ChatWidget via native IChatProgress emissions.
+	 * Listens to agent pool events and translates them into progress updates.
+	 */
+	private _streamTeamActivity(
+		progress: (parts: IChatProgress[]) => void,
+		stopWatch: StopWatch,
+		token: CancellationToken,
+	): Promise<IChatAgentResult> {
+		return new Promise<IChatAgentResult>(resolve => {
+			const lastRenderedLength = new Map<string, number>();
+
+			// Emit initial spawn status with shimmer loading indicator
+			progress([{
+				kind: 'progressMessage',
+				content: new MarkdownString('*Analyzing task and spawning team...*'),
+				shimmer: true,
+			}]);
+
+			// Listen for auto-spawn event
+			const spawnListener = this.agentPoolService.onDidAutoSpawn(({ workers, reasoning }) => {
+				this.logService.info(`[Phonon] Auto-spawn: ${reasoning}`);
+				progress([{
+					kind: 'progressMessage',
+					content: new MarkdownString(`*Team spawned: master + ${workers.join(', ')}*`),
+				}]);
+			});
+
+			// Listen for delegations
+			const delegationListener = this.agentPoolService.onDidDelegation(({ toRole, prompt: task }) => {
+				const truncated = task.length > 120 ? task.substring(0, 120) + '...' : task;
+				progress([{
+					kind: 'markdownContent',
+					content: new MarkdownString(`> **\u2192 ${toRole}:** ${truncated}`),
+				}]);
+			});
+
+			// Listen for agent output (streaming)
+			const outputListener = this.agentPoolService.onDidAgentOutput(({ agentId, isFinal }) => {
+				if (isFinal) { return; }
+
+				const agent = this.agentPoolService.agents.find(a => a.id === agentId);
+				if (!agent) { return; }
+
+				const prevLen = lastRenderedLength.get(agentId) ?? 0;
+				const newText = agent.outputSoFar.substring(prevLen);
+
+				if (newText) {
+					progress([{
+						kind: 'markdownContent',
+						content: new MarkdownString(newText),
+					}]);
+					lastRenderedLength.set(agentId, agent.outputSoFar.length);
+				}
+			});
+
+			const cleanup = () => {
+				spawnListener.dispose();
+				delegationListener.dispose();
+				outputListener.dispose();
+				statusListener.dispose();
+			};
+
+			// Wait for all agents to complete
+			const statusListener = this.agentPoolService.onDidAgentStatusChange((agent) => {
+				if (agent.role === 'master' && (agent.status === 'done' || agent.status === 'error')) {
+					// Check if all agents are finished
+					const allDone = this.agentPoolService.agents.every(
+						a => a.status === 'done' || a.status === 'error' || a.status === 'idle'
+					);
+					if (allDone) {
+						cleanup();
+						resolve({
+							timings: { totalElapsed: stopWatch.elapsed() },
+							errorDetails: agent.status === 'error'
+								? { message: 'Agent team encountered an error' }
+								: undefined,
+						});
+					}
+				}
+			});
+
+			// Safety: resolve on cancellation
+			if (token.isCancellationRequested) {
+				cleanup();
+				resolve({ timings: { totalElapsed: stopWatch.elapsed() } });
+			}
+		});
+	}
+
+	/**
+	 * Direct API call -- no agent pool, solo mode.
+	 */
+	private async _directApiCall(
+		request: IChatAgentRequest,
+		progress: (parts: IChatProgress[]) => void,
+		history: IChatAgentHistoryEntry[],
+		stopWatch: StopWatch,
+		token: CancellationToken,
+	): Promise<IChatAgentResult> {
+		try {
+			const messages = this._buildMessages(request, history);
 			const rawModelId = request.userSelectedModelId || this.phononService.defaultModelId;
-			// The model identifier in the cache is prefixed with "phonon/"
 			const modelIdentifier = rawModelId.startsWith('phonon/') ? rawModelId : `phonon/${rawModelId}`;
 
-			// Send the request via ILanguageModelsService
 			const response = await this.languageModelsService.sendChatRequest(
 				modelIdentifier,
 				new ExtensionIdentifier('phonon.claude'),
@@ -75,27 +190,19 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 				token
 			);
 
-			// Stream the response
 			let firstProgress = false;
 			for await (const part of response.stream) {
-				if (token.isCancellationRequested) {
-					break;
-				}
+				if (token.isCancellationRequested) { break; }
 
 				const parts = Array.isArray(part) ? part : [part];
 				for (const p of parts) {
 					if (p.type === 'text') {
-						const chatProgress: IChatProgress = {
+						progress([{
 							kind: 'markdownContent',
 							content: new MarkdownString(p.value),
-						};
-						progress([chatProgress]);
-
-						if (!firstProgress) {
-							firstProgress = true;
-						}
+						}]);
+						if (!firstProgress) { firstProgress = true; }
 					} else if (p.type === 'thinking') {
-						// Show thinking as a progress message
 						const thinkingText = Array.isArray(p.value) ? p.value.join('') : p.value;
 						progress([{
 							kind: 'markdownContent',
@@ -113,16 +220,10 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 					totalElapsed: stopWatch.elapsed(),
 				},
 			};
-
 		} catch (err) {
 			this.logService.error('[Phonon] Chat request failed:', err);
-
-			const errorMessage = err instanceof Error ? err.message : String(err);
-
 			return {
-				errorDetails: {
-					message: errorMessage,
-				},
+				errorDetails: { message: err instanceof Error ? err.message : String(err) },
 				timings: { totalElapsed: stopWatch.elapsed() },
 			};
 		}
@@ -219,12 +320,54 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 	}
 
 	private _getSystemPrompt(_request: IChatAgentRequest): string {
-		return [
+		const base = [
 			'You are Claude, an AI assistant integrated into Phonon IDE.',
 			'You are helpful, direct, and concise.',
 			'When asked about code, provide practical solutions.',
 			'Use markdown formatting for code blocks and structured content.',
 			'If the user asks about the IDE, you can explain that Phonon IDE is a VS Code fork with native Claude integration.',
 		].join(' ');
+
+		const capabilities = this.liquidModuleRegistry.getCapabilities();
+		const hasEntities = capabilities.entities.length > 0;
+		const hasViews = capabilities.views.length > 0;
+
+		if (!hasEntities && !hasViews) {
+			return base;
+		}
+
+		const sections: string[] = [base, '', '## Liquid Module Capabilities'];
+
+		if (hasEntities) {
+			sections.push('', '### Available Entities');
+			for (const entity of capabilities.entities) {
+				const fields = entity.fields.length > 0 ? `fields=${entity.fields.join(', ')}` : 'no fields';
+				sections.push(`- ${entity.id} (${entity.label}): ${fields}`);
+			}
+		}
+
+		if (hasViews) {
+			sections.push('', '### Available Views');
+			for (const view of capabilities.views) {
+				const parts = [`mode=${view.mode}`];
+				if (view.entity) {
+					parts.push(`entity=${view.entity}`);
+				}
+				sections.push(`- ${view.id} (${view.label}): ${parts.join(', ')}`);
+			}
+		}
+
+		sections.push(
+			'',
+			'### Canvas Composition',
+			'When the user asks to see data visually, emit a composition intent:',
+			'```phonon-intent',
+			'{ "layout": "single", "slots": [{ "viewId": "<viewId>", "params": { "filter": {} } }] }',
+			'```',
+			'Available layouts: single, split-horizontal, split-vertical, grid, stack.',
+			'Do NOT generate HTML. The compositor renders the intent.',
+		);
+
+		return sections.join('\n');
 	}
 }
