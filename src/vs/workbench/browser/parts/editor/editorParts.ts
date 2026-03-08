@@ -45,8 +45,15 @@ interface IEditorWorkingSetState extends IEditorWorkingSet {
 	readonly auxiliary: IEditorPartsUIState;
 }
 
+interface IModalEditorPartState {
+	readonly maximized: boolean;
+	readonly size?: { readonly width: number; readonly height: number };
+	readonly position?: { readonly left: number; readonly top: number };
+}
+
 interface IEditorPartsMemento {
 	'editorparts.state'?: IEditorPartsUIState;
+	'editorparts.modalState'?: IModalEditorPartState;
 }
 
 export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMemento> implements IEditorGroupsService, IEditorPartsView {
@@ -74,6 +81,13 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 			return [];
 		})();
+
+		const modalState = this.profileMemento[EditorParts.MODAL_EDITOR_STATE_STORAGE_KEY];
+		if (modalState) {
+			this.modalEditorMaximized = modalState.maximized;
+			this.modalEditorSize = modalState.size;
+			this.modalEditorPosition = modalState.position;
+		}
 
 		this.mainPart = this._register(this.createMainEditorPart());
 		this._register(this.registerPart(this.mainPart));
@@ -160,7 +174,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 	private modalEditorMaximized = false;
 	private modalEditorSize: IDimension | undefined;
-	private modalEditorPosition: { left: number; top: number } | undefined;
+	private modalEditorPosition: { readonly left: number; readonly top: number } | undefined;
 
 	async createModalEditorPart(options?: IModalEditorPartOptions): Promise<IModalEditorPart> {
 
@@ -336,8 +350,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	//#region Lifecycle / State
 
 	private static readonly EDITOR_PARTS_UI_STATE_STORAGE_KEY = 'editorparts.state';
+	private static readonly MODAL_EDITOR_STATE_STORAGE_KEY = 'editorparts.modalState';
 
 	private readonly workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
+	private readonly profileMemento = this.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 
 	private _isReady = false;
 	get isReady(): boolean { return this._isReady; }
@@ -388,6 +404,32 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			delete this.workspaceMemento[EditorParts.EDITOR_PARTS_UI_STATE_STORAGE_KEY];
 		} else {
 			this.workspaceMemento[EditorParts.EDITOR_PARTS_UI_STATE_STORAGE_KEY] = state;
+		}
+
+		this.saveModalState();
+	}
+
+	private saveModalState(): void {
+
+		// Also capture state from any currently open modal editor part
+		if (this.modalEditorPart) {
+			this.modalEditorMaximized = this.modalEditorPart.maximized;
+			this.modalEditorSize = this.modalEditorPart.size;
+			this.modalEditorPosition = this.modalEditorPart.position;
+		}
+
+		// Only persist when there is meaningful state to restore.
+		// When all values are at their defaults (not maximized, no
+		// custom size or position), we delete the key to avoid
+		// storing unnecessary data.
+		if (this.modalEditorMaximized || this.modalEditorSize || this.modalEditorPosition) {
+			this.profileMemento[EditorParts.MODAL_EDITOR_STATE_STORAGE_KEY] = {
+				maximized: this.modalEditorMaximized,
+				size: this.modalEditorSize ? { width: this.modalEditorSize.width, height: this.modalEditorSize.height } : undefined,
+				position: this.modalEditorPosition,
+			};
+		} else {
+			delete this.profileMemento[EditorParts.MODAL_EDITOR_STATE_STORAGE_KEY];
 		}
 	}
 
