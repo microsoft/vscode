@@ -167,6 +167,7 @@ export class IsolationModePicker extends Disposable {
 			this._preferredIsolationMode = undefined;
 			this._setMode(preferred ?? this._isolationMode);
 		} else if (this._isolationMode === 'worktree') {
+			this._preferredIsolationMode ??= this._isolationMode;
 			this._setMode('workspace');
 		}
 		this._updateTriggerLabel();
