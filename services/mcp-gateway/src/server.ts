@@ -12,6 +12,7 @@ import { impactAnalysis } from './tools/impactAnalysis';
 import { semanticSearch } from './tools/semanticSearch';
 import { fileSummary } from './tools/fileSummary';
 import { projectOverview } from './tools/projectOverview';
+import { memoryQuery, memoryRecord, memoryHistory } from './tools/memoryQuery';
 
 export function createMcpServer(db: FalkorDBClient, qdrant: QdrantClient): McpServer {
 	const server = new McpServer({
@@ -195,6 +196,97 @@ export function createMcpServer(db: FalkorDBClient, qdrant: QdrantClient): McpSe
 				};
 			} catch (error) {
 				return errorResponse('project_overview', error);
+			}
+		}
+	);
+
+	// --- memory_query ---
+	server.tool(
+		'memory_query',
+		'Search long-term project memory by keyword, type, topic, or time range. Returns decisions, conventions, warnings, and preferences stored across sessions.',
+		{
+			type: z.enum(['Decision', 'Convention', 'Warning', 'Preference']).optional()
+				.describe('Filter by memory entity type'),
+			keyword: z.string().optional().describe('Search by keyword in content'),
+			topic: z.string().optional().describe('Filter by topic tag'),
+			currentOnly: z.boolean().optional().describe('Only return current (non-superseded) entries, default true'),
+			since: z.number().optional().describe('Filter entries created after this timestamp'),
+			limit: z.number().min(1).max(100).optional().describe('Maximum results (default 50)'),
+		},
+		async (params) => {
+			try {
+				const results = await memoryQuery(db, {
+					type: params.type,
+					keyword: params.keyword,
+					topic: params.topic,
+					currentOnly: params.currentOnly,
+					since: params.since,
+					limit: params.limit,
+				});
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('memory_query', error);
+			}
+		}
+	);
+
+	// --- memory_record ---
+	server.tool(
+		'memory_record',
+		'Record a new entry in long-term project memory. Only the orchestrator agent and humans can write. Creates temporal entries that track how project knowledge evolves.',
+		{
+			type: z.enum(['Decision', 'Convention', 'Warning', 'Preference'])
+				.describe('Type of memory entity'),
+			content: z.string().describe('The knowledge content to record'),
+			source: z.string().describe('Source identifier (session ID or agent name)'),
+			topics: z.array(z.string()).describe('Topic tags for categorization'),
+			supersedesId: z.string().optional()
+				.describe('ID of an existing entry this supersedes (marks old entry as outdated)'),
+		},
+		async ({ type, content, source, topics, supersedesId }) => {
+			try {
+				const result = await memoryRecord(db, {
+					type,
+					content,
+					source,
+					topics,
+					supersedesId,
+				});
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(result, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('memory_record', error);
+			}
+		}
+	);
+
+	// --- memory_history ---
+	server.tool(
+		'memory_history',
+		'Show how knowledge about a specific topic has changed over time. Returns a chronological list of all memory entries (including superseded ones) for a topic.',
+		{
+			topic: z.string().describe('Topic to view history for'),
+		},
+		async ({ topic }) => {
+			try {
+				const results = await memoryHistory(db, { topic });
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('memory_history', error);
 			}
 		}
 	);
