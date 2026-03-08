@@ -7,6 +7,7 @@ import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { getDelayedChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
 import { acquirePort } from '../../../base/parts/ipc/electron-browser/ipc.mp.js';
@@ -14,6 +15,9 @@ import { InstantiationType, registerSingleton } from '../../instantiation/common
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentHostInitData, IAgentHostService, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../common/agentService.js';
+import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
+import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { revive } from '../../../base/common/marshalling.js';
 
 /**
  * Renderer-side implementation of {@link IAgentHostService} that connects
@@ -23,6 +27,9 @@ import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentAttachment, IAge
  */
 class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	declare readonly _serviceBrand: undefined;
+
+	/** Unique identifier for this window, used in action envelope origin tracking. */
+	readonly clientId = generateUuid();
 
 	private readonly _clientEventually = new DeferredPromise<MessagePortClient>();
 	private readonly _proxy: IAgentService;
@@ -34,6 +41,12 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 
 	private readonly _onDidSessionProgress = this._register(new Emitter<IAgentProgressEvent>());
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
+
+	private readonly _onDidAction = this._register(new Emitter<IActionEnvelope>());
+	readonly onDidAction = this._onDidAction.event;
+
+	private readonly _onDidNotification = this._register(new Emitter<INotification>());
+	readonly onDidNotification = this._onDidNotification.event;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -64,6 +77,12 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 		store.add(this._proxy.onDidSessionProgress(e => {
 			// Events from ProxyChannel don't auto-revive nested URIs -- revive the session URI
 			this._onDidSessionProgress.fire({ ...e, session: URI.revive(e.session) });
+		}));
+		store.add(this._proxy.onDidAction(e => {
+			this._onDidAction.fire(revive(e));
+		}));
+		store.add(this._proxy.onDidNotification(e => {
+			this._onDidNotification.fire(revive(e));
 		}));
 		this._logService.info('[AgentHost:renderer] Direct MessagePort connection established');
 		this._onAgentHostStart.fire();
@@ -106,6 +125,15 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	}
 	shutdown(): Promise<void> {
 		return this._proxy.shutdown();
+	}
+	subscribe(resource: URI): Promise<IStateSnapshot> {
+		return this._proxy.subscribe(resource);
+	}
+	unsubscribe(resource: URI): void {
+		this._proxy.unsubscribe(resource);
+	}
+	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
+		this._proxy.dispatchAction(action, clientId, clientSeq);
 	}
 	async restartAgentHost(): Promise<void> {
 		// Restart is handled by the main process side

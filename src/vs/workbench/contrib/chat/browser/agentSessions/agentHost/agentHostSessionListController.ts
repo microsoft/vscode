@@ -9,12 +9,14 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IAgentHostService, AgentSession } from '../../../../../../platform/agent/common/agentService.js';
+import { isSessionAction } from '../../../../../../platform/agent/common/state/sessionActions.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
 
 /**
  * Provides session list items for the chat sessions sidebar by querying
- * active sessions from the agent host process.
+ * active sessions from the agent host process. Listens to protocol
+ * notifications for incremental updates.
  */
 export class AgentHostSessionListController extends Disposable implements IChatSessionItemController {
 
@@ -31,10 +33,35 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	) {
 		super();
 
-		// Refresh the session list whenever the agent produces an idle event,
-		// which indicates a session turn completed and the list may have changed.
-		this._register(this._agentHostService.onDidSessionProgress(e => {
-			if (e.type === 'idle' && AgentSession.provider(e.session) === this._provider) {
+		// React to protocol notifications for session list changes
+		this._register(this._agentHostService.onDidNotification(n => {
+			if (n.type === 'notify/sessionAdded' && n.summary.provider === this._provider) {
+				const rawId = AgentSession.id(n.summary.resource);
+				this._items.push({
+					resource: URI.from({ scheme: this._sessionType, path: `/${rawId}` }),
+					label: n.summary.title ?? `Session ${rawId.substring(0, 8)}`,
+					iconPath: getAgentHostIcon(this._productService),
+					status: ChatSessionStatus.Completed,
+					timing: {
+						created: n.summary.createdAt,
+						lastRequestStarted: n.summary.modifiedAt,
+						lastRequestEnded: n.summary.modifiedAt,
+					},
+				});
+				this._onDidChangeChatSessionItems.fire();
+			} else if (n.type === 'notify/sessionRemoved') {
+				const removedId = AgentSession.id(n.session);
+				const idx = this._items.findIndex(item => item.resource.path === `/${removedId}`);
+				if (idx >= 0) {
+					this._items.splice(idx, 1);
+					this._onDidChangeChatSessionItems.fire();
+				}
+			}
+		}));
+
+		// Refresh on turnComplete actions for metadata updates (title, timing)
+		this._register(this._agentHostService.onDidAction(e => {
+			if (e.action.type === 'session/turnComplete' && isSessionAction(e.action) && AgentSession.provider(e.action.session) === this._provider) {
 				const cts = new CancellationTokenSource();
 				this.refresh(cts.token).finally(() => cts.dispose());
 			}

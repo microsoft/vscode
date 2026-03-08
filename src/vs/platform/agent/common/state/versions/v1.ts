@@ -63,10 +63,12 @@ export interface IV1_MessageAttachment {
 export interface IV1_Turn {
 	readonly id: string;
 	readonly userMessage: IV1_UserMessage;
+	readonly responseText: string;
 	readonly responseParts: readonly IV1_ResponsePart[];
 	readonly toolCalls: readonly IV1_CompletedToolCall[];
 	readonly usage: IV1_UsageInfo | undefined;
 	readonly state: 'complete' | 'cancelled' | 'error';
+	readonly error?: IV1_ErrorInfo;
 }
 
 export interface IV1_ActiveTurn {
@@ -101,16 +103,28 @@ export interface IV1_ToolCallState {
 	readonly toolInput?: string;
 	readonly toolKind?: 'terminal';
 	readonly language?: string;
-	readonly status: 'running' | 'pending-permission' | 'completed' | 'failed';
+	readonly toolArguments?: string;
+	readonly status: 'running' | 'pending-permission' | 'completed' | 'failed' | 'cancelled';
+	readonly parameters?: unknown;
+	readonly confirmed?: 'not-needed' | 'user-action' | 'setting' | 'denied' | 'skipped';
+	readonly pastTenseMessage?: string;
+	readonly toolOutput?: string;
+	readonly error?: { readonly message: string; readonly code?: string };
+	readonly cancellationReason?: 'denied' | 'skipped';
 }
 
 export interface IV1_CompletedToolCall {
 	readonly toolCallId: string;
 	readonly toolName: string;
 	readonly displayName: string;
+	readonly invocationMessage: string;
 	readonly success: boolean;
 	readonly pastTenseMessage: string;
+	readonly toolInput?: string;
+	readonly toolKind?: 'terminal';
+	readonly language?: string;
 	readonly toolOutput?: string;
+	readonly error?: { readonly message: string; readonly code?: string };
 }
 
 export interface IV1_PermissionRequest {
@@ -120,6 +134,9 @@ export interface IV1_PermissionRequest {
 	readonly path?: string;
 	readonly fullCommandText?: string;
 	readonly intention?: string;
+	readonly serverName?: string;
+	readonly toolName?: string;
+	readonly rawRequest?: string;
 }
 
 export interface IV1_UsageInfo {
@@ -188,7 +205,14 @@ export interface IV1_ToolCompleteAction extends IV1_SessionActionBase {
 	readonly type: 'session/toolComplete';
 	readonly turnId: string;
 	readonly toolCallId: string;
-	readonly result: Omit<IV1_CompletedToolCall, 'toolCallId' | 'toolName' | 'displayName'>;
+	readonly result: IV1_ToolCompleteResult;
+}
+
+export interface IV1_ToolCompleteResult {
+	readonly success: boolean;
+	readonly pastTenseMessage: string;
+	readonly toolOutput?: string;
+	readonly error?: { readonly message: string; readonly code?: string };
 }
 
 export interface IV1_PermissionRequestAction extends IV1_SessionActionBase {

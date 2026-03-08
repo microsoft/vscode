@@ -16,7 +16,6 @@
 import { URI } from '../../../../base/common/uri.js';
 import type {
 	IAgentInfo,
-	ICompletedToolCall,
 	IErrorInfo,
 	IPermissionRequest,
 	IResponsePart,
@@ -126,7 +125,15 @@ export interface IToolCompleteAction extends ISessionActionBase {
 	readonly type: 'session/toolComplete';
 	readonly turnId: string;
 	readonly toolCallId: string;
-	readonly result: Omit<ICompletedToolCall, 'toolCallId' | 'toolName' | 'displayName'>;
+	readonly result: IToolCompleteResult;
+}
+
+/** The data delivered with a tool completion event. */
+export interface IToolCompleteResult {
+	readonly success: boolean;
+	readonly pastTenseMessage: string;
+	readonly toolOutput?: string;
+	readonly error?: { readonly message: string; readonly code?: string };
 }
 
 // -- Permissions --

@@ -14,6 +14,9 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentAttachment, IAgentCreateSessionConfig, IAgentHostService, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentSession } from '../../../../../../platform/agent/common/agentService.js';
+import type { IActionEnvelope, INotification, IPermissionResolvedAction, ISessionAction, ITurnStartedAction } from '../../../../../../platform/agent/common/state/sessionActions.js';
+import type { IStateSnapshot } from '../../../../../../platform/agent/common/state/sessionProtocol.js';
+import { SessionLifecycle, SessionStatus, ToolCallStatus, TurnState, createSessionState, type ISessionState, type ISessionSummary } from '../../../../../../platform/agent/common/state/sessionState.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -36,6 +39,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	private readonly _onDidSessionProgress = new Emitter<IAgentProgressEvent>();
 	override readonly onDidSessionProgress = this._onDidSessionProgress.event;
+	private readonly _onDidAction = new Emitter<IActionEnvelope>();
+	override readonly onDidAction = this._onDidAction.event;
+	private readonly _onDidNotification = new Emitter<INotification>();
+	override readonly onDidNotification = this._onDidNotification.event;
 	override readonly onAgentHostExit = Event.None;
 	override readonly onAgentHostStart = Event.None;
 
@@ -87,9 +94,54 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override async shutdown(): Promise<void> { }
 	override async restartAgentHost(): Promise<void> { }
 
+	// Protocol methods
+	public readonly clientId = 'test-window-1';
+	public dispatchedActions: { action: ISessionAction; clientId: string; clientSeq: number }[] = [];
+	public sessionStates = new Map<string, ISessionState>();
+	override async subscribe(resource: URI): Promise<IStateSnapshot> {
+		const existingState = this.sessionStates.get(resource.toString());
+		if (existingState) {
+			return { type: 'stateSnapshot', resource, state: existingState, fromSeq: 0 };
+		}
+		// Root state subscription
+		if (resource.scheme === 'agenthost') {
+			return {
+				type: 'stateSnapshot',
+				resource,
+				state: {
+					agents: this.agents.map(a => ({ provider: a.provider, displayName: a.displayName, description: a.description })),
+					models: [],
+				},
+				fromSeq: 0,
+			};
+		}
+		const summary: ISessionSummary = {
+			resource,
+			provider: 'copilot',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: Date.now(),
+			modifiedAt: Date.now(),
+		};
+		return {
+			type: 'stateSnapshot',
+			resource,
+			state: { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready },
+			fromSeq: 0,
+		};
+	}
+	override unsubscribe(_resource: URI): void { }
+	override dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
+		this.dispatchedActions.push({ action, clientId, clientSeq });
+	}
+
 	// Test helpers
 	fireProgress(event: IAgentProgressEvent): void {
 		this._onDidSessionProgress.fire(event);
+	}
+
+	fireAction(envelope: IActionEnvelope): void {
+		this._onDidAction.fire(envelope);
 	}
 
 	setSessionMessages(sessionId: string, messages: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]): void {
@@ -102,6 +154,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	dispose(): void {
 		this._onDidSessionProgress.dispose();
+		this._onDidAction.dispose();
+		this._onDidNotification.dispose();
 	}
 }
 
@@ -186,6 +240,66 @@ function textOf(value: string | IMarkdownString | undefined): string | undefined
 	return typeof value === 'string' ? value : value.value;
 }
 
+/**
+ * Start a turn through the state-driven flow. Creates a chat session,
+ * starts the requestHandler (non-blocking), and waits for the first action
+ * to be dispatched. Returns helpers to fire server action envelopes.
+ */
+async function startTurn(
+	sessionHandler: AgentHostSessionHandler,
+	agentHostService: MockAgentHostService,
+	ds: DisposableStore,
+	overrides?: Partial<{
+		message: string;
+		sessionResource: URI;
+		variables: IChatAgentRequest['variables'];
+		userSelectedModelId: string;
+		cancellationToken: CancellationToken;
+	}>,
+) {
+	const sessionResource = overrides?.sessionResource ?? URI.from({ scheme: 'agent-host-copilot', path: '/untitled-turntest' });
+	const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+	ds.add(toDisposable(() => chatSession.dispose()));
+
+	const collected: IChatProgress[][] = [];
+	const seq = { v: 1 };
+
+	const turnPromise = chatSession.requestHandler!(
+		makeRequest({
+			message: overrides?.message ?? 'Hello',
+			sessionResource,
+			variables: overrides?.variables,
+			userSelectedModelId: overrides?.userSelectedModelId,
+		}),
+		(parts) => collected.push(parts),
+		[],
+		overrides?.cancellationToken ?? CancellationToken.None,
+	);
+
+	await timeout(10);
+
+	const lastDispatch = agentHostService.dispatchedActions[agentHostService.dispatchedActions.length - 1];
+	const session = (lastDispatch?.action as ITurnStartedAction)?.session;
+	const turnId = (lastDispatch?.action as ITurnStartedAction)?.turnId;
+
+	const fire = (action: ISessionAction) => {
+		agentHostService.fireAction({ action, serverSeq: seq.v++, origin: undefined });
+	};
+
+	// Echo the turnStarted action to clear the pending write-ahead entry.
+	// Without this, the optimistic state replay would re-add activeTurn after
+	// the server's turnComplete clears it, preventing the turn from finishing.
+	if (lastDispatch) {
+		agentHostService.fireAction({
+			action: lastDispatch.action,
+			serverSeq: seq.v++,
+			origin: { clientId: agentHostService.clientId, clientSeq: lastDispatch.clientSeq },
+		});
+	}
+
+	return { turnPromise, collected, chatSession, session, turnId, fire };
+}
+
 suite('AgentHostChatContribution', () => {
 
 	const disposables = new DisposableStore();
@@ -251,123 +365,107 @@ suite('AgentHostChatContribution', () => {
 	suite('session ID resolution', () => {
 
 		test('creates new SDK session for untitled resource', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, { message: 'Hello' });
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
 
-			const origSend = agentHostService.sendMessage.bind(agentHostService);
-			agentHostService.sendMessage = async (session: URI, prompt: string) => {
-				await origSend(session, prompt);
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
-
-			await agent.impl.invoke(
-				makeRequest({ message: 'Hello' }),
-				() => { }, [], CancellationToken.None,
-			);
-
-			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
-			assert.strictEqual(agentHostService.sendMessageCalls[0].prompt, 'Hello');
-			assert.ok(AgentSession.id(agentHostService.sendMessageCalls[0].session).startsWith('sdk-session-'));
+			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+			assert.strictEqual(agentHostService.dispatchedActions[0].action.type, 'session/turnStarted');
+			assert.strictEqual((agentHostService.dispatchedActions[0].action as ITurnStartedAction).userMessage.text, 'Hello');
+			assert.ok(AgentSession.id(session).startsWith('sdk-session-'));
 		});
 
 		test('reuses SDK session for same resource on second message', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const resource = URI.from({ scheme: 'untitled', path: '/chat-reuse' });
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-reuse' });
+			const chatSession = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
 
-			agentHostService.sendMessage = async (session: URI, prompt: string) => {
-				agentHostService.sendMessageCalls.push({ session, prompt });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
-
-			await agent.impl.invoke(
+			// First turn
+			const turn1Promise = chatSession.requestHandler!(
 				makeRequest({ message: 'First', sessionResource: resource }),
 				() => { }, [], CancellationToken.None,
 			);
+			await timeout(10);
+			const dispatch1 = agentHostService.dispatchedActions[0];
+			const action1 = dispatch1.action as ITurnStartedAction;
+			// Echo the turnStarted to clear pending write-ahead
+			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
+			agentHostService.fireAction({ action: { type: 'session/turnComplete', session: action1.session, turnId: action1.turnId } as ISessionAction, serverSeq: 2, origin: undefined });
+			await turn1Promise;
 
-			await agent.impl.invoke(
+			// Second turn
+			const turn2Promise = chatSession.requestHandler!(
 				makeRequest({ message: 'Second', sessionResource: resource }),
 				() => { }, [], CancellationToken.None,
 			);
+			await timeout(10);
+			const dispatch2 = agentHostService.dispatchedActions[1];
+			const action2 = dispatch2.action as ITurnStartedAction;
+			agentHostService.fireAction({ action: dispatch2.action, serverSeq: 3, origin: { clientId: agentHostService.clientId, clientSeq: dispatch2.clientSeq } });
+			agentHostService.fireAction({ action: { type: 'session/turnComplete', session: action2.session, turnId: action2.turnId } as ISessionAction, serverSeq: 4, origin: undefined });
+			await turn2Promise;
 
-			assert.strictEqual(agentHostService.sendMessageCalls.length, 2);
-			assert.strictEqual(agentHostService.sendMessageCalls[0].session.toString(), agentHostService.sendMessageCalls[1].session.toString());
+			assert.strictEqual(agentHostService.dispatchedActions.length, 2);
+			assert.strictEqual(
+				(agentHostService.dispatchedActions[0].action as ITurnStartedAction).session.toString(),
+				(agentHostService.dispatchedActions[1].action as ITurnStartedAction).session.toString(),
+			);
 		});
 
 		test('uses sessionId from agent-host scheme resource', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/existing-session-42' });
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+				message: 'Hi',
+				sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/existing-session-42' }),
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
 
-			agentHostService.sendMessage = async (session: URI, prompt: string) => {
-				agentHostService.sendMessageCalls.push({ session, prompt });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
-
-			await agent.impl.invoke(
-				makeRequest({ message: 'Hi', sessionResource: resource }),
-				() => { }, [], CancellationToken.None,
-			);
-
-			assert.strictEqual(AgentSession.id(agentHostService.sendMessageCalls[0].session), 'existing-session-42');
+			assert.strictEqual(AgentSession.id(session), 'existing-session-42');
 		});
 
 		test('agent-host scheme with untitled path creates new session via mapping', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-abc123' });
-
-			agentHostService.sendMessage = async (session: URI, prompt: string) => {
-				agentHostService.sendMessageCalls.push({ session, prompt });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
-
-			await agent.impl.invoke(
-				makeRequest({ message: 'Hi', sessionResource: resource }),
-				() => { }, [], CancellationToken.None,
-			);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+				message: 'Hi',
+				sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/untitled-abc123' }),
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
 
 			// Should create a new SDK session, not use "untitled-abc123" literally
-			assert.ok(AgentSession.id(agentHostService.sendMessageCalls[0].session).startsWith('sdk-session-'));
+			assert.ok(AgentSession.id(session).startsWith('sdk-session-'));
 		});
 
 		test('passes raw model id extracted from language model identifier', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-
-			agentHostService.sendMessage = async (session: URI, prompt: string) => {
-				agentHostService.sendMessageCalls.push({ session, prompt });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
-
-			await agent.impl.invoke(
-				makeRequest({ message: 'Hi', userSelectedModelId: 'agent-host-copilot:claude-sonnet-4-20250514' }),
-				() => { }, [], CancellationToken.None,
-			);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+				message: 'Hi',
+				userSelectedModelId: 'agent-host-copilot:claude-sonnet-4-20250514',
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
 			assert.strictEqual(agentHostService.createSessionCalls[0].model, 'claude-sonnet-4-20250514');
 		});
 
 		test('passes model id as-is when no vendor prefix', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-
-			agentHostService.sendMessage = async (session: URI, prompt: string) => {
-				agentHostService.sendMessageCalls.push({ session, prompt });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
-
-			await agent.impl.invoke(
-				makeRequest({ message: 'Hi', userSelectedModelId: 'gpt-4o' }),
-				() => { }, [], CancellationToken.None,
-			);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+				message: 'Hi',
+				userSelectedModelId: 'gpt-4o',
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
 			assert.strictEqual(agentHostService.createSessionCalls[0].model, 'gpt-4o');
@@ -390,23 +488,15 @@ suite('AgentHostChatContribution', () => {
 	suite('progress routing', () => {
 
 		test('delta events become markdownContent progress', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				agentHostService.fireProgress({ session, type: 'delta', messageId: 'msg-1', content: 'hello ' });
-				agentHostService.fireProgress({ session, type: 'delta', messageId: 'msg-1', content: 'world' });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
+			fire({ type: 'session/delta', session, turnId, content: 'hello ' } as ISessionAction);
+			fire({ type: 'session/delta', session, turnId, content: 'world' } as ISessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
-			await agent.impl.invoke(
-				makeRequest(),
-				(parts) => collected.push(parts),
-				[], CancellationToken.None,
-			);
+			await turnPromise;
 
 			assert.strictEqual(collected.length, 2);
 			assert.strictEqual(collected[0][0].kind, 'markdownContent');
@@ -416,45 +506,38 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('tool_start events become toolInvocation progress', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				agentHostService.fireProgress({ session, type: 'tool_start', toolCallId: 'tc-1', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file' });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
+			fire({
+				type: 'session/toolStart', session, turnId,
+				toolCall: { toolCallId: 'tc-1', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file', status: ToolCallStatus.Running },
+			} as ISessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
-			await agent.impl.invoke(
-				makeRequest(),
-				(parts) => collected.push(parts),
-				[], CancellationToken.None,
-			);
+			await turnPromise;
 
 			assert.strictEqual(collected.length, 1);
 			assert.strictEqual(collected[0][0].kind, 'toolInvocation');
 		});
 
 		test('tool_complete event transitions toolInvocation to completed', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				agentHostService.fireProgress({ session, type: 'tool_start', toolCallId: 'tc-2', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command' });
-				agentHostService.fireProgress({ session, type: 'tool_complete', toolCallId: 'tc-2', success: true, pastTenseMessage: 'Ran Bash command' });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
+			fire({
+				type: 'session/toolStart', session, turnId,
+				toolCall: { toolCallId: 'tc-2', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', status: ToolCallStatus.Running },
+			} as ISessionAction);
+			fire({
+				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-2',
+				result: { success: true, pastTenseMessage: 'Ran Bash command' },
+			} as ISessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
-			await agent.impl.invoke(
-				makeRequest(),
-				(parts) => collected.push(parts),
-				[], CancellationToken.None,
-			);
+			await turnPromise;
 
 			assert.strictEqual(collected.length, 1);
 			const invocation = collected[0][0] as IChatToolInvocation;
@@ -464,23 +547,21 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('tool_complete with failure sets error state', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				agentHostService.fireProgress({ session, type: 'tool_start', toolCallId: 'tc-3', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command' });
-				agentHostService.fireProgress({ session, type: 'tool_complete', toolCallId: 'tc-3', success: false, pastTenseMessage: '"Bash" failed', toolOutput: 'command not found', error: { message: 'command not found' } });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
+			fire({
+				type: 'session/toolStart', session, turnId,
+				toolCall: { toolCallId: 'tc-3', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', status: ToolCallStatus.Running },
+			} as ISessionAction);
+			fire({
+				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-3',
+				result: { success: false, pastTenseMessage: '"Bash" failed', toolOutput: 'command not found', error: { message: 'command not found' } },
+			} as ISessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
-			await agent.impl.invoke(
-				makeRequest(),
-				(parts) => collected.push(parts),
-				[], CancellationToken.None,
-			);
+			await turnPromise;
 
 			assert.strictEqual(collected.length, 1);
 			const invocation = collected[0][0] as IChatToolInvocation;
@@ -489,45 +570,35 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('malformed toolArguments does not throw', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				agentHostService.fireProgress({ session, type: 'tool_start', toolCallId: 'tc-bad', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', toolArguments: '{not valid json' });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
+			fire({
+				type: 'session/toolStart', session, turnId,
+				toolCall: { toolCallId: 'tc-bad', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', status: ToolCallStatus.Running, toolArguments: '{not valid json' },
+			} as ISessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
-			await agent.impl.invoke(
-				makeRequest(),
-				(parts) => collected.push(parts),
-				[], CancellationToken.None,
-			);
+			await turnPromise;
 
 			assert.strictEqual(collected.length, 1);
 			assert.strictEqual(collected[0][0].kind, 'toolInvocation');
 		});
 
 		test('outstanding tool invocations are completed on idle', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				// tool_start without tool_complete
-				agentHostService.fireProgress({ session, type: 'tool_start', toolCallId: 'tc-orphan', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command' });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
+			// tool_start without tool_complete
+			fire({
+				type: 'session/toolStart', session, turnId,
+				toolCall: { toolCallId: 'tc-orphan', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', status: ToolCallStatus.Running },
+			} as ISessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
-			await agent.impl.invoke(
-				makeRequest(),
-				(parts) => collected.push(parts),
-				[], CancellationToken.None,
-			);
+			await turnPromise;
 
 			assert.strictEqual(collected.length, 1);
 			const invocation = collected[0][0] as IChatToolInvocation;
@@ -536,23 +607,20 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('events from other sessions are ignored', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				agentHostService.fireProgress({ session: AgentSession.uri('copilot', 'other-session'), type: 'delta', messageId: 'msg-x', content: 'wrong' });
-				agentHostService.fireProgress({ session, type: 'delta', messageId: 'msg-y', content: 'right' });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
+			// Delta from a different session — will be ignored (session not subscribed)
+			agentHostService.fireAction({
+				action: { type: 'session/delta', session: AgentSession.uri('copilot', 'other-session'), turnId, content: 'wrong' } as ISessionAction,
+				serverSeq: 100,
+				origin: undefined,
+			});
+			fire({ type: 'session/delta', session, turnId, content: 'right' } as ISessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
-			await agent.impl.invoke(
-				makeRequest(),
-				(parts) => collected.push(parts),
-				[], CancellationToken.None,
-			);
+			await turnPromise;
 
 			assert.strictEqual(collected.length, 1);
 			assert.strictEqual((collected[0][0] as IChatMarkdownContent).content.value, 'right');
@@ -564,44 +632,38 @@ suite('AgentHostChatContribution', () => {
 	suite('cancellation', () => {
 
 		test('cancellation resolves the agent invoke', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const cts = new CancellationTokenSource();
 			disposables.add(cts);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				cts.cancel();
-			};
+			const { turnPromise } = await startTurn(sessionHandler, agentHostService, disposables, {
+				cancellationToken: cts.token,
+			});
 
-			const result = await agent.impl.invoke(
-				makeRequest(),
-				() => { }, [], cts.token,
-			);
+			cts.cancel();
+			await turnPromise;
 
-			assert.ok(result);
+			assert.ok(agentHostService.dispatchedActions.some(a => a.action.type === 'session/turnCancelled'));
 		});
 
 		test('cancellation force-completes outstanding tool invocations', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const cts = new CancellationTokenSource();
 			disposables.add(cts);
-			const collected: IChatProgress[][] = [];
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				agentHostService.fireProgress({ session, type: 'tool_start', toolCallId: 'tc-cancel', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command' });
-				cts.cancel();
-			};
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+				cancellationToken: cts.token,
+			});
 
-			await agent.impl.invoke(
-				makeRequest(),
-				(parts) => collected.push(parts),
-				[], cts.token,
-			);
+			fire({
+				type: 'session/toolStart', session, turnId,
+				toolCall: { toolCallId: 'tc-cancel', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', status: ToolCallStatus.Running },
+			} as ISessionAction);
+
+			cts.cancel();
+			await turnPromise;
 
 			assert.strictEqual(collected.length, 1);
 			const invocation = collected[0][0] as IChatToolInvocation;
@@ -610,23 +672,20 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('cancellation calls abortSession on the agent host service', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const cts = new CancellationTokenSource();
 			disposables.add(cts);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				cts.cancel();
-			};
+			const { turnPromise } = await startTurn(sessionHandler, agentHostService, disposables, {
+				cancellationToken: cts.token,
+			});
 
-			await agent.impl.invoke(
-				makeRequest(),
-				() => { }, [], cts.token,
-			);
+			cts.cancel();
+			await turnPromise;
 
-			assert.strictEqual(agentHostService.abortSessionCalls.length, 1);
+			// Cancellation now dispatches session/turnCancelled action
+			assert.ok(agentHostService.dispatchedActions.some(a => a.action.type === 'session/turnCancelled'));
 		});
 	});
 
@@ -635,26 +694,27 @@ suite('AgentHostChatContribution', () => {
 	suite('error events', () => {
 
 		test('error event renders error message and finishes the request', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				agentHostService.fireProgress({ session, type: 'error', errorType: 'test_error', message: 'Something went wrong' });
-			};
+			agentHostService.fireAction({
+				action: {
+					type: 'session/error',
+					session,
+					turnId,
+					error: { errorType: 'test_error', message: 'Something went wrong' },
+				} as ISessionAction,
+				serverSeq: 99,
+				origin: undefined,
+			});
 
-			await agent.impl.invoke(
-				makeRequest(),
-				(parts) => collected.push(parts),
-				[], CancellationToken.None,
-			);
+			await turnPromise;
 
 			// Should have received the error message and the request should have finished
-			assert.strictEqual(collected.length, 1);
-			assert.strictEqual(collected[0][0].kind, 'markdownContent');
-			assert.ok((collected[0][0] as IChatMarkdownContent).content.value.includes('Something went wrong'));
+			assert.ok(collected.length >= 1);
+			const errorPart = collected.flat().find(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('Something went wrong'));
+			assert.ok(errorPart, 'Should have found a markdownContent part containing the error message');
 		});
 	});
 
@@ -663,32 +723,16 @@ suite('AgentHostChatContribution', () => {
 	suite('permission requests', () => {
 
 		test('permission_request event shows confirmation and responds when confirmed', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				// Simulate a permission request
-				agentHostService.fireProgress({
-					session,
-					type: 'permission_request',
-					requestId: 'perm-1',
-					permissionKind: 'shell',
-					fullCommandText: 'echo hello',
-					rawRequest: '{}',
-				});
-			};
+			// Simulate a permission request
+			fire({
+				type: 'session/permissionRequest', session, turnId,
+				request: { requestId: 'perm-1', permissionKind: 'shell', fullCommandText: 'echo hello', rawRequest: '{}' },
+			} as ISessionAction);
 
-			// Start the invoke but don't await yet -- we need to confirm the permission
-			const invokePromise = agent.impl.invoke(
-				makeRequest(),
-				(parts) => collected.push(parts),
-				[], CancellationToken.None,
-			);
-
-			// Wait for the permission confirmation to appear
 			await timeout(10);
 
 			// The permission request should have produced a ChatToolInvocation in WaitingForConfirmation state
@@ -699,42 +743,26 @@ suite('AgentHostChatContribution', () => {
 			// Confirm the permission
 			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.UserAction });
 
-			// Now fire idle to complete the request
 			await timeout(10);
-			const session = agentHostService.sendMessageCalls[0].session;
-			agentHostService.fireProgress({ session, type: 'idle' });
 
-			await invokePromise;
+			// The handler should have dispatched session/permissionResolved
+			assert.ok(agentHostService.dispatchedActions.some(
+				a => a.action.type === 'session/permissionResolved' && (a.action as IPermissionResolvedAction).requestId === 'perm-1' && (a.action as IPermissionResolvedAction).approved === true
+			));
 
-			// The handler should have approved the permission request
-			assert.strictEqual(agentHostService.permissionResponses.length, 1);
-			assert.strictEqual(agentHostService.permissionResponses[0].requestId, 'perm-1');
-			assert.strictEqual(agentHostService.permissionResponses[0].approved, true);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
 		});
 
 		test('permission_request denied when user skips', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				agentHostService.fireProgress({
-					session,
-					type: 'permission_request',
-					requestId: 'perm-2',
-					permissionKind: 'write',
-					path: '/tmp/test.txt',
-					rawRequest: '{}',
-				});
-			};
-
-			const invokePromise = agent.impl.invoke(
-				makeRequest(),
-				(parts) => collected.push(parts),
-				[], CancellationToken.None,
-			);
+			fire({
+				type: 'session/permissionRequest', session, turnId,
+				request: { requestId: 'perm-2', permissionKind: 'write', path: '/tmp/test.txt', rawRequest: '{}' },
+			} as ISessionAction);
 
 			await timeout(10);
 
@@ -743,40 +771,24 @@ suite('AgentHostChatContribution', () => {
 			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.Denied });
 
 			await timeout(10);
-			const session = agentHostService.sendMessageCalls[0].session;
-			agentHostService.fireProgress({ session, type: 'idle' });
 
-			await invokePromise;
+			assert.ok(agentHostService.dispatchedActions.some(
+				a => a.action.type === 'session/permissionResolved' && (a.action as IPermissionResolvedAction).requestId === 'perm-2' && (a.action as IPermissionResolvedAction).approved === false
+			));
 
-			assert.strictEqual(agentHostService.permissionResponses.length, 1);
-			assert.strictEqual(agentHostService.permissionResponses[0].requestId, 'perm-2');
-			assert.strictEqual(agentHostService.permissionResponses[0].approved, false);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
 		});
 
 		test('shell permission shows terminal-style confirmation data', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				agentHostService.fireProgress({
-					session,
-					type: 'permission_request',
-					requestId: 'perm-shell',
-					permissionKind: 'shell',
-					fullCommandText: 'echo hello',
-					intention: 'Print greeting',
-					rawRequest: '{}',
-				});
-			};
-
-			const invokePromise = agent.impl.invoke(
-				makeRequest(),
-				(parts) => collected.push(parts),
-				[], CancellationToken.None,
-			);
+			fire({
+				type: 'session/permissionRequest', session, turnId,
+				request: { requestId: 'perm-shell', permissionKind: 'shell', fullCommandText: 'echo hello', intention: 'Print greeting', rawRequest: '{}' },
+			} as ISessionAction);
 
 			await timeout(10);
 			const permInvocation = collected[0][0] as IChatToolInvocation;
@@ -786,34 +798,19 @@ suite('AgentHostChatContribution', () => {
 
 			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.UserAction });
 			await timeout(10);
-			agentHostService.fireProgress({ session: agentHostService.sendMessageCalls[0].session, type: 'idle' });
-			await invokePromise;
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
 		});
 
 		test('read permission shows input-style confirmation data', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				agentHostService.fireProgress({
-					session,
-					type: 'permission_request',
-					requestId: 'perm-read',
-					permissionKind: 'read',
-					path: '/workspace/file.ts',
-					intention: 'Read file contents',
-					rawRequest: '{"kind":"read","path":"/workspace/file.ts"}',
-				});
-			};
-
-			const invokePromise = agent.impl.invoke(
-				makeRequest(),
-				(parts) => collected.push(parts),
-				[], CancellationToken.None,
-			);
+			fire({
+				type: 'session/permissionRequest', session, turnId,
+				request: { requestId: 'perm-read', permissionKind: 'read', path: '/workspace/file.ts', intention: 'Read file contents', rawRequest: '{"kind":"read","path":"/workspace/file.ts"}' },
+			} as ISessionAction);
 
 			await timeout(10);
 			const permInvocation = collected[0][0] as IChatToolInvocation;
@@ -821,8 +818,8 @@ suite('AgentHostChatContribution', () => {
 
 			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.UserAction });
 			await timeout(10);
-			agentHostService.fireProgress({ session: agentHostService.sendMessageCalls[0].session, type: 'idle' });
-			await invokePromise;
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
 		});
 	});
 
@@ -833,10 +830,20 @@ suite('AgentHostChatContribution', () => {
 		test('loads user and assistant messages into history', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			agentHostService.setSessionMessages('sess-1', [
-				{ session: AgentSession.uri('copilot', 'sess-1'), type: 'message', messageId: 'msg-u1', content: 'What is 2+2?', role: 'user' },
-				{ session: AgentSession.uri('copilot', 'sess-1'), type: 'message', messageId: 'msg-a1', content: '4', role: 'assistant' },
-			]);
+			const sessionUri = AgentSession.uri('copilot', 'sess-1');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'turn-1',
+					userMessage: { text: 'What is 2+2?' },
+					responseText: '4',
+					responseParts: [],
+					toolCalls: [],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			});
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/sess-1' });
 			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
@@ -853,6 +860,7 @@ suite('AgentHostChatContribution', () => {
 			const response = session.history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type === 'response') {
+				assert.strictEqual(response.parts.length, 1);
 				assert.strictEqual((response.parts[0] as IChatMarkdownContent).content.value, '4');
 			}
 		});
@@ -873,24 +881,26 @@ suite('AgentHostChatContribution', () => {
 	suite('tool invocation rendering', () => {
 
 		test('bash tool renders as terminal command block with output', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				agentHostService.fireProgress({
-					session, type: 'tool_start', toolCallId: 'tc-shell', toolName: 'bash',
-					displayName: 'Bash', invocationMessage: 'Running `echo hello`',
-					toolInput: 'echo hello', toolKind: 'terminal',
+			fire({
+				type: 'session/toolStart', session, turnId,
+				toolCall: {
+					toolCallId: 'tc-shell', toolName: 'bash', displayName: 'Bash',
+					invocationMessage: 'Running `echo hello`', toolInput: 'echo hello',
+					toolKind: 'terminal', status: ToolCallStatus.Running,
 					toolArguments: JSON.stringify({ command: 'echo hello' }),
-				});
-				agentHostService.fireProgress({ session, type: 'tool_complete', toolCallId: 'tc-shell', success: true, pastTenseMessage: 'Ran `echo hello`', toolOutput: 'hello\n', result: { content: 'hello\n' } });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
+				},
+			} as ISessionAction);
+			fire({
+				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-shell',
+				result: { success: true, pastTenseMessage: 'Ran `echo hello`', toolOutput: 'hello\n' },
+			} as ISessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
-			await agent.impl.invoke(makeRequest(), (parts) => collected.push(parts), [], CancellationToken.None);
+			await turnPromise;
 
 			const invocation = collected[0][0] as IChatToolInvocation;
 			const termData = invocation.toolSpecificData as IChatTerminalToolInvocationData;
@@ -916,28 +926,26 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('bash tool failure sets exit code 1 and error output', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				agentHostService.fireProgress({
-					session, type: 'tool_start', toolCallId: 'tc-fail', toolName: 'bash',
-					displayName: 'Bash', invocationMessage: 'Running `bad_cmd`',
-					toolInput: 'bad_cmd', toolKind: 'terminal',
+			fire({
+				type: 'session/toolStart', session, turnId,
+				toolCall: {
+					toolCallId: 'tc-fail', toolName: 'bash', displayName: 'Bash',
+					invocationMessage: 'Running `bad_cmd`', toolInput: 'bad_cmd',
+					toolKind: 'terminal', status: ToolCallStatus.Running,
 					toolArguments: JSON.stringify({ command: 'bad_cmd' }),
-				});
-				agentHostService.fireProgress({
-					session, type: 'tool_complete', toolCallId: 'tc-fail', success: false,
-					pastTenseMessage: '"Bash" failed', toolOutput: 'command not found: bad_cmd',
-					error: { message: 'command not found: bad_cmd' },
-				});
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
+				},
+			} as ISessionAction);
+			fire({
+				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-fail',
+				result: { success: false, pastTenseMessage: '"Bash" failed', toolOutput: 'command not found: bad_cmd', error: { message: 'command not found: bad_cmd' } },
+			} as ISessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
-			await agent.impl.invoke(makeRequest(), (parts) => collected.push(parts), [], CancellationToken.None);
+			await turnPromise;
 
 			const invocation = collected[0][0] as IChatToolInvocation;
 			const termData = invocation.toolSpecificData as IChatTerminalToolInvocationData;
@@ -953,23 +961,25 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('generic tool has invocation message and no toolSpecificData', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				agentHostService.fireProgress({
-					session, type: 'tool_start', toolCallId: 'tc-gen', toolName: 'custom_tool',
-					displayName: 'custom_tool', invocationMessage: 'Using "custom_tool"',
+			fire({
+				type: 'session/toolStart', session, turnId,
+				toolCall: {
+					toolCallId: 'tc-gen', toolName: 'custom_tool', displayName: 'custom_tool',
+					invocationMessage: 'Using "custom_tool"', status: ToolCallStatus.Running,
 					toolArguments: JSON.stringify({ input: 'data' }),
-				});
-				agentHostService.fireProgress({ session, type: 'tool_complete', toolCallId: 'tc-gen', success: true, pastTenseMessage: 'Used "custom_tool"' });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
+				},
+			} as ISessionAction);
+			fire({
+				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-gen',
+				result: { success: true, pastTenseMessage: 'Used "custom_tool"' },
+			} as ISessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
-			await agent.impl.invoke(makeRequest(), (parts) => collected.push(parts), [], CancellationToken.None);
+			await turnPromise;
 
 			const invocation = collected[0][0] as IChatToolInvocation;
 			assert.deepStrictEqual({
@@ -984,23 +994,25 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('bash tool without arguments has no terminal data', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				agentHostService.fireProgress({
-					session, type: 'tool_start', toolCallId: 'tc-noargs', toolName: 'bash',
-					displayName: 'Bash', invocationMessage: 'Running Bash command',
-					toolKind: 'terminal',
-				});
-				agentHostService.fireProgress({ session, type: 'tool_complete', toolCallId: 'tc-noargs', success: true, pastTenseMessage: 'Ran Bash command' });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
+			fire({
+				type: 'session/toolStart', session, turnId,
+				toolCall: {
+					toolCallId: 'tc-noargs', toolName: 'bash', displayName: 'Bash',
+					invocationMessage: 'Running Bash command', toolKind: 'terminal',
+					status: ToolCallStatus.Running,
+				},
+			} as ISessionAction);
+			fire({
+				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-noargs',
+				result: { success: true, pastTenseMessage: 'Ran Bash command' },
+			} as ISessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
-			await agent.impl.invoke(makeRequest(), (parts) => collected.push(parts), [], CancellationToken.None);
+			await turnPromise;
 
 			const invocation = collected[0][0] as IChatToolInvocation;
 			assert.deepStrictEqual({
@@ -1015,23 +1027,25 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('view tool shows file path in messages', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
-			const collected: IChatProgress[][] = [];
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async (session: URI) => {
-				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				agentHostService.fireProgress({
-					session, type: 'tool_start', toolCallId: 'tc-view', toolName: 'view',
-					displayName: 'View File', invocationMessage: 'Reading /tmp/test.txt',
+			fire({
+				type: 'session/toolStart', session, turnId,
+				toolCall: {
+					toolCallId: 'tc-view', toolName: 'view', displayName: 'View File',
+					invocationMessage: 'Reading /tmp/test.txt', status: ToolCallStatus.Running,
 					toolArguments: JSON.stringify({ file_path: '/tmp/test.txt' }),
-				});
-				agentHostService.fireProgress({ session, type: 'tool_complete', toolCallId: 'tc-view', success: true, pastTenseMessage: 'Read /tmp/test.txt' });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
+				},
+			} as ISessionAction);
+			fire({
+				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-view',
+				result: { success: true, pastTenseMessage: 'Read /tmp/test.txt' },
+			} as ISessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
-			await agent.impl.invoke(makeRequest(), (parts) => collected.push(parts), [], CancellationToken.None);
+			await turnPromise;
 
 			const invocation = collected[0][0] as IChatToolInvocation;
 			assert.deepStrictEqual({
@@ -1050,14 +1064,24 @@ suite('AgentHostChatContribution', () => {
 
 		test('tool_start and tool_complete appear as toolInvocationSerialized in history', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
-			const session = AgentSession.uri('copilot', 'tool-hist');
+			const sessionUri = AgentSession.uri('copilot', 'tool-hist');
 
-			agentHostService.setSessionMessages('tool-hist', [
-				{ session, type: 'message', messageId: 'u1', content: 'run ls', role: 'user' },
-				{ session, type: 'tool_start', toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running `ls`', toolInput: 'ls', toolKind: 'terminal' },
-				{ session, type: 'tool_complete', toolCallId: 'tc-1', success: true, pastTenseMessage: 'Ran `ls`', toolOutput: 'file1\nfile2' },
-				{ session, type: 'message', messageId: 'a1', content: 'Here are the files.', role: 'assistant' },
-			]);
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'turn-1',
+					userMessage: { text: 'run ls' },
+					state: TurnState.Complete,
+					responseParts: [],
+					usage: undefined,
+					toolCalls: [{
+						toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash',
+						invocationMessage: 'Running `ls`', toolInput: 'ls', toolKind: 'terminal' as const,
+						success: true, pastTenseMessage: 'Ran `ls`', toolOutput: 'file1\nfile2',
+					}],
+				}],
+			} as ISessionState);
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/tool-hist' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
@@ -1069,8 +1093,7 @@ suite('AgentHostChatContribution', () => {
 			const response = chatSession.history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type === 'response') {
-				// tool invocation + markdown content
-				assert.strictEqual(response.parts.length, 2);
+				assert.strictEqual(response.parts.length, 1);
 				const toolPart = response.parts[0] as IChatToolInvocationSerialized;
 				assert.strictEqual(toolPart.kind, 'toolInvocationSerialized');
 				assert.strictEqual(toolPart.toolCallId, 'tc-1');
@@ -1085,14 +1108,20 @@ suite('AgentHostChatContribution', () => {
 
 		test('orphaned tool_start is marked complete in history', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
-			const session = AgentSession.uri('copilot', 'orphan-tool');
+			const sessionUri = AgentSession.uri('copilot', 'orphan-tool');
 
-			agentHostService.setSessionMessages('orphan-tool', [
-				{ session, type: 'message', messageId: 'u1', content: 'do something', role: 'user' },
-				{ session, type: 'tool_start', toolCallId: 'tc-orphan', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file' },
-				// No tool_complete for tc-orphan
-				{ session, type: 'message', messageId: 'a1', content: 'Done', role: 'assistant' },
-			]);
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'turn-1',
+					userMessage: { text: 'do something' },
+					state: TurnState.Complete,
+					responseParts: [],
+					usage: undefined,
+					toolCalls: [{ toolCallId: 'tc-orphan', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file', success: false, pastTenseMessage: 'Reading file' }],
+				}],
+			} as ISessionState);
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/orphan-tool' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
@@ -1109,14 +1138,20 @@ suite('AgentHostChatContribution', () => {
 
 		test('non-terminal tool_complete sets pastTenseMessage in history', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
-			const session = AgentSession.uri('copilot', 'generic-tool');
+			const sessionUri = AgentSession.uri('copilot', 'generic-tool');
 
-			agentHostService.setSessionMessages('generic-tool', [
-				{ session, type: 'message', messageId: 'u1', content: 'search', role: 'user' },
-				{ session, type: 'tool_start', toolCallId: 'tc-g', toolName: 'grep', displayName: 'Grep', invocationMessage: 'Searching...' },
-				{ session, type: 'tool_complete', toolCallId: 'tc-g', success: true, pastTenseMessage: 'Searched for pattern' },
-				{ session, type: 'message', messageId: 'a1', content: 'Found it.', role: 'assistant' },
-			]);
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'turn-1',
+					userMessage: { text: 'search' },
+					state: TurnState.Complete,
+					responseParts: [],
+					usage: undefined,
+					toolCalls: [{ toolCallId: 'tc-g', toolName: 'grep', displayName: 'Grep', invocationMessage: 'Searching...', success: true, pastTenseMessage: 'Searched for pattern' }],
+				}],
+			} as ISessionState);
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/generic-tool' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
@@ -1148,20 +1183,23 @@ suite('AgentHostChatContribution', () => {
 	suite('sendMessage error handling', () => {
 
 		test('sendMessage failure resolves the agent invoke without throwing', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const { turnPromise, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			agentHostService.sendMessage = async () => {
-				throw new Error('connection lost');
-			};
+			// Simulate a server-side error (e.g. sendMessage failure on the server)
+			agentHostService.fireAction({
+				action: {
+					type: 'session/error',
+					session,
+					turnId,
+					error: { errorType: 'connection_error', message: 'connection lost' },
+				} as ISessionAction,
+				serverSeq: 99,
+				origin: undefined,
+			});
 
-			const result = await agent.impl.invoke(
-				makeRequest({ message: 'Hello' }),
-				() => { }, [], CancellationToken.None,
-			);
-
-			assert.ok(result);
+			await turnPromise;
 		});
 	});
 
@@ -1262,192 +1300,144 @@ suite('AgentHostChatContribution', () => {
 	suite('attachment context', () => {
 
 		test('file variable with file:// URI becomes file attachment', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+				message: 'check this file',
+				variables: {
+					variables: [
+						upcastPartial({ kind: 'file', id: 'v-file', name: 'test.ts', value: URI.file('/workspace/test.ts') }),
+					],
+				},
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
 
-			agentHostService.sendMessage = async (session: URI, prompt: string, attachments?: IAgentAttachment[]) => {
-				agentHostService.sendMessageCalls.push({ session, prompt, attachments });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
-
-			await agent.impl.invoke(
-				makeRequest({
-					message: 'check this file',
-					variables: {
-						variables: [
-							upcastPartial({ kind: 'file', id: 'v-file', name: 'test.ts', value: URI.file('/workspace/test.ts') }),
-						],
-					},
-				}),
-				() => { }, [], CancellationToken.None,
-			);
-
-			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
-			const call = agentHostService.sendMessageCalls[0];
-			assert.deepStrictEqual(call.attachments, [
+			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.userMessage.attachments, [
 				{ type: 'file', path: URI.file('/workspace/test.ts').fsPath, displayName: 'test.ts' },
 			]);
 		});
 
 		test('directory variable with file:// URI becomes directory attachment', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+				message: 'check this dir',
+				variables: {
+					variables: [
+						upcastPartial({ kind: 'directory', id: 'v-dir', name: 'src', value: URI.file('/workspace/src') }),
+					],
+				},
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
 
-			agentHostService.sendMessage = async (session: URI, prompt: string, attachments?: IAgentAttachment[]) => {
-				agentHostService.sendMessageCalls.push({ session, prompt, attachments });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
-
-			await agent.impl.invoke(
-				makeRequest({
-					message: 'check this dir',
-					variables: {
-						variables: [
-							upcastPartial({ kind: 'directory', id: 'v-dir', name: 'src', value: URI.file('/workspace/src') }),
-						],
-					},
-				}),
-				() => { }, [], CancellationToken.None,
-			);
-
-			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
-			assert.deepStrictEqual(agentHostService.sendMessageCalls[0].attachments, [
+			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.userMessage.attachments, [
 				{ type: 'directory', path: URI.file('/workspace/src').fsPath, displayName: 'src' },
 			]);
 		});
 
 		test('implicit selection variable becomes selection attachment', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+				message: 'explain this',
+				variables: {
+					variables: [
+						upcastPartial({ kind: 'implicit', id: 'v-implicit', name: 'selection', isFile: true as const, isSelection: true, uri: URI.file('/workspace/foo.ts'), enabled: true, value: undefined }),
+					],
+				},
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
 
-			agentHostService.sendMessage = async (session: URI, prompt: string, attachments?: IAgentAttachment[]) => {
-				agentHostService.sendMessageCalls.push({ session, prompt, attachments });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
-
-			await agent.impl.invoke(
-				makeRequest({
-					message: 'explain this',
-					variables: {
-						variables: [
-							upcastPartial({ kind: 'implicit', id: 'v-implicit', name: 'selection', isFile: true as const, isSelection: true, uri: URI.file('/workspace/foo.ts'), enabled: true, value: undefined }),
-						],
-					},
-				}),
-				() => { }, [], CancellationToken.None,
-			);
-
-			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
-			assert.deepStrictEqual(agentHostService.sendMessageCalls[0].attachments, [
+			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.userMessage.attachments, [
 				{ type: 'selection', path: URI.file('/workspace/foo.ts').fsPath, displayName: 'selection' },
 			]);
 		});
 
 		test('non-file URIs are skipped', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+				message: 'check this',
+				variables: {
+					variables: [
+						upcastPartial({ kind: 'file', id: 'v-file', name: 'untitled', value: URI.from({ scheme: 'untitled', path: '/foo' }) }),
+					],
+				},
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
 
-			agentHostService.sendMessage = async (session: URI, prompt: string, attachments?: IAgentAttachment[]) => {
-				agentHostService.sendMessageCalls.push({ session, prompt, attachments });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
-
-			await agent.impl.invoke(
-				makeRequest({
-					message: 'check this',
-					variables: {
-						variables: [
-							upcastPartial({ kind: 'file', id: 'v-file', name: 'untitled', value: URI.from({ scheme: 'untitled', path: '/foo' }) }),
-						],
-					},
-				}),
-				() => { }, [], CancellationToken.None,
-			);
-
-			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
+			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
 			// No attachments because it's not a file:// URI
-			assert.strictEqual(agentHostService.sendMessageCalls[0].attachments, undefined);
+			assert.strictEqual(turnAction.userMessage.attachments, undefined);
 		});
 
 		test('tool variables are skipped', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+				message: 'use tools',
+				variables: {
+					variables: [
+						upcastPartial({ kind: 'tool', id: 'v-tool', name: 'myTool', value: { id: 'tool-1' } }),
+					],
+				},
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
 
-			agentHostService.sendMessage = async (session: URI, prompt: string, attachments?: IAgentAttachment[]) => {
-				agentHostService.sendMessageCalls.push({ session, prompt, attachments });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
-
-			await agent.impl.invoke(
-				makeRequest({
-					message: 'use tools',
-					variables: {
-						variables: [
-							upcastPartial({ kind: 'tool', id: 'v-tool', name: 'myTool', value: { id: 'tool-1' } }),
-						],
-					},
-				}),
-				() => { }, [], CancellationToken.None,
-			);
-
-			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
-			assert.strictEqual(agentHostService.sendMessageCalls[0].attachments, undefined);
+			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
+			assert.strictEqual(turnAction.userMessage.attachments, undefined);
 		});
 
 		test('mixed variables extracts only supported types', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+				message: 'mixed',
+				variables: {
+					variables: [
+						upcastPartial({ kind: 'file', id: 'v-file', name: 'a.ts', value: URI.file('/workspace/a.ts') }),
+						upcastPartial({ kind: 'tool', id: 'v-tool', name: 'myTool', value: { id: 'tool-1' } }),
+						upcastPartial({ kind: 'directory', id: 'v-dir', name: 'lib', value: URI.file('/workspace/lib') }),
+						upcastPartial({ kind: 'file', id: 'v-file', name: 'remote.ts', value: URI.from({ scheme: 'vscode-remote', path: '/remote/file.ts' }) }),
+					],
+				},
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
 
-			agentHostService.sendMessage = async (session: URI, prompt: string, attachments?: IAgentAttachment[]) => {
-				agentHostService.sendMessageCalls.push({ session, prompt, attachments });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
-
-			await agent.impl.invoke(
-				makeRequest({
-					message: 'mixed',
-					variables: {
-						variables: [
-							upcastPartial({ kind: 'file', id: 'v-file', name: 'a.ts', value: URI.file('/workspace/a.ts') }),
-							upcastPartial({ kind: 'tool', id: 'v-tool', name: 'myTool', value: { id: 'tool-1' } }),
-							upcastPartial({ kind: 'directory', id: 'v-dir', name: 'lib', value: URI.file('/workspace/lib') }),
-							upcastPartial({ kind: 'file', id: 'v-file', name: 'remote.ts', value: URI.from({ scheme: 'vscode-remote', path: '/remote/file.ts' }) }),
-						],
-					},
-				}),
-				() => { }, [], CancellationToken.None,
-			);
-
-			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
-			assert.deepStrictEqual(agentHostService.sendMessageCalls[0].attachments, [
+			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnAction.userMessage.attachments, [
 				{ type: 'file', path: URI.file('/workspace/a.ts').fsPath, displayName: 'a.ts' },
 				{ type: 'directory', path: URI.file('/workspace/lib').fsPath, displayName: 'lib' },
 			]);
 		});
 
 		test('no variables results in no attachments argument', async () => {
-			const { chatAgentService, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+				message: 'Hello',
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
 
-			agentHostService.sendMessage = async (session: URI, prompt: string, attachments?: IAgentAttachment[]) => {
-				agentHostService.sendMessageCalls.push({ session, prompt, attachments });
-				agentHostService.fireProgress({ session, type: 'idle' });
-			};
-
-			await agent.impl.invoke(
-				makeRequest({ message: 'Hello' }),
-				() => { }, [], CancellationToken.None,
-			);
-
-			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
-			assert.strictEqual(agentHostService.sendMessageCalls[0].attachments, undefined);
+			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
+			assert.strictEqual(turnAction.userMessage.attachments, undefined);
 		});
 	});
 

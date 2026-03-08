@@ -6,6 +6,8 @@
 import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
+import type { IStateSnapshot } from './state/sessionProtocol.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -27,7 +29,7 @@ export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
  * process start time.
  * TODO@roblourens we will have to rethink this when there is real client/
  * server separation, but we need it in the short-term for telemetry
- * and request headers, so plumbing it like this for now.	
+ * and request headers, so plumbing it like this for now.
  */
 export interface IAgentHostInitData {
 	/** Stable machine identifier (persists across sessions). */
@@ -47,7 +49,7 @@ export interface IAgentSessionMetadata {
 	readonly summary?: string;
 }
 
-export type AgentProvider = 'copilot' | 'local';
+export type AgentProvider = 'copilot' | 'local' | 'mock';
 
 /** Metadata describing an agent backend, discovered over IPC. */
 export interface IAgentDescriptor {
@@ -265,7 +267,7 @@ export namespace AgentSession {
 	 */
 	export function provider(session: URI): AgentProvider | undefined {
 		const scheme = session.scheme;
-		if (scheme === 'copilot' || scheme === 'local') {
+		if (scheme === 'copilot' || scheme === 'local' || scheme === 'mock') {
 			return scheme;
 		}
 		return undefined;
@@ -378,6 +380,38 @@ export interface IAgentService {
 
 	/** Gracefully shut down all sessions and the underlying client. */
 	shutdown(): Promise<void>;
+
+	// ---- Protocol methods (sessions process protocol) ----------------------
+
+	/**
+	 * Subscribe to state at the given URI. Returns a snapshot of the current
+	 * state and the serverSeq at snapshot time. Subsequent actions for this
+	 * resource arrive via {@link onDidAction}.
+	 */
+	subscribe(resource: URI): Promise<IStateSnapshot>;
+
+	/** Unsubscribe from state updates for the given URI. */
+	unsubscribe(resource: URI): void;
+
+	/**
+	 * Fires when the server applies an action to subscribable state.
+	 * Clients use this alongside {@link subscribe} to keep their local
+	 * state in sync.
+	 */
+	readonly onDidAction: Event<IActionEnvelope>;
+
+	/**
+	 * Fires when the server broadcasts an ephemeral notification
+	 * (e.g. sessionAdded, sessionRemoved).
+	 */
+	readonly onDidNotification: Event<INotification>;
+
+	/**
+	 * Dispatch a client-originated action to the server. The server applies
+	 * it to state, triggers side effects, and echoes it back via
+	 * {@link onDidAction} with the client's origin for reconciliation.
+	 */
+	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void;
 }
 
 export const IAgentHostService = createDecorator<IAgentHostService>('agentHostService');
@@ -388,6 +422,8 @@ export const IAgentHostService = createDecorator<IAgentHostService>('agentHostSe
  */
 export interface IAgentHostService extends IAgentService {
 
+	/** Unique identifier for this client window, used as the origin in action envelopes. */
+	readonly clientId: string;
 	readonly onAgentHostExit: Event<number>;
 	readonly onAgentHostStart: Event<void>;
 

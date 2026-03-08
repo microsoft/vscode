@@ -1502,6 +1502,7 @@ export default tseslint.config(
 						'vscode-regexpp',
 						'vscode-textmate',
 						'worker_threads',
+						'ws',
 						'@xterm/addon-clipboard',
 						'@xterm/addon-image',
 						'@xterm/addon-ligatures',

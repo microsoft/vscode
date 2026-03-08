@@ -6,7 +6,10 @@
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IAgentHostService, AgentHostEnabledSettingId, IAgentDescriptor } from '../../../../../../platform/agent/common/agentService.js';
+import { IAgentHostService, AgentHostEnabledSettingId, type AgentProvider } from '../../../../../../platform/agent/common/agentService.js';
+import { isSessionAction } from '../../../../../../platform/agent/common/state/sessionActions.js';
+import { SessionClientState } from '../../../../../../platform/agent/common/state/sessionClientState.js';
+import { ROOT_STATE_URI, type IAgentInfo, type IRootState } from '../../../../../../platform/agent/common/state/sessionState.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../../../../platform/log/common/log.js';
@@ -40,6 +43,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	private _outputChannel: IOutputChannel | undefined;
 	private _isChannelRegistered = false;
+	private _clientState: SessionClientState | undefined;
+	private readonly _agentRegistrations = new Map<AgentProvider, DisposableStore>();
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
@@ -61,7 +66,30 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 
 		this._setupIpcLogging();
-		this._discoverAndRegisterAgents();
+
+		// Shared client state for protocol reconciliation
+		this._clientState = this._register(new SessionClientState(this._agentHostService.clientId));
+
+		// Forward action envelopes from the host to client state
+		this._register(this._agentHostService.onDidAction(envelope => {
+			// Only root actions are relevant here; session actions are
+			// handled by individual session handlers.
+			if (!isSessionAction(envelope.action)) {
+				this._clientState!.receiveEnvelope(envelope);
+			}
+		}));
+
+		// Forward notifications to client state
+		this._register(this._agentHostService.onDidNotification(n => {
+			this._clientState!.receiveNotification(n);
+		}));
+
+		// React to root state changes (agent discovery / removal)
+		this._register(this._clientState.onDidChangeRootState(rootState => {
+			this._handleRootStateChange(rootState);
+		}));
+
+		this._initializeAndSubscribe();
 	}
 
 	// ---- IPC output channel (trace-level only) ------------------------------
@@ -70,9 +98,12 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._updateOutputChannel();
 		this._register(this._logService.onDidChangeLogLevel(() => this._updateOutputChannel()));
 
-		// Subscribe to all progress events for IPC logging
-		this._register(this._agentHostService.onDidSessionProgress(e => {
-			this._traceIpc('event', 'onDidSessionProgress', e);
+		// Subscribe to action / notification streams for IPC logging
+		this._register(this._agentHostService.onDidAction(e => {
+			this._traceIpc('event', 'onDidAction', e);
+		}));
+		this._register(this._agentHostService.onDidNotification(e => {
+			this._traceIpc('event', 'onDidNotification', e);
 		}));
 	}
 
@@ -125,9 +156,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._outputChannel.append(`[${timestamp}] [trace] ${arrow} ${method}${payload ? `\n${payload}` : ''}\n`);
 	}
 
-	private async _discoverAndRegisterAgents(): Promise<void> {
+	private async _initializeAndSubscribe(): Promise<void> {
 		try {
-			// Send identity data before discovering agents so providers
+			// Send identity data before subscribing so providers
 			// can configure their API clients with the correct machine ID
 			await this._agentHostService.initialize({
 				machineId: this._telemetryService.machineId,
@@ -135,20 +166,40 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				quality: this._productService.quality ?? '',
 			});
 
-			const agents = await this._agentHostService.listAgents();
+			const snapshot = await this._agentHostService.subscribe(ROOT_STATE_URI);
 			if (this._store.isDisposed) {
 				return;
 			}
-			for (const agent of agents) {
-				this._registerAgent(agent);
-			}
+			// Feed snapshot into client state — fires onDidChangeRootState
+			this._clientState!.handleSnapshot(ROOT_STATE_URI, snapshot.state, snapshot.fromSeq);
 		} catch (err) {
-			this._logService.error('[AgentHost] Failed to discover agents', err);
+			this._logService.error('[AgentHost] Failed to initialize and subscribe to root state', err);
 		}
 	}
 
-	private _registerAgent(agent: IAgentDescriptor): void {
-		const store = this._register(new DisposableStore());
+	private _handleRootStateChange(rootState: IRootState): void {
+		const incoming = new Set(rootState.agents.map(a => a.provider));
+
+		// Remove agents that are no longer present
+		for (const [provider, store] of this._agentRegistrations) {
+			if (!incoming.has(provider)) {
+				store.dispose();
+				this._agentRegistrations.delete(provider);
+			}
+		}
+
+		// Register new agents
+		for (const agent of rootState.agents) {
+			if (!this._agentRegistrations.has(agent.provider)) {
+				this._registerAgent(agent);
+			}
+		}
+	}
+
+	private _registerAgent(agent: IAgentInfo): void {
+		const store = new DisposableStore();
+		this._agentRegistrations.set(agent.provider, store);
+		this._register(store);
 		const sessionType = `agent-host-${agent.provider}`;
 		const agentId = sessionType;
 		const vendor = sessionType;
@@ -184,14 +235,12 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const modelProvider = store.add(this._instantiationService.createInstance(AgentHostLanguageModelProvider, sessionType, vendor, agent.provider));
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
 
-		// Auth (only for agents that need it)
-		if (agent.requiresAuth) {
-			this._pushAuthToken().then(() => modelProvider.refresh());
-			store.add(this._defaultAccountService.onDidChangeDefaultAccount(() =>
-				this._pushAuthToken().then(() => modelProvider.refresh())));
-			store.add(this._authenticationService.onDidChangeSessions(() =>
-				this._pushAuthToken().then(() => modelProvider.refresh())));
-		}
+		// Push auth token and refresh models for all agents
+		this._pushAuthToken().then(() => modelProvider.refresh()).catch(() => { /* best-effort */ });
+		store.add(this._defaultAccountService.onDidChangeDefaultAccount(() =>
+			this._pushAuthToken().then(() => modelProvider.refresh()).catch(() => { /* best-effort */ })));
+		store.add(this._authenticationService.onDidChangeSessions(() =>
+			this._pushAuthToken().then(() => modelProvider.refresh()).catch(() => { /* best-effort */ })));
 	}
 
 	private async _pushAuthToken(): Promise<void> {
