@@ -73,14 +73,18 @@ export class TraceViewerPanel {
 
 	private setupMessageHandler(): void {
 		this.panel.webview.onDidReceiveMessage(
-			(message: { type: string; format?: string }) => {
+			async (message: { type: string; format?: string }) => {
 				switch (message.type) {
 					case 'exportTraces': {
 						const spans = this.agentManager.getAllSpans();
 						const tasks = this.agentManager.getAllTasks();
 						const data = JSON.stringify({ spans, tasks }, null, 2);
-						vscode.env.clipboard.writeText(data);
-						vscode.window.showInformationMessage('Traces copied to clipboard as JSON.');
+						try {
+							await vscode.env.clipboard.writeText(data);
+							vscode.window.showInformationMessage('Traces copied to clipboard as JSON.');
+						} catch (error) {
+							vscode.window.showErrorMessage('Failed to copy traces to clipboard.');
+						}
 						break;
 					}
 					case 'refresh':
