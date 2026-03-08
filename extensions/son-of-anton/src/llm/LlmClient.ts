@@ -17,6 +17,10 @@ export interface LlmRequestOptions {
 	maxTokens?: number;
 	systemPrompt?: string;
 	signal?: AbortSignal;
+	/** Enable prompt caching for the system prompt. */
+	enableCaching?: boolean;
+	/** Agent handle for cache metrics tracking. */
+	agentHandle?: string;
 }
 
 export interface LlmStreamToken {
@@ -30,6 +34,8 @@ export interface LlmStreamComplete {
 	inputTokens: number;
 	outputTokens: number;
 	cachedTokens: number;
+	cacheCreationTokens: number;
+	cacheReadTokens: number;
 }
 
 export interface LlmStreamError {
@@ -67,13 +73,13 @@ export class LlmClient {
 	/**
 	 * Map our model shorthand to the full model ID.
 	 */
-getModelId(model: ModelId): string {
+	getModelId(model: ModelId): string {
 		switch (model) {
 			case 'opus': return 'claude-3-opus-20240229';
 			case 'sonnet': return 'claude-3-sonnet-20240229';
 			case 'haiku': return 'claude-3-haiku-20240307';
 		}
-	}
+
 	}
 
 	/**
@@ -92,10 +98,16 @@ getModelId(model: ModelId): string {
 		}
 
 		const modelId = this.getModelId(options.model);
+
+		// Build system prompt with cache control for prompt caching
+		const systemContent = options.enableCaching
+			? [{ type: 'text', text: options.systemPrompt ?? 'You are a helpful coding assistant.', cache_control: { type: 'ephemeral' } }]
+			: options.systemPrompt ?? 'You are a helpful coding assistant.';
+
 		const body = {
 			model: modelId,
 			max_tokens: options.maxTokens ?? 4096,
-			system: options.systemPrompt ?? 'You are a helpful coding assistant.',
+			system: systemContent,
 			messages: options.messages.map(m => ({
 				role: m.role,
 				content: m.content,
@@ -103,14 +115,21 @@ getModelId(model: ModelId): string {
 			stream: true,
 		};
 
+		const headers: Record<string, string> = {
+			'Content-Type': 'application/json',
+			'x-api-key': apiKey,
+			'anthropic-version': '2023-06-01',
+		};
+
+		// Enable prompt caching beta header
+		if (options.enableCaching) {
+			headers['anthropic-beta'] = 'prompt-caching-2024-07-31';
+		}
+
 		try {
 			const response = await fetch('https://api.anthropic.com/v1/messages', {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'x-api-key': apiKey,
-					'anthropic-version': '2023-06-01',
-				},
+				headers,
 				body: JSON.stringify(body),
 				signal: options.signal,
 			});
@@ -131,6 +150,8 @@ getModelId(model: ModelId): string {
 			let fullText = '';
 			let inputTokens = 0;
 			let outputTokens = 0;
+			let cacheCreationTokens = 0;
+			let cacheReadTokens = 0;
 			let buffer = '';
 
 			while (true) {
@@ -161,6 +182,8 @@ getModelId(model: ModelId): string {
 							yield { type: 'token', token };
 						} else if (event.type === 'message_start' && event.message?.usage) {
 							inputTokens = event.message.usage.input_tokens ?? 0;
+							cacheCreationTokens = event.message.usage.cache_creation_input_tokens ?? 0;
+							cacheReadTokens = event.message.usage.cache_read_input_tokens ?? 0;
 						} else if (event.type === 'message_delta' && event.usage) {
 							outputTokens = event.usage.output_tokens ?? 0;
 						}
@@ -172,13 +195,16 @@ getModelId(model: ModelId): string {
 
 			this.totalInputTokens += inputTokens;
 			this.totalOutputTokens += outputTokens;
+			this.totalCachedTokens += cacheReadTokens;
 
 			yield {
 				type: 'complete',
 				fullText,
 				inputTokens,
 				outputTokens,
-				cachedTokens: 0,
+				cachedTokens: cacheReadTokens,
+				cacheCreationTokens,
+				cacheReadTokens,
 			};
 		} catch (err) {
 			if (options.signal?.aborted) {
