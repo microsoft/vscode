@@ -53,7 +53,7 @@ export interface ILiquidViewContribution {
  */
 export interface ILiquidDataProviderContribution {
 	readonly id: string;
-	readonly entities: string[];
+	readonly entities: readonly string[];
 	/** Relative path to the provider module within the extension. */
 	readonly provider: string;
 }
@@ -69,7 +69,7 @@ export interface ILiquidSidebarContribution {
 	readonly view?: string;
 	readonly icon?: string;
 	readonly order?: number;
-	readonly children?: ILiquidSidebarContribution[];
+	readonly children?: readonly ILiquidSidebarContribution[];
 }
 
 // ==================== Resolved Types ====================
