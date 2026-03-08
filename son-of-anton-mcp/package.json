@@ -3,7 +3,7 @@
 	"version": "1.0.0",
 	"description": "Son of Anton — MCP server definitions and gateway configuration",
 	"scripts": {
-		"build": "npm --prefix servers/database run build && npm --prefix servers/deployment run build && npm --prefix servers/tickets run build",
+		"build": "npm --prefix servers/database run build && npm --prefix servers/deployment run build && npm --prefix servers/tickets run build && npm --prefix servers/playwright run build",
 		"test": "bash scripts/test-all.sh"
 	},
 	"private": true

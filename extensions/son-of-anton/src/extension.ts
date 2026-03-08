@@ -21,6 +21,9 @@ import { SecurityScanner } from './security/SecurityScanner';
 import { SupplyChainGuard } from './security/SupplyChainGuard';
 import { HookEngine } from './hooks/HookEngine';
 import { SpecSyncWatcher } from './hooks/SpecSyncWatcher';
+import { BackgroundTaskClient } from './background/BackgroundTaskClient';
+import { FleetDashboardPanel } from './dashboard/FleetDashboardPanel';
+import { MetricsTracker } from './agents/MetricsTracker';
 
 export function activate(context: vscode.ExtensionContext): void {
 	const llmClient = new LlmClient(context);
@@ -185,7 +188,105 @@ export function activate(context: vscode.ExtensionContext): void {
 		})
 	);
 
-	// Dispose sandbox, security, and spec sync on deactivation
+	// --- Background Tasks ---
+	const backgroundClient = new BackgroundTaskClient();
+	const metricsTracker = new MetricsTracker();
+
+	// Check for completed background tasks on reconnect
+	backgroundClient.checkOnReconnect();
+
+	// Background task notification handler
+	context.subscriptions.push(
+		backgroundClient.onDidCompleteTask(task => {
+			agentStatusProvider.refresh();
+		})
+	);
+
+	// Create background task command
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.createBackgroundTask', async () => {
+			const name = await vscode.window.showInputBox({
+				prompt: 'Task name',
+				placeHolder: 'e.g., Generate E2E tests',
+			});
+			if (!name) {
+				return;
+			}
+
+			const description = await vscode.window.showInputBox({
+				prompt: 'Task description',
+				placeHolder: 'Describe what the task should do...',
+			});
+			if (!description) {
+				return;
+			}
+
+			try {
+				const task = await backgroundClient.createTask({
+					name,
+					description,
+					projectPath: workspacePath,
+				});
+				vscode.window.showInformationMessage(
+					`Background task "${task.name}" started (ID: ${task.id})`
+				);
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				vscode.window.showErrorMessage(`Failed to create background task: ${message}`);
+			}
+		})
+	);
+
+	// View background task results
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.showBackgroundTaskResults', async (taskId?: string) => {
+			if (!taskId) {
+				const tasks = await backgroundClient.listTasks('completed');
+				if (tasks.length === 0) {
+					vscode.window.showInformationMessage('No completed background tasks.');
+					return;
+				}
+				const pick = await vscode.window.showQuickPick(
+					tasks.map(t => ({
+						label: t.name,
+						description: t.status,
+						detail: t.progress.message,
+						taskId: t.id,
+					})),
+					{ placeHolder: 'Select a task to view results' },
+				);
+				if (!pick) {
+					return;
+				}
+				taskId = pick.taskId;
+			}
+
+			const results = await backgroundClient.getTaskResults(taskId);
+			const content = Object.entries(results)
+				.map(([file, data]) => `## ${file}\n\`\`\`\n${data}\n\`\`\``)
+				.join('\n\n');
+
+			const doc = await vscode.workspace.openTextDocument({
+				content: content || 'No results available.',
+				language: 'markdown',
+			});
+			vscode.window.showTextDocument(doc);
+		})
+	);
+
+	// --- Fleet Dashboard ---
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.showFleetDashboard', () => {
+			FleetDashboardPanel.createOrShow(
+				context.extensionUri,
+				agentManager,
+				metricsTracker,
+				backgroundClient,
+			);
+		})
+	);
+
+	// Dispose sandbox, security, spec sync, and background client on deactivation
 	context.subscriptions.push({
 		dispose: () => {
 			sandboxManager.destroy();
@@ -194,6 +295,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			hookEngine.dispose();
 			sandboxTerminal.dispose();
 			specSyncWatcher.dispose();
+			backgroundClient.dispose();
 		}
 	});
 }

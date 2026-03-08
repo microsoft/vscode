@@ -246,6 +246,75 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  mcp-playwright:
+    build:
+      context: ./son-of-anton-mcp/servers/playwright
+      dockerfile: Dockerfile
+    container_name: soa-mcp-playwright
+    ports:
+      - "${MCP_PLAYWRIGHT_PORT:-3105}:3105"
+    environment:
+      - MCP_PLAYWRIGHT_PORT=3105
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-localhost,127.0.0.1}
+    networks:
+      - sandbox-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3105/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    restart: unless-stopped
+
+  background-tasks:
+    build:
+      context: ./services/background-tasks
+      dockerfile: Dockerfile
+    container_name: soa-background-tasks
+    ports:
+      - "${BACKGROUND_TASKS_PORT:-8093}:8093"
+    environment:
+      - BACKGROUND_TASKS_PORT=${BACKGROUND_TASKS_PORT:-8093}
+      - STATE_DIR=/data/background
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - MCP_GATEWAY_URL=http://mcp-gateway:3100
+    volumes:
+      - ${PROJECT_PATH:-.}:/workspace:rw
+      - background-tasks-data:/data/background
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8093/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  visual-regression:
+    build:
+      context: ./services/visual-regression
+      dockerfile: Dockerfile
+    container_name: soa-visual-regression
+    ports:
+      - "${VISUAL_REGRESSION_PORT:-8094}:8094"
+    environment:
+      - VISUAL_REGRESSION_PORT=${VISUAL_REGRESSION_PORT:-8094}
+      - BASELINES_DIR=/workspace/.son-of-anton/visual-baselines
+      - DIFF_THRESHOLD=${DIFF_THRESHOLD:-0.01}
+    volumes:
+      - ${PROJECT_PATH:-.}:/workspace:rw
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8094/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
 networks:
   sandbox-net:
     driver: bridge
@@ -256,4 +325,6 @@ volumes:
   qdrant-data:
     driver: local
   lsif-snapshots:
+    driver: local
+  background-tasks-data:
     driver: local

@@ -71,6 +71,35 @@
 				]
 			},
 			{
+				"id": "sota.anton-e2e",
+				"name": "anton-e2e",
+				"fullName": "Anton E2E",
+				"description": "E2E test specialist — generates browser-based end-to-end tests",
+				"commands": [
+					{ "name": "e2e", "description": "Generate E2E tests for user flows" },
+					{ "name": "visual", "description": "Run visual regression tests" }
+				]
+			},
+			{
+				"id": "sota.anton-ci",
+				"name": "anton-ci",
+				"fullName": "Anton CI",
+				"description": "CI/CD specialist — monitors pipelines and fixes failures",
+				"commands": [
+					{ "name": "ci-status", "description": "Check CI pipeline status" },
+					{ "name": "ci-fix", "description": "Analyse and fix CI failures" }
+				]
+			},
+			{
+				"id": "sota.anton-pr",
+				"name": "anton-pr",
+				"fullName": "Anton PR",
+				"description": "PR generation specialist — creates merge-ready pull requests",
+				"commands": [
+					{ "name": "pr", "description": "Generate a pull request for changes" }
+				]
+			},
+			{
 				"id": "sota.anton-spec",
 				"name": "anton-spec",
 				"fullName": "Anton Spec",
@@ -124,6 +153,18 @@
 			{
 				"command": "sota.listSpecs",
 				"title": "Son of Anton: List Spec Features"
+			},
+			{
+				"command": "sota.createBackgroundTask",
+				"title": "Son of Anton: Create Background Task"
+			},
+			{
+				"command": "sota.showBackgroundTaskResults",
+				"title": "Son of Anton: Show Background Task Results"
+			},
+			{
+				"command": "sota.showFleetDashboard",
+				"title": "Son of Anton: Show Fleet Dashboard"
 			}
 		],
 		"keybindings": [

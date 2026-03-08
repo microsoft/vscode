@@ -1,0 +1,21 @@
+{
+	"name": "soa-background-tasks",
+	"version": "1.0.0",
+	"description": "Son of Anton — Background Task Manager service",
+	"main": "dist/index.js",
+	"scripts": {
+		"build": "tsc",
+		"start": "node dist/index.js",
+		"dev": "tsc --watch & nodemon dist/index.js",
+		"test": "node --test test/**/*.test.js"
+	},
+	"dependencies": {
+		"dockerode": "^4.0.0"
+	},
+	"devDependencies": {
+		"@types/dockerode": "^3.3.0",
+		"@types/node": "^20.0.0",
+		"typescript": "^5.6.0"
+	},
+	"private": true
+}
