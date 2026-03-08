@@ -1,0 +1,11 @@
+{
+  "name": "soa-mcp-gateway",
+  "version": "0.1.0",
+  "description": "Son of Anton — MCP gateway",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "private": true
+}

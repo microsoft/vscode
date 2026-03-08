@@ -1,0 +1,210 @@
+name: Son of Anton — Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  VSCODE_QUALITY: 'oss'
+
+jobs:
+  compile:
+    name: Compile & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Type check build scripts
+        run: npm run typecheck
+        working-directory: build
+
+      - name: Compile & Hygiene
+        run: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test-ubuntu:
+    name: Unit Tests (Ubuntu)
+    needs: compile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run unit tests
+        run: ./scripts/test.sh
+
+  test-macos:
+    name: Unit Tests (macOS)
+    needs: compile
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run unit tests
+        run: ./scripts/test.sh
+
+  docker-services:
+    name: Docker Services Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build indexer image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/indexer
+          push: false
+          tags: soa-indexer:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build lsif image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/lsif
+          push: false
+          tags: soa-lsif:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build mcp-gateway image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/mcp-gateway
+          push: false
+          tags: soa-mcp-gateway:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  docker-integration:
+    name: Docker Compose Integration
+    needs: docker-services
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start services
+        run: docker compose up -d --wait --wait-timeout 120
+
+      - name: Verify all services are healthy
+        run: |
+          docker compose ps --format json | jq -e '.[] | select(.Health != "healthy")' && exit 1 || true
+          echo "All services healthy"
+
+      - name: Test FalkorDB connectivity
+        run: |
+          docker compose exec -T falkordb redis-cli GRAPH.QUERY son-of-anton "RETURN 1"
+
+      - name: Test Qdrant connectivity
+        run: |
+          curl -sf http://localhost:6333/readyz
+
+      - name: Test MCP Gateway health
+        run: |
+          curl -sf http://localhost:3100/health
+
+      - name: Collect logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  build-electron:
+    name: Build Electron Binary
+    needs: compile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev libsecret-1-dev
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build
+        run: npm run compile
+
+      - name: Upload build artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: son-of-anton-linux-x64
+          path: out/
+          retention-days: 7
