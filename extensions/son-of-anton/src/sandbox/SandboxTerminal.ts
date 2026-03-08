@@ -42,7 +42,7 @@ export class SandboxTerminal implements vscode.Pseudoterminal {
 	private terminal: vscode.Terminal | undefined;
 
 	open(): void {
-		this.writeLine(`${COLOURS.cyan}${COLOURS.bold}[Son of Anton]${COLOURS.reset} Sandbox terminal ready.\r\n`);
+		this.writeLine(`${COLOURS.cyan}${COLOURS.bold}[Son of Anton]${COLOURS.reset} Sandbox terminal ready.`);
 	}
 
 	close(): void {
