@@ -1322,7 +1322,7 @@ export class BaseIssueReporterService extends Disposable {
 		return baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
 	}
 
-	public addTemplateToUrl(baseUrl: string, owner?: string, repositoryName?: string): string {
+	public addTemplateToUrl(baseUrl: string, _owner?: string, _repositoryName?: string): string {
 		const isProduct = this.issueReporterModel.getData().fileOnProduct;
 		const needsTemplate = isProduct;
 
