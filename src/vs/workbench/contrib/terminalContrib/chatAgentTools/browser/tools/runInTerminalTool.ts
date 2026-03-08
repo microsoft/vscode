@@ -880,9 +880,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					resultText += `\n\ The command is still running, with output:\n${pollingResult.output}`;
 				}
 
+				const endCwd = await toolTerminal.instance.getCwdResource();
 				return {
 					toolMetadata: {
-						exitCode: undefined // Background processes don't have immediate exit codes
+						exitCode: undefined, // Background processes don't have immediate exit codes
+						terminalId: termId,
+						cwd: endCwd?.fsPath,
 					},
 					content: [{
 						kind: 'text',
@@ -918,10 +921,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						toolResultMessage = altBufferMessage;
 						outputLineCount = 0;
 						error = executeResult.error ?? 'alternateBuffer';
+						const altBufferCwd = await toolTerminal.instance.getCwdResource();
 						altBufferResult = {
 							toolResultMessage,
 							toolMetadata: {
-								exitCode: undefined
+								exitCode: undefined,
+								terminalId: termId,
+								cwd: altBufferCwd?.fsPath,
 							},
 							content: [{
 								kind: 'text',
@@ -1058,10 +1064,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		resultText.push(terminalResult);
 
 		const isError = exitCode !== undefined && exitCode !== 0;
+		const endCwd = await toolTerminal.instance.getCwdResource();
 		return {
 			toolResultMessage,
 			toolMetadata: {
-				exitCode: exitCode
+				exitCode: exitCode,
+				terminalId: termId,
+				cwd: endCwd?.fsPath,
 			},
 			toolResultDetails: isError ? {
 				input: command,
