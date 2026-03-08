@@ -47,6 +47,7 @@ import { PhononHUDContribution } from './views/phononAgentHUD.js';
 import { ILiquidModuleRegistry } from '../common/liquidModule.js';
 import { LiquidModuleRegistry } from './liquidModuleRegistry.js';
 import { registerLiquidExtensionPointHandlers } from './liquidExtensionPoints.js';
+import { registerLiquidSidebarTreeView } from './liquidSidebarTreeView.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { registerEditorContribution, EditorContributionInstantiation } from '../../../../editor/browser/editorExtensions.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
@@ -92,6 +93,7 @@ class PhononContribution extends Disposable implements IWorkbenchContribution {
 		this._registerMcpBridge();
 		this._registerPlaywrightTools();
 		registerLiquidExtensionPointHandlers(this.liquidModuleRegistry as LiquidModuleRegistry);
+		registerLiquidSidebarTreeView(this.instantiationService, this.liquidModuleRegistry, this.logService);
 	}
 
 	private _markChatProviderInstalled(): void {
