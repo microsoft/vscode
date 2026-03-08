@@ -219,6 +219,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}));
 
 		this._register(this._branchPicker.onDidChange((branch) => {
+			this._newSession.value?.setBranch(branch);
 			this._syncIndicator.setBranch(branch);
 			this._updateDraftState();
 			this._focusEditor();
@@ -366,10 +367,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const target = this._targetPicker.selectedTarget;
 		if (target === AgentSessionProviders.Background) {
 			session.setIsolationMode(this._isolationModePicker.isolationMode);
-			this._branchPicker.setNewSession(session);
+			if (this._branchPicker.selectedBranch) {
+				session.setBranch(this._branchPicker.selectedBranch);
+			}
 			this._repoPicker.setNewSession(undefined);
 		} else {
-			this._branchPicker.setNewSession(undefined);
 			this._repoPicker.setNewSession(session);
 		}
 

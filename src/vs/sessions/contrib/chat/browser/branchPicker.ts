@@ -12,8 +12,6 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { INewSession } from './newSession.js';
-
 const COPILOT_WORKTREE_PATTERN = 'copilot-worktree-';
 const FILTER_THRESHOLD = 10;
 
@@ -32,7 +30,6 @@ export class BranchPicker extends Disposable {
 
 	private _selectedBranch: string | undefined;
 	private _preferredBranch: string | undefined;
-	private _newSession: INewSession | undefined;
 	private _branches: string[] = [];
 
 	private readonly _onDidChange = this._register(new Emitter<string | undefined>());
@@ -63,13 +60,6 @@ export class BranchPicker extends Disposable {
 	}
 
 	/**
-	 * Sets the new session that this picker writes to.
-	 */
-	setNewSession(session: INewSession | undefined): void {
-		this._newSession = session;
-	}
-
-	/**
 	 * Sets the git repository and loads its branches.
 	 * When undefined, the picker is shown disabled.
 	 */
@@ -78,7 +68,7 @@ export class BranchPicker extends Disposable {
 		this._selectedBranch = undefined;
 
 		if (!repository) {
-			this._newSession?.setBranch(undefined);
+			this._onDidChange.fire(undefined);
 			this._setLoading(false);
 			this._updateTriggerLabel();
 			return;
@@ -196,7 +186,6 @@ export class BranchPicker extends Disposable {
 	private _selectBranch(branch: string): void {
 		if (this._selectedBranch !== branch) {
 			this._selectedBranch = branch;
-			this._newSession?.setBranch(branch);
 			this._onDidChange.fire(branch);
 			this._updateTriggerLabel();
 		}
