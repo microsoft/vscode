@@ -884,8 +884,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				return {
 					toolMetadata: {
 						exitCode: undefined, // Background processes don't have immediate exit codes
-						terminalId: termId,
-						cwd: endCwd?.fsPath,
+						id: termId,
+						cwd: endCwd?.toString(),
 					},
 					content: [{
 						kind: 'text',
@@ -926,8 +926,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							toolResultMessage,
 							toolMetadata: {
 								exitCode: undefined,
-								terminalId: termId,
-								cwd: altBufferCwd?.fsPath,
+								id: termId,
+								cwd: altBufferCwd?.toString(),
 							},
 							content: [{
 								kind: 'text',
@@ -1069,8 +1069,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolResultMessage,
 			toolMetadata: {
 				exitCode: exitCode,
-				terminalId: termId,
-				cwd: endCwd?.fsPath,
+				id: termId,
+				cwd: endCwd?.toString(),
 			},
 			toolResultDetails: isError ? {
 				input: command,
