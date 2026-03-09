@@ -582,7 +582,8 @@ export class ModelPickerWidget extends Disposable {
 		const isPro = isProUser(this._entitlementService.entitlement);
 		const manifest = this._languageModelsService.getModelsControlManifest();
 		const controlModelsForTier = isPro ? manifest.paid : manifest.free;
-		const manageModelsAction = shouldShowManageModelsAction(this._entitlementService) ? createManageModelsAction(this._commandService) : undefined;
+		const canShowManageModelsAction = this._delegate.canManageModels() && shouldShowManageModelsAction(this._entitlementService);
+		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
 		const additionalEntries = !showFilter && manageModelsAction
 			? [createManageModelsEntry(manageModelsAction, undefined)]
 			: undefined;
