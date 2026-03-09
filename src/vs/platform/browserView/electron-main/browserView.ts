@@ -273,6 +273,12 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		webContents.on('did-navigate', fireNavigationEvent);
 		webContents.on('did-navigate-in-page', fireNavigationEvent);
 
+		// Chromium resets the zoom factor to its per-origin default (100%) when
+		// navigating to a new document. Re-apply our stored zoom to override it.
+		webContents.on('did-navigate', () => {
+			this._view.webContents.setZoomFactor(browserZoomFactors[this._browserZoomIndex]);
+		});
+
 		// Focus events
 		webContents.on('focus', () => {
 			this._onDidChangeFocus.fire({ focused: true });

@@ -354,9 +354,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._canGoForward = e.canGoForward;
 
 			// Apply the zoom for the newly navigated origin.
+			// forceApply=true because Chromium resets zoom on cross-document navigation,
+			// making the local _browserZoomIndex cache stale even if the value looks correct.
 			if (originChanged) {
 				void this.setBrowserZoomIndex(
-					this.zoomService.getEffectiveZoomIndex(this._origin, this._isEphemeral)
+					this.zoomService.getEffectiveZoomIndex(this._origin, this._isEphemeral),
+					true
 				);
 			}
 		}));
@@ -457,9 +460,14 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.clearStorage(this.id);
 	}
 
-	private async setBrowserZoomIndex(zoomIndex: number): Promise<void> {
+	/**
+	 * @param forceApply When true, the IPC call is made even if the local cached zoom index
+	 * already matches the requested value. Pass true after cross-document navigation because
+	 * Chromium resets the zoom to its per-origin default, making the cache stale.
+	 */
+	private async setBrowserZoomIndex(zoomIndex: number, forceApply = false): Promise<void> {
 		const clamped = Math.max(0, Math.min(zoomIndex, browserZoomFactors.length - 1));
-		if (clamped === this._browserZoomIndex) {
+		if (!forceApply && clamped === this._browserZoomIndex) {
 			return;
 		}
 		this._browserZoomIndex = clamped;
