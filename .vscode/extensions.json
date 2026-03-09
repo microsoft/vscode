@@ -10,5 +10,8 @@
 		"jrieken.vscode-pr-pinger",
 		"typescriptteam.native-preview",
 		"ms-vscode.ts-customized-language-service"
+	],
+	"forceInstall": [
+		"ms-vscode.vscode-extras"
 	]
 }

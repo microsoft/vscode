@@ -34,6 +34,15 @@ export const ExtensionsConfigurationSchema: IJSONSchema = {
 				errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
 			},
 		},
+		forceInstall: {
+			type: 'array',
+			description: localize('app.extensions.json.forceInstall', "List of workspace resource extensions (from the '.vscode/extensions' folder) that will be automatically installed when this workspace is opened in a trusted window. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),
+			items: {
+				type: 'string',
+				pattern: EXTENSION_IDENTIFIER_PATTERN,
+				errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
+			},
+		},
 	}
 };
 
