@@ -57,7 +57,8 @@ export async function getPersonalityString(
 	let value = strings[key] ?? key;
 
 	for (let i = 0; i < args.length; i++) {
-		value = value.replace(`{${i}}`, String(args[i]));
+		const placeholderRegex = new RegExp(`\\{${i}\\}`, 'g');
+		value = value.replace(placeholderRegex, String(args[i]));
 	}
 
 	return value;
