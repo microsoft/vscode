@@ -68,7 +68,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		if (session.worktree) {
 			return {
 				uri: session.worktree,
-				name: session.repository ? `${this.uriIdentityService.extUri.basename(session.repository)} (${this.uriIdentityService.extUri.basename(session.worktree)})` : this.uriIdentityService.extUri.basename(session.worktree)
+				name: session.repository ? `${this.uriIdentityService.extUri.basename(session.repository)} (${session.worktreeBranchName ?? this.uriIdentityService.extUri.basename(session.worktree)})` : this.uriIdentityService.extUri.basename(session.worktree)
 			};
 		}
 
