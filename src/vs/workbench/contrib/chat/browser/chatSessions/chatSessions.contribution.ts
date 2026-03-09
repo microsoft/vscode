@@ -1287,7 +1287,6 @@ export type NewChatSessionOpenOptions = {
 	readonly type: string;
 	readonly position: ChatSessionPosition;
 	readonly displayName: string;
-	readonly chatResource?: UriComponents;
 	readonly replaceEditor?: boolean;
 };
 
@@ -1363,10 +1362,6 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 }
 
 export function getResourceForNewChatSession(options: NewChatSessionOpenOptions): URI {
-	if (options.chatResource) {
-		return URI.revive(options.chatResource);
-	}
-
 	const isRemoteSession = options.type !== AgentSessionProviders.Local;
 	if (isRemoteSession) {
 		return URI.from({
@@ -1380,7 +1375,7 @@ export function getResourceForNewChatSession(options: NewChatSessionOpenOptions)
 		return ChatEditorInput.getNewEditorUri();
 	}
 
-	return LocalChatSessionUri.forSession(generateUuid());
+	return LocalChatSessionUri.getNewSessionUri();
 }
 
 function isAgentSessionProviderType(type: string): boolean {
