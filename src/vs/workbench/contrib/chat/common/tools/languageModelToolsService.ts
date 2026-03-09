@@ -241,6 +241,8 @@ export type ToolInputOutputReference = ToolInputOutputBase & { type: 'ref'; uri:
 
 export interface IToolResultInputOutputDetails {
 	readonly input: string;
+	/** The language ID for syntax highlighting of the input (e.g. 'javascript', 'json'). Defaults to 'json'. */
+	readonly inputLanguage?: string;
 	readonly output: (ToolInputOutputEmbedded | ToolInputOutputReference)[];
 	readonly isError?: boolean;
 	/** Raw MCP tool result for MCP App UI rendering */

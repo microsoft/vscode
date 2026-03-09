@@ -228,6 +228,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				resultDetails.input,
 				resultDetails.output,
 				!!resultDetails.isError,
+				resultDetails.inputLanguage,
 			);
 		}
 
@@ -242,6 +243,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				typeof this.toolInvocation.toolSpecificData.rawInput === 'string' ? this.toolInvocation.toolSpecificData.rawInput : JSON.stringify(this.toolInvocation.toolSpecificData.rawInput, null, 2),
 				undefined,
 				false,
+				undefined,
 			);
 		}
 

@@ -44,6 +44,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		input: string,
 		output: IToolResultInputOutputDetails['output'] | undefined,
 		isError: boolean,
+		inputLanguage: string | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@ILanguageService languageService: ILanguageService,
@@ -54,10 +55,10 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		let codeBlockIndex = codeBlockStartIndex;
 
 		// Simple factory to create code part data objects
-		const createCodePart = (data: string): IChatCollapsibleIOCodePart => ({
+		const createCodePart = (data: string, languageId = 'json'): IChatCollapsibleIOCodePart => ({
 			kind: 'code',
 			data,
-			languageId: 'json',
+			languageId,
 			codeBlockIndex: codeBlockIndex++,
 			ownerMarkdownPartId: this.codeblocksPartId,
 			options: {
@@ -82,7 +83,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			subtitle,
 			this.getAutoApproveMessageContent(),
 			context,
-			createCodePart(input),
+			createCodePart(input, inputLanguage),
 			processedOutput && processedOutput.length > 0 ? {
 				parts: processedOutput.map((o, i): ChatCollapsibleIOPart => {
 					const permalinkBasename = o.type === 'ref' || o.uri
