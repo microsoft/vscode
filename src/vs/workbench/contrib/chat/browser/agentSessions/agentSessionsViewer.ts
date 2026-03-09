@@ -856,16 +856,16 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 	private groupSessionsByRepository(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
 		const repoMap = new Map<string, IAgentSession[]>();
+		const archivedSessions: IAgentSession[] = [];
 		const noRepoLabel = localize('agentSessions.noRepository', "Other");
 
 		for (const session of sortedSessions) {
-			const badge = session.badge;
-			let repoName: string;
-			if (badge) {
-				repoName = typeof badge === 'string' ? badge : renderAsPlaintext(new MarkdownString(badge.value));
-			} else {
-				repoName = noRepoLabel;
+			if (session.isArchived()) {
+				archivedSessions.push(session);
+				continue;
 			}
+
+			const repoName = this.getRepositoryName(session) ?? noRepoLabel;
 
 			let group = repoMap.get(repoName);
 			if (!group) {
@@ -884,7 +884,70 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			});
 		}
 
+		if (archivedSessions.length > 0) {
+			result.push({
+				section: AgentSessionSection.Archived,
+				label: AgentSessionSectionLabels[AgentSessionSection.Archived],
+				sessions: archivedSessions,
+			});
+		}
+
 		return result;
+	}
+
+	private getRepositoryName(session: IAgentSession): string | undefined {
+		const metadata = session.metadata;
+		if (metadata) {
+			// repositoryNwo: "owner/repo"
+			const nwo = metadata.repositoryNwo as string | undefined;
+			if (nwo && nwo.includes('/')) {
+				return nwo.split('/').pop()!;
+			}
+
+			// repository: could be "owner/repo" or a URL
+			const repository = metadata.repository as string | undefined;
+			if (repository) {
+				if (repository.includes('/') && !repository.includes(':')) {
+					return repository.split('/').pop()!;
+				}
+				// Try to extract from URL like "https://github.com/owner/repo"
+				try {
+					const url = new URL(repository);
+					const parts = url.pathname.split('/').filter(Boolean);
+					if (parts.length >= 2) {
+						return parts[1];
+					}
+				} catch {
+					// not a URL
+				}
+			}
+
+			// repositoryUrl: "https://github.com/owner/repo"
+			const repositoryUrl = metadata.repositoryUrl as string | undefined;
+			if (repositoryUrl) {
+				try {
+					const url = new URL(repositoryUrl);
+					const parts = url.pathname.split('/').filter(Boolean);
+					if (parts.length >= 2) {
+						return parts[1];
+					}
+				} catch {
+					// not a URL
+				}
+			}
+		}
+
+		// Fallback: extract from badge (strip codicon syntax)
+		const badge = session.badge;
+		if (badge) {
+			const raw = typeof badge === 'string' ? badge : renderAsPlaintext(new MarkdownString(badge.value));
+			const cleaned = raw.replace(/\$\([^)]+\)\s*/g, '').trim();
+			if (cleaned) {
+				return cleaned;
+			}
+		}
+
+		return undefined;
 	}
 }
 
