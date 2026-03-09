@@ -520,6 +520,12 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * @param forceSaveState Used when the window is shutting down and we need to reveal and save hideFromUser terminals
 	 */
 	showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): Promise<void>;
+	/**
+	 * Moves a visible terminal instance to the background. The terminal process
+	 * remains alive but the instance is removed from its group/editor and tracked
+	 * internally so it can later be shown again via {@link showBackgroundTerminal}.
+	 */
+	moveToBackground(instance: ITerminalInstance): void;
 	revealActiveTerminal(preserveFocus?: boolean): Promise<void>;
 	moveToEditor(source: ITerminalInstance, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): void;
 	moveIntoNewEditor(source: ITerminalInstance): void;

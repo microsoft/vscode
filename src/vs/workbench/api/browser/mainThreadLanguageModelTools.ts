@@ -66,7 +66,8 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		// Only return content and metadata to EH
 		const out: Dto<IToolResult> = {
 			content: result.content,
-			toolMetadata: result.toolMetadata
+			toolMetadata: result.toolMetadata,
+			toolResultError: result.toolResultError,
 		};
 		return toolResultHasBuffers(result) ? new SerializableObjectWithBuffers(out) : out;
 	}

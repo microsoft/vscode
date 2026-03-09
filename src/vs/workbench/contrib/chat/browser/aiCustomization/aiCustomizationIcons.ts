@@ -10,7 +10,7 @@ import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.
 /**
  * Icon for the AI Customization view container (sidebar).
  */
-export const aiCustomizationViewIcon = registerIcon('ai-customization-view-icon', Codicon.sparkle, localize('aiCustomizationViewIcon', "Icon for the AI Customization view."));
+export const aiCustomizationViewIcon = registerIcon('ai-customization-view-icon', Codicon.sparkle, localize('aiCustomizationViewIcon', "Icon for the Chat Customization view."));
 
 /**
  * Icon for custom agents.
@@ -61,3 +61,18 @@ export const userIcon = registerIcon('ai-customization-user', Codicon.account, l
  * Icon for extension storage.
  */
 export const extensionIcon = registerIcon('ai-customization-extension', Codicon.extensions, localize('aiCustomizationExtensionIcon', "Icon for extension-contributed items."));
+
+/**
+ * Icon for plugin storage.
+ */
+export const pluginIcon = registerIcon('ai-customization-plugin', Codicon.plug, localize('aiCustomizationPluginIcon', "Icon for plugin-contributed items."));
+
+/**
+ * Icon for built-in storage.
+ */
+export const builtinIcon = registerIcon('ai-customization-builtin', Codicon.starFull, localize('aiCustomizationBuiltinIcon', "Icon for built-in items."));
+
+/**
+ * Icon for MCP servers.
+ */
+export const mcpServerIcon = registerIcon('ai-customization-mcp-server', Codicon.server, localize('aiCustomizationMcpServerIcon', "Icon for MCP servers."));

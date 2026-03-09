@@ -17,7 +17,7 @@ export const OpenBrowserToolData: IToolData = {
 	toolReferenceName: 'openBrowserPage',
 	displayName: localize('openBrowserTool.displayName', 'Open Browser Page'),
 	userDescription: localize('openBrowserTool.userDescription', 'Open a URL in the integrated browser'),
-	modelDescription: 'Open a new browser page in the integrated browser at the given URL. Returns a page ID that must be used with other browser tools to interact with the page.',
+	modelDescription: 'Open a new browser page in the integrated browser at the given URL. Returns a page ID that must be used with other browser tools to interact with the page. Prefer to reuse existing pages whenever possible and only call this tool if a new page is necessary.',
 	icon: Codicon.openInProduct,
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -25,14 +25,14 @@ export const OpenBrowserToolData: IToolData = {
 		properties: {
 			url: {
 				type: 'string',
-				description: 'The URL to open in the browser.'
+				description: 'The full URL to open in the browser.'
 			},
 		},
 		required: ['url'],
 	},
 };
 
-interface IOpenBrowserToolParams {
+export interface IOpenBrowserToolParams {
 	url: string;
 }
 
@@ -59,6 +59,9 @@ export class OpenBrowserTool implements IToolImpl {
 
 		if (!params.url) {
 			return errorResult('The "url" parameter is required.');
+		}
+		if (!URL.parse(params.url)) {
+			return errorResult('You must provide a complete, valid URL.');
 		}
 
 		const { pageId, summary } = await this.playwrightService.openPage(params.url);

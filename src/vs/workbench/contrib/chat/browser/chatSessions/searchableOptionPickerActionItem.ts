@@ -22,6 +22,7 @@ import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from './chatS
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IChatInputPickerOptions } from '../widget/input/chatInputPickerActionItem.js';
 
 interface ISearchableOptionQuickPickItem extends IQuickPickItem {
 	readonly optionItem: IChatSessionProviderOptionItem;
@@ -43,6 +44,7 @@ export class SearchableOptionPickerActionItem extends ChatSessionPickerActionIte
 		action: IAction,
 		initialState: { group: IChatSessionProviderOptionGroup; item: IChatSessionProviderOptionItem | undefined },
 		delegate: IChatSessionPickerDelegate,
+		pickerOptions: IChatInputPickerOptions | undefined,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -51,7 +53,7 @@ export class SearchableOptionPickerActionItem extends ChatSessionPickerActionIte
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(action, initialState, delegate, actionWidgetService, contextKeyService, keybindingService, commandService, telemetryService);
+		super(action, initialState, delegate, pickerOptions, actionWidgetService, contextKeyService, keybindingService, commandService, telemetryService);
 	}
 
 	protected override getDropdownActions(): IActionWidgetDropdownAction[] {

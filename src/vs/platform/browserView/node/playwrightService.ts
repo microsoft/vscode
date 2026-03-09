@@ -10,7 +10,6 @@ import { ILogService } from '../../log/common/log.js';
 import { IPlaywrightService } from '../common/playwrightService.js';
 import { IBrowserViewGroupRemoteService } from '../node/browserViewGroupRemoteService.js';
 import { IBrowserViewGroup } from '../common/browserViewGroup.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
 import { PlaywrightTab } from './playwrightTab.js';
 
 // eslint-disable-next-line local/code-import-patterns
@@ -33,8 +32,9 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	private _initPromise: Promise<void> | undefined;
 
 	constructor(
-		@IBrowserViewGroupRemoteService private readonly browserViewGroupRemoteService: IBrowserViewGroupRemoteService,
-		@ILogService private readonly logService: ILogService,
+		private readonly windowId: number,
+		private readonly browserViewGroupRemoteService: IBrowserViewGroupRemoteService,
+		private readonly logService: ILogService,
 	) {
 		super();
 		this._pages = this._register(new PlaywrightPageManager(logService));
@@ -77,7 +77,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		this._initPromise = (async () => {
 			try {
 				this.logService.debug('[PlaywrightService] Creating browser view group');
-				const group = await this.browserViewGroupRemoteService.createGroup();
+				const group = await this.browserViewGroupRemoteService.createGroup(this.windowId);
 
 				this.logService.debug('[PlaywrightService] Connecting to browser via CDP');
 				const playwright = await import('playwright-core');
@@ -125,18 +125,22 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		return this._pages.getSummary(pageId, true);
 	}
 
+	async invokeFunctionRaw<T>(pageId: string, fnDef: string, ...args: unknown[]): Promise<T> {
+		await this.initialize();
+
+		const vm = await import('vm');
+		const fn = vm.compileFunction(`return (${fnDef})(page, ...args)`, ['page', 'args'], { parsingContext: vm.createContext() });
+
+		return this._pages.runAgainstPage(pageId, (page) => fn(page, args));
+	}
+
 	async invokeFunction(pageId: string, fnDef: string, ...args: unknown[]): Promise<{ result: unknown; summary: string }> {
 		this.logService.info(`[PlaywrightService] Invoking function on view ${pageId}`);
 
 		try {
-			await this.initialize();
-
-			const vm = await import('vm');
-			const fn = vm.compileFunction(`return (${fnDef})(page, ...args)`, ['page', 'args'], { parsingContext: vm.createContext() });
-
 			let result;
 			try {
-				result = await this._pages.runAgainstPage(pageId, (page) => fn(page, args));
+				result = await this.invokeFunctionRaw(pageId, fnDef, ...args);
 			} catch (err: unknown) {
 				result = err instanceof Error ? err.message : String(err);
 			}
@@ -153,16 +157,6 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 			this.logService.error('[PlaywrightService] Script execution failed:', errorMessage);
 			throw err;
 		}
-	}
-
-	async captureScreenshot(pageId: string, selector?: string, fullPage?: boolean): Promise<VSBuffer> {
-		await this.initialize();
-		return this._pages.runAgainstPage(pageId, async page => {
-			const screenshotBuffer = selector
-				? await page.locator(selector).screenshot({ type: 'jpeg', quality: 80 })
-				: await page.screenshot({ type: 'jpeg', quality: 80, fullPage: fullPage ?? false });
-			return VSBuffer.wrap(screenshotBuffer);
-		});
 	}
 
 	async replyToFileChooser(pageId: string, files: string[]): Promise<{ summary: string }> {
@@ -237,6 +231,7 @@ class PlaywrightPageManager extends Disposable {
 	private readonly _initStore = this._register(new DisposableStore());
 	private _group: IBrowserViewGroup | undefined;
 	private _browser: Browser | undefined;
+	private _openContext: BrowserContext | undefined = undefined;
 
 	constructor(
 		private readonly logService: ILogService,
@@ -291,7 +286,12 @@ class PlaywrightPageManager extends Disposable {
 			throw new Error('PlaywrightPageManager has not been initialized');
 		}
 
-		const page = await this._browser.newPage();
+		if (!this._openContext) {
+			this._openContext = await this._browser.newContext();
+			this.onContextAdded(this._openContext);
+		}
+
+		const page = await this._openContext.newPage();
 		const viewId = await this.onPageAdded(page);
 
 		this._trackedPages.add(viewId);

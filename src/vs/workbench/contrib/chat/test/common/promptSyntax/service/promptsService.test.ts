@@ -11,7 +11,7 @@ import { match } from '../../../../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
-import { relativePath } from '../../../../../../../base/common/resources.js';
+import { basename, relativePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
@@ -35,13 +35,13 @@ import { IWorkbenchEnvironmentService } from '../../../../../../services/environ
 import { IFilesConfigurationService } from '../../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
 import { toUserDataProfile } from '../../../../../../../platform/userDataProfile/common/userDataProfile.js';
-import { TestContextService, TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestUserDataProfileService, TestWorkspaceTrustManagementService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage, Target } from '../../../../common/promptSyntax/service/promptsService.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
+import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -50,10 +50,11 @@ import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../servic
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
 import { IRemoteAgentService } from '../../../../../../services/remote/common/remoteAgentService.js';
 import { ChatModeKind } from '../../../../common/constants.js';
-import { HookType } from '../../../../common/promptSyntax/hookSchema.js';
+import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyService, IContextKeyChangeEvent } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IAgentPlugin, IAgentPluginCommand, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -65,6 +66,7 @@ suite('PromptsService', () => {
 	let fileService: IFileService;
 	let testPluginsObservable: ISettableObservable<readonly IAgentPlugin[]>;
 	let testAllPluginsObservable: ISettableObservable<readonly IAgentPlugin[]>;
+	let workspaceTrustService: TestWorkspaceTrustManagementService;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
@@ -165,6 +167,9 @@ suite('PromptsService', () => {
 		});
 
 		instaService.stub(IContextKeyService, new MockContextKeyService());
+
+		workspaceTrustService = disposables.add(new TestWorkspaceTrustManagementService());
+		instaService.stub(IWorkspaceTrustManagementService, workspaceTrustService);
 
 		testPluginsObservable = observableValue<readonly IAgentPlugin[]>('testPlugins', []);
 		testAllPluginsObservable = observableValue<readonly IAgentPlugin[]>('testAllPlugins', []);
@@ -488,7 +493,7 @@ suite('PromptsService', () => {
 			]);
 
 			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined);
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -659,7 +664,7 @@ suite('PromptsService', () => {
 			]);
 
 			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined);
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -733,7 +738,7 @@ suite('PromptsService', () => {
 			]);
 
 
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined);
 			const context = new ChatRequestVariableSet();
 			context.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'README.md')));
 
@@ -794,6 +799,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -850,6 +856,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local },
 				},
@@ -925,6 +932,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -943,6 +951,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1013,6 +1022,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1031,6 +1041,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1049,6 +1060,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1126,6 +1138,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/copilot-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1146,6 +1159,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1165,6 +1179,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent2.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1176,6 +1191,7 @@ suite('PromptsService', () => {
 				'Claude tools and models must be mapped to VS Code equivalents; non-Claude agents must remain unchanged.',
 			);
 		});
+
 
 		test('agents with .md extension should be recognized, except README.md', async () => {
 			const rootFolderName = 'custom-agents-md-extension';
@@ -1220,6 +1236,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
 					source: { storage: PromptsStorage.local }
 				}
@@ -1290,6 +1307,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/restricted-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1308,6 +1326,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/no-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1326,6 +1345,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/full-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1336,6 +1356,60 @@ suite('PromptsService', () => {
 				expected,
 				'Must get custom agents with agents, skills, and instructions attributes.',
 			);
+		});
+
+		test('header with infer: false sets agentInvocable to false', async () => {
+			const rootFolderName = 'custom-agents-infer-false';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/agent-infer-false.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with infer: false.\'',
+						'infer: false',
+						'---',
+						'I should not be invocable by the model.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/agent-infer-true.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with infer: true.\'',
+						'infer: true',
+						'---',
+						'I should be invocable by the model.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/agent-no-infer.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent without infer.\'',
+						'---',
+						'I should default to being invocable by the model.',
+					]
+				}
+			]);
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+
+			const inferFalseAgent = result.find(a => a.name === 'agent-infer-false');
+			assert.ok(inferFalseAgent, 'Should find agent with infer: false');
+			assert.strictEqual(inferFalseAgent.visibility.agentInvocable, false, 'infer: false should set agentInvocable to false');
+
+			const inferTrueAgent = result.find(a => a.name === 'agent-infer-true');
+			assert.ok(inferTrueAgent, 'Should find agent with infer: true');
+			assert.strictEqual(inferTrueAgent.visibility.agentInvocable, true, 'infer: true should set agentInvocable to true');
+
+			const noInferAgent = result.find(a => a.name === 'agent-no-infer');
+			assert.ok(noInferAgent, 'Should find agent without infer');
+			assert.strictEqual(noInferAgent.visibility.agentInvocable, true, 'missing infer should default agentInvocable to true');
 		});
 
 		test('agents from user data folder', async () => {
@@ -3444,16 +3518,20 @@ suite('PromptsService', () => {
 			const hooks = observableValue<readonly IAgentPluginHook[]>('testPluginHooks', initialHooks);
 			const commands = observableValue<readonly IAgentPluginCommand[]>('testPluginCommands', []);
 			const skills = observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', []);
+			const agents = observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', []);
 			const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('testPluginMcpServerDefinitions', []);
 
 			return {
 				plugin: {
 					uri: URI.file(path),
+					label: basename(URI.file(path)),
 					enabled,
 					setEnabled: () => { },
+					remove: () => { },
 					hooks,
 					commands,
 					skills,
+					agents,
 					mcpServerDefinitions,
 				},
 				hooks,
@@ -3559,6 +3637,88 @@ suite('PromptsService', () => {
 			const after = await service.getHooks(CancellationToken.None);
 			assert.ok(after, 'Expected hooks result after plugin update');
 			assert.deepStrictEqual(after.hooks[HookType.PreToolUse], [{ type: 'command', command: 'echo after' }]);
+		});
+
+		test('returns undefined when workspace is untrusted', async function () {
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/test-workspace')));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, { [HOOKS_SOURCE_FOLDER]: true });
+
+			await mockFiles(fileService, [
+				{
+					path: '/test-workspace/.github/hooks/my-hook.json',
+					contents: [
+						JSON.stringify({
+							hooks: {
+								[HookType.PreToolUse]: [
+									{ type: 'command', command: 'echo test' },
+								],
+							},
+						}),
+					],
+				},
+			]);
+
+			// Trusted workspace should return hooks
+			const trustedResult = await service.getHooks(CancellationToken.None);
+			assert.ok(trustedResult, 'Expected hooks when workspace is trusted');
+			assert.strictEqual(trustedResult.hooks[HookType.PreToolUse]?.length, 1);
+
+			// Untrusted workspace should return undefined
+			await workspaceTrustService.setWorkspaceTrust(false);
+			const untrustedResult = await service.getHooks(CancellationToken.None);
+			assert.strictEqual(untrustedResult, undefined, 'Expected undefined hooks when workspace is untrusted');
+
+			// Re-trusting should return hooks again
+			await workspaceTrustService.setWorkspaceTrust(true);
+			const reTrustedResult = await service.getHooks(CancellationToken.None);
+			assert.ok(reTrustedResult, 'Expected hooks after workspace becomes trusted again');
+			assert.strictEqual(reTrustedResult.hooks[HookType.PreToolUse]?.length, 1);
+		});
+
+		test('discovery info marks hooks as skipped when workspace is untrusted', async function () {
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/test-workspace')));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, { [HOOKS_SOURCE_FOLDER]: true });
+
+			await mockFiles(fileService, [
+				{
+					path: '/test-workspace/.github/hooks/my-hook.json',
+					contents: [
+						JSON.stringify({
+							hooks: {
+								[HookType.PreToolUse]: [
+									{ type: 'command', command: 'echo test' },
+								],
+							},
+						}),
+					],
+				},
+			]);
+
+			await workspaceTrustService.setWorkspaceTrust(false);
+			const discoveryInfo = await service.getPromptDiscoveryInfo(PromptsType.hook, CancellationToken.None);
+			assert.strictEqual(discoveryInfo.files.length, 1, 'Expected one discovery result');
+			assert.strictEqual(discoveryInfo.files[0].status, 'skipped');
+			assert.strictEqual(discoveryInfo.files[0].skipReason, 'workspace-untrusted');
+		});
+
+		test('suppresses plugin hooks when workspace is untrusted', async function () {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, {});
+
+			const { plugin } = createTestPlugin('/plugins/test-plugin', [{
+				type: HookType.PreToolUse,
+				originalId: 'plugin-pre-tool-use',
+				hooks: [{ type: 'command', command: 'echo from-plugin' }],
+			}]);
+
+			testPluginsObservable.set([plugin], undefined);
+			testAllPluginsObservable.set([plugin], undefined);
+
+			await workspaceTrustService.setWorkspaceTrust(false);
+			const result = await service.getHooks(CancellationToken.None);
+			assert.strictEqual(result, undefined, 'Expected undefined hooks when workspace is untrusted, even with plugin hooks');
 		});
 	});
 });

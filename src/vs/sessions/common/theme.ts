@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../nls.js';
-import { registerColor } from '../../platform/theme/common/colorUtils.js';
-import { contrastBorder } from '../../platform/theme/common/colorRegistry.js';
+import { registerColor, transparent } from '../../platform/theme/common/colorUtils.js';
+import { contrastBorder, iconForeground } from '../../platform/theme/common/colorRegistry.js';
 import { Color } from '../../base/common/color.js';
+import { buttonBackground } from '../../platform/theme/common/colors/inputColors.js';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../workbench/common/theme.js';
 
 // Sessions sidebar background color
@@ -47,4 +48,24 @@ export const chatBarTitleForeground = registerColor(
 	'chatBarTitle.foreground',
 	SIDE_BAR_FOREGROUND,
 	localize('chatBarTitle.foreground', 'Foreground color of the chat bar title area in the agent sessions window.')
+);
+
+// Agent feedback input widget border color
+export const agentFeedbackInputWidgetBorder = registerColor(
+	'agentFeedbackInputWidget.border',
+	{ dark: transparent(iconForeground, 0.8), light: transparent(iconForeground, 0.8), hcDark: contrastBorder, hcLight: contrastBorder },
+	localize('agentFeedbackInputWidget.border', 'Border color of the agent feedback input widget shown in the editor.')
+);
+
+// Sessions update button colors
+export const sessionsUpdateButtonDownloadingBackground = registerColor(
+	'sessionsUpdateButton.downloadingBackground',
+	transparent(buttonBackground, 0.4),
+	localize('sessionsUpdateButton.downloadingBackground', 'Background color of the update button to show download progress in the agent sessions window.')
+);
+
+export const sessionsUpdateButtonDownloadedBackground = registerColor(
+	'sessionsUpdateButton.downloadedBackground',
+	transparent(buttonBackground, 0.7),
+	localize('sessionsUpdateButton.downloadedBackground', 'Background color of the update button when download is complete in the agent sessions window.')
 );

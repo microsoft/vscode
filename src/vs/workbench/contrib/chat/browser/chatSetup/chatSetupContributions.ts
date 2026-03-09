@@ -9,6 +9,7 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, markAsSingleton, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../base/common/severity.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
@@ -231,7 +232,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; inputValue?: string }): Promise<boolean> {
+			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; inputValue?: string; dialogIcon?: ThemeIcon; dialogTitle?: string; dialogHideSkip?: boolean }): Promise<boolean> {
 				const widgetService = accessor.get(IChatWidgetService);
 				const instantiationService = accessor.get(IInstantiationService);
 				const dialogService = accessor.get(IDialogService);
@@ -249,6 +250,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				if (options?.inputValue) {
 					const chatWidget = await widgetService.revealWidget();
+					chatWidget?.input.showScrollbarUntilAccept();
 					chatWidget?.setInput(options.inputValue);
 				}
 
@@ -279,7 +281,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor): Promise<unknown> {
+			override async run(accessor: ServicesAccessor, options?: { dialogIcon?: ThemeIcon; dialogTitle?: string; dialogHideSkip?: boolean }): Promise<unknown> {
 				const commandService = accessor.get(ICommandService);
 				const telemetryService = accessor.get(ITelemetryService);
 				const chatEntitlementService = accessor.get(IChatEntitlementService);
@@ -287,7 +289,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'api' });
 
 				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, {
-					forceAnonymous: chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithDialog : undefined
+					forceAnonymous: chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithDialog : undefined,
+					...options
 				});
 			}
 		}
@@ -465,9 +468,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		//#region Editor Context Menu
 
-		function registerGenerateCodeCommand(coreCommand: 'chat.internal.explain' | 'chat.internal.fix' | 'chat.internal.review', actualCommand: string): void {
+		function registerGenerateCodeCommand(coreCommand: 'chat.internal.explain' | 'chat.internal.fix' | 'chat.internal.review' | 'chat.internal.codeReview.run', actualCommand: string): void {
 
-			CommandsRegistry.registerCommand(coreCommand, async accessor => {
+			CommandsRegistry.registerCommand(coreCommand, async (accessor, ...args) => {
 				const commandService = accessor.get(ICommandService);
 				const codeEditorService = accessor.get(ICodeEditorService);
 				const markerService = accessor.get(IMarkerService);
@@ -497,6 +500,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						if (result) {
 							await commandService.executeCommand(actualCommand);
 						}
+						break;
+					}
+					case 'chat.internal.codeReview.run': {
+						return commandService.executeCommand(actualCommand, ...args);
 					}
 				}
 			});
@@ -504,6 +511,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerGenerateCodeCommand('chat.internal.explain', 'github.copilot.chat.explain');
 		registerGenerateCodeCommand('chat.internal.fix', 'github.copilot.chat.fix');
 		registerGenerateCodeCommand('chat.internal.review', 'github.copilot.chat.review');
+		registerGenerateCodeCommand('chat.internal.codeReview.run', 'github.copilot.chat.codeReview.run');
 
 		const internalGenerateCodeContext = ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),

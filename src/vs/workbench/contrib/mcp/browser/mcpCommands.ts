@@ -550,9 +550,10 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 
 				protected override getHoverContents({ state, servers } = displayedStateCurrent.get()): string | undefined | IManagedHoverTooltipHTMLElement {
 					const link = (s: IMcpServer) => createMarkdownCommandLink({
-						title: s.definition.label,
+						text: s.definition.label,
 						id: McpCommandIds.ServerOptions,
 						arguments: [s.definition.id],
+						tooltip: localize('mcp.server.options.tooltip', 'Show server options for {0}', s.definition.label),
 					});
 
 					const single = servers.length === 1;
