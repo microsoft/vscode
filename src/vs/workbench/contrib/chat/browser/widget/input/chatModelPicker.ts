@@ -130,17 +130,16 @@ function createManageModelsAction(commandService: ICommandService): IActionWidge
 	};
 }
 
-function createManageModelsEntry(
+function createAdditionalEntry(
 	action: IActionWidgetDropdownAction,
-	section: string | undefined,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	return {
 		item: action,
 		kind: ActionListItemKind.Action,
-		label: localize('chat.manageModels', "Manage Models..."),
+		label: action.label,
 		group: { title: '', icon: Codicon.blank },
 		hideIcon: false,
-		section,
+		section: ModelPickerSection.Other,
 		showAlways: true,
 	};
 }
@@ -168,7 +167,7 @@ export function buildModelPickerItems(
 	canManageModels: boolean,
 	commandService: ICommandService,
 	chatEntitlementService: IChatEntitlementService,
-	additionalEntries?: IActionListItem<IActionWidgetDropdownAction>[],
+	additionalActions?: IActionWidgetDropdownAction[],
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -377,11 +376,13 @@ export function buildModelPickerItems(
 		}
 	}
 
-	if (additionalEntries?.length) {
+	if (additionalActions?.length) {
 		if (items.length > 0) {
-			items.push({ kind: ActionListItemKind.Separator });
+			items.push({ kind: ActionListItemKind.Separator, section: ModelPickerSection.Other });
 		}
-		items.push(...additionalEntries);
+		for (const action of additionalActions) {
+			items.push(createAdditionalEntry(action));
+		}
 	}
 
 	return items;
@@ -584,8 +585,8 @@ export class ModelPickerWidget extends Disposable {
 		const controlModelsForTier = isPro ? manifest.paid : manifest.free;
 		const canShowManageModelsAction = this._delegate.canManageModels() && shouldShowManageModelsAction(this._entitlementService);
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
-		const additionalEntries = !showFilter && manageModelsAction
-			? [createManageModelsEntry(manageModelsAction, undefined)]
+		const additionalActions = !showFilter && manageModelsAction
+			? [manageModelsAction]
 			: undefined;
 		const items = buildModelPickerItems(
 			models,
@@ -599,7 +600,7 @@ export class ModelPickerWidget extends Disposable {
 			this._delegate.canManageModels(),
 			this._commandService,
 			this._entitlementService,
-			additionalEntries,
+			additionalActions,
 		);
 
 		const listOptions = {
