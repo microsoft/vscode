@@ -305,7 +305,16 @@ export interface IAgentFeedbackVariableEntry extends IBaseChatRequestVariableEnt
 		readonly text: string;
 		readonly resourceUri: URI;
 		readonly range: IRange;
+		readonly codeSelection?: string;
 	}>;
+}
+
+export interface IChatRequestDebugEventsVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'debugEvents';
+	/** Timestamp when the debug events were snapshotted. */
+	readonly snapshotTime: number;
+	/** The session resource these debug events belong to. */
+	readonly sessionResource: URI;
 }
 
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
@@ -314,7 +323,8 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
-	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry | IAgentFeedbackVariableEntry;
+	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry | IAgentFeedbackVariableEntry
+	| IChatRequestDebugEventsVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 

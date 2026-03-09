@@ -15,10 +15,10 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'chat.implicitContext.suggestedContext': false,
 		'chat.implicitContext.enabled': { 'panel': 'never' },
 		'chat.tools.terminal.enableAutoApprove': true,
+		'github.copilot.chat.githubMcpServer.enabled': true,
 
 		'breadcrumbs.enabled': false,
 
-		'diffEditor.renderSideBySide': false,
 		'diffEditor.hideUnchangedRegions.enabled': true,
 
 		'extensions.ignoreRecommendations': true,
@@ -26,8 +26,14 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'files.autoSave': 'afterDelay',
 
 		'git.autofetch': true,
+		'git.branchRandomName.enable': true,
 		'git.detectWorktrees': false,
 		'git.showProgress': false,
+
+		'github.copilot.enable': {
+			'markdown': true,
+			'plaintext': true,
+		},
 
 		'github.copilot.chat.claudeCode.enabled': true,
 		'github.copilot.chat.cli.branchSupport.enabled': true,
@@ -39,13 +45,15 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 
 		'terminal.integrated.initialHint': false,
 
+		'workbench.editor.doubleClickTabToToggleEditorGroupSizes': 'maximize',
 		'workbench.editor.restoreEditors': false,
-		'workbench.editor.showTabs': 'single',
 		'workbench.startupEditor': 'none',
 		'workbench.tips.enabled': false,
 		'workbench.layoutControl.type': 'toggles',
 		'workbench.editor.useModal': 'all',
 		'workbench.panel.showLabels': false,
+		'workbench.colorTheme': 'Experimental Dark',
+		'search.quickOpen.includeHistory': false,
 
 		'window.menuStyle': 'custom',
 		'window.dialogStyle': 'custom',

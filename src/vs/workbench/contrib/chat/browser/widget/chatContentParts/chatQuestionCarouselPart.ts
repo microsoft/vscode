@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
@@ -17,6 +18,7 @@ import { IMarkdownRendererService } from '../../../../../../platform/markdown/br
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IChatQuestion, IChatQuestionCarousel } from '../../../common/chatService/chatService.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -29,6 +31,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import './media/chatQuestionCarousel.css';
 
 const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
@@ -51,12 +54,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private _closeButtonContainer: HTMLElement | undefined;
 	private _footerRow: HTMLElement | undefined;
 	private _stepIndicator: HTMLElement | undefined;
-	private _navigationButtons: HTMLElement | undefined;
+	private _submitHint: HTMLElement | undefined;
+	private _submitButton: Button | undefined;
 	private _prevButton: Button | undefined;
 	private _nextButton: Button | undefined;
-	private readonly _nextButtonHover: MutableDisposable<{ dispose(): void }> = this._register(new MutableDisposable());
-	private _submitButton: Button | undefined;
-	private readonly _submitButtonHover: MutableDisposable<{ dispose(): void }> = this._register(new MutableDisposable());
 	private _skipAllButton: Button | undefined;
 
 	private _isSkipped = false;
@@ -67,6 +68,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private readonly _freeformTextareas: Map<string, HTMLTextAreaElement> = new Map();
 	private readonly _inputBoxes: DisposableStore = this._register(new DisposableStore());
 	private readonly _questionRenderStore = this._register(new MutableDisposable<DisposableStore>());
+	private _inputScrollable: DomScrollableElement | undefined;
 
 	/**
 	 * Disposable store for interactive UI components (header, nav buttons, etc.)
@@ -144,69 +146,30 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const skipAllTitle = localize('chat.questionCarousel.skipAllTitle', 'Skip all questions');
 			const skipAllButton = interactiveStore.add(new Button(this._closeButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 			skipAllButton.label = `$(${Codicon.close.id})`;
-			skipAllButton.element.classList.add('chat-question-nav-arrow', 'chat-question-close');
+			skipAllButton.element.classList.add('chat-question-close');
 			skipAllButton.element.setAttribute('aria-label', skipAllTitle);
 			interactiveStore.add(this._hoverService.setupDelayedHover(skipAllButton.element, { content: skipAllTitle }));
 			this._skipAllButton = skipAllButton;
 		}
 
-		// Footer row with step indicator and navigation buttons
-		this._footerRow = dom.$('.chat-question-footer-row');
-
-		// Step indicator (e.g., "2/4") on the left
-		this._stepIndicator = dom.$('.chat-question-step-indicator');
-		this._footerRow.appendChild(this._stepIndicator);
-
-		// Navigation controls (< >) - placed in footer row
-		this._navigationButtons = dom.$('.chat-question-carousel-nav');
-		this._navigationButtons.setAttribute('role', 'navigation');
-		this._navigationButtons.setAttribute('aria-label', localize('chat.questionCarousel.navigation', 'Question navigation'));
-
-		// Group prev/next buttons together
-		const arrowsContainer = dom.$('.chat-question-nav-arrows');
-
-		const previousLabel = localize('previous', 'Previous');
-		const previousLabelWithKeybinding = this.getLabelWithKeybinding(previousLabel, PREVIOUS_QUESTION_ACTION_ID);
-		const prevButton = interactiveStore.add(new Button(arrowsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-		prevButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-prev');
-		prevButton.label = `$(${Codicon.chevronLeft.id})`;
-		prevButton.element.setAttribute('aria-label', previousLabelWithKeybinding);
-		interactiveStore.add(this._hoverService.setupDelayedHover(prevButton.element, { content: previousLabelWithKeybinding }));
-		this._prevButton = prevButton;
-
-		const nextButton = interactiveStore.add(new Button(arrowsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-		nextButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-next');
-		nextButton.label = `$(${Codicon.chevronRight.id})`;
-		this._nextButton = nextButton;
-
-		const submitButton = interactiveStore.add(new Button(this._navigationButtons, { ...defaultButtonStyles }));
-		submitButton.element.classList.add('chat-question-submit-button');
-		submitButton.label = localize('submit', 'Submit');
-		this._submitButton = submitButton;
-
-		this._navigationButtons.appendChild(arrowsContainer);
-		this._footerRow.appendChild(this._navigationButtons);
-		this.domNode.append(this._footerRow);
-
-
 		// Register event listeners
-		interactiveStore.add(prevButton.onDidClick(() => this.navigate(-1)));
-		interactiveStore.add(nextButton.onDidClick(() => this.navigate(1)));
-		interactiveStore.add(submitButton.onDidClick(() => this.submit()));
 		if (this._skipAllButton) {
 			interactiveStore.add(this._skipAllButton.onDidClick(() => this.ignore()));
 		}
 
-		// Register keyboard navigation - handle Enter on text inputs and freeform textareas
+		// Register keyboard navigation
 		interactiveStore.add(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.keyCode === KeyCode.Escape && this.carousel.allowSkip) {
 				e.preventDefault();
 				e.stopPropagation();
 				this.ignore();
+			} else if (event.keyCode === KeyCode.Enter && (event.metaKey || event.ctrlKey)) {
+				// Cmd/Ctrl+Enter submits immediately from anywhere
+				e.preventDefault();
+				e.stopPropagation();
+				this.submit();
 			} else if (event.keyCode === KeyCode.Enter && !event.shiftKey) {
-				// Handle Enter key for text inputs and freeform textareas, not radio/checkbox or buttons
-				// Buttons have their own Enter/Space handling via Button class
 				const target = e.target as HTMLElement;
 				const isTextInput = target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'text';
 				const isFreeformTextarea = target.tagName === 'TEXTAREA' && target.classList.contains('chat-question-freeform-textarea');
@@ -259,6 +222,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this._currentIndex = newIndex;
 			this.persistDraftState();
 			this.renderCurrentQuestion(true);
+			this.domNode.focus();
 		}
 	}
 
@@ -336,8 +300,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._singleSelectItems.clear();
 		this._multiSelectCheckboxes.clear();
 		this._freeformTextareas.clear();
-		this._nextButtonHover.value = undefined;
-		this._submitButtonHover.value = undefined;
 
 		// Clear references to disposed elements
 		this._prevButton = undefined;
@@ -345,10 +307,67 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._submitButton = undefined;
 		this._skipAllButton = undefined;
 		this._questionContainer = undefined;
-		this._navigationButtons = undefined;
 		this._closeButtonContainer = undefined;
 		this._footerRow = undefined;
 		this._stepIndicator = undefined;
+		this._submitHint = undefined;
+		this._inputScrollable = undefined;
+	}
+
+	private layoutInputScrollable(inputScrollable: DomScrollableElement): void {
+		if (!this._questionContainer) {
+			return;
+		}
+
+		const scrollableNode = inputScrollable.getDomNode();
+		const scrollableContent = scrollableNode.firstElementChild;
+		if (!dom.isHTMLElement(scrollableContent)) {
+			return;
+		}
+
+		// Clear stale size constraints first so this step can shrink after
+		// navigating from a taller question.
+		if (scrollableNode.style.height !== '' || scrollableNode.style.maxHeight !== '') {
+			scrollableNode.style.height = '';
+			scrollableNode.style.maxHeight = '';
+		}
+		if (scrollableContent.style.height !== '' || scrollableContent.style.maxHeight !== '') {
+			scrollableContent.style.height = '';
+			scrollableContent.style.maxHeight = '';
+		}
+
+		// Use the flex-resolved container height (constrained by CSS max-height)
+		// instead of window.innerHeight, so the scroll viewport tracks actual chat space.
+		const maxContainerHeight = this._questionContainer.clientHeight;
+
+		const computedStyle = dom.getWindow(this._questionContainer).getComputedStyle(this._questionContainer);
+		const contentVerticalPadding =
+			Number.parseFloat(computedStyle.paddingTop || '0') +
+			Number.parseFloat(computedStyle.paddingBottom || '0');
+
+		const nonScrollableContentHeight = Array.from(this._questionContainer.children)
+			.filter(child => child !== scrollableNode)
+			.reduce((sum, child) => sum + (child as HTMLElement).offsetHeight, 0);
+
+		const availableScrollableHeight = Math.floor(maxContainerHeight - contentVerticalPadding - nonScrollableContentHeight);
+
+		const contentScrollableHeight = scrollableContent.scrollHeight;
+		const constrainedScrollableHeight = Math.max(0, Math.min(availableScrollableHeight, contentScrollableHeight));
+		const constrainedScrollableHeightPx = `${constrainedScrollableHeight}px`;
+
+		// Constrain wrapper + content so no stale flex sizing survives between steps.
+		if (scrollableNode.style.height !== constrainedScrollableHeightPx || scrollableNode.style.maxHeight !== constrainedScrollableHeightPx) {
+			scrollableNode.style.height = constrainedScrollableHeightPx;
+			scrollableNode.style.maxHeight = constrainedScrollableHeightPx;
+		}
+
+		// Constrain the content element (DomScrollableElement._element) so that
+		// scanDomNode sees clientHeight < scrollHeight and enables scrolling.
+		if (scrollableContent.style.height !== constrainedScrollableHeightPx || scrollableContent.style.maxHeight !== constrainedScrollableHeightPx) {
+			scrollableContent.style.height = constrainedScrollableHeightPx;
+			scrollableContent.style.maxHeight = constrainedScrollableHeightPx;
+		}
+		inputScrollable.scanDomNode();
 	}
 
 	/**
@@ -512,12 +531,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderCurrentQuestion(focusContainerForScreenReader: boolean = false): void {
-		if (!this._questionContainer || !this._prevButton || !this._nextButton || !this._submitButton) {
+		if (!this._questionContainer) {
 			return;
 		}
 
 		const questionRenderStore = new DisposableStore();
 		this._questionRenderStore.value = questionRenderStore;
+		this._inputScrollable = undefined;
 
 		// Clear previous input boxes and stale references
 		this._inputBoxes.clear();
@@ -534,95 +554,79 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return;
 		}
 
-		// Render question header row with title and close button
+		// Render unified question title (message ?? title)
 		const headerRow = dom.$('.chat-question-header-row');
 		const titleRow = dom.$('.chat-question-title-row');
 
-		// Render question title (short header) in the header bar as plain text
-		if (question.title) {
+		const questionText = question.message ?? question.title;
+		if (questionText) {
 			const title = dom.$('.chat-question-title');
-			const questionText = question.title;
 			const messageContent = this.getQuestionText(questionText);
-
 			title.setAttribute('aria-label', messageContent);
 
-			if (question.message !== undefined) {
-				const messageMd = isMarkdownString(questionText) ? MarkdownString.lift(questionText) : new MarkdownString(questionText);
-				const renderedTitle = questionRenderStore.add(this._markdownRendererService.render(messageMd));
-				title.appendChild(renderedTitle.element);
-			} else {
-				// Check for subtitle in parentheses at the end
-				const parenMatch = messageContent.match(/^(.+?)\s*(\([^)]+\))\s*$/);
-				if (parenMatch) {
-					// Main title (bold)
-					const mainTitle = dom.$('span.chat-question-title-main');
-					mainTitle.textContent = parenMatch[1];
-					title.appendChild(mainTitle);
-
-					// Subtitle in parentheses (normal weight)
-					const subtitle = dom.$('span.chat-question-title-subtitle');
-					subtitle.textContent = ' ' + parenMatch[2];
-					title.appendChild(subtitle);
-				} else {
-					title.textContent = messageContent;
-				}
-			}
+			const messageMd = isMarkdownString(questionText) ? MarkdownString.lift(questionText) : new MarkdownString(questionText);
+			const renderedTitle = questionRenderStore.add(this._markdownRendererService.render(messageMd));
+			title.appendChild(renderedTitle.element);
 			titleRow.appendChild(title);
-		}
-
-		// Add close button to header row (if allowSkip is enabled)
-		if (this._closeButtonContainer) {
-			titleRow.appendChild(this._closeButtonContainer);
 		}
 
 		headerRow.appendChild(titleRow);
 
+		// Always keep the close button in the title row so it does not overlap content.
+		if (this._closeButtonContainer) {
+			titleRow.appendChild(this._closeButtonContainer);
+		}
+
 		this._questionContainer.appendChild(headerRow);
-
-		// Render full question text below the header row (supports multi-line and markdown)
-		if (question.message) {
-			const messageEl = dom.$('.chat-question-message');
-			if (isMarkdownString(question.message)) {
-				const renderedMessage = questionRenderStore.add(this._markdownRendererService.render(MarkdownString.lift(question.message)));
-				messageEl.appendChild(renderedMessage.element);
-			} else {
-				messageEl.textContent = this.getQuestionText(question.message);
-			}
-			this._questionContainer.appendChild(messageEl);
-		}
-
-		const isSingleQuestion = this.carousel.questions.length === 1;
-		// Update step indicator in footer
-		if (this._stepIndicator) {
-			this._stepIndicator.textContent = `${this._currentIndex + 1}/${this.carousel.questions.length}`;
-			this._stepIndicator.style.display = isSingleQuestion ? 'none' : '';
-		}
 
 		// Render input based on question type
 		const inputContainer = dom.$('.chat-question-input-container');
 		this.renderInput(inputContainer, question);
-		this._questionContainer.appendChild(inputContainer);
 
-		// Update navigation button states (prevButton and nextButton are guaranteed non-null from guard above)
-		this._prevButton!.enabled = this._currentIndex > 0;
-		this._prevButton!.element.style.display = isSingleQuestion ? 'none' : '';
+		const inputScrollable = questionRenderStore.add(new DomScrollableElement(inputContainer, {
+			vertical: ScrollbarVisibility.Visible,
+			horizontal: ScrollbarVisibility.Hidden,
+			consumeMouseWheelIfScrollbarIsNeeded: true,
+		}));
+		this._inputScrollable = inputScrollable;
+		const inputScrollableNode = inputScrollable.getDomNode();
+		inputScrollableNode.classList.add('chat-question-input-scrollable');
+		this._questionContainer.appendChild(inputScrollableNode);
 
-		// Keep navigation arrows stable and disable next on the last question
-		const isLastQuestion = this._currentIndex === this.carousel.questions.length - 1;
-		const submitLabel = localize('submit', 'Submit');
-		const nextLabel = localize('next', 'Next');
-		const nextLabelWithKeybinding = this.getLabelWithKeybinding(nextLabel, NEXT_QUESTION_ACTION_ID);
-		this._nextButton!.label = `$(${Codicon.chevronRight.id})`;
-		this._nextButton!.enabled = !isLastQuestion;
-		this._nextButton!.element.setAttribute('aria-label', nextLabelWithKeybinding);
-		this._nextButtonHover.value = this._hoverService.setupDelayedHover(this._nextButton!.element, { content: nextLabelWithKeybinding });
+		const isSingleQuestion = this.carousel.questions.length === 1;
 
-		this._submitButton!.enabled = isLastQuestion;
-		this._submitButton!.element.style.display = isLastQuestion ? '' : 'none';
-		this._submitButton!.element.setAttribute('aria-label', submitLabel);
-		this._submitButtonHover.value = isLastQuestion
-			? this._hoverService.setupDelayedHover(this._submitButton!.element, { content: submitLabel })
-			: undefined;
+		// Render footer before first layout so the scrollable area is measured against
+		// its final available height and does not visibly resize twice.
+		if (!isSingleQuestion) {
+			this.renderFooter();
+		} else {
+			this.renderSingleQuestionFooter();
+		}
+
+		let relayoutScheduled = false;
+		const relayoutScheduler = questionRenderStore.add(new MutableDisposable());
+		const scheduleLayoutInputScrollable = () => {
+			if (relayoutScheduled) {
+				return;
+			}
+
+			relayoutScheduled = true;
+			relayoutScheduler.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
+				relayoutScheduled = false;
+				this.layoutInputScrollable(inputScrollable);
+			});
+		};
+
+		const inputResizeObserver = questionRenderStore.add(new dom.DisposableResizeObserver(() => scheduleLayoutInputScrollable()));
+		questionRenderStore.add(inputResizeObserver.observe(inputScrollableNode));
+		questionRenderStore.add(inputResizeObserver.observe(inputContainer));
+		scheduleLayoutInputScrollable();
+		questionRenderStore.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
+			inputContainer.scrollTop = 0;
+			inputContainer.scrollLeft = 0;
+			inputScrollable.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
+			inputScrollable.scanDomNode();
+		}));
 
 		// Update aria-label to reflect the current question
 		this._updateAriaLabel();
@@ -634,6 +638,138 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 
 		this._onDidChangeHeight.fire();
+	}
+
+	/**
+	 * Renders or updates the persistent footer with nav arrows, step indicator, and submit button.
+	 */
+	private renderFooter(): void {
+		if (!this._footerRow) {
+			const interactiveStore = this._interactiveUIStore.value;
+			if (!interactiveStore) {
+				return;
+			}
+
+			this._footerRow = dom.$('.chat-question-footer-row');
+
+			// Left side: nav arrows + step indicator
+			const leftControls = dom.$('.chat-question-footer-left.chat-question-carousel-nav');
+			leftControls.setAttribute('role', 'navigation');
+			leftControls.setAttribute('aria-label', localize('chat.questionCarousel.navigation', 'Question navigation'));
+
+			const arrowsContainer = dom.$('.chat-question-nav-arrows');
+
+			const previousLabel = this.getLabelWithKeybinding(localize('previous', 'Previous'), PREVIOUS_QUESTION_ACTION_ID);
+			const prevButton = interactiveStore.add(new Button(arrowsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+			prevButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-prev');
+			prevButton.label = `$(${Codicon.chevronLeft.id})`;
+			prevButton.element.setAttribute('aria-label', previousLabel);
+			interactiveStore.add(this._hoverService.setupDelayedHover(prevButton.element, { content: previousLabel }));
+			interactiveStore.add(prevButton.onDidClick(() => this.navigate(-1)));
+			this._prevButton = prevButton;
+
+			const nextLabel = this.getLabelWithKeybinding(localize('next', 'Next'), NEXT_QUESTION_ACTION_ID);
+			const nextButton = interactiveStore.add(new Button(arrowsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+			nextButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-next');
+			nextButton.label = `$(${Codicon.chevronRight.id})`;
+			nextButton.element.setAttribute('aria-label', nextLabel);
+			interactiveStore.add(this._hoverService.setupDelayedHover(nextButton.element, { content: nextLabel }));
+			interactiveStore.add(nextButton.onDidClick(() => this.navigate(1)));
+			this._nextButton = nextButton;
+
+			leftControls.appendChild(arrowsContainer);
+
+			this._stepIndicator = dom.$('.chat-question-step-indicator');
+			leftControls.appendChild(this._stepIndicator);
+
+			this._footerRow.appendChild(leftControls);
+
+			// Right side: hint + submit
+			const rightControls = dom.$('.chat-question-footer-right');
+
+			const hint = dom.$('span.chat-question-submit-hint');
+			hint.textContent = isMacintosh
+				? localize('chat.questionCarousel.submitHintMac', '\u2318\u23CE to submit')
+				: localize('chat.questionCarousel.submitHintOther', 'Ctrl+Enter to submit');
+			rightControls.appendChild(hint);
+			this._submitHint = hint;
+
+			const submitButton = interactiveStore.add(new Button(rightControls, { ...defaultButtonStyles }));
+			submitButton.element.classList.add('chat-question-submit-button');
+			submitButton.label = localize('submit', 'Submit');
+			interactiveStore.add(submitButton.onDidClick(() => this.submit()));
+			this._submitButton = submitButton;
+
+			this._footerRow.appendChild(rightControls);
+			this.domNode.append(this._footerRow);
+		}
+
+		this.updateFooterState();
+	}
+
+	/**
+	 * Updates the footer nav button enabled state and step indicator text.
+	 */
+	private updateFooterState(): void {
+		if (this._prevButton) {
+			this._prevButton.enabled = this._currentIndex > 0;
+		}
+		if (this._nextButton) {
+			this._nextButton.enabled = this._currentIndex < this.carousel.questions.length - 1;
+		}
+		if (this._stepIndicator) {
+			this._stepIndicator.textContent = localize(
+				'chat.questionCarousel.stepIndicator',
+				'{0}/{1}',
+				this._currentIndex + 1,
+				this.carousel.questions.length
+			);
+		}
+		if (this._submitButton) {
+			const isLastQuestion = this._currentIndex === this.carousel.questions.length - 1;
+			this._submitButton.element.style.display = isLastQuestion ? '' : 'none';
+			if (this._submitHint) {
+				this._submitHint.style.display = isLastQuestion ? '' : 'none';
+			}
+		}
+	}
+
+	/**
+	 * Renders a simplified footer with just a submit button for single-question multi-select carousels.
+	 */
+	private renderSingleQuestionFooter(): void {
+		if (!this._footerRow) {
+			const interactiveStore = this._interactiveUIStore.value;
+			if (!interactiveStore) {
+				return;
+			}
+
+			this._footerRow = dom.$('.chat-question-footer-row');
+
+			// Spacer to push controls to the right
+			const leftControls = dom.$('.chat-question-footer-left.chat-question-carousel-nav');
+			leftControls.setAttribute('role', 'navigation');
+			leftControls.setAttribute('aria-label', localize('chat.questionCarousel.navigation', 'Question navigation'));
+			this._footerRow.appendChild(leftControls);
+
+			const rightControls = dom.$('.chat-question-footer-right');
+
+			const hint = dom.$('span.chat-question-submit-hint');
+			hint.textContent = isMacintosh
+				? localize('chat.questionCarousel.submitHintMac', '\u2318\u23CE to submit')
+				: localize('chat.questionCarousel.submitHintOther', 'Ctrl+Enter to submit');
+			rightControls.appendChild(hint);
+			this._submitHint = hint;
+
+			const submitButton = interactiveStore.add(new Button(rightControls, { ...defaultButtonStyles }));
+			submitButton.element.classList.add('chat-question-submit-button');
+			submitButton.label = localize('submit', 'Submit');
+			interactiveStore.add(submitButton.onDidClick(() => this.submit()));
+			this._submitButton = submitButton;
+
+			this._footerRow.appendChild(rightControls);
+			this.domNode.append(this._footerRow);
+		}
 	}
 
 	private getLabelWithKeybinding(label: string, actionId: string): string {
@@ -665,6 +801,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const autoResize = () => {
 			textarea.style.height = 'auto';
 			textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+			if (this._inputScrollable) {
+				this.layoutInputScrollable(this._inputScrollable);
+			}
 			this._onDidChangeHeight.fire();
 		};
 		this._inputBoxes.add(dom.addDisposableListener(textarea, dom.EventType.INPUT, autoResize));
@@ -773,12 +912,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const label = dom.$('.chat-question-list-label');
 			const separatorIndex = option.label.indexOf(' - ');
 			if (separatorIndex !== -1) {
+				listItem.classList.add('has-description');
 				const titleSpan = dom.$('span.chat-question-list-label-title');
 				titleSpan.textContent = option.label.substring(0, separatorIndex);
 				label.appendChild(titleSpan);
 
 				const descSpan = dom.$('span.chat-question-list-label-desc');
-				descSpan.textContent = ': ' + option.label.substring(separatorIndex + 3);
+				descSpan.textContent = option.label.substring(separatorIndex + 3);
 				label.appendChild(descSpan);
 			} else {
 				label.textContent = option.label;
@@ -865,7 +1005,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			} else if (event.keyCode === KeyCode.UpArrow) {
 				e.preventDefault();
 				newIndex = Math.max(data.selectedIndex - 1, 0);
-			} else if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
+			} else if ((event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) && !event.metaKey && !event.ctrlKey) {
 				// Enter confirms current selection and advances to next question
 				e.preventDefault();
 				e.stopPropagation();
@@ -973,12 +1113,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const label = dom.$('.chat-question-list-label');
 			const separatorIndex = option.label.indexOf(' - ');
 			if (separatorIndex !== -1) {
+				listItem.classList.add('has-description');
 				const titleSpan = dom.$('span.chat-question-list-label-title');
 				titleSpan.textContent = option.label.substring(0, separatorIndex);
 				label.appendChild(titleSpan);
 
 				const descSpan = dom.$('span.chat-question-list-label-desc');
-				descSpan.textContent = ': ' + option.label.substring(separatorIndex + 3);
+				descSpan.textContent = option.label.substring(separatorIndex + 3);
 				label.appendChild(descSpan);
 			} else {
 				label.textContent = option.label;
@@ -1064,7 +1205,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				e.preventDefault();
 				focusedIndex = Math.max(focusedIndex - 1, 0);
 				listItems[focusedIndex].focus();
-			} else if (event.keyCode === KeyCode.Enter) {
+			} else if (event.keyCode === KeyCode.Enter && !event.metaKey && !event.ctrlKey) {
 				e.preventDefault();
 				e.stopPropagation();
 				this.handleNextOrSubmit();
@@ -1203,40 +1344,25 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		for (const question of this.carousel.questions) {
 			const answer = this._answers.get(question.id);
-			if (answer === undefined) {
-				continue;
-			}
 
 			const summaryItem = dom.$('.chat-question-summary-item');
 
-			// Category label (use same text as shown in question UI: message ?? title)
-			const questionLabel = dom.$('span.chat-question-summary-label');
+			const questionRow = dom.$('div.chat-question-summary-label');
 			const questionText = question.message ?? question.title;
 			let labelText = typeof questionText === 'string' ? questionText : questionText.value;
-			// Remove trailing colons and whitespace to avoid double colons (CSS adds ': ')
 			labelText = labelText.replace(/[:\s]+$/, '');
-			questionLabel.textContent = labelText;
-			summaryItem.appendChild(questionLabel);
+			questionRow.textContent = localize('chat.questionCarousel.summaryQuestion', 'Q: {0}', labelText);
+			summaryItem.appendChild(questionRow);
 
-			// Format answer with title and description parts
-			const formattedAnswer = this.formatAnswerForSummary(question, answer);
-			const separatorIndex = formattedAnswer.indexOf(' - ');
-
-			if (separatorIndex !== -1) {
-				// Answer title (bold)
-				const answerTitle = dom.$('span.chat-question-summary-answer-title');
-				answerTitle.textContent = formattedAnswer.substring(0, separatorIndex);
-				summaryItem.appendChild(answerTitle);
-
-				// Answer description (normal)
-				const answerDesc = dom.$('span.chat-question-summary-answer-desc');
-				answerDesc.textContent = ' - ' + formattedAnswer.substring(separatorIndex + 3);
-				summaryItem.appendChild(answerDesc);
+			if (answer !== undefined) {
+				const formattedAnswer = this.formatAnswerForSummary(question, answer);
+				const answerRow = dom.$('div.chat-question-summary-answer-title');
+				answerRow.textContent = localize('chat.questionCarousel.summaryAnswer', 'A: {0}', formattedAnswer);
+				summaryItem.appendChild(answerRow);
 			} else {
-				// Just the answer value (bold)
-				const answerValue = dom.$('span.chat-question-summary-answer-title');
-				answerValue.textContent = formattedAnswer;
-				summaryItem.appendChild(answerValue);
+				const unanswered = dom.$('div.chat-question-summary-unanswered');
+				unanswered.textContent = localize('chat.questionCarousel.notAnsweredYet', 'Not answered yet');
+				summaryItem.appendChild(unanswered);
 			}
 
 			summaryContainer.appendChild(summaryItem);
@@ -1262,6 +1388,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 						return freeformValue;
 					}
 					return selectedLabel ?? String(selectedValue ?? '');
+				}
+				// Handle case where selectedValue was stripped during JSON serialization (undefined values are omitted by JSON.stringify)
+				if (typeof answer === 'object' && answer !== null && hasKey(answer, { freeformValue: true })) {
+					return (answer as { freeformValue?: string }).freeformValue ?? '';
 				}
 				const label = question.options?.find(opt => opt.value === answer)?.label;
 				return label ?? String(answer);

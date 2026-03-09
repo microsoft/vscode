@@ -44,13 +44,13 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
-import { AgentSessionProviders, backgroundAgentDisplayName, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { BugIndicatingError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { Target } from '../../common/promptSyntax/service/promptsService.js';
+import { Target } from '../../common/promptSyntax/promptTypes.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -347,7 +347,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		).recomputeInitiallyAndOnChange(this._store);
 
 		this._register(autorun(reader => {
-			backgroundAgentDisplayName.read(reader);
 			const activatedProviders = [...builtinSessionProviders, ...contributedSessionProviders.read(reader)];
 			for (const provider of Object.values(AgentSessionProviders)) {
 				if (activatedProviders.includes(provider)) {
@@ -407,7 +406,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private registerContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): IDisposable {
+		this._logService.info(`[ChatSessionsService] registerContribution called for type='${contribution.type}', canDelegate=${contribution.canDelegate}, when='${contribution.when}', extension='${ext.identifier.value}'`);
 		if (this._contributions.has(contribution.type)) {
+			this._logService.info(`[ChatSessionsService] registerContribution: type='${contribution.type}' already registered, skipping`);
 			return { dispose: () => { } };
 		}
 
@@ -643,6 +644,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		for (const { contribution, extension } of this._contributions.values()) {
 			const isCurrentlyRegistered = this._contributionDisposables.has(contribution.type);
 			const shouldBeRegistered = this._isContributionAvailable(contribution);
+			this._logService.trace(`[ChatSessionsService] _evaluateAvailability: type='${contribution.type}', isCurrentlyRegistered=${isCurrentlyRegistered}, shouldBeRegistered=${shouldBeRegistered}, when='${contribution.when}'`);
 			if (isCurrentlyRegistered && !shouldBeRegistered) {
 				// Disable the contribution by disposing its disposable store
 				this._contributionDisposables.deleteAndDispose(contribution.type);
@@ -669,6 +671,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
+		this._logService.info(`[ChatSessionsService] _enableContribution: type='${contribution.type}', canDelegate=${contribution.canDelegate}`);
 		const disposableStore = new DisposableStore();
 		this._contributionDisposables.set(contribution.type, disposableStore);
 		if (contribution.canDelegate) {
@@ -781,20 +784,20 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return !!controller;
 	}
 
-	async canResolveChatSession(chatSessionResource: URI) {
+	async canResolveChatSession(sessionType: string) {
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		const resolvedType = this._resolveToPrimaryType(chatSessionResource.scheme) || chatSessionResource.scheme;
+		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
 		const contribution = this._contributions.get(resolvedType)?.contribution;
 		if (contribution && !this._isContributionAvailable(contribution)) {
 			return false;
 		}
 
-		if (this._contentProviders.has(chatSessionResource.scheme)) {
+		if (this._contentProviders.has(sessionType)) {
 			return true;
 		}
 
-		await this._extensionService.activateByEvent(`onChatSession:${chatSessionResource.scheme}`);
-		return this._contentProviders.has(chatSessionResource.scheme);
+		await this._extensionService.activateByEvent(`onChatSession:${sessionType}`);
+		return this._contentProviders.has(sessionType);
 	}
 
 	private async tryActivateControllers(providersToResolve: readonly string[] | undefined): Promise<void> {
@@ -1024,7 +1027,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}
 
-		if (!(await raceCancellationError(this.canResolveChatSession(sessionResource), token))) {
+		if (!(await raceCancellationError(this.canResolveChatSession(sessionResource.scheme), token))) {
 			throw Error(`Can not find provider for ${sessionResource}`);
 		}
 
@@ -1052,12 +1055,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				options: newSessionOptions ?? {},
 				dispose: () => { }
 			};
-
-			for (const [optionId, value] of Object.entries(newSessionOptions ?? {})) {
-				this.setSessionOption(sessionResource, optionId, value);
-			}
 		} else {
 			session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+		}
+
+		for (const [optionId, value] of Object.entries(session.options ?? {})) {
+			this.setSessionOption(sessionResource, optionId, value);
 		}
 
 		// Make sure another session wasn't created while we were awaiting the provider

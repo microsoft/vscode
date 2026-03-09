@@ -6,7 +6,7 @@
 import type * as http from 'http';
 import {
 	IJsonRpcNotification, IJsonRpcRequest,
-	isJsonRpcNotification, isJsonRpcResponse, JsonRpcError, JsonRpcMessage, JsonRpcProtocol
+	isJsonRpcNotification, isJsonRpcResponse, JsonRpcError, JsonRpcMessage, JsonRpcProtocol, JsonRpcResponse
 } from '../../../base/common/jsonRpcProtocol.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -79,8 +79,6 @@ function encodeResourceUrisInContent(content: MCP.ContentBlock[], serverIndex: n
 export class McpGatewaySession extends Disposable {
 	private readonly _rpc: JsonRpcProtocol;
 	private readonly _sseClients = new Set<http.ServerResponse>();
-	private readonly _pendingResponses: JsonRpcMessage[] = [];
-	private _isCollectingPostResponses = false;
 	private _lastEventId = 0;
 	private _isInitialized = false;
 
@@ -105,6 +103,7 @@ export class McpGatewaySession extends Disposable {
 				return;
 			}
 
+			this._logService.info(`[McpGateway][session ${this.id}] Tools changed, notifying client`);
 			this._rpc.sendNotification({ method: 'notifications/tools/list_changed' });
 		}));
 
@@ -113,6 +112,7 @@ export class McpGatewaySession extends Disposable {
 				return;
 			}
 
+			this._logService.info(`[McpGateway][session ${this.id}] Resources changed, notifying client`);
 			this._rpc.sendNotification({ method: 'notifications/resources/list_changed' });
 		}));
 	}
@@ -126,25 +126,20 @@ export class McpGatewaySession extends Disposable {
 
 		res.write(': connected\n\n');
 		this._sseClients.add(res);
+		this._logService.info(`[McpGateway][session ${this.id}] SSE client attached (total: ${this._sseClients.size})`);
 
 		res.on('close', () => {
 			this._sseClients.delete(res);
+			this._logService.info(`[McpGateway][session ${this.id}] SSE client detached (total: ${this._sseClients.size})`);
 		});
 	}
 
-	public async handleIncoming(message: JsonRpcMessage | JsonRpcMessage[]): Promise<JsonRpcMessage[]> {
-		this._pendingResponses.length = 0;
-		this._isCollectingPostResponses = true;
-		try {
-			await this._rpc.handleMessage(message);
-			return [...this._pendingResponses];
-		} finally {
-			this._isCollectingPostResponses = false;
-			this._pendingResponses.length = 0;
-		}
+	public async handleIncoming(message: JsonRpcMessage | JsonRpcMessage[]): Promise<JsonRpcResponse[]> {
+		return this._rpc.handleMessage(message);
 	}
 
 	public override dispose(): void {
+		this._logService.info(`[McpGateway][session ${this.id}] Disposing session (SSE clients: ${this._sseClients.size})`);
 		for (const client of this._sseClients) {
 			if (!client.destroyed) {
 				client.end();
@@ -157,13 +152,12 @@ export class McpGatewaySession extends Disposable {
 
 	private _handleOutgoingMessage(message: JsonRpcMessage): void {
 		if (isJsonRpcResponse(message)) {
-			if (this._isCollectingPostResponses) {
-				this._pendingResponses.push(message);
-			}
+			this._logService.debug(`[McpGateway][session ${this.id}] --> response: ${JSON.stringify(message)}`);
 			return;
 		}
 
 		if (isJsonRpcNotification(message)) {
+			this._logService.debug(`[McpGateway][session ${this.id}] --> notification: ${(message as IJsonRpcNotification).method}`);
 			this._broadcastSse(message);
 			return;
 		}
@@ -173,11 +167,13 @@ export class McpGatewaySession extends Disposable {
 
 	private _broadcastSse(message: JsonRpcMessage): void {
 		if (this._sseClients.size === 0) {
+			this._logService.debug(`[McpGateway][session ${this.id}] No SSE clients to broadcast to, dropping message`);
 			return;
 		}
 
 		const payload = JSON.stringify(message);
 		const eventId = String(++this._lastEventId);
+		this._logService.debug(`[McpGateway][session ${this.id}] Broadcasting SSE event id=${eventId} to ${this._sseClients.size}`);
 		const lines = payload.split(/\r?\n/g);
 		const data = [
 			`id: ${eventId}`,
@@ -198,11 +194,14 @@ export class McpGatewaySession extends Disposable {
 	}
 
 	private async _handleRequest(request: IJsonRpcRequest): Promise<unknown> {
+		this._logService.debug(`[McpGateway][session ${this.id}] <-- request: ${request.method} (id=${String(request.id)})`);
+
 		if (request.method === 'initialize') {
 			return this._handleInitialize(request);
 		}
 
 		if (!this._isInitialized) {
+			this._logService.warn(`[McpGateway][session ${this.id}] Rejected request '${request.method}': session not initialized`);
 			throw new JsonRpcError(MCP_INVALID_REQUEST, 'Session is not initialized');
 		}
 
@@ -220,13 +219,17 @@ export class McpGatewaySession extends Disposable {
 			case 'resources/templates/list':
 				return this._handleListResourceTemplates();
 			default:
+				this._logService.warn(`[McpGateway][session ${this.id}] Unknown method: ${request.method}`);
 				throw new JsonRpcError(MCP_METHOD_NOT_FOUND, `Method not found: ${request.method}`);
 		}
 	}
 
 	private _handleNotification(notification: IJsonRpcNotification): void {
+		this._logService.debug(`[McpGateway][session ${this.id}] <-- notification: ${notification.method}`);
+
 		if (notification.method === 'notifications/initialized') {
 			this._isInitialized = true;
+			this._logService.info(`[McpGateway][session ${this.id}] Session initialized`);
 			this._rpc.sendNotification({ method: 'notifications/tools/list_changed' });
 			this._rpc.sendNotification({ method: 'notifications/resources/list_changed' });
 		}
@@ -276,21 +279,27 @@ export class McpGatewaySession extends Disposable {
 			? params.arguments as Record<string, unknown>
 			: {};
 
+		this._logService.debug(`[McpGateway][session ${this.id}] Calling tool '${params.name}' with args: ${JSON.stringify(argumentsValue)}`);
+
 		try {
 			const { result, serverIndex } = await this._toolInvoker.callTool(params.name, argumentsValue);
+			this._logService.debug(`[McpGateway][session ${this.id}] Tool '${params.name}' completed (isError=${result.isError ?? false}, content blocks=${result.content.length})`);
 			return {
 				...result,
 				content: encodeResourceUrisInContent(result.content, serverIndex),
 			};
 		} catch (error) {
-			this._logService.error('[McpGatewayService] Tool call invocation failed', error);
+			this._logService.error(`[McpGateway][session ${this.id}] Tool '${params.name}' invocation failed`, error);
 			throw new JsonRpcError(MCP_INVALID_PARAMS, String(error));
 		}
 	}
 
 	private _handleListTools(): unknown {
 		return this._toolInvoker.listTools()
-			.then(tools => ({ tools }));
+			.then(tools => {
+				this._logService.debug(`[McpGateway][session ${this.id}] Listed ${tools.length} tool(s): [${tools.map(t => t.name).join(', ')}]`);
+				return { tools };
+			});
 	}
 
 	private async _handleListResources(): Promise<MCP.ListResourcesResult> {
@@ -304,6 +313,7 @@ export class McpGatewaySession extends Disposable {
 				});
 			}
 		}
+		this._logService.debug(`[McpGateway][session ${this.id}] Listed ${allResources.length} resource(s) from ${serverResults.length} server(s)`);
 		return { resources: allResources };
 	}
 
@@ -314,8 +324,10 @@ export class McpGatewaySession extends Disposable {
 		}
 
 		const { serverIndex, originalUri } = decodeGatewayResourceUri(params.uri);
+		this._logService.debug(`[McpGateway][session ${this.id}] Reading resource '${originalUri}' from server ${serverIndex}`);
 		try {
 			const result = await this._toolInvoker.readResource(serverIndex, originalUri);
+			this._logService.debug(`[McpGateway][session ${this.id}] Resource read returned ${result.contents.length} content(s)`);
 			return {
 				contents: result.contents.map(content => ({
 					...content,
@@ -323,7 +335,7 @@ export class McpGatewaySession extends Disposable {
 				})),
 			};
 		} catch (error) {
-			this._logService.error('[McpGatewayService] Resource read failed', error);
+			this._logService.error(`[McpGateway][session ${this.id}] Resource read failed for '${originalUri}'`, error);
 			throw new JsonRpcError(MCP_INVALID_PARAMS, String(error));
 		}
 	}
@@ -339,6 +351,7 @@ export class McpGatewaySession extends Disposable {
 				});
 			}
 		}
+		this._logService.debug(`[McpGateway][session ${this.id}] Listed ${allTemplates.length} resource template(s) from ${serverResults.length} server(s)`);
 		return { resourceTemplates: allTemplates };
 	}
 }

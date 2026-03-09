@@ -23,7 +23,7 @@ import { getFlatContextMenuActions } from '../../../../../../platform/actions/br
 import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IResourceStat } from '../../../../../../platform/dnd/browser/dnd.js';
 import { ITextResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
@@ -199,10 +199,6 @@ export class InlineAnchorWidget extends Disposable {
 				iconEl.classList.add(...iconClasses);
 			};
 
-			this._register(themeService.onDidFileIconThemeChange(() => {
-				refreshIconClasses();
-			}));
-
 			let isDirectory = false;
 			fileService.stat(location.uri)
 				.then(stat => {
@@ -214,31 +210,42 @@ export class InlineAnchorWidget extends Disposable {
 				})
 				.catch(() => { });
 
-			// Context menu
-			const contextKeyService = this._register(originalContextKeyService.createScoped(element));
-			chatAttachmentResourceContextKey.bindTo(contextKeyService).set(location.uri.toString());
-			const isFolderContext = ExplorerFolderContext.bindTo(contextKeyService);
+			// Context menu (context key service created lazily on first context menu open)
+			let contextKeyService: IContextKeyService | undefined;
+			let isFolderContext: IContextKey<boolean> | undefined;
 			let contextMenuInitialized = false;
+
+			const ensureContextKeyService = () => {
+				if (!contextKeyService) {
+					contextKeyService = this._register(originalContextKeyService.createScoped(element));
+					chatAttachmentResourceContextKey.bindTo(contextKeyService).set(location.uri.toString());
+					isFolderContext = ExplorerFolderContext.bindTo(contextKeyService);
+				}
+				return contextKeyService;
+			};
+
 			this._register(dom.addDisposableListener(element, dom.EventType.CONTEXT_MENU, async domEvent => {
 				const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
 				dom.EventHelper.stop(domEvent, true);
 
+				const cks = ensureContextKeyService();
+
 				if (!contextMenuInitialized) {
 					contextMenuInitialized = true;
-					const resourceContextKey = new StaticResourceContextKey(contextKeyService, fileService, languageService, modelService);
+					const resourceContextKey = new StaticResourceContextKey(cks, fileService, languageService, modelService);
 					resourceContextKey.set(location.uri);
 				}
-				isFolderContext.set(isDirectory);
+				isFolderContext!.set(isDirectory);
 
 				if (this._store.isDisposed) {
 					return;
 				}
 
 				contextMenuService.showContextMenu({
-					contextKeyService,
+					contextKeyService: cks,
 					getAnchor: () => event,
 					getActions: () => {
-						const menu = menuService.getMenuActions(MenuId.ChatInlineResourceAnchorContext, contextKeyService, { arg: location.uri });
+						const menu = menuService.getMenuActions(MenuId.ChatInlineResourceAnchorContext, cks, { arg: location.uri });
 						return getFlatContextMenuActions(menu);
 					},
 				});
