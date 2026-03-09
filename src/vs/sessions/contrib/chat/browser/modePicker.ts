@@ -58,6 +58,13 @@ export class ModePicker extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
+
+		this._register(this.chatModeService.onDidChangeChatModes(() => {
+			// Refresh the trigger label when available chat modes change
+			if (this._triggerElement) {
+				this._updateTriggerLabel();
+			}
+		}));
 	}
 
 	/**
