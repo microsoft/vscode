@@ -2,12 +2,12 @@
 	"name": "@son-of-anton/walkthrough",
 	"version": "0.1.0",
 	"description": "Agent Action Walkthroughs — generates human-readable narratives explaining agent decisions",
-	"main": "dist/index.js",
+	"main": "dist/src/index.js",
 	"scripts": {
 		"build": "tsc",
-		"start": "node dist/index.js",
-		"dev": "tsc --watch & node --watch dist/index.js",
-		"test": "node --test dist/test/**/*.test.js"
+		"start": "node dist/src/index.js",
+		"dev": "tsc --watch & node --watch dist/src/index.js",
+		"test": "node --test dist/src/test/**/*.test.js"
 	},
 	"dependencies": {
 		"express": "^4.18.2"
