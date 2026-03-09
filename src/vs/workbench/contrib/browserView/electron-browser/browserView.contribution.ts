@@ -14,13 +14,13 @@ import { BrowserViewUri } from '../../../../platform/browserView/common/browserV
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
+import { ConfigurationKeyValuePairs, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
-import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
+import { browserZoomFactors, BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 import { IExternalOpener, IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -147,6 +147,19 @@ registerWorkbenchContribution2(LocalhostLinkOpenerContribution.ID, LocalhostLink
 
 registerSingleton(IBrowserViewWorkbenchService, BrowserViewWorkbenchService, InstantiationType.Delayed);
 
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'workbench.browser.defaultZoomLevel',
+		migrateFn: value => {
+			const result: ConfigurationKeyValuePairs = [];
+			if (value !== undefined) {
+				result.push(['workbench.browser.zoom.defaultZoomLevel', { value }]);
+				result.push(['workbench.browser.defaultZoomLevel', { value: undefined }]);
+			}
+			return result;
+		}
+	}]);
+
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
 	properties: {
@@ -179,6 +192,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 					}
 				},
 			}
+		},
+		'workbench.browser.zoom.defaultZoomLevel': {
+			type: 'string',
+			enum: browserZoomFactors.map(f => `${Math.round(f * 100)}%`),
+			default: '100%',
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.defaultZoomLevel' },
+				'Controls the default zoom level for the Integrated Browser. The {0} command will restore the zoom to this level.',
+				'`Reset Zoom`'
+			),
+			scope: ConfigurationScope.WINDOW
 		},
 		'workbench.browser.dataStorage': {
 			type: 'string',

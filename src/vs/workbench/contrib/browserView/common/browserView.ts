@@ -297,6 +297,14 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._sharedWithAgent = await this.playwrightService.isPageTracked(this.id);
 		this._browserZoomIndex = state.browserZoomIndex;
 
+		// Apply the configured default zoom for newly created views
+		if (create) {
+			const configuredDefault = this.getConfiguredDefaultZoomIndex();
+			if (configuredDefault !== this._browserZoomIndex) {
+				await this.setBrowserZoomIndex(configuredDefault);
+			}
+		}
+
 		// Set up state synchronization
 
 		this._register(this.onDidNavigate(e => {
@@ -430,7 +438,13 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	async resetZoom(): Promise<void> {
-		await this.setBrowserZoomIndex(browserZoomDefaultIndex);
+		await this.setBrowserZoomIndex(this.getConfiguredDefaultZoomIndex());
+	}
+
+	private getConfiguredDefaultZoomIndex(): number {
+		const label = this.configurationService.getValue<string>('workbench.browser.zoom.defaultZoomLevel');
+		const index = browserZoomFactors.findIndex(f => `${Math.round(f * 100)}%` === label);
+		return index >= 0 ? index : browserZoomDefaultIndex;
 	}
 
 	private static readonly SHARE_DONT_ASK_KEY = 'browserView.shareWithAgent.dontAskAgain';
