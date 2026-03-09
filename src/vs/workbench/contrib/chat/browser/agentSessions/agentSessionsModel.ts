@@ -165,7 +165,7 @@ export const enum AgentSessionSection {
 }
 
 export interface IAgentSessionSection {
-	readonly section: AgentSessionSection;
+	readonly section: string;
 	readonly label: string;
 	readonly sessions: IAgentSession[];
 }

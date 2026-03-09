@@ -179,7 +179,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 	private static readonly SECTION_COLLAPSE_STATE_KEY = 'agentSessions.sectionCollapseState';
 
-	private getSavedCollapseState(section: AgentSessionSection): boolean | undefined {
+	private getSavedCollapseState(section: string): boolean | undefined {
 		const raw = this.storageService.get(AgentSessionsControl.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
 		if (raw) {
 			try {
@@ -194,7 +194,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		return undefined;
 	}
 
-	private saveSectionCollapseState(section: AgentSessionSection, collapsed: boolean): void {
+	private saveSectionCollapseState(section: string, collapsed: boolean): void {
 		let state: Record<string, boolean> = {};
 		const raw = this.storageService.get(AgentSessionsControl.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
 		if (raw) {
@@ -227,7 +227,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 					return true; // Archived section is collapsed when archived are excluded
 				}
 				if (this.options.collapseOlderSections?.()) {
-					const olderSections = [AgentSessionSection.Week, AgentSessionSection.Older, AgentSessionSection.Archived];
+					const olderSections: string[] = [AgentSessionSection.Week, AgentSessionSection.Older, AgentSessionSection.Archived];
 					if (olderSections.includes(element.section)) {
 						return true; // Collapse older time sections if option is enabled
 					}

@@ -808,6 +808,8 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			}
 
 			return this.groupSessionsCapped(sortedSessions);
+		} else if (this.filter?.groupResults?.() === AgentSessionsGrouping.Repository) {
+			return this.groupSessionsByRepository(sortedSessions);
 		} else {
 			return this.groupSessionsByDate(sortedSessions);
 		}
@@ -847,6 +849,39 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			}
 
 			result.push({ section, label, sessions });
+		}
+
+		return result;
+	}
+
+	private groupSessionsByRepository(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
+		const repoMap = new Map<string, IAgentSession[]>();
+		const noRepoLabel = localize('agentSessions.noRepository', "Other");
+
+		for (const session of sortedSessions) {
+			const badge = session.badge;
+			let repoName: string;
+			if (badge) {
+				repoName = typeof badge === 'string' ? badge : renderAsPlaintext(new MarkdownString(badge.value));
+			} else {
+				repoName = noRepoLabel;
+			}
+
+			let group = repoMap.get(repoName);
+			if (!group) {
+				group = [];
+				repoMap.set(repoName, group);
+			}
+			group.push(session);
+		}
+
+		const result: AgentSessionListItem[] = [];
+		for (const [repoName, sessions] of repoMap) {
+			result.push({
+				section: `repo-${repoName}`,
+				label: repoName,
+				sessions,
+			});
 		}
 
 		return result;
