@@ -20,7 +20,8 @@ const AGENT_AUTHOR_PATTERNS = [
 ];
 
 /**
- * Watches for git blame operations. If every line in a file was authored
+ * On active editor changes, runs `git blame` for the newly focused file
+ * (once per file per session). If every line in that file was authored
  * by agents, shows a subtle status bar message.
  */
 export class GitBlameEasterEgg implements vscode.Disposable {
