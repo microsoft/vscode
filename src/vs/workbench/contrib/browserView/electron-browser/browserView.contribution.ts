@@ -20,7 +20,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { Schemas } from '../../../../base/common/network.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
-import { BrowserZoomService, IBrowserZoomService } from '../common/browserZoomService.js';
+import { BROWSER_ZOOM_PER_ORIGIN_SETTING, BrowserZoomService, IBrowserZoomService } from '../common/browserZoomService.js';
 import { browserZoomFactors, BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 import { IExternalOpener, IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -203,6 +203,19 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				{ comment: ['This is the description for a setting.'], key: 'browser.defaultZoomLevel' },
 				'Controls the default zoom level for the Integrated Browser. The {0} command will restore the zoom to this level.',
 				'`Reset Zoom`'
+			),
+			scope: ConfigurationScope.WINDOW
+		},
+		[BROWSER_ZOOM_PER_ORIGIN_SETTING]: {
+			type: 'object',
+			additionalProperties: {
+				type: 'string',
+				enum: browserZoomFactors.map(f => `${Math.round(f * 100)}%`),
+			},
+			default: {},
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting. Keys are origin strings, e.g. "https://example.com".'], key: 'browser.perOriginZoomLevels' },
+				'Controls the zoom level for specific origins in the Integrated Browser, overriding the default zoom level. Each key is an origin (e.g. `https://example.com`) and each value is a zoom percentage. Entries are added and removed automatically when you zoom in or out on a page.'
 			),
 			scope: ConfigurationScope.WINDOW
 		},
