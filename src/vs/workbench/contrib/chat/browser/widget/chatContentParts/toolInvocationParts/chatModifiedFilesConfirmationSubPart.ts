@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
-import { addDisposableListener } from '../../../../../../../base/browser/dom.js';
 import { Button, ButtonWithIcon } from '../../../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -166,6 +165,7 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 			secondary: true,
 			small: true,
 			supportIcons: true,
+			ariaLabel: localize('viewAllChanges', 'View All Changes'),
 			title: localize('viewAllChanges', 'View All Changes'),
 		}));
 		viewAllChangesButton.element.classList.add('default-colors');
@@ -242,7 +242,7 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		};
 
 		this._register(titleButton.onDidClick(toggleWorkingSet));
-		this._register(addDisposableListener(overview, 'click', e => {
+		this._register(dom.addDisposableListener(overview, 'click', e => {
 			if (e.defaultPrevented) {
 				return;
 			}

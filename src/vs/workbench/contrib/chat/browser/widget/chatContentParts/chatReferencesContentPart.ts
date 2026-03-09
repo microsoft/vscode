@@ -446,9 +446,9 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				}
 				// eslint-disable-next-line no-restricted-syntax
 				templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
-				if (templateData.toolbar) {
-					templateData.toolbar.context = arg;
-				}
+			}
+			if (templateData.toolbar) {
+				templateData.toolbar.context = arg;
 			}
 			if (templateData.contextKeyService) {
 				if (data.state !== undefined) {
