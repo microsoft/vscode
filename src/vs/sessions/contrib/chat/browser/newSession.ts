@@ -247,7 +247,8 @@ export class RemoteNewSession extends Disposable implements INewSession {
 	}
 
 	setMode(_mode: IChatMode | undefined): void {
-		// No-op for remote sessions
+		// Intentionally a no-op: remote sessions do not support client-side mode selection.
+		// Any mode or behavior differences are determined by the remote session provider/server.
 	}
 
 	setQuery(query: string): void {
