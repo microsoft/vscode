@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -18,13 +18,22 @@ export type MoleculeToHostMessage =
 	| { type: 'phonon:intent'; description: string }
 	| { type: 'phonon:setTitle'; title: string }
 	| { type: 'phonon:setLoading'; loading: boolean }
+	| { type: 'phonon:setState'; key: string; value: unknown }
 	| { type: 'phonon:ready' };
 
 /** Messages from host (canvas editor) -> molecule (webview) */
 export type HostToMoleculeMessage =
 	| { type: 'phonon:data:response'; requestId: string; success: boolean; data?: unknown; error?: string }
 	| { type: 'phonon:params'; params: Record<string, unknown> }
-	| { type: 'phonon:init'; moleculeId: string; entity?: string };
+	| { type: 'phonon:init'; moleculeId: string; entity?: string }
+	| { type: 'phonon:stateUpdate'; state: Record<string, unknown> };
+
+/** Fired when a molecule updates its state via phonon.setState(). */
+export interface IMoleculeStateChange {
+	readonly moleculeId: string;
+	readonly key: string;
+	readonly value: unknown;
+}
 
 // ==================== Data Resolution Interface ====================
 
@@ -64,6 +73,10 @@ export interface IMoleculeWebview {
  * boundary and propagates them to internal data resolution.
  */
 export class LiquidMoleculeSlotHost extends Disposable {
+
+	private readonly _onDidStateChange = this._register(new Emitter<IMoleculeStateChange>());
+	/** Fires when the molecule calls phonon.setState(key, value). */
+	readonly onDidStateChange: Event<IMoleculeStateChange> = this._onDidStateChange.event;
 
 	constructor(
 		private readonly webview: IMoleculeWebview,
@@ -118,25 +131,33 @@ export class LiquidMoleculeSlotHost extends Disposable {
 
 			case 'phonon:navigate':
 				this.logService.info(`[Phonon Molecule Bridge] Navigate request: viewId=${msg.viewId}`);
-				// Navigation is handled by the canvas editor, not the bridge.
-				// Future: emit an event for the canvas to handle.
 				break;
 
 			case 'phonon:intent':
 				this.logService.info(`[Phonon Molecule Bridge] Intent request: ${msg.description}`);
-				// Future: route to chat agent
 				break;
 
 			case 'phonon:setTitle':
 				this.logService.trace(`[Phonon Molecule Bridge] setTitle: ${msg.title}`);
-				// Future: update slot header
 				break;
 
 			case 'phonon:setLoading':
 				this.logService.trace(`[Phonon Molecule Bridge] setLoading: ${msg.loading}`);
-				// Future: show/hide loading indicator
+				break;
+
+			case 'phonon:setState':
+				this.logService.trace(`[Phonon Molecule Bridge] setState: ${msg.key}`);
+				this._onDidStateChange.fire({ moleculeId: this.moleculeId, key: msg.key, value: msg.value });
 				break;
 		}
+	}
+
+	/**
+	 * Push a full state snapshot to the molecule iframe.
+	 * Used for state restoration after hot reload.
+	 */
+	pushState(state: Record<string, unknown>): void {
+		this._sendToMolecule({ type: 'phonon:stateUpdate', state });
 	}
 
 	private _sendToMolecule(msg: HostToMoleculeMessage): void {

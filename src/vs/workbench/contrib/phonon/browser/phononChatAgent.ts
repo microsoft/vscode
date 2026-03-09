@@ -26,6 +26,8 @@ import {
 	ILanguageModelsService,
 } from '../../chat/common/languageModels.js';
 import { IChatFollowup, IChatProgress } from '../../chat/common/chatService/chatService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { LiquidCanvasEditor } from './views/liquidCanvasEditor.js';
 
 export class PhononChatAgentImpl extends Disposable implements IChatAgentImplementation {
 
@@ -42,6 +44,7 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 		@ILogService private readonly logService: ILogService,
 		@IPhononAgentPoolService private readonly agentPoolService: IPhononAgentPoolService,
 		@ILiquidModuleRegistry private readonly liquidModuleRegistry: ILiquidModuleRegistry,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 	}
@@ -350,9 +353,9 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 		const capabilities = this.liquidModuleRegistry.getCapabilities();
 		const hasEntities = capabilities.entities.length > 0;
 		const hasViews = capabilities.views.length > 0;
-		const hasCards = capabilities.cards && capabilities.cards.length > 0;
+		const hasMolecules = capabilities.molecules.length > 0;
 
-		if (!hasEntities && !hasViews && !hasCards) {
+		if (!hasEntities && !hasViews && !hasMolecules) {
 			return base;
 		}
 
@@ -377,14 +380,17 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 			}
 		}
 
-		if (hasCards) {
-			sections.push('', '### Available Cards (Micro-Widgets)');
-			sections.push('Cards are sandboxed HTML components. Use cardId in composition intents.');
-			for (const card of capabilities.cards) {
+		if (hasMolecules) {
+			sections.push('', '### Available Molecules');
+			sections.push('Molecules are prefabricated UI components in sandboxed iframes. Use moleculeId in composition intents.');
+			for (const mol of capabilities.molecules) {
 				const parts: string[] = [];
-				if (card.entity) { parts.push(`entity=${card.entity}`); }
-				if (card.tags.length > 0) { parts.push(`tags=${card.tags.join(',')}`); }
-				sections.push(`- ${card.id} (${card.label}): ${parts.join(', ')}`);
+				parts.push(`domain=${mol.domain}`);
+				parts.push(`category=${mol.category}`);
+				if (mol.entity) { parts.push(`entity=${mol.entity}`); }
+				if (mol.shows.length > 0) { parts.push(`shows=${mol.shows.join(',')}`); }
+				if (mol.tags.length > 0) { parts.push(`tags=${mol.tags.join(',')}`); }
+				sections.push(`- ${mol.id} (${mol.label}): ${mol.description} [${parts.join(', ')}]`);
 			}
 		}
 
@@ -392,10 +398,10 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 			'',
 			'### Canvas Composition',
 			'When the user asks to see data visually, emit a composition intent.',
-			'Use cardId for micro-cards (preferred for dashboards) or viewId for full views.',
-			'Example with cards:',
+			'Use moleculeId for molecules (preferred for dashboards) or viewId for full views.',
+			'Example with molecules:',
 			'```phonon-intent',
-			'{ "layout": "grid", "slots": [{ "cardId": "rist-food-cost" }, { "cardId": "rist-orders-incoming" }, { "cardId": "rist-revenue-today" }] }',
+			'{ "layout": "grid", "slots": [{ "moleculeId": "rist-food-cost" }, { "moleculeId": "rist-orders-incoming" }, { "moleculeId": "rist-revenue-today" }] }',
 			'```',
 			'Example with view:',
 			'```phonon-intent',
@@ -405,6 +411,26 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 			'Do NOT generate HTML. The compositor renders the intent.',
 		);
 
+		// Append active canvas state if a canvas editor is showing molecules
+		const canvasState = this._getActiveCanvasState();
+		if (canvasState) {
+			sections.push('', '## Active Canvas State', canvasState);
+		}
+
 		return sections.join('\n');
+	}
+
+	/**
+	 * Get the state snapshot from the active canvas editor, if any.
+	 */
+	private _getActiveCanvasState(): string | undefined {
+		const activePane = this.editorService.activeEditorPane;
+		if (activePane instanceof LiquidCanvasEditor) {
+			const snapshot = activePane.getCanvasStateSnapshot();
+			if (snapshot) {
+				return snapshot;
+			}
+		}
+		return undefined;
 	}
 }

@@ -114,14 +114,14 @@ export class LiquidSidebarDataProvider extends Disposable implements ITreeViewDa
 		const node = this._findNode(item.handle, this.registry.sidebarTree);
 		if (!node?.view) { return; }
 
-		// Dashboard: compose grid from dashboard-tagged cards
+		// Dashboard: compose grid from dashboard-tagged molecules
 		if (node.view.includes('Dashboard')) {
-			const dashCards = this.registry.getCardsByTag('dashboard');
-			if (dashCards.length > 0) {
-				this.logService.info(`[Phonon] Sidebar navigation: dashboard grid with ${dashCards.length} cards`);
+			const dashMolecules = this.registry.getMoleculesByTag('dashboard');
+			if (dashMolecules.length > 0) {
+				this.logService.info(`[Phonon] Sidebar navigation: dashboard grid with ${dashMolecules.length} molecules`);
 				this._onDidRequestNavigation.fire({
 					layout: 'grid',
-					slots: dashCards.map(c => ({ cardId: c.id, label: c.label })),
+					slots: dashMolecules.map((m: { id: string; label: string }) => ({ moleculeId: m.id, label: m.label })),
 					title: node.label,
 				});
 				return;

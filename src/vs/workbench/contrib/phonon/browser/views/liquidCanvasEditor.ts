@@ -18,7 +18,7 @@ import { IEditorGroup } from '../../../../services/editor/common/editorGroupsSer
 import { IEditorOpenContext } from '../../../../common/editor.js';
 import { ILiquidModuleRegistry } from '../../common/liquidModule.js';
 import { ICompositionIntent, ICompositionSlot, ILiquidMolecule, CompositionLayout } from '../../common/liquidModuleTypes.js';
-import { ILiquidDataResolver, LiquidMoleculeSlotHost, type IMoleculeWebview, type MoleculeToHostMessage, type HostToMoleculeMessage } from '../liquidMoleculeBridge.js';
+import { ILiquidDataResolver, LiquidMoleculeSlotHost, type IMoleculeWebview, type MoleculeToHostMessage, type HostToMoleculeMessage, type IMoleculeStateChange } from '../liquidMoleculeBridge.js';
 import { LiquidCanvasEditorInput } from './liquidCanvasEditorInput.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 
@@ -72,6 +72,12 @@ export class LiquidCanvasEditor extends EditorPane {
 	private _currentIntent: ICompositionIntent | undefined;
 	private readonly _slotHosts = this._register(new DisposableStore());
 
+	/**
+	 * Aggregated state per molecule. Updated when molecules call phonon.setState().
+	 * Keys are molecule IDs, values are key-value state maps.
+	 */
+	private readonly _moleculeStates = new Map<string, Record<string, unknown>>();
+
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -116,7 +122,37 @@ export class LiquidCanvasEditor extends EditorPane {
 	 */
 	composeIntent(intent: ICompositionIntent): void {
 		this._currentIntent = intent;
+		this._moleculeStates.clear();
 		this._renderIntent(intent);
+	}
+
+	/**
+	 * Returns a human-readable snapshot of all molecule states on the active canvas.
+	 * Used by the chat agent to enrich the system prompt with live canvas context.
+	 */
+	getCanvasStateSnapshot(): string {
+		if (this._moleculeStates.size === 0) {
+			return '';
+		}
+		const parts: string[] = [];
+		for (const [moleculeId, state] of this._moleculeStates) {
+			const entries = Object.entries(state).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ');
+			parts.push(`- ${moleculeId}: ${entries}`);
+		}
+		return parts.join('\n');
+	}
+
+	/**
+	 * Returns the raw state map for a specific molecule. Used for state preservation
+	 * during hot reload.
+	 */
+	getMoleculeState(moleculeId: string): Record<string, unknown> | undefined {
+		return this._moleculeStates.get(moleculeId);
+	}
+
+	private _onMoleculeStateChange(change: IMoleculeStateChange): void {
+		const current = this._moleculeStates.get(change.moleculeId) ?? {};
+		this._moleculeStates.set(change.moleculeId, { ...current, [change.key]: change.value });
 	}
 
 	private _renderIntent(intent: ICompositionIntent): void {
@@ -270,6 +306,8 @@ ${moleculeHtml}
 	var _paramCallbacks = [];
 	var _readyCallbacks = [];
 
+	var _state = {};
+
 	window.phonon = {
 		data: {
 			fetch: function(entity, query) {
@@ -298,6 +336,13 @@ ${moleculeHtml}
 		},
 		setLoading: function(loading) {
 			window.parent.postMessage({ type: 'phonon:setLoading', loading: loading }, '*');
+		},
+		setState: function(key, value) {
+			_state[key] = value;
+			window.parent.postMessage({ type: 'phonon:setState', key: key, value: value }, '*');
+		},
+		getState: function(key) {
+			return _state[key];
 		},
 		onParams: function(cb) {
 			_paramCallbacks.push(cb);
@@ -328,6 +373,8 @@ ${moleculeHtml}
 		} else if (msg.type === 'phonon:init') {
 			_readyCallbacks.forEach(function(cb) { cb(); });
 			_readyCallbacks = [];
+		} else if (msg.type === 'phonon:stateUpdate') {
+			_state = msg.state || {};
 		}
 	});
 
@@ -375,8 +422,12 @@ ${moleculeHtml}
 			this.dataResolver, this.logService,
 		);
 
+		// Wire molecule state changes to the canvas state aggregator
+		const stateListener = host.onDidStateChange(change => this._onMoleculeStateChange(change));
+
 		return {
 			dispose: () => {
+				stateListener.dispose();
 				dom.getWindow(this._container ?? iframe).removeEventListener('message', messageHandler);
 				onMessage.dispose();
 				host.dispose();

@@ -382,6 +382,47 @@ suite('LiquidMoleculeSlotHost', () => {
 		}]);
 	});
 
+	// ---- phonon:setState ----
+
+	test('phonon:setState fires onDidStateChange with molecule id, key, and value', async () => {
+		const host = createHost('state-mol', 'order');
+		const stateChanges: Array<{ moleculeId: string; key: string; value: unknown }> = [];
+		store.add(host.onDidStateChange(change => stateChanges.push(change)));
+
+		webview.fire({ type: 'phonon:setState', key: 'orderCount', value: 42 });
+		await tick();
+
+		assert.deepStrictEqual(stateChanges, [
+			{ moleculeId: 'state-mol', key: 'orderCount', value: 42 },
+		]);
+		assert.strictEqual(webview.posted.length, 0);
+	});
+
+	test('phonon:setState fires multiple times for multiple keys', async () => {
+		const host = createHost('multi-state');
+		const stateChanges: Array<{ moleculeId: string; key: string; value: unknown }> = [];
+		store.add(host.onDidStateChange(change => stateChanges.push(change)));
+
+		webview.fire({ type: 'phonon:setState', key: 'loading', value: true });
+		webview.fire({ type: 'phonon:setState', key: 'count', value: 5 });
+		await tick();
+
+		assert.strictEqual(stateChanges.length, 2);
+		assert.strictEqual(stateChanges[0].key, 'loading');
+		assert.strictEqual(stateChanges[1].key, 'count');
+	});
+
+	test('pushState sends phonon:stateUpdate to molecule', () => {
+		const host = createHost('push-mol');
+		const state = { orderCount: 42, loading: false };
+
+		host.pushState(state);
+
+		assert.deepStrictEqual(webview.posted, [
+			{ type: 'phonon:stateUpdate', state },
+		]);
+	});
+
 	// ---- Disposable ----
 
 	test('after dispose messages are no longer handled', async () => {
