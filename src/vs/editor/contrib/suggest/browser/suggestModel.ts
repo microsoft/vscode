@@ -464,12 +464,9 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		const status = inlineModel.status.get();
-		if (status === 'ghostText' || status === 'inlineEdit') {
-			return;
-		}
-		if (status === 'noSuggestion') {
-			this.trigger({ auto: true });
+		const state = inlineModel.state.get();
+		if (state?.inlineSuggestion) {
+			// Inline completions are already showing - suppress
 			return;
 		}
 
@@ -498,18 +495,20 @@ export class SuggestModel implements IDisposable {
 			}
 		};
 
-		// Race: observe inline completions status vs 750ms timeout
+		// Race: observe inline completions state vs 750ms timeout
 		disposableTimeout(() => {
 			triggerAndCleanUp(true);
 			inlineModel.stop('automatic');
 		}, 750, store);
 
 		store.add(autorun(reader => {
-			const resolvedStatus = inlineModel.status.read(reader);
-			if (resolvedStatus === 'loading') {
+			const status = inlineModel.status.read(reader);
+			const currentState = inlineModel.state.read(reader);
+			if (!currentState && status === 'loading') {
+				// Still loading
 				return;
 			}
-			triggerAndCleanUp(resolvedStatus !== 'ghostText' && resolvedStatus !== 'inlineEdit');
+			triggerAndCleanUp(!currentState);
 		}));
 	}
 
