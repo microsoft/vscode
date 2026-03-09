@@ -898,19 +898,16 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	private getRepositoryName(session: IAgentSession): string | undefined {
 		const metadata = session.metadata;
 		if (metadata) {
+			// Cloud sessions: metadata.name is the repo name
+			const name = metadata.name as string | undefined;
+			if (name && typeof name === 'string') {
+				return name;
+			}
+
 			// repositoryNwo: "owner/repo"
 			const nwo = metadata.repositoryNwo as string | undefined;
 			if (nwo && nwo.includes('/')) {
 				return nwo.split('/').pop()!;
-			}
-
-			// repositoryPath: "/Users/user/Projects/vscode" — the actual repo root
-			const repositoryPath = metadata.repositoryPath as string | undefined;
-			if (repositoryPath) {
-				const name = repositoryPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop();
-				if (name) {
-					return name;
-				}
 			}
 
 			// repository: could be "owner/repo" or a URL
@@ -942,6 +939,16 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 				} catch {
 					// not a URL
 				}
+			}
+		}
+
+		// Fallback: extract repo name from badge if it uses the $(repo) icon
+		const badge = session.badge;
+		if (badge) {
+			const raw = typeof badge === 'string' ? badge : badge.value;
+			const repoMatch = raw.match(/\$\(repo\)\s*(.+)/);
+			if (repoMatch) {
+				return repoMatch[1].trim();
 			}
 		}
 
