@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfig } from '../../common/debug.js';
-import { formatPII, getExactExpressionStartAndEnd, getVisibleAndSorted } from '../../common/debugUtils.js';
+import { formatPII, getEffectivePresentationForConfig, getExactExpressionStartAndEnd, getVisibleAndSorted } from '../../common/debugUtils.js';
+import * as platform from '../../../../../base/common/platform.js';
 
 suite('Debug - Utils', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -49,6 +50,46 @@ suite('Debug - Utils', () => {
 		// Spread syntax should extract just the identifier
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('[...bar]', 5, 7), { start: 5, end: 7 });
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('...variable', 5, 5), { start: 4, end: 11 });
+	});
+
+	test('getEffectivePresentationForConfig - platform override', () => {
+		const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
+		const otherKey = platform.isWindows ? 'linux' : 'windows';
+
+		// No platform override: returns base presentation
+		const config1: IConfig = { type: 'node', request: 'launch', name: 'a', presentation: { hidden: false } };
+		assert.deepStrictEqual(getEffectivePresentationForConfig(config1), { hidden: false });
+
+		// Platform-specific presentation overrides base hidden value
+		const config2: IConfig = {
+			type: 'node', request: 'launch', name: 'b',
+			presentation: { hidden: false },
+			[platformKey]: { presentation: { hidden: true } }
+		} as IConfig;
+		assert.deepStrictEqual(getEffectivePresentationForConfig(config2), { hidden: true });
+
+		// Non-matching platform override does not affect result
+		const config3: IConfig = {
+			type: 'node', request: 'launch', name: 'c',
+			presentation: { hidden: false },
+			[otherKey]: { presentation: { hidden: true } }
+		} as IConfig;
+		assert.deepStrictEqual(getEffectivePresentationForConfig(config3), { hidden: false });
+
+		// No base presentation, platform-specific sets hidden
+		const config4: IConfig = {
+			type: 'node', request: 'launch', name: 'd',
+			[platformKey]: { presentation: { hidden: true } }
+		} as IConfig;
+		assert.deepStrictEqual(getEffectivePresentationForConfig(config4), { hidden: true });
+
+		// Platform-specific merges with base (group and order preserved)
+		const config5: IConfig = {
+			type: 'node', request: 'launch', name: 'e',
+			presentation: { group: 'myGroup', order: 2 },
+			[platformKey]: { presentation: { hidden: true } }
+		} as IConfig;
+		assert.deepStrictEqual(getEffectivePresentationForConfig(config5), { group: 'myGroup', order: 2, hidden: true });
 	});
 
 	test('config presentation', () => {

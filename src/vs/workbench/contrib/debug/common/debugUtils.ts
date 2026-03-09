@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
-import { IDebuggerContribution, IDebugSession, IConfigPresentation, State } from './debug.js';
+import { IDebuggerContribution, IDebugSession, IConfig, IConfigPresentation, State } from './debug.js';
 import { URI as uri } from '../../../../base/common/uri.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { deepClone } from '../../../../base/common/objects.js';
@@ -17,6 +17,7 @@ import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
@@ -329,6 +330,22 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 			break;
 		}
 	}
+}
+
+export function getEffectivePresentationForConfig(config: IConfig): IConfigPresentation | undefined {
+	let platformKey: 'windows' | 'osx' | 'linux' | undefined;
+	if (isWindows) {
+		platformKey = 'windows';
+	} else if (isMacintosh) {
+		platformKey = 'osx';
+	} else if (isLinux) {
+		platformKey = 'linux';
+	}
+	const platformConfig = platformKey ? config[platformKey] : undefined;
+	if (platformConfig?.presentation) {
+		return { ...config.presentation, ...platformConfig.presentation };
+	}
+	return config.presentation;
 }
 
 export function getVisibleAndSorted<T extends { presentation?: IConfigPresentation }>(array: T[]): T[] {

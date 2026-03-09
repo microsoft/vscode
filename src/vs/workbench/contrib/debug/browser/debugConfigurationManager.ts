@@ -32,9 +32,9 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IHistoryService } from '../../../services/history/common/history.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { CONTEXT_DEBUG_CONFIGURATION_TYPE, DebugConfigurationProviderTriggerKind, IAdapterManager, ICompound, IConfig, IConfigPresentation, IConfigurationManager, IDebugConfigurationProvider, IGlobalConfig, IGuessedDebugger, ILaunch } from '../common/debug.js';
+import { CONTEXT_DEBUG_CONFIGURATION_TYPE, DebugConfigurationProviderTriggerKind, IAdapterManager, ICompound, IConfig, IConfigPresentation, IConfigurationManager, IDebugConfigurationProvider, IGlobalConfig, IGuessedDebugger, ILaunch, isDebugConfig } from '../common/debug.js';
 import { launchSchema } from '../common/debugSchemas.js';
-import { getVisibleAndSorted } from '../common/debugUtils.js';
+import { getEffectivePresentationForConfig, getVisibleAndSorted } from '../common/debugUtils.js';
 import { debugConfigure } from './debugIcons.js';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
@@ -296,7 +296,8 @@ export class ConfigurationManager implements IConfigurationManager {
 			for (const name of l.getConfigurationNames()) {
 				const config = l.getConfiguration(name) || l.getCompound(name);
 				if (config) {
-					all.push({ launch: l, name, presentation: config.presentation });
+					const presentation = isDebugConfig(config) ? getEffectivePresentationForConfig(config) : config.presentation;
+					all.push({ launch: l, name, presentation });
 				}
 			}
 		}
@@ -533,7 +534,8 @@ abstract class AbstractLaunch implements ILaunch {
 			if (config.compounds) {
 				configurations.push(...config.compounds.filter(compound => typeof compound.name === 'string' && compound.configurations && compound.configurations.length));
 			}
-			return getVisibleAndSorted(configurations).map(c => c.name);
+			const resolved = configurations.map(c => isDebugConfig(c) ? { ...c, presentation: getEffectivePresentationForConfig(c) } : c);
+			return getVisibleAndSorted(resolved).map(c => c.name);
 		}
 	}
 
