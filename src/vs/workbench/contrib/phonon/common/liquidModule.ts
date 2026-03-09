@@ -8,7 +8,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import type {
 	ILiquidEntity,
 	ILiquidView,
-	ILiquidCard,
+	ILiquidMolecule,
 	ILiquidDataProvider,
 	ILiquidSidebarNode,
 	ILiquidCapabilitySummary,
@@ -23,21 +23,25 @@ export interface ILiquidModuleRegistry {
 	// Read
 	readonly entities: ReadonlyArray<ILiquidEntity>;
 	readonly views: ReadonlyArray<ILiquidView>;
-	readonly cards: ReadonlyArray<ILiquidCard>;
+	readonly molecules: ReadonlyArray<ILiquidMolecule>;
 	readonly dataProviders: ReadonlyArray<ILiquidDataProvider>;
 	readonly sidebarTree: ReadonlyArray<ILiquidSidebarNode>;
 
 	// React
 	readonly onDidChangeEntities: Event<void>;
 	readonly onDidChangeViews: Event<void>;
-	readonly onDidChangeCards: Event<void>;
+	readonly onDidChangeMolecules: Event<void>;
 	readonly onDidChangeDataProviders: Event<void>;
 	readonly onDidChangeSidebar: Event<void>;
 
 	// Query (for AI)
 	getViewsForEntity(entityId: string): ILiquidView[];
-	getCardsForEntity(entityId: string): ILiquidCard[];
-	getCardsByTag(tag: string): ILiquidCard[];
+	getMoleculesForEntity(entityId: string): ILiquidMolecule[];
+	getMoleculesByTag(tag: string): ILiquidMolecule[];
+	/** Returns molecules whose `shows` array includes the given entityId. */
+	findByEntity(entityId: string): ILiquidMolecule[];
+	/** Returns molecules belonging to the given business domain. */
+	findByDomain(domain: string): ILiquidMolecule[];
 	getEntitySchema(entityId: string): object | undefined;
 	getCapabilities(): ILiquidCapabilitySummary;
 

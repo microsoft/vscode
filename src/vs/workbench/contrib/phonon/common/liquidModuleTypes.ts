@@ -47,30 +47,36 @@ export interface ILiquidViewContribution {
 	readonly entity?: string;
 }
 
+/** Category classifying a molecule's UI purpose. */
+export type ComponentCategory = 'stat' | 'table' | 'detail' | 'chart' | 'form' | 'list';
+
 /**
- * Card contribution from an extension's package.json.
- * A card is a sandboxed HTML webview: any language, any framework.
+ * Molecule contribution from an extension's package.json.
+ * A molecule is a sandboxed HTML webview: any language, any framework.
  * The `entry` path points to an HTML file loaded in an iframe.
  */
-export interface ILiquidCardContribution {
+export interface ILiquidMoleculeContribution {
 	readonly id: string;
 	readonly label: string;
-	/** Relative path to the card's HTML entry file within the extension. */
+	/** Human-readable description for AI and developer tooling. */
+	readonly description?: string;
+	/** Relative path to the molecule's HTML entry file within the extension. */
 	readonly entry: string;
-	/** Entity this card displays data for. */
+	/** Entity this molecule displays data for. */
 	readonly entity?: string;
+	/** Business domain this molecule belongs to (e.g. "inventory", "orders", "analytics"). */
+	readonly domain?: string;
+	/** UI purpose category. */
+	readonly category?: ComponentCategory;
 	/** Tags for AI-driven composition (e.g. "analytics", "cost", "dashboard"). */
 	readonly tags?: readonly string[];
-	/** Minimum card dimensions in pixels. */
-	readonly size?: { readonly minWidth?: number; readonly minHeight?: number };
-	/** Card runtime environment. Defaults to 'js' for standard HTML/CSS/JS cards. */
-	readonly runtime?: CardRuntime;
-	/** Required permissions for data access. E.g. ["entity:dish:read", "entity:order:write"]. */
-	readonly permissions?: readonly string[];
+	/** Grid layout constraints. */
+	readonly layout?: { readonly minCols?: number; readonly maxCols?: number; readonly minHeight?: number };
+	/** Entity IDs this molecule can visualise. */
+	readonly shows?: readonly string[];
+	/** IDs of related molecules or entities for composition hints. */
+	readonly relatesTo?: readonly string[];
 }
-
-/** Runtime environment for card execution. Defaults to 'js'. */
-export type CardRuntime = 'js' | 'wasm-bindgen' | 'pyodide' | 'emscripten';
 
 /**
  * Data provider contribution from an extension's package.json.
@@ -130,20 +136,29 @@ export interface ILiquidView {
 }
 
 /**
- * Resolved card - entry path resolved to URI, extensionId attached.
+ * Resolved molecule - entry path resolved to URI, extensionId attached.
  * The entryUri points to an HTML file that will be loaded in a sandboxed iframe.
  */
-export interface ILiquidCard {
+export interface ILiquidMolecule {
 	readonly id: string;
 	readonly label: string;
-	/** Fully resolved URI to the card's HTML entry file. */
+	/** Human-readable description for AI and developer tooling. */
+	readonly description: string;
+	/** Fully resolved URI to the molecule's HTML entry file. */
 	readonly entryUri: URI;
 	readonly entity?: string;
+	/** Business domain this molecule belongs to. */
+	readonly domain: string;
+	/** UI purpose category. */
+	readonly category: ComponentCategory;
 	readonly tags: readonly string[];
-	readonly size: { readonly minWidth: number; readonly minHeight: number };
+	/** Grid layout constraints. */
+	readonly layout: { readonly minCols: number; readonly maxCols: number; readonly minHeight: number };
 	readonly extensionId: string;
-	readonly runtime: CardRuntime;
-	readonly permissions: readonly string[];
+	/** Entity IDs this molecule can visualise. */
+	readonly shows: readonly string[];
+	/** IDs of related molecules or entities for composition hints. */
+	readonly relatesTo: readonly string[];
 }
 
 /**
@@ -179,13 +194,13 @@ export interface ILiquidSidebarNode {
 export type CompositionLayout = 'single' | 'split-horizontal' | 'split-vertical' | 'grid' | 'stack';
 
 /**
- * A slot in a composition - one view or card instance with optional parameters.
+ * A slot in a composition - one view or molecule instance with optional parameters.
  */
 export interface ICompositionSlot {
-	/** View ID for macro views. Mutually exclusive with cardId. */
+	/** View ID for macro views. Mutually exclusive with moleculeId. */
 	readonly viewId?: string;
-	/** Card ID for micro-cards. Mutually exclusive with viewId. */
-	readonly cardId?: string;
+	/** Molecule ID for micro-molecules. Mutually exclusive with viewId. */
+	readonly moleculeId?: string;
 	readonly params?: Record<string, unknown>;
 	readonly weight?: number;
 	readonly label?: string;
@@ -226,10 +241,14 @@ export interface ILiquidCapabilitySummary {
 		readonly mode: 'structured' | 'canvas';
 		readonly entity?: string;
 	}[];
-	readonly cards: readonly {
+	readonly molecules: readonly {
 		readonly id: string;
 		readonly label: string;
+		readonly description: string;
 		readonly entity?: string;
+		readonly domain: string;
+		readonly category: ComponentCategory;
 		readonly tags: readonly string[];
+		readonly shows: readonly string[];
 	}[];
 }
