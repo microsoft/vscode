@@ -1,0 +1,20 @@
+{
+	"name": "@son-of-anton/model-router",
+	"version": "0.1.0",
+	"description": "Model Proxy Router — routes LLM API calls dynamically across providers",
+	"main": "dist/index.js",
+	"scripts": {
+		"build": "tsc",
+		"start": "node dist/index.js",
+		"dev": "tsc --watch & node --watch dist/index.js",
+		"test": "node --test dist/test/router.test.js"
+	},
+	"dependencies": {
+		"express": "^4.21.0"
+	},
+	"devDependencies": {
+		"@types/express": "^4.17.21",
+		"@types/node": "^20.11.0",
+		"typescript": "^5.5.0"
+	}
+}

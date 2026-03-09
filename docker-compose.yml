@@ -315,6 +315,69 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  model-router:
+    build:
+      context: ./services/model-router
+      dockerfile: Dockerfile
+    container_name: soa-model-router
+    ports:
+      - "${MODEL_ROUTER_PORT:-3200}:3200"
+    env_file: .env
+    volumes:
+      - ./services/model-router/config/model-routes.json:/app/config/routes.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3200/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  checkpoints:
+    build:
+      context: ./services/checkpoints
+      dockerfile: Dockerfile
+    container_name: soa-checkpoints
+    ports:
+      - "${CHECKPOINT_PORT:-3201}:3201"
+    environment:
+      - CHECKPOINT_PORT=${CHECKPOINT_PORT:-3201}
+      - WORKSPACE_ROOT=/workspace
+      - CHECKPOINT_BASE_PATH=/workspace/.son-of-anton/checkpoints
+    volumes:
+      - ${PROJECT_PATH:-.}:/workspace:rw
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3201/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  walkthrough:
+    build:
+      context: ./services/walkthrough
+      dockerfile: Dockerfile
+    container_name: soa-walkthrough
+    depends_on:
+      model-router:
+        condition: service_healthy
+    ports:
+      - "${WALKTHROUGH_PORT:-3202}:3202"
+    environment:
+      - WALKTHROUGH_PORT=${WALKTHROUGH_PORT:-3202}
+      - MODEL_ROUTER_URL=${MODEL_ROUTER_URL:-http://model-router:3200}
+      - WALKTHROUGH_BASE_PATH=/workspace/.son-of-anton/walkthroughs
+    volumes:
+      - ${PROJECT_PATH:-.}:/workspace:rw
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3202/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
 networks:
   sandbox-net:
     driver: bridge
