@@ -46,6 +46,7 @@ import { getTarget, mapClaudeModels, mapClaudeTools } from '../languageProviders
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { getCanonicalPluginCommandId, IAgentPlugin, IAgentPluginService } from '../../plugins/agentPluginService.js';
+import { isContributionEnabled } from '../../enablement.js';
 import { assertNever } from '../../../../../../base/common/assert.js';
 
 /**
@@ -249,7 +250,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		this._register(autorun(reader => {
 			const plugins = this.agentPluginService.plugins.read(reader);
 			for (const plugin of plugins) {
-				plugin.hooks.read(reader);
+				if (isContributionEnabled(plugin.enablement.read(reader))) {
+					plugin.hooks.read(reader);
+				}
 			}
 			this._onDidPluginHooksChange.fire();
 		}));
@@ -263,6 +266,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 			const plugins = this.agentPluginService.plugins.read(reader);
 			const nextFiles: IPluginPromptPath[] = [];
 			for (const plugin of plugins) {
+				if (!isContributionEnabled(plugin.enablement.read(reader))) {
+					continue;
+				}
 				for (const item of getItems(plugin, reader)) {
 					nextFiles.push({
 						uri: item.uri,
@@ -1314,6 +1320,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Collect hooks from agent plugins
 		const plugins = this.agentPluginService.plugins.get();
 		for (const plugin of plugins) {
+			if (!isContributionEnabled(plugin.enablement.get())) {
+				continue;
+			}
 			for (const hook of plugin.hooks.get()) {
 				let bucket = collectedHooks.get(hook.type);
 				if (!bucket) {

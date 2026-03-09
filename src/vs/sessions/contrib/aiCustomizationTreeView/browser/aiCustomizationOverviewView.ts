@@ -193,7 +193,7 @@ export class AICustomizationOverviewView extends ViewPane {
 		const pluginSection = this.sections.find(s => s.id === AICustomizationManagementSection.Plugins);
 		if (pluginSection) {
 			this._register(autorun(reader => {
-				const plugins = this.agentPluginService.allPlugins.read(reader);
+				const plugins = this.agentPluginService.plugins.read(reader);
 				pluginSection.count = plugins.length;
 				this.updateCountElements();
 			}));
