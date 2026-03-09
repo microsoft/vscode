@@ -237,7 +237,7 @@ suite('LiquidCanvasEditor', () => {
 
 	// ---- Molecule rendering (with mock file service) ----
 
-	test('known molecule renders HTML from file service', async () => {
+	test('known molecule renders in sandboxed iframe', async () => {
 		const moleculeHtml = '<div class="test-molecule"><h2>Food Cost</h2><p>32%</p></div>';
 		const moleculeUri = URI.parse('vscode-resource://ext/molecules/food-cost.html');
 		const files = new Map([[moleculeUri.toString(), moleculeHtml]]);
@@ -266,9 +266,11 @@ suite('LiquidCanvasEditor', () => {
 
 		const body = parent.querySelector('.liquid-canvas-slot-body');
 		assert.ok(body, 'Expected slot body');
-		const testMolecule = body.querySelector('.test-molecule');
-		assert.ok(testMolecule, 'Expected molecule HTML to be injected into body');
-		assert.ok(testMolecule.querySelector('h2')?.textContent?.includes('Food Cost'));
+		const iframe = body.querySelector('iframe');
+		assert.ok(iframe, 'Expected iframe in slot body');
+		assert.ok(iframe.sandbox.contains('allow-scripts'), 'Expected sandbox with allow-scripts');
+		assert.ok(iframe.srcdoc.includes('Food Cost'), 'Expected molecule HTML in srcdoc');
+		assert.ok(iframe.srcdoc.includes('window.phonon'), 'Expected bridge shim in srcdoc');
 	});
 
 	test('molecule file read error renders error message', async () => {

@@ -5,7 +5,8 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { DisposableStore, type IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -17,7 +18,7 @@ import { IEditorGroup } from '../../../../services/editor/common/editorGroupsSer
 import { IEditorOpenContext } from '../../../../common/editor.js';
 import { ILiquidModuleRegistry } from '../../common/liquidModule.js';
 import { ICompositionIntent, ICompositionSlot, ILiquidMolecule, CompositionLayout } from '../../common/liquidModuleTypes.js';
-import { ILiquidDataResolver } from '../liquidMoleculeBridge.js';
+import { ILiquidDataResolver, LiquidMoleculeSlotHost, type IMoleculeWebview, type MoleculeToHostMessage, type HostToMoleculeMessage } from '../liquidMoleculeBridge.js';
 import { LiquidCanvasEditorInput } from './liquidCanvasEditorInput.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 
@@ -182,26 +183,29 @@ export class LiquidCanvasEditor extends EditorPane {
 	}
 
 	/**
-	 * Render a molecule directly into the slot body DOM.
+	 * Render a molecule inside a sandboxed iframe with a postMessage bridge shim.
 	 *
-	 * Phase 1: direct DOM injection + window.phonon bridge for data binding.
-	 * Molecule HTML is read from disk, styles/markup injected into container,
-	 * scripts extracted and executed with the bridge API on window.phonon.
+	 * The iframe receives `srcdoc` containing the molecule HTML plus a bridge
+	 * script that exposes `window.phonon` inside the sandbox. Communication
+	 * flows via postMessage through a LiquidMoleculeSlotHost that routes data
+	 * requests to ILiquidDataResolver.
 	 *
-	 * Phase 2+: migrate to sandboxed iframe/WebviewElement for isolation.
+	 * Relationship graph:
+	 *   molecule HTML (disk) -> srcdoc (iframe sandbox)
+	 *   bridge shim (window.phonon) <-> postMessage <-> LiquidMoleculeSlotHost
+	 *   LiquidMoleculeSlotHost -> ILiquidDataResolver
 	 */
 	private async _renderMoleculeWebview(
 		container: HTMLElement,
 		molecule: ILiquidMolecule,
 		params?: Record<string, unknown>,
 	): Promise<void> {
-		// Read molecule HTML content from disk
 		this.logService.info(`[Phonon Canvas] Reading molecule: ${molecule.id} from ${molecule.entryUri.toString()}`);
-		let moleculeHtmlContent: string;
+
+		let moleculeHtml: string;
 		try {
 			const fileContent = await this.fileService.readFile(molecule.entryUri);
-			moleculeHtmlContent = fileContent.value.toString();
-			this.logService.info(`[Phonon Canvas] Read ${moleculeHtmlContent.length} bytes for molecule ${molecule.id}`);
+			moleculeHtml = fileContent.value.toString();
 		} catch (err) {
 			this.logService.warn(`[Phonon Canvas] Failed to read molecule HTML: ${molecule.id}`, err);
 			const errorEl = dom.append(container, dom.$('div'));
@@ -210,70 +214,173 @@ export class LiquidCanvasEditor extends EditorPane {
 			return;
 		}
 
-		// Install bridge API on window (molecules expect window.phonon)
-		const win = this.window as unknown as { phonon?: unknown };
-		let readyCbs: Array<() => void> = [];
-		win.phonon = {
-			data: {
-				fetch: (entity: string, query?: Record<string, unknown>) => {
-					return this.dataResolver.fetch(entity, query);
-				},
-				mutate: (entity: string, operation: 'create' | 'update' | 'delete', data: unknown) => {
-					return this.dataResolver.mutate(entity, operation, data);
-				}
+		// Create sandboxed iframe
+		const iframe = document.createElement('iframe');
+		iframe.sandbox.add('allow-scripts');
+		iframe.style.width = '100%';
+		iframe.style.height = '100%';
+		iframe.style.border = 'none';
+
+		// Build srcdoc: bridge shim + molecule HTML
+		const bridgeShim = this._buildBridgeShim(molecule.id, molecule.entity, params);
+		const srcdoc = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+	body { margin: 0; font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, sans-serif); color: var(--vscode-foreground, #ccc); background: transparent; }
+</style>
+</head>
+<body>
+${moleculeHtml}
+<script>${bridgeShim}</script>
+</body>
+</html>`;
+
+		// Use TrustedTypes if available
+		if (ttPolicy) {
+			iframe.srcdoc = ttPolicy.createHTML(srcdoc) as unknown as string;
+		} else {
+			iframe.srcdoc = srcdoc;
+		}
+
+		container.appendChild(iframe);
+
+		// Create slot host for message routing
+		const slotHost = this._createSlotHost(iframe, molecule.id, molecule.entity, params);
+		this._slotHosts.add(slotHost);
+
+		this.logService.info(`[Phonon Canvas] Rendered molecule in iframe: ${molecule.id}`);
+	}
+
+	/**
+	 * Build the ES5-compatible bridge shim injected inside the molecule iframe.
+	 *
+	 * Exposes `window.phonon` with data.fetch, data.mutate, navigate, intent,
+	 * setTitle, setLoading, onParams, onReady, and params. All calls route
+	 * through postMessage to the parent window.
+	 */
+	private _buildBridgeShim(moleculeId: string, entity: string | undefined, params: Record<string, unknown> | undefined): string {
+		// ES5 only: no arrow functions, no const/let, no template literals. iframe has no build step.
+		return `
+(function() {
+	'use strict';
+	var _requestId = 0;
+	var _pendingRequests = {};
+	var _paramCallbacks = [];
+	var _readyCallbacks = [];
+
+	window.phonon = {
+		data: {
+			fetch: function(entity, query) {
+				return new Promise(function(resolve, reject) {
+					var id = 'req-' + (++_requestId);
+					_pendingRequests[id] = { resolve: resolve, reject: reject };
+					window.parent.postMessage({ type: 'phonon:data:fetch', requestId: id, entity: entity, query: query }, '*');
+				});
 			},
-			navigate: (viewId: string) => { this.logService.info(`[Phonon Molecule] Navigate: ${viewId}`); },
-			intent: (description: string) => { this.logService.info(`[Phonon Molecule] Intent: ${description}`); },
-			setTitle: () => { /* future */ },
-			setLoading: () => { /* future */ },
-			onReady: (cb: () => void) => { readyCbs.push(cb); },
-			params: params ?? {},
+			mutate: function(entity, op, data) {
+				return new Promise(function(resolve, reject) {
+					var id = 'req-' + (++_requestId);
+					_pendingRequests[id] = { resolve: resolve, reject: reject };
+					window.parent.postMessage({ type: 'phonon:data:mutate', requestId: id, entity: entity, operation: op, data: data }, '*');
+				});
+			}
+		},
+		navigate: function(viewId, params) {
+			window.parent.postMessage({ type: 'phonon:navigate', viewId: viewId, params: params }, '*');
+		},
+		intent: function(description) {
+			window.parent.postMessage({ type: 'phonon:intent', description: description }, '*');
+		},
+		setTitle: function(title) {
+			window.parent.postMessage({ type: 'phonon:setTitle', title: title }, '*');
+		},
+		setLoading: function(loading) {
+			window.parent.postMessage({ type: 'phonon:setLoading', loading: loading }, '*');
+		},
+		onParams: function(cb) {
+			_paramCallbacks.push(cb);
+		},
+		onReady: function(cb) {
+			_readyCallbacks.push(cb);
+		},
+		params: ${JSON.stringify(params ?? {})}
+	};
+
+	window.addEventListener('message', function(event) {
+		var msg = event.data;
+		if (!msg || typeof msg.type !== 'string') return;
+
+		if (msg.type === 'phonon:data:response' && msg.requestId) {
+			var pending = _pendingRequests[msg.requestId];
+			if (pending) {
+				delete _pendingRequests[msg.requestId];
+				if (msg.success) {
+					pending.resolve(msg.data);
+				} else {
+					pending.reject(new Error(msg.error || 'Unknown error'));
+				}
+			}
+		} else if (msg.type === 'phonon:params') {
+			window.phonon.params = msg.params;
+			_paramCallbacks.forEach(function(cb) { cb(msg.params); });
+		} else if (msg.type === 'phonon:init') {
+			_readyCallbacks.forEach(function(cb) { cb(); });
+			_readyCallbacks = [];
+		}
+	});
+
+	// Signal ready to host
+	window.parent.postMessage({ type: 'phonon:ready' }, '*');
+})();
+`;
+	}
+
+	/**
+	 * Create a LiquidMoleculeSlotHost wired to a raw iframe via postMessage.
+	 *
+	 * Returns a composite IDisposable that tears down the message listener,
+	 * the emitter, and the slot host.
+	 */
+	private _createSlotHost(
+		iframe: HTMLIFrameElement,
+		moleculeId: string,
+		entity: string | undefined,
+		params: Record<string, unknown> | undefined,
+	): IDisposable {
+		// Adapt the raw iframe to IMoleculeWebview
+		const onMessage = new Emitter<MoleculeToHostMessage>();
+
+		const messageHandler = (event: MessageEvent) => {
+			if (event.source === iframe.contentWindow) {
+				onMessage.fire(event.data);
+			}
+		};
+		dom.getWindow(this._container ?? iframe).addEventListener('message', messageHandler);
+
+		const webviewAdapter: IMoleculeWebview = {
+			postMessage: async (msg: HostToMoleculeMessage) => {
+				if (iframe.contentWindow) {
+					iframe.contentWindow.postMessage(msg, '*');
+					return true;
+				}
+				return false;
+			},
+			onDidReceiveMessage: onMessage.event,
 		};
 
-		// Parse molecule HTML: inject markup, extract scripts
-		const template = document.createElement('template');
-		// Trusted Types policy required by VS Code CSP
-		if (ttPolicy) {
-			template.innerHTML = ttPolicy.createHTML(moleculeHtmlContent) as unknown as string;
-		} else {
-			template.innerHTML = moleculeHtmlContent;
-		}
-		const fragment = template.content;
+		const host = new LiquidMoleculeSlotHost(
+			webviewAdapter, moleculeId, entity, params,
+			this.dataResolver, this.logService,
+		);
 
-		// Extract <script> elements from the fragment before DOM injection.
-		// We walk the tree manually to avoid querySelectorAll (fragile selector).
-		const scripts: string[] = [];
-		const scriptNodes: Element[] = [];
-		const walker = document.createTreeWalker(fragment, NodeFilter.SHOW_ELEMENT, {
-			acceptNode: (node) => (node as Element).tagName === 'SCRIPT' ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP,
-		});
-		let cur = walker.nextNode();
-		while (cur) {
-			scriptNodes.push(cur as Element);
-			cur = walker.nextNode();
-		}
-		for (const s of scriptNodes) {
-			scripts.push(s.textContent ?? '');
-			s.remove();
-		}
-
-		// Inject styles + markup into container
-		container.appendChild(fragment);
-
-		// Execute molecule scripts (innerHTML doesn't run <script> tags)
-		for (const cb of readyCbs) { cb(); }
-		readyCbs = [];
-		for (const scriptText of scripts) {
-			try {
-				const scriptEl = document.createElement('script');
-				scriptEl.textContent = scriptText;
-				container.appendChild(scriptEl);
-			} catch (err) {
-				this.logService.warn(`[Phonon Canvas] Molecule script error in ${molecule.id}:`, err);
+		return {
+			dispose: () => {
+				dom.getWindow(this._container ?? iframe).removeEventListener('message', messageHandler);
+				onMessage.dispose();
+				host.dispose();
 			}
-		}
-
-		this._slotHosts.add({ dispose: () => { delete win.phonon; } });
-		this.logService.info(`[Phonon Canvas] Rendered molecule direct: ${molecule.id}`);
+		};
 	}
 }
