@@ -657,6 +657,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			dispose(coalesce(templateData.renderedParts));
 			templateData.renderedParts = undefined;
 			dom.clearNode(templateData.value);
+		} else if (isPendingDividerVM(templateData.currentElement)) {
+			dom.clearNode(templateData.value);
 		}
 
 		// This template item is no longer in use, or having another element rendered into it,
@@ -682,6 +684,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		templateData.currentElement = element;
 		this.templateDataByRequestId.set(element.id, templateData);
+
+		// Clear pending-related classes and drag handle from previous renders
+		// Do this before element-type checks to ensure dividers also get cleaned up
+		templateData.rowContainer.classList.remove('pending-item', 'pending-divider', 'pending-request', 'chat-pending-dragging');
+		templateData.dragHandle?.remove();
+		templateData.dragHandle = undefined;
+		delete templateData.rowContainer.dataset.pendingRequestId;
+		delete templateData.rowContainer.dataset.pendingKind;
 
 		// Handle pending divider with simplified rendering
 		if (isPendingDividerVM(element)) {
@@ -728,12 +738,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('editing-session', location === ChatAgentLocation.Chat);
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
-		// Clear pending-related classes and drag handle from previous renders
-		templateData.rowContainer.classList.remove('pending-item', 'pending-divider', 'pending-request');
-		templateData.dragHandle?.remove();
-		templateData.dragHandle = undefined;
-		delete templateData.rowContainer.dataset.pendingRequestId;
-		delete templateData.rowContainer.dataset.pendingKind;
 		const progressMessageAtBottomOfResponse = checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse);
 		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length && !progressMessageAtBottomOfResponse);
 		if (!this.rendererOptions.noHeader) {

@@ -108,7 +108,7 @@ function renderSessionItem(ctx: ComponentFixtureContext, session: IAgentSession,
 	markdownRendererService.setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 	const renderer = disposableStore.add(
-		instantiationService.createInstance(AgentSessionRenderer, rendererOptions, approvalModel ?? undefined)
+		instantiationService.createInstance(AgentSessionRenderer, rendererOptions, approvalModel ?? undefined, observableValue<URI | undefined>('activeSessionResource', undefined))
 	);
 
 	container.style.width = '350px';

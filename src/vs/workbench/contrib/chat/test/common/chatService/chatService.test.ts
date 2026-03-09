@@ -12,6 +12,7 @@ import { constObservable, observableValue } from '../../../../../../base/common/
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -40,7 +41,7 @@ import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../common/editing/chatEditingService.js';
 import { ChatModel, IChatModel, ISerializableChatData } from '../../../common/model/chatModel.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
@@ -534,6 +535,79 @@ suite('ChatService', () => {
 		assert.ok(invokedRequests[1].includes('steering2'), 'Combined message should include steering2');
 		assert.ok(invokedRequests[1].includes('steering3'), 'Combined message should include steering3');
 		assert.ok(invokedRequests[1].includes('\n\n'), 'Combined message should use \\n\\n as separator');
+	});
+	test('cancelCurrentRequestForSession waits for response completion', async () => {
+		const requestStarted = new DeferredPromise<void>();
+		const completeRequest = new DeferredPromise<void>();
+
+		const slowAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				requestStarted.complete();
+				const listener = token.onCancellationRequested(() => {
+					listener.dispose();
+					// Simulate some cleanup delay before completing
+					setTimeout(() => completeRequest.complete(), 10);
+				});
+				await completeRequest.p;
+				return {};
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('slowAgent', { ...getAgentData('slowAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('slowAgent', slowAgent));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		const response = await testService.sendRequest(model.sessionResource, 'test request', { agentId: 'slowAgent' });
+		ChatSendResult.assertSent(response);
+
+		await requestStarted.p;
+
+		// Cancel and await - should wait for the response to complete
+		await testService.cancelCurrentRequestForSession(model.sessionResource, 'test');
+
+		// After cancel resolves, the response model should have a result
+		const lastRequest = model.getRequests()[0];
+		assert.ok(lastRequest.response, 'Response should exist after cancellation completes');
+		assert.strictEqual(lastRequest.response.state, ResponseModelState.Cancelled, 'Response should be in Cancelled state');
+	});
+
+	test('cancelCurrentRequestForSession returns after timeout if response does not complete', async () => {
+		const requestStarted = new DeferredPromise<void>();
+		const completeRequest = new DeferredPromise<void>();
+
+		const hangingAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				requestStarted.complete();
+				// Wait for external signal, ignoring cancellation to simulate a hung agent
+				await completeRequest.p;
+				return {};
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('hangingAgent', { ...getAgentData('hangingAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('hangingAgent', hangingAgent));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		const response = await testService.sendRequest(model.sessionResource, 'test request', { agentId: 'hangingAgent' });
+		ChatSendResult.assertSent(response);
+
+		await requestStarted.p;
+
+		// Cancel should return after timeout even though the agent has not completed.
+		// Use faked timers so raceTimeout's 1s setTimeout fires instantly.
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await testService.cancelCurrentRequestForSession(model.sessionResource, 'test');
+		});
+
+		// Let the agent finish so the test cleans up properly
+		completeRequest.complete();
+		await response.data.responseCompletePromise;
 	});
 });
 

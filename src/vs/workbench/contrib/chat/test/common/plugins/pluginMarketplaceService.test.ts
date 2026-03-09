@@ -76,10 +76,39 @@ suite('PluginMarketplaceService', () => {
 		assert.deepStrictEqual(parsed.cacheSegments, []);
 	});
 
-	test('rejects non-shorthand marketplace entries without .git', () => {
-		assert.strictEqual(parseMarketplaceReference('https://example.com/org/repo'), undefined);
-		assert.strictEqual(parseMarketplaceReference('ssh://git@example.com/org/repo'), undefined);
+	test('accepts HTTPS and SSH marketplace entries without .git suffix', () => {
+		const https = parseMarketplaceReference('https://example.com/org/repo');
+		assert.ok(https);
+		assert.strictEqual(https?.kind, MarketplaceReferenceKind.GitUri);
+		assert.strictEqual(https?.canonicalId, 'git:example.com/org/repo.git');
+		assert.deepStrictEqual(https?.cacheSegments, ['example.com', 'org', 'repo']);
+
+		const ssh = parseMarketplaceReference('ssh://git@example.com/org/repo');
+		assert.ok(ssh);
+		assert.strictEqual(ssh?.kind, MarketplaceReferenceKind.GitUri);
+		assert.strictEqual(ssh?.canonicalId, 'git:git@example.com/org/repo.git');
+
+		// SCP-style (git@host:path) still requires .git because the colon-path syntax is
+		// unambiguous only for traditional git SSH URLs where .git is conventional.
 		assert.strictEqual(parseMarketplaceReference('git@example.com:org/repo'), undefined);
+	});
+
+	test('parses Azure DevOps HTTPS clone URLs without .git suffix', () => {
+		const parsed = parseMarketplaceReference('https://dev.azure.com/org/project/_git/repo');
+		assert.ok(parsed);
+		assert.strictEqual(parsed?.kind, MarketplaceReferenceKind.GitUri);
+		assert.strictEqual(parsed?.cloneUrl, 'https://dev.azure.com/org/project/_git/repo');
+		assert.strictEqual(parsed?.canonicalId, 'git:dev.azure.com/org/project/_git/repo.git');
+		assert.deepStrictEqual(parsed?.cacheSegments, ['dev.azure.com', 'org', 'project', '_git', 'repo']);
+	});
+
+	test('deduplicates Azure DevOps URLs with and without .git suffix', () => {
+		const parsed = parseMarketplaceReferences([
+			'https://dev.azure.com/org/project/_git/repo',
+			'https://dev.azure.com/org/project/_git/repo.git',
+		]);
+		assert.strictEqual(parsed.length, 1);
+		assert.strictEqual(parsed[0].canonicalId, 'git:dev.azure.com/org/project/_git/repo.git');
 	});
 
 	test('parses HTTPS URI with trailing slash after .git', () => {

@@ -5,6 +5,7 @@
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { createStringDataTransferItem, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../../../../base/common/dataTransfer.js';
+import { alert } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { HierarchicalKind } from '../../../../../../../base/common/hierarchicalKind.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../../../base/common/marshalling.js';
@@ -23,7 +24,7 @@ import { IFileService } from '../../../../../../../platform/files/common/files.j
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../../../../services/extensions/common/extensions.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, isImageVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { IChatWidgetService } from '../../../chat.js';
 import { getDynamicVariablesForWidget } from '../../../attachments/chatVariables.js';
@@ -386,6 +387,7 @@ function createCustomPasteEdit(model: ITextModel, context: IChatRequestVariableE
 	const label = context.length === 1
 		? context[0].name
 		: localize('pastedAttachment.multiple', '{0} and {1} more', context[0].name, context.length - 1);
+	const announceImageAttachment = context.length === 1 && isImageVariableEntry(context[0]);
 
 	const customEdit = {
 		resource: model.uri,
@@ -403,6 +405,9 @@ function createCustomPasteEdit(model: ITextModel, context: IChatRequestVariableE
 				throw new Error('No widget found for redo');
 			}
 			widget.attachmentModel.addContext(...context);
+			if (announceImageAttachment) {
+				alert(localize('chat.pastedImageAttached', 'Attached image'));
+			}
 		},
 		metadata: {
 			needsConfirmation: false,

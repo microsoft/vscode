@@ -818,6 +818,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* top padding is inside the editor widget */
 	width: 100%;
 	position: relative;
+}
+
+/* Prevent contents from covering border corners. Not applied in compact mode
+	because overflow:hidden creates a BFC that causes a ResizeObserver ↔ layout
+	feedback loop when toolbars share width with the editor. */
+.interactive-session .interactive-input-part:not(.compact) .chat-input-container {
 	/* Prevent contents from covering border corner */
 	overflow: hidden;
 }

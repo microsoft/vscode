@@ -53,7 +53,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
 import { IChatModel, IChatModelInputState, IChatResponseModel } from '../../common/model/chatModel.js';
-import { ChatMode, getModeNameForTelemetry, IChatModeService } from '../../common/chatModes.js';
+import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
@@ -1182,27 +1182,34 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const lastItem = items[items.length - 1];
 		const lastResponseComplete = lastItem && isResponseVM(lastItem) && lastItem.isComplete;
-		if (!lastResponseComplete) {
+		if (!lastResponseComplete || lastItem.isCanceled) {
+			this.chatSuggestNextWidget.hide();
 			return;
 		}
-		// Get the currently selected mode directly from the observable
-		// Note: We use currentModeObs instead of currentModeKind because currentModeKind returns
-		// the ChatModeKind enum (e.g., 'agent'), which doesn't distinguish between custom modes.
-		// Custom modes all have kind='agent' but different IDs.
-		const currentMode = this.input.currentModeObs.get();
-		const handoffs = currentMode?.handOffs?.get();
 
-		// Only show if: mode has handoffs AND chat has content AND not quick chat
-		const shouldShow = currentMode && handoffs && handoffs.length > 0;
+		// Derive handoffs from the mode that generated the last response, not the current UI selection.
+		// This ensures handoffs reflect what the response agent offers, regardless of mode picker state.
+		// Fall back to the current mode picker for old sessions where modeInfo was not persisted.
+		const modeInfo = lastItem.model.request?.modeInfo;
+		let responseMode: IChatMode | undefined;
+		if (modeInfo?.modeInstructions?.name) {
+			responseMode = this.chatModeService.findModeByName(modeInfo.modeInstructions.name);
+		} else if (modeInfo?.modeId) {
+			responseMode = this.chatModeService.findModeById(modeInfo.modeId);
+		} else {
+			responseMode = this.input.currentModeObs.get();
+		}
 
-		if (shouldShow) {
+		const handoffs = responseMode?.handOffs?.get();
+
+		if (responseMode && handoffs && handoffs.length > 0) {
 			// Log telemetry only when widget transitions from hidden to visible
 			const wasHidden = this.chatSuggestNextWidget.domNode.style.display === 'none';
-			this.chatSuggestNextWidget.render(currentMode);
+			this.chatSuggestNextWidget.render(responseMode);
 
 			if (wasHidden) {
 				this.telemetryService.publicLog2<ChatHandoffWidgetShownEvent, ChatHandoffWidgetShownClassification>('chat.handoffWidgetShown', {
-					agent: getModeNameForTelemetry(currentMode),
+					agent: getModeNameForTelemetry(responseMode),
 					handoffCount: handoffs.length
 				});
 			}
@@ -1542,7 +1549,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				ChatContextKeys.currentlyEditing.bindTo(item.contextKeyService).set(true);
 			}
 
-			const isEditingSentRequest = currentElement.pendingKind === undefined ? ChatContextKeys.EditingRequestType.Sent : ChatContextKeys.EditingRequestType.QueueOrSteer;
+			const isEditingSentRequest = currentElement.pendingKind === undefined
+				? ChatContextKeys.EditingRequestType.Sent
+				: currentElement.pendingKind === ChatRequestQueueKind.Queued
+					? ChatContextKeys.EditingRequestType.Queue
+					: ChatContextKeys.EditingRequestType.Steer;
 			const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
 			this.inputPart?.setEditing(!!this.viewModel?.editing && isInput, isEditingSentRequest);
 
@@ -2002,6 +2013,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (e.kind === 'addRequest') {
 				this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, false);
 				this._sessionIsEmptyContextKey.set(false);
+				this.chatSuggestNextWidget.hide();
 			}
 			// Hide widget on request removal
 			if (e.kind === 'removeRequest') {
@@ -2032,6 +2044,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.listWidget.scrollToEnd();
 		}
 
+		this.renderChatSuggestNextWidget();
 		this.updateChatInputContext();
 		this.input.renderChatTodoListWidget(this.viewModel.sessionResource);
 	}
@@ -2242,7 +2255,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.chatService.removePendingRequest(this.viewModel.sessionResource, editingRequestId);
 				options.queue ??= editingPendingRequest;
 			} else {
-				this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-editing');
+				await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-editing');
 				options.queue = undefined;
 			}
 
@@ -2262,7 +2275,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
 		if (model.requestNeedsInput.get() && !model.getPendingRequests().length) {
-			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-needsInput');
+			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-needsInput');
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
 		if (requestInProgress) {

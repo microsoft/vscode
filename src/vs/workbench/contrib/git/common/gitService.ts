@@ -29,8 +29,23 @@ export interface GitRefQuery {
 	readonly sort?: 'alphabetically' | 'committerdate' | 'creatordate';
 }
 
+export interface GitChange {
+	readonly uri: URI;
+	readonly originalUri: URI | undefined;
+	readonly modifiedUri: URI | undefined;
+}
+
+export interface GitDiffChange extends GitChange {
+	readonly insertions: number;
+	readonly deletions: number;
+}
+
 export interface GitRepositoryState {
 	readonly HEAD?: GitBranch;
+	readonly mergeChanges: readonly GitChange[];
+	readonly indexChanges: readonly GitChange[];
+	readonly workingTreeChanges: readonly GitChange[];
+	readonly untrackedChanges: readonly GitChange[];
 }
 
 export interface GitBranch extends GitRef {
@@ -52,6 +67,7 @@ export interface IGitRepository {
 	updateState(state: GitRepositoryState): void;
 
 	getRefs(query: GitRefQuery, token?: CancellationToken): Promise<GitRef[]>;
+	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<GitDiffChange[]>;
 }
 
 export interface IGitExtensionDelegate {
@@ -59,6 +75,7 @@ export interface IGitExtensionDelegate {
 	openRepository(uri: URI): Promise<IGitRepository | undefined>;
 
 	getRefs(root: URI, query?: GitRefQuery, token?: CancellationToken): Promise<GitRef[]>;
+	diffBetweenWithStats(root: URI, ref1: string, ref2: string, path?: string): Promise<GitDiffChange[]>;
 }
 
 export const IGitService = createDecorator<IGitService>('gitService');

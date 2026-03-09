@@ -15,6 +15,11 @@ updates:
     allow:
       - dependency-name: "@vscode/component-explorer"
       - dependency-name: "@vscode/component-explorer-cli"
+    groups:
+      component-explorer:
+        patterns:
+          - "@vscode/component-explorer"
+          - "@vscode/component-explorer-cli"
   - package-ecosystem: "npm"
     directory: "/build/vite"
     schedule:
@@ -22,3 +27,8 @@ updates:
     allow:
       - dependency-name: "@vscode/component-explorer"
       - dependency-name: "@vscode/component-explorer-vite-plugin"
+    groups:
+      component-explorer:
+        patterns:
+          - "@vscode/component-explorer"
+          - "@vscode/component-explorer-vite-plugin"

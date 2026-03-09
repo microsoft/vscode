@@ -7,6 +7,29 @@ import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { URI } from '../../../base/common/uri.js';
 
+const commandPrefix = 'workbench.action.browser';
+export enum BrowserViewCommandId {
+	Open = `${commandPrefix}.open`,
+	NewTab = `${commandPrefix}.newTab`,
+	GoBack = `${commandPrefix}.goBack`,
+	GoForward = `${commandPrefix}.goForward`,
+	Reload = `${commandPrefix}.reload`,
+	HardReload = `${commandPrefix}.hardReload`,
+	FocusUrlInput = `${commandPrefix}.focusUrlInput`,
+	AddElementToChat = `${commandPrefix}.addElementToChat`,
+	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
+	ToggleDevTools = `${commandPrefix}.toggleDevTools`,
+	OpenExternal = `${commandPrefix}.openExternal`,
+	ClearGlobalStorage = `${commandPrefix}.clearGlobalStorage`,
+	ClearWorkspaceStorage = `${commandPrefix}.clearWorkspaceStorage`,
+	ClearEphemeralStorage = `${commandPrefix}.clearEphemeralStorage`,
+	OpenSettings = `${commandPrefix}.openSettings`,
+	ShowFind = `${commandPrefix}.showFind`,
+	HideFind = `${commandPrefix}.hideFind`,
+	FindNext = `${commandPrefix}.findNext`,
+	FindPrevious = `${commandPrefix}.findPrevious`,
+}
+
 export interface IBrowserViewBounds {
 	windowId: number;
 	x: number;
@@ -287,4 +310,10 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	clearStorage(id: string): Promise<void>;
+
+	/**
+	 * Update the keybinding accelerators used in browser view context menus.
+	 * @param keybindings A map of command ID to accelerator label
+	 */
+	updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void>;
 }

@@ -22,8 +22,10 @@ export interface IChatContextUsagePromptTokenDetail {
 
 export interface IChatContextUsageData {
 	usedTokens: number;
+	completionTokens: number;
 	totalContextWindow: number;
 	percentage: number;
+	outputBufferPercentage?: number;
 	promptTokenDetails?: readonly IChatContextUsagePromptTokenDetail[];
 }
 
@@ -39,6 +41,8 @@ export class ChatContextUsageDetails extends Disposable {
 	private readonly percentageLabel: HTMLElement;
 	private readonly tokenCountLabel: HTMLElement;
 	private readonly progressFill: HTMLElement;
+	private readonly outputBufferFill: HTMLElement;
+	private readonly outputBufferLegend: HTMLElement;
 	private readonly tokenDetailsContainer: HTMLElement;
 	private readonly warningMessage: HTMLElement;
 	private readonly actionsSection: HTMLElement;
@@ -67,6 +71,14 @@ export class ChatContextUsageDetails extends Disposable {
 		// Progress bar
 		const progressBar = this.quotaItem.appendChild($('.quota-bar'));
 		this.progressFill = progressBar.appendChild($('.quota-bit'));
+		this.outputBufferFill = progressBar.appendChild($('.quota-bit.output-buffer'));
+
+		// Output buffer legend (shown only when outputBuffer is provided)
+		this.outputBufferLegend = this.quotaItem.appendChild($('.output-buffer-legend'));
+		this.outputBufferLegend.appendChild($('.output-buffer-swatch'));
+		const legendLabel = this.outputBufferLegend.appendChild($('span'));
+		legendLabel.textContent = localize('outputReserved', "Reserved for response");
+		this.outputBufferLegend.style.display = 'none';
 
 		// Token details container (for category breakdown)
 		this.tokenDetailsContainer = this.domNode.appendChild($('.token-details-container'));
@@ -98,25 +110,39 @@ export class ChatContextUsageDetails extends Disposable {
 	}
 
 	update(data: IChatContextUsageData): void {
-		const { percentage, usedTokens, totalContextWindow, promptTokenDetails } = data;
+		const { percentage, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails } = data;
 
-		// Update token count and percentage
+		// Update token count and percentage — reflects actual usage only
 		this.tokenCountLabel.textContent = localize(
 			'tokenCount',
 			"{0} / {1} tokens",
 			this.formatTokenCount(usedTokens, 1),
 			this.formatTokenCount(totalContextWindow, 0)
 		);
-		this.percentageLabel.textContent = localize('quotaDisplay', "{0}%", percentage.toFixed(0));
+		this.percentageLabel.textContent = localize('quotaDisplay', "{0}%", Math.min(100, percentage).toFixed(0));
 
-		// Update progress bar
-		this.progressFill.style.width = `${Math.min(100, percentage)}%`;
+		// Progress bar: actual usage fill + remaining reserved output fill
+		const usageBarWidth = Math.max(0, Math.min(100, percentage));
+		this.progressFill.style.width = `${usageBarWidth}%`;
 
-		// Update color classes based on usage level on the quota item
+		if (outputBufferPercentage !== undefined && outputBufferPercentage > 0) {
+			// Clamp so the reserve never overflows the bar
+			this.outputBufferFill.style.width = `${Math.max(0, Math.min(100 - usageBarWidth, outputBufferPercentage))}%`;
+			this.outputBufferFill.style.display = '';
+			this.outputBufferLegend.style.display = '';
+		} else {
+			this.outputBufferFill.style.width = '0';
+			this.outputBufferFill.style.display = 'none';
+			this.outputBufferLegend.style.display = 'none';
+		}
+
+		// Color classes based on total spoken-for percentage
+		// (actual usage + remaining reserve)
+		const effectivePercentage = percentage + (outputBufferPercentage ?? 0);
 		this.quotaItem.classList.remove('warning', 'error');
-		if (percentage >= 90) {
+		if (effectivePercentage >= 90) {
 			this.quotaItem.classList.add('error');
-		} else if (percentage >= 75) {
+		} else if (effectivePercentage >= 75) {
 			this.quotaItem.classList.add('warning');
 		}
 

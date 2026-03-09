@@ -274,32 +274,42 @@ export class ChatContextUsageWidget extends Disposable {
 		}
 
 		const promptTokens = usage.promptTokens;
+		const completionTokens = usage.completionTokens;
 		const promptTokenDetails = usage.promptTokenDetails;
+		const outputBuffer = usage.outputBuffer;
 		const totalContextWindow = maxInputTokens + maxOutputTokens;
-		const usedTokens = promptTokens + maxOutputTokens;
-		const percentage = Math.min(100, (usedTokens / totalContextWindow) * 100);
+		const usedTokens = promptTokens + completionTokens;
+		const percentage = (usedTokens / totalContextWindow) * 100;
 
-		this.render(percentage, usedTokens, totalContextWindow, promptTokenDetails);
+		// Remaining reserve = whatever the model reserved minus what completions
+		// have already consumed. Once completions exceed the reserve, it drops to 0.
+		const outputBufferPercentage = outputBuffer !== undefined
+			? (Math.max(0, outputBuffer - completionTokens) / totalContextWindow) * 100
+			: undefined;
+
+		this.render(percentage, completionTokens, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails);
 		this.show();
 	}
 
-	private render(percentage: number, usedTokens: number, totalContextWindow: number, promptTokenDetails?: readonly { category: string; label: string; percentageOfPrompt: number }[]): void {
+	private render(percentage: number, completionTokens: number, usedTokens: number, totalContextWindow: number, outputBufferPercentage: number | undefined, promptTokenDetails?: readonly { category: string; label: string; percentageOfPrompt: number }[]): void {
 		// Store current data for use in details popup
-		this.currentData = { usedTokens, totalContextWindow, percentage, promptTokenDetails };
+		this.currentData = { usedTokens, completionTokens, totalContextWindow, percentage, outputBufferPercentage, promptTokenDetails };
 
-		// Update pie chart progress
-		this.progressIndicator.setProgress(percentage);
+		// Pie chart shows actual usage + remaining reserve so the user can see
+		// how much of the context window is spoken for.
+		this.progressIndicator.setProgress(percentage + (outputBufferPercentage ?? 0));
 
-		// Update percentage label and aria-label
-		const roundedPercentage = Math.round(percentage);
+		// Update percentage label and aria-label (clamp display to 100)
+		const roundedPercentage = Math.min(100, Math.round(percentage));
 		this.percentageLabel.textContent = `${roundedPercentage}%`;
 		this.domNode.setAttribute('aria-label', localize('contextUsagePercentageLabel', "Context window usage: {0}%", roundedPercentage));
 
-		// Update color based on usage level
+		// Color based on total spoken-for percentage (usage + remaining reserve)
+		const effectivePercentage = percentage + (outputBufferPercentage ?? 0);
 		this.domNode.classList.remove('warning', 'error');
-		if (percentage >= 90) {
+		if (effectivePercentage >= 90) {
 			this.domNode.classList.add('error');
-		} else if (percentage >= 75) {
+		} else if (effectivePercentage >= 75) {
 			this.domNode.classList.add('warning');
 		}
 	}
