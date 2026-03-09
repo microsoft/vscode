@@ -59,6 +59,23 @@ export class ModelRouter {
 			return false;
 		}
 
+		// If a maximum latency is specified for this route, ensure the routing context
+		// provides a compatible latency requirement.
+		if (typeof (match as any).maxLatencyMs === 'number') {
+			const routeMaxLatency = (match as any).maxLatencyMs as number;
+			const contextMaxLatency = (context as any).maxLatencyMs as number | undefined;
+
+			// If the caller did not provide any latency requirement, we cannot
+			// reliably satisfy a latency-constrained route.
+			if (contextMaxLatency === undefined) {
+				return false;
+			}
+
+			// Reject routes whose max latency is stricter than what the caller requires.
+			if (contextMaxLatency > routeMaxLatency) {
+				return false;
+			}
+		}
 		return true;
 	}
 
