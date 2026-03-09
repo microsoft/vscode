@@ -57,6 +57,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 	private _sandboxSettingsId: string | undefined;
 	private _remoteEnvDetailsPromise: Promise<IRemoteAgentEnvironment | null>;
 	private readonly _defaultAllowedDomains: readonly string[] = ['registry.npmjs.org']; // Default allowed domains that are commonly needed for MCP servers, even if the user doesn't specify them in their sandbox config
+	private _defaultAllowWritePaths: string[] = ['~/.npm'];
 	private _sandboxConfigPerConfigurationTarget: Map<string, string> = new Map();
 
 	constructor(
@@ -384,14 +385,13 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 	}
 
 	private _getDefaultAllowWrite(directories?: string[]): readonly string[] {
-		const defaultAllowWrite: string[] = ['~/.npm'];
 		for (const launchCwd of directories ?? []) {
 			const trimmed = launchCwd.trim();
 			if (trimmed) {
-				defaultAllowWrite.push(trimmed);
+				this._defaultAllowWritePaths.push(trimmed);
 			}
 		}
-		return defaultAllowWrite;
+		return this._defaultAllowWritePaths;
 	}
 
 	private _pathJoin = (os: OperatingSystem, ...segments: string[]) => {
