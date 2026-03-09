@@ -54,16 +54,16 @@
 .agent-sessions-workbench .interactive-session .interactive-item-container {
 	max-width: 950px;
 	margin: 0 auto;
-	padding-left: 12px;
-	padding-right: 12px;
+	padding-left: 8px;
+	padding-right: 8px;
 	box-sizing: border-box;
 }
 
 .agent-sessions-workbench .interactive-session > .chat-suggest-next-widget {
 	max-width: 950px;
 	margin: 0 auto;
-	padding-left: 12px;
-	padding-right: 12px;
+	padding-left: 8px;
+	padding-right: 8px;
 	box-sizing: border-box;
 }
 
@@ -78,7 +78,7 @@
 	max-width: 950px;
 	margin: 0 auto !important;
 	display: inherit !important;
-	/* Align with changes view */
-	padding: 4px 12px 6px 12px !important;
+	/* Align with panel (terminal) card margin */
+	padding: 4px 8px 6px 8px !important;
 	box-sizing: border-box;
 }
