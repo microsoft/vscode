@@ -139,4 +139,6 @@ export async function activate(context: ExtensionContext) {
 	}));
 }
 
-export function deactivate() { }
+export function deactivate() {
+	Logger.info('Microsoft Authentication is deactivating...');
+}

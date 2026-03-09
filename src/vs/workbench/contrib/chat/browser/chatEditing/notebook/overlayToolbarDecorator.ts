@@ -14,7 +14,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { CellEditState, INotebookEditor } from '../../../../notebook/browser/notebookBrowser.js';
 import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
 import { CellKind } from '../../../../notebook/common/notebookCommon.js';
-import { IModifiedFileEntryChangeHunk } from '../../../common/chatEditingService.js';
+import { IModifiedFileEntryChangeHunk } from '../../../common/editing/chatEditingService.js';
 import { ICellDiffInfo } from './notebookCellChanges.js';
 
 

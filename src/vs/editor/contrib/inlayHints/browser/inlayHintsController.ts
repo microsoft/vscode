@@ -264,7 +264,9 @@ export class InlayHintsController implements IEditorContribution {
 						}));
 					}
 				}
+
 				store.add(inlayHints);
+				store.add(toDisposable(() => watchedProviders.clear()));
 				this._updateHintsDecorators(inlayHints.ranges, inlayHints.items);
 				this._cacheHintsForFastRestore(model);
 

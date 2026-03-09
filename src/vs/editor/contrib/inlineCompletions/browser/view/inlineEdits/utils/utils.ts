@@ -30,18 +30,16 @@ import { CharCode } from '../../../../../../../base/common/charCode.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 import { Size2D } from '../../../../../../common/core/2d/size.js';
 
+/**
+ * Warning: might return 0.
+*/
 export function maxContentWidthInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader | undefined): number {
-	editor.layoutInfo.read(reader);
-	editor.value.read(reader);
-
 	const model = editor.model.read(reader);
 	if (!model) { return 0; }
 	let maxContentWidth = 0;
 
-	editor.scrollTop.read(reader);
 	for (let i = range.startLineNumber; i < range.endLineNumberExclusive; i++) {
-		const column = model.getLineMaxColumn(i);
-		const lineContentWidth = editor.getLeftOfPosition(new Position(i, column), reader);
+		const lineContentWidth = editor.getWidthOfLine(i, reader);
 		maxContentWidth = Math.max(maxContentWidth, lineContentWidth);
 	}
 	const lines = range.mapToLineArray(l => model.getLineContent(l));
@@ -53,8 +51,6 @@ export function maxContentWidthInRange(editor: ObservableCodeEditor, range: Line
 }
 
 export function getContentSizeOfLines(editor: ObservableCodeEditor, range: LineRange, reader: IReader | undefined): Size2D[] {
-	editor.layoutInfo.read(reader);
-	editor.value.read(reader);
 	observableSignalFromEvent(editor, editor.editor.onDidChangeLineHeight).read(reader);
 
 	const model = editor.model.read(reader);
@@ -62,12 +58,11 @@ export function getContentSizeOfLines(editor: ObservableCodeEditor, range: LineR
 
 	const sizes: Size2D[] = [];
 
-	editor.scrollTop.read(reader);
 	for (let i = range.startLineNumber; i < range.endLineNumberExclusive; i++) {
-		const column = model.getLineMaxColumn(i);
-		let lineContentWidth = editor.editor.getOffsetForColumn(i, column);
+		let lineContentWidth = editor.getWidthOfLine(i, reader);
 		if (lineContentWidth === -1) {
 			// approximation
+			const column = model.getLineMaxColumn(i);
 			const typicalHalfwidthCharacterWidth = editor.editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 			const approximation = column * typicalHalfwidthCharacterWidth;
 			lineContentWidth = approximation;
@@ -136,11 +131,11 @@ export function getEditorValidOverlayRect(editor: ObservableCodeEditor): IObserv
 
 	const width = derived({ name: 'editor.validOverlay.width' }, r => {
 		const hasMinimapOnTheRight = editor.layoutInfoMinimap.read(r).minimapLeft !== 0;
-		const editorWidth = editor.layoutInfoWidth.read(r) - contentLeft.read(r);
+		const editorWidth = Math.max(0, editor.layoutInfoWidth.read(r) - contentLeft.read(r));
 
 		if (hasMinimapOnTheRight) {
 			const minimapAndScrollbarWidth = editor.layoutInfoMinimap.read(r).minimapWidth + editor.layoutInfoVerticalScrollbarWidth.read(r);
-			return editorWidth - minimapAndScrollbarWidth;
+			return Math.max(0, editorWidth - minimapAndScrollbarWidth);
 		}
 
 		return editorWidth;
@@ -441,3 +436,13 @@ export function rectToProps(fn: (reader: IReader) => Rect | undefined, debugLoca
 }
 
 export type FirstFnArg<T> = T extends (arg: infer U) => any ? U : never;
+
+
+export function observeEditorBoundingClientRect(editor: ICodeEditor, store: DisposableStore): IObservable<DOMRectReadOnly> {
+	const dom = editor.getContainerDomNode()!;
+	const initialDomRect = observableValue('domRect', dom.getBoundingClientRect());
+	store.add(editor.onDidLayoutChange(e => {
+		initialDomRect.set(dom.getBoundingClientRect(), undefined);
+	}));
+	return initialDomRect;
+}

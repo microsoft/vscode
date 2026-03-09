@@ -3,38 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { EventEmitter } from 'events';
+EventEmitter.defaultMaxListeners = 100;
+
 import glob from 'glob';
 import gulp from 'gulp';
 import { createRequire } from 'node:module';
-import { monacoTypecheckTask /* , monacoTypecheckWatchTask */ } from './gulpfile.editor.mjs';
-import { compileExtensionMediaTask, compileExtensionsTask, watchExtensionsTask } from './gulpfile.extensions.mjs';
+import { monacoTypecheckTask /* , monacoTypecheckWatchTask */ } from './gulpfile.editor.ts';
+import { compileExtensionMediaTask, compileExtensionsTask, watchExtensionsTask } from './gulpfile.extensions.ts';
 import * as compilation from './lib/compilation.ts';
 import * as task from './lib/task.ts';
 import * as util from './lib/util.ts';
+import { useEsbuildTranspile } from './buildConfig.ts';
 
-EventEmitter.defaultMaxListeners = 100;
+// Extension point names
+gulp.task(compilation.compileExtensionPointNamesTask);
 
 const require = createRequire(import.meta.url);
 
-const { transpileTask, compileTask, watchTask, compileApiProposalNamesTask, watchApiProposalNamesTask } = compilation;
-
 // API proposal names
-gulp.task(compileApiProposalNamesTask);
-gulp.task(watchApiProposalNamesTask);
+gulp.task(compilation.compileApiProposalNamesTask);
+gulp.task(compilation.watchApiProposalNamesTask);
 
 // SWC Client Transpile
-const transpileClientSWCTask = task.define('transpile-client-esbuild', task.series(util.rimraf('out'), transpileTask('src', 'out', true)));
+const transpileClientSWCTask = task.define('transpile-client-esbuild', task.series(util.rimraf('out'), compilation.transpileTask('src', 'out', true)));
 gulp.task(transpileClientSWCTask);
 
 // Transpile only
-const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), transpileTask('src', 'out')));
+const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), compilation.transpileTask('src', 'out')));
 gulp.task(transpileClientTask);
 
 // Fast compile for development time
-const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compileApiProposalNamesTask, compileTask('src', 'out', false)));
+const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compilation.copyCodiconsTask, compilation.compileApiProposalNamesTask, compilation.compileExtensionPointNamesTask, compilation.compileTask('src', 'out', false)));
 gulp.task(compileClientTask);
 
-const watchClientTask = task.define('watch-client', task.series(util.rimraf('out'), task.parallel(watchTask('out', false), watchApiProposalNamesTask)));
+const watchClientTask = useEsbuildTranspile
+	? task.define('watch-client', task.parallel(compilation.watchTask('out', false, 'src', { noEmit: true }), compilation.watchApiProposalNamesTask, compilation.watchExtensionPointNamesTask, compilation.watchCodiconsTask))
+	: task.define('watch-client', task.series(util.rimraf('out'), task.parallel(compilation.watchTask('out', false), compilation.watchApiProposalNamesTask, compilation.watchExtensionPointNamesTask, compilation.watchCodiconsTask)));
 gulp.task(watchClientTask);
 
 // All
@@ -52,7 +56,7 @@ process.on('unhandledRejection', (reason, p) => {
 });
 
 // Load all the gulpfiles only if running tasks other than the editor tasks
-glob.sync('gulpfile.*.{mjs,js}', { cwd: import.meta.dirname })
+glob.sync('gulpfile.*.ts', { cwd: import.meta.dirname })
 	.forEach(f => {
 		return require(`./${f}`);
 	});

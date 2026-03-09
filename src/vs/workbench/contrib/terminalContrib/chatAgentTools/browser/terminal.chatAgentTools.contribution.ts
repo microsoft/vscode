@@ -5,7 +5,6 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isNumber } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -15,14 +14,16 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
-import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
-import { ILanguageModelToolsService, ToolDataSource, VSCodeToolReference } from '../../../chat/common/languageModelToolsService.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { ILanguageModelToolsService } from '../../../chat/common/tools/languageModelToolsService.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalChatAgentToolsCommandId } from '../common/terminal.chatAgentTools.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
+import { AwaitTerminalTool, AwaitTerminalToolData } from './tools/awaitTerminalTool.js';
 import { GetTerminalLastCommandTool, GetTerminalLastCommandToolData } from './tools/getTerminalLastCommandTool.js';
+import { KillTerminalTool, KillTerminalToolData } from './tools/killTerminalTool.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
 import { GetTerminalSelectionTool, GetTerminalSelectionToolData } from './tools/getTerminalSelectionTool.js';
 import { ConfirmTerminalCommandTool, ConfirmTerminalCommandToolData } from './tools/runInTerminalConfirmationTool.js';
@@ -30,6 +31,14 @@ import { RunInTerminalTool, createRunInTerminalToolData } from './tools/runInTer
 import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/createAndRunTaskTool.js';
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { ITerminalSandboxService, TerminalSandboxService } from '../common/terminalSandboxService.js';
+
+// #region Services
+
+registerSingleton(ITerminalSandboxService, TerminalSandboxService, InstantiationType.Delayed);
+
+// #endregion Services
 
 class ShellIntegrationTimeoutMigrationContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'terminal.shellIntegrationTimeoutMigration';
@@ -50,6 +59,22 @@ class ShellIntegrationTimeoutMigrationContribution extends Disposable implements
 }
 registerWorkbenchContribution2(ShellIntegrationTimeoutMigrationContribution.ID, ShellIntegrationTimeoutMigrationContribution, WorkbenchPhase.Eventually);
 
+class OutputLocationMigrationContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'terminal.outputLocationMigration';
+
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService,
+	) {
+		super();
+		// Migrate legacy 'none' value to 'chat'
+		const currentValue = configurationService.getValue<unknown>(TerminalChatAgentToolsSettingId.OutputLocation);
+		if (currentValue === 'none') {
+			configurationService.updateValue(TerminalChatAgentToolsSettingId.OutputLocation, 'chat');
+		}
+	}
+}
+registerWorkbenchContribution2(OutputLocationMigrationContribution.ID, OutputLocationMigrationContribution, WorkbenchPhase.Eventually);
+
 class ChatAgentToolsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'terminal.chatAgentTools';
@@ -66,18 +91,20 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		this._register(toolsService.registerTool(ConfirmTerminalCommandToolData, confirmTerminalCommandTool));
 		const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
 		this._register(toolsService.registerTool(GetTerminalOutputToolData, getTerminalOutputTool));
+		this._register(toolsService.executeToolSet.addTool(GetTerminalOutputToolData));
 
-		const shellToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'shell', VSCodeToolReference.shell, {
-			icon: ThemeIcon.fromId(Codicon.terminal.id),
-			description: localize('toolset.shell', 'Run commands in the terminal'),
-			legacyFullNames: ['runCommands']
-		}));
-		this._register(shellToolSet.addTool(GetTerminalOutputToolData));
+		const awaitTerminalTool = instantiationService.createInstance(AwaitTerminalTool);
+		this._register(toolsService.registerTool(AwaitTerminalToolData, awaitTerminalTool));
+		this._register(toolsService.executeToolSet.addTool(AwaitTerminalToolData));
+
+		const killTerminalTool = instantiationService.createInstance(KillTerminalTool);
+		this._register(toolsService.registerTool(KillTerminalToolData, killTerminalTool));
+		this._register(toolsService.executeToolSet.addTool(KillTerminalToolData));
 
 		instantiationService.invokeFunction(createRunInTerminalToolData).then(runInTerminalToolData => {
 			const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
 			this._register(toolsService.registerTool(runInTerminalToolData, runInTerminalTool));
-			this._register(shellToolSet.addTool(runInTerminalToolData));
+			this._register(toolsService.executeToolSet.addTool(runInTerminalToolData));
 		});
 
 		const getTerminalSelectionTool = instantiationService.createInstance(GetTerminalSelectionTool);
@@ -86,8 +113,8 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		const getTerminalLastCommandTool = instantiationService.createInstance(GetTerminalLastCommandTool);
 		this._register(toolsService.registerTool(GetTerminalLastCommandToolData, getTerminalLastCommandTool));
 
-		this._register(shellToolSet.addTool(GetTerminalSelectionToolData));
-		this._register(shellToolSet.addTool(GetTerminalLastCommandToolData));
+		this._register(toolsService.readToolSet.addTool(GetTerminalSelectionToolData));
+		this._register(toolsService.readToolSet.addTool(GetTerminalLastCommandToolData));
 
 		// #endregion
 
@@ -101,9 +128,9 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 
 		const createAndRunTaskTool = instantiationService.createInstance(CreateAndRunTaskTool);
 		this._register(toolsService.registerTool(CreateAndRunTaskToolData, createAndRunTaskTool));
-		this._register(toolsService.launchToolSet.addTool(RunTaskToolData));
-		this._register(toolsService.launchToolSet.addTool(GetTaskOutputToolData));
-		this._register(toolsService.launchToolSet.addTool(CreateAndRunTaskToolData));
+		this._register(toolsService.executeToolSet.addTool(RunTaskToolData));
+		this._register(toolsService.executeToolSet.addTool(CreateAndRunTaskToolData));
+		this._register(toolsService.readToolSet.addTool(GetTaskOutputToolData));
 
 		// #endregion
 	}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import minimist from 'minimist';
-import * as nativeWatchdog from 'native-watchdog';
+import * as nativeWatchdog from '@vscode/native-watchdog';
 import * as net from 'net';
 import { ProcessTimeRunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -242,7 +242,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 						clearTimeout(timer);
 						protocol = new PersistentProtocol({ socket, initialChunk: initialDataChunk });
 						protocol.sendResume();
-						protocol.onDidDispose(() => onTerminate('renderer disconnected'));
+						Event.once(protocol.onDidDispose)(() => onTerminate('renderer disconnected'));
 						resolve(protocol);
 
 						// Wait for rich client to reconnect
@@ -375,7 +375,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				// So also use the native node module to do it from a separate thread
 				let watchdog: typeof nativeWatchdog;
 				try {
-					watchdog = require('native-watchdog');
+					watchdog = require('@vscode/native-watchdog');
 					watchdog.start(initData.parentPid);
 				} catch (err) {
 					// no problem...

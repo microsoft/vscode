@@ -37,6 +37,7 @@ const $ = DOM.$;
 interface IMarkerIconColumnTemplateData {
 	readonly icon: HTMLElement;
 	readonly actionBar: ActionBar;
+	readonly elementDisposables: DisposableStore;
 }
 
 interface IMarkerCodeColumnTemplateData {
@@ -79,10 +80,12 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 			actionViewItemProvider: (action: IAction, options) => action.id === QuickFixAction.ID ? this.instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action, options) : undefined
 		});
 
-		return { actionBar, icon };
+		return { actionBar, icon, elementDisposables: new DisposableStore() };
 	}
 
 	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerIconColumnTemplateData): void {
+		templateData.elementDisposables.clear();
+
 		const toggleQuickFix = (enabled?: boolean) => {
 			if (!isUndefinedOrNull(enabled)) {
 				const container = DOM.findParentWithClass(templateData.icon, 'monaco-table-td')!;
@@ -100,17 +103,20 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 			templateData.actionBar.push([quickFixAction], { icon: true, label: false });
 			toggleQuickFix(viewModel.quickFixAction.enabled);
 
-			quickFixAction.onDidChange(({ enabled }) => toggleQuickFix(enabled));
-			quickFixAction.onShowQuickFixes(() => {
+			templateData.elementDisposables.add(quickFixAction.onDidChange(({ enabled }) => toggleQuickFix(enabled)));
+			templateData.elementDisposables.add(quickFixAction.onShowQuickFixes(() => {
 				const quickFixActionViewItem = <QuickFixActionViewItem>templateData.actionBar.viewItems[0];
 				if (quickFixActionViewItem) {
 					quickFixActionViewItem.showQuickFixes();
 				}
-			});
+			}));
 		}
 	}
 
-	disposeTemplate(templateData: IMarkerIconColumnTemplateData): void { }
+	disposeTemplate(templateData: IMarkerIconColumnTemplateData): void {
+		templateData.elementDisposables.dispose();
+		templateData.actionBar.dispose();
+	}
 }
 
 class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerCodeColumnTemplateData> {
@@ -252,12 +258,12 @@ class MarkerSourceColumnRenderer implements ITableRenderer<MarkerTableItem, IMar
 	}
 }
 
-class MarkersTableVirtualDelegate implements ITableVirtualDelegate<any> {
+class MarkersTableVirtualDelegate implements ITableVirtualDelegate<MarkerTableItem> {
 	static readonly HEADER_ROW_HEIGHT = 24;
 	static readonly ROW_HEIGHT = 24;
 	readonly headerRowHeight = MarkersTableVirtualDelegate.HEADER_ROW_HEIGHT;
 
-	getHeight(item: any) {
+	getHeight(item: MarkerTableItem) {
 		return MarkersTableVirtualDelegate.ROW_HEIGHT;
 	}
 }
@@ -341,8 +347,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 		// mouseover/mouseleave event handlers
 		const onRowHover = Event.chain(this._register(new DomEmitter(list, 'mouseover')).event, $ =>
 			$.map(e => DOM.findParentWithClass(e.target as HTMLElement, 'monaco-list-row', 'monaco-list-rows'))
-				// eslint-disable-next-line local/code-no-any-casts
-				.filter<HTMLElement>(((e: HTMLElement | null) => !!e) as any)
+				.filter<HTMLElement>(e => !!e)
 				.map(e => parseInt(e.getAttribute('data-index')!))
 		);
 
@@ -447,6 +452,11 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 					this.filterOptions.showInfos && MarkerSeverity.Info === marker.marker.severity;
 
 				if (!matchesSeverity) {
+					continue;
+				}
+
+				// Source filters
+				if (!this.filterOptions.matchesSourceFilters(marker.marker.source)) {
 					continue;
 				}
 

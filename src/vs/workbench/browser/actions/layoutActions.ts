@@ -1184,6 +1184,9 @@ abstract class BaseResizeViewAction extends Action2 {
 	protected static readonly RESIZE_INCREMENT = 60; // This is a css pixel size
 
 	protected resizePart(widthChange: number, heightChange: number, layoutService: IWorkbenchLayoutService, partToResize?: Parts): void {
+		if (layoutService.activeContainer !== layoutService.mainContainer) {
+			return; // we do not support resizing in auxiliary windows
+		}
 
 		let part: Parts | undefined;
 		if (partToResize === undefined) {

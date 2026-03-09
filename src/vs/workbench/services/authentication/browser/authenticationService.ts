@@ -239,9 +239,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		if (provider) {
 			this._authenticationProviders.delete(id);
 			// If this is a dynamic provider, remove it from the set of dynamic providers
-			if (this._dynamicAuthenticationProviderIds.has(id)) {
-				this._dynamicAuthenticationProviderIds.delete(id);
-			}
+			this._dynamicAuthenticationProviderIds.delete(id);
 			this._onDidUnregisterAuthenticationProvider.fire({ id, label: provider.label });
 		}
 		this._authenticationProviderDisposables.deleteAndDispose(id);
@@ -431,6 +429,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 		const store = new DisposableStore();
 		try {
+			// TODO: Remove this timeout and figure out a better way to ensure auth providers
+			// are registered _during_ extension activation.
 			const result = await raceTimeout(
 				raceCancellation(
 					Event.toPromise(
@@ -445,12 +445,12 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				),
 				5000
 			);
-			if (!result) {
-				throw new Error(`Timed out waiting for authentication provider '${providerId}' to register.`);
-			}
-			provider = this._authenticationProviders.get(result.id);
+			provider = this._authenticationProviders.get(providerId);
 			if (provider) {
 				return provider;
+			}
+			if (!result) {
+				throw new Error(`Timed out waiting for authentication provider '${providerId}' to register.`);
 			}
 			throw new Error(`No authentication provider '${providerId}' is currently registered.`);
 		} finally {

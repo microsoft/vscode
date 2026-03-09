@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { AsyncIterableObject } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CharCode } from '../../../../../base/common/charCode.js';
@@ -34,11 +34,10 @@ import { insertCell } from '../../../notebook/browser/controller/cellOperations.
 import { IActiveNotebookEditor, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellKind, ICellEditOperation, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { ICodeMapperCodeBlock, ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../common/chatCodeMapperService.js';
-import { ChatUserAction, IChatService } from '../../common/chatService.js';
-import { chatSessionResourceToId } from '../../common/chatUri.js';
-import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
-import { ICodeBlockActionContext } from '../codeBlockPart.js';
+import { ICodeMapperCodeBlock, ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../common/editing/chatCodeMapperService.js';
+import { ChatUserAction, IChatService } from '../../common/chatService/chatService.js';
+import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { ICodeBlockActionContext } from '../widget/chatContentParts/codeBlockPart.js';
 
 export class InsertCodeBlockOperation {
 	constructor(
@@ -339,10 +338,10 @@ export class ApplyCodeBlockOperation {
 	}
 
 	private getTextEdits(codeBlock: ICodeMapperCodeBlock, chatSessionResource: URI | undefined, token: CancellationToken): AsyncIterable<TextEdit[]> {
-		return new AsyncIterableObject<TextEdit[]>(async executor => {
+		return new AsyncIterableProducer<TextEdit[]>(async executor => {
 			const request: ICodeMapperRequest = {
 				codeBlocks: [codeBlock],
-				chatSessionId: chatSessionResource && chatSessionResourceToId(chatSessionResource),
+				chatSessionResource,
 			};
 			const response: ICodeMapperResponse = {
 				textEdit: (target: URI, edit: TextEdit[]) => {
@@ -360,10 +359,10 @@ export class ApplyCodeBlockOperation {
 	}
 
 	private getNotebookEdits(codeBlock: ICodeMapperCodeBlock, chatSessionResource: URI | undefined, token: CancellationToken): AsyncIterable<[URI, TextEdit[]] | ICellEditOperation[]> {
-		return new AsyncIterableObject<[URI, TextEdit[]] | ICellEditOperation[]>(async executor => {
+		return new AsyncIterableProducer<[URI, TextEdit[]] | ICellEditOperation[]>(async executor => {
 			const request: ICodeMapperRequest = {
 				codeBlocks: [codeBlock],
-				chatSessionId: chatSessionResource && chatSessionResourceToId(chatSessionResource),
+				chatSessionResource,
 				location: 'panel'
 			};
 			const response: ICodeMapperResponse = {

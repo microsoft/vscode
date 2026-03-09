@@ -782,10 +782,16 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 		case 'darwin':
 			switch (product) {
 				case 'client':
-					if (arch === 'x64') {
-						return 'darwin';
+					switch (type) {
+						case 'dmg':
+							return `darwin-${arch}-dmg`;
+						case 'archive':
+						default:
+							if (arch === 'x64') {
+								return 'darwin';
+							}
+							return `darwin-${arch}`;
 					}
-					return `darwin-${arch}`;
 				case 'server':
 					if (arch === 'x64') {
 						return 'server-darwin';
@@ -964,16 +970,7 @@ async function main() {
 		console.log(`\u2705 ${name}`);
 	}
 
-	const stages = new Set<string>(['Compile']);
-
-	if (
-		e('VSCODE_BUILD_STAGE_LINUX') === 'True' ||
-		e('VSCODE_BUILD_STAGE_ALPINE') === 'True' ||
-		e('VSCODE_BUILD_STAGE_MACOS') === 'True' ||
-		e('VSCODE_BUILD_STAGE_WINDOWS') === 'True'
-	) {
-		stages.add('CompileCLI');
-	}
+	const stages = new Set<string>(['Quality']);
 
 	if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') { stages.add('Windows'); }
 	if (e('VSCODE_BUILD_STAGE_LINUX') === 'True') { stages.add('Linux'); }

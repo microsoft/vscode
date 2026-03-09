@@ -22,6 +22,7 @@ interface IMsalFlowOptions {
 	supportsRemoteExtensionHost: boolean;
 	supportsUnsupportedClient: boolean;
 	supportsBroker: boolean;
+	supportsPortableMode: boolean;
 }
 
 interface IMsalFlowTriggerOptions {
@@ -47,7 +48,8 @@ class DefaultLoopbackFlow implements IMsalFlow {
 	options: IMsalFlowOptions = {
 		supportsRemoteExtensionHost: false,
 		supportsUnsupportedClient: true,
-		supportsBroker: true
+		supportsBroker: true,
+		supportsPortableMode: true
 	};
 
 	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
@@ -76,7 +78,8 @@ class UrlHandlerFlow implements IMsalFlow {
 	options: IMsalFlowOptions = {
 		supportsRemoteExtensionHost: true,
 		supportsUnsupportedClient: false,
-		supportsBroker: false
+		supportsBroker: false,
+		supportsPortableMode: false
 	};
 
 	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger, uriHandler, callbackUri }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
@@ -105,7 +108,8 @@ class DeviceCodeFlow implements IMsalFlow {
 	options: IMsalFlowOptions = {
 		supportsRemoteExtensionHost: true,
 		supportsUnsupportedClient: true,
-		supportsBroker: false
+		supportsBroker: false,
+		supportsPortableMode: true
 	};
 
 	async trigger({ cachedPca, authority, scopes, claims, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
@@ -128,6 +132,7 @@ export interface IMsalFlowQuery {
 	extensionHost: ExtensionHost;
 	supportedClient: boolean;
 	isBrokerSupported: boolean;
+	isPortableMode: boolean;
 }
 
 export function getMsalFlows(query: IMsalFlowQuery): IMsalFlow[] {
@@ -139,6 +144,7 @@ export function getMsalFlows(query: IMsalFlowQuery): IMsalFlow[] {
 		}
 		useFlow &&= flow.options.supportsBroker || !query.isBrokerSupported;
 		useFlow &&= flow.options.supportsUnsupportedClient || query.supportedClient;
+		useFlow &&= flow.options.supportsPortableMode || !query.isPortableMode;
 		if (useFlow) {
 			flows.push(flow);
 		}

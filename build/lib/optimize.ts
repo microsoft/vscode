@@ -152,7 +152,7 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 					'.sh': 'file',
 				},
 				assetNames: 'media/[name]', // moves media assets into a sub-folder "media"
-				banner: entryPoint.name === 'vs/workbench/workbench.web.main' ? undefined : banner, // TODO@esm remove line when we stop supporting web-amd-esm-bridge
+				banner,
 				entryPoints: [
 					{
 						in: path.join(REPO_ROOT_PATH, opts.src, `${entryPoint.name}.js`),
@@ -209,7 +209,7 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 		}));
 }
 
-export interface IBundleESMTaskOpts {
+export interface IBundleTaskOpts {
 	/**
 	 * Destination folder for the bundled files.
 	 */
@@ -220,7 +220,7 @@ export interface IBundleESMTaskOpts {
 	esm: IBundleESMTaskOpts;
 }
 
-export function bundleTask(opts: IBundleESMTaskOpts): () => NodeJS.ReadWriteStream {
+export function bundleTask(opts: IBundleTaskOpts): () => NodeJS.ReadWriteStream {
 	return function () {
 		return bundleESMTask(opts.esm).pipe(gulp.dest(opts.out));
 	};

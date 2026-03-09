@@ -18,6 +18,10 @@ export class OffsetRange implements IOffsetRange {
 		return new OffsetRange(start, endExclusive);
 	}
 
+	public static equals(r1: IOffsetRange, r2: IOffsetRange): boolean {
+		return r1.start === r2.start && r1.endExclusive === r2.endExclusive;
+	}
+
 	public static addRange(range: OffsetRange, sortedRanges: OffsetRange[]): void {
 		let i = 0;
 		while (i < sortedRanges.length && sortedRanges[i].endExclusive < range.start) {
@@ -126,6 +130,10 @@ export class OffsetRange implements IOffsetRange {
 		return Math.max(0, end - start);
 	}
 
+	/**
+	 * `a.intersects(b)` iff there exists a number n so that `a.contains(n)` and `b.contains(n)`.
+	 * Warning: If one range is empty, this method returns always false.
+	*/
 	public intersects(other: OffsetRange): boolean {
 		const start = Math.max(this.start, other.start);
 		const end = Math.min(this.endExclusive, other.endExclusive);

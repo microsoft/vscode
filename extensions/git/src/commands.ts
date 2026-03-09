@@ -5,16 +5,16 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlArtifact } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
-import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
-import { Git, GitError, Stash, Worktree } from './git';
+import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
+import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
+import { Git, GitError, Repository as GitRepository, Stash, Worktree } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, fromNow, getHistoryItemDisplayName, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
+import { coalesce, DiagnosticSeverityConfig, dispose, fromNow, getHistoryItemDisplayName, getStashDescription, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -56,19 +56,6 @@ class RefItemSeparator implements QuickPickItem {
 	}
 
 	constructor(private readonly refType: RefType) { }
-}
-
-class WorktreeItem implements QuickPickItem {
-
-	get label(): string {
-		return `$(list-tree) ${this.worktree.name}`;
-	}
-
-	get description(): string {
-		return this.worktree.path;
-	}
-
-	constructor(readonly worktree: Worktree) { }
 }
 
 class RefItem implements QuickPickItem {
@@ -119,6 +106,8 @@ class RefItem implements QuickPickItem {
 				return `refs/remotes/${this.ref.name}`;
 			case RefType.Tag:
 				return `refs/tags/${this.ref.name}`;
+			default:
+				throw new Error('Unknown ref type');
 		}
 	}
 	get refName(): string | undefined { return this.ref.name; }
@@ -240,7 +229,40 @@ class RemoteTagDeleteItem extends RefItem {
 	}
 }
 
+class WorktreeItem implements QuickPickItem {
+
+	get label(): string {
+		return `$(list-tree) ${this.worktree.name}`;
+	}
+
+	get description(): string | undefined {
+		return this.worktree.path;
+	}
+
+	constructor(readonly worktree: Worktree) { }
+}
+
 class WorktreeDeleteItem extends WorktreeItem {
+	override get description(): string | undefined {
+		if (!this.worktree.commitDetails) {
+			return undefined;
+		}
+
+		return coalesce([
+			this.worktree.detached ? l10n.t('detached') : this.worktree.ref.substring(11),
+			this.worktree.commitDetails.hash.substring(0, this.shortCommitLength),
+			this.worktree.commitDetails.message.split('\n')[0]
+		]).join(' \u2022 ');
+	}
+
+	get detail(): string {
+		return this.worktree.path;
+	}
+
+	constructor(worktree: Worktree, private readonly shortCommitLength: number) {
+		super(worktree);
+	}
+
 	async run(mainRepository: Repository): Promise<void> {
 		if (!this.worktree.path) {
 			return;
@@ -333,7 +355,7 @@ class RepositoryItem implements QuickPickItem {
 class StashItem implements QuickPickItem {
 	get label(): string { return `#${this.stash.index}: ${this.stash.description}`; }
 
-	get description(): string | undefined { return this.stash.branchName; }
+	get description(): string | undefined { return getStashDescription(this.stash); }
 
 	constructor(readonly stash: Stash) { }
 }
@@ -352,13 +374,12 @@ interface ScmCommand {
 
 const Commands: ScmCommand[] = [];
 
-function command(commandId: string, options: ScmCommandOptions = {}): Function {
-	return (value: unknown, context: ClassMethodDecoratorContext) => {
-		if (typeof value !== 'function' || context.kind !== 'method') {
+function command(commandId: string, options: ScmCommandOptions = {}): MethodDecorator {
+	return (_target: any, key: string | symbol, descriptor: PropertyDescriptor): void => {
+		if (typeof descriptor.value !== 'function') {
 			throw new Error('not supported');
 		}
-		const key = context.name.toString();
-		Commands.push({ commandId, key, method: value, options });
+		Commands.push({ commandId, key: String(key), method: descriptor.value, options });
 	};
 }
 
@@ -1009,13 +1030,60 @@ export class CommandCenter {
 	}
 
 	@command('git.clone')
-	async clone(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
-		await this.cloneManager.clone(url, { parentPath, ...options });
+	async clone(url?: string, parentPath?: string, options?: { ref?: string; postCloneAction?: 'none' }): Promise<string | undefined> {
+		return this.cloneManager.clone(url, { parentPath, ...options });
 	}
 
 	@command('git.cloneRecursive')
 	async cloneRecursive(url?: string, parentPath?: string): Promise<void> {
 		await this.cloneManager.clone(url, { parentPath, recursive: true });
+	}
+
+	@command('_git.cloneRepository')
+	async cloneRepository(url: string, localPath: string, ref?: string): Promise<void> {
+		const opts = {
+			location: ProgressLocation.Notification,
+			title: l10n.t('Cloning git repository "{0}"...', url),
+			cancellable: true
+		};
+
+		const parentPath = path.dirname(localPath);
+		const targetName = path.basename(localPath);
+
+		await window.withProgress(
+			opts,
+			(progress, token) => this.model.git.clone(url, { parentPath, targetName, progress, ref }, token)
+		);
+	}
+
+	@command('_git.checkout')
+	async checkoutRepository(repositoryPath: string, treeish: string, detached?: boolean): Promise<void> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		await repo.checkout(treeish, [], detached ? { detached: true } : {});
+	}
+
+	@command('_git.pull')
+	async pullRepository(repositoryPath: string): Promise<void> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		await repo.pull();
+	}
+
+	@command('_git.revParseAbbrevRef')
+	async revParseAbbrevRef(repositoryPath: string): Promise<string> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		const result = await repo.exec(['rev-parse', '--abbrev-ref', 'HEAD']);
+		return result.stdout.trim();
+	}
+
+	@command('_git.mergeBranch')
+	async mergeBranch(repositoryPath: string, branch: string): Promise<string> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		const result = await repo.exec(['merge', branch, '--no-edit']);
+		return result.stdout.trim();
 	}
 
 	@command('git.init')
@@ -1135,7 +1203,7 @@ export class CommandCenter {
 			path = result[0].fsPath;
 		}
 
-		await this.model.openRepository(path, true);
+		await this.model.openRepository(path, true, true);
 	}
 
 	@command('git.reopenClosedRepositories', { repository: false })
@@ -1171,7 +1239,7 @@ export class CommandCenter {
 		}
 
 		for (const repository of closedRepositories) {
-			await this.model.openRepository(repository, true);
+			await this.model.openRepository(repository, true, true);
 		}
 	}
 
@@ -1383,6 +1451,41 @@ export class CommandCenter {
 		// Close active editor and open the renamed file
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 		await commands.executeCommand('vscode.open', Uri.file(path.join(repository.root, to)), { viewColumn: ViewColumn.Active });
+	}
+
+	@command('git.delete')
+	async delete(uri: Uri | undefined): Promise<void> {
+		const activeDocument = window.activeTextEditor?.document;
+		uri = uri ?? activeDocument?.uri;
+		if (!uri) {
+			return;
+		}
+
+		const repository = this.model.getRepository(uri);
+		if (!repository) {
+			return;
+		}
+
+		const allChangedResources = [
+			...repository.workingTreeGroup.resourceStates,
+			...repository.indexGroup.resourceStates,
+			...repository.mergeGroup.resourceStates,
+			...repository.untrackedGroup.resourceStates
+		];
+
+		// Check if file has uncommitted changes
+		const uriString = uri.toString();
+		if (allChangedResources.some(o => pathEquals(o.resourceUri.toString(), uriString))) {
+			window.showInformationMessage(l10n.t('Git: Delete can only be performed on committed files without uncommitted changes.'));
+			return;
+		}
+
+		await repository.rm([uri]);
+
+		// Close the active editor if it's not dirty
+		if (activeDocument && !activeDocument.isDirty && pathEquals(activeDocument.uri.toString(), uriString)) {
+			await commands.executeCommand('workbench.action.closeActiveEditor');
+		}
 	}
 
 	@command('git.stage')
@@ -2251,7 +2354,6 @@ export class CommandCenter {
 		}
 
 		let enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
-		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
 		let noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 		let noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 
@@ -2325,8 +2427,9 @@ export class CommandCenter {
 			}
 		}
 
-		// enable signing of commits if configured
-		opts.signCommit = enableCommitSigning;
+		// Enable signing of commits if the setting is enabled. If the setting is not enabled,
+		// we set the option to undefined so that we let git use the repository/global config.
+		opts.signCommit = config.get<boolean>('enableCommitSigning') === true ? true : undefined;
 
 		if (config.get<boolean>('alwaysSignOff')) {
 			opts.signoff = true;
@@ -2417,7 +2520,7 @@ export class CommandCenter {
 			let pick: string | undefined = commitToNewBranch;
 
 			if (branchProtectionPrompt === 'alwaysPrompt') {
-				const message = l10n.t('You are trying to commit to a protected branch and you might not have permission to push your commits to the remote.\n\nHow would you like to proceed?');
+				const message = l10n.t('You are trying to commit to a protected branch. How would you like to proceed?');
 				const commit = l10n.t('Commit Anyway');
 
 				pick = await window.showWarningMessage(message, { modal: true }, commitToNewBranch, commit);
@@ -2865,48 +2968,6 @@ export class CommandCenter {
 		await this._branch(repository, undefined, true);
 	}
 
-	private async generateRandomBranchName(repository: Repository, separator: string): Promise<string> {
-		const config = workspace.getConfiguration('git');
-		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary')!;
-
-		const dictionaries: string[][] = [];
-		for (const dictionary of branchRandomNameDictionary) {
-			if (dictionary.toLowerCase() === 'adjectives') {
-				dictionaries.push(adjectives);
-			}
-			if (dictionary.toLowerCase() === 'animals') {
-				dictionaries.push(animals);
-			}
-			if (dictionary.toLowerCase() === 'colors') {
-				dictionaries.push(colors);
-			}
-			if (dictionary.toLowerCase() === 'numbers') {
-				dictionaries.push(NumberDictionary.generate({ length: 3 }));
-			}
-		}
-
-		if (dictionaries.length === 0) {
-			return '';
-		}
-
-		// 5 attempts to generate a random branch name
-		for (let index = 0; index < 5; index++) {
-			const randomName = uniqueNamesGenerator({
-				dictionaries,
-				length: dictionaries.length,
-				separator
-			});
-
-			// Check for local ref conflict
-			const refs = await repository.getRefs({ pattern: `refs/heads/${randomName}` });
-			if (refs.length === 0) {
-				return randomName;
-			}
-		}
-
-		return '';
-	}
-
 	private async promptForBranchName(repository: Repository, defaultName?: string, initialValue?: string): Promise<string> {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix')!;
@@ -2920,8 +2981,7 @@ export class CommandCenter {
 		}
 
 		const getBranchName = async (): Promise<string> => {
-			const branchName = branchRandomNameEnabled ? await this.generateRandomBranchName(repository, branchWhitespaceChar) : '';
-			return `${branchPrefix}${branchName}`;
+			return await repository.generateRandomBranchName() ?? branchPrefix;
 		};
 
 		const getValueSelection = (value: string): [number, number] | undefined => {
@@ -3178,7 +3238,7 @@ export class CommandCenter {
 		}
 
 		try {
-			const changes = await repository.diffBetween2(ref1.id, ref2.id);
+			const changes = await repository.diffBetweenWithStats(ref1.id, ref2.id);
 
 			if (changes.length === 0) {
 				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref1.displayId ?? ref1.id, ref2.displayId ?? ref2.id));
@@ -3437,6 +3497,10 @@ export class CommandCenter {
 			return;
 		}
 
+		await this._createWorktree(repository);
+	}
+
+	async _createWorktree(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix')!;
 
@@ -3576,7 +3640,9 @@ export class CommandCenter {
 		const defaultWorktreeRoot = this.globalState.get<string>(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${repository.root}`);
 		const defaultWorktreePath = defaultWorktreeRoot
 			? path.join(defaultWorktreeRoot, worktreeName)
-			: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
+			: repository.kind === 'worktree'
+				? path.join(path.dirname(repository.root), worktreeName)
+				: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
 
 		const disposables: Disposable[] = [];
 		const inputBox = window.createInputBox();
@@ -3640,7 +3706,7 @@ export class CommandCenter {
 	}
 
 	private async handleWorktreeConflict(path: string, message: string): Promise<void> {
-		await this.model.openRepository(path, true);
+		await this.model.openRepository(path, true, true);
 
 		const worktreeRepository = this.model.getRepository(path);
 
@@ -3662,11 +3728,14 @@ export class CommandCenter {
 
 	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['repository', 'submodule'] })
 	async deleteWorktreeFromPalette(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		const commitShortHashLength = config.get<number>('commitShortHashLength') ?? 7;
+
 		const worktreePicks = async (): Promise<WorktreeDeleteItem[] | QuickPickItem[]> => {
-			const worktrees = await repository.getWorktrees();
+			const worktrees = await repository.getWorktreeDetails();
 			return worktrees.length === 0
 				? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
-				: worktrees.map(worktree => new WorktreeDeleteItem(worktree));
+				: worktrees.map(worktree => new WorktreeDeleteItem(worktree, commitShortHashLength));
 		};
 
 		const placeHolder = l10n.t('Select a worktree to delete');
@@ -4544,7 +4613,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await this._stashDrop(repository, stash);
+		await this._stashDrop(repository, stash.index, stash.description);
 	}
 
 	@command('git.stashDropAll', { repository: true })
@@ -4577,15 +4646,15 @@ export class CommandCenter {
 			return;
 		}
 
-		if (await this._stashDrop(result.repository, result.stash)) {
+		if (await this._stashDrop(result.repository, result.stash.index, result.stash.description)) {
 			await commands.executeCommand('workbench.action.closeActiveEditor');
 		}
 	}
 
-	async _stashDrop(repository: Repository, stash: Stash): Promise<boolean> {
+	async _stashDrop(repository: Repository, index: number, description: string): Promise<boolean> {
 		const yes = l10n.t('Yes');
 		const result = await window.showWarningMessage(
-			l10n.t('Are you sure you want to drop the stash: {0}?', stash.description),
+			l10n.t('Are you sure you want to drop the stash: {0}?', description),
 			{ modal: true },
 			yes
 		);
@@ -4593,7 +4662,7 @@ export class CommandCenter {
 			return false;
 		}
 
-		await repository.dropStash(stash.index);
+		await repository.dropStash(index);
 		return true;
 	}
 
@@ -4606,36 +4675,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const stashChanges = await repository.showStash(stash.index);
-		if (!stashChanges || stashChanges.length === 0) {
-			return;
-		}
-
-		// A stash commit can have up to 3 parents:
-		// 1. The first parent is the commit that was HEAD when the stash was created.
-		// 2. The second parent is the commit that represents the index when the stash was created.
-		// 3. The third parent (when present) represents the untracked files when the stash was created.
-		const stashFirstParentCommit = stash.parents.length > 0 ? stash.parents[0] : `${stash.hash}^`;
-		const stashUntrackedFilesParentCommit = stash.parents.length === 3 ? stash.parents[2] : undefined;
-		const stashUntrackedFiles: string[] = [];
-
-		if (stashUntrackedFilesParentCommit) {
-			const untrackedFiles = await repository.getObjectFiles(stashUntrackedFilesParentCommit);
-			stashUntrackedFiles.push(...untrackedFiles.map(f => path.join(repository.root, f.file)));
-		}
-
-		const title = `Git Stash #${stash.index}: ${stash.description}`;
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `stash@{${stash.index}}`, { scheme: 'git-stash' });
-
-		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
-		for (const change of stashChanges) {
-			const isChangeUntracked = !!stashUntrackedFiles.find(f => pathEquals(f, change.uri.fsPath));
-			const modifiedUriRef = !isChangeUntracked ? stash.hash : stashUntrackedFilesParentCommit ?? stash.hash;
-
-			resources.push(toMultiFileDiffEditorUris(change, stashFirstParentCommit, modifiedUriRef));
-		}
-
-		commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
+		await this._viewStash(repository, stash);
 	}
 
 	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
@@ -4678,6 +4718,39 @@ export class CommandCenter {
 		}
 
 		return { repository, stash };
+	}
+
+	private async _viewStash(repository: Repository, stash: Stash): Promise<void> {
+		const stashChanges = await repository.showStash(stash.index);
+		if (!stashChanges || stashChanges.length === 0) {
+			return;
+		}
+
+		// A stash commit can have up to 3 parents:
+		// 1. The first parent is the commit that was HEAD when the stash was created.
+		// 2. The second parent is the commit that represents the index when the stash was created.
+		// 3. The third parent (when present) represents the untracked files when the stash was created.
+		const stashFirstParentCommit = stash.parents.length > 0 ? stash.parents[0] : `${stash.hash}^`;
+		const stashUntrackedFilesParentCommit = stash.parents.length === 3 ? stash.parents[2] : undefined;
+		const stashUntrackedFiles: string[] = [];
+
+		if (stashUntrackedFilesParentCommit) {
+			const untrackedFiles = await repository.getObjectFiles(stashUntrackedFilesParentCommit);
+			stashUntrackedFiles.push(...untrackedFiles.map(f => path.join(repository.root, f.file)));
+		}
+
+		const title = `Git Stash #${stash.index}: ${stash.description}`;
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `stash@{${stash.index}}`, { scheme: 'git-stash' });
+
+		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
+		for (const change of stashChanges) {
+			const isChangeUntracked = !!stashUntrackedFiles.find(f => pathEquals(f, change.uri.fsPath));
+			const modifiedUriRef = !isChangeUntracked ? stash.hash : stashUntrackedFilesParentCommit ?? stash.hash;
+
+			resources.push(toMultiFileDiffEditorUris(change, stashFirstParentCommit, modifiedUriRef));
+		}
+
+		commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
 	}
 
 	@command('git.timeline.openDiff', { repository: false })
@@ -4754,7 +4827,7 @@ export class CommandCenter {
 
 		const commit = await repository.getCommit(item.ref);
 		const commitParentId = commit.parents.length > 0 ? commit.parents[0] : await repository.getEmptyTree();
-		const changes = await repository.diffBetween2(commitParentId, commit.hash);
+		const changes = await repository.diffBetweenWithStats(commitParentId, commit.hash);
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, commitParentId, commit.hash));
 
 		const title = `${item.shortRef} - ${subject(commit.message)}`;
@@ -5028,7 +5101,7 @@ export class CommandCenter {
 
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });
 
-		const changes = await repository.diffBetween2(historyItemParentId, historyItemId);
+		const changes = await repository.diffBetweenWithStats(historyItemParentId, historyItemId);
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
 		const reveal = revealUri ? { modifiedUri: toGitUri(revealUri, historyItemId) } : undefined;
 
@@ -5077,6 +5150,15 @@ export class CommandCenter {
 		}
 
 		await this._createTag(repository);
+	}
+
+	@command('git.repositories.createWorktree', { repository: true })
+	async artifactGroupCreateWorktree(repository: Repository): Promise<void> {
+		if (!repository) {
+			return;
+		}
+
+		await this._createWorktree(repository);
 	}
 
 	@command('git.repositories.checkout', { repository: true })
@@ -5217,6 +5299,198 @@ export class CommandCenter {
 		await repository.deleteTag(artifact.name);
 	}
 
+	@command('git.repositories.stashView', { repository: true })
+	async artifactStashView(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		// Extract stash index from artifact id
+		const regex = /^stash@\{(\d+)\}$/;
+		const match = regex.exec(artifact.id);
+		if (!match) {
+			return;
+		}
+
+		const stashes = await repository.getStashes();
+		const stash = stashes.find(s => s.index === parseInt(match[1]));
+		if (!stash) {
+			return;
+		}
+
+		await this._viewStash(repository, stash);
+	}
+
+	@command('git.repositories.stashApply', { repository: true })
+	async artifactStashApply(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		// Extract stash index from artifact id (format: "stash@{index}")
+		const regex = /^stash@\{(\d+)\}$/;
+		const match = regex.exec(artifact.id);
+		if (!match) {
+			return;
+		}
+
+		const stashIndex = parseInt(match[1]);
+		await repository.applyStash(stashIndex);
+	}
+
+	@command('git.repositories.stashPop', { repository: true })
+	async artifactStashPop(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		// Extract stash index from artifact id (format: "stash@{index}")
+		const regex = /^stash@\{(\d+)\}$/;
+		const match = regex.exec(artifact.id);
+		if (!match) {
+			return;
+		}
+
+		const stashIndex = parseInt(match[1]);
+		await repository.popStash(stashIndex);
+	}
+
+	@command('git.repositories.stashDrop', { repository: true })
+	async artifactStashDrop(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		// Extract stash index from artifact id
+		const regex = /^stash@\{(\d+)\}$/;
+		const match = regex.exec(artifact.id);
+		if (!match) {
+			return;
+		}
+
+		await this._stashDrop(repository, parseInt(match[1]), artifact.name);
+	}
+
+	@command('git.repositories.openWorktree', { repository: true })
+	async artifactOpenWorktree(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const uri = Uri.file(artifact.id);
+		await commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
+	}
+
+	@command('git.repositories.openWorktreeInNewWindow', { repository: true })
+	async artifactOpenWorktreeInNewWindow(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const uri = Uri.file(artifact.id);
+		await commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+	}
+
+	@command('git.repositories.deleteWorktree', { repository: true })
+	async artifactDeleteWorktree(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		await repository.deleteWorktree(artifact.id);
+	}
+
+	@command('git.repositories.worktreeCopyBranchName', { repository: true })
+	async artifactWorktreeCopyBranchName(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const worktrees = await repository.getWorktreeDetails();
+		const worktree = worktrees.find(w => w.path === artifact.id);
+		if (!worktree || worktree.detached) {
+			return;
+		}
+
+		env.clipboard.writeText(worktree.ref.substring(11));
+	}
+
+	@command('git.repositories.worktreeCopyCommitHash', { repository: true })
+	async artifactWorktreeCopyCommitHash(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const worktrees = await repository.getWorktreeDetails();
+		const worktree = worktrees.find(w => w.path === artifact.id);
+		if (!worktree?.commitDetails) {
+			return;
+		}
+
+		env.clipboard.writeText(worktree.commitDetails.hash);
+	}
+
+	@command('git.repositories.worktreeCopyPath', { repository: true })
+	async artifactWorktreeCopyPath(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		env.clipboard.writeText(artifact.id);
+	}
+
+	@command('git.repositories.copyCommitHash', { repository: true })
+	async artifactCopyCommitHash(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const commit = await repository.getCommit(artifact.id);
+		env.clipboard.writeText(commit.hash);
+	}
+
+	@command('git.repositories.copyBranchName', { repository: true })
+	async artifactCopyBranchName(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		env.clipboard.writeText(artifact.name);
+	}
+
+	@command('git.repositories.copyTagName', { repository: true })
+	async artifactCopyTagName(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		env.clipboard.writeText(artifact.name);
+	}
+
+	@command('git.repositories.copyStashName', { repository: true })
+	async artifactCopyStashName(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		env.clipboard.writeText(artifact.name);
+	}
+
+	@command('git.repositories.stashCopyBranchName', { repository: true })
+	async artifactStashCopyBranchName(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact?.description) {
+			return;
+		}
+
+		const stashes = await repository.getStashes();
+		const stash = stashes.find(s => artifact.id === `stash@{${s.index}}`);
+		if (!stash?.branchName) {
+			return;
+		}
+
+		env.clipboard.writeText(stash.branchName);
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
@@ -5347,15 +5621,14 @@ export class CommandCenter {
 						options.modal = false;
 						break;
 					default: {
-						const hint = (err.stderr || err.message || String(err))
+						const hintLines = (err.stderr || err.stdout || err.message || String(err))
 							.replace(/^error: /mi, '')
 							.replace(/^> husky.*$/mi, '')
 							.split(/[\r\n]/)
-							.filter((line: string) => !!line)
-						[0];
+							.filter((line: string) => !!line);
 
-						message = hint
-							? l10n.t('Git: {0}', hint)
+						message = hintLines.length > 0
+							? l10n.t('Git: {0}', err.stdout ? hintLines[hintLines.length - 1] : hintLines[0])
 							: l10n.t('Git error');
 
 						break;

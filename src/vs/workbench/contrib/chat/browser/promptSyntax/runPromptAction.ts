@@ -8,7 +8,7 @@ import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actio
 import { URI } from '../../../../../base/common/uri.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { assertDefined } from '../../../../../base/common/types.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -57,7 +57,7 @@ const RUN_SELECTED_PROMPT_ACTION_ID = 'workbench.action.chat.run.prompt';
 /**
  * Action ID for the `Configure Prompt Files...` action.
  */
-const CONFIGURE_PROMPTS_ACTION_ID = 'workbench.action.chat.configure.prompts';
+export const CONFIGURE_PROMPTS_ACTION_ID = 'workbench.action.chat.configure.prompts';
 
 /**
  * Constructor options for the `Run Prompt` base action.

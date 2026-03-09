@@ -387,6 +387,10 @@ export class FormatString extends Marker {
 			return !value ? '' : this._toPascalCase(value);
 		} else if (this.shorthandName === 'camelcase') {
 			return !value ? '' : this._toCamelCase(value);
+		} else if (this.shorthandName === 'kebabcase') {
+			return !value ? '' : this._toKebabCase(value);
+		} else if (this.shorthandName === 'snakecase') {
+			return !value ? '' : this._toSnakeCase(value);
 		} else if (Boolean(value) && typeof this.ifValue === 'string') {
 			return this.ifValue;
 		} else if (!Boolean(value) && typeof this.elseValue === 'string') {
@@ -396,8 +400,41 @@ export class FormatString extends Marker {
 		}
 	}
 
+	// Note: word-based case transforms rely on uppercase/lowercase distinctions.
+	// For scripts without case, transforms are effectively no-ops.
+	private _toKebabCase(value: string): string {
+		const match = value.match(/[\p{L}0-9]+/gu);
+		if (!match) {
+			return value;
+		}
+
+		if (!value.match(/[\p{L}0-9]/u)) {
+			return value
+				.trim()
+				.toLowerCase()
+				.replace(/^_+|_+$/g, '')
+				.replace(/[\s_]+/g, '-');
+		}
+
+		const cleaned = value.trim().replace(/^_+|_+$/g, '');
+
+		const match2 = cleaned.match(/\p{Lu}{2,}(?=\p{Lu}\p{Ll}+[0-9]*|[\s_-]|$)|\p{Lu}?\p{Ll}+[0-9]*|\p{Lu}(?=\p{Lu}\p{Ll})|\p{Lu}(?=[\s_-]|$)|[0-9]+/gu);
+
+		if (!match2) {
+			return cleaned
+				.split(/[\s_-]+/)
+				.filter(word => word.length > 0)
+				.map(word => word.toLowerCase())
+				.join('-');
+		}
+
+		return match2
+			.map(x => x.toLowerCase())
+			.join('-');
+	}
+
 	private _toPascalCase(value: string): string {
-		const match = value.match(/[a-z0-9]+/gi);
+		const match = value.match(/[\p{L}0-9]+/gu);
 		if (!match) {
 			return value;
 		}
@@ -408,7 +445,7 @@ export class FormatString extends Marker {
 	}
 
 	private _toCamelCase(value: string): string {
-		const match = value.match(/[a-z0-9]+/gi);
+		const match = value.match(/[\p{L}0-9]+/gu);
 		if (!match) {
 			return value;
 		}
@@ -419,6 +456,12 @@ export class FormatString extends Marker {
 			return word.charAt(0).toUpperCase() + word.substr(1);
 		})
 			.join('');
+	}
+
+	private _toSnakeCase(value: string): string {
+		return value.replace(/(\p{Ll})(\p{Lu})/gu, '$1_$2')
+			.replace(/[\s\-]+/g, '_')
+			.toLowerCase();
 	}
 
 	toTextmateString(): string {

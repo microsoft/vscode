@@ -26,7 +26,7 @@ suite('McpStdioStateHandler', () => {
 			processId: new Promise<number>((resolve) => {
 				child.on('spawn', () => resolve(child.pid!));
 			}),
-			output: new Promise<string>((resolve) => {
+			output: new Promise<string>((resolve, reject) => {
 				let output = '';
 				child.stderr.setEncoding('utf-8').on('data', (data) => {
 					output += data.toString();
@@ -34,6 +34,7 @@ suite('McpStdioStateHandler', () => {
 				child.stdout.setEncoding('utf-8').on('data', (data) => {
 					output += data.toString();
 				});
+				child.on('error', reject);
 				child.on('close', () => resolve(output));
 			}),
 		};
@@ -46,7 +47,7 @@ suite('McpStdioStateHandler', () => {
 			process.on('SIGTERM', () => process.stdout.write('SIGTERM received'));
 		`);
 
-		child.stdin.write('Hello MCP!');
+		await new Promise<void>(r => child.stdin.write('Hello MCP!', () => r()));
 		handler.stop();
 		const result = await output;
 		assert.strictEqual(result.trim(), 'Data received: Hello MCP!');
@@ -59,7 +60,9 @@ suite('McpStdioStateHandler', () => {
 			process.stdin.on('end', () => process.stdout.write('stdin ended\\n'));
 			process.stdin.resume();
 			process.on('SIGTERM', () => {
-				process.stdout.write('SIGTERM received', () => process.exit(0));
+				process.stdout.write('SIGTERM received', () => {
+					process.stdout.end(() => process.exit(0));
+				});
 			});
 		`);
 

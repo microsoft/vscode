@@ -1,0 +1,98 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-session-hover {
+	display: flex;
+	flex-direction: column;
+
+	.agent-session-hover-loading {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: 100%;
+		color: var(--vscode-descriptionForeground);
+	}
+
+	/* Header section with session details */
+	.agent-session-hover-header {
+		height: 60px;
+		padding: 0 12px;
+		border-bottom: 1px solid var(--vscode-widget-border);
+		flex-shrink: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+	}
+
+	.agent-session-hover-title {
+		font-weight: 600;
+		font-size: 13px;
+		margin-bottom: 4px;
+		color: var(--vscode-foreground);
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.agent-session-hover-details {
+		font-size: 11px;
+		color: var(--vscode-descriptionForeground);
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		flex-wrap: wrap;
+
+		.codicon {
+			display: flex;
+			align-items: center;
+		}
+	}
+
+	.agent-session-hover-details .separator {
+		opacity: 0.5;
+	}
+
+	.agent-session-hover-diff {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.agent-session-hover-diff .insertions {
+		color: var(--vscode-chat-linesAddedForeground);
+	}
+
+	.agent-session-hover-diff .deletions {
+		color: var(--vscode-chat-linesRemovedForeground);
+	}
+
+	/* Content area with chat list */
+	.agent-session-hover-content {
+		flex: 1;
+		min-height: 0;
+		opacity: 0;
+		animation: agentSessionHoverFadeIn 0.2s ease-out forwards;
+		margin: 0 -8px;
+
+		.interactive-session .interactive-item-container {
+			padding: 0;
+		}
+	}
+}
+
+@keyframes agentSessionHoverFadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}

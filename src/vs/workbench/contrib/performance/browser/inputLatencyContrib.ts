@@ -33,8 +33,9 @@ export class InputLatencyContrib extends Disposable implements IWorkbenchContrib
 		}, 60000));
 
 
-		// Only log 1% of users selected randomly to reduce the volume of data
-		if (Math.random() <= 0.01) {
+		// Only log 1% of users selected randomly to reduce the volume of data, always report if GPU
+		// acceleration is enabled as it's opt-in
+		if (Math.random() <= 0.01 || this._configurationService.getValue('editor.experimentalGpuAcceleration') === 'on') {
 			this._setupListener();
 		}
 

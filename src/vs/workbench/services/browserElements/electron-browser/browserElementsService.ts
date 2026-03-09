@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserType, IElementData, INativeBrowserElementsService } from '../../../../platform/browserElements/common/browserElements.js';
+import { IElementData, INativeBrowserElementsService, IBrowserTargetLocator } from '../../../../platform/browserElements/common/browserElements.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -33,7 +33,28 @@ class WorkbenchBrowserElementsService implements IBrowserElementsService {
 		@INativeBrowserElementsService private readonly simpleBrowser: INativeBrowserElementsService
 	) { }
 
-	async startDebugSession(token: CancellationToken, browserType: BrowserType): Promise<void> {
+	async getConsoleLogs(locator: IBrowserTargetLocator): Promise<string | undefined> {
+		return await this.simpleBrowser.getConsoleLogs(locator);
+	}
+
+	async startConsoleSession(token: CancellationToken, locator: IBrowserTargetLocator): Promise<void> {
+		const cancelAndDetachId = cancelAndDetachIdPool++;
+		const onCancelChannel = `vscode:cancelConsoleSession${cancelAndDetachId}`;
+
+		const disposable = token.onCancellationRequested(() => {
+			ipcRenderer.send(onCancelChannel, cancelAndDetachId);
+			disposable.dispose();
+		});
+		try {
+			await this.simpleBrowser.startConsoleSession(token, locator, cancelAndDetachId);
+		} catch (error) {
+			throw new Error('Failed to start console session', { cause: error });
+		} finally {
+			disposable.dispose();
+		}
+	}
+
+	async startDebugSession(token: CancellationToken, locator: IBrowserTargetLocator): Promise<void> {
 		const cancelAndDetachId = cancelAndDetachIdPool++;
 		const onCancelChannel = `vscode:cancelCurrentSession${cancelAndDetachId}`;
 
@@ -42,15 +63,16 @@ class WorkbenchBrowserElementsService implements IBrowserElementsService {
 			disposable.dispose();
 		});
 		try {
-			await this.simpleBrowser.startDebugSession(token, browserType, cancelAndDetachId);
+			await this.simpleBrowser.startDebugSession(token, locator, cancelAndDetachId);
 		} catch (error) {
+			throw new Error('No debug session target found', { cause: error });
+		} finally {
 			disposable.dispose();
-			throw new Error('No debug session target found', error);
 		}
 	}
 
-	async getElementData(rect: IRectangle, token: CancellationToken, browserType: BrowserType | undefined): Promise<IElementData | undefined> {
-		if (!browserType) {
+	async getElementData(rect: IRectangle, token: CancellationToken, locator: IBrowserTargetLocator | undefined): Promise<IElementData | undefined> {
+		if (!locator) {
 			return undefined;
 		}
 		const cancelSelectionId = cancelSelectionIdPool++;
@@ -59,7 +81,7 @@ class WorkbenchBrowserElementsService implements IBrowserElementsService {
 			ipcRenderer.send(onCancelChannel, cancelSelectionId);
 		});
 		try {
-			const elementData = await this.simpleBrowser.getElementData(rect, token, browserType, cancelSelectionId);
+			const elementData = await this.simpleBrowser.getElementData(rect, token, locator, cancelSelectionId);
 			return elementData;
 		} catch (error) {
 			disposable.dispose();

@@ -74,6 +74,12 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	private _terminalTabsSingleSelectedContextKey: IContextKey<boolean>;
 	private _isSplitContextKey: IContextKey<boolean>;
 
+	private _hasText: boolean = true;
+	get hasText(): boolean { return this._hasText; }
+
+	private _hasActionBar: boolean = true;
+	get hasActionBar(): boolean { return this._hasActionBar; }
+
 	constructor(
 		container: HTMLElement,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -94,7 +100,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				getHeight: () => TerminalTabsListSizes.TabHeight,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements())],
+			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements(), () => this.hasText, () => this.hasActionBar)],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
@@ -148,19 +154,21 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		}));
 
 		this.disposables.add(this.onMouseDblClick(async e => {
-			const focus = this.getFocus();
-			if (focus.length === 0) {
+			if (!e.element) {
+				e.browserEvent.preventDefault();
+				e.browserEvent.stopPropagation();
 				const instance = await this._terminalService.createTerminal({ location: TerminalLocation.Panel });
 				this._terminalGroupService.setActiveInstance(instance);
 				await instance.focusWhenReady();
+				return;
 			}
 
-			if (this._terminalEditingService.getEditingTerminal()?.instanceId === e.element?.instanceId) {
+			if (this._terminalEditingService.getEditingTerminal()?.instanceId === e.element.instanceId) {
 				return;
 			}
 
 			if (this._getFocusMode() === 'doubleClick' && this.getFocus().length === 1) {
-				e.element?.focus(true);
+				e.element.focus(true);
 			}
 		}));
 
@@ -246,15 +254,29 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		const instance = this.getFocusedElements();
 		this._isSplitContextKey.set(instance.length > 0 && this._terminalGroupService.instanceIsSplit(instance[0]));
 	}
+
+	override layout(height?: number, width?: number): void {
+		super.layout(height, width);
+		const actualWidth = width ?? this.getHTMLElement().clientWidth;
+		const newHasText = actualWidth >= TerminalTabsListSizes.MidpointViewWidth;
+		const newHasActionBar = actualWidth > TerminalTabsListSizes.ActionbarMinimumWidth;
+		if (this._hasText !== newHasText || this._hasActionBar !== newHasActionBar) {
+			this._hasText = newHasText;
+			this._hasActionBar = newHasActionBar;
+			this.refresh();
+		}
+	}
 }
 
 class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminalTabEntryTemplate> {
 	templateId = 'terminal.tabs';
 
 	constructor(
-		private readonly _container: HTMLElement,
+		_container: HTMLElement,
 		private readonly _labels: ResourceLabels,
 		private readonly _getSelection: () => ITerminalInstance[],
+		private readonly _getHasText: () => boolean,
+		private readonly _getHasActionBar: () => boolean,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -319,25 +341,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		};
 	}
 
-	shouldHideText(): boolean {
-		return this._container ? this.getContainerWidthCachedForTask() < TerminalTabsListSizes.MidpointViewWidth : false;
-	}
-
-	shouldHideActionBar(): boolean {
-		return this._container ? this.getContainerWidthCachedForTask() <= TerminalTabsListSizes.ActionbarMinimumWidth : false;
-	}
-
-	private _cachedContainerWidth = -1;
-	getContainerWidthCachedForTask(): number {
-		if (this._cachedContainerWidth === -1) {
-			this._cachedContainerWidth = this._container.clientWidth;
-			queueMicrotask(() => this._cachedContainerWidth = -1);
-		}
-		return this._cachedContainerWidth;
-	}
-
 	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
-		const hasText = !this.shouldHideText();
+		const hasText = this._getHasText();
+		const hasActionBar = this._getHasActionBar();
 
 		const group = this._terminalGroupService.getGroupForInstance(instance);
 		if (!group) {
@@ -363,7 +369,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		template.context.hoverActions = hoverInfo.actions;
 
 		const iconId = this._instantiationService.invokeFunction(getIconId, instance);
-		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
 		if (!hasText) {
 			const primaryStatus = instance.statusList.primary;
@@ -383,7 +388,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}
 
-		if (!hasActionbar) {
+		if (!hasActionBar) {
 			template.actionBar.clear();
 		}
 

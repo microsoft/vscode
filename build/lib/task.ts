@@ -18,7 +18,7 @@ export interface StreamTask extends BaseTask {
 	(): NodeJS.ReadWriteStream;
 }
 export interface CallbackTask extends BaseTask {
-	(cb?: (err?: any) => void): void;
+	(cb?: (err?: Error) => void): void;
 }
 
 export type Task = PromiseTask | StreamTask | CallbackTask;

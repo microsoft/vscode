@@ -26,7 +26,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { isValidBasename } from '../../../../base/common/extpath.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { createCancelablePromise, CancelablePromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ICommandHandler } from '../../../../platform/commands/common/commands.js';
@@ -314,6 +314,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			if ((this.scheme !== Schemas.file) && this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1) && (this.options.availableFileSystems.indexOf(Schemas.file) > -1)) {
 				this.filePickBox.customButton = true;
 				this.filePickBox.customLabel = nls.localize('remoteFileDialog.local', 'Show Local');
+				this.filePickBox.customButtonSecondary = true;
 				let action;
 				if (isSave) {
 					action = SaveLocalFileCommand;
@@ -377,10 +378,11 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 				}
 			}));
 
+			const busyDisposable = this._register(new MutableDisposable());
 			const handleAccept = () => {
 				if (this.busy) {
 					// Save the accept until the file picker is not busy.
-					this.onBusyChangeEmitter.event((busy: boolean) => {
+					busyDisposable.value = this.onBusyChangeEmitter.event((busy: boolean) => {
 						if (!busy) {
 							handleAccept();
 						}
@@ -817,6 +819,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		prompt.ok = true;
 		prompt.customButton = true;
 		prompt.customLabel = nls.localize('remoteFileDialog.cancel', 'Cancel');
+		prompt.customButtonSecondary = true;
 		prompt.value = this.pathFromUri(uri);
 
 		let isResolving = false;

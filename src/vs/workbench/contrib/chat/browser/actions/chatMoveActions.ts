@@ -15,13 +15,13 @@ import { ViewContainerLocation } from '../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { isChatViewTitleActionContext } from '../../common/chatActions.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
-import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
-import { ChatViewPane } from '../chatViewPane.js';
+import { ChatEditor, IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
+import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
+import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 enum MoveToNewLocation {
@@ -113,21 +113,20 @@ export function registerMoveActions() {
 
 async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNewLocation, sessionResource?: URI) {
 	const widgetService = accessor.get(IChatWidgetService);
-	const editorService = accessor.get(IEditorService);
 
 	const auxiliary = { compact: true, bounds: { width: 800, height: 640 } };
 
 	const widget = (sessionResource ? widgetService.getWidgetBySessionResource(sessionResource) : undefined)
 		?? widgetService.lastFocusedWidget;
 	if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Chat) {
-		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, auxiliary } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+		await widgetService.openSession(ChatEditorInput.getNewEditorUri(), moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP, { pinned: true, auxiliary });
 		return;
 	}
 
 	const existingWidget = widgetService.getWidgetBySessionResource(widget.viewModel.sessionResource);
 	if (!existingWidget) {
 		// Do NOT attempt to open a session that isn't already open since we cannot guarantee its state.
-		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, auxiliary } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+		await widgetService.openSession(ChatEditorInput.getNewEditorUri(), moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP, { pinned: true, auxiliary });
 		return;
 	}
 
@@ -140,7 +139,7 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 	await widget.clear();
 
 	const options: IChatEditorOptions = { pinned: true, modelInputState, auxiliary };
-	await editorService.openEditor({ resource: resourceToOpen, options }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+	await widgetService.openSession(resourceToOpen, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP, options);
 }
 
 async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {

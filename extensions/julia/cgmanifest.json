@@ -6,7 +6,7 @@
 				"git": {
 					"name": "JuliaEditorSupport/atom-language-julia",
 					"repositoryUrl": "https://github.com/JuliaEditorSupport/atom-language-julia",
-					"commitHash": "111548fbd25d083ec131d2732a4f46953ea92a65"
+					"commitHash": "93454227ce9a7aa92f41b157c6a74f3971b4ae14"
 				}
 			},
 			"license": "MIT",

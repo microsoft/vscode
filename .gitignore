@@ -6,9 +6,11 @@ node_modules/
 .build/
 .vscode/extensions/**/out/
 extensions/**/dist/
+src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 /out*/
 /extensions/**/out/
 build/node_modules
+build/darwin/.dmgbuild
 coverage/
 test_data/
 test-results/
@@ -23,3 +25,7 @@ product.overrides.json
 *.tsbuildinfo
 .vscode-test
 vscode-telemetry-docs/
+test-output.json
+test/componentFixtures/.screenshots/*
+!test/componentFixtures/.screenshots/baseline/
+dist

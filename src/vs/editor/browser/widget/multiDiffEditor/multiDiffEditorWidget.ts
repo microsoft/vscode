@@ -10,6 +10,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, observableValue, recomputeInitiallyAndOnChange } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Range } from '../../../common/core/range.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
 import { ICodeEditor } from '../../editorBrowser.js';
@@ -80,6 +81,18 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	public tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
 		return this._widgetImpl.get().tryGetCodeEditor(resource);
+	}
+
+	public getRootElement(): HTMLElement {
+		return this._widgetImpl.get().getRootElement();
+	}
+
+	public getContextKeyService(): IContextKeyService {
+		return this._widgetImpl.get().getContextKeyService();
+	}
+
+	public getScopedInstantiationService(): IInstantiationService {
+		return this._widgetImpl.get().getScopedInstantiationService();
 	}
 
 	public findDocumentDiffItem(resource: URI): IDocumentDiffItem | undefined {

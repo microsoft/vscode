@@ -13,7 +13,7 @@ import { ReplaceInput } from '../../../../base/browser/ui/findinput/replaceInput
 import { IInputBoxStyles, IMessage, InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
 import { Action } from '../../../../base/common/actions.js';
-import { Delayer } from '../../../../base/common/async.js';
+import { Delayer, disposableTimeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from '../../../../editor/contrib/find/browser/findModel.js';
@@ -26,7 +26,7 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { ISearchConfigurationProperties } from '../../../services/search/common/search.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ContextScopedReplaceInput } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
-import { appendKeyBindingLabel, isSearchViewFocused, getSearchView } from './searchActionsBase.js';
+import { isSearchViewFocused, getSearchView } from './searchActionsBase.js';
 import * as Constants from '../common/constants.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
@@ -84,11 +84,11 @@ class ReplaceAllAction extends Action {
 		this._searchWidget = searchWidget;
 	}
 
-	override run(): Promise<any> {
+	override run(): Promise<void> {
 		if (this._searchWidget) {
 			return this._searchWidget.triggerReplaceAll();
 		}
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -117,8 +117,7 @@ export class SearchWidget extends Widget {
 
 	private static readonly REPLACE_ALL_DISABLED_LABEL = nls.localize('search.action.replaceAll.disabled.label', "Replace All (Submit Search to Enable)");
 	private static readonly REPLACE_ALL_ENABLED_LABEL = (keyBindingService2: IKeybindingService): string => {
-		const kb = keyBindingService2.lookupKeybinding(ReplaceAllAction.ID);
-		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), kb);
+		return keyBindingService2.appendKeybinding(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), ReplaceAllAction.ID);
 	};
 
 	domNode: HTMLElement | undefined;
@@ -138,6 +137,14 @@ export class SearchWidget extends Widget {
 	private _replaceHistoryDelayer: Delayer<void>;
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string | null = null;
+
+	/**
+	 * Tracks whether the accessibility help hint has been announced in the ARIA label.
+	 * Reset when the widget loses focus, allowing the hint to be announced again
+	 * on the next focus.
+	 */
+	private _accessibilityHelpHintAnnounced = false;
+	private _labelResetTimeout: IDisposable | undefined;
 
 	private _onSearchSubmit = this._register(new Emitter<{ triggeredOnType: boolean; delay: number }>());
 	readonly onSearchSubmit: Event<{ triggeredOnType: boolean; delay: number }> = this._onSearchSubmit.event;
@@ -166,7 +173,7 @@ export class SearchWidget extends Widget {
 	private _onDidHeightChange = this._register(new Emitter<void>());
 	readonly onDidHeightChange: Event<void> = this._onDidHeightChange.event;
 
-	private readonly _onDidToggleContext = new Emitter<void>();
+	private readonly _onDidToggleContext = this._register(new Emitter<void>());
 	readonly onDidToggleContext: Event<void> = this._onDidToggleContext.event;
 
 	private showContextToggle!: Toggle;
@@ -252,6 +259,7 @@ export class SearchWidget extends Widget {
 
 		if (focusReplace && this.isReplaceShown()) {
 			if (this.replaceInput) {
+				this._updateSearchInputAriaLabel(false);
 				this.replaceInput.focus();
 				if (select) {
 					this.replaceInput.select();
@@ -259,12 +267,48 @@ export class SearchWidget extends Widget {
 			}
 		} else {
 			if (this.searchInput) {
+				this._updateSearchInputAriaLabel(true);
 				this.searchInput.focus();
 				if (select) {
 					this.searchInput.select();
 				}
 			}
 		}
+	}
+
+	/**
+	 * Updates the ARIA label of the search input box.
+	 * When a screen reader is active and the accessibility verbosity setting is enabled,
+	 * includes a hint about pressing Alt+F1 for accessibility help on first focus.
+	 * The hint is only announced once per focus cycle to prevent double-speak.
+	 * @param includeHint Whether to include the accessibility help hint in the label
+	 */
+	private _updateSearchInputAriaLabel(includeHint: boolean): void {
+		if (!this.searchInput) {
+			return;
+		}
+
+		let searchLabel = nls.localize('label.Search', 'Search: Type Search Term and press Enter to search');
+
+		// Include accessibility help hint when requested, screen reader is active, and setting is enabled
+		// Note: Using raw string for setting ID - this setting may not be registered yet
+		if (includeHint && !this._accessibilityHelpHintAnnounced && this.configurationService.getValue('accessibility.verbosity.find') && this.accessibilityService.isScreenReaderOptimized()) {
+			const keybinding = this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
+			if (keybinding) {
+				searchLabel += ', ' + nls.localize('accessibilityHelpHintInLabel', "Press {0} for accessibility help", keybinding);
+				this._accessibilityHelpHintAnnounced = true;
+
+				// Reset to plain label after delay to avoid repeated announcement on focus changes
+				this._labelResetTimeout?.dispose();
+				this._labelResetTimeout = disposableTimeout(() => {
+					if (this.searchInput) {
+						this.searchInput.inputBox.setAriaLabel(nls.localize('label.Search', 'Search: Type Search Term and press Enter to search'));
+					}
+				}, 1000);
+			}
+		}
+
+		this.searchInput.inputBox.setAriaLabel(searchLabel);
 	}
 
 	setWidth(width: number) {
@@ -400,9 +444,9 @@ export class SearchWidget extends Widget {
 			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search'),
 			validation: (value: string) => this.validateSearchInput(value),
 			placeholder: nls.localize('search.placeHolder', "Search"),
-			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.ToggleCaseSensitiveCommandId)),
-			appendWholeWordsLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.ToggleWholeWordCommandId)),
-			appendRegexLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.ToggleRegexCommandId)),
+			appendCaseSensitiveLabel: this.keybindingService.appendKeybinding('', Constants.SearchCommandIds.ToggleCaseSensitiveCommandId),
+			appendWholeWordsLabel: this.keybindingService.appendKeybinding('', Constants.SearchCommandIds.ToggleWholeWordCommandId),
+			appendRegexLabel: this.keybindingService.appendKeybinding('', Constants.SearchCommandIds.ToggleRegexCommandId),
 			history: new Set(history),
 			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
 			flexibleHeight: true,
@@ -465,7 +509,7 @@ export class SearchWidget extends Widget {
 
 		this.showContextToggle = new Toggle({
 			isChecked: false,
-			title: appendKeyBindingLabel(nls.localize('showContext', "Toggle Context Lines"), this.keybindingService.lookupKeybinding(ToggleSearchEditorContextLinesCommandId)),
+			title: this.keybindingService.appendKeybinding(nls.localize('showContext', "Toggle Context Lines"), ToggleSearchEditorContextLinesCommandId),
 			icon: searchShowContextIcon,
 			hoverLifecycleOptions,
 			...defaultToggleStyles
@@ -513,7 +557,7 @@ export class SearchWidget extends Widget {
 		this.replaceInput = this._register(new ContextScopedReplaceInput(replaceBox, this.contextViewService, {
 			label: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
-			appendPreserveCaseLabel: appendKeyBindingLabel('', this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.TogglePreserveCaseId)),
+			appendPreserveCaseLabel: this.keybindingService.appendKeybinding('', Constants.SearchCommandIds.TogglePreserveCaseId),
 			history: new Set(options.replaceHistory),
 			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
 			flexibleHeight: true,
@@ -548,9 +592,9 @@ export class SearchWidget extends Widget {
 		this._register(this.replaceInput.onPreserveCaseKeyDown((keyboardEvent: IKeyboardEvent) => this.onPreserveCaseKeyDown(keyboardEvent)));
 	}
 
-	triggerReplaceAll(): Promise<any> {
+	triggerReplaceAll(): Promise<void> {
 		this._onReplaceAll.fire();
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	private onToggleReplaceButton(): void {

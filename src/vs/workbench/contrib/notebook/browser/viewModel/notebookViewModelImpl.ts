@@ -177,7 +177,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private readonly _instanceId: string;
 	public readonly id: string;
 	private _foldingRanges: FoldingRegions | null = null;
-	private _onDidFoldingStateChanged = new Emitter<void>();
+	private _onDidFoldingStateChanged = this._register(new Emitter<void>());
 	readonly onDidFoldingStateChanged: Event<void> = this._onDidFoldingStateChanged.event;
 	private _hiddenRanges: ICellRange[] = [];
 	private _focused: boolean = true;
@@ -731,9 +731,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				this._decorationIdToCellMap.delete(id);
 			}
 
-			if (this._overviewRulerDecorations.has(id)) {
-				this._overviewRulerDecorations.delete(id);
-			}
+			this._overviewRulerDecorations.delete(id);
 		});
 
 		const result: string[] = [];

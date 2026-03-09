@@ -8,6 +8,8 @@ jobs:
     pool:
       name: AcesShared
       os: macOS
+      demands:
+        - ImageOverride -equals ACES_VM_SharedPool_Sequoia
     timeoutInMinutes: 60
     variables:
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
@@ -28,7 +30,7 @@ jobs:
           KeyVaultName: vscode-build-secrets
           SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
 
-      - script: node build/setup-npm-registry.js $NPM_REGISTRY
+      - script: node build/setup-npm-registry.ts $NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 

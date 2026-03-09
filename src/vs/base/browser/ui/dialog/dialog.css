@@ -27,10 +27,12 @@
 	width: min-content;
 	min-width: 500px;
 	max-width: 90vw;
+	max-height: 90vh;
 	min-height: 75px;
 	padding: 10px;
 	transform: translate3d(0px, 0px, 0px);
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-large);
+	box-shadow: var(--vscode-shadow-xl);
 }
 
 .monaco-dialog-box.align-vertical {
@@ -54,10 +56,16 @@
 	flex-grow: 1;
 	align-items: center;
 	padding: 0 10px;
+	min-height: 0; /* allow flex item to shrink below content size */
+	overflow: hidden;
 }
 
 .monaco-dialog-box.align-vertical .dialog-message-row {
 	flex-direction: column;
+}
+
+.monaco-dialog-box.align-vertical .dialog-message-row .dialog-message-container {
+	min-height: 0; /* allow flex item to shrink below content size in column layout */
 }
 
 .monaco-dialog-box .dialog-message-row > .dialog-icon.codicon {
@@ -76,12 +84,17 @@
 	align-self: baseline;
 }
 
+.monaco-dialog-box:not(.align-vertical) .dialog-message-row .dialog-message-container {
+	align-self: stretch; /* fill row height so overflow-y scrolling works */
+}
+
 /** Dialog: Message/Footer Container */
 .monaco-dialog-box .dialog-message-row .dialog-message-container,
 .monaco-dialog-box .dialog-footer-row {
 	display: flex;
 	flex-direction: column;
-	overflow: hidden;
+	overflow-y: auto;
+	overflow-x: hidden;
 	text-overflow: ellipsis;
 	user-select: text;
 	-webkit-user-select: text;
@@ -194,7 +207,6 @@
 }
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
-	padding: 4px 10px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	margin: 4px 5px; /* allows button focus outline to be visible */
@@ -228,19 +240,18 @@
 	outline-width: 1px;
 	outline-style: solid;
 	outline-color: var(--vscode-focusBorder);
-	border-radius: 2px;
+	border-radius: 4px;
 }
 
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-text-button {
-	padding-left: 10px;
-	padding-right: 10px;
-}
 
 .monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-text-button {
 	width: 100%;
 }
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-dropdown-button {
-	padding-left: 5px;
-	padding-right: 5px;
+	padding: 0 4px;
+}
+
+.monaco-dialog-modal-block .dialog-shadow {
+	border-radius: var(--vscode-cornerRadius-large);
 }
