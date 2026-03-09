@@ -151,9 +151,8 @@ export function buildModelPickerItems(
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
 	manageSettingsUrl: string | undefined,
 	canManageModels: boolean,
-	commandService: ICommandService,
+	manageModelsAction: IActionWidgetDropdownAction | undefined,
 	chatEntitlementService: IChatEntitlementService,
-	manageModelsAction?: IActionWidgetDropdownAction,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -585,9 +584,8 @@ export class ModelPickerWidget extends Disposable {
 			onSelect,
 			this._productService.defaultChatAgent?.manageSettingsUrl,
 			this._delegate.canManageModels(),
-			this._commandService,
-			this._entitlementService,
 			!showFilter ? manageModelsAction : undefined,
+			this._entitlementService,
 		);
 
 		const listOptions = {
