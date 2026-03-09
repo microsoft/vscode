@@ -8,10 +8,10 @@ import { NullTelemetryService } from '../../../../../../../platform/telemetry/co
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { AskQuestionsTool, IAnswerResult, IQuestion, IQuestionAnswer } from '../../../../common/tools/builtinTools/askQuestionsTool.js';
-import { IChatService } from '../../../../common/chatService/chatService.js';
+import { IChatQuestionAnswers, IChatService } from '../../../../common/chatService/chatService.js';
 
 class TestableAskQuestionsTool extends AskQuestionsTool {
-	public testConvertCarouselAnswers(questions: IQuestion[], carouselAnswers: Record<string, unknown> | undefined): IAnswerResult {
+	public testConvertCarouselAnswers(questions: IQuestion[], carouselAnswers: IChatQuestionAnswers | undefined): IAnswerResult {
 		// Create an identity map where each header is also the internal ID
 		// This simulates the simple case for testing the answer conversion logic
 		const idToHeaderMap = new Map<string, string>();
