@@ -127,6 +127,11 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}
 	}
 
+	setGrouping(grouping: AgentSessionsGrouping | undefined): void {
+		this.storeGrouping(grouping);
+		this._onDidChange.fire();
+	}
+
 	private storeGrouping(grouping: AgentSessionsGrouping | undefined): void {
 		this.groupingOverride = grouping;
 
@@ -164,7 +169,6 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 		this.registerProviderActions(this.actionDisposables, menuId);
 		this.registerStateActions(this.actionDisposables, menuId);
-		this.registerGroupingActions(this.actionDisposables, menuId);
 		this.registerArchivedActions(this.actionDisposables, menuId);
 		this.registerReadActions(this.actionDisposables, menuId);
 		this.registerResetAction(this.actionDisposables, menuId);
@@ -257,45 +261,6 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 					}
 
 					that.storeExcludes({ ...that.excludes, states: Array.from(stateExcludes) });
-				}
-			}));
-		}
-	}
-
-	private registerGroupingActions(disposables: DisposableStore, menuId: MenuId): void {
-		const defaultGrouping = this.options.groupResults?.();
-		if (!defaultGrouping) {
-			return; // only show grouping toggles when grouping is enabled
-		}
-
-		const groupings: { id: AgentSessionsGrouping; label: string }[] = [
-			{ id: AgentSessionsGrouping.Date, label: localize('agentSessions.grouping.date', "Group by Date") },
-			{ id: AgentSessionsGrouping.Repository, label: localize('agentSessions.grouping.repository', "Group by Repository") },
-		];
-
-		const that = this;
-		let counter = 0;
-		for (const grouping of groupings) {
-			disposables.add(registerAction2(class extends Action2 {
-				constructor() {
-					const currentGrouping = that.groupingOverride ?? defaultGrouping;
-					super({
-						id: `agentSessions.filter.setGrouping:${grouping.id}.${menuId.id.toLowerCase()}`,
-						title: grouping.label,
-						menu: {
-							id: menuId,
-							group: '2b_grouping',
-							order: counter++,
-						},
-						toggled: currentGrouping === grouping.id ? ContextKeyExpr.true() : ContextKeyExpr.false(),
-					});
-				}
-				run(): void {
-					if (grouping.id === defaultGrouping) {
-						that.storeGrouping(undefined); // reset to default
-					} else {
-						that.storeGrouping(grouping.id);
-					}
 				}
 			}));
 		}

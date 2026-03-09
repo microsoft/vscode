@@ -8,7 +8,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorsVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -40,12 +40,14 @@ import { IHostService } from '../../../../workbench/services/host/browser/host.j
 const $ = DOM.$;
 export const SessionsViewId = 'agentic.workbench.view.sessionsView';
 const SessionsViewFilterSubMenu = new MenuId('AgentSessionsViewFilterSubMenu');
+const IsGroupedByRepositoryContext = new RawContextKey<boolean>('sessionsView.isGroupedByRepository', false);
 
 export class AgenticSessionsViewPane extends ViewPane {
 
 	private viewPaneContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	sessionsControl: AgentSessionsControl | undefined;
+	private sessionsFilter: AgentSessionsFilter | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -90,13 +92,20 @@ export class AgenticSessionsViewPane extends ViewPane {
 		const sessionsContainer = DOM.append(parent, $('.agent-sessions-container'));
 
 		// Sessions Filter (actions go to view title bar via menu registration)
-		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
+		const sessionsFilter = this.sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: SessionsViewFilterSubMenu,
 			groupResults: () => AgentSessionsGrouping.Date,
 			allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
 			providerLabelOverrides: new Map([
 				[AgentSessionProviders.Background, localize('chat.session.providerLabel.local', "Local")],
 			]),
+		}));
+
+		// Track grouping state via context key for the toggle button
+		const isGroupedByRepoKey = IsGroupedByRepositoryContext.bindTo(this.contextKeyService);
+		isGroupedByRepoKey.set(sessionsFilter.groupResults() === AgentSessionsGrouping.Repository);
+		this._register(sessionsFilter.onDidChange(() => {
+			isGroupedByRepoKey.set(sessionsFilter.groupResults() === AgentSessionsGrouping.Repository);
 		}));
 
 		// Sessions section (top, fills available space)
@@ -213,6 +222,19 @@ export class AgenticSessionsViewPane extends ViewPane {
 	openFind(): void {
 		this.sessionsControl?.openFind();
 	}
+
+	toggleGroupByRepository(): void {
+		if (!this.sessionsFilter) {
+			return;
+		}
+
+		const current = this.sessionsFilter.groupResults();
+		if (current === AgentSessionsGrouping.Repository) {
+			this.sessionsFilter.setGrouping(undefined); // back to default (Date)
+		} else {
+			this.sessionsFilter.setGrouping(AgentSessionsGrouping.Repository);
+		}
+	}
 }
 
 // Register Cmd+N / Ctrl+N keybinding for new session in the agent sessions window
@@ -257,6 +279,30 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	icon: Codicon.filter,
 	when: ContextKeyExpr.equals('view', SessionsViewId)
 } satisfies ISubmenuItem);
+
+registerAction2(class ToggleGroupByRepositoryAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.toggleGroupByRepository',
+			title: localize2('groupByRepository', "Group by Repository"),
+			icon: Codicon.groupByRefType,
+			category: SessionsCategories.Sessions,
+			toggled: IsGroupedByRepositoryContext,
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.equals('view', SessionsViewId),
+			}]
+		});
+	}
+
+	override run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<AgenticSessionsViewPane>(SessionsViewId);
+		view?.toggleGroupByRepository();
+	}
+});
 
 registerAction2(class RefreshAgentSessionsViewerAction extends Action2 {
 	constructor() {

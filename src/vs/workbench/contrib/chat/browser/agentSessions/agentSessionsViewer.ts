@@ -904,13 +904,21 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 				return nwo.split('/').pop()!;
 			}
 
+			// repositoryPath: "/Users/user/Projects/vscode" — the actual repo root
+			const repositoryPath = metadata.repositoryPath as string | undefined;
+			if (repositoryPath) {
+				const name = repositoryPath.replace(/[\\/]+$/, '').split(/[\\/]/).pop();
+				if (name) {
+					return name;
+				}
+			}
+
 			// repository: could be "owner/repo" or a URL
 			const repository = metadata.repository as string | undefined;
 			if (repository) {
 				if (repository.includes('/') && !repository.includes(':')) {
 					return repository.split('/').pop()!;
 				}
-				// Try to extract from URL like "https://github.com/owner/repo"
 				try {
 					const url = new URL(repository);
 					const parts = url.pathname.split('/').filter(Boolean);
@@ -934,16 +942,6 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 				} catch {
 					// not a URL
 				}
-			}
-		}
-
-		// Fallback: extract from badge (strip codicon syntax)
-		const badge = session.badge;
-		if (badge) {
-			const raw = typeof badge === 'string' ? badge : renderAsPlaintext(new MarkdownString(badge.value));
-			const cleaned = raw.replace(/\$\([^)]+\)\s*/g, '').trim();
-			if (cleaned) {
-				return cleaned;
 			}
 		}
 
