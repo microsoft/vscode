@@ -56,7 +56,7 @@ suite('LiquidModuleRegistry', () => {
 		store.add(registry.onDidChangeDataProviders(() => { fired = true; }));
 
 		const providers: ILiquidDataProvider[] = [
-			{ id: 'supabase-rist', entities: ['dish', 'supplier'], extensionId: 'test.module' },
+			{ id: 'supabase-rist', entities: ['dish', 'supplier'], extensionId: 'test.module', priority: 0 },
 		];
 		registry.updateDataProviders(providers);
 
@@ -87,10 +87,10 @@ suite('LiquidModuleRegistry', () => {
 
 	test('getCardsForEntity returns cards bound to the given entity', () => {
 		const cards: ILiquidCard[] = [
-			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://a'), entity: 'dish', tags: ['cost'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test' },
-			{ id: 'stockCard', label: 'Giacenze', entryUri: URI.parse('test://b'), entity: 'ingredient', tags: ['stock'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test' },
-			{ id: 'dishPhoto', label: 'Foto Piatto', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['media'], size: { minWidth: 300, minHeight: 200 }, extensionId: 'test' },
-			{ id: 'global', label: 'KPI', entryUri: URI.parse('test://d'), tags: [], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test' },
+			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://a'), entity: 'dish', tags: ['cost'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
+			{ id: 'stockCard', label: 'Giacenze', entryUri: URI.parse('test://b'), entity: 'ingredient', tags: ['stock'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
+			{ id: 'dishPhoto', label: 'Foto Piatto', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['media'], size: { minWidth: 300, minHeight: 200 }, extensionId: 'test', runtime: 'js', permissions: [] },
+			{ id: 'global', label: 'KPI', entryUri: URI.parse('test://d'), tags: [], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
 		];
 		registry.updateCards(cards);
 
@@ -107,9 +107,9 @@ suite('LiquidModuleRegistry', () => {
 
 	test('getCardsByTag returns cards matching the given tag', () => {
 		const cards: ILiquidCard[] = [
-			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://a'), entity: 'dish', tags: ['cost', 'analytics'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test' },
-			{ id: 'revenueCard', label: 'Ricavi', entryUri: URI.parse('test://b'), entity: 'order', tags: ['revenue', 'analytics'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test' },
-			{ id: 'dishPhoto', label: 'Foto', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['media'], size: { minWidth: 300, minHeight: 200 }, extensionId: 'test' },
+			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://a'), entity: 'dish', tags: ['cost', 'analytics'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
+			{ id: 'revenueCard', label: 'Ricavi', entryUri: URI.parse('test://b'), entity: 'order', tags: ['revenue', 'analytics'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
+			{ id: 'dishPhoto', label: 'Foto', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['media'], size: { minWidth: 300, minHeight: 200 }, extensionId: 'test', runtime: 'js', permissions: [] },
 		];
 		registry.updateCards(cards);
 
@@ -146,7 +146,7 @@ suite('LiquidModuleRegistry', () => {
 
 	test('validateIntent accepts valid cardId slot', () => {
 		registry.updateCards([
-			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test' },
+			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
 		]);
 
 		const intent: ICompositionIntent = {
@@ -158,7 +158,7 @@ suite('LiquidModuleRegistry', () => {
 
 	test('validateIntent catches unknown cardId', () => {
 		registry.updateCards([
-			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test' },
+			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
 		]);
 
 		const intent: ICompositionIntent = {
@@ -242,7 +242,7 @@ suite('LiquidModuleRegistry', () => {
 			{ id: 'dishList', label: 'Piatti', componentUri: URI.parse('test://a'), mode: 'structured', entity: 'dish', extensionId: 'test' },
 		]);
 		registry.updateCards([
-			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test' },
+			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
 		]);
 
 		const caps = registry.getCapabilities();

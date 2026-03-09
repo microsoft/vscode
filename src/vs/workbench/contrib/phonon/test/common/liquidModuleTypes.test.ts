@@ -21,6 +21,7 @@ import type {
 	ICompositionSlot,
 	ICompositionIntent,
 	ILiquidCapabilitySummary,
+	CardRuntime,
 } from '../../common/liquidModuleTypes.js';
 
 suite('LiquidModuleTypes', () => {
@@ -88,9 +89,13 @@ suite('LiquidModuleTypes', () => {
 				entity: 'ristorante.ordine',
 				tags: ['analytics', 'cost'],
 				size: { minWidth: 320, minHeight: 240 },
+				runtime: 'pyodide',
+				permissions: ['entity:ordine:read', 'entity:costo:read'],
 			};
 			assert.strictEqual(contribution.entry, './cards/costi.html');
 			assert.strictEqual(contribution.tags?.length, 2);
+			assert.strictEqual(contribution.runtime, 'pyodide');
+			assert.strictEqual(contribution.permissions?.length, 2);
 		});
 
 		test('accepts minimal card without optional fields', () => {
@@ -194,10 +199,29 @@ suite('LiquidModuleTypes', () => {
 				tags: ['analytics', 'cost'],
 				size: { minWidth: 320, minHeight: 240 },
 				extensionId: 'phonon.ristorante',
+				runtime: 'js',
+				permissions: [],
 			};
 			assert.strictEqual(card.entryUri.scheme, 'file');
 			assert.strictEqual(card.extensionId, 'phonon.ristorante');
 			assert.strictEqual(card.tags.length, 2);
+		});
+
+		test('accepts wasm-bindgen runtime with permissions', () => {
+			const card: ILiquidCard = {
+				id: 'ristorante.wasm-card',
+				label: 'WASM Analytics',
+				entryUri: URI.parse('file:///extensions/ristorante/cards/wasm-analytics.html'),
+				entity: 'ristorante.piatto',
+				tags: ['analytics'],
+				size: { minWidth: 400, minHeight: 300 },
+				extensionId: 'phonon.ristorante',
+				runtime: 'wasm-bindgen',
+				permissions: ['entity:dish:read'],
+			};
+			assert.strictEqual(card.runtime, 'wasm-bindgen');
+			assert.strictEqual(card.permissions.length, 1);
+			assert.strictEqual(card.permissions[0], 'entity:dish:read');
 		});
 	});
 
@@ -207,9 +231,20 @@ suite('LiquidModuleTypes', () => {
 				id: 'ristorante.supabase-provider',
 				entities: ['ristorante.tavolo', 'ristorante.ordine'],
 				extensionId: 'phonon.ristorante',
+				priority: 0,
 			};
 			assert.strictEqual(provider.entities.length, 2);
 			assert.strictEqual(provider.extensionId, 'phonon.ristorante');
+		});
+
+		test('accepts provider with explicit priority', () => {
+			const provider: ILiquidDataProvider = {
+				id: 'ristorante.premium-provider',
+				entities: ['ristorante.tavolo'],
+				extensionId: 'phonon.ristorante',
+				priority: 10,
+			};
+			assert.strictEqual(provider.priority, 10);
 		});
 	});
 
@@ -238,6 +273,13 @@ suite('LiquidModuleTypes', () => {
 	});
 
 	// ==================== Canvas Composition Types ====================
+
+	suite('CardRuntime', () => {
+		test('accepts all four runtime variants', () => {
+			const runtimes: CardRuntime[] = ['js', 'wasm-bindgen', 'pyodide', 'emscripten'];
+			assert.strictEqual(runtimes.length, 4);
+		});
+	});
 
 	suite('CompositionLayout', () => {
 		test('accepts all layout variants', () => {

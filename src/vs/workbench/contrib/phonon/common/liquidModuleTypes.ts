@@ -63,7 +63,14 @@ export interface ILiquidCardContribution {
 	readonly tags?: readonly string[];
 	/** Minimum card dimensions in pixels. */
 	readonly size?: { readonly minWidth?: number; readonly minHeight?: number };
+	/** Card runtime environment. Defaults to 'js' for standard HTML/CSS/JS cards. */
+	readonly runtime?: CardRuntime;
+	/** Required permissions for data access. E.g. ["entity:dish:read", "entity:order:write"]. */
+	readonly permissions?: readonly string[];
 }
+
+/** Runtime environment for card execution. Defaults to 'js'. */
+export type CardRuntime = 'js' | 'wasm-bindgen' | 'pyodide' | 'emscripten';
 
 /**
  * Data provider contribution from an extension's package.json.
@@ -74,6 +81,8 @@ export interface ILiquidDataProviderContribution {
 	readonly entities: readonly string[];
 	/** Relative path to the provider module within the extension. */
 	readonly provider: string;
+	/** Priority for provider selection when multiple providers declare the same entity. Higher wins. */
+	readonly priority?: number;
 }
 
 /**
@@ -133,6 +142,8 @@ export interface ILiquidCard {
 	readonly tags: readonly string[];
 	readonly size: { readonly minWidth: number; readonly minHeight: number };
 	readonly extensionId: string;
+	readonly runtime: CardRuntime;
+	readonly permissions: readonly string[];
 }
 
 /**
@@ -142,6 +153,7 @@ export interface ILiquidDataProvider {
 	readonly id: string;
 	readonly entities: readonly string[];
 	readonly extensionId: string;
+	readonly priority: number;
 }
 
 /**

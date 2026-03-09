@@ -283,6 +283,8 @@ export function registerLiquidExtensionPointHandlers(registry: LiquidModuleRegis
 					tags: Object.freeze([...(contrib.tags ?? [])]),
 					size: { minWidth: contrib.size?.minWidth ?? 200, minHeight: contrib.size?.minHeight ?? 150 },
 					extensionId,
+					runtime: contrib.runtime ?? 'js',
+					permissions: Object.freeze(contrib.permissions ?? []),
 				});
 			}
 		}
@@ -298,6 +300,7 @@ export function registerLiquidExtensionPointHandlers(registry: LiquidModuleRegis
 					id: contrib.id,
 					entities: Object.freeze([...contrib.entities]),
 					extensionId,
+					priority: contrib.priority ?? 0,
 				});
 			}
 		}
