@@ -23,11 +23,13 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { basename } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../workbench/browser/labels.js';
 
 import { IChatRequestVariableEntry, OmittedState } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { isLocation } from '../../../../editor/common/languages.js';
@@ -66,6 +68,8 @@ export class NewChatContextAttachments extends Disposable {
 		this._onDidChangeContext.fire();
 	}
 
+	private readonly _resourceLabels: ResourceLabels;
+
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ITextModelService private readonly textModelService: ITextModelService,
@@ -76,10 +80,12 @@ export class NewChatContextAttachments extends Disposable {
 		@ISearchService private readonly searchService: ISearchService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
+		this._resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 	}
 
 	// --- Rendering ---
@@ -95,6 +101,7 @@ export class NewChatContextAttachments extends Disposable {
 		}
 
 		this._renderDisposables.clear();
+		this._resourceLabels.clear();
 		dom.clearNode(this._container);
 
 		if (this._attachedContext.length === 0) {
@@ -112,16 +119,19 @@ export class NewChatContextAttachments extends Disposable {
 			const resource = URI.isUri(entry.value) ? entry.value : isLocation(entry.value) ? entry.value.uri : undefined;
 			if (entry.kind === 'image') {
 				dom.append(pill, renderIcon(Codicon.fileMedia));
-			} else if (entry.kind === 'directory') {
-				const iconSpan = dom.$('span');
-				iconSpan.classList.add(...getIconClasses(this.modelService, this.languageService, resource, FileKind.FOLDER));
-				dom.append(pill, iconSpan);
+				dom.append(pill, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
 			} else {
-				const iconSpan = dom.$('span');
-				iconSpan.classList.add(...getIconClasses(this.modelService, this.languageService, resource, FileKind.FILE));
-				dom.append(pill, iconSpan);
+				const label = this._resourceLabels.create(pill, { supportIcons: true });
+				this._renderDisposables.add(label);
+				if (resource) {
+					label.setFile(resource, {
+						fileKind: entry.kind === 'directory' ? FileKind.FOLDER : FileKind.FILE,
+						hidePath: true,
+					});
+				} else {
+					label.setLabel(entry.name);
+				}
 			}
-			dom.append(pill, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
 
 			// Click to open the resource
 			if (resource) {
