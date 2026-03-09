@@ -2934,6 +2934,7 @@ export namespace ChatToolInvocationPart {
 				pastTenseMessage: part.pastTenseMessage ? MarkdownString.from(part.pastTenseMessage) : undefined,
 				toolSpecificData,
 				subagentInvocationId: part.subAgentInvocationId,
+				resultDetails
 			};
 		}
 
