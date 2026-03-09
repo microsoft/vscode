@@ -8,7 +8,3 @@ export type {
 	WalkthroughRenderOptions,
 } from './types.js';
 export { createServer, startServer } from './server.js';
-
-import { startServer } from './server.js';
-
-startServer();
