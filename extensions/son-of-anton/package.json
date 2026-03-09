@@ -100,6 +100,18 @@
 				]
 			},
 			{
+				"id": "sota.anton-moderniser",
+				"name": "anton-moderniser",
+				"fullName": "Anton Moderniser",
+				"description": "Legacy code modernisation specialist — systematically brings old code up to standard",
+				"commands": [
+					{ "name": "modernise", "description": "Start modernising a legacy module" },
+					{ "name": "modernize", "description": "Start modernising a legacy module (US spelling)" },
+					{ "name": "next-phase", "description": "Advance to the next modernisation phase" },
+					{ "name": "phase-status", "description": "Show modernisation progress" }
+				]
+			},
+			{
 				"id": "sota.anton-spec",
 				"name": "anton-spec",
 				"fullName": "Anton Spec",
@@ -116,55 +128,75 @@
 		"commands": [
 			{
 				"command": "sota.openChat",
-				"title": "Son of Anton: Open Chat"
+				"title": "Anton: Open Chat"
 			},
 			{
 				"command": "sota.inlineEdit",
-				"title": "Son of Anton: Inline Edit"
+				"title": "Anton: Inline Edit"
 			},
 			{
 				"command": "sota.showTraces",
-				"title": "Son of Anton: Show Agent Traces"
+				"title": "Anton: Show Agent Traces"
 			},
 			{
 				"command": "sota.clearChat",
-				"title": "Son of Anton: Clear Chat"
+				"title": "Anton: Clear Chat"
 			},
 			{
 				"command": "sota.exportTraces",
-				"title": "Son of Anton: Export Traces"
+				"title": "Anton: Export Traces"
 			},
 			{
 				"command": "sota.showSandbox",
-				"title": "Son of Anton: Show Sandbox Terminal"
+				"title": "Anton: Show Sandbox Terminal"
 			},
 			{
 				"command": "sota.triggerPreCommitHook",
-				"title": "Son of Anton: Trigger Pre-Commit Hook"
+				"title": "Anton: Trigger Pre-Commit Hook"
 			},
 			{
 				"command": "sota.recordMemory",
-				"title": "Son of Anton: Record Project Memory"
+				"title": "Anton: Record Project Memory"
 			},
 			{
 				"command": "sota.startSpec",
-				"title": "Son of Anton: Start Spec Pipeline"
+				"title": "Anton: Start Spec Pipeline"
 			},
 			{
 				"command": "sota.listSpecs",
-				"title": "Son of Anton: List Spec Features"
+				"title": "Anton: List Spec Features"
 			},
 			{
 				"command": "sota.createBackgroundTask",
-				"title": "Son of Anton: Create Background Task"
+				"title": "Anton: Create Background Task"
 			},
 			{
 				"command": "sota.showBackgroundTaskResults",
-				"title": "Son of Anton: Show Background Task Results"
+				"title": "Anton: Show Background Task Results"
 			},
 			{
 				"command": "sota.showFleetDashboard",
-				"title": "Son of Anton: Show Fleet Dashboard"
+				"title": "Anton: Show Fleet Dashboard"
+			},
+			{
+				"command": "sota.restoreCheckpoint",
+				"title": "Anton: Restore Checkpoint"
+			},
+			{
+				"command": "sota.showImpactAnalysis",
+				"title": "Anton: Show Impact Analysis"
+			},
+			{
+				"command": "sota.runSecurityScan",
+				"title": "Anton: Run Security Scan"
+			},
+			{
+				"command": "sota.generateSpec",
+				"title": "Anton: Generate Spec"
+			},
+			{
+				"command": "sota.konami",
+				"title": "Anton: Konami Code"
 			}
 		],
 		"keybindings": [

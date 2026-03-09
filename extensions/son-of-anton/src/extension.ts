@@ -24,6 +24,10 @@ import { SpecSyncWatcher } from './hooks/SpecSyncWatcher';
 import { BackgroundTaskClient } from './background/BackgroundTaskClient';
 import { FleetDashboardPanel } from './dashboard/FleetDashboardPanel';
 import { MetricsTracker } from './agents/MetricsTracker';
+import { StartupMessages } from './personality/StartupMessages';
+import { TerminalBanner } from './personality/TerminalBanner';
+import { KonamiCode } from './personality/KonamiCode';
+import { GitBlameEasterEgg } from './personality/GitBlameEasterEgg';
 
 export function activate(context: vscode.ExtensionContext): void {
 	const llmClient = new LlmClient(context);
@@ -285,6 +289,18 @@ export function activate(context: vscode.ExtensionContext): void {
 			);
 		})
 	);
+
+	// --- Personality ---
+	StartupMessages.show(context.extensionUri);
+
+	const terminalBanner = new TerminalBanner();
+	context.subscriptions.push(terminalBanner);
+
+	const konamiCode = new KonamiCode();
+	context.subscriptions.push(konamiCode);
+
+	const gitBlameEasterEgg = new GitBlameEasterEgg();
+	context.subscriptions.push(gitBlameEasterEgg);
 
 	// Dispose sandbox, security, spec sync, and background client on deactivation
 	context.subscriptions.push({
