@@ -224,6 +224,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _hasQuestionCarouselContextKey: IContextKey<boolean> | undefined;
 	private readonly _chatEditingTodosDisposables = this._register(new DisposableStore());
 	private _lastEditingSessionResource: URI | undefined;
+	private _editingSessionContentShown = false;
 
 	private _onDidLoadInputState: Emitter<void> = this._register(new Emitter());
 	readonly onDidLoadInputState: Event<void> = this._onDidLoadInputState.event;
@@ -2987,10 +2988,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._workingSetLinesAddedSpan.value.textContent = `+${added}`;
 			this._workingSetLinesRemovedSpan.value.textContent = `-${removed}`;
 
-			const wasHidden = this.chatEditingSessionWidgetContainer.style.display === 'none';
+			const wasHidden = !this._editingSessionContentShown;
+			if (shouldShowEditingSession && wasHidden) {
+				// Nuke the secondary toolbar completely before the container appears
+				this.secondaryToolbarContainer.style.display = 'none';
+				this.secondaryToolbarContainer.classList.remove('chat-secondary-toolbar-fade-in');
+			}
 			dom.setVisibility(shouldShowEditingSession, this.chatEditingSessionWidgetContainer);
 			if (shouldShowEditingSession && wasHidden) {
+				this._editingSessionContentShown = true;
 				triggerRevealAnimation(innerContainer);
+				// After the reveal animation, bring the toolbar back with a fade
+				setTimeout(() => {
+					this.secondaryToolbarContainer.style.display = '';
+					this.secondaryToolbarContainer.classList.add('chat-secondary-toolbar-fade-in');
+				}, 200);
+			}
+			if (!shouldShowEditingSession) {
+				this._editingSessionContentShown = false;
 			}
 		}));
 

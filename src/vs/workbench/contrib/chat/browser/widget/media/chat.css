@@ -857,18 +857,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-top-right-radius: 0;
 }
 
-/* Above-input widget reveal animation — bubble up from below */
+/* Above-input widget reveal animation — slide up and fade in */
 @keyframes kf-chat-above-input-reveal {
 	from {
 		opacity: 0;
-		transform: translateY(8px) scale(0.98);
-		max-height: 0;
+		transform: translateY(8px);
 	}
 
 	to {
 		opacity: 1;
-		transform: translateY(0) scale(1);
-		max-height: 500px;
+		transform: translateY(0);
 	}
 }
 
@@ -879,28 +877,26 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-question-carousel-container.chat-above-input-reveal,
 .chat-editing-session-list.chat-above-input-reveal,
 .todo-list-container.chat-above-input-reveal {
-	animation: kf-chat-above-input-reveal 350ms cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+	animation: kf-chat-above-input-reveal 200ms cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
 	transform-origin: bottom center;
 }
 
+/* Above-input widget collapse animation — slide down and fade out */
 @keyframes kf-chat-above-input-collapse {
 	from {
 		opacity: 1;
-		max-height: 200px;
 		transform: translateY(0);
 	}
 
 	to {
 		opacity: 0;
-		max-height: 0;
 		transform: translateY(8px);
 	}
 }
 
 .chat-editing-session-list.chat-above-input-collapse,
 .todo-list-container.chat-above-input-collapse {
-	animation: kf-chat-above-input-collapse 250ms cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
-	overflow: hidden;
+	animation: kf-chat-above-input-collapse 200ms cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
 }
 
 /* Todo title flip animation — old text exits up, new text enters from below */
@@ -939,7 +935,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-todo-list-widget .todo-list-title.todo-title-flip > .todo-title-content {
-	animation: kf-chat-todo-title-enter-up 200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+	animation: kf-chat-todo-title-enter-up 300ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .chat-todo-list-widget .todo-list-title .todo-title-exit-ghost {
@@ -947,7 +943,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	inset: 0;
 	display: flex;
 	align-items: center;
-	animation: kf-chat-todo-title-exit-up 200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+	animation: kf-chat-todo-title-exit-up 300ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 	pointer-events: none;
 }
 
@@ -1444,6 +1440,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	gap: 6px;
 	padding: 0 4px 0 5px;
+}
+
+.interactive-session .chat-secondary-toolbar.chat-secondary-toolbar-fade-in {
+	animation: kf-chat-secondary-toolbar-fade-in 200ms ease forwards;
+}
+
+@keyframes kf-chat-secondary-toolbar-fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
 }
 
 .interactive-session .chat-secondary-toolbar:empty {
@@ -3247,28 +3256,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		max-width: var(--chat-edit-bubble-width, 60%);
 		margin-left: auto;
 		border-radius: var(--vscode-cornerRadius-xLarge);
-		transform: scale(0.97);
 		opacity: 0.85;
-	}
-
-	60% {
-		max-width: 100%;
-		margin-left: 0;
-		transform: scale(1.005);
-		opacity: 1;
 	}
 
 	to {
 		max-width: 100%;
 		margin-left: 0;
 		border-radius: var(--vscode-cornerRadius-large);
-		transform: scale(1);
 		opacity: 1;
 	}
 }
 
 .interactive-request.editing .chat-edit-input-container {
-	animation: kf-chat-edit-bubble-expand 280ms cubic-bezier(0.32, 1.2, 0.5, 1) forwards;
+	animation: kf-chat-edit-bubble-expand 300ms cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
 	transform-origin: right center;
 }
 
