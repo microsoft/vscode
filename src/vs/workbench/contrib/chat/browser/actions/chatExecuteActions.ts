@@ -476,7 +476,6 @@ export class OpenPermissionPickerAction extends Action2 {
 						ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask),
 						ChatContextKeys.inQuickChat.negate(),
 						ChatContextKeys.lockedToCodingAgent.negate(),
-						IsSessionsWindowContext.negate(),
 					)
 			}
 		});

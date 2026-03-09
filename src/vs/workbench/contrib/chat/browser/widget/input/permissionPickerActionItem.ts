@@ -22,6 +22,7 @@ import { IDialogService } from '../../../../../../platform/dialogs/common/dialog
 import Severity from '../../../../../../base/common/severity.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
+import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 
 // Track whether warnings have been shown this VS Code session
 const shownWarnings = new Set<ChatPermissionLevel>();
@@ -57,6 +58,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 	) {
 		const isAutoApprovePolicyRestricted = () => configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 		const isAutopilotEnabled = () => configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
+		const isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService) === true;
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const currentLevel = delegate.currentPermissionLevel.get();
@@ -130,7 +132,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						},
 					} satisfies IActionWidgetDropdownAction,
 				];
-				if (isAutopilotEnabled()) {
+				if (isAutopilotEnabled() && !isSessionsWindow) {
 					actions.push({
 						...action,
 						id: 'chat.permissions.autopilot',

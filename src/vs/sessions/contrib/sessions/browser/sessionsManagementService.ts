@@ -16,7 +16,7 @@ import { ISessionOpenOptions, openSession as openSessionDefault } from '../../..
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IAgentSession, isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -333,6 +333,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				modeInstructions: undefined,
 				modeId: 'agent',
 				applyCodeBlockSuggestionId: undefined,
+				permissionLevel: ChatPermissionLevel.Default,
 			},
 			agentIdSilent: contribution?.type,
 			attachedContext: session.attachedContext,
