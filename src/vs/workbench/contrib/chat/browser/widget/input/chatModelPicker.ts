@@ -109,6 +109,27 @@ function createModelAction(
 	};
 }
 
+function shouldShowManageModelsAction(chatEntitlementService: IChatEntitlementService): boolean {
+	return chatEntitlementService.entitlement === ChatEntitlement.Free ||
+		chatEntitlementService.entitlement === ChatEntitlement.Pro ||
+		chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
+		chatEntitlementService.entitlement === ChatEntitlement.Business ||
+		chatEntitlementService.entitlement === ChatEntitlement.Enterprise ||
+		chatEntitlementService.isInternal;
+}
+
+function createManageModelsAction(commandService: ICommandService): IActionWidgetDropdownAction {
+	return {
+		id: 'manageModels',
+		enabled: true,
+		checked: false,
+		class: ThemeIcon.asClassName(Codicon.gear),
+		tooltip: localize('chat.manageModels.tooltip', "Manage Language Models"),
+		label: localize('chat.manageModels', "Manage Models..."),
+		run: () => { commandService.executeCommand(MANAGE_CHAT_COMMAND_ID); }
+	};
+}
+
 /**
  * Builds the grouped items for the model picker dropdown.
  *
@@ -118,7 +139,7 @@ function createModelAction(
  *    - Available models sorted alphabetically, followed by unavailable models
  *    - Unavailable models show upgrade/update/admin status
  * 3. Other Models (collapsible toggle, available first, then sorted by vendor then name)
- *    - Last item is "Manage Models..." (always visible during filtering)
+ * 4. Optional "Manage Models..." item
  */
 export function buildModelPickerItems(
 	models: ILanguageModelChatMetadataAndIdentifier[],
@@ -132,6 +153,7 @@ export function buildModelPickerItems(
 	canManageModels: boolean,
 	commandService: ICommandService,
 	chatEntitlementService: IChatEntitlementService,
+	includeManageModelsItem = true,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -340,25 +362,11 @@ export function buildModelPickerItems(
 		}
 	}
 
-	if (
-		chatEntitlementService.entitlement === ChatEntitlement.Free ||
-		chatEntitlementService.entitlement === ChatEntitlement.Pro ||
-		chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
-		chatEntitlementService.entitlement === ChatEntitlement.Business ||
-		chatEntitlementService.entitlement === ChatEntitlement.Enterprise ||
-		chatEntitlementService.isInternal
-	) {
+	if (includeManageModelsItem && shouldShowManageModelsAction(chatEntitlementService)) {
+		const manageModelsAction = createManageModelsAction(commandService);
 		items.push({ kind: ActionListItemKind.Separator, section: otherModels.length ? ModelPickerSection.Other : undefined });
 		items.push({
-			item: {
-				id: 'manageModels',
-				enabled: true,
-				checked: false,
-				class: undefined,
-				tooltip: localize('chat.manageModels.tooltip', "Manage Language Models"),
-				label: localize('chat.manageModels', "Manage Models..."),
-				run: () => { commandService.executeCommand(MANAGE_CHAT_COMMAND_ID); }
-			},
+			item: manageModelsAction,
 			kind: ActionListItemKind.Action,
 			label: localize('chat.manageModels', "Manage Models..."),
 			group: { title: '', icon: Codicon.blank },
@@ -577,11 +585,15 @@ export class ModelPickerWidget extends Disposable {
 			this._delegate.canManageModels(),
 			this._commandService,
 			this._entitlementService,
+			!(models.length >= 10),
 		);
 
+		const showFilter = models.length >= 10;
+		const manageModelsFilterAction = shouldShowManageModelsAction(this._entitlementService) ? createManageModelsAction(this._commandService) : undefined;
 		const listOptions = {
-			showFilter: models.length >= 10,
+			showFilter,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
+			filterActions: showFilter && manageModelsFilterAction ? [manageModelsFilterAction] : undefined,
 			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
 			minWidth: 200,
