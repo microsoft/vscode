@@ -129,6 +129,47 @@
 
 
 // ============================================================================
+// BUILD DAG NODE TYPES (instruction 17)
+// ============================================================================
+
+// Target node — represents a build/run/test target
+// CREATE (:Target {
+//   name: 'test:api',                    -- target name
+//   command: 'npm run test:api',         -- shell command to execute
+//   ecosystem: 'node',                   -- build ecosystem (node, rust, python, docker, make)
+//   workingDir: '/packages/api',         -- working directory
+//   description: 'Run API tests',       -- human-readable description
+//   estimatedDuration: '45s'             -- estimated run time
+// })
+
+// EnvVar node — represents an environment variable requirement
+// CREATE (:EnvVar {
+//   name: 'DATABASE_URL',                -- variable name
+//   required: true,                      -- whether the variable is required
+//   defaultValue: 'postgresql://...',    -- default value if not set
+//   description: 'Database connection'   -- human-readable description
+// })
+
+// Service node — represents an external service dependency
+// CREATE (:Service {
+//   name: 'postgres',                    -- service name
+//   port: 5432,                          -- port number
+//   healthCheck: 'pg_isready -h ...',    -- health check command
+//   dockerImage: 'postgres:16'           -- Docker image
+// })
+
+// BUILD DAG EDGE TYPES
+// DEPENDS_ON — target depends on another target (must complete first)
+// CREATE (a:Target {name: 'test:api'})-[:DEPENDS_ON]->(b:Target {name: 'build:api'})
+
+// REQUIRES_ENV — target requires an environment variable
+// CREATE (t:Target {name: 'test:api'})-[:REQUIRES_ENV]->(e:EnvVar {name: 'DATABASE_URL'})
+
+// REQUIRES_SERVICE — target requires an external service to be running
+// CREATE (t:Target {name: 'test:api'})-[:REQUIRES_SERVICE]->(s:Service {name: 'postgres'})
+
+
+// ============================================================================
 // INDICES
 // ============================================================================
 
@@ -146,6 +187,12 @@ CREATE INDEX ON :Function(file)
 CREATE INDEX ON :Class(file)
 CREATE INDEX ON :Type(file)
 CREATE INDEX ON :Import(file)
+
+// Build DAG indices
+CREATE INDEX ON :Target(name)
+CREATE INDEX ON :Target(ecosystem)
+CREATE INDEX ON :EnvVar(name)
+CREATE INDEX ON :Service(name)
 
 
 // ============================================================================

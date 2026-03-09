@@ -1,0 +1,31 @@
+{
+	"agents": [
+		{
+			"id": "gemini-cli",
+			"name": "Gemini CLI",
+			"transport": "stdio",
+			"command": "gemini",
+			"args": ["--output-format", "stream-json"],
+			"capabilities": ["code-generation", "analysis", "search-grounding"],
+			"contextWindow": 1000000,
+			"costTier": "free"
+		},
+		{
+			"id": "codex-cli",
+			"name": "Codex CLI",
+			"transport": "stdio",
+			"command": "codex",
+			"args": [],
+			"capabilities": ["code-generation", "sandbox-execution"],
+			"costTier": "subscription"
+		},
+		{
+			"id": "custom-reviewer",
+			"name": "Custom Security Reviewer",
+			"transport": "http",
+			"url": "http://localhost:4200",
+			"capabilities": ["security-review"],
+			"costTier": "local"
+		}
+	]
+}

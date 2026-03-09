@@ -1,0 +1,23 @@
+{
+	"name": "soa-build-dag",
+	"version": "1.0.0",
+	"description": "Son of Anton — Build system DAG extractor and query service",
+	"main": "dist/index.js",
+	"scripts": {
+		"build": "tsc",
+		"start": "node dist/index.js",
+		"dev": "tsc --watch & nodemon dist/index.js",
+		"test": "node --test test/**/*.test.js",
+		"lint": "eslint src/**/*.ts"
+	},
+	"dependencies": {
+		"redis": "^4.7.0",
+		"js-yaml": "^4.1.0"
+	},
+	"devDependencies": {
+		"@types/js-yaml": "^4.0.9",
+		"@types/node": "^20.0.0",
+		"typescript": "^5.6.0"
+	},
+	"private": true
+}

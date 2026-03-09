@@ -378,6 +378,72 @@ services:
       start_period: 15s
     restart: unless-stopped
 
+  acp-client:
+    build:
+      context: ./services/acp-client
+      dockerfile: Dockerfile
+    container_name: soa-acp-client
+    ports:
+      - "${ACP_PORT:-3300}:3300"
+    environment:
+      - ACP_PORT=${ACP_PORT:-3300}
+      - ACP_CONFIG_PATH=/workspace/.son-of-anton/agents/acp-agents.json
+      - PROJECT_PATH=${PROJECT_PATH:-/workspace}
+    volumes:
+      - ${PROJECT_PATH:-.}:/workspace:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3300/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  build-dag:
+    build:
+      context: ./services/build-dag
+      dockerfile: Dockerfile
+    container_name: soa-build-dag
+    depends_on:
+      falkordb:
+        condition: service_healthy
+    ports:
+      - "${BUILD_DAG_PORT:-3301}:3301"
+    environment:
+      - BUILD_DAG_PORT=${BUILD_DAG_PORT:-3301}
+      - PROJECT_PATH=${PROJECT_PATH:-/workspace}
+      - FALKORDB_HOST=${FALKORDB_HOST:-falkordb}
+      - FALKORDB_PORT=${FALKORDB_PORT:-6379}
+    volumes:
+      - ${PROJECT_PATH:-.}:/workspace:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3301/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  context-sanitiser:
+    build:
+      context: ./services/context-sanitiser
+      dockerfile: Dockerfile
+    container_name: soa-context-sanitiser
+    ports:
+      - "${SANITISER_PORT:-3302}:3302"
+    environment:
+      - SANITISER_PORT=${SANITISER_PORT:-3302}
+      - PROJECT_PATH=${PROJECT_PATH:-/workspace}
+    volumes:
+      - ${PROJECT_PATH:-.}:/workspace:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3302/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
 networks:
   sandbox-net:
     driver: bridge

@@ -1,0 +1,19 @@
+{
+	"name": "soa-context-sanitiser",
+	"version": "1.0.0",
+	"description": "Son of Anton — Prompt injection detection and context sanitisation",
+	"main": "dist/index.js",
+	"scripts": {
+		"build": "tsc",
+		"start": "node dist/index.js",
+		"dev": "tsc --watch & nodemon dist/index.js",
+		"test": "node --test test/**/*.test.js",
+		"lint": "eslint src/**/*.ts"
+	},
+	"dependencies": {},
+	"devDependencies": {
+		"@types/node": "^20.0.0",
+		"typescript": "^5.6.0"
+	},
+	"private": true
+}
