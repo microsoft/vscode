@@ -219,6 +219,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}));
 
 		this._register(this._branchPicker.onDidChange((branch) => {
+			this._newSession.value?.setBranch(branch);
 			this._syncIndicator.setBranch(branch);
 			this._updateDraftState();
 			this._focusEditor();
@@ -234,13 +235,17 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}));
 
 		this._register(this._isolationModePicker.onDidChange((mode) => {
+			this._newSession.value?.setIsolationMode(mode);
 			this._branchPicker.setVisible(mode === 'worktree');
 			this._syncIndicator.setVisible(mode === 'worktree');
 			this._updateDraftState();
 			this._focusEditor();
 		}));
 
-		this._register(this._repoPicker.onDidSelectRepo(() => {
+		this._register(this._repoPicker.onDidSelectRepo((repoId) => {
+			if (this._targetPicker.selectedTarget !== AgentSessionProviders.Background) {
+				this._newSession.value?.setRepoUri(this._getRepoUri(repoId));
+			}
 			this._updateDraftState();
 		}));
 
@@ -364,13 +369,15 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Wire pickers to the new session and disconnect inactive ones
 		const target = this._targetPicker.selectedTarget;
 		if (target === AgentSessionProviders.Background) {
-			this._isolationModePicker.setNewSession(session);
-			this._branchPicker.setNewSession(session);
-			this._repoPicker.setNewSession(undefined);
+			session.setIsolationMode(this._isolationModePicker.isolationMode);
+			if (this._branchPicker.selectedBranch) {
+				session.setBranch(this._branchPicker.selectedBranch);
+			}
 		} else {
-			this._isolationModePicker.setNewSession(undefined);
-			this._branchPicker.setNewSession(undefined);
-			this._repoPicker.setNewSession(session);
+			const selectedRepo = this._repoPicker.selectedRepo;
+			if (selectedRepo) {
+				session.setRepoUri(this._getRepoUri(selectedRepo));
+			}
 		}
 
 		// Set the current model on the session (for local sessions)
@@ -605,14 +612,18 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// For cloud targets, use the repo picker's selection
 		const selectedRepo = this._repoPicker.selectedRepo;
 		if (selectedRepo && selectedRepo.includes('/')) {
-			return URI.from({
-				scheme: GITHUB_REMOTE_FILE_SCHEME,
-				authority: 'github',
-				path: `/${selectedRepo}/HEAD`,
-			});
+			return this._getRepoUri(selectedRepo);
 		}
 
 		return undefined;
+	}
+
+	private _getRepoUri(repoId: string): URI {
+		return URI.from({
+			scheme: GITHUB_REMOTE_FILE_SCHEME,
+			authority: 'github',
+			path: `/${repoId}/HEAD`,
+		});
 	}
 
 	private _createBottomToolbar(container: HTMLElement): void {
@@ -1114,8 +1125,24 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	private _clearDraftState(): void {
-		this._draftState = undefined;
-		this.storageService.remove(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE);
+		// Preserve picker preferences so they survive widget recreation
+		const target = this._targetPicker.selectedTarget;
+		const isLocal = target === AgentSessionProviders.Background;
+		const preserved: IDraftState = {
+			inputText: '',
+			attachments: [],
+			mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent },
+			selectedModel: this._draftState?.selectedModel,
+			selections: [],
+			contrib: {},
+			target,
+			isolationMode: isLocal ? this._isolationModePicker.isolationMode : undefined,
+			branch: isLocal ? this._branchPicker.selectedBranch : undefined,
+			folderUri: isLocal ? this._folderPicker.selectedFolderUri?.toString() : undefined,
+			repo: isLocal ? undefined : this._repoPicker.selectedRepo,
+		};
+		this._draftState = preserved;
+		this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(preserved), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	saveState(): void {
