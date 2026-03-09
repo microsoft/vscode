@@ -71,13 +71,15 @@
 	top: 0;
 	bottom: 0;
 	position: absolute;
+}
+
+.monaco-editor .lines-content > .view-lines > .view-line.variable-font-line-height > span {
 	display: flex;
 	align-items: flex-end;
 }
 
-.monaco-editor .lines-content > .view-lines > .view-line > span > span {
+.monaco-editor .lines-content > .view-lines > .view-line.variable-font-line-height > span > span {
 	line-height: normal;
-	padding-bottom: 3px;
 }
 
 

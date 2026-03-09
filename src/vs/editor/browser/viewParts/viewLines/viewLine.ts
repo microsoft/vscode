@@ -51,6 +51,7 @@ let monospaceAssumptionsAreValid = true;
 export class ViewLine implements IVisibleLine {
 
 	public static readonly CLASS_NAME = 'view-line';
+	public static readonly VARIABLE_FONT_OR_LINE_HEIGHT_CLASS_NAME = 'variable-font-line-height';
 
 	private _options: ViewLineOptions;
 	private _isMaybeInvalid: boolean;
@@ -195,6 +196,9 @@ export class ViewLine implements IVisibleLine {
 		}
 		sb.appendString('px;" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
+		if (lineData.hasVariableFonts || lineData.hasVariableLineHeight) {
+			sb.appendString(' ' + ViewLine.VARIABLE_FONT_OR_LINE_HEIGHT_CLASS_NAME);
+		}
 		sb.appendString('">');
 
 		const output = renderViewLine(renderLineInput, sb);

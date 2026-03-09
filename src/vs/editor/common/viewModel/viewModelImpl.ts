@@ -932,7 +932,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				...lineData.inlineDecorations
 			];
 		}
-
+		const hasVariableLineHeight = this.viewLayout.hasVariableHeightForLineNumber(lineNumber);
 		return new ViewLineRenderingData(
 			lineData.minColumn,
 			lineData.maxColumn,
@@ -945,7 +945,8 @@ export class ViewModel extends Disposable implements IViewModel {
 			tabSize,
 			lineData.startVisibleColumn,
 			this._getTextDirection(lineNumber, decorations),
-			hasVariableFonts
+			hasVariableFonts,
+			hasVariableLineHeight
 		);
 	}
 

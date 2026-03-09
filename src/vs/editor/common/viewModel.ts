@@ -353,6 +353,10 @@ export class ViewLineRenderingData {
 	 * Whether the line has variable fonts
 	 */
 	public readonly hasVariableFonts: boolean;
+	/**
+	 * Whether the line has variable line heights
+	 */
+	public readonly hasVariableLineHeight: boolean;
 
 	constructor(
 		minColumn: number,
@@ -366,7 +370,8 @@ export class ViewLineRenderingData {
 		tabSize: number,
 		startVisibleColumn: number,
 		textDirection: TextDirection,
-		hasVariableFonts: boolean
+		hasVariableFonts: boolean,
+		hasVariableLineHeight: boolean
 	) {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
@@ -382,6 +387,7 @@ export class ViewLineRenderingData {
 		this.startVisibleColumn = startVisibleColumn;
 		this.textDirection = textDirection;
 		this.hasVariableFonts = hasVariableFonts;
+		this.hasVariableLineHeight = hasVariableLineHeight;
 	}
 
 	public static isBasicASCII(lineContent: string, mightContainNonBasicASCII: boolean): boolean {
