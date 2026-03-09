@@ -142,36 +142,10 @@ export function readCharWidths(targetWindow: Window, bareFontInfo: BareFontInfo,
 	reader.read(targetWindow);
 }
 
-class FontHeightReader {
-
-	private static _instance: FontHeightReader | null = null;
-
-	public static getInstance(): FontHeightReader {
-		if (!FontHeightReader._instance) {
-			FontHeightReader._instance = new FontHeightReader();
-		}
-		return FontHeightReader._instance;
-	}
-
-	private readonly _cache = new Map<string, number>();
-
-	private constructor() { }
-
-	public read(bareFontInfo: BareFontInfo): number {
-		const key = `${bareFontInfo.fontFamily}|${bareFontInfo.fontSize}`;
-		let height = this._cache.get(key);
-		if (height === undefined) {
-			const canvas = new OffscreenCanvas(1, 1);
-			const ctx = canvas.getContext('2d')!;
-			ctx.font = `${bareFontInfo.fontSize}px ${bareFontInfo.fontFamily}`;
-			const tm = ctx.measureText('A');
-			height = tm.fontBoundingBoxAscent + tm.fontBoundingBoxDescent;
-			this._cache.set(key, height);
-		}
-		return height;
-	}
-}
-
 export function readFontHeight(bareFontInfo: BareFontInfo): number {
-	return FontHeightReader.getInstance().read(bareFontInfo);
+	const canvas = new OffscreenCanvas(1, 1);
+	const ctx = canvas.getContext('2d')!;
+	ctx.font = `${bareFontInfo.fontSize}px ${bareFontInfo.fontFamily}`;
+	const tm = ctx.measureText('A');
+	return tm.fontBoundingBoxAscent + tm.fontBoundingBoxDescent;
 }
