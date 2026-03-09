@@ -1,0 +1,23 @@
+{
+	"name": "son-of-anton-theme",
+	"displayName": "Son of Anton Dark",
+	"description": "The default dark theme for Son of Anton IDE",
+	"version": "1.0.0",
+	"publisher": "son-of-anton",
+	"engines": {
+		"vscode": "^1.96.0"
+	},
+	"categories": [
+		"Themes"
+	],
+	"contributes": {
+		"themes": [
+			{
+				"id": "Son of Anton Dark",
+				"label": "Son of Anton Dark",
+				"uiTheme": "vs-dark",
+				"path": "./themes/son-of-anton-dark.json"
+			}
+		]
+	}
+}

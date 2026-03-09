@@ -219,15 +219,15 @@ export const FONT_VARIATION_TRANSLATE = 'translate';
 /**
  * @internal
  */
-export const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
+export const DEFAULT_WINDOWS_FONT_FAMILY = '\'JetBrains Mono\', Consolas, \'Courier New\', monospace';
 /**
  * @internal
  */
-export const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
+export const DEFAULT_MAC_FONT_FAMILY = '\'JetBrains Mono\', Menlo, Monaco, \'Courier New\', monospace';
 /**
  * @internal
  */
-export const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', monospace';
+export const DEFAULT_LINUX_FONT_FAMILY = '\'JetBrains Mono\', \'Droid Sans Mono\', monospace';
 /**
  * @internal
  */
@@ -236,9 +236,7 @@ export const EDITOR_FONT_DEFAULTS = {
 		platform.isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (platform.isWindows ? DEFAULT_WINDOWS_FONT_FAMILY : DEFAULT_LINUX_FONT_FAMILY)
 	),
 	fontWeight: 'normal',
-	fontSize: (
-		platform.isMacintosh ? 12 : 14
-	),
+	fontSize: 13,
 	lineHeight: 0,
 	letterSpacing: 0,
 };

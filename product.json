@@ -33,6 +33,10 @@
   "nodejsRepository": "https://nodejs.org",
   "urlProtocol": "son-of-anton",
   "webviewContentExternalBaseUrlTemplate": "",
+  "defaultColorTheme": {
+    "dark": "Son of Anton Dark",
+    "light": "Son of Anton Dark"
+  },
   "builtInExtensions": [],
   "enableTelemetry": false,
   "extensionsGallery": {
