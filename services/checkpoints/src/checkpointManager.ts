@@ -36,14 +36,14 @@ export class CheckpointManager {
 
 		for (const filePath of request.filePaths) {
 			const absolutePath = path.resolve(this.workspaceRoot, filePath);
-			let content: string | null = null;
+			let content: Buffer | null = null;
 			let exists = false;
 			let contentHash = '';
 
 			try {
-				content = await fs.readFile(absolutePath, 'utf-8');
+				content = await fs.readFile(absolutePath);
 				exists = true;
-				contentHash = CheckpointStorage.hashContent(content);
+				contentHash = crypto.createHash('sha256').update(content).digest('hex');
 				await this.storage.saveFileSnapshot(sessionId, contentHash, content);
 			} catch {
 				exists = false;
