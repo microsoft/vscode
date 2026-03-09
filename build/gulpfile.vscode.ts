@@ -550,7 +550,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'**',
 				'!LICENSE',
 				'!version',
-				...(platform === 'darwin' && !isInsiderOrExploration ? ['!**/Contents/Applications'] : []),
+				...(platform === 'darwin' && !isInsiderOrExploration ? ['!**/Contents/Applications', '!**/Contents/Applications/**'] : []),
 				...(platform === 'win32' && !isInsiderOrExploration ? ['!**/electron_proxy.exe'] : []),
 			], { dot: true }));
 
