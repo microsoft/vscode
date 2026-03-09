@@ -80,6 +80,12 @@ export interface IAgentFeedbackService {
 	revealFeedback(sessionResource: URI, feedbackId: string): Promise<void>;
 
 	/**
+	 * Open an editor for the given session comment (feedback or code-review) at its range
+	 * and set it as the navigation anchor.
+	 */
+	revealSessionComment(sessionResource: URI, commentId: string, resourceUri: URI, range: IRange): Promise<void>;
+
+	/**
 	 * Navigate to next/previous feedback item in a session.
 	 */
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined;
@@ -271,16 +277,19 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		if (!feedback) {
 			return;
 		}
+		await this.revealSessionComment(sessionResource, feedbackId, feedback.resourceUri, feedback.range);
+	}
+
+	async revealSessionComment(sessionResource: URI, commentId: string, resourceUri: URI, range: IRange): Promise<void> {
 		await this._editorService.openEditor({
-			resource: feedback.resourceUri,
+			resource: resourceUri,
 			options: {
 				preserveFocus: false,
 				revealIfVisible: true,
+				selection: { startLineNumber: range.startLineNumber, startColumn: range.startColumn },
 			}
 		});
-		setTimeout(() => {
-			this.setNavigationAnchor(sessionResource, feedbackId);
-		}, 50); // delay to ensure editor has revealed the correct position before firing navigation event
+		this.setNavigationAnchor(sessionResource, commentId);
 	}
 
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined {
