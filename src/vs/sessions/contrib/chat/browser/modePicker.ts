@@ -17,8 +17,7 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-
-const CONFIGURE_AGENTS_ACTION_ID = 'workbench.action.chat.picker.customagents';
+import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 
 interface IModePickerItem {
 	readonly kind: 'mode';
@@ -157,7 +156,7 @@ export class ModePicker extends Disposable {
 				if (item.kind === 'mode') {
 					this._selectMode(item.mode);
 				} else {
-					this.commandService.executeCommand(CONFIGURE_AGENTS_ACTION_ID);
+					this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor);
 				}
 			},
 			onHide: () => { triggerElement.focus(); },
