@@ -721,8 +721,8 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		const config = this._pluginLocationsConfig.get();
 		const userHome = await this._getUserHome();
 
-		for (const [path] of Object.entries(config)) {
-			if (!path.trim()) {
+		for (const [path, enabled] of Object.entries(config)) {
+			if (!path.trim() || enabled === false) {
 				continue;
 			}
 
