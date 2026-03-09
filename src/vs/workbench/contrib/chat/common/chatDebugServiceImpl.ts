@@ -42,6 +42,9 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	/** Session URIs created via import, allowed through the invokeProviders guard. */
 	private readonly _importedSessions = new ResourceMap<boolean>();
 
+	/** Human-readable titles for imported sessions. */
+	private readonly _importedSessionTitles = new ResourceMap<string>();
+
 	activeSessionResource: URI | undefined;
 
 	log(sessionResource: URI, name: string, details?: string, level: ChatDebugLogLevel = ChatDebugLogLevel.Info, options?: { id?: string; category?: string; parentEventId?: string }): void {
@@ -252,6 +255,14 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 
 	isCoreEvent(event: IChatDebugEvent): boolean {
 		return !this._providerEvents.has(event);
+	}
+
+	setImportedSessionTitle(sessionResource: URI, title: string): void {
+		this._importedSessionTitles.set(sessionResource, title);
+	}
+
+	getImportedSessionTitle(sessionResource: URI): string | undefined {
+		return this._importedSessionTitles.get(sessionResource);
 	}
 
 	async exportLog(sessionResource: URI): Promise<Uint8Array | undefined> {

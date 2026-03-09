@@ -649,14 +649,13 @@ declare module 'vscode' {
 		 * Core provides the save dialog and writes the returned bytes to disk.
 		 *
 		 * @param sessionResource The resource URI of the chat session to export.
-		 * @param coreEvents Core-originated debug events (prompt discovery, skill loading, etc.)
-		 *   for the session. The extension may include these in the export alongside its own data.
+		 * @param options Export options including core events and session metadata.
 		 * @param token A cancellation token.
 		 * @returns The serialized debug log data, or undefined if export is not available.
 		 */
 		provideChatDebugLogExport?(
 			sessionResource: Uri,
-			coreEvents: readonly ChatDebugEvent[],
+			options: ChatDebugLogExportOptions,
 			token: CancellationToken
 		): ProviderResult<Uint8Array>;
 
@@ -668,12 +667,12 @@ declare module 'vscode' {
 		 *
 		 * @param data The serialized debug log data (as returned by {@link provideChatDebugLogExport}).
 		 * @param token A cancellation token.
-		 * @returns A session resource URI for the imported session, or undefined if import failed.
+		 * @returns The imported session info, or undefined if import failed.
 		 */
 		resolveChatDebugLogImport?(
 			data: Uint8Array,
 			token: CancellationToken
-		): ProviderResult<Uri>;
+		): ProviderResult<ChatDebugLogImportResult>;
 	}
 
 	export namespace chat {
@@ -685,5 +684,37 @@ declare module 'vscode' {
 		 * @returns A disposable that unregisters the provider.
 		 */
 		export function registerChatDebugLogProvider(provider: ChatDebugLogProvider): Disposable;
+	}
+
+	/**
+	 * Options passed to {@link ChatDebugLogProvider.provideChatDebugLogExport}.
+	 */
+	export interface ChatDebugLogExportOptions {
+		/**
+		 * Core-originated debug events (prompt discovery, skill loading, etc.)
+		 * for the session. The extension may include these in the export alongside its own data.
+		 */
+		readonly coreEvents: readonly ChatDebugEvent[];
+
+		/**
+		 * Session title, if available.
+		 * Used to provide a human-readable label in the exported file.
+		 */
+		readonly sessionTitle?: string;
+	}
+
+	/**
+	 * Result of importing a debug log via {@link ChatDebugLogProvider.resolveChatDebugLogImport}.
+	 */
+	export interface ChatDebugLogImportResult {
+		/**
+		 * The session resource URI for the imported session.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * The session title from the imported file, if available.
+		 */
+		readonly sessionTitle?: string;
 	}
 }

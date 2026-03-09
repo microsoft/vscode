@@ -215,6 +215,16 @@ export interface IChatDebugService extends IDisposable {
 	isCoreEvent(event: IChatDebugEvent): boolean;
 
 	/**
+	 * Store a human-readable title for an imported session.
+	 */
+	setImportedSessionTitle(sessionResource: URI, title: string): void;
+
+	/**
+	 * Get the stored title for an imported session, if available.
+	 */
+	getImportedSessionTitle(sessionResource: URI): string | undefined;
+
+	/**
 	 * Fired when debug data is attached to a session.
 	 */
 	readonly onDidAttachDebugData: Event<URI>;

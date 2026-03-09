@@ -7,6 +7,7 @@ import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../contrib/chat/common/chatDebugService.js';
+import { IChatService } from '../../contrib/chat/common/chatService/chatService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostChatDebugShape, ExtHostContext, IChatDebugEventDto, MainContext, MainThreadChatDebugShape } from '../common/extHost.protocol.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
@@ -20,6 +21,7 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 	constructor(
 		extHostContext: IExtHostContext,
 		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatDebug);
@@ -39,17 +41,24 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 				return this._proxy.$resolveChatDebugLogEvent(handle, eventId, token);
 			},
 			provideChatDebugLogExport: async (sessionResource, token) => {
-				// Gather core events for this session and pass them to the
-				// extension so it can merge them into the export.
+				// Gather core events and session title to pass to the extension.
 				const coreEventDtos = this._chatDebugService.getEvents(sessionResource)
 					.filter(e => this._chatDebugService.isCoreEvent(e))
 					.map(e => this._serializeEvent(e));
-				const result = await this._proxy.$exportChatDebugLog(handle, sessionResource, coreEventDtos, token);
+				const sessionTitle = this._chatService.getSessionTitle(sessionResource);
+				const result = await this._proxy.$exportChatDebugLog(handle, sessionResource, coreEventDtos, sessionTitle, token);
 				return result?.buffer;
 			},
 			resolveChatDebugLogImport: async (data, token) => {
 				const result = await this._proxy.$importChatDebugLog(handle, VSBuffer.wrap(data), token);
-				return result ? URI.revive(result) : undefined;
+				if (!result) {
+					return undefined;
+				}
+				const uri = URI.revive(result.uri);
+				if (result.sessionTitle) {
+					this._chatDebugService.setImportedSessionTitle(uri, result.sessionTitle);
+				}
+				return uri;
 			}
 		}));
 	}

@@ -367,20 +367,21 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 		}
 	}
 
-	async $exportChatDebugLog(_handle: number, sessionResource: UriComponents, coreEventDtos: IChatDebugEventDto[], token: CancellationToken): Promise<VSBuffer | undefined> {
+	async $exportChatDebugLog(_handle: number, sessionResource: UriComponents, coreEventDtos: IChatDebugEventDto[], sessionTitle: string | undefined, token: CancellationToken): Promise<VSBuffer | undefined> {
 		if (!this._provider?.provideChatDebugLogExport) {
 			return undefined;
 		}
 		const sessionUri = URI.revive(sessionResource);
 		const coreEvents = coreEventDtos.map(dto => this._deserializeEvent(dto)).filter((e): e is vscode.ChatDebugEvent => e !== undefined);
-		const result = await this._provider.provideChatDebugLogExport(sessionUri, coreEvents, token);
+		const options: vscode.ChatDebugLogExportOptions = { coreEvents, sessionTitle };
+		const result = await this._provider.provideChatDebugLogExport(sessionUri, options, token);
 		if (!result) {
 			return undefined;
 		}
 		return VSBuffer.wrap(result);
 	}
 
-	async $importChatDebugLog(_handle: number, data: VSBuffer, token: CancellationToken): Promise<UriComponents | undefined> {
+	async $importChatDebugLog(_handle: number, data: VSBuffer, token: CancellationToken): Promise<{ uri: UriComponents; sessionTitle?: string } | undefined> {
 		if (!this._provider?.resolveChatDebugLogImport) {
 			return undefined;
 		}
@@ -388,7 +389,7 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 		if (!result) {
 			return undefined;
 		}
-		return result;
+		return { uri: result.uri, sessionTitle: result.sessionTitle };
 	}
 
 	override dispose(): void {

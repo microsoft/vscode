@@ -92,11 +92,16 @@ export class ChatDebugHomeView extends Disposable {
 				} else if (LocalChatSessionUri.isLocalSession(sessionResource)) {
 					sessionTitle = localize('chatDebug.newSession', "New Chat");
 				} else {
-					// For imported/external sessions, derive a name from the URI
-					const uriLabel = sessionResource.path || sessionResource.fragment || sessionResource.toString();
-					// Strip leading slashes and take the last segment
-					const segment = uriLabel.replace(/^\/+/, '').split('/').pop() || uriLabel;
-					sessionTitle = localize('chatDebug.importedSession', "Imported: {0}", segment);
+					// For imported/external sessions, use the stored title if available
+					const importedTitle = this.chatDebugService.getImportedSessionTitle(sessionResource);
+					if (importedTitle) {
+						sessionTitle = localize('chatDebug.importedSession', "Imported: {0}", importedTitle);
+					} else {
+						// Fall back to URI segment
+						const uriLabel = sessionResource.path || sessionResource.fragment || sessionResource.toString();
+						const segment = uriLabel.replace(/^\/+/, '').split('/').pop() || uriLabel;
+						sessionTitle = localize('chatDebug.importedSession', "Imported: {0}", segment);
+					}
 				}
 				const isActive = activeSessionResource !== undefined && sessionResource.toString() === activeSessionResource.toString();
 
