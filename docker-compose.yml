@@ -343,7 +343,7 @@ services:
     environment:
       - CHECKPOINT_PORT=${CHECKPOINT_PORT:-3201}
       - WORKSPACE_ROOT=/workspace
-      - CHECKPOINT_BASE_PATH=/workspace/.son-of-anton/checkpoints
+      - CHECKPOINT_STORAGE_PATH=/workspace/.son-of-anton/checkpoints
     volumes:
       - ${PROJECT_PATH:-.}:/workspace:rw
     healthcheck:
