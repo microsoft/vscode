@@ -8,7 +8,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { GitRepository } from '../../contrib/git/browser/gitService.js';
-import { IGitExtensionDelegate, IGitService, GitRef, GitRefQuery, GitRefType, GitRepositoryState, GitBranch, IGitRepository } from '../../contrib/git/common/gitService.js';
+import { IGitExtensionDelegate, IGitService, GitRef, GitRefQuery, GitRefType, GitRepositoryState, GitBranch, GitChange, IGitRepository } from '../../contrib/git/common/gitService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostGitExtensionShape, GitRefTypeDto, GitRepositoryStateDto, MainContext, MainThreadGitExtensionShape } from '../common/extHost.protocol.js';
 
@@ -32,6 +32,26 @@ function toGitRepositoryState(dto: GitRepositoryStateDto | undefined): GitReposi
 			ahead: dto.HEAD.ahead,
 			behind: dto.HEAD.behind,
 		} satisfies GitBranch : undefined,
+		mergeChanges: dto?.mergeChanges?.map(c => ({
+			uri: URI.revive(c.uri),
+			originalUri: c.originalUri ? URI.revive(c.originalUri) : undefined,
+			modifiedUri: c.modifiedUri ? URI.revive(c.modifiedUri) : undefined,
+		} satisfies GitChange)) ?? [],
+		indexChanges: dto?.indexChanges?.map(c => ({
+			uri: URI.revive(c.uri),
+			originalUri: c.originalUri ? URI.revive(c.originalUri) : undefined,
+			modifiedUri: c.modifiedUri ? URI.revive(c.modifiedUri) : undefined,
+		} satisfies GitChange)) ?? [],
+		workingTreeChanges: dto?.workingTreeChanges?.map(c => ({
+			uri: URI.revive(c.uri),
+			originalUri: c.originalUri ? URI.revive(c.originalUri) : undefined,
+			modifiedUri: c.modifiedUri ? URI.revive(c.modifiedUri) : undefined,
+		} satisfies GitChange)) ?? [],
+		untrackedChanges: dto?.untrackedChanges?.map(c => ({
+			uri: URI.revive(c.uri),
+			originalUri: c.originalUri ? URI.revive(c.originalUri) : undefined,
+			modifiedUri: c.modifiedUri ? URI.revive(c.modifiedUri) : undefined,
+		} satisfies GitChange)) ?? [],
 	};
 }
 

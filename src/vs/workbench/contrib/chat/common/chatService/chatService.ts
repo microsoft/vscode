@@ -151,6 +151,7 @@ export interface IChatUsagePromptTokenDetail {
 export interface IChatUsage {
 	promptTokens: number;
 	completionTokens: number;
+	outputBuffer?: number;
 	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
 	kind: 'usage';
 }
