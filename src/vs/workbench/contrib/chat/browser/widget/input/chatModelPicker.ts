@@ -130,6 +130,21 @@ function createManageModelsAction(commandService: ICommandService): IActionWidge
 	};
 }
 
+function createManageModelsEntry(
+	action: IActionWidgetDropdownAction,
+	section: string | undefined,
+): IActionListItem<IActionWidgetDropdownAction> {
+	return {
+		item: action,
+		kind: ActionListItemKind.Action,
+		label: localize('chat.manageModels', "Manage Models..."),
+		group: { title: '', icon: Codicon.blank },
+		hideIcon: false,
+		section,
+		showAlways: true,
+	};
+}
+
 /**
  * Builds the grouped items for the model picker dropdown.
  *
@@ -153,7 +168,7 @@ export function buildModelPickerItems(
 	canManageModels: boolean,
 	commandService: ICommandService,
 	chatEntitlementService: IChatEntitlementService,
-	includeManageModelsItem = true,
+	additionalEntries?: IActionListItem<IActionWidgetDropdownAction>[],
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -362,18 +377,12 @@ export function buildModelPickerItems(
 		}
 	}
 
-	if (includeManageModelsItem && shouldShowManageModelsAction(chatEntitlementService)) {
+	if (additionalEntries?.length) {
+		items.push(...additionalEntries);
+	} else if (shouldShowManageModelsAction(chatEntitlementService)) {
 		const manageModelsAction = createManageModelsAction(commandService);
 		items.push({ kind: ActionListItemKind.Separator, section: otherModels.length ? ModelPickerSection.Other : undefined });
-		items.push({
-			item: manageModelsAction,
-			kind: ActionListItemKind.Action,
-			label: localize('chat.manageModels', "Manage Models..."),
-			group: { title: '', icon: Codicon.blank },
-			hideIcon: false,
-			section: otherModels.length ? ModelPickerSection.Other : undefined,
-			showAlways: true,
-		});
+		items.push(createManageModelsEntry(manageModelsAction, otherModels.length ? ModelPickerSection.Other : undefined));
 	}
 
 	return items;
@@ -570,9 +579,14 @@ export class ModelPickerWidget extends Disposable {
 		};
 
 		const models = this._delegate.getModels();
+		const showFilter = models.length >= 10;
 		const isPro = isProUser(this._entitlementService.entitlement);
 		const manifest = this._languageModelsService.getModelsControlManifest();
 		const controlModelsForTier = isPro ? manifest.paid : manifest.free;
+		const manageModelsAction = shouldShowManageModelsAction(this._entitlementService) ? createManageModelsAction(this._commandService) : undefined;
+		const additionalEntries = !showFilter && manageModelsAction
+			? [{ kind: ActionListItemKind.Separator }, createManageModelsEntry(manageModelsAction, undefined)]
+			: undefined;
 		const items = buildModelPickerItems(
 			models,
 			this._selectedModel?.identifier,
@@ -585,15 +599,13 @@ export class ModelPickerWidget extends Disposable {
 			this._delegate.canManageModels(),
 			this._commandService,
 			this._entitlementService,
-			!(models.length >= 10),
+			additionalEntries,
 		);
 
-		const showFilter = models.length >= 10;
-		const manageModelsFilterAction = shouldShowManageModelsAction(this._entitlementService) ? createManageModelsAction(this._commandService) : undefined;
 		const listOptions = {
 			showFilter,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
-			filterActions: showFilter && manageModelsFilterAction ? [manageModelsFilterAction] : undefined,
+			filterActions: showFilter && manageModelsAction ? [manageModelsAction] : undefined,
 			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
 			minWidth: 200,
