@@ -1,0 +1,83 @@
+{
+	"routes": [
+		{
+			"name": "orchestrator-planning",
+			"match": {
+				"agentRole": "orchestrator",
+				"taskType": "planning"
+			},
+			"provider": "anthropic",
+			"model": "claude-sonnet-4-20250514",
+			"priority": 1
+		},
+		{
+			"name": "code-generation",
+			"match": {
+				"agentRole": "coder",
+				"taskType": "generation"
+			},
+			"provider": "anthropic",
+			"model": "claude-sonnet-4-20250514",
+			"priority": 2
+		},
+		{
+			"name": "fast-completion",
+			"match": {
+				"agentRole": "completer",
+				"maxLatencyMs": 500
+			},
+			"provider": "ollama",
+			"model": "codellama:13b",
+			"priority": 3,
+			"fallback": {
+				"provider": "anthropic",
+				"model": "claude-haiku-4-5-20251001"
+			}
+		},
+		{
+			"name": "exploration",
+			"match": {
+				"agentRole": "explorer"
+			},
+			"provider": "anthropic",
+			"model": "claude-haiku-4-5-20251001",
+			"priority": 4
+		},
+		{
+			"name": "catch-all",
+			"match": {
+				"agentRole": "*"
+			},
+			"provider": "anthropic",
+			"model": "claude-sonnet-4-20250514",
+			"priority": 100
+		}
+	],
+	"providers": {
+		"anthropic": {
+			"baseUrl": "https://api.anthropic.com",
+			"apiKey": "${ANTHROPIC_API_KEY}",
+			"format": "anthropic"
+		},
+		"openai": {
+			"baseUrl": "https://api.openai.com",
+			"apiKey": "${OPENAI_API_KEY}",
+			"format": "openai"
+		},
+		"ollama": {
+			"baseUrl": "http://localhost:11434",
+			"format": "openai",
+			"local": true
+		},
+		"lmstudio": {
+			"baseUrl": "http://localhost:1234",
+			"format": "openai",
+			"local": true
+		},
+		"openrouter": {
+			"baseUrl": "https://openrouter.ai/api",
+			"apiKey": "${OPENROUTER_API_KEY}",
+			"format": "openai"
+		}
+	}
+}
