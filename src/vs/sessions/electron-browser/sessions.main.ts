@@ -360,7 +360,6 @@ export class SessionsMain extends Disposable {
 			onUnexpectedError(error);
 		}
 
-		workspaceContextService.setConfigurationService(configurationService);
 		return { configurationService, workspaceContextService };
 	}
 
