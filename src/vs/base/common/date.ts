@@ -69,7 +69,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 
 	if (seconds < hour) {
-		value = Math.floor(seconds / minute);
+		value = Math.round(seconds / minute);
 		if (appendAgoLabel) {
 			if (value === 1) {
 				return useFullTimeWords
@@ -94,7 +94,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 
 	if (seconds < day) {
-		value = Math.floor(seconds / hour);
+		value = Math.round(seconds / hour);
 		if (appendAgoLabel) {
 			if (value === 1) {
 				return useFullTimeWords
@@ -119,7 +119,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 
 	if (seconds < week) {
-		value = Math.floor(seconds / day);
+		value = Math.round(seconds / day);
 		if (appendAgoLabel) {
 			return value === 1
 				? localize('date.fromNow.days.singular.ago', '{0} day ago', value)
@@ -132,7 +132,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 
 	if (seconds < month) {
-		value = Math.floor(seconds / week);
+		value = Math.round(seconds / week);
 		if (appendAgoLabel) {
 			if (value === 1) {
 				return useFullTimeWords
@@ -157,7 +157,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 
 	if (seconds < year) {
-		value = Math.floor(seconds / month);
+		value = Math.round(seconds / month);
 		if (appendAgoLabel) {
 			if (value === 1) {
 				return useFullTimeWords
@@ -181,7 +181,7 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 		}
 	}
 
-	value = Math.floor(seconds / year);
+	value = Math.round(seconds / year);
 	if (appendAgoLabel) {
 		if (value === 1) {
 			return useFullTimeWords

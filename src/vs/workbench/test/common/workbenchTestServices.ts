@@ -120,6 +120,10 @@ export class TestContextService implements IWorkspaceContextService {
 		return WorkbenchState.EMPTY;
 	}
 
+	hasWorkspaceData(): boolean {
+		return this.getWorkbenchState() !== WorkbenchState.EMPTY;
+	}
+
 	getCompleteWorkspace(): Promise<IWorkspace> {
 		return Promise.resolve(this.getWorkspace());
 	}
@@ -784,6 +788,7 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	readonly organisations: undefined;
 	readonly isInternal = false;
 	readonly sku = undefined;
+	readonly copilotTrackingId = undefined;
 
 	readonly onDidChangeQuotaExceeded = Event.None;
 	readonly onDidChangeQuotaRemaining = Event.None;
@@ -804,6 +809,10 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	readonly anonymous = false;
 	onDidChangeAnonymous = Event.None;
 	readonly anonymousObs = observableValue({}, false);
+
+	markAnonymousRateLimited(): void { }
+
+	readonly previewFeaturesDisabled = false;
 }
 
 export class TestLifecycleService extends Disposable implements ILifecycleService {

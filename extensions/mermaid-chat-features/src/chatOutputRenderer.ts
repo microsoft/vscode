@@ -28,7 +28,9 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 
 	async renderChatOutput({ value }: vscode.ChatOutputDataItem, chatOutputWebview: vscode.ChatOutputWebview, _ctx: unknown, _token: vscode.CancellationToken): Promise<void> {
 		const webview = chatOutputWebview.webview;
-		const mermaidSource = new TextDecoder().decode(value);
+		const decoded = decodeMermaidData(value);
+		const mermaidSource = decoded.source;
+		const title = decoded.title;
 
 		// Generate unique ID for this webview
 		const webviewId = generateUuid();
@@ -36,7 +38,7 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 		const disposables: vscode.Disposable[] = [];
 
 		// Register and set as active
-		disposables.push(this._webviewManager.registerWebview(webviewId, webview, mermaidSource, 'chat'));
+		disposables.push(this._webviewManager.registerWebview(webviewId, webview, mermaidSource, title, 'chat'));
 
 		// Listen for messages from the webview
 		disposables.push(webview.onDidReceiveMessage(message => {
@@ -105,6 +107,7 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 						opacity: 1;
 					}
 					.open-in-editor-btn:hover {
+						opacity: 1;
 						background: var(--vscode-toolbar-hoverBackground);
 					}
 				</style>
@@ -134,17 +137,18 @@ export function registerChatSupport(
 		vscode.commands.registerCommand('_mermaid-chat.openInEditor', (ctx?: { mermaidWebviewId?: string }) => {
 			const webviewInfo = ctx?.mermaidWebviewId ? webviewManager.getWebview(ctx.mermaidWebviewId) : webviewManager.activeWebview;
 			if (webviewInfo) {
-				editorManager.openPreview(webviewInfo.mermaidSource);
+				editorManager.openPreview(webviewInfo.mermaidSource, webviewInfo.title);
 			}
 		})
 	);
 
 	// Register lm tools
 	disposables.push(
-		vscode.lm.registerTool<{ markup: string }>('renderMermaidDiagram', {
+		vscode.lm.registerTool<{ markup: string; title?: string }>('renderMermaidDiagram', {
 			invoke: async (options, _token) => {
 				const sourceCode = options.input.markup;
-				return writeMermaidToolOutput(sourceCode);
+				const title = options.input.title;
+				return writeMermaidToolOutput(sourceCode, title);
 			},
 		})
 	);
@@ -158,19 +162,52 @@ export function registerChatSupport(
 	return vscode.Disposable.from(...disposables);
 }
 
-function writeMermaidToolOutput(sourceCode: string): vscode.LanguageModelToolResult {
-	// Expose the source code as a tool result for the LM
+function writeMermaidToolOutput(sourceCode: string, title: string | undefined): vscode.LanguageModelToolResult {
+	// Expose the source code as a markdown mermaid code block
+	const fence = getFenceForContent(sourceCode);
 	const result = new vscode.LanguageModelToolResult([
-		new vscode.LanguageModelTextPart(sourceCode)
+		new vscode.LanguageModelTextPart(`${fence}mermaid\n${sourceCode}\n${fence}`)
 	]);
 
 	// And store custom data in the tool result details to indicate that a custom renderer should be used for it.
-	// In this case we just store the source code as binary data.
+	// Encode source and optional title as JSON.
+	const data = JSON.stringify({ source: sourceCode, title });
 	// Add cast to use proposed API
 	(result as vscode.ExtendedLanguageModelToolResult2).toolResultDetails2 = {
 		mime,
-		value: new TextEncoder().encode(sourceCode),
+		value: new TextEncoder().encode(data),
 	};
 
 	return result;
+}
+
+function getFenceForContent(content: string): string {
+	const backtickMatch = content.matchAll(/`+/g);
+	if (!backtickMatch) {
+		return '```';
+	}
+
+	const maxBackticks = Math.max(...Array.from(backtickMatch, s => s[0].length));
+	return '`'.repeat(Math.max(3, maxBackticks + 1));
+}
+
+interface MermaidData {
+	readonly title: string | undefined;
+	readonly source: string;
+}
+
+function decodeMermaidData(value: Uint8Array): MermaidData {
+	const text = new TextDecoder().decode(value);
+
+	// Try to parse as JSON (new format with title), fall back to plain text (legacy format)
+	try {
+		const parsed = JSON.parse(text);
+		if (typeof parsed === 'object' && typeof parsed.source === 'string') {
+			return { title: parsed.title, source: parsed.source };
+		}
+	} catch {
+		// Not JSON, treat as legacy plain text format
+	}
+
+	return { title: undefined, source: text };
 }

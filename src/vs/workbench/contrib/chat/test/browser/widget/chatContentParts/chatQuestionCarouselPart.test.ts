@@ -5,11 +5,13 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../../browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { IChatQuestionCarousel } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 
 function createMockCarousel(questions: IChatQuestionCarousel['questions'], allowSkip: boolean = true): IChatQuestionCarousel {
 	return {
@@ -56,34 +58,96 @@ suite('ChatQuestionCarouselPart', () => {
 			createWidget(carousel);
 
 			assert.ok(widget.domNode.classList.contains('chat-question-carousel-container'));
-			assert.ok(widget.domNode.querySelector('.chat-question-carousel-header'));
+			assert.ok(widget.domNode.querySelector('.chat-question-header-row'));
 			assert.ok(widget.domNode.querySelector('.chat-question-carousel-content'));
-			assert.ok(widget.domNode.querySelector('.chat-question-carousel-nav'));
 		});
 
 		test('renders question title', () => {
 			const carousel = createMockCarousel([
-				{ id: 'q1', type: 'text', title: 'What is your name?' }
+				{ id: 'q1', type: 'text', title: 'What is your name?', message: 'What is your name?' }
 			]);
 			createWidget(carousel);
 
 			const title = widget.domNode.querySelector('.chat-question-title');
 			assert.ok(title);
-			assert.strictEqual(title?.textContent, 'What is your name?');
+			// Title includes progress prefix like "(1/1) What is your name?"
+			assert.ok(title?.textContent?.includes('What is your name?'));
+		});
+
+		test('renders question title when message is not provided', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Fallback title text' }
+			]);
+			createWidget(carousel);
+
+			const title = widget.domNode.querySelector('.chat-question-title');
+			assert.ok(title, 'title element should exist when only title is provided');
+			// Title should fall back to title property when message is not provided
+			assert.ok(title?.textContent?.includes('Fallback title text'));
+		});
+
+		test('renders markdown in question message', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'text',
+					title: 'Question',
+					message: new MarkdownString('Please review **details** in [docs](https://example.com)')
+				}
+			]);
+			createWidget(carousel);
+
+			const title = widget.domNode.querySelector('.chat-question-title');
+			assert.ok(title, 'title element should exist');
+			assert.ok(title?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
+		});
+
+		test('renders plain string question message as text', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'text',
+					title: 'Question',
+					message: 'Please review **details** in [docs](https://example.com)'
+				}
+			]);
+			createWidget(carousel);
+
+			const title = widget.domNode.querySelector('.chat-question-title');
+			assert.ok(title, 'title element should exist');
+			assert.ok(title?.textContent?.includes('details'), 'content should be rendered');
 		});
 
 		test('renders progress indicator correctly', () => {
 			const carousel = createMockCarousel([
-				{ id: 'q1', type: 'text', title: 'Question 1' },
-				{ id: 'q2', type: 'text', title: 'Question 2' },
-				{ id: 'q3', type: 'text', title: 'Question 3' }
+				{ id: 'q1', type: 'text', title: 'Question 1', message: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2', message: 'Question 2' },
+				{ id: 'q3', type: 'text', title: 'Question 3', message: 'Question 3' }
 			]);
 			createWidget(carousel);
 
-			const progress = widget.domNode.querySelector('.chat-question-carousel-progress');
-			assert.ok(progress);
-			assert.ok(progress?.textContent?.includes('1'));
-			assert.ok(progress?.textContent?.includes('3'));
+			// Progress is shown in the step indicator in the footer as "1/3"
+			const stepIndicator = widget.domNode.querySelector('.chat-question-step-indicator');
+			assert.ok(stepIndicator);
+			assert.ok(stepIndicator?.textContent?.includes('1'));
+			assert.ok(stepIndicator?.textContent?.includes('3'));
+		});
+
+		test('renders close button in title row for multi-question carousels', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+			createWidget(carousel);
+
+			const titleRow = widget.domNode.querySelector('.chat-question-title-row');
+			assert.ok(titleRow, 'title row should exist');
+
+			const closeContainer = titleRow?.querySelector('.chat-question-close-container');
+			assert.ok(closeContainer, 'close button container should be rendered in the title row');
+
+			const directChildCloseContainer = widget.domNode.querySelector(':scope > .chat-question-close-container');
+			assert.strictEqual(directChildCloseContainer, null, 'close button container should not be positioned as a direct child of the carousel container');
 		});
 	});
 
@@ -96,11 +160,11 @@ suite('ChatQuestionCarouselPart', () => {
 
 			const inputContainer = widget.domNode.querySelector('.chat-question-input-container');
 			assert.ok(inputContainer);
-			const inputBox = inputContainer?.querySelector('.monaco-inputbox');
+			const inputBox = inputContainer?.querySelector('.monaco-inputbox input');
 			assert.ok(inputBox, 'Should have an input box for text questions');
 		});
 
-		test('renders radio buttons for singleSelect type questions', () => {
+		test('renders list items for singleSelect type questions', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -114,11 +178,11 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const radioInputs = widget.domNode.querySelectorAll('input[type="radio"]');
-			assert.strictEqual(radioInputs.length, 2, 'Should have 2 radio buttons');
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item');
+			assert.strictEqual(listItems.length, 2, 'Should have 2 list items');
 		});
 
-		test('renders checkboxes for multiSelect type questions', () => {
+		test('renders list items with checkboxes for multiSelect type questions', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -133,8 +197,44 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const checkboxInputs = widget.domNode.querySelectorAll('input[type="checkbox"]');
-			assert.strictEqual(checkboxInputs.length, 3, 'Should have 3 checkboxes');
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item.multi-select');
+			assert.strictEqual(listItems.length, 3, 'Should have 3 list items for multiSelect');
+			const checkboxes = widget.domNode.querySelectorAll('.chat-question-list-checkbox');
+			assert.strictEqual(checkboxes.length, 3, 'Should have 3 checkboxes');
+		});
+
+		test('freeform textarea is always rendered for singleSelect', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'singleSelect',
+					title: 'Choose one',
+					options: [
+						{ id: 'a', label: 'Option A', value: 'a' }
+					]
+				}
+			]);
+			createWidget(carousel);
+
+			const freeformTextarea = widget.domNode.querySelector('.chat-question-freeform-textarea');
+			assert.ok(freeformTextarea, 'Freeform textarea should always be rendered for singleSelect');
+		});
+
+		test('freeform textarea is always rendered for multiSelect', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'multiSelect',
+					title: 'Choose multiple',
+					options: [
+						{ id: 'a', label: 'Option A', value: 'a' }
+					]
+				}
+			]);
+			createWidget(carousel);
+
+			const freeformTextarea = widget.domNode.querySelector('.chat-question-freeform-textarea');
+			assert.ok(freeformTextarea, 'Freeform textarea should always be rendered for multiSelect');
 		});
 
 		test('default options are pre-selected for singleSelect', () => {
@@ -152,9 +252,9 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const radioInputs = widget.domNode.querySelectorAll('input[type="radio"]') as NodeListOf<HTMLInputElement>;
-			assert.strictEqual(radioInputs[0].checked, false);
-			assert.strictEqual(radioInputs[1].checked, true, 'Default option should be checked');
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item') as NodeListOf<HTMLElement>;
+			assert.strictEqual(listItems[0].classList.contains('selected'), false);
+			assert.strictEqual(listItems[1].classList.contains('selected'), true, 'Default option should be selected');
 		});
 
 		test('default options are pre-selected for multiSelect', () => {
@@ -173,10 +273,10 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const checkboxInputs = widget.domNode.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
-			assert.strictEqual(checkboxInputs[0].checked, true, 'First default option should be checked');
-			assert.strictEqual(checkboxInputs[1].checked, false);
-			assert.strictEqual(checkboxInputs[2].checked, true, 'Third default option should be checked');
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item') as NodeListOf<HTMLElement>;
+			assert.strictEqual(listItems[0].classList.contains('checked'), true, 'First default option should be checked');
+			assert.strictEqual(listItems[1].classList.contains('checked'), false);
+			assert.strictEqual(listItems[2].classList.contains('checked'), true, 'Third default option should be checked');
 		});
 	});
 
@@ -188,22 +288,41 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			// Use dedicated class selectors for stability
-			const prevButton = widget.domNode.querySelector('.chat-question-nav-prev') as HTMLButtonElement;
+			const navArrows = widget.domNode.querySelectorAll('.chat-question-nav-arrow') as NodeListOf<HTMLButtonElement>;
+			const prevButton = navArrows[0];
 			assert.ok(prevButton, 'Previous button should exist');
 			assert.ok(prevButton.classList.contains('disabled') || prevButton.disabled, 'Previous button should be disabled on first question');
 		});
 
-		test('next button shows submit icon on last question', () => {
+		test('next button stays as arrow and is disabled on last question', () => {
 			const carousel = createMockCarousel([
-				{ id: 'q1', type: 'text', title: 'Only Question' }
+				{ id: 'q1', type: 'text', title: 'Only Question' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
 			]);
 			createWidget(carousel);
 
-			// Use dedicated class selector for stability
-			const nextButton = widget.domNode.querySelector('.chat-question-nav-next') as HTMLElement;
+			// Navigate to last question
+			widget.navigateToNextQuestion();
+
+			const navArrows = widget.domNode.querySelectorAll('.chat-question-nav-arrow') as NodeListOf<HTMLButtonElement>;
+			const nextButton = navArrows[1];
 			assert.ok(nextButton, 'Next button should exist');
-			assert.strictEqual(nextButton.title, 'Submit', 'Next button should have Submit title on last question');
+			assert.ok(nextButton.classList.contains('disabled') || nextButton.disabled, 'Next button should be disabled on last question');
+		});
+
+		test('submit button is shown on last question', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			]);
+			createWidget(carousel);
+
+			// Navigate to last question
+			widget.navigateToNextQuestion();
+
+			const submitButton = widget.domNode.querySelector('.chat-question-submit-button') as HTMLButtonElement;
+			assert.ok(submitButton, 'Submit button should exist');
+			assert.notStrictEqual(submitButton.style.display, 'none', 'Submit button should be visible on last question');
 		});
 	});
 
@@ -307,7 +426,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(nav?.getAttribute('aria-label'), 'Navigation should have aria-label');
 		});
 
-		test('radio buttons have proper name grouping', () => {
+		test('single select list has proper role and aria-label', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -321,28 +440,38 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const radioInputs = widget.domNode.querySelectorAll('input[type="radio"]') as NodeListOf<HTMLInputElement>;
-			assert.strictEqual(radioInputs[0].name, radioInputs[1].name, 'Radio buttons should have the same name for grouping');
-			assert.ok(radioInputs[0].name.includes('q1'), 'Radio button name should include question id');
+			const list = widget.domNode.querySelector('.chat-question-list');
+			assert.strictEqual(list?.getAttribute('role'), 'listbox');
+			assert.strictEqual(list?.getAttribute('aria-label'), 'Choose one');
 		});
 
-		test('labels are properly associated with inputs', () => {
+		test('list items have proper role and aria-selected', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
 					type: 'singleSelect',
 					title: 'Choose one',
 					options: [
-						{ id: 'a', label: 'Option A', value: 'a' }
+						{ id: 'a', label: 'Option A', value: 'a' },
+						{ id: 'b', label: 'Option B', value: 'b' }
 					]
 				}
 			]);
 			createWidget(carousel);
 
-			const radioInput = widget.domNode.querySelector('input[type="radio"]') as HTMLInputElement;
-			const label = widget.domNode.querySelector('label.chat-question-option-label') as HTMLLabelElement;
-			assert.ok(radioInput.id, 'Input should have an id');
-			assert.strictEqual(label.htmlFor, radioInput.id, 'Label should be associated with input');
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item');
+			assert.strictEqual(listItems.length, 2, 'Should have 2 list items');
+
+			// First item should be auto-selected (no default value, so first is selected)
+			const firstItem = listItems[0] as HTMLElement;
+			assert.strictEqual(firstItem.getAttribute('role'), 'option');
+			assert.ok(firstItem.id, 'List item should have an id');
+			assert.strictEqual(firstItem.getAttribute('aria-selected'), 'true', 'First item should be auto-selected');
+
+			// Second item should not be selected
+			const secondItem = listItems[1] as HTMLElement;
+			assert.strictEqual(secondItem.getAttribute('role'), 'option');
+			assert.strictEqual(secondItem.getAttribute('aria-selected'), 'false', 'Unselected item should have aria-selected=false');
 		});
 	});
 
@@ -396,7 +525,10 @@ suite('ChatQuestionCarouselPart', () => {
 
 			widget.skip();
 			assert.ok(submittedAnswers instanceof Map);
-			assert.strictEqual(submittedAnswers?.get('q1'), 'value_b');
+			// singleSelect always returns structured format with freeformValue
+			const answer = submittedAnswers?.get('q1') as { selectedValue: unknown; freeformValue: unknown };
+			assert.strictEqual(answer.selectedValue, 'value_b');
+			assert.strictEqual(answer.freeformValue, undefined);
 		});
 
 		test('skip returns default values for multiSelect questions', () => {
@@ -417,11 +549,13 @@ suite('ChatQuestionCarouselPart', () => {
 
 			widget.skip();
 			assert.ok(submittedAnswers instanceof Map);
-			const values = submittedAnswers?.get('q1') as unknown[];
-			assert.ok(Array.isArray(values));
-			assert.strictEqual(values.length, 2);
-			assert.ok(values.includes('value_a'));
-			assert.ok(values.includes('value_c'));
+			// multiSelect always returns structured format with freeformValue
+			const answer = submittedAnswers?.get('q1') as { selectedValues: unknown[]; freeformValue: unknown };
+			assert.ok(Array.isArray(answer.selectedValues));
+			assert.strictEqual(answer.selectedValues.length, 2);
+			assert.ok(answer.selectedValues.includes('value_a'));
+			assert.ok(answer.selectedValues.includes('value_c'));
+			assert.strictEqual(answer.freeformValue, undefined);
 		});
 
 		test('skip returns defaults for multiple questions', () => {
@@ -442,7 +576,10 @@ suite('ChatQuestionCarouselPart', () => {
 			widget.skip();
 			assert.ok(submittedAnswers instanceof Map);
 			assert.strictEqual(submittedAnswers?.get('q1'), 'text default');
-			assert.strictEqual(submittedAnswers?.get('q2'), 'first_value');
+			// singleSelect always returns structured format with freeformValue
+			const answer = submittedAnswers?.get('q2') as { selectedValue: unknown; freeformValue: unknown };
+			assert.strictEqual(answer.selectedValue, 'first_value');
+			assert.strictEqual(answer.freeformValue, undefined);
 		});
 
 		test('skip returns empty map when no defaults are provided', () => {
@@ -458,6 +595,69 @@ suite('ChatQuestionCarouselPart', () => {
 	});
 
 	suite('Used Carousel Summary', () => {
+		test('retains current question after navigation without editing', () => {
+			const carousel = new ChatQuestionCarouselData([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+
+			const firstWidget = createWidget(carousel);
+			const nextButton = firstWidget.domNode.querySelector('.chat-question-nav-next') as HTMLElement | null;
+			assert.ok(nextButton, 'next button should exist');
+			nextButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+			firstWidget.dispose();
+			firstWidget.domNode.remove();
+
+			const recreatedWidget = createWidget(carousel);
+			const stepIndicator = recreatedWidget.domNode.querySelector('.chat-question-step-indicator');
+			assert.strictEqual(stepIndicator?.textContent, '2/2', 'should restore the current question index after navigation');
+
+			const title = recreatedWidget.domNode.querySelector('.chat-question-title');
+			assert.ok(title?.textContent?.includes('Question 2'), 'should restore to the second question view');
+		});
+
+		test('retains draft answers and current question after widget recreation', () => {
+			const carousel = new ChatQuestionCarouselData([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+
+			const firstWidget = createWidget(carousel);
+			const firstInput = firstWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
+			assert.ok(firstInput, 'first question input should exist');
+			firstInput.value = 'first draft answer';
+			firstInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+			const nextButton = firstWidget.domNode.querySelector('.chat-question-nav-next') as HTMLElement | null;
+			assert.ok(nextButton, 'next button should exist');
+			nextButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+			const secondInput = firstWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
+			assert.ok(secondInput, 'second question input should exist');
+			secondInput.value = 'second draft answer';
+			secondInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+			firstWidget.dispose();
+			firstWidget.domNode.remove();
+
+			const recreatedWidget = createWidget(carousel);
+			const stepIndicator = recreatedWidget.domNode.querySelector('.chat-question-step-indicator');
+			assert.strictEqual(stepIndicator?.textContent, '2/2', 'should restore the current question index');
+
+			const recreatedSecondInput = recreatedWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
+			assert.ok(recreatedSecondInput, 'recreated second question input should exist');
+			assert.strictEqual(recreatedSecondInput.value, 'second draft answer', 'should restore draft input for current question');
+
+			const prevButton = recreatedWidget.domNode.querySelector('.chat-question-nav-prev') as HTMLElement | null;
+			assert.ok(prevButton, 'previous button should exist');
+			prevButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+			const recreatedFirstInput = recreatedWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
+			assert.ok(recreatedFirstInput, 'recreated first question input should exist');
+			assert.strictEqual(recreatedFirstInput.value, 'first draft answer', 'should restore draft input for previous question');
+		});
+
 		test('shows summary with answers after skip()', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Question 1', defaultValue: 'default answer' }
@@ -471,7 +671,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(summary, 'Should show summary container after skip');
 			const summaryItem = summary?.querySelector('.chat-question-summary-item');
 			assert.ok(summaryItem, 'Should have summary item for the question');
-			const summaryValue = summaryItem?.querySelector('.chat-question-summary-value');
+			const summaryValue = summaryItem?.querySelector('.chat-question-summary-answer-title');
 			assert.ok(summaryValue?.textContent?.includes('default answer'), 'Summary should show the default answer');
 		});
 
@@ -505,7 +705,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(widget.domNode.classList.contains('chat-question-carousel-used'), 'Should have used class');
 			const summary = widget.domNode.querySelector('.chat-question-carousel-summary');
 			assert.ok(summary, 'Should show summary container when isUsed is true');
-			const summaryValue = summary?.querySelector('.chat-question-summary-value');
+			const summaryValue = summary?.querySelector('.chat-question-summary-answer-title');
 			assert.ok(summaryValue?.textContent?.includes('saved answer'), 'Summary should show saved answer from data');
 		});
 

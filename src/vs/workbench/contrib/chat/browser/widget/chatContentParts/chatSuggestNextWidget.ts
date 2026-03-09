@@ -9,7 +9,9 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
@@ -36,7 +38,8 @@ export class ChatSuggestNextWidget extends Disposable {
 
 	constructor(
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 		this.domNode = this.createSuggestNextWidget();
@@ -104,6 +107,14 @@ export class ChatSuggestNextWidget extends Disposable {
 	private createPromptButton(handoff: IHandOff): HTMLElement {
 		const disposables = new DisposableStore();
 
+		// Capture the label to look up the current handoff at click time
+		// This ensures we get the latest handoff data (e.g., updated model from settings)
+		const handoffLabel = handoff.label;
+		const getCurrentHandoff = (): IHandOff | undefined => {
+			const currentHandoffs = this._currentMode?.handOffs?.get();
+			return currentHandoffs?.find(h => h.label === handoffLabel) ?? handoff;
+		};
+
 		const button = dom.$('.chat-welcome-view-suggested-prompt');
 		button.setAttribute('tabindex', '0');
 		button.setAttribute('role', 'button');
@@ -118,9 +129,13 @@ export class ChatSuggestNextWidget extends Disposable {
 		// Get chat session contributions to show in chevron dropdown
 		// Filter to only first-party providers that support "continue in".
 		// TODO: Expand later to any agent with `canDelegate` === true.
+		const currentSessionType = this.contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatSessionType.key);
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
 		const availableContributions = contributions.filter(c => {
 			if (!c.canDelegate) {
+				return false;
+			}
+			if (c.type === currentSessionType) {
 				return false;
 			}
 			const provider = getAgentSessionProvider(c.type);
@@ -155,7 +170,10 @@ export class ChatSuggestNextWidget extends Disposable {
 						ThemeIcon.isThemeIcon(icon) ? ThemeIcon.asClassName(icon) : undefined,
 						true,
 						() => {
-							this._onDidSelectPrompt.fire({ handoff, agentId: contrib.name });
+							const currentHandoff = getCurrentHandoff();
+							if (currentHandoff) {
+								this._onDidSelectPrompt.fire({ handoff: currentHandoff, agentId: contrib.name });
+							}
 						}
 					);
 				});
@@ -180,18 +198,27 @@ export class ChatSuggestNextWidget extends Disposable {
 				if (dom.isHTMLElement(e.target) && e.target.closest('.chat-suggest-next-dropdown')) {
 					return;
 				}
-				this._onDidSelectPrompt.fire({ handoff });
+				const currentHandoff = getCurrentHandoff();
+				if (currentHandoff) {
+					this._onDidSelectPrompt.fire({ handoff: currentHandoff });
+				}
 			}));
 		} else {
 			disposables.add(dom.addDisposableListener(button, 'click', () => {
-				this._onDidSelectPrompt.fire({ handoff });
+				const currentHandoff = getCurrentHandoff();
+				if (currentHandoff) {
+					this._onDidSelectPrompt.fire({ handoff: currentHandoff });
+				}
 			}));
 		}
 
 		disposables.add(dom.addDisposableListener(button, 'keydown', (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
-				this._onDidSelectPrompt.fire({ handoff });
+				const currentHandoff = getCurrentHandoff();
+				if (currentHandoff) {
+					this._onDidSelectPrompt.fire({ handoff: currentHandoff });
+				}
 			}
 		}));
 

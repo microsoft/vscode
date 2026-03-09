@@ -71,6 +71,11 @@ export namespace PromptsConfig {
 	export const SKILLS_LOCATION_KEY = 'chat.agentSkillsLocations';
 
 	/**
+	 * Configuration key for the locations of hook files.
+	 */
+	export const HOOKS_LOCATION_KEY = 'chat.hookFilesLocations';
+
+	/**
 	 * Configuration key for prompt file suggestions.
 	 */
 	export const PROMPT_FILES_SUGGEST_KEY = 'chat.promptFilesRecommendations';
@@ -91,9 +96,29 @@ export namespace PromptsConfig {
 	export const USE_NESTED_AGENT_MD = 'chat.useNestedAgentsMdFiles';
 
 	/**
+	 * Configuration key for the CLAUDE.md.
+	 */
+	export const USE_CLAUDE_MD = 'chat.useClaudeMdFile';
+
+	/**
 	 * Configuration key for agent skills usage.
 	 */
 	export const USE_AGENT_SKILLS = 'chat.useAgentSkills';
+
+	/**
+	 * Configuration key for chat hooks usage.
+	 */
+	export const USE_CHAT_HOOKS = 'chat.useHooks';
+
+	/**
+	 * Configuration key for enabling Claude hooks.
+	 */
+	export const USE_CLAUDE_HOOKS = 'chat.useClaudeHooks';
+
+	/**
+	 * Configuration key for enabling hooks defined in custom agent frontmatter.
+	 */
+	export const USE_CUSTOM_AGENT_HOOKS = 'chat.useCustomAgentHooks';
 
 	/**
 	 * Configuration key for enabling stronger skill adherence prompt (experimental).
@@ -245,6 +270,8 @@ export function getPromptFileLocationsConfigKey(type: PromptsType): string {
 			return PromptsConfig.AGENTS_LOCATION_KEY;
 		case PromptsType.skill:
 			return PromptsConfig.SKILLS_LOCATION_KEY;
+		case PromptsType.hook:
+			return PromptsConfig.HOOKS_LOCATION_KEY;
 		default:
 			throw new Error('Unknown prompt type');
 	}

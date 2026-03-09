@@ -60,6 +60,7 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 
 	public dispose(): void {
 		this.diffAlgorithmOnDidChangeSubscription?.dispose();
+		this.onDidChangeEventEmitter.dispose();
 	}
 
 	async computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions, cancellationToken: CancellationToken): Promise<IDocumentDiff> {

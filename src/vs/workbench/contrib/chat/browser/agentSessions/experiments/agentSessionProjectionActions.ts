@@ -101,7 +101,8 @@ export class ToggleAgentStatusAction extends ToggleTitleBarConfigAction {
 			ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				IsCompactTitleBarContext.negate(),
-				ChatContextKeys.supported
+				ChatContextKeys.supported,
+				ContextKeyExpr.has('config.window.commandCenter')
 			)
 		);
 	}
@@ -120,7 +121,8 @@ export class ToggleUnifiedAgentsBarAction extends ToggleTitleBarConfigAction {
 			ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				IsCompactTitleBarContext.negate(),
-				ChatContextKeys.supported
+				ChatContextKeys.supported,
+				ContextKeyExpr.has('config.window.commandCenter'),
 			)
 		);
 	}

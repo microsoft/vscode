@@ -16,11 +16,12 @@ import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
 import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, TextDirection } from './model.js';
 import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
+import { InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from './textModelEvents.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
-import { InlineDecoration, SingleLineInlineDecoration } from './viewModel/inlineDecorations.js';
+import { InlineDecoration } from './viewModel/inlineDecorations.js';
 import { EditorOption, FindComputedEditorOptionValueById } from './config/editorOptions.js';
 
 export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
@@ -84,6 +85,9 @@ export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): { sourceRanges: Range[]; sourceText: string | string[] };
 	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null;
+
+	onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void;
+	emitContentChangeEvent(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void;
 
 	createLineBreaksComputer(): ILineBreaksComputer;
 
@@ -274,7 +278,7 @@ export class ViewLineData {
 	/**
 	 * Additional inline decorations for this line.
 	*/
-	public readonly inlineDecorations: readonly SingleLineInlineDecoration[] | null;
+	public readonly inlineDecorations: readonly InlineDecoration[] | null;
 
 	constructor(
 		content: string,
@@ -283,7 +287,7 @@ export class ViewLineData {
 		maxColumn: number,
 		startVisibleColumn: number,
 		tokens: IViewLineTokens,
-		inlineDecorations: readonly SingleLineInlineDecoration[] | null
+		inlineDecorations: readonly InlineDecoration[] | null
 	) {
 		this.content = content;
 		this.continuesWithWrappedLine = continuesWithWrappedLine;

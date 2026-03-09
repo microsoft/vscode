@@ -744,6 +744,8 @@ class PolicyDiagnosticsAction extends Action2 {
 						content += `| ${key} | ${displayValue} |\n`;
 					}
 				}
+				const policyData = defaultAccountService.policyData;
+				content += `| policyData | ${policyData ? JSON.stringify(policyData) : 'No Policy Data'} |\n`;
 				content += '\n';
 			} else {
 				content += '*No default account configured*\n\n';

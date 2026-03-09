@@ -37,6 +37,7 @@ import { EditorWorkerHost } from '../../common/services/editorWorkerHost.js';
 import { StringEdit } from '../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../common/core/ranges/offsetRange.js';
 import { FileAccess } from '../../../base/common/network.js';
+import { isCompletionsEnabledWithTextResourceConfig } from '../../common/services/completionsEnablement.js';
 
 /**
  * Stop the worker if it was not needed for 5 min.
@@ -280,7 +281,9 @@ class WordBasedCompletionItemProvider implements languages.CompletionItemProvide
 			return undefined;
 		}
 
-		if (config.wordBasedSuggestions === 'offWithInlineSuggestions' && this.languageFeaturesService.inlineCompletionsProvider.has(model)) {
+		if (config.wordBasedSuggestions === 'offWithInlineSuggestions'
+			&& this.languageFeaturesService.inlineCompletionsProvider.has(model)
+			&& isCompletionsEnabledWithTextResourceConfig(this._configurationService, model.uri, model.getLanguageId())) {
 			return undefined;
 		}
 

@@ -65,6 +65,7 @@ import { RulersGpu } from './viewParts/rulersGpu/rulersGpu.js';
 import { GpuMarkOverlay } from './viewParts/gpuMark/gpuMark.js';
 import { AccessibilitySupport } from '../../platform/accessibility/common/accessibility.js';
 import { Event, Emitter } from '../../base/common/event.js';
+import { IUserInteractionService } from '../../platform/userInteraction/browser/userInteractionService.js';
 
 
 export interface IContentWidgetData {
@@ -139,13 +140,14 @@ export class View extends ViewEventHandler {
 		model: IViewModel,
 		userInputEvents: ViewUserInputEvents,
 		overflowWidgetsDomNode: HTMLElement | undefined,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IUserInteractionService private readonly _userInteractionService: IUserInteractionService,
 	) {
 		super();
 		this._ownerID = ownerID;
 
 		this._widgetFocusTracker = this._register(
-			new CodeEditorWidgetFocusTracker(editorContainer, overflowWidgetsDomNode)
+			new CodeEditorWidgetFocusTracker(editorContainer, overflowWidgetsDomNode, this._userInteractionService)
 		);
 		this._register(this._widgetFocusTracker.onChange(() => {
 			this._context.viewModel.setHasWidgetFocus(this._widgetFocusTracker.hasFocus());
@@ -940,11 +942,11 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 
 	private _hadFocus: boolean | undefined = undefined;
 
-	constructor(domElement: HTMLElement, overflowWidgetsDomNode: HTMLElement | undefined) {
+	constructor(domElement: HTMLElement, overflowWidgetsDomNode: HTMLElement | undefined, userInteractionService: IUserInteractionService) {
 		super();
 
 		this._hasDomElementFocus = false;
-		this._domFocusTracker = this._register(dom.trackFocus(domElement));
+		this._domFocusTracker = this._register(userInteractionService.createDomFocusTracker(domElement));
 
 		this._overflowWidgetsDomNodeHasFocus = false;
 
@@ -958,7 +960,7 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 		}));
 
 		if (overflowWidgetsDomNode) {
-			this._overflowWidgetsDomNode = this._register(dom.trackFocus(overflowWidgetsDomNode));
+			this._overflowWidgetsDomNode = this._register(userInteractionService.createDomFocusTracker(overflowWidgetsDomNode));
 			this._register(this._overflowWidgetsDomNode.onDidFocus(() => {
 				this._overflowWidgetsDomNodeHasFocus = true;
 				this._update();

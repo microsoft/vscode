@@ -9,10 +9,10 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { IChatVariablesService, IDynamicVariable } from '../attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
-import { IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
-import { IToolData, IToolSet, isToolSet } from '../tools/languageModelToolsService.js';
+import { IToolAndToolSetEnablementMap, IToolData, IToolSet, isToolSet } from '../tools/languageModelToolsService.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
@@ -25,6 +25,7 @@ export interface IChatParserContext {
 	mode?: ChatModeKind;
 	/** Parse as this agent, even when it does not appear in the query text */
 	forcedAgent?: IChatAgentData;
+	attachmentCapabilities?: IChatAgentAttachmentCapabilities;
 }
 
 export class ChatRequestParser {
@@ -36,11 +37,16 @@ export class ChatRequestParser {
 	) { }
 
 	parseChatRequest(sessionResource: URI, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context?: IChatParserContext): IParsedChatRequest {
-		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionResource); // must access this list before any async calls
+		const selectedToolAndToolSets = this.variableService.getSelectedToolAndToolSets(sessionResource);
+		return this.parseChatRequestWithReferences(references, selectedToolAndToolSets, message, location, context);
+	}
+
+	parseChatRequestWithReferences(references: ReadonlyArray<IDynamicVariable>, selectedToolAndToolSets: IToolAndToolSetEnablementMap, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context?: IChatParserContext): IParsedChatRequest {
+		const parts: IParsedChatRequestPart[] = [];
 		const toolsByName = new Map<string, IToolData>();
 		const toolSetsByName = new Map<string, IToolSet>();
-		for (const [entry, enabled] of this.variableService.getSelectedToolAndToolSets(sessionResource)) {
+		for (const [entry, enabled] of selectedToolAndToolSets) {
 			if (enabled) {
 				if (isToolSet(entry)) {
 					toolSetsByName.set(entry.referenceName, entry);
@@ -215,7 +221,10 @@ export class ChatRequestParser {
 				// Valid agent subcommand
 				return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);
 			}
-		} else {
+		}
+
+		const capabilities = context?.attachmentCapabilities ?? usedAgent?.capabilities ?? context?.attachmentCapabilities;
+		if (!usedAgent || capabilities?.supportsPromptAttachments) {
 			const slashCommands = this.slashCommandService.getCommands(location, context?.mode ?? ChatModeKind.Ask);
 			const slashCommand = slashCommands.find(c => c.command === command);
 			if (slashCommand) {
@@ -231,7 +240,7 @@ export class ChatRequestParser {
 				}
 			}
 
-			// if there's no agent, asume it is a prompt slash command
+			// if there's no agent or attachments are supported, asume it is a prompt slash command
 			const isPromptCommand = this.promptsService.isValidSlashCommandName(command);
 			if (isPromptCommand) {
 				return new ChatRequestSlashPromptPart(slashRange, slashEditorRange, command);

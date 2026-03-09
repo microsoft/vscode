@@ -7,7 +7,9 @@
   "enabledApiProposals": [
     "activeComment",
     "authSession",
+    "environmentPower",
     "chatParticipantPrivate",
+    "chatPromptFiles",
     "chatProvider",
     "contribStatusBarItems",
     "contribViewsRemote",
@@ -17,7 +19,7 @@
     "documentFiltersExclusive",
     "editorInsets",
     "embeddings",
-    "envIsAppPortable",
+    "envIsConnectionMetered",
     "extensionRuntime",
     "extensionsAny",
     "externalUriOpener",
@@ -69,6 +71,10 @@
       {
         "vendor": "test-lm-vendor",
         "displayName": "Test LM Vendor"
+      },
+      {
+        "vendor": "copilot",
+        "displayName": "Test Copilot LM Vendor"
       }
     ],
     "chatParticipants": [
@@ -144,6 +150,11 @@
         {
           "id": "test.treeId",
           "name": "test-tree",
+          "when": "never"
+        },
+        {
+          "id": "test.treeSwitchUpdate",
+          "name": "test-tree-switch-update",
           "when": "never"
         }
       ]

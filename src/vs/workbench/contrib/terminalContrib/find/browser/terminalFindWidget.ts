@@ -22,6 +22,7 @@ import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { createTextInputActions } from '../../../../browser/actions/textInputActions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 
 const TERMINAL_FIND_WIDGET_INITIAL_WIDTH = 419;
 
@@ -43,7 +44,8 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@IHoverService hoverService: IHoverService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		super({
 			showCommonFindToggles: true,
@@ -59,7 +61,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			closeWidgetActionId: TerminalFindCommandId.FindHide,
 			type: 'Terminal',
 			matchesLimit: XtermTerminalConstants.SearchHighlightLimit
-		}, contextViewService, contextKeyService, hoverService, keybindingService);
+		}, contextViewService, contextKeyService, hoverService, keybindingService, configurationService, accessibilityService);
 
 		this._register(this.state.onFindReplaceStateChange(() => {
 			this.show();

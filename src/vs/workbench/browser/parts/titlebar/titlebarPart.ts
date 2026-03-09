@@ -662,20 +662,20 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				}
 			}
 
-			// --- Global Actions
-			if (this.globalToolbarMenu) {
-				fillInActionBarActions(
-					this.globalToolbarMenu.getActions(),
-					actions
-				);
-			}
-
 			// --- Layout Actions
 			if (this.layoutToolbarMenu) {
 				fillInActionBarActions(
 					this.layoutToolbarMenu.getActions(),
 					actions,
 					() => !this.editorActionsEnabled || this.isCompact // layout actions move to "..." if editor actions are enabled unless compact
+				);
+			}
+
+			// --- Global Actions (after layout so e.g. notification bell appears to the right of layout controls)
+			if (this.globalToolbarMenu) {
+				fillInActionBarActions(
+					this.globalToolbarMenu.getActions(),
+					actions
 				);
 			}
 
@@ -821,7 +821,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	private get activityActionsEnabled(): boolean {
 		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
-		return !this.isCompact && !this.isAuxiliary && (activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM || activityBarPosition === ActivityBarPosition.HIDDEN);
+		return !this.isCompact && !this.isAuxiliary && (activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM);
 	}
 
 	private get globalActionsEnabled(): boolean {
