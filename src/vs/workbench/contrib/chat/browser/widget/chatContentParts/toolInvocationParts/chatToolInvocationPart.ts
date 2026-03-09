@@ -58,6 +58,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		private readonly context: IChatContentPartRenderContext,
 		private readonly renderer: IMarkdownRenderer,
 		private readonly listPool: CollapsibleListPool,
+		private readonly modifiedFilesConfirmationListPool: CollapsibleListPool,
 		private readonly editorPool: EditorPool,
 		private readonly currentWidthDelegate: () => number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
@@ -121,6 +122,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			// Add class when displaying a confirmation widget
 			const isConfirmation = this.subPart instanceof ToolConfirmationSubPart ||
 				this.subPart instanceof ChatTerminalToolConfirmationSubPart ||
+				this.subPart instanceof ChatModifiedFilesConfirmationSubPart ||
 				this.subPart instanceof ExtensionsInstallConfirmationWidgetSubPart ||
 				this.subPart instanceof ChatToolPostExecuteConfirmationPart;
 			this.domNode.classList.toggle('has-confirmation', isConfirmation);
@@ -175,7 +177,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
 					return this.instantiationService.createInstance(ChatTerminalToolConfirmationSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
 				} else if (this.toolInvocation.toolSpecificData?.kind === 'modifiedFilesConfirmation') {
-					return this.instantiationService.createInstance(ChatModifiedFilesConfirmationSubPart, this.toolInvocation, this.context, this.listPool);
+					return this.instantiationService.createInstance(ChatModifiedFilesConfirmationSubPart, this.toolInvocation, this.context, this.modifiedFilesConfirmationListPool);
 				} else {
 					return this.instantiationService.createInstance(ToolConfirmationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
 				}

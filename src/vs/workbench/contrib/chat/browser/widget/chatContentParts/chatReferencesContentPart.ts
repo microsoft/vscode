@@ -56,6 +56,7 @@ export interface IChatReferenceListItem extends IChatContentReference {
 	description?: string;
 	state?: ModifiedFileEntryState;
 	excluded?: boolean;
+	toolbarArg?: unknown;
 }
 
 export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage;
@@ -433,19 +434,21 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		}
 
 		if (data.state !== undefined) {
-			const diffMeta = data?.options?.diffMeta;
-			if (diffMeta) {
-				if (!templateData.fileDiffsContainer || !templateData.addedSpan || !templateData.removedSpan) {
-					return;
+			if (templateData.actionBarContainer) {
+				const diffMeta = data?.options?.diffMeta;
+				if (diffMeta) {
+					if (!templateData.fileDiffsContainer || !templateData.addedSpan || !templateData.removedSpan) {
+						return;
+					}
+					templateData.addedSpan.textContent = `+${diffMeta.added}`;
+					templateData.removedSpan.textContent = `-${diffMeta.removed}`;
+					templateData.fileDiffsContainer.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', diffMeta.added, diffMeta.removed));
 				}
-				templateData.addedSpan.textContent = `+${diffMeta.added}`;
-				templateData.removedSpan.textContent = `-${diffMeta.removed}`;
-				templateData.fileDiffsContainer.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', diffMeta.added, diffMeta.removed));
-			}
-			// eslint-disable-next-line no-restricted-syntax
-			templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
-			if (templateData.toolbar) {
-				templateData.toolbar.context = arg;
+				// eslint-disable-next-line no-restricted-syntax
+				templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
+				if (templateData.toolbar) {
+					templateData.toolbar.context = data.toolbarArg ?? arg;
+				}
 			}
 			if (templateData.contextKeyService) {
 				if (data.state !== undefined) {

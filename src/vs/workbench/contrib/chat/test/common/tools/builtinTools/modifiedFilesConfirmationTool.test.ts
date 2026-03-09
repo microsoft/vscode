@@ -44,7 +44,6 @@ suite('ModifiedFilesConfirmationTool', () => {
 		assert.strictEqual(result?.confirmationMessages?.allowAutoConfirm, false);
 		assert.strictEqual(result?.toolSpecificData?.kind, 'modifiedFilesConfirmation');
 
-
 		assert.deepStrictEqual(result.toolSpecificData.options, ['Copy Changes', 'Move Changes']);
 		assert.strictEqual(URI.revive(result.toolSpecificData.modifiedFiles[0].uri).toString(), 'file:///workspace/src/file1.ts');
 		assert.strictEqual(result.toolSpecificData.modifiedFiles[0].originalUri ? URI.revive(result.toolSpecificData.modifiedFiles[0].originalUri).toString() : undefined, 'file:///workspace/src/file1.original.ts');
