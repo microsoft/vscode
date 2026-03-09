@@ -28,8 +28,6 @@ import { toFormattedString } from '../../../base/common/jsonFormatter.js';
 import { trim } from '../../../base/common/strings.js';
 import { IMachinesData, IUserDataSyncMachine } from './userDataSyncMachines.js';
 import { parsePrompts } from './promptsSync/promptsSync.js';
-import { parseSkills } from './skillsSync/skillsSync.js';
-import { parseHooks } from './hooksSync/hooksSync.js';
 
 interface ISyncResourceUriInfo {
 	readonly remote: boolean;
@@ -151,8 +149,6 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			case SyncResource.Mcp: return this.getMcpAssociatedResources(uri, profile);
 			case SyncResource.Snippets: return this.getSnippetsAssociatedResources(uri, profile);
 			case SyncResource.Prompts: return this.getPromptsAssociatedResources(uri, profile);
-			case SyncResource.Skills: return this.getSkillsAssociatedResources(uri, profile);
-			case SyncResource.Hooks: return this.getHooksAssociatedResources(uri, profile);
 			case SyncResource.GlobalState: return this.getGlobalStateAssociatedResources(uri, profile);
 			case SyncResource.Extensions: return this.getExtensionsAssociatedResources(uri, profile);
 			case SyncResource.Profiles: return this.getProfilesAssociatedResources(uri, profile);
@@ -232,8 +228,6 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			case SyncResource.Mcp: return this.resolveMcpNodeContent(syncData, node);
 			case SyncResource.Snippets: return this.resolveSnippetsNodeContent(syncData, node);
 			case SyncResource.Prompts: return this.resolvePromptsNodeContent(syncData, node);
-			case SyncResource.Skills: return this.resolveSkillsNodeContent(syncData, node);
-			case SyncResource.Hooks: return this.resolveHooksNodeContent(syncData, node);
 			case SyncResource.GlobalState: return this.resolveGlobalStateNodeContent(syncData, node);
 			case SyncResource.Extensions: return this.resolveExtensionsNodeContent(syncData, node);
 			case SyncResource.Profiles: return this.resolveProfileNodeContent(syncData, node);
@@ -256,8 +250,6 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			case SyncResource.Mcp: return null;
 			case SyncResource.Snippets: return null;
 			case SyncResource.Prompts: return null;
-			case SyncResource.Skills: return null;
-			case SyncResource.Hooks: return null;
 			case SyncResource.WorkspaceState: return null;
 		}
 	}
@@ -348,54 +340,6 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 
 	private resolvePromptsNodeContent(syncData: ISyncData, node: string): string | null {
 		return parsePrompts(syncData)[node] || null;
-	}
-
-	private async getSkillsAssociatedResources(uri: URI, profile: IUserDataProfile | undefined): Promise<{ resource: URI; comparableResource: URI }[]> {
-		const content = await this.resolveContent(uri);
-		if (content) {
-			const syncData = this.parseSyncData(content, SyncResource.Skills);
-			if (syncData) {
-				const skills = parseSkills(syncData);
-				const result = [];
-				for (const skill of Object.keys(skills)) {
-					const resource = this.extUri.joinPath(uri, skill);
-					const comparableResource = (profile)
-						? this.extUri.joinPath(profile.skillsHome, skill)
-						: this.extUri.joinPath(uri, UserDataSyncResourceProviderService.NOT_EXISTING_RESOURCE);
-					result.push({ resource, comparableResource });
-				}
-				return result;
-			}
-		}
-		return [];
-	}
-
-	private resolveSkillsNodeContent(syncData: ISyncData, node: string): string | null {
-		return parseSkills(syncData)[node] || null;
-	}
-
-	private async getHooksAssociatedResources(uri: URI, profile: IUserDataProfile | undefined): Promise<{ resource: URI; comparableResource: URI }[]> {
-		const content = await this.resolveContent(uri);
-		if (content) {
-			const syncData = this.parseSyncData(content, SyncResource.Hooks);
-			if (syncData) {
-				const hooks = parseHooks(syncData);
-				const result = [];
-				for (const hook of Object.keys(hooks)) {
-					const resource = this.extUri.joinPath(uri, hook);
-					const comparableResource = (profile)
-						? this.extUri.joinPath(profile.hooksHome, hook)
-						: this.extUri.joinPath(uri, UserDataSyncResourceProviderService.NOT_EXISTING_RESOURCE);
-					result.push({ resource, comparableResource });
-				}
-				return result;
-			}
-		}
-		return [];
-	}
-
-	private resolveHooksNodeContent(syncData: ISyncData, node: string): string | null {
-		return parseHooks(syncData)[node] || null;
 	}
 
 	private getExtensionsAssociatedResources(uri: URI, profile: IUserDataProfile | undefined): { resource: URI; comparableResource: URI }[] {

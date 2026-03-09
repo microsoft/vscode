@@ -28,8 +28,6 @@ import { SettingsSynchroniser } from './settingsSync.js';
 import { SnippetsSynchroniser } from './snippetsSync.js';
 import { TasksSynchroniser } from './tasksSync.js';
 import { McpSynchroniser } from './mcpSync.js';
-import { SkillsSynchroniser } from './skillsSync/skillsSync.js';
-import { HooksSynchroniser } from './hooksSync/hooksSync.js';
 import { UserDataProfilesManifestSynchroniser } from './userDataProfilesManifestSync.js';
 import {
 	ALL_SYNC_RESOURCES, createSyncHeaders, IUserDataManualSyncTask, IUserDataSyncResourceConflicts, IUserDataSyncResourceError,
@@ -741,8 +739,6 @@ class ProfileSynchronizer extends Disposable {
 			case SyncResource.Keybindings: return this.instantiationService.createInstance(KeybindingsSynchroniser, this.profile, this.collection);
 			case SyncResource.Snippets: return this.instantiationService.createInstance(SnippetsSynchroniser, this.profile, this.collection);
 			case SyncResource.Prompts: return this.instantiationService.createInstance(PromptsSynchronizer, this.profile, this.collection);
-			case SyncResource.Skills: return this.instantiationService.createInstance(SkillsSynchroniser, this.profile, this.collection);
-			case SyncResource.Hooks: return this.instantiationService.createInstance(HooksSynchroniser, this.profile, this.collection);
 			case SyncResource.Tasks: return this.instantiationService.createInstance(TasksSynchroniser, this.profile, this.collection);
 			case SyncResource.Mcp: return this.instantiationService.createInstance(McpSynchroniser, this.profile, this.collection);
 			case SyncResource.GlobalState: return this.instantiationService.createInstance(GlobalStateSynchroniser, this.profile, this.collection);
@@ -901,8 +897,6 @@ class ProfileSynchronizer extends Disposable {
 			case SyncResource.GlobalState: return 5;
 			case SyncResource.Extensions: return 6;
 			case SyncResource.Prompts: return 7;
-			case SyncResource.Skills: return 8;
-			case SyncResource.Hooks: return 9;
 			case SyncResource.Profiles: return 10;
 			case SyncResource.WorkspaceState: return 11;
 		}

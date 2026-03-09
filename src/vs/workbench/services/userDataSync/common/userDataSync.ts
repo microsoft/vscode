@@ -59,8 +59,6 @@ export function getSyncAreaLabel(source: SyncResource): string {
 		case SyncResource.Keybindings: return localize('keybindings', "Keyboard Shortcuts");
 		case SyncResource.Snippets: return localize('snippets', "Snippets");
 		case SyncResource.Prompts: return localize('prompts', "Prompts and Instructions");
-		case SyncResource.Skills: return localize('skills', "Skills");
-		case SyncResource.Hooks: return localize('hooks', "Hooks");
 		case SyncResource.Tasks: return localize('tasks', "Tasks");
 		case SyncResource.Mcp: return localize('mcp', "MCP Servers");
 		case SyncResource.Extensions: return localize('extensions', "Extensions");

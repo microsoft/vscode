@@ -618,12 +618,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}, {
 			id: SyncResource.Prompts,
 			label: getSyncAreaLabel(SyncResource.Prompts)
-		}, {
-			id: SyncResource.Skills,
-			label: getSyncAreaLabel(SyncResource.Skills)
-		}, {
-			id: SyncResource.Hooks,
-			label: getSyncAreaLabel(SyncResource.Hooks)
 		}];
 
 
@@ -690,8 +684,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			case SyncResource.Extensions: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Extensions, false);
 			case SyncResource.GlobalState: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.GlobalState, false);
 			case SyncResource.Profiles: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Profiles, false);
-			case SyncResource.Skills: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Skills, false);
-			case SyncResource.Hooks: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Hooks, false);
+			case SyncResource.Prompts: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Prompts, false);
 		}
 	}
 
