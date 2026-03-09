@@ -286,7 +286,48 @@ ${moleculeHtml}
 		const slotHost = this._createSlotHost(iframe, molecule.id, molecule.entity, params);
 		this._slotHosts.add(slotHost);
 
+		// Watch molecule entry file for hot reload
+		this._slotHosts.add(this._watchMoleculeForReload(container, iframe, molecule, params));
+
 		this.logService.info(`[Phonon Canvas] Rendered molecule in iframe: ${molecule.id}`);
+	}
+
+	/**
+	 * Watch a molecule's entry HTML file for changes. On change, preserve
+	 * the molecule's state, remove the old iframe, and re-render.
+	 */
+	private _watchMoleculeForReload(
+		container: HTMLElement,
+		iframe: HTMLIFrameElement,
+		molecule: ILiquidMolecule,
+		params?: Record<string, unknown>,
+	): IDisposable {
+		const disposables = new DisposableStore();
+
+		// Use a correlated file watcher so events only fire for this molecule's file
+		const watcher = this.fileService.createWatcher(molecule.entryUri, { recursive: false });
+		disposables.add(watcher);
+
+		disposables.add(watcher.onDidChange(() => {
+			this.logService.info(`[Phonon Canvas] Hot reload: ${molecule.id}`);
+
+			// Preserve state before destroying the iframe
+			const savedState = this.getMoleculeState(molecule.id);
+
+			// Remove old iframe
+			iframe.remove();
+
+			// Re-render with preserved state merged into params
+			const reloadParams = savedState
+				? { ...(params ?? {}), _restoredState: savedState }
+				: params;
+
+			this._renderMoleculeWebview(container, molecule, reloadParams).catch(err => {
+				this.logService.error(`[Phonon Canvas] Hot reload failed: ${molecule.id}`, err);
+			});
+		}));
+
+		return disposables;
 	}
 
 	/**
@@ -396,6 +437,15 @@ ${moleculeHtml}
 		entity: string | undefined,
 		params: Record<string, unknown> | undefined,
 	): IDisposable {
+		// Extract restored state from params (injected by hot reload) before passing to host
+		let restoredState: Record<string, unknown> | undefined;
+		let cleanParams = params;
+		if (params && params._restoredState !== undefined) {
+			restoredState = params._restoredState as Record<string, unknown>;
+			const { _restoredState: _, ...rest } = params;
+			cleanParams = Object.keys(rest).length > 0 ? rest : undefined;
+		}
+
 		// Adapt the raw iframe to IMoleculeWebview
 		const onMessage = new Emitter<MoleculeToHostMessage>();
 
@@ -418,12 +468,23 @@ ${moleculeHtml}
 		};
 
 		const host = new LiquidMoleculeSlotHost(
-			webviewAdapter, moleculeId, entity, params,
+			webviewAdapter, moleculeId, entity, cleanParams,
 			this.dataResolver, this.logService,
 		);
 
 		// Wire molecule state changes to the canvas state aggregator
 		const stateListener = host.onDidStateChange(change => this._onMoleculeStateChange(change));
+
+		// If this is a hot reload with preserved state, push it after init
+		if (restoredState) {
+			const readyListener = webviewAdapter.onDidReceiveMessage(msg => {
+				if (msg && msg.type === 'phonon:ready') {
+					// Push state after the slot host has sent phonon:init
+					setTimeout(() => host.pushState(restoredState!), 0);
+					readyListener.dispose();
+				}
+			});
+		}
 
 		return {
 			dispose: () => {
