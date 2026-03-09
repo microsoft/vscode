@@ -441,7 +441,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		if (newSession && !openNewSessionView) {
-			this.setActiveSession(newSession);
+			this.setActiveSession(newSession, session);
 		}
 	}
 
@@ -454,7 +454,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.isNewChatSessionContext.set(true);
 	}
 
-	private setActiveSession(session: IAgentSession | INewSession | undefined): void {
+	private setActiveSession(session: IAgentSession | INewSession | undefined, pendingSession?: INewSession): void {
 		let activeSessionItem: IActiveSessionItem | undefined;
 		if (session) {
 			if (isAgentSession(session)) {
@@ -464,9 +464,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					isUntitled: this.chatService.getSession(session.resource)?.contributedChatSession?.isUntitled ?? true,
 					label: session.label,
 					resource: session.resource,
-					repository,
+					repository: repository ?? pendingSession?.repoUri,
 					worktree,
-					worktreeBranchName,
+					worktreeBranchName: worktreeBranchName ?? pendingSession?.branch,
 					providerType: session.providerType,
 				};
 			} else {

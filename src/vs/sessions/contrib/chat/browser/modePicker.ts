@@ -15,8 +15,8 @@ import { ChatMode, IChatMode, IChatModeService } from '../../../../workbench/con
 import { IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 
 const CONFIGURE_AGENTS_ACTION_ID = 'workbench.action.chat.picker.customagents';
 
