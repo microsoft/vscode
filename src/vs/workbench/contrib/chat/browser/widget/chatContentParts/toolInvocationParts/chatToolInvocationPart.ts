@@ -58,7 +58,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		private readonly context: IChatContentPartRenderContext,
 		private readonly renderer: IMarkdownRenderer,
 		private readonly listPool: CollapsibleListPool,
-		private readonly modifiedFilesConfirmationListPool: CollapsibleListPool,
 		private readonly editorPool: EditorPool,
 		private readonly currentWidthDelegate: () => number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
@@ -177,7 +176,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
 					return this.instantiationService.createInstance(ChatTerminalToolConfirmationSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
 				} else if (this.toolInvocation.toolSpecificData?.kind === 'modifiedFilesConfirmation') {
-					return this.instantiationService.createInstance(ChatModifiedFilesConfirmationSubPart, this.toolInvocation, this.context, this.modifiedFilesConfirmationListPool);
+					return this.instantiationService.createInstance(ChatModifiedFilesConfirmationSubPart, this.toolInvocation, this.context, this.listPool);
 				} else {
 					return this.instantiationService.createInstance(ToolConfirmationSubPart, this.toolInvocation, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
 				}

@@ -12,10 +12,9 @@ import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
@@ -29,11 +28,6 @@ import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatCo
 import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatReferencesContentPart.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
-
-interface IModifiedFilesConfirmationActionContext {
-	resource: URI;
-	originalUri?: URI;
-}
 
 export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmationSubPart {
 	public override readonly domNode: HTMLElement;
@@ -192,7 +186,7 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 				title: file.title,
 				description: file.description,
 				state: ModifiedFileEntryState.Accepted,
-				toolbarArg: { resource, originalUri } satisfies IModifiedFilesConfirmationActionContext,
+				showModifiedState: true,
 				options: {
 					diffMeta: typeof file.insertions === 'number' || typeof file.deletions === 'number' ? {
 						added: file.insertions ?? 0,
@@ -288,39 +282,3 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		return typeof title === 'string' ? title : title?.value ?? '';
 	}
 }
-
-registerAction2(class OpenModifiedFilesConfirmationFileAction extends Action2 {
-
-	static readonly id = 'workbench.action.chat.openModifiedFilesConfirmationFile';
-
-	constructor() {
-		super({
-			id: OpenModifiedFilesConfirmationFileAction.id,
-			title: localize('openModifiedFilesConfirmationFile', 'Open'),
-			icon: Codicon.goToFile,
-			f1: false,
-			menu: [{
-				id: MenuId.ChatModifiedFilesConfirmationToolbar,
-				group: 'navigation',
-				order: 0,
-			}]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, context: IModifiedFilesConfirmationActionContext | undefined): Promise<void> {
-		if (!context) {
-			return;
-		}
-
-		const editorService = accessor.get(IEditorService);
-		if (context.originalUri) {
-			await editorService.openEditor({
-				original: { resource: context.originalUri },
-				modified: { resource: context.resource },
-			});
-			return;
-		}
-
-		await editorService.openEditor({ resource: context.resource });
-	}
-});

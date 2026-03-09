@@ -268,7 +268,6 @@ export class MenuId {
 	static readonly ChatEditingDeletedNotebookCell = new MenuId('ChatEditingDeletedNotebookCell');
 	static readonly ChatInputAttachmentToolbar = new MenuId('ChatInputAttachmentToolbar');
 	static readonly ChatEditingWidgetModifiedFilesToolbar = new MenuId('ChatEditingWidgetModifiedFilesToolbar');
-	static readonly ChatModifiedFilesConfirmationToolbar = new MenuId('ChatModifiedFilesConfirmationToolbar');
 	static readonly ChatInputResourceAttachmentContext = new MenuId('ChatInputResourceAttachmentContext');
 	static readonly ChatInputSymbolAttachmentContext = new MenuId('ChatInputSymbolAttachmentContext');
 	static readonly ChatInlineResourceAnchorContext = new MenuId('ChatInlineResourceAnchorContext');
