@@ -126,10 +126,14 @@ export class ModePicker extends Disposable {
 		// Always include the default Agent mode
 		const result: IChatMode[] = [ChatMode.Agent];
 
-		// Add custom modes matching the target
+		// Add custom modes matching the target and visible to users
 		for (const mode of modes.custom) {
 			const target = mode.target.get();
 			if (target === effectiveTarget || target === Target.Undefined) {
+				const visibility = mode.visibility?.get();
+				if (visibility && !visibility.userInvocable) {
+					continue;
+				}
 				result.push(mode);
 			}
 		}
@@ -233,5 +237,8 @@ export class ModePicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = this._selectedMode.label.get();
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+
+		const modes = this._getAvailableModes();
+		this._slotElement?.classList.toggle('disabled', modes.length <= 1);
 	}
 }
