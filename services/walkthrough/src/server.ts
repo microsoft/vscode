@@ -11,7 +11,7 @@ export function createServer(options?: {
 	app.use(express.json());
 
 	const generator = new WalkthroughGenerator({
-		modelRouterUrl: options?.modelRouterUrl ?? process.env.MODEL_ROUTER_URL ?? 'http://localhost:3100',
+		modelRouterUrl: options?.modelRouterUrl ?? process.env.MODEL_ROUTER_URL ?? 'http://localhost:3200',
 	});
 	const storage = new WalkthroughStorage(options?.storagePath);
 
