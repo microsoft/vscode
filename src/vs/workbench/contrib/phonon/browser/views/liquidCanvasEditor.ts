@@ -305,7 +305,7 @@ ${moleculeHtml}
 		const disposables = new DisposableStore();
 
 		// Use a correlated file watcher so events only fire for this molecule's file
-		const watcher = this.fileService.createWatcher(molecule.entryUri, { recursive: false });
+		const watcher = this.fileService.createWatcher(molecule.entryUri, { recursive: false, excludes: [] });
 		disposables.add(watcher);
 
 		disposables.add(watcher.onDidChange(() => {
