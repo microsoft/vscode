@@ -360,6 +360,11 @@ export interface IActionListOptions {
 	readonly filterPlaceholder?: string;
 
 	/**
+	 * Optional actions shown in the filter row, to the right of the input.
+	 */
+	readonly filterActions?: readonly IAction[];
+
+	/**
 	 * Section IDs that should be collapsed by default.
 	 */
 	readonly collapsedByDefault?: ReadonlySet<string>;
@@ -516,13 +521,21 @@ export class ActionList<T> extends Disposable {
 		if (this._options?.showFilter) {
 			this._filterContainer = document.createElement('div');
 			this._filterContainer.className = 'action-list-filter';
+			const filterRow = dom.append(this._filterContainer, dom.$('.action-list-filter-row'));
 
 			this._filterInput = document.createElement('input');
 			this._filterInput.type = 'text';
 			this._filterInput.className = 'action-list-filter-input';
 			this._filterInput.placeholder = this._options?.filterPlaceholder ?? localize('actionList.filter.placeholder', "Search...");
 			this._filterInput.setAttribute('aria-label', localize('actionList.filter.ariaLabel', "Filter items"));
-			this._filterContainer.appendChild(this._filterInput);
+			filterRow.appendChild(this._filterInput);
+
+			const filterActions = this._options?.filterActions ?? [];
+			if (filterActions.length > 0) {
+				const filterActionsContainer = dom.append(filterRow, dom.$('.action-list-filter-actions'));
+				const filterActionBar = this._register(new ActionBar(filterActionsContainer));
+				filterActionBar.push(filterActions, { icon: true, label: false });
+			}
 
 			this._register(dom.addDisposableListener(this._filterInput, 'input', () => {
 				this._filterText = this._filterInput!.value;
