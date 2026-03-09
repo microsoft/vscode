@@ -296,7 +296,7 @@
 
 		.monaco-button {
 			width: fit-content;
-				max-width: 100%;
+			max-width: 100%;
 			padding: 4px 6px 4px 0;
 			border: none;
 			border-radius: 2px;
@@ -306,7 +306,7 @@
 
 		.monaco-button:focus {
 			outline: none !important;
-				box-shadow: none !important;
+			box-shadow: none !important;
 		}
 
 		.monaco-button:hover {
@@ -315,14 +315,14 @@
 
 		.monaco-button:focus-visible {
 			outline: none !important;
-				box-shadow: none !important;
+			box-shadow: none !important;
 		}
 
 		.monaco-button-mdlabel {
 			display: flex;
 			align-items: center;
 			width: auto;
-				flex: 0 1 auto;
+			flex: 0 1 auto;
 			text-align: left;
 		}
 	}
