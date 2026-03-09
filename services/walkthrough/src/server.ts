@@ -13,7 +13,7 @@ export function createServer(options?: {
 	const generator = new WalkthroughGenerator({
 		modelRouterUrl: options?.modelRouterUrl ?? process.env.MODEL_ROUTER_URL ?? 'http://localhost:3200',
 	});
-	const storage = new WalkthroughStorage(options?.storagePath);
+	const storage = new WalkthroughStorage(options?.storagePath ?? process.env.WALKTHROUGH_BASE_PATH);
 
 	app.get('/health', (_req, res) => {
 		res.json({ status: 'ok', service: 'walkthrough' });
