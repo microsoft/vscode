@@ -549,7 +549,9 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		// In canSelectMany mode, handle folder navigation and multi-select
 		if (this.filePickBox.canSelectMany) {
 			const activeItem = this.filePickBox.activeItems[0];
-			// Check if a folder was clicked (folders have pickable: false, so clicking triggers accept)
+			// Folders have pickable: false, so clicking one temporarily sets selectedItems to [folder]
+			// and triggers accept. We distinguish this from pressing OK (where selectedItems = checked files)
+			// by checking that selectedItems contains exactly one folder.
 			if (activeItem?.isFolder && this.filePickBox.selectedItems.length === 1 && this.filePickBox.selectedItems[0].isFolder) {
 				if (!this.updatingPromise) {
 					const folderItem = this.filePickBox.selectedItems[0];
