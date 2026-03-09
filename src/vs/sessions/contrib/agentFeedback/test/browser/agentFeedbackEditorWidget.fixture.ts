@@ -6,6 +6,7 @@
 import { Event } from '../../../../../base/common/event.js';
 import { Color } from '../../../../../base/common/color.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { observableValue } from '../../../../../base/common/observable.js';
@@ -182,7 +183,16 @@ function renderWidget(context: ComponentFixtureContext, options: IFixtureOptions
 
 	ensureTokenColorMap();
 
-	const instantiationService = createEditorServices(scopedDisposables, { colorTheme: context.theme });
+	const agentFeedbackService = createMockAgentFeedbackService();
+	const codeReviewService = createMockCodeReviewService();
+	const instantiationService = createEditorServices(scopedDisposables, {
+		colorTheme: context.theme,
+		additionalServices: reg => {
+			reg.defineInstance(IAgentFeedbackService, agentFeedbackService);
+			reg.defineInstance(ICodeReviewService, codeReviewService);
+			reg.define(IMarkdownRendererService, MarkdownRendererService);
+		},
+	});
 	const model = scopedDisposables.add(createTextModel(instantiationService, sampleCode, fileResource, 'typescript'));
 
 	const editorOptions: ICodeEditorWidgetOptions = {
@@ -205,12 +215,11 @@ function renderWidget(context: ComponentFixtureContext, options: IFixtureOptions
 
 	editor.setModel(model);
 
-	const widget = scopedDisposables.add(new AgentFeedbackEditorWidget(
+	const widget = scopedDisposables.add(instantiationService.createInstance(
+		AgentFeedbackEditorWidget,
 		editor,
 		options.commentItems,
 		sessionResource,
-		createMockAgentFeedbackService(),
-		createMockCodeReviewService(),
 	));
 
 	widget.layout(options.commentItems[0].range.startLineNumber);

@@ -20,6 +20,8 @@ import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/action
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { CodeReviewService, CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService } from './codeReviewService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
+import { SessionEditorCommentSource, toSessionEditorCommentId } from '../../agentFeedback/browser/sessionEditorComments.js';
 
 registerSingleton(ICodeReviewService, CodeReviewService, InstantiationType.Delayed);
 
@@ -55,6 +57,7 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 			const sessionManagementService = accessor.get(ISessionsManagementService);
 			const agentSessionsService = accessor.get(IAgentSessionsService);
 			const codeReviewService = accessor.get(ICodeReviewService);
+			const agentFeedbackService = accessor.get(IAgentFeedbackService);
 
 			const resource = URI.isUri(sessionResource)
 				? sessionResource
@@ -71,6 +74,15 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 
 			const files = getCodeReviewFilesFromSessionChanges(session.changes);
 			const version = getCodeReviewVersion(files);
+
+			// If a review already exists with comments, navigate to the first comment
+			const reviewState = codeReviewService.getReviewState(resource).get();
+			if (reviewState.kind === CodeReviewStateKind.Result && reviewState.version === version && reviewState.comments.length > 0) {
+				const firstComment = reviewState.comments[0];
+				const commentId = toSessionEditorCommentId(SessionEditorCommentSource.CodeReview, firstComment.id);
+				await agentFeedbackService.revealSessionComment(resource, commentId, firstComment.uri, firstComment.range);
+				return;
+			}
 
 			codeReviewService.requestReview(resource, version, files);
 		}
@@ -126,13 +138,14 @@ class CodeReviewToolbarContribution extends Disposable implements IWorkbenchCont
 			if (reviewState.kind === CodeReviewStateKind.Loading && reviewState.version === version) {
 				canRunCodeReview = false;
 				tooltip = localize('sessions.runCodeReview.tooltip.loading', "Creating code review...");
-				icon = Codicon.commentDraft;
+				icon = Codicon.codeReview;
 			} else if (reviewState.kind === CodeReviewStateKind.Result && reviewState.version === version) {
-				canRunCodeReview = false;
 				if (reviewState.comments.length === 0) {
+					canRunCodeReview = false;
 					tooltip = localize('sessions.runCodeReview.tooltip.allResolved', "All review comments have been addressed.");
 					icon = Codicon.comment;
 				} else {
+					canRunCodeReview = true;
 					icon = Codicon.commentUnresolved;
 					tooltip = reviewState.comments.length === 1
 						? localize('sessions.runCodeReview.tooltip.oneUnresolved', "1 review comment unresolved.")

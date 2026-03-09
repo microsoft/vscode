@@ -31,6 +31,9 @@ import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.j
 import { getResourceEditorComments, getSessionEditorComments, groupNearbySessionEditorComments, ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Widget that displays agent feedback comments for a group of nearby feedback items.
@@ -44,7 +47,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private readonly _domNode: HTMLElement;
 	private readonly _headerNode: HTMLElement;
 	private readonly _titleNode: HTMLElement;
-	private readonly _dismissButton: HTMLElement;
 	private readonly _toggleButton: HTMLElement;
 	private readonly _bodyNode: HTMLElement;
 	private readonly _itemElements = new Map<string, HTMLElement>();
@@ -63,6 +65,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		private readonly _sessionResource: URI,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 
@@ -87,12 +90,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		this._toggleButton = $('div.agent-feedback-widget-toggle');
 		this._updateToggleButton();
 		this._headerNode.appendChild(this._toggleButton);
-
-		// Dismiss button
-		this._dismissButton = $('div.agent-feedback-widget-dismiss');
-		this._dismissButton.appendChild(renderIcon(Codicon.close));
-		this._dismissButton.title = nls.localize('dismiss', "Dismiss");
-		this._headerNode.appendChild(this._dismissButton);
 
 		this._domNode.appendChild(this._headerNode);
 
@@ -128,11 +125,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			this._toggleExpanded();
 		}));
 
-		// Dismiss button click
-		this._eventStore.add(addDisposableListener(this._dismissButton, 'click', (e) => {
-			e.stopPropagation();
-			this._dismiss();
-		}));
 	}
 
 	private _toggleExpanded(): void {
@@ -140,12 +132,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			this.collapse();
 		} else {
 			this.expand();
-		}
-	}
-
-	private _dismiss(): void {
-		for (const comment of this._commentItems) {
-			this._removeComment(comment);
 		}
 	}
 
@@ -206,7 +192,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 				actionBar.push(new Action(
 					'agentFeedback.widget.convert',
 					nls.localize('convertComment', "Convert to Agent Feedback"),
-					ThemeIcon.asClassName(Codicon.comment),
+					ThemeIcon.asClassName(Codicon.check),
 					true,
 					() => this._convertToAgentFeedback(comment),
 				), { icon: true, label: false });
@@ -221,8 +207,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			itemHeader.appendChild(actionBarContainer);
 			item.appendChild(itemHeader);
 
-			const text = $('span.agent-feedback-widget-text');
-			text.textContent = comment.text;
+			const text = $('div.agent-feedback-widget-text');
+			const rendered = this._markdownRendererService.render(new MarkdownString(comment.text));
+			this._eventStore.add(rendered);
+			text.appendChild(rendered.element);
 			item.appendChild(text);
 
 			if (comment.suggestion?.edits.length) {
@@ -505,6 +493,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -572,7 +561,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 		const groups = groupNearbySessionEditorComments(fileComments, 5);
 
 		for (const group of groups) {
-			const widget = new AgentFeedbackEditorWidget(this._editor, group, this._sessionResource, this._agentFeedbackService, this._codeReviewService);
+			const widget = this._instantiationService.createInstance(AgentFeedbackEditorWidget, this._editor, group, this._sessionResource);
 			this._widgets.push(widget);
 
 			widget.layout(group[0].range.startLineNumber);

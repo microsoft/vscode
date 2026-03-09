@@ -113,24 +113,6 @@
 }
 
 /* Dismiss button */
-.agent-feedback-widget-dismiss {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 18px;
-	height: 18px;
-	border-radius: 4px;
-	cursor: pointer;
-	color: var(--vscode-foreground);
-	opacity: 0.7;
-	transition: opacity 0.1s;
-}
-
-.agent-feedback-widget-dismiss:hover {
-	opacity: 1;
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
 /* Body - collapsible */
 .agent-feedback-widget-body {
 	transition: max-height 0.2s ease-in-out, padding 0.2s ease-in-out;
@@ -231,6 +213,18 @@
 .agent-feedback-widget-text {
 	color: var(--vscode-foreground);
 	word-wrap: break-word;
+}
+
+.agent-feedback-widget-text .rendered-markdown p {
+	margin: 0;
+}
+
+.agent-feedback-widget-text .rendered-markdown code {
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	padding: 1px 4px;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
 }
 
 .agent-feedback-widget-suggestion {
