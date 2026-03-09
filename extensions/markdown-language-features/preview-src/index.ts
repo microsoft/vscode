@@ -330,7 +330,20 @@ document.addEventListener('dblclick', event => {
 
 const passThroughLinkSchemes = ['http:', 'https:', 'mailto:', 'vscode:', 'vscode-insiders:'];
 
-document.addEventListener('click', event => {
+/**
+ * Extracts modifier keys from a mouse event to determine if the user wants to open a link in a new tab.
+ * @param event The mouse event to extract modifiers from
+ * @returns An object containing the modifier key states
+ */
+function getClickModifiers(event: MouseEvent) {
+	return {
+		ctrlKey: event.ctrlKey,
+		metaKey: event.metaKey,
+		middleButton: event.button === 1
+	};
+}
+
+const handleLinkClick = (event: MouseEvent) => {
 	if (!event) {
 		return;
 	}
@@ -353,7 +366,10 @@ document.addEventListener('click', event => {
 
 			// If original link doesn't look like a url, delegate back to VS Code to resolve
 			if (!/^[a-z\-]+:/i.test(hrefText)) {
-				messaging.postMessage('openLink', { href: hrefText });
+				messaging.postMessage('openLink', { 
+					href: hrefText,
+					...getClickModifiers(event)
+				});
 				event.preventDefault();
 				event.stopPropagation();
 				return;
@@ -363,7 +379,10 @@ document.addEventListener('click', event => {
 		}
 		node = node.parentNode;
 	}
-}, true);
+};
+
+document.addEventListener('click', handleLinkClick, true);
+document.addEventListener('auxclick', handleLinkClick, true);
 
 window.addEventListener('scroll', throttle(() => {
 	updateScrollProgress();
