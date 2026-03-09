@@ -378,11 +378,10 @@ export function buildModelPickerItems(
 	}
 
 	if (additionalEntries?.length) {
+		if (items.length > 0) {
+			items.push({ kind: ActionListItemKind.Separator });
+		}
 		items.push(...additionalEntries);
-	} else if (shouldShowManageModelsAction(chatEntitlementService)) {
-		const manageModelsAction = createManageModelsAction(commandService);
-		items.push({ kind: ActionListItemKind.Separator, section: otherModels.length ? ModelPickerSection.Other : undefined });
-		items.push(createManageModelsEntry(manageModelsAction, otherModels.length ? ModelPickerSection.Other : undefined));
 	}
 
 	return items;
@@ -585,7 +584,7 @@ export class ModelPickerWidget extends Disposable {
 		const controlModelsForTier = isPro ? manifest.paid : manifest.free;
 		const manageModelsAction = shouldShowManageModelsAction(this._entitlementService) ? createManageModelsAction(this._commandService) : undefined;
 		const additionalEntries = !showFilter && manageModelsAction
-			? [{ kind: ActionListItemKind.Separator }, createManageModelsEntry(manageModelsAction, undefined)]
+			? [createManageModelsEntry(manageModelsAction, undefined)]
 			: undefined;
 		const items = buildModelPickerItems(
 			models,
