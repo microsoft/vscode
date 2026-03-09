@@ -195,13 +195,14 @@ export function validateIntent(intent: unknown, registry: ILiquidModuleRegistry)
 		sanitizedParams = sanitizeParams(raw.params as Record<string, unknown>, MAX_PARAM_NESTING);
 	}
 
-	// Assemble the validated result
+	// Assemble the validated result. Params are nested to prevent collision
+	// with gate-validated fields (action, entities, depth, preferredLayout).
 	const result: Record<string, unknown> = {
 		action,
 		...(entities.length > 0 ? { entities } : {}),
 		depth,
 		...(preferredLayout ? { preferredLayout } : {}),
-		...sanitizedParams,
+		...(Object.keys(sanitizedParams).length > 0 ? { params: sanitizedParams } : {}),
 	};
 
 	return { valid: true, sanitizedParams: result };

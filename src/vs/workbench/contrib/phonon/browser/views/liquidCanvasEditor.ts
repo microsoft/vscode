@@ -6,7 +6,8 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore, type IDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, type IDisposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -55,9 +56,9 @@ const LAYOUT_STRATEGY: Record<CompositionLayout, (slots: readonly ICompositionSl
 /**
  * Editor pane that renders composition intents as CSS grid layouts.
  *
- * Each molecule slot is rendered as a VS Code WebviewElement (sandboxed, CSP-managed,
- * remote-lifecycle-safe). The webview communicates with the host via postMessage
- * and the host routes data requests through ILiquidDataResolver.
+ * Each molecule slot is rendered as a sandboxed iframe with a postMessage bridge.
+ * The iframe communicates with the host via postMessage and the host routes data
+ * requests through ILiquidDataResolver.
  *
  * Relationship graph:
  *   LiquidCanvasEditor -> sandboxed iframe per molecule
@@ -114,7 +115,7 @@ export class LiquidCanvasEditor extends EditorPane {
 	}
 
 	override getTitle(): string {
-		return this._currentIntent?.title ?? 'Phonon Canvas';
+		return this._currentIntent?.title ?? localize('phononCanvas.defaultTitle', "Phonon Canvas");
 	}
 
 	/**
@@ -193,14 +194,14 @@ export class LiquidCanvasEditor extends EditorPane {
 			if (molecule) {
 				// Sync placeholder while async molecule loads
 				const loading = dom.append(body, dom.$('div'));
-				loading.textContent = `Loading ${molecule.label}...`;
+				loading.textContent = localize('phononCanvas.loading', "Loading {0}...", molecule.label);
 				loading.style.color = 'var(--vscode-descriptionForeground)';
 				loading.style.fontStyle = 'italic';
 
 				this._renderMoleculeWebview(body, molecule, slot.params).then(() => {
 					loading.remove();
 				}).catch(err => {
-					loading.textContent = `Molecule error: ${molecule.id} - ${err}`;
+					loading.textContent = localize('phononCanvas.moleculeError', "Molecule error: {0} - {1}", molecule.id, String(err));
 					loading.style.color = 'var(--vscode-errorForeground)';
 					this.logService.error(`[Phonon Canvas] Molecule render failed: ${molecule.id}`, err);
 				});
@@ -221,23 +222,36 @@ export class LiquidCanvasEditor extends EditorPane {
 	/**
 	 * Render a molecule inside a sandboxed iframe with a postMessage bridge shim.
 	 *
-	 * The iframe receives `srcdoc` containing the molecule HTML plus a bridge
-	 * script that exposes `window.phonon` inside the sandbox. Communication
-	 * flows via postMessage through a LiquidMoleculeSlotHost that routes data
-	 * requests to ILiquidDataResolver.
-	 *
-	 * Relationship graph:
-	 *   molecule HTML (disk) -> srcdoc (iframe sandbox)
-	 *   bridge shim (window.phonon) <-> postMessage <-> LiquidMoleculeSlotHost
-	 *   LiquidMoleculeSlotHost -> ILiquidDataResolver
+	 * Creates the iframe + slot host, then sets up a file watcher for hot reload.
+	 * The watcher persists across reloads -- only the iframe and host are recreated.
 	 */
 	private async _renderMoleculeWebview(
 		container: HTMLElement,
 		molecule: ILiquidMolecule,
 		params?: Record<string, unknown>,
 	): Promise<void> {
-		this.logService.info(`[Phonon Canvas] Reading molecule: ${molecule.id} from ${molecule.entryUri.toString()}`);
+		this.logService.info(`[Phonon Canvas] Rendering molecule: ${molecule.id} from ${molecule.entryUri.toString()}`);
 
+		const result = await this._createMoleculeIframe(container, molecule, params);
+		if (!result) {
+			return;
+		}
+
+		// The lifecycle manager owns the initial iframe+host AND the watcher.
+		// On file change, it recreates only the iframe+host while the watcher persists.
+		this._slotHosts.add(this._createMoleculeLifecycle(container, molecule, params, result));
+	}
+
+	/**
+	 * Create a sandboxed iframe for a molecule, wire up the bridge, and return
+	 * the iframe + slot host disposable. Does NOT create a file watcher.
+	 */
+	private async _createMoleculeIframe(
+		container: HTMLElement,
+		molecule: ILiquidMolecule,
+		params?: Record<string, unknown>,
+		restoredState?: Record<string, unknown>,
+	): Promise<{ iframe: HTMLIFrameElement; slotHostDisposable: IDisposable } | undefined> {
 		let moleculeHtml: string;
 		try {
 			const fileContent = await this.fileService.readFile(molecule.entryUri);
@@ -245,20 +259,20 @@ export class LiquidCanvasEditor extends EditorPane {
 		} catch (err) {
 			this.logService.warn(`[Phonon Canvas] Failed to read molecule HTML: ${molecule.id}`, err);
 			const errorEl = dom.append(container, dom.$('div'));
-			errorEl.textContent = `Molecule load error: ${molecule.id}`;
+			errorEl.textContent = localize('phononCanvas.loadError', "Molecule load error: {0}", molecule.id);
 			errorEl.style.color = 'var(--vscode-errorForeground)';
-			return;
+			return undefined;
 		}
 
 		// Create sandboxed iframe
-		const iframe = document.createElement('iframe');
+		const iframe = dom.$('iframe') as HTMLIFrameElement;
 		iframe.sandbox.add('allow-scripts');
 		iframe.style.width = '100%';
 		iframe.style.height = '100%';
 		iframe.style.border = 'none';
 
 		// Build srcdoc: bridge shim + molecule HTML
-		const bridgeShim = this._buildBridgeShim(molecule.id, molecule.entity, params);
+		const bridgeShim = this._buildBridgeShim(params);
 		const srcdoc = `<!DOCTYPE html>
 <html>
 <head>
@@ -280,50 +294,65 @@ ${moleculeHtml}
 			iframe.srcdoc = srcdoc;
 		}
 
-		container.appendChild(iframe);
+		dom.append(container, iframe);
 
 		// Create slot host for message routing
-		const slotHost = this._createSlotHost(iframe, molecule.id, molecule.entity, params);
-		this._slotHosts.add(slotHost);
-
-		// Watch molecule entry file for hot reload
-		this._slotHosts.add(this._watchMoleculeForReload(container, iframe, molecule, params));
+		const slotHostDisposable = this._createSlotHost(iframe, molecule.id, molecule.entity, params, restoredState);
 
 		this.logService.info(`[Phonon Canvas] Rendered molecule in iframe: ${molecule.id}`);
+
+		return { iframe, slotHostDisposable };
 	}
 
 	/**
-	 * Watch a molecule's entry HTML file for changes. On change, preserve
-	 * the molecule's state, remove the old iframe, and re-render.
+	 * Manage the full lifecycle of a molecule slot: initial iframe + host,
+	 * file watcher, and hot reloads. The watcher persists across reloads
+	 * (fixes the accumulation bug where each reload created a new watcher).
 	 */
-	private _watchMoleculeForReload(
+	private _createMoleculeLifecycle(
 		container: HTMLElement,
-		iframe: HTMLIFrameElement,
 		molecule: ILiquidMolecule,
-		params?: Record<string, unknown>,
+		params: Record<string, unknown> | undefined,
+		initial: { iframe: HTMLIFrameElement; slotHostDisposable: IDisposable },
 	): IDisposable {
 		const disposables = new DisposableStore();
+
+		let currentIframe = initial.iframe;
+		// MutableDisposable prevents double-dispose: .value setter auto-disposes the old value
+		const slotHostRef = disposables.add(new MutableDisposable());
+		slotHostRef.value = initial.slotHostDisposable;
+
+		// Guard against rapid file changes causing overlapping reloads
+		let reloadInFlight = false;
 
 		// Use a correlated file watcher so events only fire for this molecule's file
 		const watcher = this.fileService.createWatcher(molecule.entryUri, { recursive: false, excludes: [] });
 		disposables.add(watcher);
 
 		disposables.add(watcher.onDidChange(() => {
+			if (reloadInFlight) {
+				return;
+			}
+			reloadInFlight = true;
 			this.logService.info(`[Phonon Canvas] Hot reload: ${molecule.id}`);
 
 			// Preserve state before destroying the iframe
 			const savedState = this.getMoleculeState(molecule.id);
 
-			// Remove old iframe
-			iframe.remove();
+			// Tear down old iframe + host
+			currentIframe.remove();
+			slotHostRef.clear();
 
-			// Re-render with preserved state merged into params
-			const reloadParams = savedState
-				? { ...(params ?? {}), _restoredState: savedState }
-				: params;
-
-			this._renderMoleculeWebview(container, molecule, reloadParams).catch(err => {
+			// Recreate iframe + host (no new watcher)
+			this._createMoleculeIframe(container, molecule, params, savedState).then(result => {
+				if (result) {
+					currentIframe = result.iframe;
+					slotHostRef.value = result.slotHostDisposable;
+				}
+			}).catch(err => {
 				this.logService.error(`[Phonon Canvas] Hot reload failed: ${molecule.id}`, err);
+			}).finally(() => {
+				reloadInFlight = false;
 			});
 		}));
 
@@ -334,10 +363,10 @@ ${moleculeHtml}
 	 * Build the ES5-compatible bridge shim injected inside the molecule iframe.
 	 *
 	 * Exposes `window.phonon` with data.fetch, data.mutate, navigate, intent,
-	 * setTitle, setLoading, onParams, onReady, and params. All calls route
-	 * through postMessage to the parent window.
+	 * setTitle, setLoading, setState, getState, onParams, onReady, and params.
+	 * All calls route through postMessage to the parent window.
 	 */
-	private _buildBridgeShim(moleculeId: string, entity: string | undefined, params: Record<string, unknown> | undefined): string {
+	private _buildBridgeShim(params: Record<string, unknown> | undefined): string {
 		// ES5 only: no arrow functions, no const/let, no template literals. iframe has no build step.
 		return `
 (function() {
@@ -436,16 +465,8 @@ ${moleculeHtml}
 		moleculeId: string,
 		entity: string | undefined,
 		params: Record<string, unknown> | undefined,
+		restoredState?: Record<string, unknown>,
 	): IDisposable {
-		// Extract restored state from params (injected by hot reload) before passing to host
-		let restoredState: Record<string, unknown> | undefined;
-		let cleanParams = params;
-		if (params && params._restoredState !== undefined) {
-			restoredState = params._restoredState as Record<string, unknown>;
-			const { _restoredState: _, ...rest } = params;
-			cleanParams = Object.keys(rest).length > 0 ? rest : undefined;
-		}
-
 		// Adapt the raw iframe to IMoleculeWebview
 		const onMessage = new Emitter<MoleculeToHostMessage>();
 
@@ -468,7 +489,7 @@ ${moleculeHtml}
 		};
 
 		const host = new LiquidMoleculeSlotHost(
-			webviewAdapter, moleculeId, entity, cleanParams,
+			webviewAdapter, moleculeId, entity, params,
 			this.dataResolver, this.logService,
 		);
 
@@ -476,18 +497,21 @@ ${moleculeHtml}
 		const stateListener = host.onDidStateChange(change => this._onMoleculeStateChange(change));
 
 		// If this is a hot reload with preserved state, push it after init
+		let readyListener: IDisposable | undefined;
 		if (restoredState) {
-			const readyListener = webviewAdapter.onDidReceiveMessage(msg => {
+			const capturedState = restoredState;
+			readyListener = webviewAdapter.onDidReceiveMessage(msg => {
 				if (msg && msg.type === 'phonon:ready') {
 					// Push state after the slot host has sent phonon:init
-					setTimeout(() => host.pushState(restoredState!), 0);
-					readyListener.dispose();
+					setTimeout(() => host.pushState(capturedState), 0);
+					readyListener?.dispose();
 				}
 			});
 		}
 
 		return {
 			dispose: () => {
+				readyListener?.dispose();
 				stateListener.dispose();
 				dom.getWindow(this._container ?? iframe).removeEventListener('message', messageHandler);
 				onMessage.dispose();

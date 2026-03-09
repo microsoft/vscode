@@ -276,26 +276,30 @@ suite('LiquidGatekeeper', () => {
 			const longStr = 'x'.repeat(600);
 			const result = validateIntent({ action: 'show', params: { name: longStr } }, registry);
 			assert.strictEqual(result.valid, true);
-			assert.strictEqual((result.sanitizedParams!.name as string).length, 500);
+			const p = result.sanitizedParams!.params as Record<string, unknown>;
+			assert.strictEqual((p.name as string).length, 500);
 		});
 
 		test('number > 1M is clamped', () => {
 			const result = validateIntent({ action: 'show', params: { count: 2_000_000 } }, registry);
 			assert.strictEqual(result.valid, true);
-			assert.strictEqual(result.sanitizedParams!.count, 1_000_000);
+			const p = result.sanitizedParams!.params as Record<string, unknown>;
+			assert.strictEqual(p.count, 1_000_000);
 		});
 
 		test('negative number < -1M is clamped', () => {
 			const result = validateIntent({ action: 'show', params: { offset: -5_000_000 } }, registry);
 			assert.strictEqual(result.valid, true);
-			assert.strictEqual(result.sanitizedParams!.offset, -1_000_000);
+			const p = result.sanitizedParams!.params as Record<string, unknown>;
+			assert.strictEqual(p.offset, -1_000_000);
 		});
 
 		test('array > 50 items is truncated', () => {
 			const bigArray = Array.from({ length: 80 }, (_, i) => `item${i}`);
 			const result = validateIntent({ action: 'show', params: { ids: bigArray } }, registry);
 			assert.strictEqual(result.valid, true);
-			assert.strictEqual((result.sanitizedParams!.ids as string[]).length, 50);
+			const p = result.sanitizedParams!.params as Record<string, unknown>;
+			assert.strictEqual((p.ids as string[]).length, 50);
 		});
 
 		test('nested objects are sanitized recursively', () => {
@@ -311,7 +315,8 @@ suite('LiquidGatekeeper', () => {
 				},
 			}, registry);
 			assert.strictEqual(result.valid, true);
-			const filter = result.sanitizedParams!.filter as Record<string, unknown>;
+			const p = result.sanitizedParams!.params as Record<string, unknown>;
+			const filter = p.filter as Record<string, unknown>;
 			assert.strictEqual(filter.name, 'ok');
 			const deep = filter.deep as Record<string, unknown>;
 			assert.strictEqual(deep.value, 1_000_000);
@@ -326,8 +331,9 @@ suite('LiquidGatekeeper', () => {
 				},
 			}, registry);
 			assert.strictEqual(result.valid, true);
-			assert.strictEqual(result.sanitizedParams!.good, 'yes');
-			assert.strictEqual(result.sanitizedParams!.bad, undefined);
+			const p = result.sanitizedParams!.params as Record<string, unknown>;
+			assert.strictEqual(p.good, 'yes');
+			assert.strictEqual(p.bad, undefined);
 		});
 
 		test('NaN and Infinity in params are removed', () => {
@@ -341,19 +347,21 @@ suite('LiquidGatekeeper', () => {
 				},
 			}, registry);
 			assert.strictEqual(result.valid, true);
-			assert.strictEqual(result.sanitizedParams!.nan, undefined);
-			assert.strictEqual(result.sanitizedParams!.inf, undefined);
-			assert.strictEqual(result.sanitizedParams!.negInf, undefined);
-			assert.strictEqual(result.sanitizedParams!.ok, 42);
+			const p = result.sanitizedParams!.params as Record<string, unknown>;
+			assert.strictEqual(p.nan, undefined);
+			assert.strictEqual(p.inf, undefined);
+			assert.strictEqual(p.negInf, undefined);
+			assert.strictEqual(p.ok, 42);
 		});
 
 		test('boolean values pass through', () => {
 			const result = validateIntent({ action: 'show', params: { active: true } }, registry);
 			assert.strictEqual(result.valid, true);
-			assert.strictEqual(result.sanitizedParams!.active, true);
+			const p = result.sanitizedParams!.params as Record<string, unknown>;
+			assert.strictEqual(p.active, true);
 		});
 
-		test('no params produces no extra keys', () => {
+		test('no params produces no params key', () => {
 			const result = validateIntent({ action: 'show' }, registry);
 			assert.strictEqual(result.valid, true);
 			assert.strictEqual(Object.prototype.hasOwnProperty.call(result.sanitizedParams, 'params'), false);
@@ -379,7 +387,7 @@ suite('LiquidGatekeeper', () => {
 					entities: ['dish'],
 					depth: 1,
 					preferredLayout: 'grid',
-					limit: 10,
+					params: { limit: 10 },
 				},
 			});
 		});
@@ -413,7 +421,8 @@ suite('LiquidGatekeeper', () => {
 			}, registry);
 			assert.strictEqual(result.valid, true);
 			assert.deepStrictEqual(result.sanitizedParams!.entities, ['dish', 'ingredient']);
-			assert.strictEqual(result.sanitizedParams!.mode, 'side-by-side');
+			const p = result.sanitizedParams!.params as Record<string, unknown>;
+			assert.strictEqual(p.mode, 'side-by-side');
 		});
 	});
 });
