@@ -14,6 +14,7 @@ import { fileSummary } from './tools/fileSummary';
 import { projectOverview } from './tools/projectOverview';
 import { memoryQuery, memoryRecord, memoryHistory } from './tools/memoryQuery';
 import { specList, specRead, specSyncCheck } from './tools/specPipeline';
+import { buildTargets, buildOrder, environmentRequirements, affectedTargets } from './tools/buildDag';
 
 export function createMcpServer(db: FalkorDBClient, qdrant: QdrantClient): McpServer {
 	const server = new McpServer({
@@ -358,6 +359,94 @@ export function createMcpServer(db: FalkorDBClient, qdrant: QdrantClient): McpSe
 				};
 			} catch (error) {
 				return errorResponse('spec_sync_check', error);
+			}
+		}
+	);
+
+	// --- build_targets ---
+	server.tool(
+		'build_targets',
+		'List all build/run/test targets in the project with their commands, dependencies, and ecosystem. Answers "how do I build/test/run this project?"',
+		{
+			ecosystem: z.string().optional().describe('Filter targets by ecosystem (node, rust, python, docker, make, just, task)'),
+		},
+		async ({ ecosystem }) => {
+			try {
+				const results = await buildTargets({ ecosystem });
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('build_targets', error);
+			}
+		}
+	);
+
+	// --- build_order ---
+	server.tool(
+		'build_order',
+		'Get the ordered list of targets that must run to reach a given target (topological sort of the build DAG). Answers "what do I need to run before X?"',
+		{
+			target: z.string().describe('Target name to get build order for'),
+		},
+		async ({ target }) => {
+			try {
+				const results = await buildOrder({ target });
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('build_order', error);
+			}
+		}
+	);
+
+	// --- environment_requirements ---
+	server.tool(
+		'environment_requirements',
+		'Get all environment variables needed, which services must be running, and what must be built first for a given target. Answers "what do I need to set up to run X?"',
+		{
+			target: z.string().describe('Target name to get requirements for'),
+		},
+		async ({ target }) => {
+			try {
+				const results = await environmentRequirements({ target });
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('environment_requirements', error);
+			}
+		}
+	);
+
+	// --- affected_targets ---
+	server.tool(
+		'affected_targets',
+		'Find which build/test targets need to re-run given a set of changed files. Analogous to "nx affected". Answers "what broke when I changed these files?"',
+		{
+			changedFiles: z.array(z.string()).describe('List of changed file paths'),
+		},
+		async ({ changedFiles }) => {
+			try {
+				const results = await affectedTargets({ changedFiles });
+				return {
+					content: [{
+						type: 'text' as const,
+						text: JSON.stringify(results, null, 2),
+					}],
+				};
+			} catch (error) {
+				return errorResponse('affected_targets', error);
 			}
 		}
 	);

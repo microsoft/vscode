@@ -1,0 +1,22 @@
+{
+	"name": "soa-acp-client",
+	"version": "1.0.0",
+	"description": "Son of Anton — Agent Client Protocol client for multi-agent integration",
+	"main": "dist/index.js",
+	"scripts": {
+		"build": "tsc",
+		"start": "node dist/index.js",
+		"dev": "tsc --watch & nodemon dist/index.js",
+		"test": "node --test test/**/*.test.js",
+		"lint": "eslint src/**/*.ts"
+	},
+	"dependencies": {
+		"express": "^4.21.0"
+	},
+	"devDependencies": {
+		"@types/express": "^4.17.21",
+		"@types/node": "^20.0.0",
+		"typescript": "^5.6.0"
+	},
+	"private": true
+}
