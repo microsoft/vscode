@@ -22,7 +22,7 @@ export function calculateCost(
 		return 0;
 	}
 
-	const nonCachedInput = inputTokens - cachedTokens;
+	const nonCachedInput = Math.max(0, inputTokens - cachedTokens);
 	const inputCost = (nonCachedInput / 1_000_000) * pricing.inputPerMillion;
 	const outputCost = (outputTokens / 1_000_000) * pricing.outputPerMillion;
 	const cacheCost = pricing.cacheReadPerMillion
