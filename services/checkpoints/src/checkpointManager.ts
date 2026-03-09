@@ -33,13 +33,26 @@ export class CheckpointManager {
 		await this.storage.ensureSessionDir(sessionId);
 
 		const files: CheckpointFile[] = [];
+		const workspaceRootResolved = path.resolve(this.workspaceRoot);
 
 		for (const filePath of request.filePaths) {
-			const absolutePath = path.resolve(this.workspaceRoot, filePath);
-			let content: Buffer | null = null;
+			const absolutePath = path.resolve(workspaceRootResolved, filePath);
+			let content: string | null = null;
 			let exists = false;
 			let contentHash = '';
 
+			// Enforce that the resolved path stays within the workspace root to prevent path traversal.
+			const workspaceRootWithSep = workspaceRootResolved + path.sep;
+			if (!absolutePath.startsWith(workspaceRootWithSep) && absolutePath !== workspaceRootResolved) {
+				// Treat paths that escape the workspace as non-existent.
+				files.push({
+					path: filePath,
+					contentHash: '',
+					content: null, // Content stored separately via deduplication
+					exists: false,
+				});
+				continue;
+			}
 			try {
 				content = await fs.readFile(absolutePath);
 				exists = true;
