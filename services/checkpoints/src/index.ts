@@ -19,7 +19,7 @@ import { CheckpointStorage } from './storage.js';
 import { startServer } from './server.js';
 
 const workspaceRoot = process.env.WORKSPACE_ROOT ?? process.cwd();
-const storagePath = process.env.CHECKPOINT_STORAGE_PATH ?? '.son-of-anton/checkpoints';
+const storagePath = process.env.CHECKPOINT_BASE_PATH ?? '.son-of-anton/checkpoints';
 
 const storage = new CheckpointStorage(storagePath);
 const manager = new CheckpointManager(storage, workspaceRoot);
