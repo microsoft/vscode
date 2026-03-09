@@ -61,7 +61,21 @@ export class WalkthroughStorage {
 	}
 
 	private getFilePath(taskId: string): string {
-		return path.join(this.basePath, `${taskId}.json`);
+		// Restrict taskId to a safe character set to avoid path traversal
+		if (!/^[A-Za-z0-9_-]+$/.test(taskId)) {
+			throw new Error('Invalid taskId');
+		}
+
+		const baseDir = path.resolve(this.basePath);
+		const fileName = `${taskId}.json`;
+		const resolvedPath = path.resolve(baseDir, fileName);
+
+		// Ensure the resolved path is still within the base directory
+		if (!resolvedPath.startsWith(baseDir + path.sep)) {
+			throw new Error('Invalid taskId path');
+		}
+
+		return resolvedPath;
 	}
 
 	private matchesQuery(walkthrough: Walkthrough, query: string): boolean {
