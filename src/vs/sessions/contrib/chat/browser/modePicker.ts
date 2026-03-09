@@ -135,9 +135,6 @@ export class ModePicker extends Disposable {
 		}
 
 		const modes = this._getAvailableModes();
-		if (modes.length === 0) {
-			return;
-		}
 
 		const items = this._buildItems(modes);
 
