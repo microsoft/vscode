@@ -1481,9 +1481,7 @@ export interface IChatService {
 }
 
 export interface IChatSessionContext {
-	readonly chatSessionType: string;
 	readonly chatSessionResource: URI;
-	readonly isUntitled: boolean;
 	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | { id: string; name: string } }>;
 }
 

@@ -47,7 +47,7 @@ import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { BugIndicatingError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
@@ -1047,7 +1047,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		let session: IChatSession;
 		const newSessionOptions = this.getNewSessionOptionsForSessionType(resolvedType);
-		if (sessionResource.path.startsWith('/untitled') && newSessionOptions) {
+		if (isUntitledChatSession(sessionResource) && newSessionOptions) {
 			session = {
 				sessionResource: sessionResource,
 				onWillDispose: Event.None,

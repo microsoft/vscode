@@ -25,6 +25,7 @@ import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/brows
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
+import { isUntitledChatSession } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 
@@ -437,7 +438,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				this.lastSelectedSession = session.resource;
 				const [repository, worktree, worktreeBranchName] = this.getRepositoryFromMetadata(session);
 				activeSessionItem = {
-					isUntitled: this.chatService.getSession(session.resource)?.contributedChatSession?.isUntitled ?? true,
+					isUntitled: isUntitledChatSession(session.resource),
 					label: session.label,
 					resource: session.resource,
 					repository,

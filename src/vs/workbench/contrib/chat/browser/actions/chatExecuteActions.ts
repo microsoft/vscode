@@ -31,7 +31,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { isInClaudeAgentsFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
@@ -651,7 +651,7 @@ export class OpenWorkspacePickerAction extends Action2 {
 					order: 0.6,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.inAgentSessionsWelcome,
-						ChatContextKeys.chatSessionType.isEqualTo('local'),
+						ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
 						IsSessionsWindowContext
 					),
 					group: 'navigation',
@@ -661,7 +661,7 @@ export class OpenWorkspacePickerAction extends Action2 {
 					order: 0.6,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.inAgentSessionsWelcome,
-						ChatContextKeys.chatSessionType.isEqualTo('local'),
+						ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
 						IsSessionsWindowContext.negate()
 					),
 					group: 'navigation',
