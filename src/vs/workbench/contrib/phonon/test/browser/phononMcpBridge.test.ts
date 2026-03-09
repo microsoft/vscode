@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { PhononMcpBridge } from '../../browser/phononMcpBridge.js';
 import { LiquidModuleRegistry } from '../../browser/liquidModuleRegistry.js';
-import type { ICompositionIntent } from '../../common/liquidModuleTypes.js';
+import type { ICompositionIntent, ILiquidMolecule } from '../../common/liquidModuleTypes.js';
 import type { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import type { IPhononAgentPoolService } from '../../common/phononAgentPool.js';
 import type { ILiquidModuleRegistry } from '../../common/liquidModule.js';
@@ -49,7 +49,20 @@ function createMockAgentPoolService(): IPhononAgentPoolService {
 	} as unknown as IPhononAgentPoolService;
 }
 
-function makeIntent(layout: string, slots: Array<{ viewId?: string; cardId?: string; params?: Record<string, unknown> }>): ICompositionIntent {
+function makeMolecule(overrides: Partial<ILiquidMolecule> & { id: string; label: string; entryUri: URI; extensionId: string }): ILiquidMolecule {
+	return {
+		description: '',
+		domain: 'general',
+		category: 'stat',
+		tags: [],
+		layout: { minCols: 4, maxCols: 12, minHeight: 150 },
+		shows: [],
+		relatesTo: [],
+		...overrides,
+	};
+}
+
+function makeIntent(layout: string, slots: Array<{ viewId?: string; moleculeId?: string; params?: Record<string, unknown> }>): ICompositionIntent {
 	return { layout: layout as ICompositionIntent['layout'], slots };
 }
 
@@ -63,8 +76,8 @@ suite('PhononMcpBridge', () => {
 		registry.updateViews([
 			{ id: 'testView', label: 'Test', componentUri: URI.parse('file:///test'), mode: 'canvas', entity: 'test', extensionId: 'test' },
 		]);
-		registry.updateCards([
-			{ id: 'testCard', label: 'Test Card', entryUri: URI.parse('file:///card.html'), entity: 'test', tags: ['test'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
+		registry.updateMolecules([
+			makeMolecule({ id: 'testMolecule', label: 'Test Molecule', entryUri: URI.parse('file:///molecule.html'), entity: 'test', tags: ['test'], extensionId: 'test' }),
 		]);
 
 		bridge = store.add(new PhononMcpBridge(
@@ -128,7 +141,7 @@ suite('PhononMcpBridge', () => {
 		const received: ICompositionIntent[] = [];
 		store.add(bridge.onDidReceiveIntent(e => received.push(e)));
 
-		const intent = makeIntent('split-horizontal', [{ viewId: 'testView' }, { cardId: 'testCard' }]);
+		const intent = makeIntent('split-horizontal', [{ viewId: 'testView' }, { moleculeId: 'testMolecule' }]);
 		bridge.processOutput(
 			'```json\n' +
 			JSON.stringify(intent) + '\n' +
@@ -158,7 +171,7 @@ suite('PhononMcpBridge', () => {
 		store.add(bridge.onDidReceiveIntent(e => received.push(e)));
 
 		const phononIntent = makeIntent('single', [{ viewId: 'testView' }]);
-		const jsonIntent = makeIntent('grid', [{ cardId: 'testCard' }]);
+		const jsonIntent = makeIntent('grid', [{ moleculeId: 'testMolecule' }]);
 		bridge.processOutput(
 			'```phonon-intent\n' +
 			JSON.stringify(phononIntent) + '\n' +
@@ -180,7 +193,7 @@ suite('PhononMcpBridge', () => {
 		const received: ICompositionIntent[] = [];
 		store.add(bridge.onDidReceiveIntent(e => received.push(e)));
 
-		const intent = makeIntent('single', [{ cardId: 'testCard' }]);
+		const intent = makeIntent('single', [{ moleculeId: 'testMolecule' }]);
 		bridge.processOutput(
 			'I suggest the following composition: ' +
 			JSON.stringify(intent) +
@@ -188,7 +201,7 @@ suite('PhononMcpBridge', () => {
 		);
 
 		assert.strictEqual(received.length, 1);
-		assert.strictEqual(received[0].slots[0].cardId, 'testCard');
+		assert.strictEqual(received[0].slots[0].moleculeId, 'testMolecule');
 	});
 
 	test('bare JSON is only tried when no fenced blocks found', () => {
@@ -196,7 +209,7 @@ suite('PhononMcpBridge', () => {
 		store.add(bridge.onDidReceiveIntent(e => received.push(e)));
 
 		const fencedIntent = makeIntent('single', [{ viewId: 'testView' }]);
-		const bareIntent = makeIntent('grid', [{ cardId: 'testCard' }]);
+		const bareIntent = makeIntent('grid', [{ moleculeId: 'testMolecule' }]);
 		bridge.processOutput(
 			'```phonon-intent\n' +
 			JSON.stringify(fencedIntent) + '\n' +
@@ -239,11 +252,11 @@ suite('PhononMcpBridge', () => {
 		assert.strictEqual(received.length, 0);
 	});
 
-	test('intent with existing cardId fires', () => {
+	test('intent with existing moleculeId fires', () => {
 		const received: ICompositionIntent[] = [];
 		store.add(bridge.onDidReceiveIntent(e => received.push(e)));
 
-		const intent = makeIntent('single', [{ cardId: 'testCard' }]);
+		const intent = makeIntent('single', [{ moleculeId: 'testMolecule' }]);
 		bridge.processOutput(
 			'```phonon-intent\n' +
 			JSON.stringify(intent) + '\n' +
@@ -251,7 +264,7 @@ suite('PhononMcpBridge', () => {
 		);
 
 		assert.strictEqual(received.length, 1);
-		assert.strictEqual(received[0].slots[0].cardId, 'testCard');
+		assert.strictEqual(received[0].slots[0].moleculeId, 'testMolecule');
 	});
 
 	// ── edge cases ──────────────────────────────────────────────────────
@@ -283,7 +296,7 @@ suite('PhononMcpBridge', () => {
 		store.add(bridge.onDidReceiveIntent(e => received.push(e)));
 
 		const intent1 = makeIntent('single', [{ viewId: 'testView' }]);
-		const intent2 = makeIntent('grid', [{ cardId: 'testCard' }]);
+		const intent2 = makeIntent('grid', [{ moleculeId: 'testMolecule' }]);
 		bridge.processOutput(
 			'First:\n' +
 			'```phonon-intent\n' +
@@ -339,7 +352,7 @@ suite('PhononMcpBridge', () => {
 		assert.strictEqual(received.length, 0);
 	});
 
-	test('slot with neither viewId nor cardId fails validation', () => {
+	test('slot with neither viewId nor moleculeId fails validation', () => {
 		const received: ICompositionIntent[] = [];
 		store.add(bridge.onDidReceiveIntent(e => received.push(e)));
 
@@ -369,7 +382,7 @@ suite('PhononMcpBridge', () => {
 		const received: ICompositionIntent[] = [];
 		store.add(bridge.onDidReceiveIntent(e => received.push(e)));
 
-		const intent = makeIntent('single', [{ cardId: 'testCard', params: { filter: { type: 'active' } } }]);
+		const intent = makeIntent('single', [{ moleculeId: 'testMolecule', params: { filter: { type: 'active' } } }]);
 		bridge.processOutput(
 			'Try this composition: ' + JSON.stringify(intent) + ' for the view.'
 		);

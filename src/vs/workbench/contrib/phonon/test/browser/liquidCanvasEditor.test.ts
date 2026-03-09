@@ -14,8 +14,8 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { LiquidCanvasEditor } from '../../browser/views/liquidCanvasEditor.js';
 import { LiquidModuleRegistry } from '../../browser/liquidModuleRegistry.js';
-import type { ILiquidDataResolver } from '../../browser/liquidCardBridge.js';
-import type { ICompositionIntent, ILiquidCard } from '../../common/liquidModuleTypes.js';
+import type { ILiquidDataResolver } from '../../browser/liquidMoleculeBridge.js';
+import type { ICompositionIntent, ILiquidMolecule } from '../../common/liquidModuleTypes.js';
 import type { IFileService, IFileContent } from '../../../../../platform/files/common/files.js';
 
 /**
@@ -34,7 +34,7 @@ class MockDataResolver implements ILiquidDataResolver {
 }
 
 /**
- * Mock IFileService - only implements readFile for card HTML loading.
+ * Mock IFileService - only implements readFile for molecule HTML loading.
  */
 function createMockFileService(files: Map<string, string>): IFileService {
 	return {
@@ -61,6 +61,19 @@ function createMockFileService(files: Map<string, string>): IFileService {
 			} as unknown as IFileContent);
 		},
 	} as unknown as IFileService;
+}
+
+function makeMolecule(overrides: Partial<ILiquidMolecule> & { id: string; label: string; entryUri: URI; extensionId: string }): ILiquidMolecule {
+	return {
+		description: '',
+		domain: 'general',
+		category: 'stat',
+		tags: [],
+		layout: { minCols: 4, maxCols: 12, minHeight: 150 },
+		shows: [],
+		relatesTo: [],
+		...overrides,
+	};
 }
 
 suite('LiquidCanvasEditor', () => {
@@ -212,78 +225,75 @@ suite('LiquidCanvasEditor', () => {
 		assert.ok(paramsBlock.textContent?.includes('"id": 42'));
 	});
 
-	test('unknown cardId renders fallback text', () => {
+	test('unknown moleculeId renders fallback text', () => {
 		const editor = createEditor();
 		editor.composeIntent({
 			layout: 'single',
-			slots: [{ cardId: 'nonexistent-card' }],
+			slots: [{ moleculeId: 'nonexistent-molecule' }],
 		});
 		const body = parent.querySelector('.liquid-canvas-slot-body');
-		assert.ok(body?.textContent?.includes('Card: nonexistent-card'));
+		assert.ok(body?.textContent?.includes('Molecule: nonexistent-molecule'));
 	});
 
-	// ---- Card rendering (with mock file service) ----
+	// ---- Molecule rendering (with mock file service) ----
 
-	test('known card renders HTML from file service', async () => {
-		const cardHtml = '<div class="test-card"><h2>Food Cost</h2><p>32%</p></div>';
-		const cardUri = URI.parse('vscode-resource://ext/cards/food-cost.html');
-		const files = new Map([[cardUri.toString(), cardHtml]]);
+	test('known molecule renders HTML from file service', async () => {
+		const moleculeHtml = '<div class="test-molecule"><h2>Food Cost</h2><p>32%</p></div>';
+		const moleculeUri = URI.parse('vscode-resource://ext/molecules/food-cost.html');
+		const files = new Map([[moleculeUri.toString(), moleculeHtml]]);
 
-		const cards: ILiquidCard[] = [{
-			id: 'foodCost',
-			label: 'Food Cost',
-			entryUri: cardUri,
-			entity: 'dish',
-			tags: ['cost'],
-			size: { minWidth: 200, minHeight: 150 },
-			extensionId: 'test',
-			runtime: 'js',
-			permissions: [],
-		}];
-		registry.updateCards(cards);
+		const molecules: ILiquidMolecule[] = [
+			makeMolecule({
+				id: 'foodCost',
+				label: 'Food Cost',
+				entryUri: moleculeUri,
+				entity: 'dish',
+				tags: ['cost'],
+				extensionId: 'test',
+			}),
+		];
+		registry.updateMolecules(molecules);
 
 		const editor = createEditor(createMockFileService(files));
 		editor.composeIntent({
 			layout: 'single',
-			slots: [{ cardId: 'foodCost', label: 'Food Cost' }],
+			slots: [{ moleculeId: 'foodCost', label: 'Food Cost' }],
 		});
 
-		// Card rendering is async (fileService.readFile). setTimeout(0) flushes
+		// Molecule rendering is async (fileService.readFile). setTimeout(0) flushes
 		// all pending microtasks deterministically (mock readFile resolves immediately).
 		await new Promise(resolve => setTimeout(resolve, 0));
 
 		const body = parent.querySelector('.liquid-canvas-slot-body');
 		assert.ok(body, 'Expected slot body');
-		const testCard = body.querySelector('.test-card');
-		assert.ok(testCard, 'Expected card HTML to be injected into body');
-		assert.ok(testCard.querySelector('h2')?.textContent?.includes('Food Cost'));
+		const testMolecule = body.querySelector('.test-molecule');
+		assert.ok(testMolecule, 'Expected molecule HTML to be injected into body');
+		assert.ok(testMolecule.querySelector('h2')?.textContent?.includes('Food Cost'));
 	});
 
-	test('card file read error renders error message', async () => {
-		const cardUri = URI.parse('vscode-resource://ext/cards/missing.html');
-		const cards: ILiquidCard[] = [{
-			id: 'missingCard',
-			label: 'Missing',
-			entryUri: cardUri,
-			entity: 'dish',
-			tags: [],
-			size: { minWidth: 200, minHeight: 150 },
-			extensionId: 'test',
-			runtime: 'js',
-			permissions: [],
-		}];
-		registry.updateCards(cards);
+	test('molecule file read error renders error message', async () => {
+		const moleculeUri = URI.parse('vscode-resource://ext/molecules/missing.html');
+		const molecules: ILiquidMolecule[] = [
+			makeMolecule({
+				id: 'missingMolecule',
+				label: 'Missing',
+				entryUri: moleculeUri,
+				entity: 'dish',
+				extensionId: 'test',
+			}),
+		];
+		registry.updateMolecules(molecules);
 
 		const editor = createEditor(createMockFileService(new Map()));
 		editor.composeIntent({
 			layout: 'single',
-			slots: [{ cardId: 'missingCard' }],
+			slots: [{ moleculeId: 'missingMolecule' }],
 		});
 
 		await new Promise(resolve => setTimeout(resolve, 0));
 
 		const body = parent.querySelector('.liquid-canvas-slot-body');
-		assert.ok(body?.textContent?.includes('Card load error'));
+		assert.ok(body?.textContent?.includes('Molecule load error'));
 	});
 
 	// ---- Re-render on new intent ----

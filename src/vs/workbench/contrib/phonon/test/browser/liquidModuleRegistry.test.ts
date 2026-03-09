@@ -7,7 +7,20 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { LiquidModuleRegistry } from '../../browser/liquidModuleRegistry.js';
-import type { ILiquidEntity, ILiquidView, ILiquidCard, ILiquidDataProvider, ILiquidSidebarNode, ICompositionIntent } from '../../common/liquidModuleTypes.js';
+import type { ILiquidEntity, ILiquidView, ILiquidMolecule, ILiquidDataProvider, ILiquidSidebarNode, ICompositionIntent } from '../../common/liquidModuleTypes.js';
+
+function makeMolecule(overrides: Partial<ILiquidMolecule> & { id: string; label: string; entryUri: URI; extensionId: string }): ILiquidMolecule {
+	return {
+		description: '',
+		domain: 'general',
+		category: 'stat',
+		tags: [],
+		layout: { minCols: 4, maxCols: 12, minHeight: 150 },
+		shows: [],
+		relatesTo: [],
+		...overrides,
+	};
+}
 
 suite('LiquidModuleRegistry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -85,43 +98,81 @@ suite('LiquidModuleRegistry', () => {
 		assert.strictEqual(registry.getEntitySchema('nonexistent'), undefined);
 	});
 
-	test('getCardsForEntity returns cards bound to the given entity', () => {
-		const cards: ILiquidCard[] = [
-			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://a'), entity: 'dish', tags: ['cost'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
-			{ id: 'stockCard', label: 'Giacenze', entryUri: URI.parse('test://b'), entity: 'ingredient', tags: ['stock'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
-			{ id: 'dishPhoto', label: 'Foto Piatto', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['media'], size: { minWidth: 300, minHeight: 200 }, extensionId: 'test', runtime: 'js', permissions: [] },
-			{ id: 'global', label: 'KPI', entryUri: URI.parse('test://d'), tags: [], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
+	test('getMoleculesForEntity returns molecules bound to the given entity', () => {
+		const molecules: ILiquidMolecule[] = [
+			makeMolecule({ id: 'costMolecule', label: 'Costi', entryUri: URI.parse('test://a'), entity: 'dish', tags: ['cost'], extensionId: 'test' }),
+			makeMolecule({ id: 'stockMolecule', label: 'Giacenze', entryUri: URI.parse('test://b'), entity: 'ingredient', tags: ['stock'], extensionId: 'test' }),
+			makeMolecule({ id: 'dishPhoto', label: 'Foto Piatto', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['media'], extensionId: 'test' }),
+			makeMolecule({ id: 'global', label: 'KPI', entryUri: URI.parse('test://d'), extensionId: 'test' }),
 		];
-		registry.updateCards(cards);
+		registry.updateMolecules(molecules);
 
 		assert.deepStrictEqual(
-			registry.getCardsForEntity('dish').map(c => c.id),
-			['costCard', 'dishPhoto']
+			registry.getMoleculesForEntity('dish').map(m => m.id),
+			['costMolecule', 'dishPhoto']
 		);
 		assert.deepStrictEqual(
-			registry.getCardsForEntity('ingredient').map(c => c.id),
-			['stockCard']
+			registry.getMoleculesForEntity('ingredient').map(m => m.id),
+			['stockMolecule']
 		);
-		assert.deepStrictEqual(registry.getCardsForEntity('nonexistent'), []);
+		assert.deepStrictEqual(registry.getMoleculesForEntity('nonexistent'), []);
 	});
 
-	test('getCardsByTag returns cards matching the given tag', () => {
-		const cards: ILiquidCard[] = [
-			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://a'), entity: 'dish', tags: ['cost', 'analytics'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
-			{ id: 'revenueCard', label: 'Ricavi', entryUri: URI.parse('test://b'), entity: 'order', tags: ['revenue', 'analytics'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
-			{ id: 'dishPhoto', label: 'Foto', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['media'], size: { minWidth: 300, minHeight: 200 }, extensionId: 'test', runtime: 'js', permissions: [] },
+	test('getMoleculesByTag returns molecules matching the given tag', () => {
+		const molecules: ILiquidMolecule[] = [
+			makeMolecule({ id: 'costMolecule', label: 'Costi', entryUri: URI.parse('test://a'), entity: 'dish', tags: ['cost', 'analytics'], extensionId: 'test' }),
+			makeMolecule({ id: 'revenueMolecule', label: 'Ricavi', entryUri: URI.parse('test://b'), entity: 'order', tags: ['revenue', 'analytics'], extensionId: 'test' }),
+			makeMolecule({ id: 'dishPhoto', label: 'Foto', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['media'], extensionId: 'test' }),
 		];
-		registry.updateCards(cards);
+		registry.updateMolecules(molecules);
 
 		assert.deepStrictEqual(
-			registry.getCardsByTag('analytics').map(c => c.id),
-			['costCard', 'revenueCard']
+			registry.getMoleculesByTag('analytics').map(m => m.id),
+			['costMolecule', 'revenueMolecule']
 		);
 		assert.deepStrictEqual(
-			registry.getCardsByTag('media').map(c => c.id),
+			registry.getMoleculesByTag('media').map(m => m.id),
 			['dishPhoto']
 		);
-		assert.deepStrictEqual(registry.getCardsByTag('nonexistent'), []);
+		assert.deepStrictEqual(registry.getMoleculesByTag('nonexistent'), []);
+	});
+
+	test('findByEntity returns molecules that show a given entity', () => {
+		const molecules: ILiquidMolecule[] = [
+			makeMolecule({ id: 'dishCost', label: 'Dish Cost', entryUri: URI.parse('test://a'), entity: 'dish', shows: ['dish', 'ingredient'], extensionId: 'test' }),
+			makeMolecule({ id: 'orderSummary', label: 'Order Summary', entryUri: URI.parse('test://b'), entity: 'order', shows: ['order'], extensionId: 'test' }),
+			makeMolecule({ id: 'supplierDetail', label: 'Supplier', entryUri: URI.parse('test://c'), entity: 'supplier', shows: ['supplier', 'ingredient'], extensionId: 'test' }),
+		];
+		registry.updateMolecules(molecules);
+
+		assert.deepStrictEqual(
+			registry.findByEntity('ingredient').map(m => m.id),
+			['dishCost', 'supplierDetail']
+		);
+		assert.deepStrictEqual(
+			registry.findByEntity('order').map(m => m.id),
+			['orderSummary']
+		);
+		assert.deepStrictEqual(registry.findByEntity('nonexistent'), []);
+	});
+
+	test('findByDomain returns molecules in the given domain', () => {
+		const molecules: ILiquidMolecule[] = [
+			makeMolecule({ id: 'costAnalysis', label: 'Cost Analysis', entryUri: URI.parse('test://a'), domain: 'analytics', extensionId: 'test' }),
+			makeMolecule({ id: 'orderList', label: 'Order List', entryUri: URI.parse('test://b'), domain: 'operations', extensionId: 'test' }),
+			makeMolecule({ id: 'revenueChart', label: 'Revenue Chart', entryUri: URI.parse('test://c'), domain: 'analytics', extensionId: 'test' }),
+		];
+		registry.updateMolecules(molecules);
+
+		assert.deepStrictEqual(
+			registry.findByDomain('analytics').map(m => m.id),
+			['costAnalysis', 'revenueChart']
+		);
+		assert.deepStrictEqual(
+			registry.findByDomain('operations').map(m => m.id),
+			['orderList']
+		);
+		assert.deepStrictEqual(registry.findByDomain('nonexistent'), []);
 	});
 
 	test('validateIntent catches unknown viewId', () => {
@@ -144,33 +195,33 @@ suite('LiquidModuleRegistry', () => {
 		assert.ok(result.errors[0].includes('nonexistent'));
 	});
 
-	test('validateIntent accepts valid cardId slot', () => {
-		registry.updateCards([
-			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
+	test('validateIntent accepts valid moleculeId slot', () => {
+		registry.updateMolecules([
+			makeMolecule({ id: 'costMolecule', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], extensionId: 'test' }),
 		]);
 
 		const intent: ICompositionIntent = {
 			layout: 'single',
-			slots: [{ cardId: 'costCard' }],
+			slots: [{ moleculeId: 'costMolecule' }],
 		};
 		assert.deepStrictEqual(registry.validateIntent(intent), { valid: true, errors: [] });
 	});
 
-	test('validateIntent catches unknown cardId', () => {
-		registry.updateCards([
-			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
+	test('validateIntent catches unknown moleculeId', () => {
+		registry.updateMolecules([
+			makeMolecule({ id: 'costMolecule', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], extensionId: 'test' }),
 		]);
 
 		const intent: ICompositionIntent = {
 			layout: 'single',
-			slots: [{ cardId: 'nonexistent' }],
+			slots: [{ moleculeId: 'nonexistent' }],
 		};
 		const result = registry.validateIntent(intent);
 		assert.ok(!result.valid);
 		assert.ok(result.errors[0].includes('nonexistent'));
 	});
 
-	test('validateIntent rejects slot with neither viewId nor cardId', () => {
+	test('validateIntent rejects slot with neither viewId nor moleculeId', () => {
 		const intent: ICompositionIntent = {
 			layout: 'single',
 			slots: [{}],
@@ -234,23 +285,36 @@ suite('LiquidModuleRegistry', () => {
 		assert.strictEqual(children[2].id, 'suppliers');
 	});
 
-	test('getCapabilities returns summary with cards', () => {
+	test('getCapabilities returns summary with molecules', () => {
 		registry.updateEntities([
 			{ id: 'dish', label: 'Piatto', schema: { type: 'object', properties: { name: { type: 'string' }, cost: { type: 'number' } } }, extensionId: 'test' },
 		]);
 		registry.updateViews([
 			{ id: 'dishList', label: 'Piatti', componentUri: URI.parse('test://a'), mode: 'structured', entity: 'dish', extensionId: 'test' },
 		]);
-		registry.updateCards([
-			{ id: 'costCard', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], size: { minWidth: 200, minHeight: 150 }, extensionId: 'test', runtime: 'js', permissions: [] },
+		registry.updateMolecules([
+			makeMolecule({ id: 'costMolecule', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], domain: 'analytics', category: 'stat', extensionId: 'test' }),
 		]);
 
 		const caps = registry.getCapabilities();
 		assert.strictEqual(caps.entities.length, 1);
 		assert.deepStrictEqual(caps.entities[0].fields, ['name', 'cost']);
 		assert.strictEqual(caps.views.length, 1);
-		assert.strictEqual(caps.cards.length, 1);
-		assert.strictEqual(caps.cards[0].id, 'costCard');
-		assert.deepStrictEqual(caps.cards[0].tags, ['cost']);
+		assert.strictEqual(caps.molecules.length, 1);
+		assert.strictEqual(caps.molecules[0].id, 'costMolecule');
+		assert.deepStrictEqual(caps.molecules[0].tags, ['cost']);
+		assert.strictEqual(caps.molecules[0].domain, 'analytics');
+		assert.strictEqual(caps.molecules[0].category, 'stat');
+	});
+
+	test('onDidChangeMolecules fires on updateMolecules', () => {
+		let fired = false;
+		store.add(registry.onDidChangeMolecules(() => { fired = true; }));
+
+		registry.updateMolecules([
+			makeMolecule({ id: 'test', label: 'Test', entryUri: URI.parse('test://a'), extensionId: 'test' }),
+		]);
+
+		assert.ok(fired);
 	});
 });

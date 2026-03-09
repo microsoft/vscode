@@ -8,28 +8,28 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import {
-	LiquidCardSlotHost,
-	type ICardWebview,
+	LiquidMoleculeSlotHost,
+	type IMoleculeWebview,
 	type ILiquidDataResolver,
-	type CardToHostMessage,
-	type HostToCardMessage,
-} from '../../browser/liquidCardBridge.js';
+	type MoleculeToHostMessage,
+	type HostToMoleculeMessage,
+} from '../../browser/liquidMoleculeBridge.js';
 
 /**
- * Mock ICardWebview -- records posted messages and exposes a fire() helper
- * to simulate messages arriving from the card webview.
+ * Mock IMoleculeWebview -- records posted messages and exposes a fire() helper
+ * to simulate messages arriving from the molecule webview.
  */
-class MockCardWebview implements ICardWebview {
-	private readonly _emitter = new Emitter<CardToHostMessage>();
+class MockMoleculeWebview implements IMoleculeWebview {
+	private readonly _emitter = new Emitter<MoleculeToHostMessage>();
 	readonly onDidReceiveMessage = this._emitter.event;
-	readonly posted: HostToCardMessage[] = [];
+	readonly posted: HostToMoleculeMessage[] = [];
 
-	async postMessage(msg: HostToCardMessage): Promise<boolean> {
+	async postMessage(msg: HostToMoleculeMessage): Promise<boolean> {
 		this.posted.push(msg);
 		return true;
 	}
 
-	fire(msg: CardToHostMessage): void {
+	fire(msg: MoleculeToHostMessage): void {
 		this._emitter.fire(msg);
 	}
 
@@ -79,14 +79,14 @@ function tick(): Promise<void> {
 	return new Promise(resolve => queueMicrotask(resolve));
 }
 
-suite('LiquidCardSlotHost', () => {
+suite('LiquidMoleculeSlotHost', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	let webview: MockCardWebview;
+	let webview: MockMoleculeWebview;
 	let resolver: MockDataResolver;
 	let logService: NullLogService;
 
 	setup(() => {
-		webview = new MockCardWebview();
+		webview = new MockMoleculeWebview();
 		resolver = new MockDataResolver();
 		logService = new NullLogService();
 	});
@@ -96,40 +96,40 @@ suite('LiquidCardSlotHost', () => {
 	});
 
 	function createHost(
-		cardId: string = 'card-1',
+		moleculeId: string = 'molecule-1',
 		entity?: string,
 		params?: Record<string, unknown>,
-	): LiquidCardSlotHost {
-		const host = new LiquidCardSlotHost(webview, cardId, entity, params, resolver, logService);
+	): LiquidMoleculeSlotHost {
+		const host = new LiquidMoleculeSlotHost(webview, moleculeId, entity, params, resolver, logService);
 		store.add(host);
 		return host;
 	}
 
 	// ---- phonon:ready handler ----
 
-	test('phonon:ready sends phonon:init with cardId and entity', async () => {
-		createHost('card-1', 'dish');
+	test('phonon:ready sends phonon:init with moleculeId and entity', async () => {
+		createHost('molecule-1', 'dish');
 		webview.fire({ type: 'phonon:ready' });
 		await tick();
 
 		assert.deepStrictEqual(webview.posted, [
-			{ type: 'phonon:init', cardId: 'card-1', entity: 'dish' },
+			{ type: 'phonon:init', moleculeId: 'molecule-1', entity: 'dish' },
 		]);
 	});
 
 	test('phonon:ready with params sends phonon:init then phonon:params', async () => {
-		createHost('card-2', 'order', { id: 42, filter: 'active' });
+		createHost('molecule-2', 'order', { id: 42, filter: 'active' });
 		webview.fire({ type: 'phonon:ready' });
 		await tick();
 
 		assert.deepStrictEqual(webview.posted, [
-			{ type: 'phonon:init', cardId: 'card-2', entity: 'order' },
+			{ type: 'phonon:init', moleculeId: 'molecule-2', entity: 'order' },
 			{ type: 'phonon:params', params: { id: 42, filter: 'active' } },
 		]);
 	});
 
 	test('phonon:ready without params sends only phonon:init', async () => {
-		createHost('card-3', 'supplier', undefined);
+		createHost('molecule-3', 'supplier', undefined);
 		webview.fire({ type: 'phonon:ready' });
 		await tick();
 
@@ -138,12 +138,12 @@ suite('LiquidCardSlotHost', () => {
 	});
 
 	test('phonon:ready with entity undefined sends phonon:init with entity undefined', async () => {
-		createHost('card-4', undefined);
+		createHost('molecule-4', undefined);
 		webview.fire({ type: 'phonon:ready' });
 		await tick();
 
 		assert.deepStrictEqual(webview.posted, [
-			{ type: 'phonon:init', cardId: 'card-4', entity: undefined },
+			{ type: 'phonon:init', moleculeId: 'molecule-4', entity: undefined },
 		]);
 	});
 
@@ -313,7 +313,7 @@ suite('LiquidCardSlotHost', () => {
 		createHost();
 
 		// Force a message with an unknown phonon: type through the typed system
-		webview.fire({ type: 'phonon:unknownType' } as unknown as CardToHostMessage);
+		webview.fire({ type: 'phonon:unknownType' } as unknown as MoleculeToHostMessage);
 		await tick();
 
 		assert.strictEqual(webview.posted.length, 0);
@@ -322,7 +322,7 @@ suite('LiquidCardSlotHost', () => {
 	test('message without type field does not throw', async () => {
 		createHost();
 
-		webview.fire({} as CardToHostMessage);
+		webview.fire({} as MoleculeToHostMessage);
 		await tick();
 
 		assert.strictEqual(webview.posted.length, 0);
@@ -331,7 +331,7 @@ suite('LiquidCardSlotHost', () => {
 	test('null message does not throw', async () => {
 		createHost();
 
-		webview.fire(null as unknown as CardToHostMessage);
+		webview.fire(null as unknown as MoleculeToHostMessage);
 		await tick();
 
 		assert.strictEqual(webview.posted.length, 0);
@@ -340,7 +340,7 @@ suite('LiquidCardSlotHost', () => {
 	test('undefined message does not throw', async () => {
 		createHost();
 
-		webview.fire(undefined as unknown as CardToHostMessage);
+		webview.fire(undefined as unknown as MoleculeToHostMessage);
 		await tick();
 
 		assert.strictEqual(webview.posted.length, 0);
@@ -349,13 +349,13 @@ suite('LiquidCardSlotHost', () => {
 	// ---- handleExternalMessage ----
 
 	test('handleExternalMessage routes identically to internal listener', async () => {
-		const host = createHost('ext-card', 'menu', { section: 'appetizers' });
+		const host = createHost('ext-molecule', 'menu', { section: 'appetizers' });
 
 		host.handleExternalMessage({ type: 'phonon:ready' });
 		await tick();
 
 		assert.deepStrictEqual(webview.posted, [
-			{ type: 'phonon:init', cardId: 'ext-card', entity: 'menu' },
+			{ type: 'phonon:init', moleculeId: 'ext-molecule', entity: 'menu' },
 			{ type: 'phonon:params', params: { section: 'appetizers' } },
 		]);
 	});

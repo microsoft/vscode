@@ -9,19 +9,19 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import type {
 	ILiquidEntityContribution,
 	ILiquidViewContribution,
-	ILiquidCardContribution,
+	ILiquidMoleculeContribution,
 	ILiquidDataProviderContribution,
 	ILiquidSidebarContribution,
 	ILiquidEntity,
 	ILiquidView,
-	ILiquidCard,
+	ILiquidMolecule,
 	ILiquidDataProvider,
 	ILiquidSidebarNode,
 	CompositionLayout,
 	ICompositionSlot,
 	ICompositionIntent,
 	ILiquidCapabilitySummary,
-	CardRuntime,
+	ComponentCategory,
 } from '../../common/liquidModuleTypes.js';
 
 suite('LiquidModuleTypes', () => {
@@ -80,33 +80,41 @@ suite('LiquidModuleTypes', () => {
 		});
 	});
 
-	suite('ILiquidCardContribution', () => {
-		test('accepts card with all fields', () => {
-			const contribution: ILiquidCardContribution = {
-				id: 'ristorante.costi-card',
+	suite('ILiquidMoleculeContribution', () => {
+		test('accepts molecule with all fields', () => {
+			const contribution: ILiquidMoleculeContribution = {
+				id: 'ristorante.costi-molecule',
 				label: 'Costi',
-				entry: './cards/costi.html',
+				description: 'Analisi costi piatti',
+				entry: './molecules/costi.html',
 				entity: 'ristorante.ordine',
+				domain: 'analytics',
+				category: 'stat',
 				tags: ['analytics', 'cost'],
-				size: { minWidth: 320, minHeight: 240 },
-				runtime: 'pyodide',
-				permissions: ['entity:ordine:read', 'entity:costo:read'],
+				layout: { minCols: 4, maxCols: 12, minHeight: 150 },
+				shows: ['ristorante.ordine', 'ristorante.costo'],
+				relatesTo: ['ristorante.revenue-molecule'],
 			};
-			assert.strictEqual(contribution.entry, './cards/costi.html');
+			assert.strictEqual(contribution.entry, './molecules/costi.html');
 			assert.strictEqual(contribution.tags?.length, 2);
-			assert.strictEqual(contribution.runtime, 'pyodide');
-			assert.strictEqual(contribution.permissions?.length, 2);
+			assert.strictEqual(contribution.category, 'stat');
+			assert.strictEqual(contribution.domain, 'analytics');
+			assert.strictEqual(contribution.shows?.length, 2);
+			assert.strictEqual(contribution.relatesTo?.length, 1);
 		});
 
-		test('accepts minimal card without optional fields', () => {
-			const contribution: ILiquidCardContribution = {
-				id: 'ristorante.info-card',
+		test('accepts minimal molecule without optional fields', () => {
+			const contribution: ILiquidMoleculeContribution = {
+				id: 'ristorante.info-molecule',
 				label: 'Info',
-				entry: './cards/info.html',
+				entry: './molecules/info.html',
 			};
 			assert.strictEqual(contribution.entity, undefined);
 			assert.strictEqual(contribution.tags, undefined);
-			assert.strictEqual(contribution.size, undefined);
+			assert.strictEqual(contribution.layout, undefined);
+			assert.strictEqual(contribution.description, undefined);
+			assert.strictEqual(contribution.domain, undefined);
+			assert.strictEqual(contribution.category, undefined);
 		});
 	});
 
@@ -189,39 +197,48 @@ suite('LiquidModuleTypes', () => {
 		});
 	});
 
-	suite('ILiquidCard', () => {
+	suite('ILiquidMolecule', () => {
 		test('holds resolved entryUri and extensionId', () => {
-			const card: ILiquidCard = {
-				id: 'ristorante.costi-card',
+			const molecule: ILiquidMolecule = {
+				id: 'ristorante.costi-molecule',
 				label: 'Costi',
-				entryUri: URI.parse('file:///extensions/ristorante/cards/costi.html'),
+				description: 'Analisi costi piatti',
+				entryUri: URI.parse('file:///extensions/ristorante/molecules/costi.html'),
 				entity: 'ristorante.ordine',
+				domain: 'analytics',
+				category: 'stat',
 				tags: ['analytics', 'cost'],
-				size: { minWidth: 320, minHeight: 240 },
+				layout: { minCols: 4, maxCols: 12, minHeight: 150 },
 				extensionId: 'phonon.ristorante',
-				runtime: 'js',
-				permissions: [],
+				shows: ['ristorante.ordine'],
+				relatesTo: [],
 			};
-			assert.strictEqual(card.entryUri.scheme, 'file');
-			assert.strictEqual(card.extensionId, 'phonon.ristorante');
-			assert.strictEqual(card.tags.length, 2);
+			assert.strictEqual(molecule.entryUri.scheme, 'file');
+			assert.strictEqual(molecule.extensionId, 'phonon.ristorante');
+			assert.strictEqual(molecule.tags.length, 2);
+			assert.strictEqual(molecule.domain, 'analytics');
+			assert.strictEqual(molecule.category, 'stat');
 		});
 
-		test('accepts wasm-bindgen runtime with permissions', () => {
-			const card: ILiquidCard = {
-				id: 'ristorante.wasm-card',
-				label: 'WASM Analytics',
-				entryUri: URI.parse('file:///extensions/ristorante/cards/wasm-analytics.html'),
-				entity: 'ristorante.piatto',
-				tags: ['analytics'],
-				size: { minWidth: 400, minHeight: 300 },
+		test('accepts molecule with full layout and relatesTo', () => {
+			const molecule: ILiquidMolecule = {
+				id: 'ristorante.revenue-molecule',
+				label: 'Revenue Analytics',
+				description: 'Revenue analysis dashboard',
+				entryUri: URI.parse('file:///extensions/ristorante/molecules/revenue.html'),
+				entity: 'ristorante.ordine',
+				domain: 'analytics',
+				category: 'chart',
+				tags: ['analytics', 'revenue'],
+				layout: { minCols: 6, maxCols: 12, minHeight: 300 },
 				extensionId: 'phonon.ristorante',
-				runtime: 'wasm-bindgen',
-				permissions: ['entity:dish:read'],
+				shows: ['ristorante.ordine', 'ristorante.piatto'],
+				relatesTo: ['ristorante.costi-molecule'],
 			};
-			assert.strictEqual(card.runtime, 'wasm-bindgen');
-			assert.strictEqual(card.permissions.length, 1);
-			assert.strictEqual(card.permissions[0], 'entity:dish:read');
+			assert.strictEqual(molecule.category, 'chart');
+			assert.strictEqual(molecule.shows.length, 2);
+			assert.strictEqual(molecule.relatesTo.length, 1);
+			assert.strictEqual(molecule.relatesTo[0], 'ristorante.costi-molecule');
 		});
 	});
 
@@ -274,10 +291,10 @@ suite('LiquidModuleTypes', () => {
 
 	// ==================== Canvas Composition Types ====================
 
-	suite('CardRuntime', () => {
-		test('accepts all four runtime variants', () => {
-			const runtimes: CardRuntime[] = ['js', 'wasm-bindgen', 'pyodide', 'emscripten'];
-			assert.strictEqual(runtimes.length, 4);
+	suite('ComponentCategory', () => {
+		test('accepts all six category variants', () => {
+			const categories: ComponentCategory[] = ['stat', 'table', 'detail', 'chart', 'form', 'list'];
+			assert.strictEqual(categories.length, 6);
 		});
 	});
 
@@ -297,18 +314,18 @@ suite('LiquidModuleTypes', () => {
 				label: 'Tavoli Liberi',
 			};
 			assert.strictEqual(slot.viewId, 'ristorante.tavoli-view');
-			assert.strictEqual(slot.cardId, undefined);
+			assert.strictEqual(slot.moleculeId, undefined);
 			assert.strictEqual(slot.weight, 2);
 		});
 
-		test('accepts card slot', () => {
+		test('accepts molecule slot', () => {
 			const slot: ICompositionSlot = {
-				cardId: 'ristorante.costi-card',
+				moleculeId: 'ristorante.costi-molecule',
 				weight: 1,
 				label: 'Costi',
 			};
 			assert.strictEqual(slot.viewId, undefined);
-			assert.strictEqual(slot.cardId, 'ristorante.costi-card');
+			assert.strictEqual(slot.moleculeId, 'ristorante.costi-molecule');
 		});
 
 		test('accepts minimal view slot', () => {
@@ -362,16 +379,18 @@ suite('LiquidModuleTypes', () => {
 					{ id: 'ristorante.tavoli-view', label: 'Tavoli', mode: 'structured', entity: 'ristorante.tavolo' },
 					{ id: 'ristorante.dashboard', label: 'Dashboard', mode: 'canvas' },
 				],
-				cards: [
-					{ id: 'ristorante.costi-card', label: 'Costi', entity: 'ristorante.ordine', tags: ['analytics', 'cost'] },
+				molecules: [
+					{ id: 'ristorante.costi-molecule', label: 'Costi', description: 'Cost analysis', entity: 'ristorante.ordine', domain: 'analytics', category: 'stat', tags: ['analytics', 'cost'], shows: ['ristorante.ordine'] },
 				],
 			};
 			assert.strictEqual(summary.modules.length, 1);
 			assert.strictEqual(summary.entities.length, 2);
 			assert.strictEqual(summary.views.length, 2);
 			assert.strictEqual(summary.views[1].entity, undefined);
-			assert.strictEqual(summary.cards.length, 1);
-			assert.strictEqual(summary.cards[0].tags.length, 2);
+			assert.strictEqual(summary.molecules.length, 1);
+			assert.strictEqual(summary.molecules[0].tags.length, 2);
+			assert.strictEqual(summary.molecules[0].domain, 'analytics');
+			assert.strictEqual(summary.molecules[0].category, 'stat');
 		});
 
 		test('accepts empty capability summary', () => {
@@ -379,10 +398,10 @@ suite('LiquidModuleTypes', () => {
 				modules: [],
 				entities: [],
 				views: [],
-				cards: [],
+				molecules: [],
 			};
 			assert.strictEqual(summary.modules.length, 0);
-			assert.strictEqual(summary.cards.length, 0);
+			assert.strictEqual(summary.molecules.length, 0);
 		});
 	});
 });
