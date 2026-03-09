@@ -23,54 +23,84 @@
 		"liquidDataProviders": [
 			{ "id": "rist-mock", "entities": ["dish", "supplier", "order"], "provider": "./providers/mock" }
 		],
-		"liquidCards": [
+		"liquidMolecules": [
 			{
 				"id": "rist-food-cost",
 				"label": "Food Cost",
+				"description": "KPI card showing food cost percentage, margin analysis, and ingredient cost breakdown",
 				"entry": "./cards/food-cost.html",
 				"entity": "dish",
-				"tags": ["analytics", "cost", "dashboard"],
-				"size": { "minWidth": 250, "minHeight": 180 }
+				"domain": "controlli",
+				"category": "stat",
+				"tags": ["analytics", "cost", "food-cost", "margin"],
+				"layout": { "minCols": 4, "maxCols": 6, "minHeight": 180 },
+				"shows": ["dish"],
+				"relatesTo": ["ingredient", "supplier"]
 			},
 			{
 				"id": "rist-orders-incoming",
 				"label": "Ordini in Arrivo",
+				"description": "Live list of incoming orders with status, timestamps, and delivery tracking",
 				"entry": "./cards/orders-incoming.html",
 				"entity": "order",
-				"tags": ["operations", "dashboard"],
-				"size": { "minWidth": 300, "minHeight": 200 }
+				"domain": "operativo",
+				"category": "list",
+				"tags": ["operations", "orders", "incoming", "live"],
+				"layout": { "minCols": 5, "maxCols": 8, "minHeight": 200 },
+				"shows": ["order"],
+				"relatesTo": ["supplier", "dish"]
 			},
 			{
 				"id": "rist-supplier-status",
 				"label": "Stato Fornitori",
+				"description": "Overview table of supplier statuses, reliability scores, and pending deliveries",
 				"entry": "./cards/supplier-status.html",
 				"entity": "supplier",
-				"tags": ["operations", "dashboard"],
-				"size": { "minWidth": 250, "minHeight": 180 }
+				"domain": "operativo",
+				"category": "table",
+				"tags": ["operations", "suppliers", "status", "reliability"],
+				"layout": { "minCols": 4, "maxCols": 6, "minHeight": 180 },
+				"shows": ["supplier"],
+				"relatesTo": ["order"]
 			},
 			{
 				"id": "rist-daily-specials",
 				"label": "Piatti del Giorno",
+				"description": "Today's special dishes with availability, allergens, and suggested pairings",
 				"entry": "./cards/daily-specials.html",
 				"entity": "dish",
-				"tags": ["menu", "dashboard"],
-				"size": { "minWidth": 200, "minHeight": 150 }
+				"domain": "cucina",
+				"category": "list",
+				"tags": ["menu", "daily", "specials", "cucina"],
+				"layout": { "minCols": 3, "maxCols": 5, "minHeight": 150 },
+				"shows": ["dish"],
+				"relatesTo": ["order"]
 			},
 			{
 				"id": "rist-revenue-today",
 				"label": "Incasso Oggi",
+				"description": "Real-time revenue KPI with today's total, comparison to average, and order count",
 				"entry": "./cards/revenue-today.html",
 				"entity": "order",
-				"tags": ["analytics", "dashboard"],
-				"size": { "minWidth": 200, "minHeight": 120 }
+				"domain": "operativo",
+				"category": "stat",
+				"tags": ["analytics", "revenue", "kpi", "daily"],
+				"layout": { "minCols": 3, "maxCols": 4, "minHeight": 120 },
+				"shows": ["order"],
+				"relatesTo": ["dish"]
 			},
 			{
 				"id": "rist-inventory-alert",
 				"label": "Avvisi Scorte",
+				"description": "Alert list for low-stock ingredients with reorder suggestions and supplier links",
 				"entry": "./cards/inventory-alert.html",
 				"entity": "dish",
-				"tags": ["operations", "alerts"],
-				"size": { "minWidth": 250, "minHeight": 150 }
+				"domain": "controlli",
+				"category": "list",
+				"tags": ["operations", "inventory", "alerts", "stock"],
+				"layout": { "minCols": 4, "maxCols": 6, "minHeight": 150 },
+				"shows": ["dish"],
+				"relatesTo": ["supplier"]
 			}
 		],
 		"liquidSidebar": [
