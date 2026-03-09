@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { BaseAgent, AgentContext } from './BaseAgent';
-import { SubtaskResult, TokenUsage } from './types';
+import { SubtaskResult } from './types';
 
 /**
  * Phases the moderniser progresses through. Each phase must be
