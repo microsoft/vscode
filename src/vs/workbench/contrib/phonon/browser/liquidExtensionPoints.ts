@@ -10,12 +10,12 @@ import { ExtensionsRegistry, type IExtensionPointUser } from '../../../services/
 import type {
 	ILiquidEntityContribution,
 	ILiquidViewContribution,
-	ILiquidCardContribution,
+	ILiquidMoleculeContribution,
 	ILiquidDataProviderContribution,
 	ILiquidSidebarContribution,
 	ILiquidEntity,
 	ILiquidView,
-	ILiquidCard,
+	ILiquidMolecule,
 	ILiquidDataProvider,
 	ILiquidSidebarNode,
 } from '../common/liquidModuleTypes.js';
@@ -82,8 +82,8 @@ const viewSchema: IJSONSchema = {
 	},
 };
 
-const cardSchema: IJSONSchema = {
-	description: nls.localize('phonon.liquid.card', "Declares a Liquid Module card (sandboxed HTML webview)."),
+const moleculeSchema: IJSONSchema = {
+	description: nls.localize('phonon.liquid.molecule', "Declares a Liquid Module molecule (sandboxed HTML webview)."),
 	type: 'array',
 	items: {
 		type: 'object',
@@ -91,38 +91,65 @@ const cardSchema: IJSONSchema = {
 		properties: {
 			id: {
 				type: 'string',
-				description: nls.localize('phonon.liquid.card.id', "Unique identifier for this card."),
+				description: nls.localize('phonon.liquid.molecule.id', "Unique identifier for this molecule."),
 			},
 			label: {
 				type: 'string',
-				description: nls.localize('phonon.liquid.card.label', "Human-readable label for this card."),
+				description: nls.localize('phonon.liquid.molecule.label', "Human-readable label for this molecule."),
+			},
+			description: {
+				type: 'string',
+				description: nls.localize('phonon.liquid.molecule.description', "Human-readable description for AI and developer tooling."),
 			},
 			entry: {
 				type: 'string',
-				description: nls.localize('phonon.liquid.card.entry', "Relative path to the card's HTML entry file within the extension."),
+				description: nls.localize('phonon.liquid.molecule.entry', "Relative path to the molecule's HTML entry file within the extension."),
 			},
 			entity: {
 				type: 'string',
-				description: nls.localize('phonon.liquid.card.entity', "Entity this card displays data for."),
+				description: nls.localize('phonon.liquid.molecule.entity', "Entity this molecule displays data for."),
+			},
+			domain: {
+				type: 'string',
+				description: nls.localize('phonon.liquid.molecule.domain', "Business domain this molecule belongs to (e.g. inventory, orders, analytics)."),
+			},
+			category: {
+				type: 'string',
+				enum: ['stat', 'table', 'detail', 'chart', 'form', 'list'],
+				description: nls.localize('phonon.liquid.molecule.category', "UI purpose category for this molecule."),
 			},
 			tags: {
 				type: 'array',
 				items: { type: 'string' },
-				description: nls.localize('phonon.liquid.card.tags', "Tags for AI-driven composition (e.g. analytics, cost, dashboard)."),
+				description: nls.localize('phonon.liquid.molecule.tags', "Tags for AI-driven composition (e.g. analytics, cost, dashboard)."),
 			},
-			size: {
+			layout: {
 				type: 'object',
-				description: nls.localize('phonon.liquid.card.size', "Minimum card dimensions in pixels."),
+				description: nls.localize('phonon.liquid.molecule.layout', "Grid layout constraints for this molecule."),
 				properties: {
-					minWidth: {
+					minCols: {
 						type: 'number',
-						description: nls.localize('phonon.liquid.card.size.minWidth', "Minimum width in pixels (default 200)."),
+						description: nls.localize('phonon.liquid.molecule.layout.minCols', "Minimum grid columns (default 4)."),
+					},
+					maxCols: {
+						type: 'number',
+						description: nls.localize('phonon.liquid.molecule.layout.maxCols', "Maximum grid columns (default 12)."),
 					},
 					minHeight: {
 						type: 'number',
-						description: nls.localize('phonon.liquid.card.size.minHeight', "Minimum height in pixels (default 150)."),
+						description: nls.localize('phonon.liquid.molecule.layout.minHeight', "Minimum height in pixels (default 150)."),
 					},
 				},
+			},
+			shows: {
+				type: 'array',
+				items: { type: 'string' },
+				description: nls.localize('phonon.liquid.molecule.shows', "Entity IDs this molecule can visualise."),
+			},
+			relatesTo: {
+				type: 'array',
+				items: { type: 'string' },
+				description: nls.localize('phonon.liquid.molecule.relatesTo', "IDs of related molecules or entities for composition hints."),
 			},
 		},
 	},
@@ -200,9 +227,9 @@ const liquidViewsExtPoint = ExtensionsRegistry.registerExtensionPoint<ILiquidVie
 	jsonSchema: viewSchema,
 });
 
-const liquidCardsExtPoint = ExtensionsRegistry.registerExtensionPoint<ILiquidCardContribution[]>({
-	extensionPoint: 'liquidCards',
-	jsonSchema: cardSchema,
+const liquidMoleculesExtPoint = ExtensionsRegistry.registerExtensionPoint<ILiquidMoleculeContribution[]>({
+	extensionPoint: 'liquidMolecules',
+	jsonSchema: moleculeSchema,
 });
 
 const liquidDataProvidersExtPoint = ExtensionsRegistry.registerExtensionPoint<ILiquidDataProviderContribution[]>({
@@ -270,25 +297,28 @@ export function registerLiquidExtensionPointHandlers(registry: LiquidModuleRegis
 		registry.updateViews(resolved);
 	});
 
-	liquidCardsExtPoint.setHandler((extensions: readonly IExtensionPointUser<ILiquidCardContribution[]>[]) => {
-		const resolved: ILiquidCard[] = [];
+	liquidMoleculesExtPoint.setHandler((extensions: readonly IExtensionPointUser<ILiquidMoleculeContribution[]>[]) => {
+		const resolved: ILiquidMolecule[] = [];
 		for (const ext of extensions) {
 			const extensionId = ext.description.identifier.value;
 			for (const contrib of ext.value) {
 				resolved.push({
 					id: contrib.id,
 					label: contrib.label,
+					description: contrib.description ?? '',
 					entryUri: URI.joinPath(ext.description.extensionLocation, contrib.entry),
 					entity: contrib.entity,
+					domain: contrib.domain ?? 'general',
+					category: contrib.category ?? 'detail',
 					tags: Object.freeze([...(contrib.tags ?? [])]),
-					size: { minWidth: contrib.size?.minWidth ?? 200, minHeight: contrib.size?.minHeight ?? 150 },
+					layout: { minCols: contrib.layout?.minCols ?? 4, maxCols: contrib.layout?.maxCols ?? 12, minHeight: contrib.layout?.minHeight ?? 150 },
 					extensionId,
-					runtime: contrib.runtime ?? 'js',
-					permissions: Object.freeze(contrib.permissions ?? []),
+					shows: Object.freeze([...(contrib.shows ?? [])]),
+					relatesTo: Object.freeze([...(contrib.relatesTo ?? [])]),
 				});
 			}
 		}
-		registry.updateCards(resolved);
+		registry.updateMolecules(resolved);
 	});
 
 	liquidDataProvidersExtPoint.setHandler((extensions: readonly IExtensionPointUser<ILiquidDataProviderContribution[]>[]) => {

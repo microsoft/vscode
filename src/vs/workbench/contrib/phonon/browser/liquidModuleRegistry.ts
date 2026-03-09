@@ -9,7 +9,7 @@ import { ILiquidModuleRegistry } from '../common/liquidModule.js';
 import type {
 	ILiquidEntity,
 	ILiquidView,
-	ILiquidCard,
+	ILiquidMolecule,
 	ILiquidDataProvider,
 	ILiquidSidebarNode,
 	ILiquidCapabilitySummary,
@@ -21,7 +21,7 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 
 	private _entities: ILiquidEntity[] = [];
 	private _views: ILiquidView[] = [];
-	private _cards: ILiquidCard[] = [];
+	private _molecules: ILiquidMolecule[] = [];
 	private _dataProviders: ILiquidDataProvider[] = [];
 	private _sidebarTree: ILiquidSidebarNode[] = [];
 
@@ -31,8 +31,8 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 	private readonly _onDidChangeViews = this._register(new Emitter<void>());
 	readonly onDidChangeViews: Event<void> = this._onDidChangeViews.event;
 
-	private readonly _onDidChangeCards = this._register(new Emitter<void>());
-	readonly onDidChangeCards: Event<void> = this._onDidChangeCards.event;
+	private readonly _onDidChangeMolecules = this._register(new Emitter<void>());
+	readonly onDidChangeMolecules: Event<void> = this._onDidChangeMolecules.event;
 
 	private readonly _onDidChangeDataProviders = this._register(new Emitter<void>());
 	readonly onDidChangeDataProviders: Event<void> = this._onDidChangeDataProviders.event;
@@ -42,7 +42,7 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 
 	get entities(): ReadonlyArray<ILiquidEntity> { return this._entities; }
 	get views(): ReadonlyArray<ILiquidView> { return this._views; }
-	get cards(): ReadonlyArray<ILiquidCard> { return this._cards; }
+	get molecules(): ReadonlyArray<ILiquidMolecule> { return this._molecules; }
 	get dataProviders(): ReadonlyArray<ILiquidDataProvider> { return this._dataProviders; }
 	get sidebarTree(): ReadonlyArray<ILiquidSidebarNode> { return this._sidebarTree; }
 
@@ -56,9 +56,9 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 		this._onDidChangeViews.fire();
 	}
 
-	updateCards(cards: ILiquidCard[]): void {
-		this._cards = cards;
-		this._onDidChangeCards.fire();
+	updateMolecules(molecules: ILiquidMolecule[]): void {
+		this._molecules = molecules;
+		this._onDidChangeMolecules.fire();
 	}
 
 	updateDataProviders(providers: ILiquidDataProvider[]): void {
@@ -84,12 +84,20 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 		return this._views.filter(v => v.entity === entityId);
 	}
 
-	getCardsForEntity(entityId: string): ILiquidCard[] {
-		return this._cards.filter(c => c.entity === entityId);
+	getMoleculesForEntity(entityId: string): ILiquidMolecule[] {
+		return this._molecules.filter(m => m.entity === entityId);
 	}
 
-	getCardsByTag(tag: string): ILiquidCard[] {
-		return this._cards.filter(c => c.tags.includes(tag));
+	getMoleculesByTag(tag: string): ILiquidMolecule[] {
+		return this._molecules.filter(m => m.tags.includes(tag));
+	}
+
+	findByEntity(entityId: string): ILiquidMolecule[] {
+		return this._molecules.filter(m => m.shows.includes(entityId));
+	}
+
+	findByDomain(domain: string): ILiquidMolecule[] {
+		return this._molecules.filter(m => m.domain === domain);
 	}
 
 	getEntitySchema(entityId: string): object | undefined {
@@ -112,11 +120,15 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 				mode: v.mode,
 				entity: v.entity,
 			})),
-			cards: this._cards.map(c => ({
-				id: c.id,
-				label: c.label,
-				entity: c.entity,
-				tags: c.tags,
+			molecules: this._molecules.map(m => ({
+				id: m.id,
+				label: m.label,
+				description: m.description,
+				entity: m.entity,
+				domain: m.domain,
+				category: m.category,
+				tags: m.tags,
+				shows: m.shows,
 			})),
 		};
 	}
@@ -124,10 +136,10 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 	validateIntent(intent: ICompositionIntent): { valid: boolean; errors: string[] } {
 		const errors: string[] = [];
 		for (const slot of intent.slots) {
-			if (slot.cardId) {
-				const card = this._cards.find(c => c.id === slot.cardId);
-				if (!card) {
-					errors.push(`Card "${slot.cardId}" not found in registry`);
+			if (slot.moleculeId) {
+				const molecule = this._molecules.find(m => m.id === slot.moleculeId);
+				if (!molecule) {
+					errors.push(`Molecule "${slot.moleculeId}" not found in registry`);
 				}
 			} else if (slot.viewId) {
 				const view = this._views.find(v => v.id === slot.viewId);
@@ -139,7 +151,7 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 					errors.push(`View "${slot.viewId}" is structured-only, cannot be used in canvas`);
 				}
 			} else {
-				errors.push('Slot has neither viewId nor cardId');
+				errors.push('Slot has neither viewId nor moleculeId');
 			}
 		}
 		return { valid: errors.length === 0, errors };
