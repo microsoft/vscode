@@ -36,6 +36,19 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IBrowserZoomService } from './browserZoomService.js';
+
+/**
+ * Extracts the origin (scheme + host) from a URL string.
+ * Returns `undefined` for URLs without a host (e.g. `about:blank`, empty string).
+ */
+function parseOrigin(url: string): string | undefined {
+	const parsed = URL.parse(url);
+	if (!parsed?.host) {
+		return undefined;
+	}
+	return `${parsed.protocol}//${parsed.host}`;
+}
 
 type IntegratedBrowserNavigationEvent = {
 	navigationType: 'urlInput' | 'goBack' | 'goForward' | 'reload';
@@ -171,6 +184,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _canGoForward: boolean = false;
 	private _error: IBrowserViewLoadError | undefined = undefined;
 	private _storageScope: BrowserViewStorageScope = BrowserViewStorageScope.Ephemeral;
+	private _isEphemeral: boolean = false;
+	private _origin: string | undefined = undefined;
 	private _sharedWithAgent: boolean = false;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
@@ -193,6 +208,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IBrowserZoomService private readonly zoomService: IBrowserZoomService,
 	) {
 		super();
 	}
@@ -297,13 +313,29 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._sharedWithAgent = await this.playwrightService.isPageTracked(this.id);
 		this._browserZoomIndex = state.browserZoomIndex;
 
-		// Apply the configured default zoom for newly created views
-		if (create) {
-			const configuredDefault = this.getConfiguredDefaultZoomIndex();
-			if (configuredDefault !== this._browserZoomIndex) {
-				await this.setBrowserZoomIndex(configuredDefault);
-			}
+		// Derive ephemeral flag and current origin for the zoom cascade.
+		this._isEphemeral = this._storageScope === BrowserViewStorageScope.Ephemeral;
+		this._origin = parseOrigin(this._url);
+
+		// Apply the effective zoom immediately (cascade: ephemeral override ?? persistent override ?? default).
+		const effectiveZoomIndex = this.zoomService.getEffectiveZoomIndex(this._origin, this._isEphemeral);
+		if (effectiveZoomIndex !== this._browserZoomIndex) {
+			await this.setBrowserZoomIndex(effectiveZoomIndex);
 		}
+
+		// React to service-wide zoom changes so all open views stay in sync immediately.
+		this._register(this.zoomService.onDidChangeZoom(({ origin, isEphemeralChange }) => {
+			// Ephemeral-only changes do not affect non-ephemeral views.
+			if (isEphemeralChange && !this._isEphemeral) {
+				return;
+			}
+			// React only when the default changed (origin === undefined) or our origin matches.
+			if (origin === undefined || origin === this._origin) {
+				void this.setBrowserZoomIndex(
+					this.zoomService.getEffectiveZoomIndex(this._origin, this._isEphemeral)
+				);
+			}
+		}));
 
 		// Set up state synchronization
 
@@ -313,10 +345,20 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 				this._favicon = undefined;
 			}
 
+			const newOrigin = parseOrigin(e.url);
+			const originChanged = newOrigin !== this._origin;
+			this._origin = newOrigin;
 			this._url = e.url;
 			this._title = e.title;
 			this._canGoBack = e.canGoBack;
 			this._canGoForward = e.canGoForward;
+
+			// Apply the zoom for the newly navigated origin.
+			if (originChanged) {
+				void this.setBrowserZoomIndex(
+					this.zoomService.getEffectiveZoomIndex(this._origin, this._isEphemeral)
+				);
+			}
 		}));
 
 		this._register(this.onDidChangeLoadingState(e => {
@@ -426,25 +468,36 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	async zoomIn(): Promise<void> {
-		if (this._browserZoomIndex < browserZoomFactors.length - 1) {
-			await this.setBrowserZoomIndex(this._browserZoomIndex + 1);
+		if (!this.canZoomIn) {
+			return;
+		}
+		// Apply the new zoom locally first so this call resolves after the IPC completes.
+		await this.setBrowserZoomIndex(this._browserZoomIndex + 1);
+		// Persist the change so other views with the same origin react immediately.
+		if (this._origin) {
+			this.zoomService.setOriginZoomIndex(this._origin, this._browserZoomIndex, this._isEphemeral);
 		}
 	}
 
 	async zoomOut(): Promise<void> {
-		if (this._browserZoomIndex > 0) {
-			await this.setBrowserZoomIndex(this._browserZoomIndex - 1);
+		if (!this.canZoomOut) {
+			return;
+		}
+		await this.setBrowserZoomIndex(this._browserZoomIndex - 1);
+		if (this._origin) {
+			this.zoomService.setOriginZoomIndex(this._origin, this._browserZoomIndex, this._isEphemeral);
 		}
 	}
 
 	async resetZoom(): Promise<void> {
-		await this.setBrowserZoomIndex(this.getConfiguredDefaultZoomIndex());
-	}
-
-	private getConfiguredDefaultZoomIndex(): number {
-		const label = this.configurationService.getValue<string>('workbench.browser.zoom.defaultZoomLevel');
-		const index = browserZoomFactors.findIndex(f => `${Math.round(f * 100)}%` === label);
-		return index >= 0 ? index : browserZoomDefaultIndex;
+		// Use getEffectiveZoomIndex(undefined) to get the pure configured default (no per-origin).
+		const defaultIndex = this.zoomService.getEffectiveZoomIndex(undefined, false);
+		await this.setBrowserZoomIndex(defaultIndex);
+		if (this._origin) {
+			// For non-ephemeral: removes the persistent entry (equals default → not stored).
+			// For ephemeral: stores default explicitly to mask any persistent override.
+			this.zoomService.setOriginZoomIndex(this._origin, defaultIndex, this._isEphemeral);
+		}
 	}
 
 	private static readonly SHARE_DONT_ASK_KEY = 'browserView.shareWithAgent.dontAskAgain';
