@@ -18,11 +18,14 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { basename } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 
@@ -73,6 +76,8 @@ export class NewChatContextAttachments extends Disposable {
 		@ISearchService private readonly searchService: ISearchService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 	}
@@ -98,17 +103,27 @@ export class NewChatContextAttachments extends Disposable {
 		}
 
 		this._container.style.display = '';
+		this._container.classList.add('show-file-icons');
 
 		for (const entry of this._attachedContext) {
 			const pill = dom.append(this._container, dom.$('.sessions-chat-attachment-pill'));
 			pill.tabIndex = 0;
 			pill.role = 'button';
-			const icon = entry.kind === 'image' ? Codicon.fileMedia : entry.kind === 'directory' ? Codicon.folder : Codicon.file;
-			dom.append(pill, renderIcon(icon));
+			const resource = URI.isUri(entry.value) ? entry.value : isLocation(entry.value) ? entry.value.uri : undefined;
+			if (entry.kind === 'image') {
+				dom.append(pill, renderIcon(Codicon.fileMedia));
+			} else if (entry.kind === 'directory') {
+				const iconSpan = dom.$('span');
+				iconSpan.classList.add(...getIconClasses(this.modelService, this.languageService, resource, FileKind.FOLDER));
+				dom.append(pill, iconSpan);
+			} else {
+				const iconSpan = dom.$('span');
+				iconSpan.classList.add(...getIconClasses(this.modelService, this.languageService, resource, FileKind.FILE));
+				dom.append(pill, iconSpan);
+			}
 			dom.append(pill, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
 
 			// Click to open the resource
-			const resource = URI.isUri(entry.value) ? entry.value : isLocation(entry.value) ? entry.value.uri : undefined;
 			if (resource) {
 				pill.style.cursor = 'pointer';
 				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
@@ -390,7 +405,7 @@ export class NewChatContextAttachments extends Disposable {
 			return searchResult.results.map(result => ({
 				label: basename(result.resource),
 				description: this.labelService.getUriLabel(result.resource, { relative: true }),
-				iconClass: ThemeIcon.asClassName(Codicon.file),
+				iconClasses: getIconClasses(this.modelService, this.languageService, result.resource, FileKind.FILE),
 				id: result.resource.toString(),
 			} satisfies IQuickPickItem));
 		} catch {
@@ -434,7 +449,7 @@ export class NewChatContextAttachments extends Disposable {
 						picks.push({
 							label: child.name,
 							description: this.labelService.getUriLabel(child.resource, { relative: true }),
-							iconClass: ThemeIcon.asClassName(Codicon.file),
+							iconClasses: getIconClasses(this.modelService, this.languageService, child.resource, FileKind.FILE),
 							id: child.resource.toString(),
 						});
 					}
