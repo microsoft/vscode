@@ -19,6 +19,7 @@ import { TestWriterAgent } from './TestWriterAgent';
 import { E2eTestAgent } from './E2eTestAgent';
 import { CiRetryAgent } from './CiRetryAgent';
 import { PrGenerationAgent } from './PrGenerationAgent';
+import { ModerniserAgent } from './ModerniserAgent';
 import { AgentConfig } from './types';
 
 /**
@@ -114,6 +115,19 @@ const AGENT_CONFIGS: AgentConfig[] = [
 			{ name: 'pr', description: 'Generate a pull request for changes' },
 		],
 	},
+	{
+		handle: 'anton-moderniser',
+		displayName: 'Anton Moderniser',
+		description: 'Legacy code modernisation specialist — systematically brings old code up to standard',
+		defaultModel: 'sonnet',
+		maxRetries: 3,
+		slashCommands: [
+			{ name: 'modernise', description: 'Start modernising a legacy module' },
+			{ name: 'modernize', description: 'Start modernising a legacy module (US spelling)' },
+			{ name: 'next-phase', description: 'Advance to the next modernisation phase' },
+			{ name: 'phase-status', description: 'Show modernisation progress' },
+		],
+	},
 ];
 
 /**
@@ -173,6 +187,11 @@ export function registerAgentParticipants(
 		llmClient, mcpClient, agentManager, metricsTracker, projectMemory,
 	);
 
+	const moderniserAgent = new ModerniserAgent(
+		configs.get('anton-moderniser')!,
+		llmClient, mcpClient, agentManager, metricsTracker, projectMemory,
+	);
+
 	const reviewAgent = new ReviewAgent(
 		// The review agent should have its own identity for metrics and clarity.
 		{
@@ -199,6 +218,7 @@ export function registerAgentParticipants(
 	orchestrator.registerSpecialist(docsAgent);
 	orchestrator.registerSpecialist(ciRetryAgent);
 	orchestrator.registerSpecialist(prGenerationAgent);
+	orchestrator.registerSpecialist(moderniserAgent);
 	orchestrator.setReviewAgent(reviewAgent);
 
 	// Register chat participants
@@ -211,6 +231,7 @@ export function registerAgentParticipants(
 		[configs.get('anton-e2e')!, e2eTestAgent],
 		[configs.get('anton-ci')!, ciRetryAgent],
 		[configs.get('anton-pr')!, prGenerationAgent],
+		[configs.get('anton-moderniser')!, moderniserAgent],
 	];
 
 	for (const [config, agent] of agents) {

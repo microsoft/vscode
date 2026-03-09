@@ -1,0 +1,14 @@
+{
+	"codeGraphUnavailable": "Anton can't reach the code graph. Check if FalkorDB is running.",
+	"mcpServerTimeout": "The MCP server took too long. Either it's overloaded or it's contemplating the void.",
+	"agentTaskFailedAfterRetries": "Three attempts, three failures. Anton is escalating this to you because honesty matters.",
+	"allAgentsIdle": "All agents idle. Awaiting instructions.",
+	"checkpointRestored": "Rolled back to before that happened. We don't need to talk about it.",
+	"securityScanClean": "Semgrep found nothing. Either your code is secure or Semgrep is being generous.",
+	"noProjectOpen": "Anton has nothing to do. Open a folder and give the agents something to think about.",
+	"reviewAgentRejectsCode": "The review agent has opinions. See the walkthrough for details.",
+	"backgroundAgentCompleted": "Anton finished while you were away. {0} files changed. Walkthrough attached.",
+	"promptCacheHitRate": "Cache: {0}%. Your money is being spent wisely.",
+	"fridayAfternoon": "It's Friday afternoon. Anton recommends against major refactors.",
+	"allAgentAuthored": "This file was entirely written by machines. The future is now."
+}
