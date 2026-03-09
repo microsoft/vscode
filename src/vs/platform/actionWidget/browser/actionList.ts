@@ -530,7 +530,7 @@ export class ActionList<T> extends Disposable {
 			this._filterInput.setAttribute('aria-label', localize('actionList.filter.ariaLabel', "Filter items"));
 			filterRow.appendChild(this._filterInput);
 
-			const filterActions = this._options.filterActions ?? [];
+			const filterActions = this._options?.filterActions ?? [];
 			if (filterActions.length > 0) {
 				const filterActionsContainer = dom.append(filterRow, dom.$('.action-list-filter-actions'));
 				const filterActionBar = this._register(new ActionBar(filterActionsContainer));
