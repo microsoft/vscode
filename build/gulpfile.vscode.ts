@@ -528,10 +528,12 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			platform,
 			arch: arch === 'armhf' ? 'arm' : arch,
 			ffmpegChromium: false,
+			darwinAssetsCar: 'resources/darwin/code.car',
 			...(embedded ? {
 				darwinMiniAppName: embedded.nameShort,
 				darwinMiniAppBundleIdentifier: embedded.darwinBundleIdentifier,
 				darwinMiniAppIcon: 'resources/darwin/sessions.icns',
+				darwinMiniAppAssetsCar: 'resources/darwin/sessions.car',
 				darwinMiniAppBundleURLTypes: [{
 					role: 'Viewer',
 					name: embedded.nameLong,
