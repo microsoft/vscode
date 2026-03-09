@@ -615,8 +615,6 @@ export class ChatService extends Disposable implements IChatService {
 
 		modelRef.object.setContributedChatSession({
 			chatSessionResource: sessionResource,
-			chatSessionType,
-			isUntitled: sessionResource.path.startsWith('/untitled-')  //TODO(jospicer)
 		});
 
 		if (providedSession.title) {
