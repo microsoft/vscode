@@ -480,8 +480,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
 		const quality = options?.quality ?? 80;
 		const image = await this._view.webContents.capturePage(options?.rect, {
-			stayHidden: true,
-			stayAwake: true
+			stayHidden: true
 		});
 		const buffer = image.toJPEG(quality);
 		const screenshot = VSBuffer.wrap(buffer);
