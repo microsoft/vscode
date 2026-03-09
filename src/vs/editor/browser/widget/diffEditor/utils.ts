@@ -5,6 +5,7 @@
 
 import { IDimension } from '../../../../base/browser/dom.js';
 import { findLast } from '../../../../base/common/arraysFind.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, IObservableWithChange, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ElementSizeObserver } from '../../config/elementSizeObserver.js';
@@ -377,6 +378,12 @@ export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObse
 	});
 
 	return store;
+}
+
+export class DisposableCancellationTokenSource extends CancellationTokenSource {
+	public override dispose() {
+		super.dispose(true);
+	}
 }
 
 export function translatePosition(posInOriginal: Position, mappings: DetailedLineRangeMapping[]): Range {

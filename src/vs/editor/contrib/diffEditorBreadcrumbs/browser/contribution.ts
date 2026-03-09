@@ -6,6 +6,7 @@
 import { reverseOrder, compareBy, numberComparator } from '../../../../base/common/arrays.js';
 import { observableValue, observableSignalFromEvent, autorunWithStore, IReader } from '../../../../base/common/observable.js';
 import { HideUnchangedRegionsFeature, IDiffEditorBreadcrumbsSource } from '../../../browser/widget/diffEditor/features/hideUnchangedRegionsFeature.js';
+import { DisposableCancellationTokenSource } from '../../../browser/widget/diffEditor/utils.js';
 import { LineRange } from '../../../common/core/ranges/lineRange.js';
 import { ITextModel } from '../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
@@ -13,7 +14,6 @@ import { IOutlineModelService, OutlineModel } from '../../documentSymbols/browse
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { SymbolKind } from '../../../common/languages.js';
-import { TokenSourceCancelOnDispose } from '../../../../base/common/cancellation.js';
 
 class DiffEditorBreadcrumbsSource extends Disposable implements IDiffEditorBreadcrumbsSource {
 	private readonly _currentModel = observableValue<OutlineModel | undefined>(this, undefined);
@@ -39,7 +39,7 @@ class DiffEditorBreadcrumbsSource extends Disposable implements IDiffEditorBread
 			documentSymbolProviderChanged.read(reader);
 			textModelChanged.read(reader);
 
-			const src = store.add(new TokenSourceCancelOnDispose());
+			const src = store.add(new DisposableCancellationTokenSource());
 			const model = await this._outlineModelService.getOrCreate(this._textModel, src.token);
 			if (store.isDisposed) { return; }
 

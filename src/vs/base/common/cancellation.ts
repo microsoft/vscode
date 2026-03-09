@@ -141,12 +141,6 @@ export class CancellationTokenSource {
 	}
 }
 
-export class TokenSourceCancelOnDispose extends CancellationTokenSource {
-	public override dispose() {
-		super.dispose(true);
-	}
-}
-
 export function cancelOnDispose(store: DisposableStore): CancellationToken {
 	const source = new CancellationTokenSource();
 	store.add({ dispose() { source.cancel(); } });
