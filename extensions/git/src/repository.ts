@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { cp } from '@vscode/fs-copyfile';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import * as fs from 'fs';
@@ -25,7 +26,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktreeFolder, isDescendant, isLinuxSnap, isMacintosh, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktreeFolder, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { GitArtifactProvider } from './artifactProvider';
@@ -1983,20 +1984,6 @@ export class Repository implements Disposable {
 			return;
 		}
 
-		// On macOS, we can use the native fclonefileat syscall to perform a
-		// copy-on-write clone of entire directory trees in a single syscall.
-		// This is nearly instant on APFS volumes.
-		let nativeCp: ((src: string, dest: string, options?: fs.CopyOptions) => Promise<void>) | undefined = undefined;
-		if (isMacintosh) {
-			try {
-				nativeCp = (await import('@vscode/fs-copyfile')).cp;
-				this.logger.info(`[Repository][_copyWorktreeIncludeFiles] Native @vscode/fs-copyfile module loaded.`);
-			} catch (err) {
-				const error = err instanceof Error ? err.message : String(err);
-				this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to load @vscode/fs-copyfile: ${error}`);
-			}
-		}
-
 		try {
 			const startTime = performance.now();
 			const limiter = new Limiter<void>(15);
@@ -2007,26 +1994,7 @@ export class Repository implements Disposable {
 				return limiter.queue(async () => {
 					const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
 					await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
-
-					const cpStart = performance.now();
-					if (nativeCp) {
-						// Use the native cp implementation
-						await nativeCp(sourceFile, targetFile, {
-							force: true,
-							recursive: true,
-							verbatimSymlinks: true
-						});
-						this.logger.trace(`[Repository][_copyWorktreeIncludeFiles] nativeCp: ${sourceFile} -> ${targetFile} [${(performance.now() - cpStart).toFixed(2)}ms]`);
-					} else {
-						// Fallback to regular copy
-						await fsPromises.cp(sourceFile, targetFile, {
-							force: true,
-							mode: fs.constants.COPYFILE_FICLONE,
-							recursive: true,
-							verbatimSymlinks: true
-						});
-						this.logger.trace(`[Repository][_copyWorktreeIncludeFiles] fsPromises.cp: ${sourceFile} -> ${targetFile} [${(performance.now() - cpStart).toFixed(2)}ms]`);
-					}
+					await cp(sourceFile, targetFile, { force: true, recursive: true, verbatimSymlinks: true });
 				});
 			}));
 
