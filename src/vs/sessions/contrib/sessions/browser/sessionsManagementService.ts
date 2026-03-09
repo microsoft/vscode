@@ -461,7 +461,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				this.lastSelectedSession = session.resource;
 				const [repository, worktree, worktreeBranchName] = this.getRepositoryFromMetadata(session);
 				activeSessionItem = {
-					isUntitled: this.chatService.getSession(session.resource)?.contributedChatSession?.isUntitled ?? true,
+					isUntitled: session.resource.path.startsWith('/untitled-'),
 					label: session.label,
 					resource: session.resource,
 					repository: repository ?? pendingSession?.repoUri,
