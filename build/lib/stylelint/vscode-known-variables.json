@@ -916,6 +916,7 @@
 		"--editor-font-size",
 		"--background-dark",
 		"--background-light",
+		"--chat-edit-bubble-width",
 		"--chat-editing-last-edit-shift",
 		"--chat-current-response-min-height",
 		"--inline-chat-frame-progress",

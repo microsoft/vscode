@@ -9,7 +9,8 @@
 	max-width: 950px;
 	height: 100%;
 	margin: auto;
-	position: relative; /* Enable absolute positioning for child elements */
+	position: relative;
+	/* Enable absolute positioning for child elements */
 
 	/* 11px when base font is 13px */
 	--vscode-chat-font-size-body-xs: 0.846em;
@@ -854,6 +855,100 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* Remove top border radius when editing session, todo list, or status widget is present */
 	border-top-left-radius: 0;
 	border-top-right-radius: 0;
+}
+
+/* Above-input widget reveal animation — bubble up from below */
+@keyframes kf-chat-above-input-reveal {
+	from {
+		opacity: 0;
+		transform: translateY(8px) scale(0.98);
+		max-height: 0;
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+		max-height: 500px;
+	}
+}
+
+.chat-editing-session-container.chat-above-input-reveal,
+.chat-todo-list-widget.chat-above-input-reveal,
+.chat-status-widget.chat-above-input-reveal,
+.chat-tip-widget.chat-above-input-reveal,
+.chat-question-carousel-container.chat-above-input-reveal,
+.chat-editing-session-list.chat-above-input-reveal,
+.todo-list-container.chat-above-input-reveal {
+	animation: kf-chat-above-input-reveal 350ms cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+	transform-origin: bottom center;
+}
+
+@keyframes kf-chat-above-input-collapse {
+	from {
+		opacity: 1;
+		max-height: 200px;
+		transform: translateY(0);
+	}
+
+	to {
+		opacity: 0;
+		max-height: 0;
+		transform: translateY(8px);
+	}
+}
+
+.chat-editing-session-list.chat-above-input-collapse,
+.todo-list-container.chat-above-input-collapse {
+	animation: kf-chat-above-input-collapse 250ms cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+	overflow: hidden;
+}
+
+/* Todo title flip animation — old text exits up, new text enters from below */
+@keyframes kf-chat-todo-title-exit-up {
+	0% {
+		transform: translateY(0);
+		opacity: 1;
+	}
+
+	100% {
+		transform: translateY(-100%);
+		opacity: 0;
+	}
+}
+
+@keyframes kf-chat-todo-title-enter-up {
+	0% {
+		transform: translateY(100%);
+		opacity: 0;
+	}
+
+	100% {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}
+
+.chat-todo-list-widget .todo-list-title {
+	position: relative;
+}
+
+.chat-todo-list-widget .todo-list-title .todo-title-content {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.chat-todo-list-widget .todo-list-title.todo-title-flip > .todo-title-content {
+	animation: kf-chat-todo-title-enter-up 200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.chat-todo-list-widget .todo-list-title .todo-title-exit-ghost {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	animation: kf-chat-todo-title-exit-up 200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+	pointer-events: none;
 }
 
 .interactive-session .chat-editing-session {
@@ -2462,14 +2557,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	/* shimmer animation for shimmer progress */
 	&.shimmer-progress .rendered-markdown.progress-step > p {
-		background: linear-gradient(
-			90deg,
-			var(--vscode-descriptionForeground) 0%,
-			var(--vscode-descriptionForeground) 30%,
-			var(--vscode-chat-thinkingShimmer) 50%,
-			var(--vscode-descriptionForeground) 70%,
-			var(--vscode-descriptionForeground) 100%
-		);
+		background: linear-gradient(90deg,
+				var(--vscode-descriptionForeground) 0%,
+				var(--vscode-descriptionForeground) 30%,
+				var(--vscode-chat-thinkingShimmer) 50%,
+				var(--vscode-descriptionForeground) 70%,
+				var(--vscode-descriptionForeground) 100%);
 		background-size: 400% 100%;
 		background-clip: text;
 		-webkit-background-clip: text;
@@ -2705,7 +2798,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline: none;
 	border: none;
 
-	.codicon.codicon-file-media, .codicon.codicon-warning {
+	.codicon.codicon-file-media,
+	.codicon.codicon-warning {
 		font-size: 12px;
 		margin-right: 2px;
 	}
@@ -3148,6 +3242,36 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 100%;
 }
 
+@keyframes kf-chat-edit-bubble-expand {
+	from {
+		max-width: var(--chat-edit-bubble-width, 60%);
+		margin-left: auto;
+		border-radius: var(--vscode-cornerRadius-xLarge);
+		transform: scale(0.97);
+		opacity: 0.85;
+	}
+
+	60% {
+		max-width: 100%;
+		margin-left: 0;
+		transform: scale(1.005);
+		opacity: 1;
+	}
+
+	to {
+		max-width: 100%;
+		margin-left: 0;
+		border-radius: var(--vscode-cornerRadius-large);
+		transform: scale(1);
+		opacity: 1;
+	}
+}
+
+.interactive-request.editing .chat-edit-input-container {
+	animation: kf-chat-edit-bubble-expand 280ms cubic-bezier(0.32, 1.2, 0.5, 1) forwards;
+	transform-origin: right center;
+}
+
 .chat-row-disabled-overlay,
 .interactive-item-container .chat-edit-input-container .chat-editing-session,
 .chat-input-overlay {
@@ -3210,7 +3334,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	justify-content: center;
 	height: 100%;
-	margin: -1px -8px -1px 0; /* Extend to button edge, accounting for button padding */
+	margin: -1px -8px -1px 0;
+	/* Extend to button edge, accounting for button padding */
 	padding: 0 4px 0 2px;
 	gap: 4px;
 	cursor: pointer;
@@ -3295,7 +3420,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	opacity: 0;
 	transition: opacity 0.15s;
 	color: var(--vscode-descriptionForeground);
-	margin-top: -4px; /* visually center with overlaid top controls */
+	margin-top: -4px;
+	/* visually center with overlaid top controls */
 }
 
 .interactive-item-container.pending-request:hover .chat-pending-drag-handle {
