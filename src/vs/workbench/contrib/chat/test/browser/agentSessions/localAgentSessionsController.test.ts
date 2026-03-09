@@ -7,7 +7,7 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -211,6 +211,26 @@ class MockChatService implements IChatService {
 
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
 		throw new Error('Method not implemented.');
+	}
+
+
+	private onChange?: () => void;
+
+	registerChatModelChangeListeners(chatSessionType: string, onChange: () => void): IDisposable {
+		// Store the emitter so tests can trigger it
+		this.onChange = onChange;
+		return {
+			dispose: () => {
+				this.onChange = undefined;
+			}
+		};
+	}
+
+	// Helper method for tests to trigger progress events
+	triggerProgressEvent(): void {
+		if (this.onChange) {
+			this.onChange();
+		}
 	}
 }
 
@@ -767,7 +787,7 @@ suite('LocalAgentsSessionsController', () => {
 				}));
 
 				// Simulate progress change by triggering the progress listener
-				mockChatSessionsService.triggerProgressEvent();
+				mockChatService.triggerProgressEvent();
 
 				assert.strictEqual(changeEventCount, 1);
 			});
@@ -793,7 +813,7 @@ suite('LocalAgentsSessionsController', () => {
 				}));
 
 				// Simulate progress change by triggering the progress listener
-				mockChatSessionsService.triggerProgressEvent();
+				mockChatService.triggerProgressEvent();
 
 				assert.strictEqual(changeEventCount, 1);
 			});

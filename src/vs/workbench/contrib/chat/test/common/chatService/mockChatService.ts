@@ -12,6 +12,7 @@ import { IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableC
 import { IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatCompleteResponse, IChatDetail, IChatModelReference, IChatProgress, IChatProviderInfo, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 
 export class MockChatService implements IChatService {
 	chatModels: IObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
@@ -163,5 +164,24 @@ export class MockChatService implements IChatService {
 	}
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
 		throw new Error('Method not implemented.');
+	}
+
+	private onChange?: () => void;
+
+	registerChatModelChangeListeners(chatSessionType: string, onChange: () => void): IDisposable {
+		// Store the emitter so tests can trigger it
+		this.onChange = onChange;
+		return {
+			dispose: () => {
+				this.onChange = undefined;
+			}
+		};
+	}
+
+	// Helper method for tests to trigger progress events
+	triggerProgressEvent(): void {
+		if (this.onChange) {
+			this.onChange();
+		}
 	}
 }
