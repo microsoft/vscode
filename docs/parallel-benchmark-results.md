@@ -1,18 +1,20 @@
 # Parallel Agent Execution Benchmark Results
 
 Benchmark suite for validating the parallel execution approach.
-Results compare sequential (single agent) vs parallel (2 agents) execution.
+Results compare sequential (single agent) vs parallel (2 and 4 agents) execution.
 
-**Target:** conflict rate < 10%
+**Target:** conflict rate < 5% (decision gate for scaling)
 
 ---
 
 ## Benchmark Configuration
 
-- **Max concurrent agents:** 2
+- **Max concurrent agents:** 4 (Phase 5 target)
 - **Lock TTL:** 10 minutes
 - **Conflict check interval:** 15 seconds
 - **Worktree location:** system temp directory
+- **Decision gate:** conflict rate must stay below 5% to proceed with scaling
+- **Runs per test:** 3
 
 ## Test Cases
 
@@ -55,6 +57,42 @@ Results compare sequential (single agent) vs parallel (2 agents) execution.
 | Merge success rate | — |
 | Average token usage (sequential) | — |
 | Average token usage (parallel) | — |
+
+## 4-Agent Results
+
+> **Status:** Pending — run `npm run benchmark:parallel -- --agents 4` to populate.
+
+| Test | Sequential (avg) | 4-Agent Parallel (avg) | Speedup | Conflicts | Merge Success |
+|------|-----------------|----------------------|---------|-----------|---------------|
+| 1 | — | — | — | — | — |
+| 2 | — | — | — | — | — |
+| 3 | — | — | — | — | — |
+| 4 | — | — | — | — | — |
+| 5 | — | — | — | — | — |
+| 6 | — | — | — | — | — |
+| 7 | — | — | — | — | — |
+| 8 | — | — | — | — | — |
+| 9 | — | — | — | — | — |
+| 10 | — | — | — | — | — |
+
+## 4-Agent Aggregate Metrics
+
+| Metric | Value |
+|--------|-------|
+| Average parallel speedup | — |
+| Overall conflict rate | — |
+| Merge success rate | — |
+| Lock contention events | — |
+| Disk usage per worktree | — |
+| Decision gate (< 5%) | — |
+
+## Scaling Decision
+
+If conflict rate exceeds 5% with 4 agents, investigate:
+
+1. Are tasks being decomposed with too much overlap?
+2. Can scope locking be improved to file+function level (finer granularity)?
+3. Would a different task decomposition strategy reduce conflicts?
 
 ## Analysis
 
