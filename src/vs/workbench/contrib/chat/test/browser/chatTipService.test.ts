@@ -138,6 +138,22 @@ suite('ChatTipService', () => {
 		assert.ok(tip.content.value.length > 0, 'Tip should have content');
 	});
 
+	test('uses descriptive titles for tip command links', () => {
+		for (const tip of TIP_CATALOG) {
+			const markdown = tip.buildMessage({
+				keybindingService: {
+					lookupKeybinding: () => undefined,
+				} as Partial<IKeybindingService> as IKeybindingService,
+			}).value;
+
+			const commandLinkRegex = /\[[^\]]+\]\((command:[^)]+)\)/g;
+			let match: RegExpExecArray | null;
+			while ((match = commandLinkRegex.exec(markdown)) !== null) {
+				assert.ok(/\s"[^"]+"$/.test(match[1]), `Expected command link in ${tip.id} to include a descriptive title: ${match[0]}`);
+			}
+		}
+	});
+
 	test('records # file reference usage for attach files tip eligibility', () => {
 		const submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>());
 		instantiationService.stub(IChatService, {

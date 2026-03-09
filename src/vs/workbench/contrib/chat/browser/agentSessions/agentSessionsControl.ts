@@ -23,6 +23,7 @@ import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Throttler } from '../../../../../base/common/async.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Separator } from '../../../../../base/common/actions.js';
@@ -241,7 +242,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		const sorter = new AgentSessionsSorter(this.options);
 		const approvalModel = this.options.enableApprovalRow ? this._register(this.instantiationService.createInstance(AgentSessionApprovalModel)) : undefined;
-		const sessionRenderer = this._register(this.instantiationService.createInstance(AgentSessionRenderer, this.options, approvalModel));
+		const activeSessionResource = observableValue<URI | undefined>(this, undefined);
+		const sessionRenderer = this._register(this.instantiationService.createInstance(AgentSessionRenderer, this.options, approvalModel, activeSessionResource));
 		const sessionFilter = this._register(new AgentSessionsDataSource(this.options.filter, sorter));
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
@@ -313,10 +315,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				this.focusedAgentSessionArchivedContextKey.set(focused.isArchived());
 				this.focusedAgentSessionReadContextKey.set(focused.isRead());
 				this.focusedAgentSessionTypeContextKey.set(focused.providerType);
+				activeSessionResource.set(focused.resource, undefined);
 			} else {
 				this.focusedAgentSessionArchivedContextKey.reset();
 				this.focusedAgentSessionReadContextKey.reset();
 				this.focusedAgentSessionTypeContextKey.reset();
+				activeSessionResource.set(undefined, undefined);
 			}
 
 			const selection = list.getSelection().filter(isAgentSession);
