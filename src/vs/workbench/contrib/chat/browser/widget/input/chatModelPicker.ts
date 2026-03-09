@@ -130,20 +130,6 @@ function createManageModelsAction(commandService: ICommandService): IActionWidge
 	};
 }
 
-function createAdditionalEntry(
-	action: IActionWidgetDropdownAction,
-): IActionListItem<IActionWidgetDropdownAction> {
-	return {
-		item: action,
-		kind: ActionListItemKind.Action,
-		label: action.label,
-		group: { title: '', icon: Codicon.blank },
-		hideIcon: false,
-		section: ModelPickerSection.Other,
-		showAlways: true,
-	};
-}
-
 /**
  * Builds the grouped items for the model picker dropdown.
  *
@@ -153,7 +139,7 @@ function createAdditionalEntry(
  *    - Available models sorted alphabetically, followed by unavailable models
  *    - Unavailable models show upgrade/update/admin status
  * 3. Other Models (collapsible toggle, available first, then sorted by vendor then name)
- * 4. Optional "Manage Models..." item
+ * 4. Optional "Manage Models..." action shown in Other Models after a separator
  */
 export function buildModelPickerItems(
 	models: ILanguageModelChatMetadataAndIdentifier[],
@@ -167,7 +153,7 @@ export function buildModelPickerItems(
 	canManageModels: boolean,
 	commandService: ICommandService,
 	chatEntitlementService: IChatEntitlementService,
-	additionalActions?: IActionWidgetDropdownAction[],
+	manageModelsAction?: IActionWidgetDropdownAction,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -376,13 +362,17 @@ export function buildModelPickerItems(
 		}
 	}
 
-	if (additionalActions?.length) {
-		if (items.length > 0) {
-			items.push({ kind: ActionListItemKind.Separator, section: ModelPickerSection.Other });
-		}
-		for (const action of additionalActions) {
-			items.push(createAdditionalEntry(action));
-		}
+	if (manageModelsAction) {
+		items.push({ kind: ActionListItemKind.Separator, section: otherModels.length ? ModelPickerSection.Other : undefined });
+		items.push({
+			item: manageModelsAction,
+			kind: ActionListItemKind.Action,
+			label: manageModelsAction.label,
+			group: { title: '', icon: Codicon.blank },
+			hideIcon: false,
+			section: otherModels.length ? ModelPickerSection.Other : undefined,
+			showAlways: true,
+		});
 	}
 
 	return items;
@@ -585,9 +575,6 @@ export class ModelPickerWidget extends Disposable {
 		const controlModelsForTier = isPro ? manifest.paid : manifest.free;
 		const canShowManageModelsAction = this._delegate.canManageModels() && shouldShowManageModelsAction(this._entitlementService);
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
-		const additionalActions = !showFilter && manageModelsAction
-			? [manageModelsAction]
-			: undefined;
 		const items = buildModelPickerItems(
 			models,
 			this._selectedModel?.identifier,
@@ -600,7 +587,7 @@ export class ModelPickerWidget extends Disposable {
 			this._delegate.canManageModels(),
 			this._commandService,
 			this._entitlementService,
-			additionalActions,
+			!showFilter ? manageModelsAction : undefined,
 		);
 
 		const listOptions = {
