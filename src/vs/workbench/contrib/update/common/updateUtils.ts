@@ -64,7 +64,7 @@ export function computeDownloadSpeed(state: Downloading): number | undefined {
 
 /**
  * Computes the version to use for fetching update info.
- * - If the minor version differs: returns `{major}.{minor}.0` (e.g., 1.108.2 -> 1.109.5 => 1.109.0)
+ * - If the minor version differs: returns `{major}.{minor}` (e.g., 1.108.2 -> 1.109.5 => 1.109)
  * - If the same minor: returns the target version as-is (e.g., 1.109.2 -> 1.109.5 => 1.109.5)
  */
 export function computeUpdateInfoVersion(currentVersion: string, targetVersion: string): string | undefined {

@@ -79,3 +79,12 @@
 	);
 	transition: background 0.3s ease;
 }
+
+/* Reduced motion */
+.monaco-workbench.monaco-reduce-motion .update-indicator.progress-indefinite .indicator-label::after {
+	animation: none;
+}
+
+.monaco-workbench.monaco-reduce-motion .update-indicator.progress-percent .indicator-label::after {
+	transition: none;
+}

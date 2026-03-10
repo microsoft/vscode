@@ -79,6 +79,10 @@
 	transition: width 0.3s ease;
 }
 
+.monaco-workbench.monaco-reduce-motion .update-tooltip .progress-fill {
+	transition: none;
+}
+
 .update-tooltip .progress-text,
 .update-tooltip .download-stats {
 	display: flex;
