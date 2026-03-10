@@ -150,7 +150,8 @@ export function buildModelPickerItems(
 	updateStateType: StateType,
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
 	manageSettingsUrl: string | undefined,
-	canManageModels: boolean,
+	useGroupedModelPicker: boolean,
+	showManageModelsAction: boolean,
 	manageModelsAction: IActionWidgetDropdownAction | undefined,
 	chatEntitlementService: IChatEntitlementService,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
@@ -167,7 +168,7 @@ export function buildModelPickerItems(
 		}));
 	}
 
-	if (!canManageModels) {
+	if (!useGroupedModelPicker) {
 		// Flat list: auto first, then all models sorted alphabetically
 		const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
 		if (autoModel) {
@@ -182,11 +183,10 @@ export function buildModelPickerItems(
 		for (const model of sortedModels) {
 			items.push(createModelItem(createModelAction(model, selectedModelId, onSelect), model));
 		}
-		return items;
-	}
+	} else {
 
-	const isPro = isProUser(chatEntitlementService.entitlement);
-	let otherModels: ILanguageModelChatMetadataAndIdentifier[] = [];
+		const isPro = isProUser(chatEntitlementService.entitlement);
+		let otherModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 	if (models.length) {
 		// Collect all available models into lookup maps
 		const allModelsMap = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
@@ -359,19 +359,20 @@ export function buildModelPickerItems(
 				}
 			}
 		}
-	}
 
-	if (manageModelsAction) {
-		items.push({ kind: ActionListItemKind.Separator, section: otherModels.length ? ModelPickerSection.Other : undefined });
-		items.push({
-			item: manageModelsAction,
-			kind: ActionListItemKind.Action,
-			label: manageModelsAction.label,
-			group: { title: '', icon: Codicon.blank },
-			hideIcon: false,
-			section: otherModels.length ? ModelPickerSection.Other : undefined,
-			showAlways: true,
-		});
+		if (manageModelsAction) {
+			items.push({ kind: ActionListItemKind.Separator, section: otherModels.length ? ModelPickerSection.Other : undefined });
+			items.push({
+				item: manageModelsAction,
+				kind: ActionListItemKind.Action,
+				label: manageModelsAction.label,
+				group: { title: '', icon: Codicon.blank },
+				hideIcon: false,
+				section: otherModels.length ? ModelPickerSection.Other : undefined,
+				showAlways: true,
+			});
+		}
+	}
 	}
 
 	return items;
@@ -572,7 +573,7 @@ export class ModelPickerWidget extends Disposable {
 		const isPro = isProUser(this._entitlementService.entitlement);
 		const manifest = this._languageModelsService.getModelsControlManifest();
 		const controlModelsForTier = isPro ? manifest.paid : manifest.free;
-		const canShowManageModelsAction = this._delegate.canManageModels() && shouldShowManageModelsAction(this._entitlementService);
+		const canShowManageModelsAction = this._delegate.showManageModelsAction() && shouldShowManageModelsAction(this._entitlementService);
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
 		const items = buildModelPickerItems(
 			models,
@@ -583,7 +584,8 @@ export class ModelPickerWidget extends Disposable {
 			this._updateService.state.type,
 			onSelect,
 			this._productService.defaultChatAgent?.manageSettingsUrl,
-			this._delegate.canManageModels(),
+			this._delegate.useGroupedModelPicker(),
+			this._delegate.showManageModelsAction(),
 			!showFilter ? manageModelsAction : undefined,
 			this._entitlementService,
 		);
