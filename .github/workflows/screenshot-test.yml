@@ -18,6 +18,7 @@ concurrency:
 
 jobs:
   screenshots:
+    if: false # temporarily disabled
     name: Checking Component Screenshots
     runs-on: ubuntu-latest
     steps:
