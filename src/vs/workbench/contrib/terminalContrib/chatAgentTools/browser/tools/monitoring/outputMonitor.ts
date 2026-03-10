@@ -18,7 +18,7 @@ import { ChatElicitationRequestPart } from '../../../../../chat/common/model/cha
 import { ChatModel } from '../../../../../chat/common/model/chatModel.js';
 import { ElicitationState, IChatService } from '../../../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatPermissionLevel } from '../../../../../chat/common/constants.js';
-import { ChatMessageRole, getTextResponseFromStream, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
+import { ChatMessageRole, getTextResponseFromStream, type ILanguageModelChatSelector, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
 import { ILinkLocation } from '../../taskHelpers.js';
@@ -968,11 +968,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return models.length ? models[0] : undefined;
 	}
 
-	private async _safeSelectLanguageModels(selector: { vendor: string; family?: string; id?: string }): Promise<string[]> {
+	private async _safeSelectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]> {
 		try {
 			return await this._languageModelsService.selectLanguageModels(selector);
 		} catch (error) {
-			this._logService.trace('OutputMonitor: selectLanguageModels failed', error);
+			this._logService.trace('OutputMonitor: selectLanguageModels failed', { selector, error });
 			return [];
 		}
 	}
