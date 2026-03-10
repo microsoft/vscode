@@ -860,8 +860,6 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		const noRepoId = 'other';
 		const noRepoLabel = localize('agentSessions.noRepository', "Other");
 
-		console.log(`[AgentSessions][groupByRepo] Grouping ${sortedSessions.length} sessions by repository`);
-
 		for (const session of sortedSessions) {
 			if (session.isArchived()) {
 				archivedSessions.push(session);
@@ -872,8 +870,6 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			const repoId = repo?.id ?? noRepoId;
 			const repoLabel = repo?.label ?? noRepoLabel;
 
-			console.log(`[AgentSessions][groupByRepo] Session "${session.label}" (id: ${session.id}) => repoId: "${repoId}", repoLabel: "${repoLabel}"`);
-
 			let group = repoMap.get(repoId);
 			if (!group) {
 				group = { label: repoLabel, sessions: [] };
@@ -881,8 +877,6 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			}
 			group.sessions.push(session);
 		}
-
-		console.log(`[AgentSessions][groupByRepo] Final groups:`, [...repoMap.entries()].map(([id, g]) => `"${id}" (label: "${g.label}", count: ${g.sessions.length})`));
 
 		const result: AgentSessionListItem[] = [];
 		for (const [, { label, sessions }] of repoMap) {
@@ -906,47 +900,36 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 	private getRepositoryInfo(session: IAgentSession): { id: string; label: string } | undefined {
 		const metadata = session.metadata;
-		console.log(`[AgentSessions][getRepoInfo] Session "${session.label}" (id: ${session.id}) — metadata keys: ${metadata ? JSON.stringify(Object.keys(metadata)) : 'none'}, badge: ${session.badge ? (typeof session.badge === 'string' ? session.badge : session.badge.value) : 'none'}`);
 		if (metadata) {
-			console.log(`[AgentSessions][getRepoInfo]   metadata.owner=${JSON.stringify(metadata.owner)}, metadata.name=${JSON.stringify(metadata.name)}, metadata.repositoryNwo=${JSON.stringify(metadata.repositoryNwo)}, metadata.repository=${JSON.stringify(metadata.repository)}, metadata.repositoryUrl=${JSON.stringify(metadata.repositoryUrl)}`);
-
 			// Cloud sessions: metadata.owner + metadata.name
 			const owner = metadata.owner as string | undefined;
 			const name = metadata.name as string | undefined;
 			if (owner && name) {
-				const result = { id: `${owner}/${name}`, label: name };
-				console.log(`[AgentSessions][getRepoInfo]   => matched via owner+name: id="${result.id}", label="${result.label}"`);
-				return result;
+				return { id: name, label: name };
 			}
 
 			// repositoryNwo: "owner/repo"
 			const nwo = metadata.repositoryNwo as string | undefined;
 			if (nwo && nwo.includes('/')) {
-				const result = { id: nwo, label: nwo.split('/').pop()! };
-				console.log(`[AgentSessions][getRepoInfo]   => matched via repositoryNwo: id="${result.id}", label="${result.label}"`);
-				return result;
+				const label = nwo.split('/').pop()!;
+				return { id: label, label };
 			}
 
 			// repository: could be "owner/repo" or a URL
 			const repository = metadata.repository as string | undefined;
 			if (repository) {
 				if (repository.includes('/') && !repository.includes(':')) {
-					const result = { id: repository, label: repository.split('/').pop()! };
-					console.log(`[AgentSessions][getRepoInfo]   => matched via repository (nwo format): id="${result.id}", label="${result.label}"`);
-					return result;
+					const label = repository.split('/').pop()!;
+					return { id: label, label };
 				}
 				try {
 					const url = new URL(repository);
 					const parts = url.pathname.split('/').filter(Boolean);
 					if (parts.length >= 2) {
-						const id = `${parts[0]}/${parts[1]}`;
-						const result = { id, label: parts[1] };
-						console.log(`[AgentSessions][getRepoInfo]   => matched via repository (URL format): id="${result.id}", label="${result.label}"`);
-						return result;
+						return { id: parts[1], label: parts[1] };
 					}
-					console.log(`[AgentSessions][getRepoInfo]   => repository URL parsed but insufficient path parts: ${url.pathname}`);
 				} catch {
-					console.log(`[AgentSessions][getRepoInfo]   => repository value "${repository}" is neither nwo nor valid URL`);
+					// not a URL
 				}
 			}
 
@@ -957,32 +940,43 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 					const url = new URL(repositoryUrl);
 					const parts = url.pathname.split('/').filter(Boolean);
 					if (parts.length >= 2) {
-						const id = `${parts[0]}/${parts[1]}`;
-						const result = { id, label: parts[1] };
-						console.log(`[AgentSessions][getRepoInfo]   => matched via repositoryUrl: id="${result.id}", label="${result.label}"`);
-						return result;
+						return { id: parts[1], label: parts[1] };
 					}
-					console.log(`[AgentSessions][getRepoInfo]   => repositoryUrl parsed but insufficient path parts: ${url.pathname}`);
 				} catch {
-					console.log(`[AgentSessions][getRepoInfo]   => repositoryUrl "${repositoryUrl}" is not a valid URL`);
+					// not a URL
+				}
+			}
+
+			// repositoryPath: extract repo name from the directory path basename
+			const repositoryPath = metadata.repositoryPath as string | undefined;
+			if (repositoryPath) {
+				const label = repositoryPath.split('/').filter(Boolean).pop();
+				if (label) {
+					return { id: label, label };
+				}
+			}
+
+			// workingDirectoryPath: fallback to extract name from the working directory
+			const workingDirectoryPath = metadata.workingDirectoryPath as string | undefined;
+			if (workingDirectoryPath) {
+				const label = workingDirectoryPath.split('/').filter(Boolean).pop();
+				if (label) {
+					return { id: label, label };
 				}
 			}
 		}
 
-		// Fallback: extract repo name from badge if it uses the $(repo) icon
+		// Fallback: extract repo/folder name from badge
 		const badge = session.badge;
 		if (badge) {
 			const raw = typeof badge === 'string' ? badge : badge.value;
-			const repoMatch = raw.match(/\$\(repo\)\s*(.+)/);
-			if (repoMatch) {
-				const label = repoMatch[1].trim();
-				console.log(`[AgentSessions][getRepoInfo]   => matched via badge: id="${label}", label="${label}"`);
+			const badgeMatch = raw.match(/\$\((?:repo|folder)\)\s*(.+)/);
+			if (badgeMatch) {
+				const label = badgeMatch[1].trim();
 				return { id: label, label };
 			}
-			console.log(`[AgentSessions][getRepoInfo]   => badge present but no $(repo) match: "${raw}"`);
 		}
 
-		console.log(`[AgentSessions][getRepoInfo]   => NO MATCH — session will go to "Other"`);
 		return undefined;
 	}
 }
