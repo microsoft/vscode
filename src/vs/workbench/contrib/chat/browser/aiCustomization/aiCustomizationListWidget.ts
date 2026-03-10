@@ -210,11 +210,13 @@ function promptTypeToIcon(type: PromptsType): ThemeIcon {
 }
 
 /**
- * Formats a name for display: converts dashes/underscores to spaces and applies title case.
+ * Formats a name for display: strips a trailing .md extension, converts dashes/underscores
+ * to spaces and applies title case.
  * This is safe to use alongside IMatch highlight positions since the transformation is 1:1.
  */
 export function formatDisplayName(name: string): string {
 	return name
+		.replace(/\.md$/i, '')
 		.replace(/[-_]/g, ' ')
 		.replace(/\b\w/g, c => c.toUpperCase());
 }
