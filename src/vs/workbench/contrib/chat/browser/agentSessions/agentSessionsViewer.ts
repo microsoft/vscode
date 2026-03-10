@@ -855,8 +855,9 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	}
 
 	private groupSessionsByRepository(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
-		const repoMap = new Map<string, IAgentSession[]>();
+		const repoMap = new Map<string, { label: string; sessions: IAgentSession[] }>();
 		const archivedSessions: IAgentSession[] = [];
+		const noRepoId = 'other';
 		const noRepoLabel = localize('agentSessions.noRepository', "Other");
 
 		for (const session of sortedSessions) {
@@ -865,21 +866,23 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 				continue;
 			}
 
-			const repoName = this.getRepositoryName(session) ?? noRepoLabel;
+			const repo = this.getRepositoryInfo(session);
+			const repoId = repo?.id ?? noRepoId;
+			const repoLabel = repo?.label ?? noRepoLabel;
 
-			let group = repoMap.get(repoName);
+			let group = repoMap.get(repoId);
 			if (!group) {
-				group = [];
-				repoMap.set(repoName, group);
+				group = { label: repoLabel, sessions: [] };
+				repoMap.set(repoId, group);
 			}
-			group.push(session);
+			group.sessions.push(session);
 		}
 
 		const result: AgentSessionListItem[] = [];
-		for (const [repoName, sessions] of repoMap) {
+		for (const [repoId, { label, sessions }] of repoMap) {
 			result.push({
-				section: `repo-${repoName}`,
-				label: repoName,
+				section: `repo-${repoId}`,
+				label,
 				sessions,
 			});
 		}
@@ -895,32 +898,34 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		return result;
 	}
 
-	private getRepositoryName(session: IAgentSession): string | undefined {
+	private getRepositoryInfo(session: IAgentSession): { id: string; label: string } | undefined {
 		const metadata = session.metadata;
 		if (metadata) {
-			// Cloud sessions: metadata.name is the repo name
+			// Cloud sessions: metadata.owner + metadata.name
+			const owner = metadata.owner as string | undefined;
 			const name = metadata.name as string | undefined;
-			if (name && typeof name === 'string') {
-				return name;
+			if (owner && name) {
+				return { id: `${owner}/${name}`, label: name };
 			}
 
 			// repositoryNwo: "owner/repo"
 			const nwo = metadata.repositoryNwo as string | undefined;
 			if (nwo && nwo.includes('/')) {
-				return nwo.split('/').pop()!;
+				return { id: nwo, label: nwo.split('/').pop()! };
 			}
 
 			// repository: could be "owner/repo" or a URL
 			const repository = metadata.repository as string | undefined;
 			if (repository) {
 				if (repository.includes('/') && !repository.includes(':')) {
-					return repository.split('/').pop()!;
+					return { id: repository, label: repository.split('/').pop()! };
 				}
 				try {
 					const url = new URL(repository);
 					const parts = url.pathname.split('/').filter(Boolean);
 					if (parts.length >= 2) {
-						return parts[1];
+						const id = `${parts[0]}/${parts[1]}`;
+						return { id, label: parts[1] };
 					}
 				} catch {
 					// not a URL
@@ -934,7 +939,8 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 					const url = new URL(repositoryUrl);
 					const parts = url.pathname.split('/').filter(Boolean);
 					if (parts.length >= 2) {
-						return parts[1];
+						const id = `${parts[0]}/${parts[1]}`;
+						return { id, label: parts[1] };
 					}
 				} catch {
 					// not a URL
@@ -948,7 +954,8 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			const raw = typeof badge === 'string' ? badge : badge.value;
 			const repoMatch = raw.match(/\$\(repo\)\s*(.+)/);
 			if (repoMatch) {
-				return repoMatch[1].trim();
+				const label = repoMatch[1].trim();
+				return { id: label, label };
 			}
 		}
 

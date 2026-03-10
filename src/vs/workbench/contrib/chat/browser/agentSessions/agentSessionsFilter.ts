@@ -55,7 +55,7 @@ const DEFAULT_EXCLUDES: IAgentSessionsFilterExcludes = Object.freeze({
 export class AgentSessionsFilter extends Disposable implements Required<IAgentSessionsFilter> {
 
 	private readonly STORAGE_KEY = `agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu`;
-	private readonly GROUPING_STORAGE_KEY = `agentSessions.grouping`;
+	private readonly GROUPING_STORAGE_KEY: string | undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -64,6 +64,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	readonly groupResults = () => this.groupingOverride ?? this.options.groupResults?.();
 
 	private groupingOverride: AgentSessionsGrouping | undefined;
+	private isStoringGrouping = false;
 
 	private excludes = DEFAULT_EXCLUDES;
 	private isStoringExcludes = false;
@@ -77,6 +78,11 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	) {
 		super();
 
+		// Only enable grouping override when a default grouping is configured
+		if (this.options.groupResults && this.options.filterMenuId) {
+			this.GROUPING_STORAGE_KEY = `agentSessions.grouping.${this.options.filterMenuId.id}`;
+		}
+
 		this.updateExcludes(false);
 		this.updateGrouping(false);
 
@@ -88,7 +94,9 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.updateFilterActions()));
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.STORAGE_KEY, this._store)(() => this.updateExcludes(true)));
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.GROUPING_STORAGE_KEY, this._store)(() => this.updateGrouping(true)));
+		if (this.GROUPING_STORAGE_KEY) {
+			this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.GROUPING_STORAGE_KEY, this._store)(() => this.updateGrouping(true)));
+		}
 	}
 
 	private updateExcludes(fromEvent: boolean): void {
@@ -113,6 +121,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	private updateGrouping(fromEvent: boolean): void {
+		if (!this.GROUPING_STORAGE_KEY || this.isStoringGrouping) {
+			return;
+		}
+
 		const raw = this.storageService.get(this.GROUPING_STORAGE_KEY, StorageScope.PROFILE);
 		if (raw && Object.values(AgentSessionsGrouping).includes(raw as AgentSessionsGrouping)) {
 			this.groupingOverride = raw as AgentSessionsGrouping;
@@ -133,12 +145,21 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	private storeGrouping(grouping: AgentSessionsGrouping | undefined): void {
+		if (!this.GROUPING_STORAGE_KEY) {
+			return;
+		}
+
 		this.groupingOverride = grouping;
 
-		if (grouping === undefined) {
-			this.storageService.remove(this.GROUPING_STORAGE_KEY, StorageScope.PROFILE);
-		} else {
-			this.storageService.store(this.GROUPING_STORAGE_KEY, grouping, StorageScope.PROFILE, StorageTarget.USER);
+		this.isStoringGrouping = true;
+		try {
+			if (grouping === undefined) {
+				this.storageService.remove(this.GROUPING_STORAGE_KEY, StorageScope.PROFILE);
+			} else {
+				this.storageService.store(this.GROUPING_STORAGE_KEY, grouping, StorageScope.PROFILE, StorageTarget.USER);
+			}
+		} finally {
+			this.isStoringGrouping = false;
 		}
 	}
 
