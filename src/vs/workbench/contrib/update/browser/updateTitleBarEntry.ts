@@ -55,6 +55,8 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IProductService private readonly productService: IProductService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IUpdateService updateService: IUpdateService,
 	) {
 		super();
@@ -63,29 +65,81 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			return; // Electron only
 		}
 
-		this._register(actionViewItemService.register(
-			MenuId.CommandCenter,
-			UPDATE_TITLE_BAR_ACTION_ID,
-			(action, options) => instantiationService.createInstance(UpdateTitleBarEntry, action, options)
-		));
-
 		const context = UPDATE_TITLE_BAR_CONTEXT.bindTo(contextKeyService);
 		const actionableStates = [StateType.AvailableForDownload, StateType.Downloaded, StateType.Ready];
 
-		const updateVisibility = () => {
+		const updateContext = () => {
 			const mode = configurationService.getValue<string>('update.titleBar');
-			const state = updateService.state;
-			context.set(mode === 'detailed' || mode === 'actionable' && actionableStates.includes(state.type));
+			const state = updateService.state.type;
+			context.set(mode === 'detailed' || mode === 'actionable' && actionableStates.includes(state));
 		};
 
-		this._register(updateService.onStateChange(updateVisibility));
+		let entry: UpdateTitleBarEntry | undefined;
+		let showTooltipOnRender = false;
+
+		this._register(actionViewItemService.register(
+			MenuId.CommandCenter,
+			UPDATE_TITLE_BAR_ACTION_ID,
+			(action, options) => {
+				entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, updateContext, showTooltipOnRender);
+				showTooltipOnRender = false;
+				return entry;
+			}
+		));
+
+		const onStateChange = () => {
+			if (this.shouldShowTooltip(updateService.state)) {
+				if (context.get()) {
+					entry?.showTooltip();
+				} else {
+					context.set(true);
+					showTooltipOnRender = true;
+				}
+			} else {
+				updateContext();
+			}
+		};
+
+		this._register(updateService.onStateChange(onStateChange));
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('update.titleBar')) {
-				updateVisibility();
+				updateContext();
 			}
 		}));
 
-		updateVisibility();
+		onStateChange();
+	}
+
+	private shouldShowTooltip(state: State): boolean {
+		switch (state.type) {
+			case StateType.Disabled:
+				return state.reason === DisablementReason.InvalidConfiguration || state.reason === DisablementReason.RunningAsAdmin;
+			case StateType.Idle:
+				return !!state.error || state.notAvailable || this.isMajorMinorVersionChange();
+			case StateType.AvailableForDownload:
+			case StateType.Downloaded:
+			case StateType.Ready:
+				return true;
+			default:
+				return false;
+		}
+	}
+
+	private isMajorMinorVersionChange(): boolean {
+		const currentVersion = this.productService.version;
+		const lastKnownVersion = this.storageService.get(LAST_KNOWN_VERSION_KEY, StorageScope.APPLICATION);
+		this.storageService.store(LAST_KNOWN_VERSION_KEY, currentVersion, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		if (!lastKnownVersion) {
+			return false;
+		}
+
+		const current = tryParseVersion(currentVersion);
+		const last = tryParseVersion(lastKnownVersion);
+		if (!current || !last) {
+			return false;
+		}
+
+		return current.major !== last.major || current.minor !== last.minor;
 	}
 }
 
@@ -99,19 +153,19 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 	constructor(
 		action: IAction,
 		options: IBaseActionViewItemOptions,
+		private readonly onDisposeTooltip: () => void,
+		private showTooltipOnRender: boolean,
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IUpdateService private readonly updateService: IUpdateService,
 	) {
 		super(undefined, action, options);
 
-		this.action.run = this.runAction.bind(this);
+		this.action.run = () => this.runAction();
 		this.tooltip = this._register(instantiationService.createInstance(UpdateTooltip));
 
-		this._register(this.updateService.onStateChange(this.onStateChange.bind(this)));
+		this._register(this.updateService.onStateChange(state => this.updateContent(state)));
 	}
 
 	public override render(container: HTMLElement) {
@@ -119,7 +173,12 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 
 		this.content = dom.append(container, dom.$('.update-indicator'));
 		this.updateTooltip();
-		this.onStateChange(this.updateService.state);
+		this.updateContent(this.updateService.state);
+
+		if (this.showTooltipOnRender) {
+			this.showTooltipOnRender = false;
+			dom.scheduleAtNextAnimationFrame(dom.getWindow(container), () => this.showTooltip());
+		}
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
@@ -143,20 +202,23 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		}
 	}
 
-	private showTooltip() {
+	public showTooltip() {
 		if (!this.content) {
 			return;
 		}
 
 		this.hoverService.showInstantHover({
 			content: this.tooltip.domNode,
-			target: this.content,
+			target: {
+				targetElements: [this.content],
+				dispose: () => this.onDisposeTooltip(),
+			},
 			persistence: { sticky: true },
 			appearance: { showPointer: true },
 		}, true);
 	}
 
-	private onStateChange(state: State) {
+	private updateContent(state: State) {
 		if (!this.content) {
 			return;
 		}
@@ -168,15 +230,9 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		const label = dom.append(this.content, dom.$('.indicator-label'));
 		label.textContent = localize('updateIndicator.update', "Update");
 
-		let showTooltip = false;
 		switch (state.type) {
 			case StateType.Disabled:
 				this.content.classList.add('update-disabled');
-				showTooltip = state.reason === DisablementReason.InvalidConfiguration || state.reason === DisablementReason.RunningAsAdmin;
-				break;
-
-			case StateType.Idle:
-				showTooltip = !!state.error || state.notAvailable || this.isMajorMinorVersionChange();
 				break;
 
 			case StateType.CheckingForUpdates:
@@ -188,7 +244,6 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			case StateType.Downloaded:
 			case StateType.Ready:
 				this.content.classList.add('prominent');
-				showTooltip = true;
 				break;
 
 			case StateType.Downloading:
@@ -199,27 +254,6 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 				this.renderProgressState(this.content, computeProgressPercent(state.currentProgress, state.maxProgress));
 				break;
 		}
-
-		if (showTooltip) {
-			this.showTooltip();
-		}
-	}
-
-	private isMajorMinorVersionChange(): boolean {
-		const currentVersion = this.productService.version;
-		const lastKnownVersion = this.storageService.get(LAST_KNOWN_VERSION_KEY, StorageScope.APPLICATION);
-		this.storageService.store(LAST_KNOWN_VERSION_KEY, currentVersion, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		if (!lastKnownVersion) {
-			return false;
-		}
-
-		const current = tryParseVersion(currentVersion);
-		const last = tryParseVersion(lastKnownVersion);
-		if (!current || !last) {
-			return false;
-		}
-
-		return current.major !== last.major || current.minor !== last.minor;
 	}
 
 	private renderProgressState(content: HTMLElement, percentage?: number) {
