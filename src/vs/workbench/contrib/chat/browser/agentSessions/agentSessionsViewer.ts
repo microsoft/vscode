@@ -870,12 +870,6 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			const repoId = repoName || noRepoId;
 			const repoLabel = repoName || noRepoLabel;
 
-			if (!repoName) {
-				const badge = session.badge;
-				const badgeRaw = badge ? (typeof badge === 'string' ? badge : badge.value) : 'none';
-				console.log(`[AgentSessions][Other] Session "${session.label}" — metadata: ${JSON.stringify(session.metadata)}, badge: "${badgeRaw}", providerType: "${session.providerType}"`);
-			}
-
 			let group = repoMap.get(repoId);
 			if (!group) {
 				group = { label: repoLabel, sessions: [] };
