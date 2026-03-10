@@ -881,7 +881,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		const result: AgentSessionListItem[] = [];
 		for (const [repoId, { label, sessions }] of repoMap) {
 			result.push({
-				section: `repo-${repoId}`,
+				section: `repo-${repoId}` as AgentSessionSection,
 				label,
 				sessions,
 			});
