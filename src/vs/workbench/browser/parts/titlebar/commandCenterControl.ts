@@ -146,10 +146,9 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							container.role = 'button';
 							container.setAttribute('aria-description', this.getTooltip());
 
-							// When both unified agents bar and agent status are enabled,
-							// hide search icon and left-align the label
-							const isCompactMode = that._configurationService.getValue<boolean>('chat.unifiedAgentsBar.enabled') === true
-								&& that._configurationService.getValue<boolean>('chat.agentsControl.enabled') === true;
+							// When agent control mode is 'compact', hide search icon and left-align the label
+							const agentControlValue = that._configurationService.getValue('chat.agentsControl.enabled');
+							const isCompactMode = agentControlValue === 'compact';
 							container.classList.toggle('compact-mode', isCompactMode);
 
 							const action = this.action;

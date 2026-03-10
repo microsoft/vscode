@@ -43,7 +43,7 @@ import { IActionViewItemService } from '../../../../../../platform/actions/brows
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, getAgentControlMode } from '../../../common/constants.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -287,9 +287,10 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			// Get current filter state for state key
 			const { isFilteredToUnread, isFilteredToInProgress } = this._getCurrentFilterState();
 
-			// Check which settings are enabled (these are independent settings)
-			const unifiedAgentsBarEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
-			const agentStatusEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
+			// Check which settings are enabled
+			const agentControlMode = getAgentControlMode(this.configurationService.getValue(ChatConfiguration.AgentStatusEnabled));
+			const unifiedAgentsBarEnabled = agentControlMode === 'compact';
+			const agentStatusEnabled = agentControlMode !== 'hidden';
 			const viewSessionsEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled) !== false;
 
 			// Build state key for comparison
@@ -392,9 +393,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		const { activeSessions, unreadSessions, attentionNeededSessions, hasAttentionNeeded } = this._getSessionStats();
 
-		// Render command center items (like debug toolbar) FIRST - to the left
-		this._renderCommandCenterToolbar(disposables);
-
 		// Create pill
 		const pill = $('div.agent-status-pill.chat-input-mode');
 		if (hasAttentionNeeded) {
@@ -406,8 +404,11 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		this._firstFocusableElement = pill;
 		this._container.appendChild(pill);
 
-		// When agent status is also enabled, use compact mode (no icon, left-aligned label)
-		const isCompactMode = this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
+		// Render command center items (like debug toolbar) inside the pill
+		this._renderCommandCenterToolbar(disposables, pill);
+
+		// Compact mode is always true when rendering chat input mode (caller already checked for compact)
+		const isCompactMode = true;
 		pill.classList.toggle('compact-mode', isCompactMode);
 
 		// Left icon container (sparkle by default, report+count when attention needed, search on hover)
@@ -510,11 +511,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			}
 		}));
 
-		// Status badge - only when Agent Status is enabled
-		// In compact mode, render inline within the pill instead of as a separate badge
-		if (this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true) {
-			this._renderStatusBadge(disposables, activeSessions, unreadSessions, attentionNeededSessions, isCompactMode ? pill : undefined);
-		}
+		// In compact mode, render status badge inline within the pill
+		this._renderStatusBadge(disposables, activeSessions, unreadSessions, attentionNeededSessions, pill);
 	}
 
 	private _renderSessionMode(disposables: DisposableStore): void {
@@ -558,8 +556,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		disposables.add(addDisposableListener(pill, EventType.CLICK, exitHandler));
 		disposables.add(addDisposableListener(pill, EventType.MOUSE_DOWN, exitHandler));
 
-		// Status badge (separate rectangle on right) - only when Agent Status is enabled
-		if (this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true) {
+		// Status badge (separate rectangle on right)
+		const agentControlMode = getAgentControlMode(this.configurationService.getValue(ChatConfiguration.AgentStatusEnabled));
+		if (agentControlMode !== 'hidden') {
 			this._renderStatusBadge(disposables, activeSessions, unreadSessions, attentionNeededSessions);
 		}
 	}
@@ -609,8 +608,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		disposables.add(addDisposableListener(pill, EventType.CLICK, enterHandler));
 		disposables.add(addDisposableListener(pill, EventType.MOUSE_DOWN, enterHandler));
 
-		// Status badge (separate rectangle on right) - only when Agent Status is enabled
-		if (this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true) {
+		// Status badge (separate rectangle on right)
+		const agentControlModeForReady = getAgentControlMode(this.configurationService.getValue(ChatConfiguration.AgentStatusEnabled));
+		if (agentControlModeForReady !== 'hidden') {
 			this._renderStatusBadge(disposables, activeSessions, unreadSessions, attentionNeededSessions);
 		}
 	}
@@ -639,8 +639,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	 * Filters out the quick open action since we provide our own search UI.
 	 * Adds a dot separator after the toolbar if content was rendered.
 	 */
-	private _renderCommandCenterToolbar(disposables: DisposableStore): void {
-		if (!this._container) {
+	private _renderCommandCenterToolbar(disposables: DisposableStore, parent?: HTMLElement): void {
+		const container = parent ?? this._container;
+		if (!container) {
 			return;
 		}
 
@@ -668,7 +669,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
 		const toolbarContainer = $('div.agent-status-command-center-toolbar');
-		this._container.appendChild(toolbarContainer);
+		container.appendChild(toolbarContainer);
 
 		const toolbar = this.instantiationService.createInstance(WorkbenchToolBar, toolbarContainer, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -681,10 +682,17 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		toolbar.setActions(allActions);
 
-		// Add dot separator after the toolbar (matching command center style)
-		const separator = renderIcon(Codicon.circleSmallFilled);
-		separator.classList.add('agent-status-separator');
-		this._container.appendChild(separator);
+		// Add separator after the toolbar
+		if (parent) {
+			// Inside pill (compact mode): use a vertical line separator
+			const separator = $('span.agent-status-line-separator');
+			container.appendChild(separator);
+		} else {
+			// Outside pill: use dot separator (matching command center style)
+			const separator = renderIcon(Codicon.circleSmallFilled);
+			separator.classList.add('agent-status-separator');
+			container.appendChild(separator);
+		}
 	}
 
 	/**
@@ -842,9 +850,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// When both unified agents bar and agent status are enabled, show status indicators
 		// before the sparkle button: [active, unread, sparkle] (populating inward)
 		// Otherwise, keep original order: [sparkle, unread, active]
-		const unifiedAgentsBarEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
-		const agentStatusEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
-		const reverseOrder = unifiedAgentsBarEnabled && agentStatusEnabled;
+		const agentControlModeForBadge = getAgentControlMode(this.configurationService.getValue(ChatConfiguration.AgentStatusEnabled));
+		const reverseOrder = agentControlModeForBadge === 'compact';
 
 		if (!reverseOrder) {
 			// Original order: sparkle first
@@ -941,6 +948,11 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Append status sections in the correct order
 		if (reverseOrder) {
+			// Add line separator before badge sections when inline in compact mode
+			if (inlineContainer) {
+				const badgeSeparator = $('span.agent-status-badge-separator');
+				badge.appendChild(badgeSeparator);
+			}
 			// [active, unread, sparkle] — populates inward
 			if (activeSection) { badge.appendChild(activeSection); }
 			if (unreadSection) { badge.appendChild(unreadSection); }
@@ -1226,7 +1238,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				source: 'pill',
 				action: 'quickAccess',
 			});
-			this.commandService.executeCommand(UNIFIED_QUICK_ACCESS_ACTION_ID);
+			// Use unified quick access only if that separate setting is enabled, otherwise use normal quick open
+			const useUnifiedQuickAccess = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
+			this.commandService.executeCommand(useUnifiedQuickAccess ? UNIFIED_QUICK_ACCESS_ACTION_ID : QUICK_OPEN_ACTION_ID);
 		}
 	}
 
@@ -1285,7 +1299,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		}
 
 		if (!label) {
-			label = localize('agentStatusWidget.askAnything', "Ask anything...");
+			label = localize('agentStatusWidget.search', "Search");
 		}
 
 		// Apply prefix and suffix decorations
@@ -1349,11 +1363,12 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 		}, undefined));
 
 		// Add/remove CSS classes on workbench based on settings
-		// Force enable command center and disable chat controls when agent status or unified agents bar is enabled
+		// Force enable command center and disable chat controls when agent status is enabled
 		const updateClass = () => {
 			const commandCenterEnabled = configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) === true;
-			const enabled = configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true && commandCenterEnabled;
-			const enhanced = configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true && commandCenterEnabled;
+			const mode = getAgentControlMode(configurationService.getValue(ChatConfiguration.AgentStatusEnabled));
+			const enabled = mode !== 'hidden' && commandCenterEnabled;
+			const enhanced = mode === 'compact' && commandCenterEnabled;
 
 			mainWindow.document.body.classList.toggle('agent-status-enabled', enabled);
 			mainWindow.document.body.classList.toggle('unified-agents-bar', enhanced);

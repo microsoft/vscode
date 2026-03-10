@@ -115,15 +115,13 @@
 	flex-shrink: 0;
 }
 
-/* First badge section in compact mode also gets a left separator */
-.agent-status-pill.compact-mode .agent-status-badge-section:first-of-type::before {
-	content: '';
-	position: absolute;
-	left: 0;
-	top: 4px;
-	bottom: 4px;
+/* Vertical line separator before badge sections in compact mode */
+.agent-status-badge-separator {
 	width: 1px;
+	align-self: stretch;
+	margin: 4px 0;
 	background-color: var(--vscode-commandCenter-border, rgba(128, 128, 128, 0.35));
+	flex-shrink: 0;
 }
 
 /* Input hover target - only this area triggers hover, not badge sections */
@@ -247,6 +245,15 @@
 	opacity: 0.5;
 	display: flex;
 	align-items: center;
+}
+
+/* Vertical line separator used inside the pill in compact+debug mode */
+.agent-status-line-separator {
+	width: 1px;
+	align-self: stretch;
+	margin: 4px 6px;
+	background-color: var(--vscode-commandCenter-border, rgba(128, 128, 128, 0.35));
+	flex-shrink: 0;
 }
 
 /* Status Badge */
