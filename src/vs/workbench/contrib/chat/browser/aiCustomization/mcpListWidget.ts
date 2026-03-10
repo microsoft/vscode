@@ -29,7 +29,7 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { getContextMenuActions } from '../../../../contrib/mcp/browser/mcpServerActions.js';
 import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
-import { workspaceIcon, userIcon, extensionIcon, mcpServerIcon } from './aiCustomizationIcons.js';
+import { workspaceIcon, userIcon, extensionIcon, mcpServerIcon, builtinIcon } from './aiCustomizationIcons.js';
 import { formatDisplayName, truncateToFirstSentence } from './aiCustomizationListWidget.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
@@ -116,7 +116,6 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		container.classList.add('mcp-server-item');
 
 		const typeIcon = DOM.append(container, $('.mcp-server-icon'));
-		typeIcon.classList.add(...ThemeIcon.asClassNameArray(mcpServerIcon));
 
 		const details = DOM.append(container, $('.mcp-server-details'));
 		const name = DOM.append(details, $('.mcp-server-name'));
@@ -132,6 +131,8 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 
 		if (element.type === 'builtin-item') {
 			templateData.container.classList.add('builtin');
+			templateData.typeIcon.className = 'mcp-server-icon';
+			templateData.typeIcon.classList.add(...ThemeIcon.asClassNameArray(builtinIcon));
 			templateData.name.textContent = formatDisplayName(element.label);
 			if (element.description) {
 				templateData.description.textContent = truncateToFirstSentence(element.description);
@@ -144,6 +145,8 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		}
 
 		templateData.container.classList.remove('builtin');
+		templateData.typeIcon.className = 'mcp-server-icon';
+		templateData.typeIcon.classList.add(...ThemeIcon.asClassNameArray(mcpServerIcon));
 		templateData.name.textContent = formatDisplayName(element.server.label);
 		if (element.server.description) {
 			templateData.description.textContent = truncateToFirstSentence(element.server.description);
