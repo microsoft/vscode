@@ -14,7 +14,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
-import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewCommandId, BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -37,7 +37,7 @@ interface IOpenBrowserOptions {
 class OpenIntegratedBrowserAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.browser.open',
+			id: BrowserViewCommandId.Open,
 			title: localize2('browser.openAction', "Open Integrated Browser"),
 			category: BrowserCategory,
 			f1: true
@@ -67,7 +67,7 @@ class OpenIntegratedBrowserAction extends Action2 {
 class NewTabAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.browser.newTab',
+			id: BrowserViewCommandId.NewTab,
 			title: localize2('browser.newTabAction', "New Tab"),
 			category: BrowserCategory,
 			f1: true,
@@ -97,7 +97,7 @@ class NewTabAction extends Action2 {
 }
 
 class GoBackAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.goBack';
+	static readonly ID = BrowserViewCommandId.GoBack;
 
 	constructor() {
 		super({
@@ -129,7 +129,7 @@ class GoBackAction extends Action2 {
 }
 
 class GoForwardAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.goForward';
+	static readonly ID = BrowserViewCommandId.GoForward;
 
 	constructor() {
 		super({
@@ -161,7 +161,7 @@ class GoForwardAction extends Action2 {
 }
 
 class ReloadAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.reload';
+	static readonly ID = BrowserViewCommandId.Reload;
 
 	constructor() {
 		super({
@@ -199,7 +199,7 @@ class ReloadAction extends Action2 {
 }
 
 class HardReloadAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.hardReload';
+	static readonly ID = BrowserViewCommandId.HardReload;
 
 	constructor() {
 		super({
@@ -227,7 +227,7 @@ class HardReloadAction extends Action2 {
 }
 
 class FocusUrlInputAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.focusUrlInput';
+	static readonly ID = BrowserViewCommandId.FocusUrlInput;
 
 	constructor() {
 		super({
@@ -251,7 +251,7 @@ class FocusUrlInputAction extends Action2 {
 }
 
 class AddElementToChatAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.addElementToChat';
+	static readonly ID = BrowserViewCommandId.AddElementToChat;
 
 	constructor() {
 		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true));
@@ -288,7 +288,7 @@ class AddElementToChatAction extends Action2 {
 }
 
 class AddConsoleLogsToChatAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.addConsoleLogsToChat';
+	static readonly ID = BrowserViewCommandId.AddConsoleLogsToChat;
 
 	constructor() {
 		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true));
@@ -316,7 +316,7 @@ class AddConsoleLogsToChatAction extends Action2 {
 }
 
 class ToggleDevToolsAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.toggleDevTools';
+	static readonly ID = BrowserViewCommandId.ToggleDevTools;
 
 	constructor() {
 		super({
@@ -347,7 +347,7 @@ class ToggleDevToolsAction extends Action2 {
 }
 
 class OpenInExternalBrowserAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.openExternal';
+	static readonly ID = BrowserViewCommandId.OpenExternal;
 
 	constructor() {
 		super({
@@ -383,7 +383,7 @@ class OpenInExternalBrowserAction extends Action2 {
 }
 
 class ClearGlobalBrowserStorageAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.clearGlobalStorage';
+	static readonly ID = BrowserViewCommandId.ClearGlobalStorage;
 
 	constructor() {
 		super({
@@ -408,7 +408,7 @@ class ClearGlobalBrowserStorageAction extends Action2 {
 }
 
 class ClearWorkspaceBrowserStorageAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.clearWorkspaceStorage';
+	static readonly ID = BrowserViewCommandId.ClearWorkspaceStorage;
 
 	constructor() {
 		super({
@@ -433,7 +433,7 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 }
 
 class ClearEphemeralBrowserStorageAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.clearEphemeralStorage';
+	static readonly ID = BrowserViewCommandId.ClearEphemeralStorage;
 
 	constructor() {
 		super({
@@ -460,7 +460,7 @@ class ClearEphemeralBrowserStorageAction extends Action2 {
 }
 
 class OpenBrowserSettingsAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.openSettings';
+	static readonly ID = BrowserViewCommandId.OpenSettings;
 
 	constructor() {
 		super({
@@ -486,7 +486,7 @@ class OpenBrowserSettingsAction extends Action2 {
 // Find actions
 
 class ShowBrowserFindAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.showFind';
+	static readonly ID = BrowserViewCommandId.ShowFind;
 
 	constructor() {
 		super({
@@ -515,7 +515,7 @@ class ShowBrowserFindAction extends Action2 {
 }
 
 class HideBrowserFindAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.hideFind';
+	static readonly ID = BrowserViewCommandId.HideFind;
 
 	constructor() {
 		super({
@@ -540,7 +540,7 @@ class HideBrowserFindAction extends Action2 {
 }
 
 class BrowserFindNextAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.findNext';
+	static readonly ID = BrowserViewCommandId.FindNext;
 
 	constructor() {
 		super({
@@ -571,7 +571,7 @@ class BrowserFindNextAction extends Action2 {
 }
 
 class BrowserFindPreviousAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.findPrevious';
+	static readonly ID = BrowserViewCommandId.FindPrevious;
 
 	constructor() {
 		super({

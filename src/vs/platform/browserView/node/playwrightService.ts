@@ -11,9 +11,23 @@ import { IPlaywrightService } from '../common/playwrightService.js';
 import { IBrowserViewGroupRemoteService } from '../node/browserViewGroupRemoteService.js';
 import { IBrowserViewGroup } from '../common/browserViewGroup.js';
 import { PlaywrightTab } from './playwrightTab.js';
+import { CDPEvent, CDPRequest, CDPResponse } from '../common/cdp/types.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import type { Browser, BrowserContext, Page } from 'playwright-core';
+
+interface PlaywrightTransport {
+	send(s: CDPRequest): void;
+	close(): void;  // Note: calling close is expected to issue onclose at some point.
+	onmessage?: (message: CDPResponse | CDPEvent) => void;
+	onclose?: (reason?: string) => void;
+}
+
+declare module 'playwright-core' {
+	interface BrowserType {
+		_connectOverCDPTransport(transport: PlaywrightTransport): Promise<Browser>;
+	}
+}
 
 /**
  * Shared-process implementation of {@link IPlaywrightService}.
@@ -81,8 +95,17 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 				this.logService.debug('[PlaywrightService] Connecting to browser via CDP');
 				const playwright = await import('playwright-core');
-				const endpoint = await group.getDebugWebSocketEndpoint();
-				const browser = await playwright.chromium.connectOverCDP(endpoint);
+				const sub = group.onCDPMessage(msg => transport.onmessage?.(msg));
+				const transport: PlaywrightTransport = {
+					close() {
+						sub.dispose();
+						this.onclose?.();
+					},
+					send(message) {
+						void group.sendCDPMessage(message);
+					}
+				};
+				const browser = await playwright.chromium._connectOverCDPTransport(transport);
 
 				this.logService.debug('[PlaywrightService] Connected to browser');
 

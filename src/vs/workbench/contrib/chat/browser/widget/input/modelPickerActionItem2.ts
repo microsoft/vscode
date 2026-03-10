@@ -39,7 +39,7 @@ export class EnhancedModelPickerActionItem extends BaseActionViewItem {
 	) {
 		super(undefined, action);
 
-		this._pickerWidget = this._register(instantiationService.createInstance(ModelPickerWidget, delegate));
+		this._pickerWidget = this._register(instantiationService.createInstance(ModelPickerWidget, delegate, pickerOptions.hoverPosition));
 		this._pickerWidget.setSelectedModel(delegate.currentModel.get());
 		this._pickerWidget.setHideChevrons(pickerOptions.hideChevrons);
 

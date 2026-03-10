@@ -826,7 +826,7 @@ export class SelectedSuggestionInfo {
 	) {
 	}
 
-	public equals(other: SelectedSuggestionInfo) {
+	public equals(other: SelectedSuggestionInfo): boolean {
 		return Range.lift(this.range).equalsRange(other.range)
 			&& this.text === other.text
 			&& this.completionKind === other.completionKind

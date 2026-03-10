@@ -154,6 +154,10 @@ export interface IPluginMarketplaceService {
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void;
 	removeInstalledPlugin(pluginUri: URI): void;
 	setInstalledPluginEnabled(pluginUri: URI, enabled: boolean): void;
+	/** Returns whether the given marketplace has been explicitly trusted by the user. */
+	isMarketplaceTrusted(ref: IMarketplaceReference): boolean;
+	/** Records that the user trusts the given marketplace, persisted permanently. */
+	trustMarketplace(ref: IMarketplaceReference): void;
 }
 
 /**
@@ -209,10 +213,21 @@ const installedPluginsMemento = observableMemento<readonly IStoredInstalledPlugi
 	},
 });
 
+const trustedMarketplacesMemento = observableMemento<readonly string[]>({
+	defaultValue: [],
+	key: 'chat.plugins.trustedMarketplaces.v1',
+	toStorage: value => JSON.stringify(value),
+	fromStorage: value => {
+		const parsed = JSON.parse(value);
+		return Array.isArray(parsed) ? parsed : [];
+	},
+});
+
 export class PluginMarketplaceService extends Disposable implements IPluginMarketplaceService {
 	declare readonly _serviceBrand: undefined;
 	private readonly _gitHubMarketplaceCache = new Lazy<Map<string, IGitHubMarketplaceCacheEntry>>(() => this._loadPersistedGitHubMarketplaceCache());
 	private readonly _installedPluginsStore: ObservableMemento<readonly IStoredInstalledPlugin[]>;
+	private readonly _trustedMarketplacesStore: ObservableMemento<readonly string[]>;
 
 	readonly onDidChangeMarketplaces: Event<void>;
 
@@ -230,6 +245,10 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 		this._installedPluginsStore = this._register(
 			installedPluginsMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, _storageService)
+		);
+
+		this._trustedMarketplacesStore = this._register(
+			trustedMarketplacesMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, _storageService)
 		);
 
 		this.installedPlugins = this._installedPluginsStore.map(s =>
@@ -456,6 +475,17 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		);
 	}
 
+	isMarketplaceTrusted(ref: IMarketplaceReference): boolean {
+		return this._trustedMarketplacesStore.get().includes(ref.canonicalId);
+	}
+
+	trustMarketplace(ref: IMarketplaceReference): void {
+		const current = this._trustedMarketplacesStore.get();
+		if (!current.includes(ref.canonicalId)) {
+			this._trustedMarketplacesStore.set([...current, ref.canonicalId], undefined);
+		}
+	}
+
 	private async _fetchFromClonedRepo(reference: IMarketplaceReference, token: CancellationToken): Promise<IMarketplacePlugin[]> {
 		let repoDir: URI;
 		try {
@@ -609,13 +639,18 @@ function parseUriMarketplaceReference(rawValue: string): IMarketplaceReference |
 		return undefined;
 	}
 
+	const gitSuffix = '.git';
 	const sanitizedAuthority = sanitizePathSegment(uri.authority.toLowerCase());
-	const pathSegments = normalizedPath.slice(1, -4).split('/').map(sanitizePathSegment);
+	const pathHasGitSuffix = normalizedPath.toLowerCase().endsWith(gitSuffix);
+	const pathWithoutGit = pathHasGitSuffix ? normalizedPath.slice(1, normalizedPath.length - gitSuffix.length) : normalizedPath.slice(1);
+	const pathSegments = pathWithoutGit.split('/').map(sanitizePathSegment);
+	// Always normalize the canonical path to include .git so that URLs with and without the suffix deduplicate.
+	const canonicalPath = pathHasGitSuffix ? normalizedPath.slice(1).toLowerCase() : `${normalizedPath.slice(1).toLowerCase()}${gitSuffix}`;
 	return {
 		rawValue,
 		displayLabel: rawValue,
 		cloneUrl: rawValue,
-		canonicalId: `git:${uri.authority.toLowerCase()}/${normalizedPath.slice(1).toLowerCase()}`,
+		canonicalId: `git:${uri.authority.toLowerCase()}/${canonicalPath}`,
 		cacheSegments: [sanitizedAuthority, ...pathSegments],
 		kind: MarketplaceReferenceKind.GitUri,
 	};
@@ -644,14 +679,21 @@ function parseScpMarketplaceReference(rawValue: string): IMarketplaceReference |
 	};
 }
 
+/**
+ * Normalizes a Git repository path and validates that it has at least two segments
+ * (i.e., at least one owner/repo pair below the root). Accepts paths with or without
+ * a `.git` suffix — the suffix is preserved in the returned value so callers can decide
+ * how to treat it.
+ */
 function normalizeGitRepoPath(path: string): string | undefined {
+	const gitSuffix = '.git';
 	const trimmed = path.replace(/\/+/g, '/').replace(/\/+$/g, '');
-	if (!trimmed.toLowerCase().endsWith('.git')) {
-		return undefined;
-	}
 
 	const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-	const pathWithoutGit = withLeadingSlash.slice(1, -4);
+	// Strip .git suffix (if present) only for the purposes of validating path depth.
+	const pathWithoutGit = withLeadingSlash.toLowerCase().endsWith(gitSuffix)
+		? withLeadingSlash.slice(1, withLeadingSlash.length - gitSuffix.length)
+		: withLeadingSlash.slice(1);
 	if (!pathWithoutGit || !pathWithoutGit.includes('/')) {
 		return undefined;
 	}
