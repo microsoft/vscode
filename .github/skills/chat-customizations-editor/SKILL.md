@@ -1,6 +1,6 @@
 ---
 name: chat-customizations-editor
-description: Chat customizations editor architecture for the core VS Code management editor and Agent Sessions customization surfaces. Use when changing customization discovery, storage scoping, creation flows, or customization editor UI.
+description: Guidance for the Chat Customizations editor in core VS Code and Agent Sessions, including discovery, storage scoping, creation flows, and related customization surfaces.
 ---
 
 Use this skill for anything touching AI/chat customizations. Older spec docs may lag; prefer current code plus this guide.
