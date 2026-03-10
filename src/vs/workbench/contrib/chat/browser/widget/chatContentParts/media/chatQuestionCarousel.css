@@ -386,6 +386,32 @@
 	}
 }
 
+/* carousel-level message (e.g. from MCP elicitation) */
+.interactive-session .chat-question-carousel-container .chat-question-carousel-message {
+	padding: 8px 16px 0;
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-descriptionForeground);
+
+	.rendered-markdown p {
+		margin: 0;
+	}
+}
+
+/* field description below question title */
+.interactive-session .chat-question-carousel-container .chat-question-description {
+	padding: 4px 16px;
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-descriptionForeground);
+}
+
+/* validation error message below input area */
+.interactive-session .chat-question-carousel-container .chat-question-validation-message {
+	padding: 0 16px 4px;
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-editorWarning-foreground);
+	flex-shrink: 0;
+}
+
 /* summary (after finished) */
 .interactive-session .chat-question-carousel-summary {
 	display: flex;
