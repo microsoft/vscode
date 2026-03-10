@@ -24,6 +24,40 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IChatProgress } from '../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, IChatSessionItem, IChatSessionFileChange, ChatSessionStatus, IChatSessionHistoryItem } from '../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IGitService, IGitExtensionDelegate, IGitRepository } from '../../workbench/contrib/git/common/gitService.js';
+import { IFileService } from '../../platform/files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../platform/files/common/inMemoryFilesystemProvider.js';
+import { VSBuffer } from '../../base/common/buffer.js';
+
+/**
+ * Mock files pre-seeded in the in-memory file system. These match the
+ * paths in EXISTING_MOCK_FILES and are used by the ChatEditingService
+ * to compute before/after diffs.
+ */
+const MOCK_FS_FILES: Record<string, string> = {
+	'/mock-repo/src/index.ts': 'export function main() {\n\tconsole.log("Hello from mock repo");\n}\n',
+	'/mock-repo/src/utils.ts': 'export function add(a: number, b: number): number {\n\treturn a + b;\n}\n',
+	'/mock-repo/package.json': '{\n\t"name": "mock-repo",\n\t"version": "1.0.0"\n}\n',
+	'/mock-repo/README.md': '# Mock Repository\n\nThis is a mock repository for E2E testing.\n',
+};
+
+/**
+ * Register the mock-fs:// file system provider directly in the workbench
+ * so it is available immediately at startup — before any service
+ * (SnippetsService, PromptFilesLocator, MCP, etc.) tries to resolve
+ * files inside the workspace folder.
+ */
+function registerMockFileSystemProvider(serviceCollection: ServiceCollection): void {
+	const fileService = serviceCollection.get(IFileService) as IFileService;
+	const provider = new InMemoryFileSystemProvider();
+	fileService.registerProvider('mock-fs', provider);
+
+	// Pre-populate the files so ChatEditingService can read originals for diffs
+	for (const [filePath, content] of Object.entries(MOCK_FS_FILES)) {
+		const uri = URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: filePath });
+		fileService.writeFile(uri, VSBuffer.fromString(content));
+	}
+	console.log('[Sessions Web Test] Registered mock-fs:// provider with pre-seeded files');
+}
 
 const MOCK_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: { id: 'github', name: 'GitHub (Mock)', enterprise: false },
@@ -93,26 +127,71 @@ class MockDefaultAccountService implements IDefaultAccountService {
 // Mock chat responses and file changes
 // ---------------------------------------------------------------------------
 
-interface MockResponse {
-	text: string;
-	fileEdits?: { uri: URI; content: string }[];
+/**
+ * Paths that exist in the mock-fs file store pre-seeded by the mock extension.
+ * Used to determine whether a textEdit should replace file content (existing)
+ * or insert into an empty buffer (new file), so the real ChatEditingService
+ * computes meaningful before/after diffs.
+ */
+const EXISTING_MOCK_FILES = new Set(['/mock-repo/src/index.ts', '/mock-repo/src/utils.ts', '/mock-repo/package.json', '/mock-repo/README.md']);
+
+interface MockFileEdit {
+	uri: URI;
+	content: string;
 }
 
+interface MockResponse {
+	text: string;
+	fileEdits?: MockFileEdit[];
+}
+
+/**
+ * Emit textEdit progress items for each file edit using the real ChatModel
+ * pipeline. Existing files use a full-file replacement range so the real
+ * ChatEditingService computes an accurate diff. New files use an
+ * insert-at-beginning range.
+ */
+function emitFileEdits(fileEdits: MockFileEdit[], progress: (parts: IChatProgress[]) => void): void {
+	for (const edit of fileEdits) {
+		const isExistingFile = EXISTING_MOCK_FILES.has(edit.uri.path);
+		const range = isExistingFile
+			? { startLineNumber: 1, startColumn: 1, endLineNumber: 99999, endColumn: 1 }
+			: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+		console.log(`[Sessions Web Test] Emitting textEdit for ${edit.uri.toString()} (existing: ${isExistingFile}, range: ${range.startLineNumber}-${range.endLineNumber})`);
+		progress([{
+			kind: 'textEdit',
+			uri: edit.uri,
+			edits: [{ range, text: edit.content }],
+			done: true,
+		}]);
+	}
+}
+
+/**
+ * Return canned response text and file edits keyed by user message keywords.
+ *
+ * File edits target URIs in the mock-fs:// filesystem. Edits for existing
+ * files produce real diffs (original content from mock-fs → new content here).
+ * Edits for new files produce "file created" entries.
+ */
 function getMockResponseWithEdits(message: string): MockResponse {
 	if (/build|compile|create/i.test(message)) {
 		return {
 			text: 'I\'ll help you build the project. Here are the changes:',
 			fileEdits: [
 				{
-					uri: URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/src/build.ts' }),
-					content: 'import { main } from "./index";\n\nasync function build() {\n\tconsole.log("Building...");\n\tmain();\n\tconsole.log("Build complete!");\n}\n\nbuild();\n',
+					// Modify existing file — adds build import + call
+					uri: URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/mock-repo/src/index.ts' }),
+					content: 'import { build } from "./build";\n\nexport function main() {\n\tconsole.log("Hello from mock repo");\n\tbuild();\n}\n',
 				},
 				{
-					uri: URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/src/config.ts' }),
-					content: 'export const config = {\n\toutput: "./dist",\n\tminify: true,\n};\n',
+					// New file — creates build script
+					uri: URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/mock-repo/src/build.ts' }),
+					content: 'export async function build() {\n\tconsole.log("Building...");\n\tconsole.log("Build complete!");\n}\n',
 				},
 				{
-					uri: URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/package.json' }),
+					// Modify existing file — adds build script
+					uri: URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/mock-repo/package.json' }),
 					content: '{\n\t"name": "mock-repo",\n\t"version": "1.0.0",\n\t"scripts": {\n\t\t"build": "node src/build.ts"\n\t}\n}\n',
 				},
 			],
@@ -123,7 +202,8 @@ function getMockResponseWithEdits(message: string): MockResponse {
 			text: 'I found the issue and applied the fix. The input validation has been added.',
 			fileEdits: [
 				{
-					uri: URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/src/utils.ts' }),
+					// Modify existing file — adds input validation
+					uri: URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/mock-repo/src/utils.ts' }),
 					content: 'export function add(a: number, b: number): number {\n\tif (typeof a !== "number" || typeof b !== "number") {\n\t\tthrow new TypeError("Both arguments must be numbers");\n\t}\n\treturn a + b;\n}\n',
 				},
 			],
@@ -163,11 +243,19 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 		this.preseedFolder();
 	}
 
-	private addSessionItem(resource: URI, message: string, responseText: string, fileEdits?: { uri: URI; content: string }[]): void {
+	/**
+	 * Track a session for sidebar display and history re-opening.
+	 *
+	 * Populates `IChatSessionItem.changes` with file change metadata so the
+	 * ChangesViewPane can render them for background (copilotcli) sessions.
+	 * Background sessions read changes from `IAgentSessionsService.model`
+	 * which flows through from `IChatSessionItemController.items`.
+	 */
+	private addSessionItem(resource: URI, message: string, responseText: string, fileEdits?: MockFileEdit[]): void {
 		const key = resource.toString();
 		const now = Date.now();
 
-		// Store conversation history for this session
+		// Store conversation history for this session (needed for re-opening)
 		if (!this._sessionHistory.has(key)) {
 			this._sessionHistory.set(key, []);
 		}
@@ -176,11 +264,11 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 			{ type: 'response', parts: [{ kind: 'markdownContent', content: { value: responseText, isTrusted: false, supportThemeIcons: false, supportHtml: false } }], participant: 'copilot' },
 		);
 
-		// Build detailed file changes if any
+		// Build file changes for the session list (used by ChangesViewPane for background sessions)
 		const changes: IChatSessionFileChange[] | undefined = fileEdits?.map(edit => ({
 			modifiedUri: edit.uri,
 			insertions: edit.content.split('\n').length,
-			deletions: 0,
+			deletions: EXISTING_MOCK_FILES.has(edit.uri.path) ? 1 : 0,
 		}));
 
 		// Add or update session in list
@@ -204,7 +292,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private registerMockAgents(): void {
-		const agentIds = ['copilotcli', 'copilot', 'copilot-cloud-agent'];
+		const agentIds = ['copilotcli', 'copilot-cloud-agent'];
 		const extensionId = new ExtensionIdentifier('vscode.sessions-e2e-mock');
 		const self = this;
 
@@ -237,19 +325,10 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 						content: { value: response.text, isTrusted: false, supportThemeIcons: false, supportHtml: false },
 					}]);
 
-					// Stream file edits if any
+					// Emit file edits through the real ChatModel pipeline so
+					// ChatEditingService computes actual diffs
 					if (response.fileEdits) {
-						for (const edit of response.fileEdits) {
-							progress([{
-								kind: 'textEdit',
-								uri: edit.uri,
-								edits: [{
-									range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-									text: edit.content,
-								}],
-								done: true,
-							}]);
-						}
+						emitFileEdits(response.fileEdits, progress);
 						console.log(`[Sessions Web Test] Emitted ${response.fileEdits.length} file edits`);
 					}
 
@@ -292,14 +371,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 									content: { value: response.text, isTrusted: false, supportThemeIcons: false, supportHtml: false },
 								}]);
 								if (response.fileEdits) {
-									for (const edit of response.fileEdits) {
-										progress([{
-											kind: 'textEdit',
-											uri: edit.uri,
-											edits: [{ range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, text: edit.content }],
-											done: true,
-										}]);
-									}
+									emitFileEdits(response.fileEdits, progress);
 								}
 								isComplete.set(true, undefined);
 							},
@@ -324,7 +396,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	private preseedFolder(): void {
-		const mockFolderUri = URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/' }).toString();
+		const mockFolderUri = URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/mock-repo' }).toString();
 		this.storageService.store('agentSessions.lastPickedFolder', mockFolderUri, StorageScope.PROFILE, StorageTarget.MACHINE);
 		console.log(`[Sessions Web Test] Pre-seeded folder: ${mockFolderUri}`);
 	}
@@ -358,6 +430,9 @@ export class TestSessionsBrowserMain extends SessionsBrowserMain {
 
 	protected override createWorkbench(domElement: HTMLElement, serviceCollection: ServiceCollection, logService: ILogService): IBrowserMainWorkbench {
 		console.log('[Sessions Web Test] Injecting mock services');
+
+		// Register mock-fs:// provider FIRST so all services can resolve workspace files
+		registerMockFileSystemProvider(serviceCollection);
 
 		// Override entitlement service so Sessions thinks user is signed in
 		serviceCollection.set(IChatEntitlementService, new MockChatEntitlementService());

@@ -1,6 +1,7 @@
 {
 	"scenario": "Scenario: Session appears in sidebar after sending a message",
-	"generatedAt": "2026-03-06T04:25:53.502Z",
+	"generatedAt": "2026-03-10T00:00:00.000Z",
+	"note": "Uses semantic selectors — regenerate with 'npm run generate' if UI labels change",
 	"steps": [
 		{
 			"description": "Type \"fix the bug\" in the chat input",
@@ -23,10 +24,15 @@
 			]
 		},
 		{
-			"description": "Verify the diff count shows in the sessions list",
+			"description": "Toggle the secondary side bar",
 			"commands": [
-				"# ASSERT_VISIBLE: +7",
-				"# ASSERT_VISIBLE: -0"
+				"click button \"Toggle Secondary Side Bar\""
+			]
+		},
+		{
+			"description": "Verify the changes view shows the modified file",
+			"commands": [
+				"# ASSERT_VISIBLE: utils.ts"
 			]
 		}
 	]

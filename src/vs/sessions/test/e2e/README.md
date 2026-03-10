@@ -4,6 +4,92 @@ Automated dogfooding tests for the Agent Sessions window using a
 **compile-and-replay** architecture powered by
 [`playwright-cli`](https://github.com/microsoft/playwright-cli) and Copilot CLI.
 
+## Mocking Architecture
+
+These tests run the **real** Sessions workbench with only the minimal set of
+services mocked — specifically the services that require external backends
+(auth, LLM, git). Everything downstream from the mock agent's canned response
+runs through the real code paths.
+
+### What's Mocked (Minimal)
+
+| Service | Mock | Why |
+|---------|------|-----|
+| `IChatEntitlementService` | Returns `ChatEntitlement.Free` | No real Copilot account in CI |
+| `IDefaultAccountService` | Returns a fake signed-in account | Hides the "Sign In" button |
+| `IGitService` | Resolves immediately (no 10s barrier) | No real git extension in web tests |
+| Chat agents (`copilotcli`, etc.) | Canned keyword-matched responses with `textEdit` progress items | No real LLM backend |
+| `mock-fs://` FileSystemProvider | `InMemoryFileSystemProvider` registered directly in the workbench (not extension host) | Must be available before any service tries to resolve workspace files |
+| GitHub authentication | Always-signed-in mock provider (extension) | No real OAuth flow |
+
+### What's Real (Everything Else)
+
+The following services run with their **real** implementations, ensuring tests
+exercise the actual code paths:
+
+- **`ChatEditingService`** — Processes `textEdit` progress items from the mock
+  agent, creates `IModifiedFileEntry` objects with real before/after diffs, and
+  computes actual `linesAdded`/`linesRemoved` from content changes
+- **`ChatModel`** — Routes agent progress through `acceptResponseProgress()`
+- **`ChangesViewPane`** — Reads file modification state from `IChatEditingService`
+  observables and renders the tree with real diff stats
+- **Diff editor** — Opens a real diff view when clicking files in the changes list
+- **Context keys** — `hasUndecidedChatEditingResourceContextKey`,
+  `hasAppliedChatEditsContextKey` are set by real `ModifiedFileEntryState`
+  observations
+- **Menu actions** — "Create PR", "Accept", "Reject" buttons appear based on
+  real context key state
+
+### Data Flow
+
+```
+User types message → Chat Widget → ChatService
+  → Mock Agent invoke() → progress([{ kind: 'textEdit', uri, edits }])
+    → ChatModel.acceptResponseProgress()
+      → ChatEditingService observes textEditGroup parts
+        → Creates IModifiedFileEntry per file
+        → Reads original content from mock-fs:// FileSystemProvider
+        → Computes real diff (linesAdded, linesRemoved)
+          → ChangesViewPane renders via observable chain
+            → Click file → Opens real diff editor
+```
+
+The mock agent is the **only** point where canned data enters the system.
+Everything downstream uses real service implementations.
+
+### Why the FileSystem Provider Is Registered in the Workbench
+
+The `mock-fs://` `InMemoryFileSystemProvider` is registered directly on
+`IFileService` inside `TestSessionsBrowserMain.createWorkbench()` — **not** in
+the mock extension. This is critical because several workbench services
+(SnippetsService, AgenticPromptFilesLocator, MCP, etc.) try to resolve files
+in the workspace folder **before** the extension host activates. If the
+provider were only registered via `vscode.workspace.registerFileSystemProvider()`
+in the extension, these services would see `ENOPRO: No file system provider`
+errors and fail silently.
+
+The mock extension still registers a `mock-fs` provider via the extension API
+(needed for extension host operations), but the workbench-level registration
+is the source of truth.
+
+### File Edit Strategy
+
+Mock edits target files that exist in the `mock-fs://` file store so the
+`ChatEditingService` can compute real before/after diffs:
+
+- **Existing files** (e.g. `/mock-repo/src/index.ts`, `/mock-repo/package.json`) — edits use a
+  full-file replacement range (`line 1 → line 99999`) so the editing service
+  diffs the old content against the new content
+- **New files** (e.g. `/mock-repo/src/build.ts`) — edits use an insert-at-beginning
+  range, producing a "file created" entry in the changes view
+
+### Mock Workspace Folder
+
+The workspace folder URI is `mock-fs://mock-repo/mock-repo`. The path
+`/mock-repo` (not root `/`) is used so that `basename(folderUri)` returns
+`"mock-repo"` — this is what the folder picker displays. All mock files are
+stored under this path in the in-memory file store.
+
 ## How It Works
 
 There are two phases:
@@ -59,19 +145,26 @@ e2e/
 ├── generate.cjs              # Compiles scenarios → .commands.json via Copilot CLI
 ├── test.cjs                  # Replays .commands.json deterministically
 ├── package.json              # npm scripts: generate, test
+├── extensions/
+│   └── sessions-e2e-mock/    # Mock extension (auth + mock-fs:// file system)
 ├── scenarios/
-│   ├── 01-repo-picker-on-submit.scenario.md
-│   ├── 02-cloud-disables-add-run-action.scenario.md
+│   ├── 01-chat-response.scenario.md
+│   ├── 02-chat-with-changes.scenario.md
 │   └── generated/
-│       ├── 01-repo-picker-on-submit.commands.json
-│       └── 02-cloud-disables-add-run-action.commands.json
+│       ├── 01-chat-response.commands.json
+│       └── 02-chat-with-changes.commands.json
 ├── .gitignore
 └── README.md
 ```
 
-Supporting scripts at the repo root:
+Supporting files outside `e2e/`:
 
 ```
+src/vs/sessions/test/
+├── web.test.ts              # TestSessionsBrowserMain + MockChatAgentContribution
+├── web.test.factory.ts      # Factory for test workbench (replaces web.factory.ts)
+└── sessions.web.test.internal.ts  # Test entry point
+
 scripts/
 ├── code-sessions-web.js      # HTTP server that serves Sessions as a web app
 └── code-sessions-web.sh      # Shell wrapper
@@ -224,3 +317,50 @@ It shells out to `playwright-cli click e143`. Done. No parsing, no matching.
 - **Order matters** — scenarios run sequentially; an Escape is pressed between them.
 - **Prefix filenames** with numbers (`01-`, `02-`, …) to control execution order.
 - **Re-generate selectively**: `npm run generate -- 01-repo` to recompile one scenario.
+
+### Testing File Diffs
+
+To test that chat responses produce real file diffs:
+
+1. Use a message keyword that triggers file edits in the mock agent
+   (e.g. "build", "fix" — see `getMockResponseWithEdits()` in `web.test.ts`)
+2. The mock agent emits `textEdit` progress items that flow through the
+   **real** `ChatEditingService`
+3. Open the secondary side bar to see the Changes view
+4. Assert file names are visible in the changes tree
+5. Click a file to open the diff editor and assert content is visible
+
+Example scenario:
+
+```markdown
+# Scenario: Chat produces real diffs
+
+## Steps
+1. Type "build the project" in the chat input
+2. Press Enter to submit
+3. Verify there is a response in the chat
+4. Toggle the secondary side bar
+5. Verify the changes view shows modified files
+6. Click on "index.ts" in the changes list
+7. Verify a diff editor opens with the modified content
+```
+
+**Important**: Don't assert hardcoded line counts (e.g. `+23`). Instead assert
+on file names and content snippets — the real diff engine computes the actual
+counts, which may change as mock file content evolves.
+
+### Adding Mock File Edits
+
+To add new keyword-matched responses with file edits, update
+`getMockResponseWithEdits()` in `src/vs/sessions/test/web.test.ts`:
+
+1. **For existing files** — target URIs whose paths match `EXISTING_MOCK_FILES`
+   (files pre-seeded in the mock extension's file store). The `emitFileEdits()`
+   helper uses a full-file replacement range so the `ChatEditingService`
+   computes a real diff.
+2. **For new files** — target any other path. The helper uses an insert range
+   for these, producing a "file created" entry.
+3. **Mock file store** — to add or change pre-seeded files, update `MOCK_FILES`
+   in `extensions/sessions-e2e-mock/extension.js` AND update
+   `EXISTING_MOCK_FILES` in `web.test.ts` to match. All paths must be under
+   `/mock-repo/` (e.g. `/mock-repo/src/newfile.ts`).

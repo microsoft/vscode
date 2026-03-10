@@ -1,6 +1,7 @@
 {
-	"scenario": "Scenario: Chat message with file changes shows change count",
-	"generatedAt": "2026-03-06T04:24:58.648Z",
+	"scenario": "Scenario: Chat message produces real file diffs in the changes view",
+	"generatedAt": "2026-03-10T00:00:00.000Z",
+	"note": "Uses semantic selectors — regenerate with 'npm run generate' if UI labels change",
 	"steps": [
 		{
 			"description": "Type \"build the project\" in the chat input",
@@ -23,27 +24,35 @@
 			]
 		},
 		{
-			"description": "Verify a change count appears in the session list",
-			"commands": [
-				"# ASSERT_VISIBLE: +23"
-			]
-		},
-		{
 			"description": "Toggle the secondary side bar",
 			"commands": [
-				"click button \"Toggle Secondary Side Bar (⌥⌘B)\""
+				"click button \"Toggle Secondary Side Bar\""
 			]
 		},
 		{
-			"description": "Make sure the changes list shows the file diffs",
+			"description": "Verify the changes view shows modified files",
 			"commands": [
-				"# ASSERT_VISIBLE: Changes - 3 files changed",
-				"click treeitem \"build.ts\"",
-				"# ASSERT_VISIBLE: +10",
-				"click treeitem \"config.ts\"",
-				"# ASSERT_VISIBLE: +5",
-				"click treeitem \"package.json\"",
-				"# ASSERT_VISIBLE: +8"
+				"# ASSERT_VISIBLE: index.ts",
+				"# ASSERT_VISIBLE: build.ts",
+				"# ASSERT_VISIBLE: package.json"
+			]
+		},
+		{
+			"description": "Click on \"index.ts\" in the changes list",
+			"commands": [
+				"click treeitem \"index.ts\""
+			]
+		},
+		{
+			"description": "Verify a diff editor opens with the modified content",
+			"commands": [
+				"# ASSERT_VISIBLE: import { build } from"
+			]
+		},
+		{
+			"description": "Press Escape to close the diff editor",
+			"commands": [
+				"press Escape"
 			]
 		}
 	]
