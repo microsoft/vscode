@@ -44,58 +44,51 @@ import { assertType } from '../../../../base/common/types.js';
  */
 export class InlineChatInputWidget extends Disposable {
 
-	readonly #domNode: HTMLElement;
-	readonly #container: HTMLElement;
-	readonly #inputContainer: HTMLElement;
-	readonly #toolbarContainer: HTMLElement;
-	readonly #input: IActiveCodeEditor;
-	readonly #position = observableValue<IOverlayWidgetPosition | null>(this, null);
-	readonly position: IObservable<IOverlayWidgetPosition | null> = this.#position;
+	private readonly _domNode: HTMLElement;
+	private readonly _container: HTMLElement;
+	private readonly _inputContainer: HTMLElement;
+	private readonly _toolbarContainer: HTMLElement;
+	private readonly _input: IActiveCodeEditor;
+	private readonly _position = observableValue<IOverlayWidgetPosition | null>(this, null);
+	readonly position: IObservable<IOverlayWidgetPosition | null> = this._position;
 
-	readonly #showStore = this._store.add(new DisposableStore());
-	readonly #stickyScrollHeight: IObservable<number>;
-	readonly #layoutData: IObservable<{ totalWidth: number; toolbarWidth: number; height: number; editorPad: number }>;
-	#anchorLineNumber: number = 0;
-	#anchorLeft: number = 0;
-	#anchorAbove: boolean = false;
+	private readonly _showStore = this._store.add(new DisposableStore());
+	private readonly _stickyScrollHeight: IObservable<number>;
+	private readonly _layoutData: IObservable<{ totalWidth: number; toolbarWidth: number; height: number; editorPad: number }>;
+	private _anchorLineNumber: number = 0;
+	private _anchorLeft: number = 0;
+	private _anchorAbove: boolean = false;
 
-	readonly #editorObs: ObservableCodeEditor;
-	readonly #contextKeyService: IContextKeyService;
-	readonly #menuService: IMenuService;
 
 	constructor(
-		editorObs: ObservableCodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
+		private readonly _editorObs: ObservableCodeEditor,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IMenuService private readonly _menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
-		this.#editorObs = editorObs;
-		this.#contextKeyService = contextKeyService;
-		this.#menuService = menuService;
-
 		// Create container
-		this.#domNode = dom.$('.inline-chat-gutter-menu');
+		this._domNode = dom.$('.inline-chat-gutter-menu');
 
 		// Create inner container (background + focus border)
-		this.#container = dom.append(this.#domNode, dom.$('.inline-chat-gutter-container'));
+		this._container = dom.append(this._domNode, dom.$('.inline-chat-gutter-container'));
 
 		// Create input editor container
-		this.#inputContainer = dom.append(this.#container, dom.$('.input'));
+		this._inputContainer = dom.append(this._container, dom.$('.input'));
 
 		// Create toolbar container
-		this.#toolbarContainer = dom.append(this.#container, dom.$('.toolbar'));
+		this._toolbarContainer = dom.append(this._container, dom.$('.toolbar'));
 
 		// Create vertical actions bar below the input container
-		const actionsContainer = dom.append(this.#domNode, dom.$('.inline-chat-gutter-actions'));
+		const actionsContainer = dom.append(this._domNode, dom.$('.inline-chat-gutter-actions'));
 		const actionBar = this._store.add(new ActionBar(actionsContainer, {
 			orientation: ActionsOrientation.VERTICAL,
 			preventLoopNavigation: true,
 		}));
-		const actionsMenu = this._store.add(this.#menuService.createMenu(MenuId.ChatEditorInlineMenu, this.#contextKeyService));
+		const actionsMenu = this._store.add(this._menuService.createMenu(MenuId.ChatEditorInlineMenu, this._contextKeyService));
 		const updateActions = () => {
 			const actions = getFlatActionBarActions(actionsMenu.getActions({ shouldForwardArgs: true }));
 			actionBar.clear();
@@ -130,13 +123,13 @@ export class InlineChatInputWidget extends Disposable {
 			])
 		};
 
-		this.#input = this._store.add(instantiationService.createInstance(CodeEditorWidget, this.#inputContainer, options, codeEditorWidgetOptions)) as IActiveCodeEditor;
+		this._input = this._store.add(instantiationService.createInstance(CodeEditorWidget, this._inputContainer, options, codeEditorWidgetOptions)) as IActiveCodeEditor;
 
 		const model = this._store.add(modelService.createModel('', null, URI.parse(`gutter-input:${Date.now()}`), true));
-		this.#input.setModel(model);
+		this._input.setModel(model);
 
 		// Create toolbar
-		const toolbar = this._store.add(instantiationService.createInstance(MenuWorkbenchToolBar, this.#toolbarContainer, MenuId.InlineChatInput, {
+		const toolbar = this._store.add(instantiationService.createInstance(MenuWorkbenchToolBar, this._toolbarContainer, MenuId.InlineChatInput, {
 			telemetrySource: 'inlineChatInput.toolbar',
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: {
@@ -146,8 +139,8 @@ export class InlineChatInputWidget extends Disposable {
 		}));
 
 		// Initialize sticky scroll height observable
-		const stickyScrollController = StickyScrollController.get(this.#editorObs.editor);
-		this.#stickyScrollHeight = stickyScrollController ? observableFromEvent(stickyScrollController.onDidChangeStickyScrollHeight, () => stickyScrollController.stickyScrollWidgetHeight) : constObservable(0);
+		const stickyScrollController = StickyScrollController.get(this._editorObs.editor);
+		this._stickyScrollHeight = stickyScrollController ? observableFromEvent(stickyScrollController.onDidChangeStickyScrollHeight, () => stickyScrollController.stickyScrollWidgetHeight) : constObservable(0);
 
 		// Track toolbar width changes
 		const toolbarWidth = observableValue<number>(this, 0);
@@ -157,24 +150,24 @@ export class InlineChatInputWidget extends Disposable {
 		this._store.add(resizeObserver);
 		this._store.add(resizeObserver.observe(toolbar.getElement()));
 
-		const contentWidth = observableFromEvent(this, this.#input.onDidChangeModelContent, () => this.#input.getContentWidth());
-		const contentHeight = observableFromEvent(this, this.#input.onDidContentSizeChange, () => this.#input.getContentHeight());
+		const contentWidth = observableFromEvent(this, this._input.onDidChangeModelContent, () => this._input.getContentWidth());
+		const contentHeight = observableFromEvent(this, this._input.onDidContentSizeChange, () => this._input.getContentHeight());
 
-		this.#layoutData = derived(r => {
+		this._layoutData = derived(r => {
 			const editorPad = 6;
 			const totalWidth = contentWidth.read(r) + editorPad + toolbarWidth.read(r);
 			const minWidth = 220;
 			const maxWidth = 600;
-			const clampedWidth = this.#input.getOption(EditorOption.wordWrap) === 'on'
+			const clampedWidth = this._input.getOption(EditorOption.wordWrap) === 'on'
 				? maxWidth
 				: Math.max(minWidth, Math.min(totalWidth, maxWidth));
 
-			const lineHeight = this.#input.getOption(EditorOption.lineHeight);
+			const lineHeight = this._input.getOption(EditorOption.lineHeight);
 			const clampedHeight = Math.min(contentHeight.read(r), (3 * lineHeight));
 
 			if (totalWidth > clampedWidth) {
 				// enable word wrap
-				this.#input.updateOptions({ wordWrap: 'on', });
+				this._input.updateOptions({ wordWrap: 'on', });
 			}
 
 			return {
@@ -187,42 +180,42 @@ export class InlineChatInputWidget extends Disposable {
 
 		// Update container width and editor layout when width changes
 		this._store.add(autorun(r => {
-			const { editorPad, toolbarWidth, totalWidth, height } = this.#layoutData.read(r);
+			const { editorPad, toolbarWidth, totalWidth, height } = this._layoutData.read(r);
 
 			const inputWidth = totalWidth - toolbarWidth - editorPad;
-			this.#container.style.width = `${totalWidth}px`;
-			this.#inputContainer.style.width = `${inputWidth}px`;
-			this.#input.layout({ width: inputWidth, height });
+			this._container.style.width = `${totalWidth}px`;
+			this._inputContainer.style.width = `${inputWidth}px`;
+			this._input.layout({ width: inputWidth, height });
 		}));
 
 		// Toggle focus class on the container
-		this._store.add(this.#input.onDidFocusEditorText(() => this.#container.classList.add('focused')));
-		this._store.add(this.#input.onDidBlurEditorText(() => this.#container.classList.remove('focused')));
+		this._store.add(this._input.onDidFocusEditorText(() => this._container.classList.add('focused')));
+		this._store.add(this._input.onDidBlurEditorText(() => this._container.classList.remove('focused')));
 
 		// Toggle scroll decoration on the toolbar
-		this._store.add(this.#input.onDidScrollChange(e => {
-			this.#toolbarContainer.classList.toggle('fake-scroll-decoration', e.scrollTop > 0);
+		this._store.add(this._input.onDidScrollChange(e => {
+			this._toolbarContainer.classList.toggle('fake-scroll-decoration', e.scrollTop > 0);
 		}));
 
 
 		// Track input text for context key and adjust width based on content
-		const inputHasText = CTX_INLINE_CHAT_INPUT_HAS_TEXT.bindTo(this.#contextKeyService);
-		this._store.add(this.#input.onDidChangeModelContent(() => {
-			inputHasText.set(this.#input.getModel().getValue().trim().length > 0);
+		const inputHasText = CTX_INLINE_CHAT_INPUT_HAS_TEXT.bindTo(this._contextKeyService);
+		this._store.add(this._input.onDidChangeModelContent(() => {
+			inputHasText.set(this._input.getModel().getValue().trim().length > 0);
 		}));
 		this._store.add(toDisposable(() => inputHasText.reset()));
 
 		// Track focus state
-		const inputWidgetFocused = CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED.bindTo(this.#contextKeyService);
-		this._store.add(this.#input.onDidFocusEditorText(() => inputWidgetFocused.set(true)));
-		this._store.add(this.#input.onDidBlurEditorText(() => inputWidgetFocused.set(false)));
+		const inputWidgetFocused = CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED.bindTo(this._contextKeyService);
+		this._store.add(this._input.onDidFocusEditorText(() => inputWidgetFocused.set(true)));
+		this._store.add(this._input.onDidBlurEditorText(() => inputWidgetFocused.set(false)));
 		this._store.add(toDisposable(() => inputWidgetFocused.reset()));
 
 		// Handle key events: ArrowDown to move to actions
-		this._store.add(this.#input.onKeyDown(e => {
+		this._store.add(this._input.onKeyDown(e => {
 			if (e.keyCode === KeyCode.DownArrow && !actionBar.isEmpty()) {
-				const model = this.#input.getModel();
-				const position = this.#input.getPosition();
+				const model = this._input.getModel();
+				const position = this._input.getPosition();
 				if (position && position.lineNumber === model.getLineCount()) {
 					e.preventDefault();
 					e.stopPropagation();
@@ -244,18 +237,18 @@ export class InlineChatInputWidget extends Disposable {
 				if (firstItem?.element && dom.isAncestorOfActiveElement(firstItem.element)) {
 					event.preventDefault();
 					event.stopPropagation();
-					this.#input.focus();
+					this._input.focus();
 				}
 			}
 		}, true));
 
 		// Track focus - hide when focus leaves
-		const focusTracker = this._store.add(dom.trackFocus(this.#domNode));
+		const focusTracker = this._store.add(dom.trackFocus(this._domNode));
 		this._store.add(focusTracker.onDidBlur(() => this.hide()));
 	}
 
 	get value(): string {
-		return this.#input.getModel().getValue().trim();
+		return this._input.getModel().getValue().trim();
 	}
 
 	/**
@@ -265,77 +258,77 @@ export class InlineChatInputWidget extends Disposable {
 	 * @param anchorAbove Whether to anchor above the position (widget grows upward)
 	 */
 	show(lineNumber: number, left: number, anchorAbove: boolean, placeholder: string): void {
-		this.#showStore.clear();
+		this._showStore.clear();
 
 		// Clear input state
-		this.#input.updateOptions({ wordWrap: 'off', placeholder });
-		this.#input.getModel().setValue('');
+		this._input.updateOptions({ wordWrap: 'off', placeholder });
+		this._input.getModel().setValue('');
 
 		// Store anchor info for scroll updates
-		this.#anchorLineNumber = lineNumber;
-		this.#anchorLeft = left;
-		this.#anchorAbove = anchorAbove;
+		this._anchorLineNumber = lineNumber;
+		this._anchorLeft = left;
+		this._anchorAbove = anchorAbove;
 
 		// Set initial position
-		this.#updatePosition();
+		this._updatePosition();
 
 		// Create overlay widget via observable pattern
-		this.#showStore.add(this.#editorObs.createOverlayWidget({
-			domNode: this.#domNode,
-			position: this.#position,
+		this._showStore.add(this._editorObs.createOverlayWidget({
+			domNode: this._domNode,
+			position: this._position,
 			minContentWidthInPx: constObservable(0),
 			allowEditorOverflow: true,
 		}));
 
 		// If anchoring above, adjust position after render to account for widget height
 		if (anchorAbove) {
-			this.#updatePosition();
+			this._updatePosition();
 		}
 
 		// Update position on scroll, hide if anchor line is out of view (only when input is empty)
-		this.#showStore.add(this.#editorObs.editor.onDidScrollChange(() => {
-			const visibleRanges = this.#editorObs.editor.getVisibleRanges();
+		this._showStore.add(this._editorObs.editor.onDidScrollChange(() => {
+			const visibleRanges = this._editorObs.editor.getVisibleRanges();
 			const isLineVisible = visibleRanges.some(range =>
-				this.#anchorLineNumber >= range.startLineNumber && this.#anchorLineNumber <= range.endLineNumber
+				this._anchorLineNumber >= range.startLineNumber && this._anchorLineNumber <= range.endLineNumber
 			);
-			const hasContent = !!this.#input.getModel().getValue();
+			const hasContent = !!this._input.getModel().getValue();
 			if (!isLineVisible && !hasContent) {
 				this.hide();
 			} else {
-				this.#updatePosition();
+				this._updatePosition();
 			}
 		}));
 
 		// Focus the input editor
-		setTimeout(() => this.#input.focus(), 0);
+		setTimeout(() => this._input.focus(), 0);
 	}
 
-	#updatePosition(): void {
-		const editor = this.#editorObs.editor;
+	private _updatePosition(): void {
+		const editor = this._editorObs.editor;
 		const lineHeight = editor.getOption(EditorOption.lineHeight);
-		const top = editor.getTopForLineNumber(this.#anchorLineNumber) - editor.getScrollTop();
+		const top = editor.getTopForLineNumber(this._anchorLineNumber) - editor.getScrollTop();
 		let adjustedTop = top;
 
-		if (this.#anchorAbove) {
-			const widgetHeight = this.#domNode.offsetHeight;
+		if (this._anchorAbove) {
+			const widgetHeight = this._domNode.offsetHeight;
 			adjustedTop = top - widgetHeight;
 		} else {
 			adjustedTop = top + lineHeight;
 		}
 
 		// Clamp to viewport bounds when anchor line is out of view
-		const stickyScrollHeight = this.#stickyScrollHeight.get();
+		const stickyScrollHeight = this._stickyScrollHeight.get();
 		const layoutInfo = editor.getLayoutInfo();
-		const widgetHeight = this.#domNode.offsetHeight;
+		const widgetHeight = this._domNode.offsetHeight;
 		const minTop = stickyScrollHeight;
 		const maxTop = layoutInfo.height - widgetHeight;
 
 		const clampedTop = Math.max(minTop, Math.min(adjustedTop, maxTop));
 		const isClamped = clampedTop !== adjustedTop;
-		this.#domNode.classList.toggle('clamped', isClamped);
+		this._domNode.classList.toggle('clamped', isClamped);
 
-		this.#position.set({
-			preference: { top: clampedTop, left: this.#anchorLeft },
+		this._position.set({
+			preference: { top: clampedTop, left: this._anchorLeft },
 			stackOrdinal: 10000,
 		}, undefined);
 	}
@@ -345,13 +338,13 @@ export class InlineChatInputWidget extends Disposable {
 	 */
 	hide(): void {
 		// Focus editor if focus is still within the editor's DOM
-		const editorDomNode = this.#editorObs.editor.getDomNode();
+		const editorDomNode = this._editorObs.editor.getDomNode();
 		if (editorDomNode && dom.isAncestorOfActiveElement(editorDomNode)) {
-			this.#editorObs.editor.focus();
+			this._editorObs.editor.focus();
 		}
-		this.#position.set(null, undefined);
-		this.#input.getModel().setValue('');
-		this.#showStore.clear();
+		this._position.set(null, undefined);
+		this._input.getModel().setValue('');
+		this._showStore.clear();
 	}
 }
 
@@ -360,62 +353,52 @@ export class InlineChatInputWidget extends Disposable {
  */
 export class InlineChatSessionOverlayWidget extends Disposable {
 
-	readonly #domNode: HTMLElement = document.createElement('div');
-	readonly #container: HTMLElement;
-	readonly #statusNode: HTMLElement;
-	readonly #icon: HTMLElement;
-	readonly #message: HTMLElement;
-	readonly #toolbarNode: HTMLElement;
+	private readonly _domNode: HTMLElement = document.createElement('div');
+	private readonly _container: HTMLElement;
+	private readonly _statusNode: HTMLElement;
+	private readonly _icon: HTMLElement;
+	private readonly _message: HTMLElement;
+	private readonly _toolbarNode: HTMLElement;
 
-	readonly #showStore = this._store.add(new DisposableStore());
-	readonly #position = observableValue<IOverlayWidgetPosition | null>(this, null);
-	readonly #minContentWidthInPx = constObservable(0);
+	private readonly _showStore = this._store.add(new DisposableStore());
+	private readonly _position = observableValue<IOverlayWidgetPosition | null>(this, null);
+	private readonly _minContentWidthInPx = constObservable(0);
 
-	readonly #stickyScrollHeight: IObservable<number>;
-
-	readonly #editorObs: ObservableCodeEditor;
-	readonly #instaService: IInstantiationService;
-	readonly #keybindingService: IKeybindingService;
-	readonly #logService: ILogService;
+	private readonly _stickyScrollHeight: IObservable<number>;
 
 	constructor(
-		editorObs: ObservableCodeEditor,
-		@IInstantiationService instaService: IInstantiationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@ILogService logService: ILogService,
+		private readonly _editorObs: ObservableCodeEditor,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
-		this.#editorObs = editorObs;
-		this.#instaService = instaService;
-		this.#keybindingService = keybindingService;
-		this.#logService = logService;
+		this._domNode.classList.add('inline-chat-session-overlay-widget');
 
-		this.#domNode.classList.add('inline-chat-session-overlay-widget');
-
-		this.#container = document.createElement('div');
-		this.#domNode.appendChild(this.#container);
-		this.#container.classList.add('inline-chat-session-overlay-container');
+		this._container = document.createElement('div');
+		this._domNode.appendChild(this._container);
+		this._container.classList.add('inline-chat-session-overlay-container');
 
 		// Create status node with icon and message
-		this.#statusNode = document.createElement('div');
-		this.#statusNode.classList.add('status');
-		this.#icon = dom.append(this.#statusNode, dom.$('span'));
-		this.#message = dom.append(this.#statusNode, dom.$('span.message'));
-		this.#container.appendChild(this.#statusNode);
+		this._statusNode = document.createElement('div');
+		this._statusNode.classList.add('status');
+		this._icon = dom.append(this._statusNode, dom.$('span'));
+		this._message = dom.append(this._statusNode, dom.$('span.message'));
+		this._container.appendChild(this._statusNode);
 
 		// Create toolbar node
-		this.#toolbarNode = document.createElement('div');
-		this.#toolbarNode.classList.add('toolbar');
+		this._toolbarNode = document.createElement('div');
+		this._toolbarNode.classList.add('toolbar');
 
 		// Initialize sticky scroll height observable
-		const stickyScrollController = StickyScrollController.get(this.#editorObs.editor);
-		this.#stickyScrollHeight = stickyScrollController ? observableFromEvent(stickyScrollController.onDidChangeStickyScrollHeight, () => stickyScrollController.stickyScrollWidgetHeight) : constObservable(0);
+		const stickyScrollController = StickyScrollController.get(this._editorObs.editor);
+		this._stickyScrollHeight = stickyScrollController ? observableFromEvent(stickyScrollController.onDidChangeStickyScrollHeight, () => stickyScrollController.stickyScrollWidgetHeight) : constObservable(0);
 	}
 
 	show(session: IInlineChatSession2): void {
-		assertType(this.#editorObs.editor.hasModel());
-		this.#showStore.clear();
+		assertType(this._editorObs.editor.hasModel());
+		this._showStore.clear();
 
 		// Derived entry observable for this session
 		const entry = derived(r => session.editingSession.readEntry(session.uri, r));
@@ -475,34 +458,34 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 			}
 		});
 
-		this.#showStore.add(autorun(r => {
+		this._showStore.add(autorun(r => {
 			const value = requestMessage.read(r);
 			if (value) {
-				this.#message.innerText = renderAsPlaintext(value.message);
-				this.#icon.className = '';
-				this.#icon.classList.add(...ThemeIcon.asClassNameArray(value.icon));
+				this._message.innerText = renderAsPlaintext(value.message);
+				this._icon.className = '';
+				this._icon.classList.add(...ThemeIcon.asClassNameArray(value.icon));
 			} else {
-				this.#message.innerText = '';
-				this.#icon.className = '';
+				this._message.innerText = '';
+				this._icon.className = '';
 			}
 		}));
 
 		// Log when pending confirmation changes
-		this.#showStore.add(autorun(r => {
+		this._showStore.add(autorun(r => {
 			const response = session.chatModel.lastRequestObs.read(r)?.response;
 			const pending = response?.isPendingConfirmation.read(r);
 			if (pending) {
-				this.#logService.info(`[InlineChat] UNEXPECTED approval needed: ${pending.detail ?? 'unknown'}`);
+				this._logService.info(`[InlineChat] UNEXPECTED approval needed: ${pending.detail ?? 'unknown'}`);
 			}
 		}));
 
 		// Add toolbar
-		this.#container.appendChild(this.#toolbarNode);
-		this.#showStore.add(toDisposable(() => this.#toolbarNode.remove()));
+		this._container.appendChild(this._toolbarNode);
+		this._showStore.add(toDisposable(() => this._toolbarNode.remove()));
 
 		const that = this;
 
-		this.#showStore.add(this.#instaService.createInstance(MenuWorkbenchToolBar, this.#toolbarNode, MenuId.ChatEditorInlineExecute, {
+		this._showStore.add(this._instaService.createInstance(MenuWorkbenchToolBar, this._toolbarNode, MenuId.ChatEditorInlineExecute, {
 			telemetrySource: 'inlineChatProgress.overlayToolbar',
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
@@ -518,52 +501,52 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 					return undefined; // use default action view item with label
 				}
 
-				return new ChatEditingAcceptRejectActionViewItem(action, { ...options, keybinding: undefined }, entry, undefined, that.#keybindingService, primaryActions);
+				return new ChatEditingAcceptRejectActionViewItem(action, { ...options, keybinding: undefined }, entry, undefined, that._keybindingService, primaryActions);
 			}
 		}));
 
 		// Position in top right of editor, below sticky scroll
-		const lineHeight = this.#editorObs.getOption(EditorOption.lineHeight);
+		const lineHeight = this._editorObs.getOption(EditorOption.lineHeight);
 
 		// Track widget width changes
 		const widgetWidth = observableValue<number>(this, 0);
 		const resizeObserver = new dom.DisposableResizeObserver(() => {
-			widgetWidth.set(this.#domNode.offsetWidth, undefined);
+			widgetWidth.set(this._domNode.offsetWidth, undefined);
 		});
-		this.#showStore.add(resizeObserver);
-		this.#showStore.add(resizeObserver.observe(this.#domNode));
+		this._showStore.add(resizeObserver);
+		this._showStore.add(resizeObserver.observe(this._domNode));
 
-		this.#showStore.add(autorun(r => {
-			const layoutInfo = this.#editorObs.layoutInfo.read(r);
-			const stickyScrollHeight = this.#stickyScrollHeight.read(r);
+		this._showStore.add(autorun(r => {
+			const layoutInfo = this._editorObs.layoutInfo.read(r);
+			const stickyScrollHeight = this._stickyScrollHeight.read(r);
 			const width = widgetWidth.read(r);
 			const padding = Math.round(lineHeight.read(r) * 2 / 3);
 
 			// Cap max-width to the editor viewport (content area)
 			const maxWidth = layoutInfo.contentWidth - 2 * padding;
-			this.#domNode.style.maxWidth = `${maxWidth}px`;
+			this._domNode.style.maxWidth = `${maxWidth}px`;
 
 			// Position: top right, below sticky scroll with padding, left of minimap and scrollbar
 			const top = stickyScrollHeight + padding;
 			const left = layoutInfo.width - width - layoutInfo.verticalScrollbarWidth - layoutInfo.minimap.minimapWidth - padding;
 
-			this.#position.set({
+			this._position.set({
 				preference: { top, left },
 				stackOrdinal: 10000,
 			}, undefined);
 		}));
 
 		// Create overlay widget
-		this.#showStore.add(this.#editorObs.createOverlayWidget({
-			domNode: this.#domNode,
-			position: this.#position,
-			minContentWidthInPx: this.#minContentWidthInPx,
+		this._showStore.add(this._editorObs.createOverlayWidget({
+			domNode: this._domNode,
+			position: this._position,
+			minContentWidthInPx: this._minContentWidthInPx,
 			allowEditorOverflow: false,
 		}));
 	}
 
 	hide(): void {
-		this.#position.set(null, undefined);
-		this.#showStore.clear();
+		this._position.set(null, undefined);
+		this._showStore.clear();
 	}
 }

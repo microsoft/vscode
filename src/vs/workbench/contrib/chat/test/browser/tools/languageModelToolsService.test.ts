@@ -592,6 +592,48 @@ suite('LanguageModelToolsService', () => {
 		await promise;
 	});
 
+	test('skipping modified-files confirmation returns the shared skip message and does not invoke the tool', async () => {
+		let invoked = false;
+		const tool = registerToolForTest(service, store, 'testModifiedFilesConfirmationSkip', {
+			prepareToolInvocation: async () => ({
+				confirmationMessages: {
+					title: 'Confirm',
+					message: 'Choose',
+					allowAutoConfirm: false,
+				},
+				toolSpecificData: {
+					kind: 'modifiedFilesConfirmation',
+					options: ['Copy Changes', 'Move Changes'],
+					modifiedFiles: [{
+						uri: URI.parse('file:///workspace/file1.ts')
+					}]
+				}
+			}),
+			invoke: async () => {
+				invoked = true;
+				return { content: [{ kind: 'text', value: 'should not run' }] };
+			},
+		});
+
+		const sessionId = 'sessionId-modified-files-skip';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'requestId-modified-files-skip', capture });
+
+		const dto = tool.makeDto({ x: 1 }, { sessionId });
+		const promise = service.invokeTool(dto, async () => 0, CancellationToken.None);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published, 'expected ChatToolInvocation to be published');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.Skipped });
+		const result = await promise;
+
+		assert.strictEqual(invoked, false);
+		assert.deepStrictEqual(result.content, [{
+			kind: 'text',
+			value: 'The user chose to skip the tool call, they want to proceed without running it'
+		}]);
+	});
+
 	test('cancel tool call', async () => {
 		const toolBarrier = new Barrier();
 		const tool = registerToolForTest(service, store, 'testTool', {

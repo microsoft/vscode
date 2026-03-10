@@ -23,7 +23,8 @@ export namespace ChatContextKeys {
 
 	export const enum EditingRequestType {
 		Sent = 's',
-		QueueOrSteer = 'qs',
+		Queue = 'q',
+		Steer = 'st',
 	}
 	export const editingRequestType = new RawContextKey<EditingRequestType | undefined>('chatEditingSentRequest', undefined, { type: 'string', description: localize('chatEditingSentRequest', "The type of the current editing request.") });
 
@@ -57,6 +58,7 @@ export namespace ChatContextKeys {
 	 * True when the chat widget is locked to the coding agent session.
 	 */
 	export const lockedToCodingAgent = new RawContextKey<boolean>('lockedToCodingAgent', false, { type: 'boolean', description: localize('lockedToCodingAgent', "True when the chat widget is locked to the coding agent session.") });
+	export const lockedCodingAgentId = new RawContextKey<string>('lockedCodingAgentId', '', { type: 'string', description: localize('lockedCodingAgentId', "The agent ID when the chat widget is locked to a coding agent session.") });
 	/**
 	 * True when the chat session has a customAgentTarget defined in its contribution,
 	 * which means the mode picker should be shown with filtered custom agents.

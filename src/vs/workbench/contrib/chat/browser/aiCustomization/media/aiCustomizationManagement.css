@@ -783,6 +783,15 @@
 	color: var(--vscode-badge-foreground);
 }
 
+.mcp-server-item.disabled {
+	opacity: 0.5;
+}
+
+.mcp-server-item .mcp-server-status.disabled {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
 /* Button group for Add Server + Browse Marketplace */
 .mcp-list-widget .list-button-group {
 	display: flex;

@@ -91,11 +91,11 @@ export class StartSessionAction extends Action2 {
 				logService.debug(`[EditorAction2] NOT running command because its precondition is FALSE`, this.desc.id, this.desc.precondition?.serialize());
 				return;
 			}
-			return this.#runEditorCommand(editorAccessor, editor, ...args);
+			return this._runEditorCommand(editorAccessor, editor, ...args);
 		});
 	}
 
-	async #runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]) {
+	private async _runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]) {
 
 		const configServce = accessor.get(IConfigurationService);
 
@@ -262,15 +262,12 @@ export class FixDiagnosticsAction extends AbstractInlineChatAction {
 
 class KeepOrUndoSessionAction extends AbstractInlineChatAction {
 
-	readonly #keep: boolean;
-
-	constructor(keep: boolean, desc: IAction2Options) {
+	constructor(private readonly _keep: boolean, desc: IAction2Options) {
 		super(desc);
-		this.#keep = keep;
 	}
 
 	override async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, editor: ICodeEditor, ..._args: unknown[]): Promise<void> {
-		if (this.#keep) {
+		if (this._keep) {
 			await ctrl.acceptSession();
 		} else {
 			await ctrl.rejectSession();

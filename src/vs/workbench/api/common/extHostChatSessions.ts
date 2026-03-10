@@ -13,12 +13,11 @@ import { Disposable, DisposableStore, toDisposable } from '../../../base/common/
 import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import * as objects from '../../../base/common/objects.js';
-import { basename } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { SymbolKind, SymbolKinds } from '../../../editor/common/languages.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, IPromptFileVariableEntry, ISymbolVariableEntry, PromptFileVariableKind } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
@@ -709,19 +708,16 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			} satisfies ISymbolVariableEntry;
 		}
 
-		if (URI.isUri(value) && ref.name.startsWith(`prompt:`) &&
-			ref.id.startsWith(PromptFileVariableKind.PromptFile) &&
-			ref.id.endsWith(value.toString())) {
-			return {
-				id: ref.id,
-				name: `prompt:${basename(value)}`,
-				value,
-				kind: 'promptFile',
-				modelDescription: 'Prompt instructions file',
-				isRoot: true,
-				automaticallyAdded: false,
-				range,
-			} satisfies IPromptFileVariableEntry;
+		if (URI.isUri(value) && ref.name.startsWith(`prompt:`)) {
+			if (ref.id.startsWith(PromptFileVariableKind.Instruction)) {
+				return toPromptFileVariableEntry(value, PromptFileVariableKind.Instruction);
+			}
+			if (ref.id.startsWith(PromptFileVariableKind.InstructionReference)) {
+				return toPromptFileVariableEntry(value, PromptFileVariableKind.InstructionReference);
+			}
+			if (ref.id.startsWith(PromptFileVariableKind.PromptFile)) {
+				return toPromptFileVariableEntry(value, PromptFileVariableKind.PromptFile);
+			}
 		}
 
 		const isFile = URI.isUri(value) || (value && typeof value === 'object' && 'uri' in value);

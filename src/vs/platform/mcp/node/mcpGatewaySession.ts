@@ -6,7 +6,7 @@
 import type * as http from 'http';
 import {
 	IJsonRpcNotification, IJsonRpcRequest,
-	isJsonRpcNotification, isJsonRpcResponse, JsonRpcError, JsonRpcMessage, JsonRpcProtocol
+	isJsonRpcNotification, isJsonRpcResponse, JsonRpcError, JsonRpcMessage, JsonRpcProtocol, JsonRpcResponse
 } from '../../../base/common/jsonRpcProtocol.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -79,8 +79,6 @@ function encodeResourceUrisInContent(content: MCP.ContentBlock[], serverIndex: n
 export class McpGatewaySession extends Disposable {
 	private readonly _rpc: JsonRpcProtocol;
 	private readonly _sseClients = new Set<http.ServerResponse>();
-	private readonly _pendingResponses: JsonRpcMessage[] = [];
-	private _isCollectingPostResponses = false;
 	private _lastEventId = 0;
 	private _isInitialized = false;
 
@@ -136,16 +134,8 @@ export class McpGatewaySession extends Disposable {
 		});
 	}
 
-	public async handleIncoming(message: JsonRpcMessage | JsonRpcMessage[]): Promise<JsonRpcMessage[]> {
-		this._pendingResponses.length = 0;
-		this._isCollectingPostResponses = true;
-		try {
-			await this._rpc.handleMessage(message);
-			return [...this._pendingResponses];
-		} finally {
-			this._isCollectingPostResponses = false;
-			this._pendingResponses.length = 0;
-		}
+	public async handleIncoming(message: JsonRpcMessage | JsonRpcMessage[]): Promise<JsonRpcResponse[]> {
+		return this._rpc.handleMessage(message);
 	}
 
 	public override dispose(): void {
@@ -162,9 +152,6 @@ export class McpGatewaySession extends Disposable {
 
 	private _handleOutgoingMessage(message: JsonRpcMessage): void {
 		if (isJsonRpcResponse(message)) {
-			if (this._isCollectingPostResponses) {
-				this._pendingResponses.push(message);
-			}
 			this._logService.debug(`[McpGateway][session ${this.id}] --> response: ${JSON.stringify(message)}`);
 			return;
 		}

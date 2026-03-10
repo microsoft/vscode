@@ -19,6 +19,9 @@ import { findGroup } from '../../common/editorGroupFinder.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { EditorService } from '../../browser/editorService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { Memento } from '../../../../common/memento.js';
 
 suite('Modal Editor Group', () => {
 
@@ -612,6 +615,64 @@ suite('Modal Editor Group', () => {
 
 			assert.strictEqual(parts.activeModalEditorPart, undefined);
 		});
+
+		test('shows tabs when multiple editors are open', async () => {
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration('workbench.editor.useModal', 'all');
+			instantiationService.stub(IConfigurationService, configurationService);
+			const parts = await createEditorParts(instantiationService, disposables);
+			instantiationService.stub(IEditorGroupsService, parts);
+
+			const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
+			instantiationService.stub(IEditorService, editorService);
+
+			const input1 = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+			await editorService.openEditor(input1, { pinned: true }, MODAL_GROUP);
+
+			const modalPart = parts.activeModalEditorPart!;
+			assert.ok(modalPart);
+
+			// With 1 editor, tabs should be hidden
+			assert.strictEqual(modalPart.partOptions.showTabs, 'none');
+
+			// Open a second editor
+			const input2 = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
+			await editorService.openEditor(input2, { pinned: true }, MODAL_GROUP);
+
+			// With 2 editors, tabs should be visible
+			assert.strictEqual(modalPart.partOptions.showTabs, 'multiple');
+
+			modalPart.close();
+		});
+
+		test('hides tabs when not in all mode even with multiple editors', async () => {
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration('workbench.editor.useModal', 'some');
+			instantiationService.stub(IConfigurationService, configurationService);
+			const parts = await createEditorParts(instantiationService, disposables);
+			instantiationService.stub(IEditorGroupsService, parts);
+
+			const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
+			instantiationService.stub(IEditorService, editorService);
+
+			const input1 = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+			await editorService.openEditor(input1, { pinned: true }, MODAL_GROUP);
+
+			const modalPart = parts.activeModalEditorPart!;
+			assert.ok(modalPart);
+
+			const input2 = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
+			await editorService.openEditor(input2, { pinned: true }, MODAL_GROUP);
+
+			// With 'some' mode, tabs should remain hidden even with multiple editors
+			assert.strictEqual(modalPart.partOptions.showTabs, 'none');
+
+			modalPart.close();
+		});
 	});
 
 	test('modal editor part editors can be moved to another group', async () => {
@@ -660,6 +721,49 @@ suite('Modal Editor Group', () => {
 		assert.strictEqual(pane.options?.preserveFocus, false);
 
 		parts.activeModalEditorPart?.close();
+	});
+
+	test('modal editor part state is remembered on close and reused on next open', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		// Create maximized modal and close it
+		const modalPart1 = await parts.createModalEditorPart({ maximized: true });
+		modalPart1.close();
+
+		// Create a new modal — it should restore maximized state
+		const modalPart2 = await parts.createModalEditorPart();
+		assert.strictEqual(modalPart2.maximized, true);
+
+		modalPart2.close();
+	});
+
+	test('modal editor part state restores from profile storage', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const storageService = instantiationService.get(IStorageService) as TestStorageService;
+
+		// Pre-populate storage with modal state and clear memento cache
+		// so the next EditorParts instance reads fresh from storage
+		storageService.store('memento/workbench.editorParts', JSON.stringify({
+			'editorparts.modalState': {
+				maximized: true,
+				size: { width: 500, height: 400 },
+				position: { left: 100, top: 50 }
+			}
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		Memento.clear(StorageScope.PROFILE);
+
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		// Create modal — it should use state from storage
+		const modalPart = await parts.createModalEditorPart();
+		assert.strictEqual(modalPart.maximized, true);
+
+		modalPart.close();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -22,38 +22,30 @@ import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Delayer } from '../../../../../base/common/async.js';
-import { IAction, Action, Separator } from '../../../../../base/common/actions.js';
+import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { isContributionEnabled } from '../../common/enablement.js';
+import { getInstalledPluginContextMenuActions } from '../agentPluginActions.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { pluginIcon } from './aiCustomizationIcons.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 
 const $ = DOM.$;
 
 const PLUGIN_ITEM_HEIGHT = 36;
-const PLUGIN_GROUP_HEADER_HEIGHT = 36;
-const PLUGIN_GROUP_HEADER_HEIGHT_WITH_SEPARATOR = 40;
 
 //#region Entry types
 
 /**
  * Represents a collapsible group header in the plugin list.
  */
-interface IPluginGroupHeaderEntry {
-	readonly type: 'group-header';
-	readonly id: string;
+interface IPluginGroupHeaderEntry extends ICustomizationGroupHeaderEntry {
 	readonly group: 'enabled' | 'disabled';
-	readonly label: string;
-	readonly icon: ThemeIcon;
-	readonly count: number;
-	readonly isFirst: boolean;
-	readonly description: string;
-	collapsed: boolean;
 }
 
 /**
@@ -81,7 +73,7 @@ type IPluginListEntry = IPluginGroupHeaderEntry | IPluginInstalledItemEntry | IP
 class PluginItemDelegate implements IListVirtualDelegate<IPluginListEntry> {
 	getHeight(element: IPluginListEntry): number {
 		if (element.type === 'group-header') {
-			return element.isFirst ? PLUGIN_GROUP_HEADER_HEIGHT : PLUGIN_GROUP_HEADER_HEIGHT_WITH_SEPARATOR;
+			return element.isFirst ? CUSTOMIZATION_GROUP_HEADER_HEIGHT : CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR;
 		}
 		if (element.type === 'marketplace-item') {
 			return 62;
@@ -101,72 +93,6 @@ class PluginItemDelegate implements IListVirtualDelegate<IPluginListEntry> {
 }
 
 //#endregion
-
-//#region Group Header Renderer (reuses .ai-customization-group-header CSS)
-
-interface IPluginGroupHeaderTemplateData {
-	readonly container: HTMLElement;
-	readonly chevron: HTMLElement;
-	readonly icon: HTMLElement;
-	readonly label: HTMLElement;
-	readonly count: HTMLElement;
-	readonly infoIcon: HTMLElement;
-	readonly disposables: DisposableStore;
-	readonly elementDisposables: DisposableStore;
-}
-
-class PluginGroupHeaderRenderer implements IListRenderer<IPluginGroupHeaderEntry, IPluginGroupHeaderTemplateData> {
-	readonly templateId = 'pluginGroupHeader';
-
-	constructor(
-		private readonly hoverService: IHoverService,
-	) { }
-
-	renderTemplate(container: HTMLElement): IPluginGroupHeaderTemplateData {
-		const disposables = new DisposableStore();
-		const elementDisposables = new DisposableStore();
-		container.classList.add('ai-customization-group-header');
-
-		const chevron = DOM.append(container, $('.group-chevron'));
-		const icon = DOM.append(container, $('.group-icon'));
-		const labelGroup = DOM.append(container, $('.group-label-group'));
-		const label = DOM.append(labelGroup, $('.group-label'));
-		const infoIcon = DOM.append(labelGroup, $('.group-info'));
-		infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
-		const count = DOM.append(container, $('.group-count'));
-
-		return { container, chevron, icon, label, count, infoIcon, disposables, elementDisposables };
-	}
-
-	renderElement(element: IPluginGroupHeaderEntry, _index: number, templateData: IPluginGroupHeaderTemplateData): void {
-		templateData.elementDisposables.clear();
-
-		templateData.chevron.className = 'group-chevron';
-		templateData.chevron.classList.add(...ThemeIcon.asClassNameArray(element.collapsed ? Codicon.chevronRight : Codicon.chevronDown));
-
-		templateData.icon.className = 'group-icon';
-		templateData.icon.classList.add(...ThemeIcon.asClassNameArray(element.icon));
-
-		templateData.label.textContent = element.label;
-		templateData.count.textContent = `${element.count}`;
-
-		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.infoIcon, () => ({
-			content: element.description,
-			appearance: {
-				compact: true,
-				skipFadeInAnimation: true,
-			}
-		})));
-
-		templateData.container.classList.toggle('collapsed', element.collapsed);
-		templateData.container.classList.toggle('has-previous-group', !element.isFirst);
-	}
-
-	disposeTemplate(templateData: IPluginGroupHeaderTemplateData): void {
-		templateData.elementDisposables.dispose();
-		templateData.disposables.dispose();
-	}
-}
 
 //#endregion
 
@@ -208,14 +134,15 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 
 		// Show enabled/disabled status
 		templateData.disposables.add(autorun(reader => {
-			const enabled = element.item.plugin.enabled.read(reader);
+			const enabled = isContributionEnabled(element.item.plugin.enablement.read(reader));
+			templateData.container.classList.toggle('disabled', !enabled);
 			templateData.status.className = 'mcp-server-status';
 			if (enabled) {
 				templateData.status.textContent = localize('enabled', "Enabled");
 				templateData.status.classList.add('running');
 			} else {
 				templateData.status.textContent = localize('disabled', "Disabled");
-				templateData.status.classList.add('stopped');
+				templateData.status.classList.add('disabled');
 			}
 		}));
 	}
@@ -302,82 +229,6 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 	disposeTemplate(templateData: IPluginMarketplaceItemTemplateData): void {
 		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
-	}
-}
-
-//#endregion
-
-//#region Plugin context menu actions
-
-function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, instantiationService: IInstantiationService): IAction[][] {
-	const groups: IAction[][] = [];
-	if (plugin.enabled.get()) {
-		groups.push([instantiationService.createInstance(DisablePluginAction, plugin)]);
-	} else {
-		groups.push([instantiationService.createInstance(EnablePluginAction, plugin)]);
-	}
-	groups.push([
-		instantiationService.createInstance(OpenPluginFolderAction, plugin),
-	]);
-	if (plugin.fromMarketplace) {
-		groups.push([new UninstallPluginAction(plugin)]);
-	}
-	return groups;
-}
-
-class EnablePluginAction extends Action {
-	constructor(
-		private readonly plugin: IAgentPlugin,
-		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
-	) {
-		super('pluginListWidget.enable', localize('enable', "Enable"));
-	}
-
-	override async run(): Promise<void> {
-		this.agentPluginService.setPluginEnabled(this.plugin.uri, true);
-	}
-}
-
-class DisablePluginAction extends Action {
-	constructor(
-		private readonly plugin: IAgentPlugin,
-		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
-	) {
-		super('pluginListWidget.disable', localize('disable', "Disable"));
-	}
-
-	override async run(): Promise<void> {
-		this.agentPluginService.setPluginEnabled(this.plugin.uri, false);
-	}
-}
-
-class OpenPluginFolderAction extends Action {
-	constructor(
-		private readonly plugin: IAgentPlugin,
-		@ICommandService private readonly commandService: ICommandService,
-		@IOpenerService private readonly openerService: IOpenerService,
-	) {
-		super('pluginListWidget.openFolder', localize('openPluginFolder', "Open Plugin Folder"));
-	}
-
-	override async run(): Promise<void> {
-		try {
-			await this.commandService.executeCommand('revealFileInOS', this.plugin.uri);
-		} catch {
-			await this.openerService.open(dirname(this.plugin.uri));
-		}
-	}
-}
-
-class UninstallPluginAction extends Action {
-	constructor(
-		private readonly plugin: IAgentPlugin,
-	) {
-		super('pluginListWidget.uninstall', localize('uninstall', "Uninstall"));
-	}
-
-	override async run(): Promise<void> {
-		this.plugin.remove();
 	}
 }
 
@@ -541,7 +392,7 @@ export class PluginListWidget extends Disposable {
 
 		// Create list
 		const delegate = new PluginItemDelegate();
-		const groupHeaderRenderer = new PluginGroupHeaderRenderer(this.hoverService);
+		const groupHeaderRenderer = new CustomizationGroupHeaderRenderer<IPluginGroupHeaderEntry>('pluginGroupHeader', this.hoverService);
 		const installedRenderer = new PluginInstalledItemRenderer();
 		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService);
 
@@ -601,7 +452,10 @@ export class PluginListWidget extends Disposable {
 
 		// Listen to plugin service changes
 		this._register(autorun(reader => {
-			this.agentPluginService.allPlugins.read(reader);
+			const plugins = this.agentPluginService.plugins.read(reader);
+			for (const plugin of plugins) {
+				plugin.enablement.read(reader);
+			}
 			if (!this.browseMode) {
 				this.refresh();
 			}
@@ -669,7 +523,7 @@ export class PluginListWidget extends Disposable {
 				: plugins;
 
 			// Filter out already-installed plugins
-			const installedUris = new Set(this.agentPluginService.allPlugins.get().map(p => p.uri.toString()));
+			const installedUris = new Set(this.agentPluginService.plugins.get().map(p => p.uri.toString()));
 			this.marketplaceItems = filtered
 				.filter(p => {
 					const expectedUri = this.pluginInstallService.getPluginInstallUri(p);
@@ -711,7 +565,7 @@ export class PluginListWidget extends Disposable {
 
 	private filterPlugins(): void {
 		const query = this.searchQuery.toLowerCase().trim();
-		const allPlugins = this.agentPluginService.allPlugins.get();
+		const allPlugins = this.agentPluginService.plugins.get();
 
 		this.installedItems = allPlugins
 			.map(p => installedPluginToItem(p, this.labelService))
@@ -737,8 +591,8 @@ export class PluginListWidget extends Disposable {
 		}
 
 		// Group plugins: enabled vs disabled
-		const enabledPlugins = this.installedItems.filter(item => item.plugin.enabled.get());
-		const disabledPlugins = this.installedItems.filter(item => !item.plugin.enabled.get());
+		const enabledPlugins = this.installedItems.filter(item => isContributionEnabled(item.plugin.enablement.get()));
+		const disabledPlugins = this.installedItems.filter(item => !isContributionEnabled(item.plugin.enablement.get()));
 
 		const entries: IPluginListEntry[] = [];
 		let isFirst = true;

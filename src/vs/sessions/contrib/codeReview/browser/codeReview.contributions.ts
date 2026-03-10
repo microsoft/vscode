@@ -18,8 +18,10 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { CodeReviewService, CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService } from './codeReviewService.js';
+import { CodeReviewService, CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from './codeReviewService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
+import { getSessionEditorComments } from '../../agentFeedback/browser/sessionEditorComments.js';
 
 registerSingleton(ICodeReviewService, CodeReviewService, InstantiationType.Delayed);
 
@@ -55,11 +57,11 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 			const sessionManagementService = accessor.get(ISessionsManagementService);
 			const agentSessionsService = accessor.get(IAgentSessionsService);
 			const codeReviewService = accessor.get(ICodeReviewService);
+			const agentFeedbackService = accessor.get(IAgentFeedbackService);
 
 			const resource = URI.isUri(sessionResource)
 				? sessionResource
 				: sessionManagementService.getActiveSession()?.resource;
-
 			if (!resource) {
 				return;
 			}
@@ -71,6 +73,27 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 
 			const files = getCodeReviewFilesFromSessionChanges(session.changes);
 			const version = getCodeReviewVersion(files);
+
+			// If there are existing comments (code review or PR review), navigate to the first one
+			const reviewState = codeReviewService.getReviewState(resource).get();
+			const prReviewState = codeReviewService.getPRReviewState(resource).get();
+			const codeReviewCount = reviewState.kind === CodeReviewStateKind.Result && reviewState.version === version ? reviewState.comments.length : 0;
+			const prReviewCount = prReviewState.kind === PRReviewStateKind.Loaded ? prReviewState.comments.length : 0;
+
+			if (codeReviewCount > 0 || prReviewCount > 0) {
+				const comments = getSessionEditorComments(
+					resource,
+					agentFeedbackService.getFeedback(resource),
+					reviewState,
+					prReviewState,
+				);
+				const first = agentFeedbackService.getNextNavigableItem(resource, comments, true);
+				if (first) {
+					await agentFeedbackService.revealSessionComment(resource, first.id, first.resourceUri, first.range);
+				}
+				return;
+			}
+
 
 			codeReviewService.requestReview(resource, version, files);
 		}
@@ -118,6 +141,11 @@ class CodeReviewToolbarContribution extends Disposable implements IWorkbenchCont
 			const files = getCodeReviewFilesFromSessionChanges(session.changes);
 			const version = getCodeReviewVersion(files);
 			const reviewState = this._codeReviewService.getReviewState(sessionResource).read(reader);
+			const prReviewState = this._codeReviewService.getPRReviewState(sessionResource).read(reader);
+
+			const codeReviewCount = reviewState.kind === CodeReviewStateKind.Result && reviewState.version === version ? reviewState.comments.length : 0;
+			const prReviewCount = prReviewState.kind === PRReviewStateKind.Loaded ? prReviewState.comments.length : 0;
+			const totalCommentCount = codeReviewCount + prReviewCount;
 
 			let canRunCodeReview = true;
 			let tooltip = localize('sessions.runCodeReview.tooltip.default', "Run Code Review");
@@ -127,17 +155,16 @@ class CodeReviewToolbarContribution extends Disposable implements IWorkbenchCont
 				canRunCodeReview = false;
 				tooltip = localize('sessions.runCodeReview.tooltip.loading', "Creating code review...");
 				icon = Codicon.commentDraft;
+			} else if (totalCommentCount > 0) {
+				canRunCodeReview = true;
+				icon = Codicon.commentUnresolved;
+				tooltip = totalCommentCount === 1
+					? localize('sessions.runCodeReview.tooltip.oneUnresolved', "1 review comment unresolved.")
+					: localize('sessions.runCodeReview.tooltip.manyUnresolved', "{0} review comments unresolved.", totalCommentCount);
 			} else if (reviewState.kind === CodeReviewStateKind.Result && reviewState.version === version) {
 				canRunCodeReview = false;
-				if (reviewState.comments.length === 0) {
-					tooltip = localize('sessions.runCodeReview.tooltip.allResolved', "All review comments have been addressed.");
-					icon = Codicon.comment;
-				} else {
-					icon = Codicon.commentUnresolved;
-					tooltip = reviewState.comments.length === 1
-						? localize('sessions.runCodeReview.tooltip.oneUnresolved', "1 review comment unresolved.")
-						: localize('sessions.runCodeReview.tooltip.manyUnresolved', "{0} review comments unresolved.", reviewState.comments.length);
-				}
+				tooltip = localize('sessions.runCodeReview.tooltip.allResolved', "All review comments have been addressed.");
+				icon = Codicon.comment;
 			}
 
 			canRunCodeReviewContext.set(canRunCodeReview);

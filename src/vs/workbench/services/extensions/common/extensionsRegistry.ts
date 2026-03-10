@@ -179,8 +179,8 @@ export const schema: IJSONSchema = {
 			properties: {
 				'vscode': {
 					type: 'string',
-					description: nls.localize('vscode.extension.engines.vscode', 'For VS Code extensions, specifies the VS Code version that the extension is compatible with. Cannot be *. For example: ^0.10.5 indicates compatibility with a minimum VS Code version of 0.10.5.'),
-					default: '^1.22.0',
+					description: nls.localize('vscode.extension.engines.vscode', 'For VS Code extensions, specifies the VS Code version that the extension is compatible with. Cannot be *. For example: ^1.105.0 indicates compatibility with a minimum VS Code version of 1.105.0.'),
+					default: '^1.105.0',
 				}
 			}
 		},
