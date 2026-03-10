@@ -205,7 +205,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				},
 			}
 		},
-		'workbench.browser.zoom.defaultZoomLevel': {
+		'workbench.browser.zoom.pageZoom': {
 			type: 'string',
 			enum: [MATCH_VSCODE_LABEL, ...browserZoomFactors.map(f => `${Math.round(f * 100)}%`)],
 			markdownEnumDescriptions: [
@@ -217,7 +217,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			default: MATCH_VSCODE_LABEL,
 			markdownDescription: localize(
-				{ comment: ['This is the description for a setting.'], key: 'browser.defaultZoomLevel' },
+				{ comment: ['This is the description for a setting.'], key: 'browser.pageZoom' },
 				'Controls the default zoom level for the Integrated Browser. The {0} command will restore the zoom to this level.',
 				'`Reset Zoom`'
 			),
@@ -230,8 +230,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				enum: browserZoomFactors.map(f => `${Math.round(f * 100)}%`),
 			},
 			default: {},
+			tags: ['advanced'],
 			markdownDescription: localize(
-				{ comment: ['This is the description for a setting. Keys are host strings, e.g. "example.com".'], key: 'browser.perHostZoomLevels' },
+				{ comment: ['This is the description for a setting. Keys are host strings, e.g. "example.com".'], key: 'browser.zoomLevels' },
 				'Controls the zoom level for specific hosts in the Integrated Browser, overriding the default zoom level. Each key is a host (e.g. `example.com`) and each value is a zoom percentage. Entries are added and removed automatically when you zoom in or out on a page.'
 			),
 			scope: ConfigurationScope.WINDOW

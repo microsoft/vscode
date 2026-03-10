@@ -13,7 +13,7 @@ import { zoomLevelToZoomFactor } from '../../../../platform/window/common/window
 export const IBrowserZoomService = createDecorator<IBrowserZoomService>('browserZoomService');
 
 /** Setting key that holds the per-host persistent zoom map. */
-export const BROWSER_ZOOM_PER_HOST_SETTING = 'workbench.browser.zoom.perHostZoomLevels';
+export const BROWSER_ZOOM_PER_HOST_SETTING = 'workbench.browser.zoom.zoomLevels';
 
 /**
  * Special value for the default zoom level setting that instructs the browser view
@@ -39,8 +39,8 @@ export interface IBrowserZoomChangeEvent {
 /**
  * Manages the three-level cascading zoom hierarchy for integrated browser views:
  *
- *  Level 1 (lowest)  — Configured default: `workbench.browser.zoom.defaultZoomLevel`
- *  Level 2 (middle)  — Persistent per-host: `workbench.browser.zoom.perHostZoomLevels` (user setting).
+ *  Level 1 (lowest)  — Configured default: `workbench.browser.zoom.pageZoom`
+ *  Level 2 (middle)  — Persistent per-host: `workbench.browser.zoom.zoomLevels` (user setting).
  *  Level 3 (highest) — Ephemeral per-host: in-memory only, never persisted across restarts.
  *
  * Cascade resolution (highest-priority first):
@@ -69,7 +69,7 @@ export interface IBrowserZoomService {
 	/**
 	 * Set the zoom for a host.
 	 *
-	 * Non-ephemeral: the value is persisted to `workbench.browser.zoom.perHostZoomLevels`. If it
+	 * Non-ephemeral: the value is persisted to `workbench.browser.zoom.zoomLevels`. If it
 	 * equals the current default, any existing entry is removed so the view falls back to the default.
 	 *
 	 * Ephemeral: the value is stored in memory only and always kept within the session
@@ -128,7 +128,7 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 		this._persistentZoomMap = this._readPersistentZoomMapFromConfig();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.browser.zoom.defaultZoomLevel')) {
+			if (e.affectsConfiguration('workbench.browser.zoom.pageZoom')) {
 				// Signal all views because the baseline changed.
 				this._onDidChangeZoom.fire({ host: undefined, isEphemeralChange: false });
 			}
@@ -205,7 +205,7 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 
 	notifyVSCodeZoomChanged(vsCodeZoomFactor: number): void {
 		this._vsCodeZoomFactor = vsCodeZoomFactor;
-		const label = this.configurationService.getValue<string>('workbench.browser.zoom.defaultZoomLevel');
+		const label = this.configurationService.getValue<string>('workbench.browser.zoom.pageZoom');
 		if (label === MATCH_VSCODE_LABEL) {
 			this._onDidChangeZoom.fire({ host: undefined, isEphemeralChange: false });
 		}
@@ -226,7 +226,7 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 	// ---------------------------------------------------------------------------
 
 	private _getDefaultZoomIndex(): number {
-		const label = this.configurationService.getValue<string>('workbench.browser.zoom.defaultZoomLevel');
+		const label = this.configurationService.getValue<string>('workbench.browser.zoom.pageZoom');
 		if (label === MATCH_VSCODE_LABEL) {
 			return this._getMatchVSCodeZoomIndex();
 		}
