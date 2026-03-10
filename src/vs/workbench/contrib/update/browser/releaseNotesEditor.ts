@@ -96,8 +96,8 @@ export class ReleaseNotesManager extends Disposable {
 		return URI.parse('https://code.visualstudio.com/raw');
 	}
 
-	public async show(version: string, useCurrentFile: boolean): Promise<boolean> {
-		const releaseNoteText = await this.loadReleaseNotes(version, useCurrentFile);
+	public async show(version: string, useCurrentFile: boolean, automatic = false): Promise<boolean> {
+		const releaseNoteText = await this.loadReleaseNotes(version, useCurrentFile, automatic);
 		const base = await this.getBase(useCurrentFile);
 		this._lastMeta = { text: releaseNoteText, base };
 		const html = await this.renderBody(this._lastMeta);
@@ -157,7 +157,7 @@ export class ReleaseNotesManager extends Disposable {
 		return true;
 	}
 
-	private async loadReleaseNotes(version: string, useCurrentFile: boolean): Promise<string> {
+	private async loadReleaseNotes(version: string, useCurrentFile: boolean, automatic = false): Promise<string> {
 		const match = /^(\d+\.\d+)\./.exec(version);
 		if (!match) {
 			throw new Error('not found');
@@ -234,9 +234,10 @@ export class ReleaseNotesManager extends Disposable {
 			}
 
 			// On stable builds, reject release notes that are still the Insiders pre-release
-			// version. This can happen when a new stable release ships before the final stable
-			// release notes are published to the website.
-			if (!useCurrentFile && this._productService.quality === 'stable' && isInsidersReleaseNotes(text)) {
+			// version when shown automatically. This can happen when a new stable release ships
+			// before the final stable release notes are published to the website.
+			// When the user manually requests release notes, always show them.
+			if (automatic && !useCurrentFile && this._productService.quality === 'stable' && isInsidersReleaseNotes(text)) {
 				throw new Error('not found');
 			}
 
