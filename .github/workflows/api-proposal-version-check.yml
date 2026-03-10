@@ -94,8 +94,14 @@ jobs:
             }
 
       # If triggered by the override comment, re-run the failed workflow to update its status
+      # Only allow trusted users to trigger re-runs to prevent spam
       - name: Re-run failed workflow on override
-        if: steps.check_override.outputs.override_found == 'true' && github.event_name == 'issue_comment'
+        if: |
+          steps.check_override.outputs.override_found == 'true' &&
+          github.event_name == 'issue_comment' &&
+          (github.event.comment.author_association == 'OWNER' ||
+           github.event.comment.author_association == 'MEMBER' ||
+           github.event.comment.author_association == 'COLLABORATOR')
         uses: actions/github-script@v7
         with:
           script: |
@@ -104,7 +110,7 @@ jobs:
             console.log('API proposal version change has been acknowledged.');
 
             // Find the failed workflow run for this PR's head SHA
-            const { data: runs } = await github.rest.actions.listWorkflowRuns({
+            const { data: runs } = await github.rest.actions.listWorkflowRunsForWorkflow({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'api-proposal-version-check.yml',
