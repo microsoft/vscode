@@ -35,19 +35,22 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { ACTION_ID_NEW_CHAT } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { AICustomizationShortcutsWidget } from './aiCustomizationShortcutsWidget.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'agentic.workbench.view.sessionsView';
 const SessionsViewFilterSubMenu = new MenuId('AgentSessionsViewFilterSubMenu');
 const IsGroupedByRepositoryContext = new RawContextKey<boolean>('sessionsView.isGroupedByRepository', false);
+const GROUPING_STORAGE_KEY = 'agentSessions.grouping';
 
 export class AgenticSessionsViewPane extends ViewPane {
 
 	private viewPaneContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	sessionsControl: AgentSessionsControl | undefined;
-	private sessionsFilter: AgentSessionsFilter | undefined;
+	private currentGrouping: AgentSessionsGrouping = AgentSessionsGrouping.Date;
+	private isGroupedByRepoKey: ReturnType<typeof IsGroupedByRepositoryContext.bindTo> | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -63,8 +66,15 @@ export class AgenticSessionsViewPane extends ViewPane {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
 		@IHostService private readonly hostService: IHostService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+
+		// Restore persisted grouping
+		const stored = this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE);
+		if (stored && Object.values(AgentSessionsGrouping).includes(stored as AgentSessionsGrouping)) {
+			this.currentGrouping = stored as AgentSessionsGrouping;
+		}
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -91,21 +101,18 @@ export class AgenticSessionsViewPane extends ViewPane {
 	private createControls(parent: HTMLElement): void {
 		const sessionsContainer = DOM.append(parent, $('.agent-sessions-container'));
 
+		// Track grouping state via context key for the toggle button
+		const isGroupedByRepoKey = this.isGroupedByRepoKey = IsGroupedByRepositoryContext.bindTo(this.contextKeyService);
+		isGroupedByRepoKey.set(this.currentGrouping === AgentSessionsGrouping.Repository);
+
 		// Sessions Filter (actions go to view title bar via menu registration)
-		const sessionsFilter = this.sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
+		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: SessionsViewFilterSubMenu,
-			groupResults: () => AgentSessionsGrouping.Date,
+			groupResults: () => this.currentGrouping,
 			allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
 			providerLabelOverrides: new Map([
 				[AgentSessionProviders.Background, localize('chat.session.providerLabel.local', "Local")],
 			]),
-		}));
-
-		// Track grouping state via context key for the toggle button
-		const isGroupedByRepoKey = IsGroupedByRepositoryContext.bindTo(this.contextKeyService);
-		isGroupedByRepoKey.set(sessionsFilter.groupResults() === AgentSessionsGrouping.Repository);
-		this._register(sessionsFilter.onDidChange(() => {
-			isGroupedByRepoKey.set(sessionsFilter.groupResults() === AgentSessionsGrouping.Repository);
 		}));
 
 		// Sessions section (top, fills available space)
@@ -224,16 +231,15 @@ export class AgenticSessionsViewPane extends ViewPane {
 	}
 
 	toggleGroupByRepository(): void {
-		if (!this.sessionsFilter) {
-			return;
+		if (this.currentGrouping === AgentSessionsGrouping.Repository) {
+			this.currentGrouping = AgentSessionsGrouping.Date;
+		} else {
+			this.currentGrouping = AgentSessionsGrouping.Repository;
 		}
 
-		const current = this.sessionsFilter.groupResults();
-		if (current === AgentSessionsGrouping.Repository) {
-			this.sessionsFilter.setGrouping(undefined); // back to default (Date)
-		} else {
-			this.sessionsFilter.setGrouping(AgentSessionsGrouping.Repository);
-		}
+		this.storageService.store(GROUPING_STORAGE_KEY, this.currentGrouping, StorageScope.PROFILE, StorageTarget.USER);
+		this.isGroupedByRepoKey?.set(this.currentGrouping === AgentSessionsGrouping.Repository);
+		this.sessionsControl?.refresh();
 	}
 }
 
