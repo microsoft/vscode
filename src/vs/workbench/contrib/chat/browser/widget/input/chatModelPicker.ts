@@ -167,22 +167,7 @@ export function buildModelPickerItems(
 		}));
 	}
 
-	if (!useGroupedModelPicker) {
-		// Flat list: auto first, then all models sorted alphabetically
-		const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
-		if (autoModel) {
-			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect), autoModel));
-		}
-		const sortedModels = models
-			.filter(m => m !== autoModel)
-			.sort((a, b) => {
-				const vendorCmp = a.metadata.vendor.localeCompare(b.metadata.vendor);
-				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
-			});
-		for (const model of sortedModels) {
-			items.push(createModelItem(createModelAction(model, selectedModelId, onSelect), model));
-		}
-	} else {
+	if (useGroupedModelPicker) {
 		const isPro = isProUser(chatEntitlementService.entitlement);
 		let otherModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 		if (models.length) {
@@ -370,6 +355,21 @@ export function buildModelPickerItems(
 					showAlways: true,
 				});
 			}
+		}
+	} else {
+		// Flat list: auto first, then all models sorted alphabetically
+		const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
+		if (autoModel) {
+			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect), autoModel));
+		}
+		const sortedModels = models
+			.filter(m => m !== autoModel)
+			.sort((a, b) => {
+				const vendorCmp = a.metadata.vendor.localeCompare(b.metadata.vendor);
+				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
+			});
+		for (const model of sortedModels) {
+			items.push(createModelItem(createModelAction(model, selectedModelId, onSelect), model));
 		}
 	}
 
