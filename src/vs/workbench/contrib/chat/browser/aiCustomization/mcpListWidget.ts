@@ -585,6 +585,7 @@ export class McpListWidget extends Disposable {
 		} else {
 			this.emptyContainer.style.display = 'none';
 			this.listContainer.style.display = '';
+			this.list.layout(this.listContainer.clientHeight, this.listContainer.clientWidth);
 		}
 
 		const entries: IMcpListEntry[] = this.galleryServers.map(server => ({ type: 'server-item' as const, server }));
@@ -626,6 +627,7 @@ export class McpListWidget extends Disposable {
 		} else {
 			this.emptyContainer.style.display = 'none';
 			this.listContainer.style.display = '';
+			this.list.layout(this.listContainer.clientHeight, this.listContainer.clientWidth);
 		}
 
 		// Group servers by scope
@@ -717,28 +719,11 @@ export class McpListWidget extends Disposable {
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {
-		const sectionFooterHeight = this.sectionHeader.offsetHeight || 0;
-		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 52;
-		const backLinkHeight = this.browseMode ? (this.backLink.offsetHeight || 28) : 0;
-		const listHeight = height - sectionFooterHeight - searchBarHeight - backLinkHeight;
-
-		this.listContainer.style.height = `${Math.max(0, listHeight)}px`;
-		this.list.layout(Math.max(0, listHeight), width);
-
-		// Re-layout once after footer renders if we used a zero fallback
-		if (sectionFooterHeight === 0) {
-			DOM.getWindow(this.listContainer).requestAnimationFrame(() => {
-				if (this._store.isDisposed) {
-					return;
-				}
-				const actualFooterHeight = this.sectionHeader.offsetHeight;
-				if (actualFooterHeight > 0) {
-					const correctedHeight = height - actualFooterHeight - searchBarHeight - backLinkHeight;
-					this.listContainer.style.height = `${Math.max(0, correctedHeight)}px`;
-					this.list.layout(Math.max(0, correctedHeight), width);
-				}
-			});
-		}
+		this.element.style.height = `${Math.max(0, height)}px`;
+		this.element.style.width = `${Math.max(0, width)}px`;
+		this.listContainer.style.height = '';
+		this.searchInput.layout();
+		this.list.layout(this.listContainer.clientHeight, this.listContainer.clientWidth);
 	}
 
 	/**
