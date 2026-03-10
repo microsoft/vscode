@@ -62,7 +62,8 @@ export class ExtHostApiDeprecationService implements IExtHostApiDeprecationServi
 	}
 
 	private getUsageKey(apiId: string, extension: IExtensionDescription, usageId?: string): string {
-		return `${apiId}-${extension.identifier.value}-${usageId ?? 'default'}`;
+		const rootKey = `${apiId}-${extension.identifier.value}`;
+		return usageId ? `${rootKey}-${usageId}` : rootKey;
 	}
 }
 
