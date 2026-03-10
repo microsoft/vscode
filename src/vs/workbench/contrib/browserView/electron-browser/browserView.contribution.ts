@@ -158,9 +158,7 @@ class VSCodeZoomSynchronizer extends Disposable implements IWorkbenchContributio
 
 	constructor(@IBrowserZoomService browserZoomService: IBrowserZoomService) {
 		super();
-		// Set the initial VS Code zoom factor.
 		browserZoomService.notifyVSCodeZoomChanged(zoomLevelToZoomFactor(getZoomLevel(mainWindow)));
-		// Keep it updated as VS Code zoom changes.
 		this._register(onDidChangeZoomLevel(() => {
 			browserZoomService.notifyVSCodeZoomChanged(zoomLevelToZoomFactor(getZoomLevel(mainWindow)));
 		}));

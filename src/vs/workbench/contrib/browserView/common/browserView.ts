@@ -38,10 +38,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IBrowserZoomService } from './browserZoomService.js';
 
-/**
- * Extracts the host from a URL string for zoom tracking purposes.
- * Only tracks http and https URLs; returns `undefined` for all other schemes.
- */
+/** Extracts the host from a URL string for zoom tracking purposes. */
 function parseZoomHost(url: string): string | undefined {
 	const parsed = URL.parse(url);
 	if (!parsed?.host || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
@@ -313,23 +310,18 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._sharedWithAgent = await this.playwrightService.isPageTracked(this.id);
 		this._browserZoomIndex = state.browserZoomIndex;
 
-		// Derive ephemeral flag and current host for the zoom cascade.
 		this._isEphemeral = this._storageScope === BrowserViewStorageScope.Ephemeral;
 		this._zoomHost = parseZoomHost(this._url);
 
-		// Apply the effective zoom immediately (cascade: ephemeral override ?? persistent override ?? default).
 		const effectiveZoomIndex = this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral);
 		if (effectiveZoomIndex !== this._browserZoomIndex) {
 			await this.setBrowserZoomIndex(effectiveZoomIndex);
 		}
 
-		// React to service-wide zoom changes so all open views stay in sync immediately.
 		this._register(this.zoomService.onDidChangeZoom(({ host, isEphemeralChange }) => {
-			// Ephemeral-only changes do not affect non-ephemeral views.
 			if (isEphemeralChange && !this._isEphemeral) {
 				return;
 			}
-			// React only when the default changed (host === undefined) or our host matches.
 			if (host === undefined || host === this._zoomHost) {
 				void this.setBrowserZoomIndex(
 					this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral)
@@ -474,9 +466,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		if (!this.canZoomIn) {
 			return;
 		}
-		// Apply the new zoom locally first so this call resolves after the IPC completes.
 		await this.setBrowserZoomIndex(this._browserZoomIndex + 1);
-		// Persist the change so other views with the same host react immediately.
 		if (this._zoomHost) {
 			this.zoomService.setHostZoomIndex(this._zoomHost, this._browserZoomIndex, this._isEphemeral);
 		}
@@ -493,12 +483,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	async resetZoom(): Promise<void> {
-		// Use getEffectiveZoomIndex(undefined) to get the pure configured default (no per-host).
 		const defaultIndex = this.zoomService.getEffectiveZoomIndex(undefined, false);
 		await this.setBrowserZoomIndex(defaultIndex);
 		if (this._zoomHost) {
-			// For non-ephemeral: removes the persistent entry (equals default → not stored).
-			// For ephemeral: stores default explicitly to mask any persistent override.
 			this.zoomService.setHostZoomIndex(this._zoomHost, defaultIndex, this._isEphemeral);
 		}
 	}

@@ -424,7 +424,6 @@ export class BrowserEditor extends EditorPane {
 			this._updateSharingState(false);
 		}));
 
-		// Reactively update zoom context keys when the model zoom changes
 		this._inputDisposables.add(this._model.onDidChangeZoom(() => {
 			this.updateZoomContext();
 		}));

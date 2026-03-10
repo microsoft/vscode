@@ -406,10 +406,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		});
 	}
 
-	/**
-	 * Set the browser zoom index as an index into the discrete zoom levels array.
-	 * @param zoomIndex Index into browserZoomPercentages
-	 */
 	setBrowserZoomIndex(zoomIndex: number): void {
 		this._browserZoomIndex = Math.max(0, Math.min(zoomIndex, browserZoomFactors.length - 1));
 		const browserZoomFactor = browserZoomFactors[this._browserZoomIndex];

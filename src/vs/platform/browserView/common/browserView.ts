@@ -322,11 +322,7 @@ export interface IBrowserViewService {
 	 */
 	clearStorage(id: string): Promise<void>;
 
-	/**
-	 * Set the browser zoom index for a browser view (independent from VS Code zoom)
-	 * @param id The browser view identifier
-	 * @param zoomIndex Index into browserZoomPercentages
-	 */
+	/** Set the browser zoom index (independent from VS Code zoom). */
 	setBrowserZoomIndex(id: string, zoomIndex: number): Promise<void>;
 
 	/**
