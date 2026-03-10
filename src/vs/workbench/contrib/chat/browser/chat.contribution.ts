@@ -294,7 +294,6 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.editing.explainChanges.enabled', "Controls whether the Explain button in the Chat panel and the Explain Changes context menu in the SCM view are shown. This is an experimental feature."),
 			default: false,
 			tags: ['experimental'],
-			experimentMode: 'auto'
 		},
 		'chat.tips.enabled': {
 			type: 'boolean',
@@ -302,7 +301,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.tips.enabled', "Controls whether tips are shown above user messages in chat. New tips are added frequently, so this is a helpful way to stay up to date with the latest features."),
 			default: false,
 			tags: ['experimental'],
-			experimentMode: 'auto'
 		},
 		'chat.upvoteAnimation': {
 			type: 'string',
@@ -718,7 +716,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.editMode.hidden', "When enabled, hides the Edit mode from the chat mode picker."),
 			default: true,
 			tags: ['experimental'],
-			experimentMode: 'auto',
 			policy: {
 				name: 'DeprecatedEditModeHidden',
 				category: PolicyCategory.InteractiveSession,
@@ -747,7 +744,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.statusWidget.anonymous.description', "Controls whether anonymous users see the status widget in new chat sessions when rate limited."),
 			default: false,
 			tags: ['experimental', 'advanced'],
-			experimentMode: 'auto'
 		},
 		[mcpDiscoverySection]: {
 			type: 'object',
@@ -958,7 +954,6 @@ configurationRegistry.registerConfiguration({
 			restricted: true,
 			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
-			experimentMode: 'auto'
 		},
 		[PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS]: {
 			type: 'boolean',
@@ -1155,14 +1150,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			markdownDescription: nls.localize('chat.tools.usagesTool.enabled', "Controls whether the usages tool is available for finding references, definitions, and implementations of code symbols."),
 			tags: ['preview'],
-			experimentMode: 'auto'
 		},
 		'chat.tools.renameTool.enabled': {
 			type: 'boolean',
 			default: true,
 			markdownDescription: nls.localize('chat.tools.renameTool.enabled', "Controls whether the rename tool is available for renaming code symbols across the workspace."),
 			tags: ['preview'],
-			experimentMode: 'auto'
 		},
 		[ChatConfiguration.ThinkingPhrases]: {
 			type: 'object',
@@ -1204,14 +1197,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.allowAnonymousAccess', "Controls whether anonymous access is allowed in chat."),
 			default: false,
 			tags: ['experimental'],
-			experimentMode: 'auto'
 		},
 		[ChatConfiguration.GrowthNotificationEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.growthNotification', "Controls whether to show a growth notification in the agent sessions view to encourage new users to try Copilot."),
 			default: false,
 			tags: ['experimental'],
-			experimentMode: 'auto'
 		},
 		[ChatConfiguration.RestoreLastPanelSession]: {
 			type: 'boolean',
@@ -1229,13 +1220,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.extensionUnification.enabled', "Enables the unification of GitHub Copilot extensions. When enabled, all GitHub Copilot functionality is served from the GitHub Copilot Chat extension. When disabled, the GitHub Copilot and GitHub Copilot Chat extensions operate independently."),
 			default: true,
 			tags: ['experimental'],
-			experimentMode: 'auto'
 		},
 		[ChatConfiguration.SubagentToolCustomAgents]: {
 			type: 'boolean',
 			description: nls.localize('chat.subagentTool.customAgents', "Whether the runSubagent tool is able to use custom agents. When enabled, the tool can take the name of a custom agent, but it must be given the exact name of the agent."),
 			default: true,
-			experimentMode: 'auto'
 		},
 		[ChatConfiguration.ChatCustomizationMenuEnabled]: {
 			type: 'boolean',

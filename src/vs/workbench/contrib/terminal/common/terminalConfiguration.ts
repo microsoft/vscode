@@ -480,7 +480,6 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		type: 'boolean',
 		tags: ['preview'],
 		default: false,
-		experimentMode: 'auto',
 	},
 	[TerminalSettingId.SplitCwd]: {
 		description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
@@ -598,14 +597,12 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		type: 'boolean',
 		default: false,
 		tags: ['experimental', 'advanced'],
-		experimentMode: 'auto'
 	},
 	[TerminalSettingId.ExperimentalAiProfileGrouping]: {
 		markdownDescription: localize('terminal.integrated.experimental.aiProfileGrouping', "Whether to elevate AI-contributed terminal profiles (for example Copilot CLI and Claude Agent) in the new terminal dropdown."),
 		type: 'boolean',
 		default: false,
 		tags: ['experimental'],
-		experimentMode: 'auto'
 	},
 	[TerminalSettingId.ShellIntegrationEnabled]: {
 		restricted: true,
