@@ -806,6 +806,12 @@ export class ChangesViewPane extends ViewPane {
 							if (action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR') {
 								return { showIcon: true, showLabel: true, isSecondary: false };
 							}
+							if (action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR') {
+								return { showIcon: true, showLabel: false, isSecondary: true };
+							}
+							if (action.id === 'github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge') {
+								return { showIcon: true, showLabel: true, isSecondary: false };
+							}
 							return undefined;
 						}
 					}
