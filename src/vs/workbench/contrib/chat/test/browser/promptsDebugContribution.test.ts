@@ -97,7 +97,6 @@ suite('PromptsDebugContribution', () => {
 			assert.strictEqual(resolved.files[0].name, 'test.instructions.md');
 			assert.strictEqual(resolved.files[0].status, 'loaded');
 			assert.strictEqual(resolved.sourceFolders?.length, 1);
-			assert.strictEqual(resolved.sourceFolders?.[0].exists, true);
 		}
 	});
 
