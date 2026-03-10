@@ -38,22 +38,18 @@ export interface IBrowserZoomChangeEvent {
 }
 
 /**
- * Manages the three-level cascading zoom hierarchy for integrated browser views:
+ * Manages two independent cascading zoom hierarchies for integrated browser views:
  *
- *  Level 1 (lowest)  — Configured default: `workbench.browser.zoom.pageZoom`
- *  Level 2 (middle)  — Persistent per-host: `workbench.browser.zoom.zoomLevels` (user setting).
- *  Level 3 (highest) — Ephemeral per-host: in-memory only, never persisted across restarts.
+ *  Normal views:    `persistent per-host override` ?? `configured default`
+ *  Ephemeral views: `ephemeral per-host override`  ?? `configured default`
  *
- * Cascade resolution (highest-priority first):
- *   `ephemeral override` ?? `persistent override` ?? `configured default`
+ * Ephemeral views never see persistent overrides directly. Instead, when a persistent
+ * value changes, it is copied into the ephemeral map so that ephemeral views
+ * immediately reflect the new level. Conversely, ephemeral changes never affect
+ * normal views.
  *
- * Key rules:
- *  - A persistent per-host value that equals the current default is never stored; it is removed
- *    so the view falls back to the default cleanly.
- *  - Ephemeral overrides are always stored in memory (to mask persistent values within a session)
- *    and are silently dropped on VS Code restart.
- *  - A non-ephemeral change propagates to ALL views (ephemeral views inherit persistent values).
- *  - An ephemeral change propagates only to ephemeral views; non-ephemeral views are unaffected.
+ * Per-host values that equal the current default are always removed (both persistent
+ * and ephemeral), so the view tracks the default going forward.
  */
 export interface IBrowserZoomService {
 	readonly _serviceBrand: undefined;
@@ -70,11 +66,13 @@ export interface IBrowserZoomService {
 	/**
 	 * Set the zoom for a host.
 	 *
-	 * Non-ephemeral: the value is persisted to `workbench.browser.zoom.zoomLevels`. If it
-	 * equals the current default, any existing entry is removed so the view falls back to the default.
+	 * Non-ephemeral: persisted to `workbench.browser.zoom.zoomLevels`. Also propagated into
+	 * the ephemeral map so ephemeral views immediately reflect the change.
 	 *
-	 * Ephemeral: the value is stored in memory only and always kept within the session
-	 * (even when it equals the default) so that it masks any persistent override.
+	 * Ephemeral: stored in memory only, dropped on restart.
+	 *
+	 * In both cases, if the value equals the current default, the entry is removed so the
+	 * view tracks the default going forward.
 	 */
 	setHostZoomIndex(host: string, zoomIndex: number, isEphemeral: boolean): void;
 
@@ -134,17 +132,23 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 			}
 
 			if (e.affectsConfiguration(BROWSER_ZOOM_PER_HOST_SETTING)) {
-				// Skip events caused by our own writes.
 				if (this._pendingConfigWrites > 0) {
 					return;
 				}
-				// React to external edits (user modified settings.json manually).
 				const oldMap = this._persistentZoomMap;
 				const newMap = this._readPersistentZoomMapFromConfig();
+				const defaultIndex = this._getDefaultZoomIndex();
 				const affectedHosts = new Set([...Object.keys(oldMap), ...Object.keys(newMap)]);
 				this._persistentZoomMap = newMap;
 				for (const host of affectedHosts) {
 					if (oldMap[host] !== newMap[host]) {
+						// Propagate to ephemeral map.
+						const newIndex = newMap[host];
+						if (newIndex === undefined || newIndex === defaultIndex) {
+							this._ephemeralZoomMap.delete(host);
+						} else {
+							this._ephemeralZoomMap.set(host, newIndex);
+						}
 						this._onDidChangeZoom.fire({ host, isEphemeralChange: false });
 					}
 				}
@@ -154,51 +158,67 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 
 	getEffectiveZoomIndex(host: string | undefined, isEphemeral: boolean): number {
 		if (host !== undefined) {
-			// Highest priority: ephemeral override (only for ephemeral sessions).
 			if (isEphemeral) {
 				const ephemeralIndex = this._ephemeralZoomMap.get(host);
 				if (ephemeralIndex !== undefined) {
 					return this._clamp(ephemeralIndex);
 				}
-			}
-
-			// Middle priority: persistent per-host override.
-			const persistentIndex = this._persistentZoomMap[host];
-			if (persistentIndex !== undefined) {
-				return this._clamp(persistentIndex);
+			} else {
+				const persistentIndex = this._persistentZoomMap[host];
+				if (persistentIndex !== undefined) {
+					return this._clamp(persistentIndex);
+				}
 			}
 		}
 
-		// Lowest priority: configured default.
 		return this._getDefaultZoomIndex();
 	}
 
 	setHostZoomIndex(host: string, zoomIndex: number, isEphemeral: boolean): void {
 		const clamped = this._clamp(zoomIndex);
+		const defaultIndex = this._getDefaultZoomIndex();
+		const matchesDefault = clamped === defaultIndex;
 
 		if (isEphemeral) {
-			// Always store in the ephemeral map to mask persistent values within the session.
-			const prev = this._ephemeralZoomMap.get(host);
-			if (prev === clamped) {
-				return;
+			if (matchesDefault) {
+				if (!this._ephemeralZoomMap.has(host)) {
+					return;
+				}
+				this._ephemeralZoomMap.delete(host);
+			} else {
+				if (this._ephemeralZoomMap.get(host) === clamped) {
+					return;
+				}
+				this._ephemeralZoomMap.set(host, clamped);
 			}
-			this._ephemeralZoomMap.set(host, clamped);
 			this._onDidChangeZoom.fire({ host, isEphemeralChange: true });
 		} else {
-			const defaultIndex = this._getDefaultZoomIndex();
-			if (clamped === defaultIndex) {
-				// Value matches the default: remove the stored entry so the view falls back cleanly.
-				if (!Object.prototype.hasOwnProperty.call(this._persistentZoomMap, host)) {
-					return;
+			let persistentChanged = false;
+			if (matchesDefault) {
+				if (Object.prototype.hasOwnProperty.call(this._persistentZoomMap, host)) {
+					delete this._persistentZoomMap[host];
+					persistentChanged = true;
 				}
-				delete this._persistentZoomMap[host];
-			} else {
-				if (this._persistentZoomMap[host] === clamped) {
-					return;
-				}
+			} else if (this._persistentZoomMap[host] !== clamped) {
 				this._persistentZoomMap[host] = clamped;
+				persistentChanged = true;
 			}
-			this._schedulePersistentWrite();
+
+			// Propagate to ephemeral map so ephemeral views immediately reflect the new level.
+			let ephemeralChanged = false;
+			if (matchesDefault) {
+				ephemeralChanged = this._ephemeralZoomMap.delete(host);
+			} else if (this._ephemeralZoomMap.get(host) !== clamped) {
+				this._ephemeralZoomMap.set(host, clamped);
+				ephemeralChanged = true;
+			}
+
+			if (!persistentChanged && !ephemeralChanged) {
+				return;
+			}
+			if (persistentChanged) {
+				this._schedulePersistentWrite();
+			}
 			this._onDidChangeZoom.fire({ host, isEphemeralChange: false });
 		}
 	}
