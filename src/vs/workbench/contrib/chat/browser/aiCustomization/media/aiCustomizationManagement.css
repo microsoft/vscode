@@ -306,9 +306,8 @@
 	flex-shrink: 0;
 	font-size: 10px;
 	font-weight: 500;
-	background-color: var(--vscode-keybindingLabel-background);
-	color: var(--vscode-keybindingLabel-foreground);
-	border: 1px solid var(--vscode-keybindingLabel-border, transparent);
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 	padding: 0 5px;
 	border-radius: 8px;
 	min-width: 14px;
@@ -558,9 +557,8 @@
 	font-size: 9px;
 	font-weight: 500;
 	padding: 1px 5px;
-	background-color: var(--vscode-keybindingLabel-background);
-	color: var(--vscode-keybindingLabel-foreground);
-	border: 1px solid var(--vscode-keybindingLabel-border, transparent);
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 	border-radius: 8px;
 	min-width: 14px;
 	text-align: center;
