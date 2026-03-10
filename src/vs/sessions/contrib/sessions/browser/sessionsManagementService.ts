@@ -91,7 +91,7 @@ export interface ISessionsManagementService {
 	 * When `openNewSessionView` is true, opens a new session view after sending
 	 * instead of navigating to the newly created session.
 	 */
-	sendRequestForNewSession(sessionResource: URI, options?: { openNewSessionView?: boolean }): Promise<void>;
+	sendRequestForNewSession(sessionResource: URI, options?: { openNewSessionView?: boolean; permissionLevel?: ChatPermissionLevel }): Promise<void>;
 
 	/**
 	 * Commit files in a worktree and refresh the agent sessions model
@@ -305,7 +305,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.logService.info(`[ActiveSessionService] Active session changed (new): ${sessionResource.toString()}, repository: ${repository?.toString() ?? 'none'}`);
 	}
 
-	async sendRequestForNewSession(sessionResource: URI, options?: { openNewSessionView?: boolean }): Promise<void> {
+	async sendRequestForNewSession(sessionResource: URI, options?: { openNewSessionView?: boolean; permissionLevel?: ChatPermissionLevel }): Promise<void> {
 		const session = this._newSession.value;
 		if (!session) {
 			this.logService.error(`[SessionsManagementService] No new session found for resource: ${sessionResource.toString()}`);
@@ -333,7 +333,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				modeInstructions: undefined,
 				modeId: 'agent',
 				applyCodeBlockSuggestionId: undefined,
-				permissionLevel: ChatPermissionLevel.Default,
+				permissionLevel: options?.permissionLevel ?? ChatPermissionLevel.Default,
 			},
 			agentIdSilent: contribution?.type,
 			attachedContext: session.attachedContext,
@@ -351,6 +351,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await this.openSession(session.resource);
 		if (openNewSessionView) {
 			this.openNewSessionView();
+		}
+
+		// Sync the permission level from the welcome picker to the ChatWidget's input part
+		const permissionLevel = sendOptions.modeInfo?.permissionLevel;
+		if (permissionLevel) {
+			const chatWidget = this.chatWidgetService.getWidgetBySessionResource(session.resource);
+			chatWidget?.input.setPermissionLevel(permissionLevel);
 		}
 
 		// 2. Apply selected model and options to the session
