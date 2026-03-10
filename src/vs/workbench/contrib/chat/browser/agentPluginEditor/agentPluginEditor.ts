@@ -5,7 +5,8 @@
 
 import { $, Dimension, EventType, addDisposableListener, append, reset, setParentFlowTo } from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { Action } from '../../../../../base/common/actions.js';
+import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Action, IAction } from '../../../../../base/common/actions.js';
 import * as arrays from '../../../../../base/common/arrays.js';
 import { Cache, CacheResult } from '../../../../../base/common/cache.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -21,6 +22,7 @@ import { generateTokensCSSForColorMap } from '../../../../../editor/common/langu
 import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IRequestService, asText } from '../../../../../platform/request/common/request.js';
@@ -36,7 +38,10 @@ import { IWebview, IWebviewService } from '../../../webview/browser/webview.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginEditorInput } from './agentPluginEditorInput.js';
-import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from './agentPluginItems.js';
+import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem } from './agentPluginItems.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { EnablementStatusWidget, pluginEnablementLabels } from '../enablementStatusWidget.js';
+import { InstallPluginAction, UninstallPluginAction, createEnablePluginDropDown, createDisablePluginDropDown, EnablementDropDownAction, EnablementDropdownActionViewItem } from '../agentPluginActions.js';
 import './media/agentPluginEditor.css';
 
 interface IAgentPluginEditorTemplate {
@@ -44,6 +49,7 @@ interface IAgentPluginEditorTemplate {
 	description: HTMLElement;
 	marketplace: HTMLElement;
 	actionBar: ActionBar;
+	statusContainer: HTMLElement;
 	content: HTMLElement;
 	header: HTMLElement;
 }
@@ -92,6 +98,7 @@ export class AgentPluginEditor extends EditorPane {
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super(AgentPluginEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -119,9 +126,27 @@ export class AgentPluginEditor extends EditorPane {
 
 		const actionsAndStatusContainer = append(details, $('.actions-status-container'));
 		const actionBar = this._register(new ActionBar(actionsAndStatusContainer, {
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
+				if (action instanceof EnablementDropDownAction) {
+					return new EnablementDropdownActionViewItem(
+						action,
+						{
+							...options,
+							icon: true,
+							label: true,
+							menuActionsOrProvider: { getActions: () => action.menuActions },
+							menuActionClassNames: action.menuActionClassNames,
+						},
+						this.contextMenuService,
+					);
+				}
+				return undefined;
+			},
 			focusOnlyEnabledItems: true
 		}));
 		actionBar.setFocusable(true);
+
+		const statusContainer = append(actionsAndStatusContainer, $('.status'));
 
 		const body = append(root, $('.body'));
 		const content = append(body, $('.content'));
@@ -134,6 +159,7 @@ export class AgentPluginEditor extends EditorPane {
 			name,
 			marketplace,
 			actionBar,
+			statusContainer,
 		};
 	}
 
@@ -191,7 +217,7 @@ export class AgentPluginEditor extends EditorPane {
 			template.actionBar.clear();
 
 			// Read observables to subscribe to changes
-			const allPlugins = this.agentPluginService.allPlugins.read(reader);
+			const allPlugins = this.agentPluginService.plugins.read(reader);
 
 			let currentItem = item;
 
@@ -234,8 +260,8 @@ export class AgentPluginEditor extends EditorPane {
 						return;
 					}
 				} else {
-					// Read enabled state for reactivity
-					stillInstalled.enabled.read(reader);
+					// Read enablement state for reactivity
+					stillInstalled.enablement.read(reader);
 					currentItem = this.installedPluginToItem(stillInstalled);
 				}
 			}
@@ -247,6 +273,16 @@ export class AgentPluginEditor extends EditorPane {
 			for (const action of actions) {
 				actionDisposables.add(action);
 			}
+
+			// Update enablement status widget
+			if (currentItem.kind === AgentPluginItemKind.Installed) {
+				actionDisposables.add(this.instantiationService.createInstance(
+					EnablementStatusWidget,
+					template.statusContainer,
+					currentItem.plugin.enablement,
+					pluginEnablementLabels,
+				));
+			}
 		}));
 
 		// Open readme
@@ -255,16 +291,14 @@ export class AgentPluginEditor extends EditorPane {
 
 	private getItemActions(item: IAgentPluginItem): Action[] {
 		if (item.kind === AgentPluginItemKind.Marketplace) {
-			return [this.instantiationService.createInstance(InstallPluginEditorAction, item)];
+			return [this.instantiationService.createInstance(InstallPluginAction, item)];
 		}
 
+		const workspaceService = this.instantiationService.invokeFunction(a => a.get(IWorkspaceContextService));
 		const actions: Action[] = [];
-		if (item.plugin.enabled.get()) {
-			actions.push(this.instantiationService.createInstance(DisablePluginEditorAction, item.plugin));
-		} else {
-			actions.push(this.instantiationService.createInstance(EnablePluginEditorAction, item.plugin));
-		}
-		actions.push(this.instantiationService.createInstance(UninstallPluginEditorAction, item.plugin));
+		actions.push(createEnablePluginDropDown(item.plugin, this.agentPluginService.enablementModel, workspaceService));
+		actions.push(createDisablePluginDropDown(item.plugin, this.agentPluginService.enablementModel, workspaceService));
+		actions.push(new UninstallPluginAction(item.plugin));
 		return actions;
 	}
 
@@ -498,75 +532,6 @@ export class AgentPluginEditor extends EditorPane {
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		this.layoutParticipants.forEach(p => p.layout());
-	}
-}
-
-//#region Actions
-
-class InstallPluginEditorAction extends Action {
-	static readonly ID = 'agentPlugin.editor.install';
-
-	constructor(
-		private readonly item: IMarketplacePluginItem,
-		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
-	) {
-		super(InstallPluginEditorAction.ID, localize('install', "Install"), 'extension-action label prominent install');
-	}
-
-	override async run(): Promise<void> {
-		await this.pluginInstallService.installPlugin({
-			name: this.item.name,
-			description: this.item.description,
-			version: '',
-			source: this.item.source,
-			sourceDescriptor: this.item.sourceDescriptor,
-			marketplace: this.item.marketplace,
-			marketplaceReference: this.item.marketplaceReference,
-			marketplaceType: this.item.marketplaceType,
-			readmeUri: this.item.readmeUri,
-		});
-	}
-}
-
-class EnablePluginEditorAction extends Action {
-	static readonly ID = 'agentPlugin.editor.enable';
-
-	constructor(
-		private readonly plugin: IAgentPlugin,
-		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
-	) {
-		super(EnablePluginEditorAction.ID, localize('enable', "Enable"), 'extension-action label prominent');
-	}
-
-	override async run(): Promise<void> {
-		this.agentPluginService.setPluginEnabled(this.plugin.uri, true);
-	}
-}
-
-class DisablePluginEditorAction extends Action {
-	static readonly ID = 'agentPlugin.editor.disable';
-
-	constructor(
-		private readonly plugin: IAgentPlugin,
-		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
-	) {
-		super(DisablePluginEditorAction.ID, localize('disable', "Disable"), 'extension-action label disable');
-	}
-
-	override async run(): Promise<void> {
-		this.agentPluginService.setPluginEnabled(this.plugin.uri, false);
-	}
-}
-
-class UninstallPluginEditorAction extends Action {
-	static readonly ID = 'agentPlugin.editor.uninstall';
-
-	constructor(private readonly plugin: IAgentPlugin) {
-		super(UninstallPluginEditorAction.ID, localize('uninstall', "Uninstall"), 'extension-action label uninstall');
-	}
-
-	override async run(): Promise<void> {
-		this.plugin.remove();
 	}
 }
 

@@ -13,6 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { EditorsOrder, IEditorIdentifier } from '../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { GroupsOrder, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
@@ -48,7 +49,12 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const codeReviewService = accessor.get(ICodeReviewService);
 
-		const candidates = getActiveResourceCandidates(editorService.activeEditorPane?.input);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+
+		const activePane = editorService.activeEditorPane
+			?? editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(g => g.activeEditorPane)?.activeEditorPane
+			?? editorService.visibleEditorPanes[0];
+		const candidates = getActiveResourceCandidates(activePane?.input);
 		for (const candidate of candidates) {
 			const sessionResource = getSessionForResource(candidate, chatEditingService, agentSessionsService)
 				?? agentFeedbackService.getMostRecentSessionForResource(candidate);

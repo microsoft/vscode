@@ -749,6 +749,23 @@ export class ChangesViewPane extends ViewPane {
 				sessionsChangedSignal.read(reader); // Re-evaluate when session metadata changes (e.g. pullRequestUrl)
 				const menuId = isSessionMenu ? MenuId.ChatEditingSessionChangesToolbar : MenuId.ChatEditingWidgetToolbar;
 
+				// Read code review state to update the button label dynamically
+				let codeReviewCommentCount: number | undefined;
+				let codeReviewLoading = false;
+				if (sessionResource) {
+					const sessionChanges = this.agentSessionsService.getSession(sessionResource)?.changes;
+					if (sessionChanges instanceof Array && sessionChanges.length > 0) {
+						const reviewFiles = getCodeReviewFilesFromSessionChanges(sessionChanges as readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[]);
+						const reviewVersion = getCodeReviewVersion(reviewFiles);
+						const reviewState = this.codeReviewService.getReviewState(sessionResource).read(reader);
+						if (reviewState.kind === CodeReviewStateKind.Loading && reviewState.version === reviewVersion) {
+							codeReviewLoading = true;
+						} else if (reviewState.kind === CodeReviewStateKind.Result && reviewState.version === reviewVersion && reviewState.comments.length > 0) {
+							codeReviewCommentCount = reviewState.comments.length;
+						}
+					}
+				}
+
 				reader.store.add(scopedInstantiationService.createInstance(
 					MenuWorkbenchButtonBar,
 					this.actionsContainer!,
@@ -768,6 +785,12 @@ export class ChangesViewPane extends ViewPane {
 								return { showIcon: true, showLabel: true, isSecondary: true, customClass: 'working-set-diff-stats', customLabel: diffStatsLabel };
 							}
 							if (action.id === RUN_SESSION_CODE_REVIEW_ACTION_ID) {
+								if (codeReviewLoading) {
+									return { showIcon: true, showLabel: true, isSecondary: true, customLabel: '$(loading~spin)', customClass: 'code-review-loading' };
+								}
+								if (codeReviewCommentCount !== undefined) {
+									return { showIcon: true, showLabel: true, isSecondary: true, customLabel: String(codeReviewCommentCount), customClass: 'code-review-comments' };
+								}
 								return { showIcon: true, showLabel: false, isSecondary: true };
 							}
 							if (action.id === 'chatEditing.synchronizeChanges') {

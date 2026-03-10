@@ -16,7 +16,7 @@ import { ISessionOpenOptions, openSession as openSessionDefault } from '../../..
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IAgentSession, isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -25,6 +25,7 @@ import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/brows
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
+import { isUntitledChatSession } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 
@@ -91,7 +92,7 @@ export interface ISessionsManagementService {
 	 * When `openNewSessionView` is true, opens a new session view after sending
 	 * instead of navigating to the newly created session.
 	 */
-	sendRequestForNewSession(sessionResource: URI, options?: { openNewSessionView?: boolean }): Promise<void>;
+	sendRequestForNewSession(sessionResource: URI, options?: { openNewSessionView?: boolean; permissionLevel?: ChatPermissionLevel }): Promise<void>;
 
 	/**
 	 * Commit files in a worktree and refresh the agent sessions model
@@ -305,7 +306,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.logService.info(`[ActiveSessionService] Active session changed (new): ${sessionResource.toString()}, repository: ${repository?.toString() ?? 'none'}`);
 	}
 
-	async sendRequestForNewSession(sessionResource: URI, options?: { openNewSessionView?: boolean }): Promise<void> {
+	async sendRequestForNewSession(sessionResource: URI, options?: { openNewSessionView?: boolean; permissionLevel?: ChatPermissionLevel }): Promise<void> {
 		const session = this._newSession.value;
 		if (!session) {
 			this.logService.error(`[SessionsManagementService] No new session found for resource: ${sessionResource.toString()}`);
@@ -333,6 +334,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				modeInstructions: undefined,
 				modeId: 'agent',
 				applyCodeBlockSuggestionId: undefined,
+				permissionLevel: options?.permissionLevel ?? ChatPermissionLevel.Default,
 			},
 			agentIdSilent: contribution?.type,
 			attachedContext: session.attachedContext,
@@ -350,6 +352,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await this.openSession(session.resource);
 		if (openNewSessionView) {
 			this.openNewSessionView();
+		}
+
+		// Sync the permission level from the welcome picker to the ChatWidget's input part
+		const permissionLevel = sendOptions.modeInfo?.permissionLevel;
+		if (permissionLevel) {
+			const chatWidget = this.chatWidgetService.getWidgetBySessionResource(session.resource);
+			chatWidget?.input.setPermissionLevel(permissionLevel);
 		}
 
 		// 2. Apply selected model and options to the session
@@ -437,7 +446,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				this.lastSelectedSession = session.resource;
 				const [repository, worktree, worktreeBranchName] = this.getRepositoryFromMetadata(session);
 				activeSessionItem = {
-					isUntitled: this.chatService.getSession(session.resource)?.contributedChatSession?.isUntitled ?? true,
+					isUntitled: isUntitledChatSession(session.resource),
 					label: session.label,
 					resource: session.resource,
 					repository,

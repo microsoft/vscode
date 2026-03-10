@@ -570,7 +570,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (sessionResource) {
 				const ctx = this.chatService.getChatSessionFromInternalUri(sessionResource);
 				const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
-				if (ctx?.chatSessionType === chatSessionType || delegateSessionType === chatSessionType) {
+				if (ctx && (getChatSessionType(ctx.chatSessionResource) === chatSessionType) || delegateSessionType === chatSessionType) {
 					this.refreshChatSessionPickers();
 				}
 			}
@@ -1134,7 +1134,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		const sessionResource = this._widget?.viewModel?.model.sessionResource;
 		const ctx = sessionResource ? this.chatService.getChatSessionFromInternalUri(sessionResource) : undefined;
-		return ctx?.chatSessionType;
+		return ctx ? getChatSessionType(ctx.chatSessionResource) : undefined;
 	}
 
 	/**
@@ -1169,7 +1169,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private preselectModelFromSessionHistory(): void {
 		const sessionResource = this._widget?.viewModel?.model.sessionResource;
 		const ctx = sessionResource ? this.chatService.getChatSessionFromInternalUri(sessionResource) : undefined;
-		const requiresCustomModels = ctx && this.chatSessionsService.requiresCustomModelsForSessionType(ctx.chatSessionType);
+		const requiresCustomModels = ctx && this.chatSessionsService.requiresCustomModelsForSessionType(getChatSessionType(ctx.chatSessionResource));
 		if (!requiresCustomModels) {
 			return;
 		}
@@ -1605,11 +1605,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const ctx = sessionResource ? this.chatService.getChatSessionFromInternalUri(sessionResource) : undefined;
 
 		// Check if this session type has a customAgentTarget
-		const customAgentTarget = ctx && this.chatSessionsService.getCustomAgentTargetForSessionType(ctx.chatSessionType);
+		const customAgentTarget = ctx && this.chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(ctx.chatSessionResource));
 		this.chatSessionHasCustomAgentTarget.set(customAgentTarget !== Target.Undefined);
 
 		// Check if this session type requires custom models
-		const requiresCustomModels = ctx && this.chatSessionsService.requiresCustomModelsForSessionType(ctx.chatSessionType);
+		const requiresCustomModels = ctx && this.chatSessionsService.requiresCustomModelsForSessionType(getChatSessionType(ctx.chatSessionResource));
 		this.chatSessionHasTargetedModels.set(!!requiresCustomModels);
 
 		// Handle agent option from session - set initial mode
@@ -1633,7 +1633,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// - Panel/Editor: Use actual session's type (ctx available)
 		// - Welcome view: Use delegate's type (ctx may not exist yet)
 		const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
-		const effectiveSessionType = delegateSessionType ?? ctx?.chatSessionType;
+		const effectiveSessionType = delegateSessionType ?? (ctx ? getChatSessionType(ctx.chatSessionResource) : undefined);
 
 		if (!effectiveSessionType) {
 			setNoOptions();
@@ -1817,7 +1817,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private getEffectiveSessionType(ctx: IChatSessionContext | undefined, delegate: ISessionTypePickerDelegate | undefined): string {
-		return this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.() || ctx?.chatSessionType || '';
+		return this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.() || (ctx && getChatSessionType(ctx.chatSessionResource)) || '';
 	}
 
 	/**
@@ -2026,7 +2026,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.attachedContextContainer = elements.attachedContextContainer;
 		const toolbarsContainer = elements.inputToolbars;
 		this.secondaryToolbarContainer = elements.secondaryToolbar;
-		if (this.options.isSessionsWindow || this.options.renderStyle === 'compact') {
+		if (this.options.renderStyle === 'compact') {
 			this.secondaryToolbarContainer.style.display = 'none';
 		}
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
@@ -2238,7 +2238,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						customAgentTarget: () => {
 							const sessionResource = this._widget?.viewModel?.model.sessionResource;
 							const ctx = sessionResource && this.chatService.getChatSessionFromInternalUri(sessionResource);
-							return (ctx && this.chatSessionsService.getCustomAgentTargetForSessionType(ctx.chatSessionType)) ?? Target.Undefined;
+							return (ctx && this.chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(ctx.chatSessionResource))) ?? Target.Undefined;
 						},
 					};
 					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate, pickerOptions);

@@ -876,6 +876,7 @@ export interface IChatExternalToolInvocationUpdate {
 	pastTenseMessage?: string | IMarkdownString;
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatModifiedFilesConfirmationData;
 	subagentInvocationId?: string;
+	resultDetails?: IToolResultInputOutputDetails;
 }
 
 export interface IChatTodoListContent {
@@ -1481,9 +1482,7 @@ export interface IChatService {
 }
 
 export interface IChatSessionContext {
-	readonly chatSessionType: string;
 	readonly chatSessionResource: URI;
-	readonly isUntitled: boolean;
 	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | { id: string; name: string } }>;
 }
 
