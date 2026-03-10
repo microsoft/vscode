@@ -294,7 +294,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 				if (extensionConfigurationPolicy?.[key]) {
 					propertyConfiguration.policy = extensionConfigurationPolicy?.[key];
 				}
-				if (propertyConfiguration.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
+				if (!propertyConfiguration.experimentMode) {
 					propertyConfiguration.experimentMode = 'startup';
 				}
 				seenProperties.add(key);
