@@ -11,9 +11,8 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from '../../common/participants/chatAgents.js';
 import { IChatModel } from '../../common/model/chatModel.js';
-import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItem, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
-import { Target } from '../../common/promptSyntax/service/promptsService.js';
+import { Target } from '../../common/promptSyntax/promptTypes.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
 	_serviceBrand: undefined;
@@ -47,7 +46,6 @@ export class MockChatSessionsService implements IChatSessionsService {
 	private optionGroups = new Map<string, IChatSessionProviderOptionGroup[]>();
 	private sessionOptions = new ResourceMap<Map<string, string>>();
 	private inProgress = new Map<string, number>();
-	private onChange = () => { };
 
 	// For testing: allow triggering events
 	fireDidChangeItemsProviders(event: { chatSessionType: string }): void {
@@ -161,8 +159,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return provider.provideChatSessionContent(sessionResource, token);
 	}
 
-	async canResolveChatSession(chatSessionResource: URI): Promise<boolean> {
-		return this.contentProviders.has(chatSessionResource.scheme);
+	async canResolveChatSession(sessionType: string): Promise<boolean> {
+		return this.contentProviders.has(sessionType);
 	}
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined {
@@ -231,21 +229,5 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	registerSessionResourceAlias(_untitledResource: URI, _realResource: URI): void {
 		// noop
-	}
-
-	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable {
-		// Store the emitter so tests can trigger it
-		this.onChange = onChange;
-		return {
-			dispose: () => {
-			}
-		};
-	}
-
-	// Helper method for tests to trigger progress events
-	triggerProgressEvent(): void {
-		if (this.onChange) {
-			this.onChange();
-		}
 	}
 }

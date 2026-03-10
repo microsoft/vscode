@@ -684,7 +684,7 @@ more details.
 
 ---------------------------------------------------------
 
-go-syntax 0.8.5 - MIT
+go-syntax 0.8.6 - MIT
 https://github.com/worlpaker/go-syntax
 
 MIT License

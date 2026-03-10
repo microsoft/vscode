@@ -47,6 +47,7 @@ import type { IProgressState } from '@xterm/addon-progress';
 import type { CommandDetectionCapability } from '../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isNumber } from '../../../../../base/common/types.js';
+import { clamp } from '../../../../../base/common/numbers.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -141,6 +142,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
 	get isGpuAccelerated(): boolean { return !!this._webglAddon; }
+	get isImageAddonLoaded(): boolean { return !!this._imageAddon; }
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -916,6 +918,18 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				const AddonCtor = await this._xtermAddonLoader.importAddon('image');
 				this._imageAddon = new AddonCtor();
 				this.raw.loadAddon(this._imageAddon);
+				type TerminalImageAddonActivatedClassification = {
+					owner: 'anthonykim1';
+					comment: 'Tracks when the xterm.js image addon is loaded, including dynamic enablement';
+				};
+				this._telemetryService.publicLog2<{}, TerminalImageAddonActivatedClassification>('terminal/imageAddonActivated');
+				this._register(this._imageAddon.onImageAdded(() => {
+					type TerminalImageAddedClassification = {
+						owner: 'anthonykim1';
+						comment: 'Tracks when an image is added to the terminal via the image addon';
+					};
+					this._telemetryService.publicLog2<{}, TerminalImageAddedClassification>('terminal/imageAdded');
+				}));
 			}
 		} else {
 			try {
@@ -951,16 +965,21 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			this.raw.loadAddon(this._serializeAddon);
 		}
 
+		const lastLine = this.raw.buffer.active.length - 1;
+		if (lastLine < 0) {
+			return '';
+		}
+
 		const hasValidEndMarker = isNumber(endMarker?.line);
-		const start = isNumber(startMarker?.line) && startMarker?.line > -1 ? startMarker.line : 0;
+		const start = clamp(isNumber(startMarker?.line) && startMarker.line > -1 ? startMarker.line : 0, 0, lastLine);
 		let end = hasValidEndMarker ? endMarker.line : this.raw.buffer.active.length - 1;
 		if (skipLastLine && hasValidEndMarker) {
 			end = end - 1;
 		}
-		end = Math.max(end, start);
+		end = clamp(Math.max(end, start), start, lastLine);
 		return this._serializeAddon.serialize({
 			range: {
-				start: startMarker?.line ?? 0,
+				start,
 				end
 			}
 		});

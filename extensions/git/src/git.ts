@@ -378,6 +378,7 @@ const STASH_FORMAT = '%H%n%P%n%gd%n%gs%n%at%n%ct';
 
 export interface ICloneOptions {
 	readonly parentPath: string;
+	readonly targetName?: string;
 	readonly progress: Progress<{ increment: number }>;
 	readonly recursive?: boolean;
 	readonly ref?: string;
@@ -433,14 +434,16 @@ export class Git {
 	}
 
 	async clone(url: string, options: ICloneOptions, cancellationToken?: CancellationToken): Promise<string> {
-		const baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
+		const baseFolderName = options.targetName || decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
 		let folderName = baseFolderName;
 		let folderPath = path.join(options.parentPath, folderName);
 		let count = 1;
 
-		while (count < 20 && await new Promise(c => exists(folderPath, c))) {
-			folderName = `${baseFolderName}-${count++}`;
-			folderPath = path.join(options.parentPath, folderName);
+		if (!options.targetName) {
+			while (count < 20 && await new Promise(c => exists(folderPath, c))) {
+				folderName = `${baseFolderName}-${count++}`;
+				folderPath = path.join(options.parentPath, folderName);
+			}
 		}
 
 		await mkdirp(options.parentPath);
@@ -2421,7 +2424,7 @@ export class Repository {
 		await this.exec(args, spawnOptions);
 	}
 
-	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
+	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<boolean> {
 		const args = ['pull'];
 
 		if (options.tags) {
@@ -2447,10 +2450,11 @@ export class Repository {
 		}
 
 		try {
-			await this.exec(args, {
+			const result = await this.exec(args, {
 				cancellationToken: options.cancellationToken,
 				env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
 			});
+			return !/Already up to date/i.test(result.stdout);
 		} catch (err) {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
 				err.gitErrorCode = GitErrorCodes.Conflict;

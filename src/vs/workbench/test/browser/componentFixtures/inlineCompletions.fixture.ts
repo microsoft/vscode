@@ -107,9 +107,10 @@ function renderInlineEdit(options: InlineEditOptions): void {
 // Fixtures
 // ============================================================================
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	// Side-by-side view: Multi-line replacement
 	SideBySideView: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderInlineEdit({
 			...context,
 			code: `function greet(name) {
@@ -123,6 +124,7 @@ export default defineThemedFixtureGroup({
 
 	// Word replacement view: Single word change
 	WordReplacementView: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderInlineEdit({
 			...context,
 			code: `class BufferData {
@@ -139,6 +141,7 @@ export default defineThemedFixtureGroup({
 
 	// Insertion view: Insert new content
 	InsertionView: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderInlineEdit({
 			...context,
 			code: `class BufferData {

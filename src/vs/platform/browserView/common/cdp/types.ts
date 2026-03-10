@@ -151,7 +151,7 @@ export interface ICDPBrowserTarget extends ICDPTarget {
 	/** Get all available targets */
 	getTargets(): IterableIterator<ICDPTarget>;
 	/** Create a new target in the specified browser context */
-	createTarget(url: string, browserContextId?: string): Promise<ICDPTarget>;
+	createTarget(url: string, browserContextId?: string, windowId?: number): Promise<ICDPTarget>;
 	/** Activate a target (bring to foreground) */
 	activateTarget(target: ICDPTarget): Promise<void>;
 	/** Close a target */
@@ -187,5 +187,5 @@ export interface ICDPConnection extends IDisposable {
 	 * @param sessionId Optional session ID for targeting a specific session
 	 * @returns Promise resolving to the result or rejecting with a CDPError
 	 */
-	sendMessage(method: string, params?: unknown, sessionId?: string): Promise<unknown>;
+	sendCommand(method: string, params?: unknown, sessionId?: string): Promise<unknown>;
 }

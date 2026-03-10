@@ -166,7 +166,7 @@
 	align-items: center;
 	gap: 8px;
 	flex-shrink: 0;
-	margin: 6px 0px;
+	padding: 6px 0;
 }
 
 .ai-customization-list-widget .list-search-container,
@@ -195,7 +195,8 @@
 
 .ai-customization-list-widget .list-container {
 	flex: 1;
-	overflow: hidden;
+	min-height: 0;
+	overflow: auto;
 }
 
 .ai-customization-list-widget .list-empty-message {
@@ -251,11 +252,9 @@
 	border-radius: 4px;
 }
 
-/* Separator line above non-first group headers */
+/* Spacing above non-first group headers */
 .ai-customization-group-header.has-previous-group {
-	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
 	margin-top: 4px;
-	padding-top: 12px;
 }
 
 .ai-customization-group-header:hover {
@@ -307,8 +306,8 @@
 	flex-shrink: 0;
 	font-size: 10px;
 	font-weight: 500;
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 	padding: 0 5px;
 	border-radius: 8px;
 	min-width: 14px;
@@ -396,6 +395,17 @@
 .ai-customization-list-item .git-status-badge.committed {
 	color: var(--vscode-charts-green, #89d185);
 	opacity: 0.6;
+}
+
+.ai-customization-list-item .item-type-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.8;
+	font-size: 14px;
 }
 
 .ai-customization-list-item .item-text {
@@ -544,12 +554,11 @@
 .ai-customization-overview .overview-section .section-count {
 	flex-shrink: 0;
 	font-size: 9px;
-	font-weight: 600;
+	font-weight: 500;
 	padding: 1px 5px;
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 	border-radius: 8px;
-	border: 1px solid transparent;
 	min-width: 14px;
 	text-align: center;
 }
@@ -557,6 +566,7 @@
 /* Content container visibility */
 .ai-customization-management-editor .prompts-content-container,
 .ai-customization-management-editor .mcp-content-container,
+.ai-customization-management-editor .plugin-content-container,
 .ai-customization-management-editor .models-content-container {
 	height: 100%;
 	display: flex;
@@ -571,6 +581,18 @@
 }
 
 .ai-customization-management-editor .mcp-detail-editor-container {
+	flex: 1;
+	overflow: hidden;
+}
+
+/* Embedded plugin detail view */
+.ai-customization-management-editor .plugin-detail-container {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.ai-customization-management-editor .plugin-detail-editor-container {
 	flex: 1;
 	overflow: hidden;
 }
@@ -648,7 +670,8 @@
 
 .mcp-list-widget .mcp-list-container {
 	flex: 1;
-	overflow: hidden;
+	min-height: 0;
+	overflow: auto;
 }
 
 /* MCP Empty State */
@@ -690,15 +713,21 @@
 .mcp-server-item {
 	display: flex;
 	align-items: center;
-	padding: 8px 12px;
+	padding: 6px 8px;
 	cursor: pointer;
 	border-radius: 4px;
 	margin: 2px 0;
-	gap: 12px;
+	min-height: 32px;
+	gap: 10px;
 }
 
 .mcp-server-item:hover {
 	background-color: var(--vscode-list-hoverBackground);
+}
+
+.mcp-server-item.builtin {
+	cursor: default;
+	opacity: 0.85;
 }
 
 .mcp-server-item .mcp-server-icon {
@@ -721,10 +750,10 @@
 
 .mcp-server-item .mcp-server-name {
 	font-size: 13px;
-	font-weight: 500;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	line-height: 18px;
 }
 
 .mcp-server-item .mcp-server-description {
@@ -733,6 +762,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	line-height: 14px;
 }
 
 .mcp-server-item .mcp-server-status {
@@ -759,6 +789,15 @@
 }
 
 .mcp-server-item .mcp-server-status.stopped {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.mcp-server-item.disabled {
+	opacity: 0.5;
+}
+
+.mcp-server-item .mcp-server-status.disabled {
 	background-color: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
 }
@@ -808,6 +847,19 @@
 
 .mcp-gallery-item .mcp-gallery-action {
 	flex-shrink: 0;
+}
+
+.mcp-gallery-item.extension-list-item {
+	padding: 6px 8px 6px 16px;
+}
+
+.mcp-gallery-item.extension-list-item > .details > .footer {
+	display: flex;
+	align-items: center;
+}
+
+.mcp-gallery-item.extension-list-item .mcp-gallery-action {
+	margin-left: auto;
 }
 
 .mcp-gallery-item .mcp-gallery-install-button {
