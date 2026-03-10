@@ -213,7 +213,7 @@ function promptTypeToIcon(type: PromptsType): ThemeIcon {
  * Formats a name for display: converts dashes/underscores to spaces and applies title case.
  * This is safe to use alongside IMatch highlight positions since the transformation is 1:1.
  */
-function formatDisplayName(name: string): string {
+export function formatDisplayName(name: string): string {
 	return name
 		.replace(/[-_]/g, ' ')
 		.replace(/\b\w/g, c => c.toUpperCase());
@@ -222,7 +222,7 @@ function formatDisplayName(name: string): string {
 /**
  * Truncates a description string to the first sentence, with a maximum character fallback.
  */
-function truncateToFirstSentence(text: string, maxChars = 120): string {
+export function truncateToFirstSentence(text: string, maxChars = 120): string {
 	const match = text.match(/^[^.!?]*[.!?]/);
 	if (match && match[0].length <= maxChars) {
 		return match[0];

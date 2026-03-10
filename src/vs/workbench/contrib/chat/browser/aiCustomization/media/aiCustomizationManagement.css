@@ -715,7 +715,7 @@
 .mcp-server-item {
 	display: flex;
 	align-items: center;
-	padding: 6px 8px 6px 24px;
+	padding: 6px 8px;
 	cursor: pointer;
 	border-radius: 4px;
 	margin: 2px 0;
@@ -752,6 +752,7 @@
 
 .mcp-server-item .mcp-server-name {
 	font-size: 13px;
+	font-weight: 500;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
