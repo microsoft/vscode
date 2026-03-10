@@ -20,7 +20,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { Schemas } from '../../../../base/common/network.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
-import { BROWSER_ZOOM_PER_HOST_SETTING, BrowserZoomService, IBrowserZoomService, MATCH_VSCODE_LABEL } from '../common/browserZoomService.js';
+import { BrowserZoomService, IBrowserZoomService, MATCH_VSCODE_LABEL } from '../common/browserZoomService.js';
 import { browserZoomFactors, BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 import { IExternalOpener, IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -216,23 +216,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: MATCH_VSCODE_LABEL,
 			markdownDescription: localize(
 				{ comment: ['This is the description for a setting.'], key: 'browser.pageZoom' },
-				'Default zoom level for all sites. To see zoom levels for certain sites, go to {0}.',
-				'`#workbench.browser.zoom.zoomLevels#`'
-			),
-			// Zoom can change from machine to machine, so we don't need the workspace-level nor syncing that WINDOW has.
-			scope: ConfigurationScope.MACHINE
-		},
-		[BROWSER_ZOOM_PER_HOST_SETTING]: {
-			type: 'object',
-			additionalProperties: {
-				type: 'string',
-				enum: browserZoomFactors.map(f => `${Math.round(f * 100)}%`),
-			},
-			default: {},
-			tags: ['advanced'],
-			markdownDescription: localize(
-				{ comment: ['This is the description for a setting. Keys are host strings, e.g. "example.com".'], key: 'browser.zoomLevels' },
-				'Per-site zoom levels. Each key is a host (for example, `example.com`) and each value is a zoom percentage. Entries are added and removed automatically when you zoom in or out on a page.'
+				'Default zoom level for all sites in the Integrated Browser.'
 			),
 			// Zoom can change from machine to machine, so we don't need the workspace-level nor syncing that WINDOW has.
 			scope: ConfigurationScope.MACHINE

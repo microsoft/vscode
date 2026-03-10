@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { browserZoomDefaultIndex, browserZoomFactors } from '../../../../platform/browserView/common/browserView.js';
 import { zoomLevelToZoomFactor } from '../../../../platform/window/common/window.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 export const IBrowserZoomService = createDecorator<IBrowserZoomService>('browserZoomService');
 
-/** Setting key that holds the per-host persistent zoom map. */
-export const BROWSER_ZOOM_PER_HOST_SETTING = 'workbench.browser.zoom.zoomLevels';
+/** Storage key for the per-host persistent zoom map. */
+const BROWSER_ZOOM_PER_HOST_STORAGE_KEY = 'browserView.zoomPerHost';
 
 /**
  * Special value for the default zoom level setting that instructs the browser view
@@ -66,7 +66,7 @@ export interface IBrowserZoomService {
 	/**
 	 * Set the zoom for a host.
 	 *
-	 * Non-ephemeral: persisted to `workbench.browser.zoom.zoomLevels`. Also propagated into
+	 * Non-ephemeral: persisted to storage. Also propagated into
 	 * the ephemeral map so ephemeral views immediately reflect the change.
 	 *
 	 * Ephemeral: stored in memory only, dropped on restart.
@@ -88,8 +88,6 @@ export interface IBrowserZoomService {
 // Implementation
 // ---------------------------------------------------------------------------
 
-const CONFIG_WRITE_DEBOUNCE_MS = 500;
-
 /** Pre-computed map from percentage label (e.g. "125%") to index into browserZoomFactors. */
 const ZOOM_LABEL_TO_INDEX = new Map<string, number>(
 	browserZoomFactors.map((f, i) => [`${Math.round(f * 100)}%`, i])
@@ -103,55 +101,26 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 
 	/**
 	 * In-memory cache of the persistent per-host map.
-	 * Kept in sync with the configuration setting; written back asynchronously.
+	 * Backed by IStorageService.
 	 */
 	private _persistentZoomMap: Record<string, number>;
 
 	/** In-memory only; dropped on restart. */
 	private readonly _ephemeralZoomMap = new Map<string, number>();
 
-	/** Used to ignore `onDidChangeConfiguration` events we triggered ourselves. */
-	private _pendingConfigWrites = 0;
-
-	private readonly _debouncedWrite: RunOnceScheduler;
-
 	private _vsCodeZoomFactor: number = zoomLevelToZoomFactor(0); // default: zoom level 0 → factor 1.0
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
-		this._debouncedWrite = this._register(new RunOnceScheduler(() => this._flushPersistentWrite(), CONFIG_WRITE_DEBOUNCE_MS));
-
-		this._persistentZoomMap = this._readPersistentZoomMapFromConfig();
+		this._persistentZoomMap = this._readPersistentZoomMap();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('workbench.browser.zoom.pageZoom')) {
 				this._onDidChangeZoom.fire({ host: undefined, isEphemeralChange: false });
-			}
-
-			if (e.affectsConfiguration(BROWSER_ZOOM_PER_HOST_SETTING)) {
-				if (this._pendingConfigWrites > 0) {
-					return;
-				}
-				const oldMap = this._persistentZoomMap;
-				const newMap = this._readPersistentZoomMapFromConfig();
-				const defaultIndex = this._getDefaultZoomIndex();
-				const affectedHosts = new Set([...Object.keys(oldMap), ...Object.keys(newMap)]);
-				this._persistentZoomMap = newMap;
-				for (const host of affectedHosts) {
-					if (oldMap[host] !== newMap[host]) {
-						// Propagate to ephemeral map.
-						const newIndex = newMap[host];
-						if (newIndex === undefined || newIndex === defaultIndex) {
-							this._ephemeralZoomMap.delete(host);
-						} else {
-							this._ephemeralZoomMap.set(host, newIndex);
-						}
-						this._onDidChangeZoom.fire({ host, isEphemeralChange: false });
-					}
-				}
 			}
 		}));
 	}
@@ -217,7 +186,7 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 				return;
 			}
 			if (persistentChanged) {
-				this._schedulePersistentWrite();
+				this._writePersistentZoomMap();
 			}
 			this._onDidChangeZoom.fire({ host, isEphemeralChange: false });
 		}
@@ -229,13 +198,6 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 		if (label === MATCH_VSCODE_LABEL) {
 			this._onDidChangeZoom.fire({ host: undefined, isEphemeralChange: false });
 		}
-	}
-
-	override dispose(): void {
-		if (this._debouncedWrite.isScheduled()) {
-			this._flushPersistentWrite();
-		}
-		super.dispose();
 	}
 
 	// ---------------------------------------------------------------------------
@@ -269,39 +231,38 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 	}
 
 	/**
-	 * Reads the persistent per-host zoom map from the user setting.
-	 * Ignores any entries with unrecognized zoom labels (tolerates manual edits of unknown values).
+	 * Reads the persistent per-host zoom map from storage.
+	 * The stored format is a JSON object mapping host strings to zoom indices.
 	 */
-	private _readPersistentZoomMapFromConfig(): Record<string, number> {
-		const setting = this.configurationService.getValue<Record<string, string>>(BROWSER_ZOOM_PER_HOST_SETTING) ?? {};
-		const result: Record<string, number> = {};
-		for (const [host, label] of Object.entries(setting)) {
-			const index = ZOOM_LABEL_TO_INDEX.get(label);
-			if (index !== undefined) {
-				result[host] = index;
+	private _readPersistentZoomMap(): Record<string, number> {
+		const raw = this.storageService.get(BROWSER_ZOOM_PER_HOST_STORAGE_KEY, StorageScope.PROFILE);
+		if (!raw) {
+			return {};
+		}
+		try {
+			const parsed = JSON.parse(raw);
+			if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+				return {};
 			}
+			const result: Record<string, number> = {};
+			for (const [host, index] of Object.entries(parsed)) {
+				if (typeof index === 'number' && index >= 0 && index < browserZoomFactors.length) {
+					result[host] = index;
+				}
+			}
+			return result;
+		} catch {
+			return {};
 		}
-		return result;
 	}
 
-	/** Converts a zoom index to a locale-independent percentage label (e.g. index 9 → "125%"). */
-	private _indexToLabel(index: number): string {
-		return `${Math.round(browserZoomFactors[index] * 100)}%`;
-	}
-
-	private _schedulePersistentWrite(): void {
-		this._debouncedWrite.schedule();
-	}
-
-	private _flushPersistentWrite(): void {
-		const map: Record<string, string> = {};
-		for (const [host, index] of Object.entries(this._persistentZoomMap)) {
-			map[host] = this._indexToLabel(index);
+	private _writePersistentZoomMap(): void {
+		const hasEntries = Object.keys(this._persistentZoomMap).length > 0;
+		if (hasEntries) {
+			this.storageService.store(BROWSER_ZOOM_PER_HOST_STORAGE_KEY, JSON.stringify(this._persistentZoomMap), StorageScope.PROFILE, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove(BROWSER_ZOOM_PER_HOST_STORAGE_KEY, StorageScope.PROFILE);
 		}
-		this._pendingConfigWrites++;
-		void this.configurationService
-			.updateValue(BROWSER_ZOOM_PER_HOST_SETTING, Object.keys(map).length > 0 ? map : undefined, ConfigurationTarget.USER)
-			.finally(() => { this._pendingConfigWrites--; });
 	}
 
 	private _clamp(index: number): number {
