@@ -67,7 +67,7 @@ export function registerChatOpenAgentDebugPanelAction() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, context?: URI | unknown): Promise<void> {
+		async run(accessor: ServicesAccessor, context?: URI | unknown, filter?: string): Promise<void> {
 			const editorService = accessor.get(IEditorService);
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const chatDebugService = accessor.get(IChatDebugService);
@@ -88,7 +88,7 @@ export function registerChatOpenAgentDebugPanelAction() {
 			}
 			chatDebugService.activeSessionResource = sessionResource;
 
-			const options: IChatDebugEditorOptions = { pinned: true, sessionResource, viewHint: 'logs' };
+			const options: IChatDebugEditorOptions = { pinned: true, sessionResource, viewHint: 'logs', filter };
 			await editorService.openEditor(ChatDebugEditorInput.instance, options);
 		}
 	});

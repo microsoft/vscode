@@ -18,8 +18,8 @@ export class MockPromptsService implements IPromptsService {
 
 	_serviceBrand: undefined;
 
-	private readonly _onDidChangeCustomChatModes = new Emitter<void>();
-	readonly onDidChangeCustomAgents = this._onDidChangeCustomChatModes.event;
+	private readonly _onDidChangeCustomAgents = new Emitter<void>();
+	readonly onDidChangeCustomAgents = this._onDidChangeCustomAgents.event;
 
 	private readonly _onDidLogDiscovery = new Emitter<IPromptDiscoveryLogEntry>();
 	readonly onDidLogDiscovery: Event<IPromptDiscoveryLogEntry> = this._onDidLogDiscovery.event;
@@ -28,7 +28,7 @@ export class MockPromptsService implements IPromptsService {
 
 	setCustomModes(modes: ICustomAgent[]): void {
 		this._customModes = modes;
-		this._onDidChangeCustomChatModes.fire();
+		this._onDidChangeCustomAgents.fire();
 	}
 
 	async getCustomAgents(token: CancellationToken, sessionResource?: URI): Promise<readonly ICustomAgent[]> {
@@ -72,4 +72,7 @@ export class MockPromptsService implements IPromptsService {
 	getHooks(_token: CancellationToken, _sessionResource?: URI): Promise<any> { throw new Error('Method not implemented.'); }
 	getInstructionFiles(_token: CancellationToken, _sessionResource?: URI): Promise<readonly IPromptPath[]> { throw new Error('Method not implemented.'); }
 	dispose(): void { }
+	onDidChangeInstructions: Event<void> = Event.None;
+	onDidChangePromptFiles: Event<void> = Event.None;
+	onDidChangeSkills: Event<void> = Event.None;
 }

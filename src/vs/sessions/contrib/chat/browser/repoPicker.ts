@@ -13,7 +13,6 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { INewSession } from './newSession.js';
 
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
 const STORAGE_KEY_LAST_REPO = 'agentSessions.lastPickedRepo';
@@ -40,9 +39,7 @@ export class RepoPicker extends Disposable {
 
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
-	private _browseGeneration = 0;
 
-	private _newSession: INewSession | undefined;
 	private _selectedRepo: IRepoItem | undefined;
 	private _recentlyPickedRepos: IRepoItem[] = [];
 
@@ -72,18 +69,6 @@ export class RepoPicker extends Disposable {
 				this._recentlyPickedRepos = JSON.parse(stored);
 			}
 		} catch { /* ignore */ }
-	}
-
-	/**
-	 * Sets the pending session that this picker writes to.
-	 * If a repository is already selected, notifies the session.
-	 */
-	setNewSession(session: INewSession | undefined): void {
-		this._newSession = session;
-		this._browseGeneration++;
-		if (session && this._selectedRepo) {
-			session.setOption('repositories', this._selectedRepo);
-		}
 	}
 
 	/**
@@ -178,15 +163,13 @@ export class RepoPicker extends Disposable {
 		this._addToRecentlyPicked(item);
 		this.storageService.store(STORAGE_KEY_LAST_REPO, JSON.stringify(item), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._updateTriggerLabel();
-		this._newSession?.setOption('repositories', item);
 		this._onDidSelectRepo.fire(item.id);
 	}
 
 	private async _browseForRepo(): Promise<void> {
-		const generation = this._browseGeneration;
 		try {
 			const result: string | undefined = await this.commandService.executeCommand(OPEN_REPO_COMMAND);
-			if (result && generation === this._browseGeneration) {
+			if (result) {
 				this._selectRepo({ id: result, name: result });
 			}
 		} catch {
@@ -267,4 +250,5 @@ export class RepoPicker extends Disposable {
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 	}
+
 }

@@ -29,7 +29,8 @@ export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
-	canManageModels(): boolean;
+	useGroupedModelPicker(): boolean;
+	showManageModelsAction(): boolean;
 }
 
 type ChatModelChangeClassification = {

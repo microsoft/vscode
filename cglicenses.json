@@ -308,11 +308,6 @@
 	},
 	{
 		// Reason: license is in a subdirectory in repo
-		"name": "dirs-next",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/xdg-rs/dirs/af4aa39daba0ac68e222962a5aca17360158b7cc/dirs/LICENSE-MIT"
-	},
-	{
-		// Reason: license is in a subdirectory in repo
 		"name": "openssl",
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/sfackler/rust-openssl/e43eb58540b27a17f8029c397e3edc12bbc9011f/openssl/LICENSE"
 	},
@@ -360,10 +355,6 @@
 	{ // License is MIT/Apache and tool doesn't look in subfolders
 		"name": "toml_datetime",
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/toml-rs/toml/main/crates/toml_datetime/LICENSE-MIT"
-	},
-	{ // License is MIT/Apache and tool doesn't look in subfolders
-		"name": "dirs-sys-next",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/xdg-rs/dirs/master/dirs-sys/LICENSE-MIT"
 	},
 	{ // License is MIT/Apache and gitlab API doesn't find the project
 		"name": "libredox",

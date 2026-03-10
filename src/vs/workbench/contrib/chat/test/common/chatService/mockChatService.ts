@@ -10,13 +10,13 @@ import { IObservable, observableValue } from '../../../../../../base/common/obse
 import { URI } from '../../../../../../base/common/uri.js';
 import { IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatCompleteResponse, IChatDetail, IChatModelReference, IChatProgress, IChatProviderInfo, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatCompleteResponse, IChatDetail, IChatModelReference, IChatProgress, IChatProviderInfo, IChatQuestionAnswers, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 
 export class MockChatService implements IChatService {
 	chatModels: IObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
 	requestInProgressObs = observableValue('name', false);
-	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
 	editingSessions = [];
 	transferredSessionResource: URI | undefined;
@@ -89,7 +89,7 @@ export class MockChatService implements IChatService {
 	removeRequest(sessionResource: URI, requestId: string): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	cancelCurrentRequestForSession(sessionResource: URI, source?: string): void {
+	async cancelCurrentRequestForSession(sessionResource: URI, source?: string): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 	setYieldRequested(sessionResource: URI): void {
@@ -118,8 +118,8 @@ export class MockChatService implements IChatService {
 	notifyUserAction(event: IChatUserActionEvent): void {
 		throw new Error('Method not implemented.');
 	}
-	readonly onDidReceiveQuestionCarouselAnswer: Event<{ requestId: string; resolveId: string; answers: Record<string, unknown> | undefined }> = undefined!;
-	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: Record<string, unknown> | undefined): void {
+	readonly onDidReceiveQuestionCarouselAnswer: Event<{ requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }> = undefined!;
+	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: IChatQuestionAnswers | undefined): void {
 		throw new Error('Method not implemented.');
 	}
 	readonly onDidDisposeSession: Event<{ sessionResource: URI[]; reason: 'cleared' }> = undefined!;
@@ -164,5 +164,24 @@ export class MockChatService implements IChatService {
 	}
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
 		throw new Error('Method not implemented.');
+	}
+
+	private onChange?: () => void;
+
+	registerChatModelChangeListeners(chatSessionType: string, onChange: () => void): IDisposable {
+		// Store the emitter so tests can trigger it
+		this.onChange = onChange;
+		return {
+			dispose: () => {
+				this.onChange = undefined;
+			}
+		};
+	}
+
+	// Helper method for tests to trigger progress events
+	triggerProgressEvent(): void {
+		if (this.onChange) {
+			this.onChange();
+		}
 	}
 }

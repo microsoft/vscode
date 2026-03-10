@@ -7,7 +7,7 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -17,7 +17,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { LocalAgentsSessionsController } from '../../../browser/agentSessions/localAgentSessionsController.js';
 import { ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { ChatRequestQueueKind, IChatDetail, IChatService, IChatSessionStartOptions, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatDetail, IChatQuestionAnswers, IChatService, IChatSessionStartOptions, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
@@ -40,7 +40,6 @@ class MockChatService implements IChatService {
 	private readonly _chatModels: ISettableObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
 	readonly chatModels = this._chatModels;
 	requestInProgressObs = observableValue('name', false);
-	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
 	editingSessions = [];
 	transferredSessionResource = undefined;
@@ -150,7 +149,7 @@ class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	cancelCurrentRequestForSession(_sessionResource: URI, _source?: string): void { }
+	async cancelCurrentRequestForSession(_sessionResource: URI, _source?: string): Promise<void> { }
 
 	setYieldRequested(_sessionResource: URI): void { }
 
@@ -174,7 +173,7 @@ class MockChatService implements IChatService {
 
 	readonly onDidReceiveQuestionCarouselAnswer = Event.None;
 
-	notifyQuestionCarouselAnswer(_requestId: string, _resolveId: string, _answers: Record<string, unknown> | undefined): void { }
+	notifyQuestionCarouselAnswer(_requestId: string, _resolveId: string, _answers: IChatQuestionAnswers | undefined): void { }
 
 	async transferChatSession(): Promise<void> { }
 
@@ -212,6 +211,26 @@ class MockChatService implements IChatService {
 
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
 		throw new Error('Method not implemented.');
+	}
+
+
+	private onChange?: () => void;
+
+	registerChatModelChangeListeners(chatSessionType: string, onChange: () => void): IDisposable {
+		// Store the emitter so tests can trigger it
+		this.onChange = onChange;
+		return {
+			dispose: () => {
+				this.onChange = undefined;
+			}
+		};
+	}
+
+	// Helper method for tests to trigger progress events
+	triggerProgressEvent(): void {
+		if (this.onChange) {
+			this.onChange();
+		}
 	}
 }
 
@@ -768,7 +787,7 @@ suite('LocalAgentsSessionsController', () => {
 				}));
 
 				// Simulate progress change by triggering the progress listener
-				mockChatSessionsService.triggerProgressEvent();
+				mockChatService.triggerProgressEvent();
 
 				assert.strictEqual(changeEventCount, 1);
 			});
@@ -794,7 +813,7 @@ suite('LocalAgentsSessionsController', () => {
 				}));
 
 				// Simulate progress change by triggering the progress listener
-				mockChatSessionsService.triggerProgressEvent();
+				mockChatService.triggerProgressEvent();
 
 				assert.strictEqual(changeEventCount, 1);
 			});

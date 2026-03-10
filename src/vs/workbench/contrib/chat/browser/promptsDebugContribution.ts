@@ -92,9 +92,6 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 			sourceFolders: info.sourceFolders?.map(sf => ({
 				uri: sf.uri,
 				storage: sf.storage,
-				exists: sf.exists,
-				fileCount: sf.fileCount,
-				errorMessage: sf.errorMessage,
 			})),
 		};
 	}

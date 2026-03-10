@@ -5,7 +5,8 @@
 
 import { timeout } from '../../../../base/common/async.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import * as nls from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -19,15 +20,20 @@ import { IChatService } from '../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
 import { ChatSubmitAction, OpenModePickerAction, OpenModelPickerAction } from './actions/chatExecuteActions.js';
+import { ManagePluginsAction } from './actions/chatPluginActions.js';
 import { ConfigureToolsAction } from './actions/chatToolActions.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 import { CONFIGURE_INSTRUCTIONS_ACTION_ID } from './promptSyntax/attachInstructionsAction.js';
 import { showConfigureHooksQuickPick } from './promptSyntax/hookActions.js';
 import { CONFIGURE_PROMPTS_ACTION_ID } from './promptSyntax/runPromptAction.js';
 import { CONFIGURE_SKILLS_ACTION_ID } from './promptSyntax/skillActions.js';
-import { globalAutoApproveDescription } from './tools/languageModelToolsService.js';
+import {
+	AutoApproveStorageKeys,
+	globalAutoApproveDescription,
+} from './tools/languageModelToolsService.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
-import { Target } from '../common/promptSyntax/service/promptsService.js';
+import { Target } from '../common/promptSyntax/promptTypes.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
 
@@ -44,8 +50,10 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IDialogService dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
+
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'clear',
 			detail: nls.localize('clear', "Start a new chat and archive the current one"),
@@ -62,7 +70,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_hooks',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async () => {
 			await instantiationService.invokeFunction(showConfigureHooksQuickPick);
 		}));
@@ -72,7 +81,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_models',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async () => {
 			await commandService.executeCommand(OpenModelPickerAction.ID);
 		}));
@@ -88,22 +98,36 @@ export class ChatSlashCommandsContribution extends Disposable {
 			await commandService.executeCommand(ConfigureToolsAction.ID);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
-			command: 'debug',
-			detail: nls.localize('debug', "Show Chat Debug View"),
-			sortText: 'z3_debug',
+			command: 'plugins',
+			detail: nls.localize('plugins', "Manage plugins"),
+			sortText: 'z3_plugins',
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async () => {
-			await commandService.executeCommand('github.copilot.debug.showChatLogView');
+			await commandService.executeCommand(ManagePluginsAction.ID);
 		}));
+		if (!this.environmentService.isSessionsWindow) {
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'debug',
+				detail: nls.localize('debug', "Show Chat Debug View"),
+				sortText: 'z3_debug',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+			}, async () => {
+				await commandService.executeCommand('github.copilot.debug.showChatLogView');
+			}));
+		}
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'agents',
 			detail: nls.localize('agents', "Configure custom agents"),
 			sortText: 'z3_agents',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async () => {
 			await commandService.executeCommand(OpenModePickerAction.ID);
 		}));
@@ -113,7 +137,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_skills',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async () => {
 			await commandService.executeCommand(CONFIGURE_SKILLS_ACTION_ID);
 		}));
@@ -123,7 +148,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_instructions',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async () => {
 			await commandService.executeCommand(CONFIGURE_INSTRUCTIONS_ACTION_ID);
 		}));
@@ -133,7 +159,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_prompts',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async () => {
 			await commandService.executeCommand(CONFIGURE_PROMPTS_ACTION_ID);
 		}));
@@ -176,23 +203,38 @@ export class ChatSlashCommandsContribution extends Disposable {
 				notificationService.info(nls.localize('autoApprove.alreadyEnabled', "Global auto-approve is already enabled."));
 				return;
 			}
-			const alreadyOptedIn = storageService.getBoolean('chat.tools.global.autoApprove.optIn', StorageScope.APPLICATION, false);
+			const alreadyOptedIn = storageService.getBoolean(AutoApproveStorageKeys.GlobalAutoApproveOptIn, StorageScope.APPLICATION, false);
 			if (!alreadyOptedIn) {
-				const result = await dialogService.prompt({
-					type: Severity.Warning,
-					message: nls.localize('autoApprove.enable.title', 'Enable global auto approve?'),
-					buttons: [
-						{ label: nls.localize('autoApprove.enable.button', 'Enable'), run: () => true },
-						{ label: nls.localize('autoApprove.cancel.button', 'Cancel'), run: () => false },
-					],
-					custom: {
-						markdownDetails: [{ markdown: new MarkdownString(globalAutoApproveDescription.value, { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }) }],
+				const store = new DisposableStore();
+				try {
+					const cts = new CancellationTokenSource();
+					store.add(cts);
+					store.add(storageService.onDidChangeValue(StorageScope.APPLICATION, AutoApproveStorageKeys.GlobalAutoApproveOptIn, store)(() => {
+						if (storageService.getBoolean(AutoApproveStorageKeys.GlobalAutoApproveOptIn, StorageScope.APPLICATION, false)) {
+							cts.cancel();
+						}
+					}));
+
+					const result = await dialogService.prompt({
+						type: Severity.Warning,
+						message: nls.localize('autoApprove.enable.title', 'Enable global auto approve?'),
+						buttons: [
+							{ label: nls.localize('autoApprove.enable.button', 'Enable'), run: () => true },
+							{ label: nls.localize('autoApprove.cancel.button', 'Cancel'), run: () => false },
+						],
+						custom: {
+							markdownDetails: [{ markdown: new MarkdownString(globalAutoApproveDescription.value, { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }) }],
+						},
+						token: cts.token,
+					});
+
+					if (!cts.token.isCancellationRequested && result.result !== true) {
+						return;
 					}
-				});
-				if (result.result !== true) {
-					return;
+					storageService.store(AutoApproveStorageKeys.GlobalAutoApproveOptIn, true, StorageScope.APPLICATION, StorageTarget.USER);
+				} finally {
+					store.dispose();
 				}
-				storageService.store('chat.tools.global.autoApprove.optIn', true, StorageScope.APPLICATION, StorageTarget.USER);
 			}
 			await configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, true);
 			notificationService.info(nls.localize('autoApprove.enabled', "Global auto-approve enabled — all tool calls will be approved automatically"));
