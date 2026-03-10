@@ -167,7 +167,7 @@ class VSCodeZoomSynchronizer extends Disposable implements IWorkbenchContributio
 	}
 }
 
-registerWorkbenchContribution2(VSCodeZoomSynchronizer.ID, VSCodeZoomSynchronizer, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(VSCodeZoomSynchronizer.ID, VSCodeZoomSynchronizer, WorkbenchPhase.Eventually);
 
 registerSingleton(IBrowserViewWorkbenchService, BrowserViewWorkbenchService, InstantiationType.Delayed);
 registerSingleton(IBrowserZoomService, BrowserZoomService, InstantiationType.Delayed);

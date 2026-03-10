@@ -345,23 +345,18 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 				this._favicon = undefined;
 			}
 
-			const newHost = parseZoomHost(e.url);
-			const hostChanged = newHost !== this._zoomHost;
-			this._zoomHost = newHost;
+			this._zoomHost = parseZoomHost(e.url);
 			this._url = e.url;
 			this._title = e.title;
 			this._canGoBack = e.canGoBack;
 			this._canGoForward = e.canGoForward;
 
-			// Apply the zoom for the newly navigated host.
-			// forceApply=true because Chromium resets zoom on cross-document navigation,
-			// making the local _browserZoomIndex cache stale even if the value looks correct.
-			if (hostChanged) {
-				void this.setBrowserZoomIndex(
-					this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral),
-					true
-				);
-			}
+			// Always forceApply because Chromium resets zoom on cross-origin navigation,
+			// and an origin change may not correspond to a host change (e.g. http→https).
+			void this.setBrowserZoomIndex(
+				this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral),
+				true
+			);
 		}));
 
 		this._register(this.onDidChangeLoadingState(e => {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -92,6 +93,11 @@ export interface IBrowserZoomService {
 /** Debounce delay for flushing pending config writes (ms). */
 const CONFIG_WRITE_DEBOUNCE_MS = 500;
 
+/** Pre-computed map from percentage label (e.g. "125%") to index into browserZoomFactors. */
+const ZOOM_LABEL_TO_INDEX = new Map<string, number>(
+	browserZoomFactors.map((f, i) => [`${Math.round(f * 100)}%`, i])
+);
+
 export class BrowserZoomService extends Disposable implements IBrowserZoomService {
 	declare readonly _serviceBrand: undefined;
 
@@ -113,8 +119,8 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 	 */
 	private _pendingConfigWrites = 0;
 
-	/** Timer id for debounced config writes. */
-	private _configWriteTimer: Timeout | undefined;
+	/** Debounced scheduler for flushing persistent config writes. */
+	private readonly _debouncedWrite: RunOnceScheduler;
 
 	/** Current VS Code UI zoom factor, kept in sync via notifyVSCodeZoomChanged(). */
 	private _vsCodeZoomFactor: number = zoomLevelToZoomFactor(0); // default: zoom level 0 → factor 1.0
@@ -123,6 +129,8 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
+
+		this._debouncedWrite = this._register(new RunOnceScheduler(() => this._flushPersistentWrite(), CONFIG_WRITE_DEBOUNCE_MS));
 
 		// Load from the user setting.
 		this._persistentZoomMap = this._readPersistentZoomMapFromConfig();
@@ -213,9 +221,7 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 
 	override dispose(): void {
 		// Flush any pending debounced write immediately before disposal.
-		if (this._configWriteTimer !== undefined) {
-			clearTimeout(this._configWriteTimer);
-			this._configWriteTimer = undefined;
+		if (this._debouncedWrite.isScheduled()) {
 			this._flushPersistentWrite();
 		}
 		super.dispose();
@@ -230,8 +236,7 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 		if (label === MATCH_VSCODE_LABEL) {
 			return this._getMatchVSCodeZoomIndex();
 		}
-		const index = browserZoomFactors.findIndex(f => `${Math.round(f * 100)}%` === label);
-		return index >= 0 ? index : browserZoomDefaultIndex;
+		return ZOOM_LABEL_TO_INDEX.get(label) ?? browserZoomDefaultIndex;
 	}
 
 	/**
@@ -260,8 +265,8 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 		const setting = this.configurationService.getValue<Record<string, string>>(BROWSER_ZOOM_PER_HOST_SETTING) ?? {};
 		const result: Record<string, number> = {};
 		for (const [host, label] of Object.entries(setting)) {
-			const index = browserZoomFactors.findIndex(f => `${Math.round(f * 100)}%` === label);
-			if (index >= 0) {
+			const index = ZOOM_LABEL_TO_INDEX.get(label);
+			if (index !== undefined) {
 				result[host] = index;
 			}
 		}
@@ -275,13 +280,7 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 
 	/** Schedules a debounced write of _persistentZoomMap to the user setting. */
 	private _schedulePersistentWrite(): void {
-		if (this._configWriteTimer !== undefined) {
-			clearTimeout(this._configWriteTimer);
-		}
-		this._configWriteTimer = setTimeout(() => {
-			this._configWriteTimer = undefined;
-			this._flushPersistentWrite();
-		}, CONFIG_WRITE_DEBOUNCE_MS);
+		this._debouncedWrite.schedule();
 	}
 
 	/** Writes _persistentZoomMap to the user setting immediately. */
