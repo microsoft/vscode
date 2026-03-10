@@ -345,19 +345,19 @@ export function buildModelPickerItems(
 					}
 				}
 			}
+		}
 
-			if (manageModelsAction) {
-				items.push({ kind: ActionListItemKind.Separator, section: otherModels.length ? ModelPickerSection.Other : undefined });
-				items.push({
-					item: manageModelsAction,
-					kind: ActionListItemKind.Action,
-					label: manageModelsAction.label,
-					group: { title: '', icon: Codicon.blank },
-					hideIcon: false,
-					section: otherModels.length ? ModelPickerSection.Other : undefined,
-					showAlways: true,
-				});
-			}
+		if (manageModelsAction) {
+			items.push({ kind: ActionListItemKind.Separator, section: otherModels.length ? ModelPickerSection.Other : undefined });
+			items.push({
+				item: manageModelsAction,
+				kind: ActionListItemKind.Action,
+				label: manageModelsAction.label,
+				group: { title: '', icon: Codicon.blank },
+				hideIcon: false,
+				section: otherModels.length ? ModelPickerSection.Other : undefined,
+				showAlways: true,
+			});
 		}
 	} else {
 		// Flat list: auto first, then all models sorted alphabetically
