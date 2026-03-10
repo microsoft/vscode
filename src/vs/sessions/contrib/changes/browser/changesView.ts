@@ -88,8 +88,8 @@ const enum ChangesVersionMode {
 	Uncommitted = 'uncommitted'
 }
 
-const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('changesVersionMode', ChangesVersionMode.AllChanges);
-const hasUncommittedChangesContextKey = new RawContextKey<boolean>('hasUncommittedChanges', false);
+const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('sessions.changesVersionMode', ChangesVersionMode.AllChanges);
+const hasUncommittedChangesContextKey = new RawContextKey<boolean>('sessions.hasUncommittedChanges', false);
 
 // --- List Item
 
@@ -730,6 +730,13 @@ export class ChangesViewPane extends ViewPane {
 				return (repositoryFiles?.length ?? 0) > 0;
 			}));
 
+			// Set context key for merge base branch protection
+			const isMergeBaseBranchProtectedContextKey = new RawContextKey<boolean>('sessions.isMergeBaseBranchProtected', false);
+			this.renderDisposables.add(bindContextKey(isMergeBaseBranchProtectedContextKey, this.scopedContextKeyService, r => {
+				const repository = this.activeSessionRepositoryObs.read(r)?.read(r).value;
+				return repository?.state.read(r).HEAD?.base?.isProtected === true;
+			}));
+
 			// Set context key for PR state from session metadata
 			const hasOpenPullRequestKey = scopedContextKeyService.createKey<boolean>('sessions.hasOpenPullRequest', false);
 			this.renderDisposables.add(autorun(reader => {
@@ -795,6 +802,9 @@ export class ChangesViewPane extends ViewPane {
 							}
 							if (action.id === 'chatEditing.synchronizeChanges') {
 								return { showIcon: true, showLabel: true, isSecondary: true };
+							}
+							if (action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR') {
+								return { showIcon: true, showLabel: true, isSecondary: false };
 							}
 							return undefined;
 						}
