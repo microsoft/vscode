@@ -198,6 +198,7 @@ class AgentFeedbackOverlayController {
 					sessionResource,
 					agentFeedbackService.getFeedback(sessionResource),
 					codeReviewService.getReviewState(sessionResource).read(r),
+					codeReviewService.getPRReviewState(sessionResource).read(r),
 				);
 				if (comments.length > 0) {
 					navigationBearings = agentFeedbackService.getNavigationBearing(sessionResource, comments);

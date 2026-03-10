@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNever } from '../../../../../base/common/assert.js';
+import { softAssertNever } from '../../../../../base/common/assert.js';
 import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { equals as objectsEqual } from '../../../../../base/common/objects.js';
 import { isEqual as _urisEqual } from '../../../../../base/common/resources.js';
@@ -90,7 +90,9 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 					// If it's a 'static' type that is not expected to change, add it to the 'return true'
 					// block above. However it's a type that is going to change, add it to the 'objectsEqual'
 					// block or make something more tailored.
-					assertNever(a);
+					softAssertNever(a);
+
+					return objectsEqual(a, b);
 				}
 			}
 		}

@@ -3654,9 +3654,15 @@ export interface GitBranchDto {
 	readonly commit?: string;
 	readonly type: GitRefTypeDto;
 	readonly remote?: string;
+	readonly base?: GitBaseRefDto;
 	readonly upstream?: GitUpstreamRefDto;
 	readonly ahead?: number;
 	readonly behind?: number;
+}
+
+export interface GitBaseRefDto {
+	readonly name: string;
+	readonly isProtected: boolean;
 }
 
 export interface GitUpstreamRefDto {

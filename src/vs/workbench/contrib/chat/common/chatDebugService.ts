@@ -273,9 +273,6 @@ export interface IChatDebugFileEntry {
 export interface IChatDebugSourceFolderEntry {
 	readonly uri: URI;
 	readonly storage: string;
-	readonly exists: boolean;
-	readonly fileCount: number;
-	readonly errorMessage?: string;
 }
 
 /**
