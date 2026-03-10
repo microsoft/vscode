@@ -2,22 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-// @ts-check
-import withDefaults from '../shared.webpack.config.mjs';
 
-export default withDefaults({
-	context: import.meta.dirname,
-	entry: {
-		extension: './src/extension.ts'
-	},
-	output: {
-		libraryTarget: 'module',
-		chunkFormat: 'module',
-	},
-	externals: {
-		'vscode': 'module vscode',
-	},
-	experiments: {
-		outputModule: true
-	}
-});
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { GitHubService, IGitHubService } from './githubService.js';
+
+registerSingleton(IGitHubService, GitHubService, InstantiationType.Delayed);

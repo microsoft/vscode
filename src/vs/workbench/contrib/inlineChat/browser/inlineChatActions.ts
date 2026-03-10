@@ -239,7 +239,7 @@ export class FixDiagnosticsAction extends AbstractInlineChatAction {
 			id: 'inlineChat.fixDiagnostics',
 			title: localize2('fix', 'Fix'),
 			icon: Codicon.editSparkle,
-			precondition: ContextKeyExpr.and(inlineChatContextKey, CTX_FIX_DIAGNOSTICS_ENABLED, EditorContextKeys.selectionHasDiagnostics, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.negate()),
+			precondition: ContextKeyExpr.and(CTX_FIX_DIAGNOSTICS_ENABLED, EditorContextKeys.selectionHasDiagnostics, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.negate()),
 			menu: [{
 				id: MenuId.InlineChatEditorAffordance,
 				group: '1_quickfix',
@@ -255,6 +255,7 @@ export class FixDiagnosticsAction extends AbstractInlineChatAction {
 	}
 
 	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: unknown[]): void {
+		ctrl.inputWidget.hide();
 		ctrl.run({ autoSend: true, attachDiagnostics: true });
 	}
 }

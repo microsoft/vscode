@@ -591,6 +591,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.getPart(Parts.EDITOR_PART).create(editorPartContainer, { restorePreviousState: false });
 		mark('code/didCreatePart/workbench.parts.editor');
 
+		this.getPart(Parts.EDITOR_PART).layout(0, 0, 0, 0); // needed to make some view methods work
+
 		this.mainContainer.appendChild(editorPartContainer);
 	}
 

@@ -304,7 +304,8 @@ export type PromptFileSkipReason =
 	| 'parse-error'
 	| 'disabled'
 	| 'all-hooks-disabled'
-	| 'claude-hooks-disabled';
+	| 'claude-hooks-disabled'
+	| 'workspace-untrusted';
 
 /**
  * Result of discovering a single prompt file.
@@ -333,12 +334,6 @@ export interface IPromptFileDiscoveryResult {
 export interface IPromptSourceFolderResult {
 	readonly uri: URI;
 	readonly storage: PromptsStorage;
-	/** Whether the folder exists on disk */
-	readonly exists: boolean;
-	/** Number of matching files found in this folder */
-	readonly fileCount: number;
-	/** Error message if resolution failed */
-	readonly errorMessage?: string;
 }
 
 /**
@@ -347,7 +342,7 @@ export interface IPromptSourceFolderResult {
 export interface IPromptDiscoveryInfo {
 	readonly type: PromptsType;
 	readonly files: readonly IPromptFileDiscoveryResult[];
-	/** Source folders that were searched, with their existence and file count */
+	/** Source folders that were searched */
 	readonly sourceFolders?: readonly IPromptSourceFolderResult[];
 }
 

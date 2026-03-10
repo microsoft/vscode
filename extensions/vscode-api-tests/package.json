@@ -71,6 +71,10 @@
       {
         "vendor": "test-lm-vendor",
         "displayName": "Test LM Vendor"
+      },
+      {
+        "vendor": "copilot",
+        "displayName": "Test Copilot LM Vendor"
       }
     ],
     "chatParticipants": [
