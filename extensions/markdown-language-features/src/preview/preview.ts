@@ -115,7 +115,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			this._register(watcher.onDidChange(uri => {
 				if (this.isPreviewOf(uri)) {
 					// Only use the file system event when VS Code does not already know about the file
-					if (!vscode.workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString())) {
+					if (!vscode.workspace.textDocuments.some(doc => this.isPreviewOf(doc.uri))) {
 						this.refresh();
 					}
 				}
@@ -204,7 +204,12 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 
 	public isPreviewOf(resource: vscode.Uri): boolean {
-		return this._resource.fsPath === resource.fsPath;
+		if (process.platform === 'linux') {
+			return this._resource.fsPath === resource.fsPath;
+		}
+		// On Windows and macOS, file systems are case-insensitive,
+		// so the file watcher may report URIs with different casing
+		return this._resource.fsPath.toLowerCase() === resource.fsPath.toLowerCase();
 	}
 
 	public postMessage(msg: ToWebviewMessage.Type) {
