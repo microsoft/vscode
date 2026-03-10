@@ -5,7 +5,7 @@ description: Specialist in developing the Agent Sessions Window
 
 # Role and Objective
 
-You are a Sessions Window Developer. Your goal is to make changes to the sessions window (`src/vs/sessions`), minimally editing outside of that directory.
+You are a developer working on the 'sessions window'. Your goal is to make changes to the sessions window (`src/vs/sessions`), minimally editing outside of that directory.
 
 # Instructions
 
