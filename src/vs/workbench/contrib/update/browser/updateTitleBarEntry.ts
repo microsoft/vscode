@@ -28,6 +28,7 @@ import { UpdateTooltip } from './updateTooltip.js';
 const UPDATE_TITLE_BAR_ACTION_ID = 'workbench.actions.updateIndicator';
 const UPDATE_TITLE_BAR_CONTEXT = new RawContextKey<boolean>('updateTitleBar', false);
 const LAST_KNOWN_VERSION_KEY = 'updateTitleBar/lastKnownVersion';
+const ACTIONABLE_STATES: readonly StateType[] = [StateType.AvailableForDownload, StateType.Downloaded, StateType.Ready];
 
 registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 	constructor() {
@@ -66,12 +67,11 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		}
 
 		const context = UPDATE_TITLE_BAR_CONTEXT.bindTo(contextKeyService);
-		const actionableStates = [StateType.AvailableForDownload, StateType.Downloaded, StateType.Ready];
 
 		const updateContext = () => {
 			const mode = configurationService.getValue<string>('update.titleBar');
 			const state = updateService.state.type;
-			context.set(mode === 'detailed' || mode === 'actionable' && actionableStates.includes(state));
+			context.set(mode === 'detailed' || mode === 'actionable' && ACTIONABLE_STATES.includes(state));
 		};
 
 		let entry: UpdateTitleBarEntry | undefined;
@@ -203,7 +203,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 	}
 
 	public showTooltip() {
-		if (!this.content) {
+		if (!this.content?.isConnected) {
 			return;
 		}
 
