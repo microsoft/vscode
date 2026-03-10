@@ -107,7 +107,10 @@ suite('stateToProgressAdapter', () => {
 			});
 
 			const history = turnsToHistory([turn], 'p');
-			const serialized = history[1].parts[0] as IChatToolInvocationSerialized;
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
 
 			assert.ok(serialized.toolSpecificData);
 			assert.strictEqual(serialized.toolSpecificData.kind, 'terminal');
@@ -127,6 +130,7 @@ suite('stateToProgressAdapter', () => {
 
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
 			assert.strictEqual(response.parts.length, 1);
 			assert.strictEqual(response.parts[0].kind, 'markdownContent');
 			assert.strictEqual((response.parts[0] as IChatMarkdownContent).content.value, 'Hello world');
@@ -141,6 +145,7 @@ suite('stateToProgressAdapter', () => {
 			const history = turnsToHistory([turn], 'p');
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
 			const errorPart = response.parts.find(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('boom'));
 			assert.ok(errorPart, 'Should have a markdownContent part containing the error message');
 		});
@@ -156,7 +161,10 @@ suite('stateToProgressAdapter', () => {
 			});
 
 			const history = turnsToHistory([turn], 'p');
-			const serialized = history[1].parts[0] as IChatToolInvocationSerialized;
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
 
 			assert.ok(serialized.toolSpecificData);
 			assert.strictEqual(serialized.toolSpecificData.kind, 'terminal');

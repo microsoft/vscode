@@ -58,7 +58,7 @@ suite('SessionStateManager', () => {
 		const snapshot = manager.getSnapshot(ROOT_STATE_URI);
 		assert.ok(snapshot);
 		assert.strictEqual(snapshot.resource.toString(), ROOT_STATE_URI.toString());
-		assert.deepStrictEqual(snapshot.state, { agents: [], models: [] });
+		assert.deepStrictEqual(snapshot.state, { agents: [] });
 	});
 
 	test('getSnapshot returns session snapshot after creation', () => {

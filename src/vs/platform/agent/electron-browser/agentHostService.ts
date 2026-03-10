@@ -6,7 +6,6 @@
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
-import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getDelayedChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
@@ -14,10 +13,11 @@ import { acquirePort } from '../../../base/parts/ipc/electron-browser/ipc.mp.js'
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentHostInitData, IAgentHostService, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../common/agentService.js';
+import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentDescriptor, IAgentHostInitData, IAgentHostService, IAgentService, IAgentSessionMetadata } from '../common/agentService.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { revive } from '../../../base/common/marshalling.js';
+import { URI } from '../../../base/common/uri.js';
 
 /**
  * Renderer-side implementation of {@link IAgentHostService} that connects
@@ -38,9 +38,6 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	readonly onAgentHostExit = this._onAgentHostExit.event;
 	private readonly _onAgentHostStart = this._register(new Emitter<void>());
 	readonly onAgentHostStart = this._onAgentHostStart.event;
-
-	private readonly _onDidSessionProgress = this._register(new Emitter<IAgentProgressEvent>());
-	readonly onDidSessionProgress = this._onDidSessionProgress.event;
 
 	private readonly _onDidAction = this._register(new Emitter<IActionEnvelope>());
 	readonly onDidAction = this._onDidAction.event;
@@ -74,10 +71,6 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 		const client = store.add(new MessagePortClient(port, `agentHost:window`));
 		this._clientEventually.complete(client);
 
-		store.add(this._proxy.onDidSessionProgress(e => {
-			// Events from ProxyChannel don't auto-revive nested URIs -- revive the session URI
-			this._onDidSessionProgress.fire({ ...e, session: URI.revive(e.session) });
-		}));
 		store.add(this._proxy.onDidAction(e => {
 			this._onDidAction.fire(revive(e));
 		}));
@@ -99,8 +92,8 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	listAgents(): Promise<IAgentDescriptor[]> {
 		return this._proxy.listAgents();
 	}
-	listModels(): Promise<IAgentModelInfo[]> {
-		return this._proxy.listModels();
+	refreshModels(): Promise<void> {
+		return this._proxy.refreshModels();
 	}
 	listSessions(): Promise<IAgentSessionMetadata[]> {
 		return this._proxy.listSessions();
@@ -108,20 +101,8 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		return this._proxy.createSession(config);
 	}
-	sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void> {
-		return this._proxy.sendMessage(session, prompt, attachments);
-	}
-	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
-		return this._proxy.getSessionMessages(session);
-	}
 	disposeSession(session: URI): Promise<void> {
 		return this._proxy.disposeSession(session);
-	}
-	abortSession(session: URI): Promise<void> {
-		return this._proxy.abortSession(session);
-	}
-	respondToPermissionRequest(requestId: string, approved: boolean): void {
-		this._proxy.respondToPermissionRequest(requestId, approved);
 	}
 	shutdown(): Promise<void> {
 		return this._proxy.shutdown();

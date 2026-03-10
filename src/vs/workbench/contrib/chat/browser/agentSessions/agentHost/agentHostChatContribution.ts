@@ -45,6 +45,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private _isChannelRegistered = false;
 	private _clientState: SessionClientState | undefined;
 	private readonly _agentRegistrations = new Map<AgentProvider, DisposableStore>();
+	/** Model providers keyed by agent provider, for pushing model updates. */
+	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
@@ -185,13 +187,18 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			if (!incoming.has(provider)) {
 				store.dispose();
 				this._agentRegistrations.delete(provider);
+				this._modelProviders.delete(provider);
 			}
 		}
 
-		// Register new agents
+		// Register new agents and push model updates to existing ones
 		for (const agent of rootState.agents) {
 			if (!this._agentRegistrations.has(agent.provider)) {
 				this._registerAgent(agent);
+			} else {
+				// Push updated models to existing model provider
+				const modelProvider = this._modelProviders.get(agent.provider);
+				modelProvider?.updateModels(agent.models);
 			}
 		}
 	}
@@ -232,15 +239,18 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = store.add(this._instantiationService.createInstance(AgentHostLanguageModelProvider, sessionType, vendor, agent.provider));
+		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor));
+		modelProvider.updateModels(agent.models);
+		this._modelProviders.set(agent.provider, modelProvider);
+		store.add(toDisposable(() => this._modelProviders.delete(agent.provider)));
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
 
-		// Push auth token and refresh models for all agents
-		this._pushAuthToken().then(() => modelProvider.refresh()).catch(() => { /* best-effort */ });
+		// Push auth token and refresh models from server
+		this._pushAuthToken().then(() => this._agentHostService.refreshModels()).catch(() => { /* best-effort */ });
 		store.add(this._defaultAccountService.onDidChangeDefaultAccount(() =>
-			this._pushAuthToken().then(() => modelProvider.refresh()).catch(() => { /* best-effort */ })));
+			this._pushAuthToken().then(() => this._agentHostService.refreshModels()).catch(() => { /* best-effort */ })));
 		store.add(this._authenticationService.onDidChangeSessions(() =>
-			this._pushAuthToken().then(() => modelProvider.refresh()).catch(() => { /* best-effort */ })));
+			this._pushAuthToken().then(() => this._agentHostService.refreshModels()).catch(() => { /* best-effort */ })));
 	}
 
 	private async _pushAuthToken(): Promise<void> {

@@ -17,19 +17,22 @@ import type { AgentProvider } from '../../agentService.js';
 
 export interface IV1_RootState {
 	readonly agents: readonly IV1_AgentInfo[];
-	readonly models: readonly IV1_SessionModelInfo[];
 }
 
 export interface IV1_AgentInfo {
 	readonly provider: AgentProvider;
 	readonly displayName: string;
 	readonly description: string;
+	readonly models: readonly IV1_SessionModelInfo[];
 }
 
 export interface IV1_SessionModelInfo {
 	readonly id: string;
 	readonly provider: AgentProvider;
 	readonly name: string;
+	readonly maxContextWindow?: number;
+	readonly supportsVision?: boolean;
+	readonly policyState?: 'enabled' | 'disabled' | 'unconfigured';
 }
 
 export interface IV1_SessionSummary {
@@ -158,11 +161,6 @@ interface IV1_SessionActionBase {
 	readonly session: URI;
 }
 
-export interface IV1_ModelsChangedAction {
-	readonly type: 'root/modelsChanged';
-	readonly models: readonly IV1_SessionModelInfo[];
-}
-
 export interface IV1_AgentsChangedAction {
 	readonly type: 'root/agentsChanged';
 	readonly agents: readonly IV1_AgentInfo[];
@@ -262,7 +260,6 @@ export interface IV1_ReasoningAction extends IV1_SessionActionBase {
 }
 
 export type IV1_RootAction =
-	| IV1_ModelsChangedAction
 	| IV1_AgentsChangedAction;
 
 export type IV1_SessionAction =

@@ -11,9 +11,9 @@ import { join } from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IToolContext } from '../../../common/tools.js';
 import { BashTool } from '../../../node/tools/bashTool.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
-function createContext(workingDirectory: string, disposables: DisposableStore, token: CancellationToken = CancellationToken.None): IToolContext {
+function createContext(workingDirectory: string, disposables: Pick<DisposableStore, 'add'>, token: CancellationToken = CancellationToken.None): IToolContext {
 	return {
 		token,
 		workingDirectory,

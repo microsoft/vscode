@@ -10,6 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentProvider } from '../../common/agentService.js';
+import { IActionEnvelope } from '../../common/state/sessionActions.js';
 import { AgentService } from '../../node/agentService.js';
 
 class MockAgent implements IAgent {
@@ -107,16 +108,21 @@ suite('AgentService (node dispatcher)', () => {
 			assert.throws(() => service.registerProvider(duplicate), /already registered/);
 		});
 
-		test('forwards progress events from registered providers', async () => {
+		test('maps progress events to protocol actions via onDidAction', async () => {
 			service.registerProvider(copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
 
-			const events: IAgentProgressEvent[] = [];
-			disposables.add(service.onDidSessionProgress(e => events.push(e)));
+			// Start a turn so there's an active turn to map events to
+			service.dispatchAction(
+				{ type: 'session/turnStarted', session, turnId: 'turn-1', userMessage: { text: 'hello' } },
+				'test-client', 1,
+			);
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(service.onDidAction(e => envelopes.push(e)));
 
 			copilotAgent.fireProgress({ session, type: 'delta', messageId: 'msg-1', content: 'hello' });
-			assert.strictEqual(events.length, 1);
-			assert.strictEqual(events[0].type, 'delta');
+			assert.ok(envelopes.some(e => e.action.type === 'session/delta'));
 		});
 	});
 
@@ -158,39 +164,6 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('throws when no providers are registered at all', async () => {
 			await assert.rejects(() => service.createSession(), /No agent provider/);
-		});
-	});
-
-	// ---- sendMessage ----------------------------------------------------
-
-	suite('sendMessage', () => {
-
-		test('dispatches to the correct provider based on session tracking', async () => {
-			service.registerProvider(copilotAgent);
-
-			const session = await service.createSession({ provider: 'copilot' });
-			await service.sendMessage(session, 'hello');
-
-			assert.strictEqual(copilotAgent.sendMessageCalls.length, 1);
-			assert.strictEqual(copilotAgent.sendMessageCalls[0].prompt, 'hello');
-		});
-
-		test('infers provider from URI scheme for untracked sessions', async () => {
-			service.registerProvider(copilotAgent);
-			const session = AgentSession.uri('copilot', 'external-session');
-
-			await service.sendMessage(session, 'hello from untracked');
-
-			assert.strictEqual(copilotAgent.sendMessageCalls.length, 1);
-		});
-
-		test('falls back to default provider for unrecognized URI scheme', async () => {
-			service.registerProvider(copilotAgent);
-			const unknownSession = URI.from({ scheme: 'unknown', path: '/sess-1' });
-
-			// Should not throw -- falls back to the default provider
-			await service.sendMessage(unknownSession, 'hello');
-			assert.strictEqual(copilotAgent.sendMessageCalls.length, 1);
 		});
 	});
 
@@ -243,12 +216,16 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions.length, 1);
 		});
 
-		test('listModels aggregates models from all providers', async () => {
+		test('refreshModels publishes models in root state via agentsChanged', async () => {
 			service.registerProvider(copilotAgent);
 
-			const models = await service.listModels();
-			assert.strictEqual(models.length, 1);
-			assert.ok(models.some(m => m.provider === 'copilot'));
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(service.onDidAction(e => envelopes.push(e)));
+
+			await service.refreshModels();
+
+			const agentsChanged = envelopes.find(e => e.action.type === 'root/agentsChanged');
+			assert.ok(agentsChanged);
 		});
 	});
 

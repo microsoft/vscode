@@ -335,12 +335,13 @@ export const IAgentService = createDecorator<IAgentService>('agentService');
 /**
  * Service contract for communicating with the agent host process. Methods here
  * are proxied across MessagePort via `ProxyChannel`.
+ *
+ * State is synchronized via the subscribe/unsubscribe/dispatchAction protocol.
+ * Clients observe root state (agents, models) and session state via subscriptions,
+ * and mutate state by dispatching actions (e.g. session/turnStarted, session/turnCancelled).
  */
 export interface IAgentService {
 	readonly _serviceBrand: undefined;
-
-	/** Fires when the agent host streams progress for a session. */
-	readonly onDidSessionProgress: Event<IAgentProgressEvent>;
 
 	/** Discover available agent backends from the agent host. */
 	listAgents(): Promise<IAgentDescriptor[]>;
@@ -354,8 +355,11 @@ export interface IAgentService {
 	 */
 	initialize(initData: IAgentHostInitData): Promise<void>;
 
-	/** List available models from the agent. */
-	listModels(): Promise<IAgentModelInfo[]>;
+	/**
+	 * Refresh the model list from all providers, publishing updated
+	 * agents (with models) to root state via `root/agentsChanged`.
+	 */
+	refreshModels(): Promise<void>;
 
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
@@ -363,20 +367,8 @@ export interface IAgentService {
 	/** Create a new session. Returns the session URI. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 
-	/** Send a user message into an existing session. */
-	sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void>;
-
-	/** Retrieve all session events/messages for reconstruction, including tool invocations. */
-	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>;
-
 	/** Dispose a session in the agent host, freeing SDK resources. */
 	disposeSession(session: URI): Promise<void>;
-
-	/** Abort the current turn in a session. */
-	abortSession(session: URI): Promise<void>;
-
-	/** Respond to a pending permission request. */
-	respondToPermissionRequest(requestId: string, approved: boolean): void;
 
 	/** Gracefully shut down all sessions and the underlying client. */
 	shutdown(): Promise<void>;

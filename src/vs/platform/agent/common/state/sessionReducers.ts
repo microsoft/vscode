@@ -37,9 +37,6 @@ import {
  */
 export function rootReducer(state: IRootState, action: IRootAction): IRootState {
 	switch (action.type) {
-		case 'root/modelsChanged': {
-			return { ...state, models: action.models };
-		}
 		case 'root/agentsChanged': {
 			return { ...state, agents: action.agents };
 		}

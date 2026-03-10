@@ -27,7 +27,10 @@ import { SessionStateManager } from './sessionStateManager.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler, type IProtocolSideEffectHandler } from './protocolServerHandler.js';
 import { mapProgressEventToAction } from './agentEventMapper.js';
-import { SessionStatus, type ISessionSummary } from '../common/state/sessionState.js';
+import {
+	ISessionModelInfo,
+	SessionStatus, type ISessionSummary
+} from '../common/state/sessionState.js';
 import type { ISessionAction } from '../common/state/sessionActions.js';
 import type { ICreateSessionCommand } from '../common/state/sessionProtocol.js';
 
@@ -94,15 +97,28 @@ function main(): void {
 				}
 			}
 		}));
-		// Publish agent to root state
-		stateManager.dispatchServerAction({
-			type: 'root/agentsChanged',
-			agents: [...agents.values()].map(a => {
-				const d = a.getDescriptor();
-				return { provider: d.provider, displayName: d.displayName, description: d.description };
-			}),
-		});
+		// Publish agent to root state (models fetched async)
+		publishAgentsToRootState();
 		logService.info(`[AgentHostServer] Registered agent: ${agent.id}`);
+	}
+
+	async function publishAgentsToRootState(): Promise<void> {
+		const agentInfos = await Promise.all([...agents.values()].map(async a => {
+			const d = a.getDescriptor();
+			let models: ISessionModelInfo[];
+			try {
+				const rawModels = await a.listModels();
+				models = rawModels.map(m => ({
+					id: m.id, provider: m.provider, name: m.name,
+					maxContextWindow: m.maxContextWindow, supportsVision: m.supportsVision,
+					policyState: m.policyState,
+				}));
+			} catch {
+				models = [];
+			}
+			return { provider: d.provider, displayName: d.displayName, description: d.description, models };
+		}));
+		stateManager.dispatchServerAction({ type: 'root/agentsChanged', agents: agentInfos });
 	}
 
 	function getAgent(session: URI): IAgent | undefined {

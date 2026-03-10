@@ -17,7 +17,7 @@ The sessions process is a portable, standalone server that multiple clients can 
 
 All state is identified by URIs. Clients subscribe to a URI to receive its current state snapshot and subsequent action updates. This is the single universal mechanism for state synchronization:
 
-- **Root state** (`agenthost:root`) — always-present global state (agents, models). Clients subscribe to this on connect.
+- **Root state** (`agenthost:root`) — always-present global state (agents and their models). Clients subscribe to this on connect.
 - **Session state** (`copilot:/<uuid>`, etc.) — per-session state loaded on demand. Clients subscribe when opening a session.
 
 The `subscribe(uri)` / `unsubscribe(uri)` mechanism works identically for all resource types.
@@ -31,6 +31,16 @@ Subscribable at `agenthost:root`. Contains global, lightweight data that all cli
 ```
 RootState {
     agents: AgentInfo[]
+}
+```
+
+Each `AgentInfo` includes the models available for that agent:
+
+```
+AgentInfo {
+    provider: string
+    displayName: string
+    description: string
     models: ModelInfo[]
 }
 ```
@@ -114,8 +124,7 @@ These mutate the root state. **All root actions are server-only** — clients ob
 
 | Type | Payload | When |
 |---|---|---|
-| `root/modelsChanged` | `ModelInfo[]` | Available models changed |
-| `root/agentsChanged` | `AgentInfo[]` | Available agent backends changed |
+| `root/agentsChanged` | `AgentInfo[]` | Available agent backends or their models changed |
 
 ### Session actions
 
@@ -303,7 +312,7 @@ The registry also maintains an exhaustive runtime map:
 
 ```typescript
 export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: number } = {
-    'root/modelsChanged': 1,
+    'root/agentsChanged': 1,
     'session/turnStarted': 1,
     // ...every action type must have an entry
 };

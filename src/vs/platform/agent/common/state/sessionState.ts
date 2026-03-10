@@ -45,6 +45,9 @@ export interface ISessionModelInfo {
 	readonly id: string;
 	readonly provider: AgentProvider;
 	readonly name: string;
+	readonly maxContextWindow?: number;
+	readonly supportsVision?: boolean;
+	readonly policyState?: 'enabled' | 'disabled' | 'unconfigured';
 }
 
 // ---- Root state (subscribable at ROOT_STATE_URI) ----------------------------
@@ -56,13 +59,13 @@ export interface ISessionModelInfo {
  */
 export interface IRootState {
 	readonly agents: readonly IAgentInfo[];
-	readonly models: readonly ISessionModelInfo[];
 }
 
 export interface IAgentInfo {
 	readonly provider: AgentProvider;
 	readonly displayName: string;
 	readonly description: string;
+	readonly models: readonly ISessionModelInfo[];
 }
 
 // ---- Session lifecycle ------------------------------------------------------
@@ -256,7 +259,6 @@ export interface IErrorInfo {
 export function createRootState(): IRootState {
 	return {
 		agents: [],
-		models: [],
 	};
 }
 

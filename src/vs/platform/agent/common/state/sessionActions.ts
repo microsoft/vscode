@@ -19,7 +19,6 @@ import type {
 	IErrorInfo,
 	IPermissionRequest,
 	IResponsePart,
-	ISessionModelInfo,
 	ISessionSummary,
 	IToolCallState,
 	IUsageInfo,
@@ -58,18 +57,12 @@ export interface IActionOrigin {
 
 // ---- Root actions (server-only, mutate RootState) ---------------------------
 
-export interface IModelsChangedAction {
-	readonly type: 'root/modelsChanged';
-	readonly models: readonly ISessionModelInfo[];
-}
-
 export interface IAgentsChangedAction {
 	readonly type: 'root/agentsChanged';
 	readonly agents: readonly IAgentInfo[];
 }
 
 export type IRootAction =
-	| IModelsChangedAction
 	| IAgentsChangedAction;
 
 // ---- Session actions (mutate SessionState, scoped to a session URI) ---------
