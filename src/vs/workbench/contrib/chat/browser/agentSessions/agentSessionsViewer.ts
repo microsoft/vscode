@@ -91,6 +91,7 @@ export interface IAgentSessionRendererOptions {
 	readonly disableHover?: boolean;
 	readonly showIsolationIcon?: boolean;
 	getHoverPosition(): HoverPosition;
+	isGroupedByRepository?(): boolean;
 }
 
 export class AgentSessionRenderer extends Disposable implements ICompressibleTreeRenderer<IAgentSession, FuzzyScore, IAgentSessionItemTemplate> {
@@ -272,11 +273,21 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 	private renderBadge(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
 		const badge = session.element.badge;
-		if (badge) {
-			this.renderMarkdownOrText(badge, template.badge, template.elementDisposable);
+		if (!badge) {
+			return false;
 		}
 
-		return !!badge;
+		// When grouped by repository, hide the badge if it only shows the repo name
+		// (since the section header already displays it)
+		if (this.options.isGroupedByRepository?.()) {
+			const raw = typeof badge === 'string' ? badge : badge.value;
+			if (/^\$\((?:repo|folder|worktree)\)\s*.+/.test(raw)) {
+				return false;
+			}
+		}
+
+		this.renderMarkdownOrText(badge, template.badge, template.elementDisposable);
+		return true;
 	}
 
 	private renderMarkdownOrText(content: string | IMarkdownString, container: HTMLElement, disposables: DisposableStore): void {
