@@ -1505,11 +1505,27 @@ end;
 function IsWindows10ContextMenuForced(): Boolean;
 var
   SubKey: String;
+  HklmDefValue: String;
 begin
-  // Check if Windows 10 style context menus are forced on Windows 11
-  // This can be set per-user (HKCU) or system-wide (HKLM)
   SubKey := 'Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32';
-  Result := RegKeyExists(HKEY_CURRENT_USER, SubKey) or RegKeyExists(HKEY_LOCAL_MACHINE, SubKey);
+
+  // 1. Check if the user has forced Windows 10 style context menus via HKCU.
+  // The key does not natively exist in HKCU, so mere existence implies an override.
+  if RegKeyExists(HKEY_CURRENT_USER, SubKey) then begin
+    Result := True;
+    Exit;
+  end;
+
+  // 2. Check if a system administrator has forced it system-wide via HKLM.
+  // The key natively exists in HKLM. The override is applied by setting the default value to an empty string.
+  if RegQueryStringValue(HKEY_LOCAL_MACHINE, SubKey, '', HklmDefValue) then begin
+    if HklmDefValue = '' then begin
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  Result := False;
 end;
 
 function ShouldUseWindows11ContextMenu(): Boolean;
