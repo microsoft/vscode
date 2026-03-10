@@ -12,6 +12,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -63,6 +64,7 @@ export class ChatDebugLogsView extends Disposable {
 	private currentDimension: Dimension | undefined;
 	private readonly eventListener = this._register(new MutableDisposable());
 	private readonly sessionStateDisposable = this._register(new MutableDisposable());
+	private readonly refreshScheduler: RunOnceScheduler;
 	private shimmerRow!: HTMLElement;
 
 	constructor(
@@ -75,6 +77,7 @@ export class ChatDebugLogsView extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
+		this.refreshScheduler = this._register(new RunOnceScheduler(() => this.refreshList(), 50));
 		this.container = DOM.append(parent, $('.chat-debug-logs'));
 		DOM.hide(this.container);
 
@@ -383,8 +386,32 @@ export class ChatDebugLogsView extends Disposable {
 	}
 
 	addEvent(event: IChatDebugEvent): void {
-		this.events.push(event);
-		this.refreshList();
+		// Binary-insert to maintain chronological order without a full sort.
+		// Events almost always arrive in order, so the insertion point is
+		// typically at the end (O(log n) comparison, O(1) splice).
+		const time = event.created.getTime();
+		let lo = 0;
+		let hi = this.events.length;
+		while (lo < hi) {
+			const mid = (lo + hi) >>> 1;
+			if (this.events[mid].created.getTime() <= time) {
+				lo = mid + 1;
+			} else {
+				hi = mid;
+			}
+		}
+		if (lo === this.events.length) {
+			this.events.push(event);
+		} else {
+			this.events.splice(lo, 0, event);
+		}
+		this.scheduleRefresh();
+	}
+
+	private scheduleRefresh(): void {
+		if (!this.refreshScheduler.isScheduled()) {
+			this.refreshScheduler.schedule();
+		}
 	}
 
 	private loadEvents(): void {
@@ -392,8 +419,7 @@ export class ChatDebugLogsView extends Disposable {
 
 		const addEventDisposable = this.chatDebugService.onDidAddEvent(e => {
 			if (!this.currentSessionResource || e.sessionResource.toString() === this.currentSessionResource.toString()) {
-				this.events.push(e);
-				this.refreshList();
+				this.addEvent(e);
 			}
 		});
 
