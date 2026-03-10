@@ -1113,9 +1113,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined): IChatViewWelcomeContent {
 		if (this.isLockedToCodingAgent) {
 			// Check for provider-specific customizations from chat sessions service
-			const providerIcon = this._lockedAgent ? this.chatSessionsService.getIconForSessionType(this._lockedAgent.id) : undefined;
-			const providerTitle = this._lockedAgent ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgent.id) : undefined;
-			const providerMessage = this._lockedAgent ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgent.id) : undefined;
+			const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
+			const providerIcon = contribution?.icon;
+			const providerTitle = contribution?.welcomeTitle;
+			const providerMessage = contribution?.welcomeMessage;
 
 			// Fallback to default messages if provider doesn't specify
 			const message = providerMessage
@@ -1966,7 +1967,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.setViewModel(this.viewModel);
 
 		if (this._lockedAgent) {
-			let placeholder = this.chatSessionsService.getInputPlaceholderForSessionType(this._lockedAgent.id);
+			let placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
 			if (!placeholder) {
 				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.id);
 			}
