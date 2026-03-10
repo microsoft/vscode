@@ -1335,7 +1335,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 	}
 }
 
-class ConfigurationDefaultOverridesContribution extends Disposable implements IWorkbenchContribution {
+export class ConfigurationDefaultOverridesContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.configurationDefaultOverridesContribution';
 
