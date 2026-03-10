@@ -115,6 +115,7 @@ class AICustomizationListDelegate implements IListVirtualDelegate<IListEntry> {
 interface IAICustomizationItemTemplateData {
 	readonly container: HTMLElement;
 	readonly actionsContainer: HTMLElement;
+	readonly typeIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly description: HighlightedLabel;
 	readonly disposables: DisposableStore;
@@ -195,6 +196,44 @@ class GroupHeaderRenderer implements IListRenderer<IGroupHeaderEntry, IGroupHead
 }
 
 /**
+ * Returns the icon for a given prompt type.
+ */
+function promptTypeToIcon(type: PromptsType): ThemeIcon {
+	switch (type) {
+		case PromptsType.agent: return agentIcon;
+		case PromptsType.skill: return skillIcon;
+		case PromptsType.instructions: return instructionsIcon;
+		case PromptsType.prompt: return promptIcon;
+		case PromptsType.hook: return hookIcon;
+		default: return promptIcon;
+	}
+}
+
+/**
+ * Formats a name for display: converts dashes/underscores to spaces and applies title case.
+ * This is safe to use alongside IMatch highlight positions since the transformation is 1:1.
+ */
+function formatDisplayName(name: string): string {
+	return name
+		.replace(/[-_]/g, ' ')
+		.replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/**
+ * Truncates a description string to the first sentence, with a maximum character fallback.
+ */
+function truncateToFirstSentence(text: string, maxChars = 120): string {
+	const match = text.match(/^[^.!?]*[.!?]/);
+	if (match && match[0].length <= maxChars) {
+		return match[0];
+	}
+	if (text.length > maxChars) {
+		return text.substring(0, maxChars).trimEnd() + '\u2026';
+	}
+	return text;
+}
+
+/**
  * Renderer for AI customization list items.
  */
 class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICustomizationItemTemplateData> {
@@ -212,6 +251,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		container.classList.add('ai-customization-list-item');
 
 		const leftSection = DOM.append(container, $('.item-left'));
+		const typeIcon = DOM.append(leftSection, $('.item-type-icon'));
 		const textContainer = DOM.append(leftSection, $('.item-text'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-name'))));
 		const description = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-description'))));
@@ -222,6 +262,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		return {
 			container,
 			actionsContainer,
+			typeIcon,
 			nameLabel,
 			description,
 			disposables,
@@ -232,6 +273,10 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	renderElement(entry: IFileItemEntry, index: number, templateData: IAICustomizationItemTemplateData): void {
 		templateData.elementDisposables.clear();
 		const element = entry.item;
+
+		// Type icon based on prompt type
+		templateData.typeIcon.className = 'item-type-icon';
+		templateData.typeIcon.classList.add(...ThemeIcon.asClassNameArray(promptTypeToIcon(element.promptType)));
 
 		// Hover tooltip: name + full path
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
@@ -245,11 +290,12 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			};
 		}));
 
-		// Name with highlights
-		templateData.nameLabel.set(element.name, element.nameMatches);
+		// Name with highlights — transform dashes/underscores to spaces and title-case for display
+		const displayName = formatDisplayName(element.name);
+		templateData.nameLabel.set(displayName, element.nameMatches);
 
-		// Description - show either description or filename as secondary text
-		const secondaryText = element.description || element.filename;
+		// Description - show either truncated description or filename as secondary text
+		const secondaryText = element.description ? truncateToFirstSentence(element.description) : element.filename;
 		if (secondaryText) {
 			templateData.description.set(secondaryText, element.description ? element.descriptionMatches : undefined);
 			templateData.description.element.style.display = '';

@@ -397,6 +397,17 @@
 	opacity: 0.6;
 }
 
+.ai-customization-list-item .item-type-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.8;
+	font-size: 14px;
+}
+
 .ai-customization-list-item .item-text {
 	display: flex;
 	flex-direction: column;
@@ -407,6 +418,7 @@
 
 .ai-customization-list-item .item-name {
 	font-size: 13px;
+	font-weight: 500;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
