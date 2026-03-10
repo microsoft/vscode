@@ -29,7 +29,7 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { getContextMenuActions } from '../../../../contrib/mcp/browser/mcpServerActions.js';
 import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
-import { workspaceIcon, userIcon, extensionIcon, mcpServerIcon } from './aiCustomizationIcons.js';
+import { workspaceIcon, userIcon, extensionIcon, mcpServerIcon, builtinIcon } from './aiCustomizationIcons.js';
 import { formatDisplayName, truncateToFirstSentence } from './aiCustomizationListWidget.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
@@ -679,7 +679,7 @@ export class McpListWidget extends Disposable {
 				id: 'mcp-group-builtin',
 				scope: 'builtin',
 				label: localize('builtInGroup', "Built-in"),
-				icon: extensionIcon,
+				icon: builtinIcon,
 				count: builtinServers.length,
 				isFirst,
 				description: localize('builtInGroupDescription', "MCP servers built into VS Code. These are available automatically."),
