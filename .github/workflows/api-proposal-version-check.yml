@@ -211,11 +211,13 @@ jobs:
 
             The following proposed API files have version changes: **${changedFiles}**
 
-            API proposal version changes should only be used when maintaining compatibility is not possible. Consider keeping the version as is. Any version changes must be updated by the consuming extension before the next insiders for the extension to work.
+            API proposal version changes should only be used when maintaining compatibility is not possible. Consider keeping the version as is and maintaining backward compatibility.
+
+            **Any version changes must be updated by the consuming extensions before the next insiders for the extension to work.**
 
             ---
 
-            If the version change is required, comment \`/api-proposal-change-required\` to unblock this check.`;
+            If the version change is required, comment \`/api-proposal-change-required\` to unblock this check and acknowledge that you will update any critical consuming extensions (Copilot Chat).`;
 
             if (existingComment) {
               await github.rest.issues.updateComment({
