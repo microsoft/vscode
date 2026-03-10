@@ -9,6 +9,8 @@ import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { hash } from '../../../../base/common/hash.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -156,6 +158,23 @@ export interface ICodeReviewService {
 	dismissReview(sessionResource: URI): void;
 }
 
+// --- Storage Types -----------------------------------------------------------
+
+interface IStoredCodeReview {
+	readonly version: string;
+	readonly comments: readonly IStoredCodeReviewComment[];
+}
+
+interface IStoredCodeReviewComment {
+	readonly id: string;
+	readonly uri: UriComponents;
+	readonly range: IRange;
+	readonly body: string;
+	readonly kind: string;
+	readonly severity: string;
+	readonly suggestion?: ICodeReviewSuggestion;
+}
+
 // --- Implementation ----------------------------------------------------------
 
 interface ISessionReviewData {
@@ -225,12 +244,18 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 
 	declare readonly _serviceBrand: undefined;
 
+	private static readonly _STORAGE_KEY = 'codeReview.reviews';
+
 	private readonly _reviewsBySession = new Map<string, ISessionReviewData>();
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 	) {
 		super();
+		this._loadFromStorage();
+		this._registerSessionListeners();
 	}
 
 	getReviewState(sessionResource: URI): IObservable<ICodeReviewState> {
@@ -276,12 +301,14 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 
 		const filtered = state.comments.filter(c => c.id !== commentId);
 		data.state.set({ kind: CodeReviewStateKind.Result, version: state.version, comments: filtered }, undefined);
+		this._saveToStorage();
 	}
 
 	dismissReview(sessionResource: URI): void {
 		const data = this._reviewsBySession.get(sessionResource.toString());
 		if (data) {
 			data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
+			this._saveToStorage();
 		}
 	}
 
@@ -342,6 +369,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 				transaction(tx => {
 					data.state.set({ kind: CodeReviewStateKind.Result, version, comments }, tx);
 				});
+				this._saveToStorage();
 			}
 		} catch (err) {
 			const currentState = data.state.get();
@@ -349,5 +377,110 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 				data.state.set({ kind: CodeReviewStateKind.Error, version, reason: String(err) }, undefined);
 			}
 		}
+	}
+
+	private _loadFromStorage(): void {
+		const raw = this._storageService.get(CodeReviewService._STORAGE_KEY, StorageScope.WORKSPACE);
+		if (!raw) {
+			return;
+		}
+
+		try {
+			const stored: Record<string, IStoredCodeReview> = JSON.parse(raw);
+			for (const [key, review] of Object.entries(stored)) {
+				const comments: ICodeReviewComment[] = review.comments.map(c => ({
+					id: c.id,
+					uri: URI.revive(c.uri),
+					range: c.range,
+					body: c.body,
+					kind: c.kind,
+					severity: c.severity,
+					suggestion: c.suggestion,
+				}));
+				const data = this._getOrCreateData(URI.parse(key));
+				data.state.set({ kind: CodeReviewStateKind.Result, version: review.version, comments }, undefined);
+			}
+		} catch {
+			// Corrupted storage data — ignore
+		}
+	}
+
+	private _saveToStorage(): void {
+		const stored: Record<string, IStoredCodeReview> = {};
+		for (const [key, data] of this._reviewsBySession) {
+			const state = data.state.get();
+			if (state.kind === CodeReviewStateKind.Result) {
+				stored[key] = {
+					version: state.version,
+					comments: state.comments.map(c => ({
+						id: c.id,
+						uri: c.uri.toJSON(),
+						range: c.range,
+						body: c.body,
+						kind: c.kind,
+						severity: c.severity,
+						suggestion: c.suggestion,
+					})),
+				};
+			}
+		}
+
+		if (Object.keys(stored).length === 0) {
+			this._storageService.remove(CodeReviewService._STORAGE_KEY, StorageScope.WORKSPACE);
+		} else {
+			this._storageService.store(CodeReviewService._STORAGE_KEY, JSON.stringify(stored), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
+	}
+
+	private _registerSessionListeners(): void {
+		// Clean up when a session is archived
+		this._register(this._agentSessionsService.onDidChangeSessionArchivedState(session => {
+			if (session.isArchived()) {
+				const key = session.resource.toString();
+				const data = this._reviewsBySession.get(key);
+				if (data) {
+					data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
+					this._saveToStorage();
+				}
+			}
+		}));
+
+		// Clean up when session changes make a review version outdated
+		this._register(this._agentSessionsService.model.onDidChangeSessions(() => {
+			let changed = false;
+			for (const [key, data] of this._reviewsBySession) {
+				const state = data.state.get();
+				if (state.kind !== CodeReviewStateKind.Result) {
+					continue;
+				}
+
+				const session = this._agentSessionsService.getSession(URI.parse(key));
+				if (!session) {
+					// Session no longer exists — clean up
+					data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
+					changed = true;
+					continue;
+				}
+
+				if (!(session.changes instanceof Array) || session.changes.length === 0) {
+					// Session has no file-level changes — clean up
+					data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
+					changed = true;
+					continue;
+				}
+
+				const files = getCodeReviewFilesFromSessionChanges(session.changes);
+				const currentVersion = getCodeReviewVersion(files);
+				if (state.version !== currentVersion) {
+					// Version mismatch — review is stale
+					data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
+					changed = true;
+				}
+			}
+
+			if (changed) {
+				this._saveToStorage();
+			}
+		}));
 	}
 }

@@ -149,6 +149,6 @@ export async function getCustomizationTotalCount(
 		return getSourceCounts(promptsService, type, filter, workspaceContextService, workspaceService)
 			.then(counts => getSourceCountsTotal(counts, filter));
 	}));
-	const pluginCount = agentPluginService?.allPlugins.get().length ?? 0;
+	const pluginCount = agentPluginService?.plugins.get().length ?? 0;
 	return results.reduce((sum, n) => sum + n, 0) + mcpService.servers.get().length + pluginCount;
 }

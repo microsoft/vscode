@@ -17,7 +17,8 @@ import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessi
 
 export enum AgentSessionsGrouping {
 	Capped = 'capped',
-	Date = 'date'
+	Date = 'date',
+	Repository = 'repository'
 }
 
 export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilter> {

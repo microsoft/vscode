@@ -75,6 +75,7 @@
       confirmation: undefined,
       editedFileEvents: undefined,
       modelId: undefined,
+      modeInfo: undefined,
       responseId: undefined,
       result: { metadata: { metadataKey: "value" } },
       responseMarkdownInfo: undefined,

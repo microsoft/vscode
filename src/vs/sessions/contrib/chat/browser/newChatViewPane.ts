@@ -70,6 +70,7 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
+import { NewChatPermissionPicker } from './newChatPermissionPicker.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
@@ -147,6 +148,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _inputSlot: HTMLElement | undefined;
 	private readonly _folderPicker: FolderPicker;
 	private _folderPickerContainer: HTMLElement | undefined;
+	private readonly _permissionPicker: NewChatPermissionPicker;
 	private readonly _repoPicker: RepoPicker;
 	private _repoPickerContainer: HTMLElement | undefined;
 	private readonly _cloudModelPicker: CloudModelPicker;
@@ -194,6 +196,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
 		this._folderPicker = this._register(this.instantiationService.createInstance(FolderPicker));
+		this._permissionPicker = this._register(this.instantiationService.createInstance(NewChatPermissionPicker));
 		this._repoPicker = this._register(this.instantiationService.createInstance(RepoPicker));
 		this._cloudModelPicker = this._register(this.instantiationService.createInstance(CloudModelPicker));
 		this._targetPicker = this._register(new SessionTargetPicker(options.allowedTargets, this._resolveDefaultTarget(options)));
@@ -207,6 +210,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._createNewSession();
 			const isLocal = target === AgentSessionProviders.Background;
 			this._isolationModePicker.setVisible(isLocal);
+			this._permissionPicker.setVisible(isLocal);
 			this._branchPicker.setVisible(isLocal);
 			this._syncIndicator.setVisible(isLocal);
 			this._updateDraftState();
@@ -305,6 +309,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const isolationContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-local-mode'));
 		this._isolationModePicker.render(isolationContainer);
 		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
+		this._permissionPicker.render(isolationContainer);
 		const branchContainer = dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-right'));
 		this._branchPicker.render(branchContainer);
 		this._syncIndicator.render(branchContainer);
@@ -313,6 +318,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const isLocal = this._targetPicker.selectedTarget === AgentSessionProviders.Background;
 		const isWorktree = this._isolationModePicker.isolationMode === 'worktree';
 		this._isolationModePicker.setVisible(isLocal);
+		this._permissionPicker.setVisible(isLocal);
 		this._branchPicker.setVisible(isLocal && isWorktree);
 		this._syncIndicator.setVisible(isLocal && isWorktree);
 
@@ -1021,7 +1027,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		try {
 			await this.sessionsManagementService.sendRequestForNewSession(
 				session.resource,
-				options?.openNewAfterSend ? { openNewSessionView: true } : undefined
+				{
+					...options?.openNewAfterSend ? { openNewSessionView: true } : {},
+					permissionLevel: this._permissionPicker.permissionLevel,
+				}
 			);
 			this._newSessionListener.clear();
 			this._contextAttachments.clear();

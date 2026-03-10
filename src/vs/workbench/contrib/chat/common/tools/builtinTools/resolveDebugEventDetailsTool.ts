@@ -39,7 +39,7 @@ function formatResolvedContent(content: IChatDebugResolvedEventContent): string 
 			const lines: string[] = [`File list (${content.discoveryType}):`];
 			if (content.sourceFolders) {
 				for (const folder of content.sourceFolders) {
-					lines.push(`  Source folder: ${folder.uri.toString()} (${folder.storage}, ${folder.fileCount} files${folder.exists ? '' : ', missing'})`);
+					lines.push(`  Source folder: ${folder.uri.toString()} (${folder.storage})`);
 				}
 			}
 			for (const file of content.files) {
