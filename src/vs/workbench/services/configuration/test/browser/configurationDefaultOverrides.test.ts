@@ -12,7 +12,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchAssignmentService } from '../../../assignment/common/assignmentService.js';
 import { NullExtensionService } from '../../../extensions/common/extensions.js';
-import { ConfigurationDefaultOverridesContribution } from '../../browser/configurationService.js';
+import { ConfigurationDefaultOverridesContribution, WorkspaceService } from '../../browser/configurationService.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 
 class MockAssignmentService implements IWorkbenchAssignmentService {
@@ -22,6 +22,7 @@ class MockAssignmentService implements IWorkbenchAssignmentService {
 	readonly onDidRefetchAssignments = this._onDidRefetchAssignments.event;
 
 	private readonly treatments = new Map<string, unknown>();
+	readonly requestedTreatmentNames: string[] = [];
 
 	setTreatment(name: string, value: unknown): void {
 		this.treatments.set(name, value);
@@ -36,6 +37,7 @@ class MockAssignmentService implements IWorkbenchAssignmentService {
 	}
 
 	async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+		this.requestedTreatmentNames.push(name);
 		return this.treatments.get(name) as T | undefined;
 	}
 
@@ -67,7 +69,7 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		const contribution = new ConfigurationDefaultOverridesContribution(
 			assignmentService,
 			new NullExtensionService(),
-			new MockConfigurationService() as unknown as any,
+			new MockConfigurationService() as unknown as WorkspaceService,
 			new NullLogService()
 		);
 		localDisposables.add(contribution);
@@ -114,8 +116,12 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 
 		await Event.toPromise(configurationRegistry.onDidUpdateConfiguration);
 
+		assert.ok(
+			assignmentService.requestedTreatmentNames.includes('config.test.experiments.naming.setting'),
+			'Treatment should be looked up using config.{settingId} format'
+		);
 		const properties = configurationRegistry.getConfigurationProperties();
-		assert.strictEqual(properties['test.experiments.naming.setting']?.default, 'original');
+		assert.notStrictEqual(properties['test.experiments.naming.setting']?.defaultValueSource, undefined, 'The override should have been applied');
 	});
 
 	test('does not apply experiment treatment when value equals default', async () => {
@@ -159,11 +165,18 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 
 		await Event.toPromise(configurationRegistry.onDidUpdateConfiguration);
 
-		// Now change the treatment and refetch
+		const properties = configurationRegistry.getConfigurationProperties();
+		assert.notStrictEqual(properties['test.experiments.autoDefault.setting']?.defaultValueSource, undefined, 'Override should have been applied on initial load');
+
+		// Now change the treatment and refetch — auto mode should re-apply
 		assignmentService.setTreatment('config.test.experiments.autoDefault.setting', 99);
 		assignmentService.fireRefetch();
 
 		await Event.toPromise(configurationRegistry.onDidUpdateConfiguration);
+
+		// Verify refetch requested the treatment again
+		const refetchRequests = assignmentService.requestedTreatmentNames.filter(n => n === 'config.test.experiments.autoDefault.setting');
+		assert.ok(refetchRequests.length >= 2, 'Treatment should be requested again on refetch for auto mode settings');
 	});
 
 	test('setting with experimentMode startup does not re-apply on refetch', async () => {
