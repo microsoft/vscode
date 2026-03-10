@@ -10,10 +10,10 @@ import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, autorunIterableDelta, derived, IObservable, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -40,7 +40,7 @@ import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, ICha
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
-import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatSendResultSent, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
+import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatSendResultSent, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatQuestionAnswers, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
@@ -54,6 +54,7 @@ import { ILanguageModelToolsService } from '../tools/languageModelToolsService.j
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -116,7 +117,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IChatUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IChatUserActionEvent> = this._onDidPerformUserAction.event;
 
-	private readonly _onDidReceiveQuestionCarouselAnswer = this._register(new Emitter<{ requestId: string; resolveId: string; answers: Record<string, unknown> | undefined }>());
+	private readonly _onDidReceiveQuestionCarouselAnswer = this._register(new Emitter<{ requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }>());
 	public readonly onDidReceiveQuestionCarouselAnswer = this._onDidReceiveQuestionCarouselAnswer.event;
 
 	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResource: URI[]; reason: 'cleared' }>());
@@ -271,7 +272,7 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
-	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: Record<string, unknown> | undefined): void {
+	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: IChatQuestionAnswers | undefined): void {
 		this._onDidReceiveQuestionCarouselAnswer.fire({ requestId, resolveId, answers });
 	}
 
@@ -615,8 +616,6 @@ export class ChatService extends Disposable implements IChatService {
 
 		modelRef.object.setContributedChatSession({
 			chatSessionResource: sessionResource,
-			chatSessionType,
-			isUntitled: sessionResource.path.startsWith('/untitled-')  //TODO(jospicer)
 		});
 
 		if (providedSession.title) {
@@ -1614,5 +1613,40 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Invalid local chat session resource: ${sessionResource}`);
 		}
 		return localSessionId;
+	}
+
+	public registerChatModelChangeListeners(chatSessionType: string, onChange: () => void): IDisposable {
+		const disposableStore = new DisposableStore();
+		const chatModelsICareAbout = this.chatModels.map(models =>
+			Array.from(models).filter((model: IChatModel) => model.sessionResource.scheme === chatSessionType)
+		);
+
+		const listeners = new ResourceMap<IDisposable>();
+		const autoRunDisposable = autorunIterableDelta(
+			reader => chatModelsICareAbout.read(reader),
+			({ addedValues, removedValues }) => {
+				removedValues.forEach((removed) => {
+					const listener = listeners.get(removed.sessionResource);
+					if (listener) {
+						listeners.delete(removed.sessionResource);
+						listener.dispose();
+					}
+				});
+				addedValues.forEach((added) => {
+					const requestChangeListener = added.lastRequestObs.map(last => last?.response && observableSignalFromEvent('chatSessions.modelRequestChangeListener', last.response.onDidChange));
+					const modelChangeListener = observableSignalFromEvent('chatSessions.modelChangeListener', added.onDidChange);
+					listeners.set(added.sessionResource, autorun(reader => {
+						requestChangeListener.read(reader)?.read(reader);
+						modelChangeListener.read(reader);
+						onChange();
+					}));
+				});
+			}
+		);
+		disposableStore.add(toDisposable(() => {
+			for (const listener of listeners.values()) { listener.dispose(); }
+		}));
+		disposableStore.add(autoRunDisposable);
+		return disposableStore;
 	}
 }

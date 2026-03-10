@@ -42,6 +42,7 @@ import { IExtensionService } from '../../services/extensions/common/extensions.j
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IInstructionDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
+import { getChatSessionType, isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -247,12 +248,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					let chatSessionContext: IChatSessionContextDto | undefined;
 					if (contributedSession) {
 						let chatSessionResource = contributedSession.chatSessionResource;
-						let isUntitled = contributedSession.isUntitled;
+						let isUntitled = isUntitledChatSession(chatSessionResource);
 
 						// For new untitled sessions, invoke the controller's newChatSessionItemHandler
 						// to let the extension create a proper session item before the first request.
 						if (isUntitled) {
-							const newItem = await this._chatSessionService.createNewChatSessionItem(contributedSession.chatSessionType, request, token);
+							const newItem = await this._chatSessionService.createNewChatSessionItem(getChatSessionType(contributedSession.chatSessionResource), request, token);
 							if (newItem) {
 								chatSessionResource = newItem.resource;
 								isUntitled = false;
@@ -261,9 +262,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 								// so subsequent requests don't re-invoke newChatSessionItemHandler
 								// and getChatSessionFromInternalUri returns the real resource.
 								chatSession?.setContributedChatSession({
-									chatSessionType: contributedSession.chatSessionType,
 									chatSessionResource,
-									isUntitled: false,
 									initialSessionOptions: contributedSession.initialSessionOptions,
 								});
 

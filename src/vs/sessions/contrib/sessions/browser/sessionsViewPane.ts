@@ -8,7 +8,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorsVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -35,17 +35,22 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { ACTION_ID_NEW_CHAT } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { AICustomizationShortcutsWidget } from './aiCustomizationShortcutsWidget.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'agentic.workbench.view.sessionsView';
 const SessionsViewFilterSubMenu = new MenuId('AgentSessionsViewFilterSubMenu');
+const IsGroupedByRepositoryContext = new RawContextKey<boolean>('sessionsView.isGroupedByRepository', false);
+const GROUPING_STORAGE_KEY = 'agentSessions.grouping';
 
 export class AgenticSessionsViewPane extends ViewPane {
 
 	private viewPaneContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	sessionsControl: AgentSessionsControl | undefined;
+	private currentGrouping: AgentSessionsGrouping = AgentSessionsGrouping.Date;
+	private isGroupedByRepoKey: ReturnType<typeof IsGroupedByRepositoryContext.bindTo> | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -61,8 +66,15 @@ export class AgenticSessionsViewPane extends ViewPane {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
 		@IHostService private readonly hostService: IHostService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+
+		// Restore persisted grouping
+		const stored = this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE);
+		if (stored && Object.values(AgentSessionsGrouping).includes(stored as AgentSessionsGrouping)) {
+			this.currentGrouping = stored as AgentSessionsGrouping;
+		}
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -89,10 +101,14 @@ export class AgenticSessionsViewPane extends ViewPane {
 	private createControls(parent: HTMLElement): void {
 		const sessionsContainer = DOM.append(parent, $('.agent-sessions-container'));
 
+		// Track grouping state via context key for the toggle button
+		const isGroupedByRepoKey = this.isGroupedByRepoKey = IsGroupedByRepositoryContext.bindTo(this.contextKeyService);
+		isGroupedByRepoKey.set(this.currentGrouping === AgentSessionsGrouping.Repository);
+
 		// Sessions Filter (actions go to view title bar via menu registration)
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: SessionsViewFilterSubMenu,
-			groupResults: () => AgentSessionsGrouping.Date,
+			groupResults: () => this.currentGrouping,
 			allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
 			providerLabelOverrides: new Map([
 				[AgentSessionProviders.Background, localize('chat.session.providerLabel.local', "Local")],
@@ -213,6 +229,18 @@ export class AgenticSessionsViewPane extends ViewPane {
 	openFind(): void {
 		this.sessionsControl?.openFind();
 	}
+
+	toggleGroupByRepository(): void {
+		if (this.currentGrouping === AgentSessionsGrouping.Repository) {
+			this.currentGrouping = AgentSessionsGrouping.Date;
+		} else {
+			this.currentGrouping = AgentSessionsGrouping.Repository;
+		}
+
+		this.storageService.store(GROUPING_STORAGE_KEY, this.currentGrouping, StorageScope.PROFILE, StorageTarget.USER);
+		this.isGroupedByRepoKey?.set(this.currentGrouping === AgentSessionsGrouping.Repository);
+		this.sessionsControl?.update();
+	}
 }
 
 // Register Cmd+N / Ctrl+N keybinding for new session in the agent sessions window
@@ -257,6 +285,52 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	icon: Codicon.filter,
 	when: ContextKeyExpr.equals('view', SessionsViewId)
 } satisfies ISubmenuItem);
+
+registerAction2(class GroupByRepositoryAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.groupByRepository',
+			title: localize2('groupByRepository', "Group by Repository"),
+			icon: Codicon.repo,
+			category: SessionsCategories.Sessions,
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SessionsViewId), IsGroupedByRepositoryContext.negate()),
+			}]
+		});
+	}
+
+	override run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<AgenticSessionsViewPane>(SessionsViewId);
+		view?.toggleGroupByRepository();
+	}
+});
+
+registerAction2(class GroupByDateAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.groupByDate',
+			title: localize2('groupByDate', "Group by Date"),
+			icon: Codicon.history,
+			category: SessionsCategories.Sessions,
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SessionsViewId), IsGroupedByRepositoryContext),
+			}]
+		});
+	}
+
+	override run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<AgenticSessionsViewPane>(SessionsViewId);
+		view?.toggleGroupByRepository();
+	}
+});
 
 registerAction2(class RefreshAgentSessionsViewerAction extends Action2 {
 	constructor() {

@@ -63,6 +63,7 @@ import { SyncIndicator } from './syncIndicator.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
 import { RepoPicker } from './repoPicker.js';
 import { CloudModelPicker } from './modelPicker.js';
+import { ModePicker } from './modePicker.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -70,6 +71,7 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
+import { NewChatPermissionPicker } from './newChatPermissionPicker.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
@@ -147,9 +149,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _inputSlot: HTMLElement | undefined;
 	private readonly _folderPicker: FolderPicker;
 	private _folderPickerContainer: HTMLElement | undefined;
+	private readonly _permissionPicker: NewChatPermissionPicker;
 	private readonly _repoPicker: RepoPicker;
 	private _repoPickerContainer: HTMLElement | undefined;
 	private readonly _cloudModelPicker: CloudModelPicker;
+	private readonly _modePicker: ModePicker;
 	private readonly _toolbarPickerWidgets = new Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem>();
 	private readonly _toolbarPickerDisposables = this._register(new DisposableStore());
 	private readonly _optionEmitters = new Map<string, Emitter<IChatSessionProviderOptionItem>>();
@@ -194,8 +198,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
 		this._folderPicker = this._register(this.instantiationService.createInstance(FolderPicker));
+		this._permissionPicker = this._register(this.instantiationService.createInstance(NewChatPermissionPicker));
 		this._repoPicker = this._register(this.instantiationService.createInstance(RepoPicker));
 		this._cloudModelPicker = this._register(this.instantiationService.createInstance(CloudModelPicker));
+		this._modePicker = this._register(this.instantiationService.createInstance(ModePicker));
 		this._targetPicker = this._register(new SessionTargetPicker(options.allowedTargets, this._resolveDefaultTarget(options)));
 		this._isolationModePicker = this._register(this.instantiationService.createInstance(IsolationModePicker));
 		this._branchPicker = this._register(this.instantiationService.createInstance(BranchPicker));
@@ -207,6 +213,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._createNewSession();
 			const isLocal = target === AgentSessionProviders.Background;
 			this._isolationModePicker.setVisible(isLocal);
+			this._permissionPicker.setVisible(isLocal);
 			this._branchPicker.setVisible(isLocal);
 			this._syncIndicator.setVisible(isLocal);
 			this._updateDraftState();
@@ -239,6 +246,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._branchPicker.setVisible(mode === 'worktree');
 			this._syncIndicator.setVisible(mode === 'worktree');
 			this._updateDraftState();
+			this._focusEditor();
+		}));
+
+		// When mode changes, update the session
+		this._register(this._modePicker.onDidChange((mode) => {
+			this._newSession.value?.setMode(mode);
 			this._focusEditor();
 		}));
 
@@ -305,6 +318,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const isolationContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-local-mode'));
 		this._isolationModePicker.render(isolationContainer);
 		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
+		this._permissionPicker.render(isolationContainer);
 		const branchContainer = dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-right'));
 		this._branchPicker.render(branchContainer);
 		this._syncIndicator.render(branchContainer);
@@ -313,6 +327,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const isLocal = this._targetPicker.selectedTarget === AgentSessionProviders.Background;
 		const isWorktree = this._isolationModePicker.isolationMode === 'worktree';
 		this._isolationModePicker.setVisible(isLocal);
+		this._permissionPicker.setVisible(isLocal);
 		this._branchPicker.setVisible(isLocal && isWorktree);
 		this._syncIndicator.setVisible(isLocal && isWorktree);
 
@@ -386,6 +401,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			session.setModelId(currentModel.identifier);
 		}
 
+		// Set the current mode on the session (for local sessions)
+		session.setMode(this._modePicker.selectedMode);
+
 		// Open repository for the session's repoUri
 		if (session.repoUri) {
 			this._openRepository(session.repoUri);
@@ -427,6 +445,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._branchPicker.setRepository(undefined);
 		this._isolationModePicker.setRepository(undefined);
 		this._syncIndicator.setRepository(undefined);
+		this._modePicker.setRepository(undefined);
 
 		this.gitService.openRepository(folderUri).then(repository => {
 			if (cts.token.isCancellationRequested) {
@@ -437,6 +456,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._isolationModePicker.setRepository(repository);
 			this._branchPicker.setRepository(repository);
 			this._syncIndicator.setRepository(repository);
+			this._modePicker.setRepository(repository);
 		}).catch(e => {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -447,6 +467,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._isolationModePicker.setRepository(undefined);
 			this._branchPicker.setRepository(undefined);
 			this._syncIndicator.setRepository(undefined);
+			this._modePicker.setRepository(undefined);
 		});
 	}
 
@@ -588,10 +609,15 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private _createAttachButton(container: HTMLElement): void {
 		const attachButton = dom.append(container, dom.$('.sessions-chat-attach-button'));
+		const attachButtonLabel = localize('addContext', "Add Context...");
 		attachButton.tabIndex = 0;
 		attachButton.role = 'button';
-		attachButton.title = localize('addContext', "Add Context...");
-		attachButton.ariaLabel = localize('addContext', "Add Context...");
+		attachButton.ariaLabel = attachButtonLabel;
+		this._register(this.hoverService.setupDelayedHover(attachButton, {
+			content: attachButtonLabel,
+			position: { hoverPosition: HoverPosition.BELOW },
+			appearance: { showPointer: true }
+		}));
 		dom.append(attachButton, renderIcon(Codicon.add));
 		this._register(dom.addDisposableListener(attachButton, dom.EventType.CLICK, () => {
 			this._contextAttachments.showPicker(this._getContextFolderUri());
@@ -634,6 +660,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Local model picker (EnhancedModelPickerActionItem)
 		this._localModelPickerContainer = dom.append(toolbar, dom.$('.sessions-chat-model-picker'));
 		this._createLocalModelPicker(this._localModelPickerContainer);
+
+		// Local mode picker
+		this._modePicker.render(toolbar);
+		this._modePicker.setVisible(false);
 
 		// Remote model picker (action list dropdown)
 		this._cloudModelPicker.render(toolbar);
@@ -680,7 +710,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 				this._focusEditor();
 			},
 			getModels: () => this._getAvailableModels(),
-			canManageModels: () => true,
+			useGroupedModelPicker: () => true,
+			showManageModelsAction: () => false,
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
@@ -756,10 +787,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		if (this._extensionPickersLeftContainer) {
 			this._extensionPickersLeftContainer.style.display = 'block';
 		}
-		// Show local model picker, hide remote
+		// Show local model and mode pickers, hide remote
 		if (this._localModelPickerContainer) {
 			this._localModelPickerContainer.style.display = '';
 		}
+		this._modePicker.setVisible(true);
 		this._cloudModelPicker.setVisible(false);
 	}
 
@@ -775,10 +807,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._folderPickerContainer.style.display = 'none';
 		}
 
-		// Show remote model picker, hide local
+		// Show remote model picker, hide local pickers
 		if (this._localModelPickerContainer) {
 			this._localModelPickerContainer.style.display = 'none';
 		}
+		this._modePicker.setVisible(false);
 		this._cloudModelPicker.setSession(session);
 		this._cloudModelPicker.setVisible(true);
 
@@ -1021,7 +1054,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		try {
 			await this.sessionsManagementService.sendRequestForNewSession(
 				session.resource,
-				options?.openNewAfterSend ? { openNewSessionView: true } : undefined
+				{
+					...options?.openNewAfterSend ? { openNewSessionView: true } : {},
+					permissionLevel: this._permissionPicker.permissionLevel,
+				}
 			);
 			this._newSessionListener.clear();
 			this._contextAttachments.clear();

@@ -3772,7 +3772,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 			{
 				type: 'string',
 				enum: ['on', 'inline', 'off', 'offWhenInlineCompletions'],
-				enumDescriptions: [nls.localize('on', "Quick suggestions show inside the suggest widget"), nls.localize('inline', "Quick suggestions show as ghost text"), nls.localize('off', "Quick suggestions are disabled"), nls.localize('offWhenInlineCompletions', "Quick suggestions are disabled when an inline completion provider is available")]
+				enumDescriptions: [nls.localize('on', "Quick suggestions show inside the suggest widget"), nls.localize('inline', "Quick suggestions show as ghost text"), nls.localize('off', "Quick suggestions are disabled"), nls.localize('offWhenInlineCompletions', "Quick suggestions are disabled when inline completions are showing")]
 			}
 		];
 		super(EditorOption.quickSuggestions, 'quickSuggestions', defaults, {
@@ -3781,7 +3781,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 				{
 					type: 'string',
 					enum: ['on', 'inline', 'off', 'offWhenInlineCompletions'],
-					enumDescriptions: [nls.localize('quickSuggestions.topLevel.on', "Quick suggestions are enabled for all token types"), nls.localize('quickSuggestions.topLevel.inline', "Quick suggestions show as ghost text for all token types"), nls.localize('quickSuggestions.topLevel.off', "Quick suggestions are disabled for all token types"), nls.localize('quickSuggestions.topLevel.offWhenInlineCompletions', "Quick suggestions are disabled for all token types when an inline completion provider is available")]
+					enumDescriptions: [nls.localize('quickSuggestions.topLevel.on', "Quick suggestions are enabled for all token types"), nls.localize('quickSuggestions.topLevel.inline', "Quick suggestions show as ghost text for all token types"), nls.localize('quickSuggestions.topLevel.off', "Quick suggestions are disabled for all token types"), nls.localize('quickSuggestions.topLevel.offWhenInlineCompletions', "Quick suggestions are disabled for all token types when inline completions are showing")]
 				},
 				{
 					type: 'object',
