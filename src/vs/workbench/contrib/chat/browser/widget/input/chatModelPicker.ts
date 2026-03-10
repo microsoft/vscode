@@ -151,7 +151,6 @@ export function buildModelPickerItems(
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
 	manageSettingsUrl: string | undefined,
 	useGroupedModelPicker: boolean,
-	showManageModelsAction: boolean,
 	manageModelsAction: IActionWidgetDropdownAction | undefined,
 	chatEntitlementService: IChatEntitlementService,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
@@ -585,7 +584,6 @@ export class ModelPickerWidget extends Disposable {
 			onSelect,
 			this._productService.defaultChatAgent?.manageSettingsUrl,
 			this._delegate.useGroupedModelPicker(),
-			this._delegate.showManageModelsAction(),
 			!showFilter ? manageModelsAction : undefined,
 			this._entitlementService,
 		);
