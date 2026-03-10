@@ -5,7 +5,7 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, isDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, isDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -414,6 +414,17 @@ export class McpListWidget extends Disposable {
 
 		// List container
 		this.listContainer = DOM.append(this.element, $('.mcp-list-container'));
+
+		// Handle resize
+		const resizeObserver = new ResizeObserver((entries) => {
+			for (const entry of entries) {
+				if (entry.target === this.listContainer) {
+					this.list.layout(entry.contentRect.height, entry.contentRect.width);
+				}
+			}
+		});
+		resizeObserver.observe(this.listContainer);
+		this._register(toDisposable(() => resizeObserver.disconnect()));
 
 		// Section footer at bottom with description and link
 		this.sectionHeader = DOM.append(this.element, $('.section-footer'));

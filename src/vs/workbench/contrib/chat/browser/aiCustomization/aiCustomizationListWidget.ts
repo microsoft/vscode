@@ -5,7 +5,7 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -503,6 +503,17 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Handle context menu
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e)));
+
+		// Handle resize
+		const resizeObserver = new ResizeObserver((entries) => {
+			for (const entry of entries) {
+				if (entry.target === this.listContainer) {
+					this.list.layout(entry.contentRect.height, entry.contentRect.width);
+				}
+			}
+		});
+		resizeObserver.observe(this.listContainer);
+		this._register(toDisposable(() => resizeObserver.disconnect()));
 
 		// Subscribe to prompt service changes
 		this._register(this.promptsService.onDidChangeCustomAgents(() => this.refresh()));
@@ -1215,7 +1226,6 @@ export class AICustomizationListWidget extends Disposable {
 		this.listContainer.style.height = '';
 
 		this.searchInput.layout();
-		// Let flexbox resolve the footer/search heights and use the resulting list viewport size.
 		this.list.layout(this.listContainer.clientHeight, this.listContainer.clientWidth);
 	}
 
