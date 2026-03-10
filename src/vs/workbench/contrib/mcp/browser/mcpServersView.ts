@@ -270,7 +270,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		const title = dom.append(welcomeContent, dom.$('.mcp-welcome-title'));
 		title.textContent = localize('mcp.welcome.title', "MCP Servers");
 
-		const settingsCommandLink = createMarkdownCommandLink({ id: 'workbench.action.openSettings', arguments: [`@id:${mcpGalleryServiceEnablementConfig}`], title: mcpGalleryServiceEnablementConfig, tooltip: localize('mcp.welcome.settings.tooltip', "Open Settings") }).toString();
+		const settingsCommandLink = createMarkdownCommandLink({ id: 'workbench.action.openSettings', arguments: [`@id:${mcpGalleryServiceEnablementConfig}`], text: mcpGalleryServiceEnablementConfig, tooltip: localize('mcp.welcome.settings.tooltip', "Open Settings") }).toString();
 		const description = dom.append(welcomeContent, dom.$('.mcp-welcome-description'));
 		const markdownResult = this._register(this.markdownRendererService.render(
 			new MarkdownString(

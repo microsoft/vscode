@@ -36,15 +36,17 @@ import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../p
 import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryLogEntry } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { ChatRequestHooks, IHookCommand } from '../hookSchema.js';
+import { ChatRequestHooks, IHookCommand, parseSubagentHooksFromYaml } from '../hookSchema.js';
 import { HookType } from '../hookTypes.js';
 import { HookSourceFormat, getHookSourceFormat, parseHooksFromFile } from '../hookCompatibility.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
-import { getTarget, mapClaudeModels, mapClaudeTools } from '../languageProviders/promptValidator.js';
+import { getTarget, mapClaudeModels, mapClaudeTools } from '../languageProviders/promptFileAttributes.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { getCanonicalPluginCommandId, IAgentPlugin, IAgentPluginService } from '../../plugins/agentPluginService.js';
+import { isContributionEnabled } from '../../enablement.js';
 import { assertNever } from '../../../../../../base/common/assert.js';
 
 /**
@@ -152,6 +154,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly _contributedWhenKeys = new Set<string>();
 	private readonly _contributedWhenClauses = new Map<string, string>();
 	private readonly _onDidContributedWhenChange = this._register(new Emitter<void>());
+	private readonly _onDidChangeInstructions = this._register(new Emitter<void>());
 	private readonly _onDidPluginPromptFilesChange = this._register(new Emitter<void>());
 	private readonly _onDidPluginHooksChange = this._register(new Emitter<void>());
 	private _pluginPromptFilesByType = new Map<PromptsType, readonly IPluginPromptPath[]>();
@@ -172,6 +175,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IPathService private readonly pathService: IPathService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -192,7 +196,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const modelChangeEvent = this._register(new ModelChangeTracker(this.modelService)).onDidPromptChange;
 		this.cachedCustomAgents = this._register(new CachedPromise(
 			(token) => this.computeCustomAgents(token),
-			() => Event.any(this.getFileLocatorEvent(PromptsType.agent), Event.filter(modelChangeEvent, e => e.promptType === PromptsType.agent), this._onDidContributedWhenChange.event)
+			() => Event.any(
+				this.getFileLocatorEvent(PromptsType.agent),
+				Event.filter(modelChangeEvent, e => e.promptType === PromptsType.agent),
+				this._onDidContributedWhenChange.event,
+				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)),
+			)
 		));
 
 		this.cachedSlashCommands = this._register(new CachedPromise(
@@ -217,6 +226,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				this.getFileLocatorEvent(PromptsType.hook),
 				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(PromptsConfig.USE_CHAT_HOOKS) || e.affectsConfiguration(PromptsConfig.USE_CLAUDE_HOOKS)),
 				this._onDidPluginHooksChange.event,
+				this.workspaceTrustService.onDidChangeTrust,
 			)
 		));
 
@@ -240,7 +250,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		this._register(autorun(reader => {
 			const plugins = this.agentPluginService.plugins.read(reader);
 			for (const plugin of plugins) {
-				plugin.hooks.read(reader);
+				if (isContributionEnabled(plugin.enablement.read(reader))) {
+					plugin.hooks.read(reader);
+				}
 			}
 			this._onDidPluginHooksChange.fire();
 		}));
@@ -254,6 +266,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 			const plugins = this.agentPluginService.plugins.read(reader);
 			const nextFiles: IPluginPromptPath[] = [];
 			for (const plugin of plugins) {
+				if (!isContributionEnabled(plugin.enablement.read(reader))) {
+					continue;
+				}
 				for (const item of getItems(plugin, reader)) {
 					nextFiles.push({
 						uri: item.uri,
@@ -324,42 +339,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	/**
-	 * Collects diagnostic information about which source folders were searched
-	 * and whether they exist, for display in the debug panel.
+	 * Collects diagnostic information about which source folders were searched for display in the debug panel.
 	 */
-	private async _collectSourceFolderDiagnostics(type: PromptsType, foundFiles: readonly { uri: URI }[]): Promise<IPromptSourceFolderResult[]> {
+	private async _collectSourceFolderDiagnostics(type: PromptsType): Promise<IPromptSourceFolderResult[]> {
 		const resolvedFolders = await this.fileLocator.getSourceFoldersInDiscoveryOrder(type);
-		const results: IPromptSourceFolderResult[] = [];
-
-		for (const folder of resolvedFolders) {
-			const fileCount = foundFiles.filter(f => f.uri.path.startsWith(folder.uri.path + '/')).length;
-			let exists = fileCount > 0;
-			let errorMessage: string | undefined;
-
-			if (!exists) {
-				try {
-					const stat = await this.fileService.stat(folder.uri);
-					exists = stat.isDirectory;
-				} catch (e) {
-					if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-						exists = false;
-					} else {
-						exists = false;
-						errorMessage = e instanceof Error ? e.message : String(e);
-					}
-				}
-			}
-
-			results.push({
-				uri: folder.uri,
-				storage: folder.storage,
-				exists,
-				fileCount,
-				errorMessage,
-			});
-		}
-
-		return results;
+		return resolvedFolders.map(folder => ({
+			uri: folder.uri,
+			storage: folder.storage,
+		}));
 	}
 
 	/**
@@ -417,6 +404,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this.cachedCustomAgents.refresh();
 		} else if (type === PromptsType.instructions) {
 			this.cachedFileLocations[PromptsType.instructions] = undefined;
+			this._onDidChangeInstructions.fire();
 		} else if (type === PromptsType.prompt) {
 			this.cachedFileLocations[PromptsType.prompt] = undefined;
 			this.cachedSlashCommands.refresh();
@@ -644,6 +632,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cachedCustomAgents.onDidChange;
 	}
 
+	public get onDidChangeInstructions(): Event<void> {
+		return Event.any(
+			this.getFileLocatorEvent(PromptsType.instructions),
+			this._onDidContributedWhenChange.event,
+			this._onDidChangeInstructions.event,
+		);
+	}
+
 	public async getCustomAgents(token: CancellationToken, sessionResource?: URI): Promise<readonly ICustomAgent[]> {
 		const sw = StopWatch.create();
 		const result = await this.cachedCustomAgents.get(token);
@@ -668,6 +664,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		let agentFiles = await this.listPromptFiles(PromptsType.agent, token);
 		const disabledAgents = this.getDisabledPromptFiles(PromptsType.agent);
 		agentFiles = agentFiles.filter(promptPath => !disabledAgents.has(promptPath.uri));
+
+		// Get user home for tilde expansion in hook cwd paths
+		const userHomeUri = await this.pathService.userHome();
+		const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
+		const defaultFolder = this.workspaceService.getWorkspace().folders[0];
+
 		const customAgentsResults = await Promise.allSettled(
 			agentFiles.map(async (promptPath): Promise<ICustomAgent> => {
 				const uri = promptPath.uri;
@@ -723,7 +725,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 				if (target === Target.Claude && tools) {
 					tools = mapClaudeTools(tools);
 				}
-				return { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source };
+
+				// Parse hooks from the frontmatter if present
+				let hooks: ChatRequestHooks | undefined;
+				const useCustomAgentHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS);
+				const hooksRaw = ast.header.hooksRaw;
+				if (useCustomAgentHooks && hooksRaw) {
+					const hookWorkspaceFolder = this.workspaceService.getWorkspaceFolder(uri) ?? defaultFolder;
+					const workspaceRootUri = hookWorkspaceFolder?.uri;
+					hooks = parseSubagentHooksFromYaml(hooksRaw, workspaceRootUri, userHome, target);
+				}
+
+				return { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, hooks, agentInstructions, source };
 			})
 		);
 
@@ -1213,6 +1226,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return undefined;
 		}
 
+		if (!this.workspaceTrustService.isWorkspaceTrusted()) {
+			return undefined;
+		}
+
 		const useClaudeHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CLAUDE_HOOKS);
 		const hookFiles = await this.listPromptFiles(PromptsType.hook, token);
 
@@ -1275,6 +1292,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Collect hooks from agent plugins
 		const plugins = this.agentPluginService.plugins.get();
 		for (const plugin of plugins) {
+			if (!isContributionEnabled(plugin.enablement.get())) {
+				continue;
+			}
 			for (const hook of plugin.hooks.get()) {
 				let bucket = collectedHooks.get(hook.type);
 				if (!bucket) {
@@ -1328,7 +1348,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		// Add source folder diagnostics if not already present
 		if (!result.sourceFolders) {
-			const sourceFolders = await this._collectSourceFolderDiagnostics(type, result.files.filter(f => f.status === 'loaded'));
+			const sourceFolders = await this._collectSourceFolderDiagnostics(type);
 			result = { ...result, sourceFolders };
 		}
 
@@ -1363,13 +1383,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 				skipReason: 'disabled' as const,
 				extensionId: promptPath.extension?.identifier?.value
 			}));
-			const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.skill, []);
+			const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.skill);
 			return { type: PromptsType.skill, files, sourceFolders };
 		}
 
 		const { files } = await this.computeSkillDiscoveryInfo(token);
-		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.skill, files.filter(f => f.status === 'loaded'));
-		return { type: PromptsType.skill, files, sourceFolders };
+		return { type: PromptsType.skill, files };
 	}
 
 	/**
@@ -1521,7 +1540,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
-		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.agent, files.filter(f => f.status === 'loaded'));
+		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.agent);
 		return { type: PromptsType.agent, files, sourceFolders };
 	}
 
@@ -1550,7 +1569,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
-		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.prompt, files.filter(f => f.status === 'loaded'));
+		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.prompt);
 		return { type: PromptsType.prompt, files, sourceFolders };
 	}
 
@@ -1579,7 +1598,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
-		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.instructions, files.filter(f => f.status === 'loaded'));
+		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.instructions);
 		return { type: PromptsType.instructions, files, sourceFolders };
 	}
 
@@ -1597,6 +1616,19 @@ export class PromptsService extends Disposable implements IPromptsService {
 			const storage = promptPath.storage;
 			const extensionId = promptPath.extension?.identifier?.value;
 			const name = basename(uri);
+
+			// Ignored if workspace is untrusted
+			if (!this.workspaceTrustService.isWorkspaceTrusted()) {
+				files.push({
+					uri: promptPath.uri,
+					storage: promptPath.storage,
+					status: 'skipped',
+					skipReason: 'workspace-untrusted',
+					name: basename(promptPath.uri),
+					extensionId: promptPath.extension?.identifier?.value,
+				});
+				continue;
+			}
 
 			// Skip Claude hooks when the setting is disabled
 			if (getHookSourceFormat(uri) === HookSourceFormat.Claude && useClaudeHooks === false) {
@@ -1665,7 +1697,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
-		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.hook, files.filter(f => f.status === 'loaded'));
+		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.hook);
 		return { type: PromptsType.hook, files, sourceFolders };
 	}
 }

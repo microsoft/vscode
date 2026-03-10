@@ -412,7 +412,7 @@ export class TerminalChatWidget extends Disposable {
 		if (!model?.sessionResource) {
 			return;
 		}
-		this._chatService.cancelCurrentRequestForSession(model?.sessionResource, 'terminalChat');
+		void this._chatService.cancelCurrentRequestForSession(model?.sessionResource, 'terminalChat');
 	}
 
 	async viewInChat(): Promise<void> {

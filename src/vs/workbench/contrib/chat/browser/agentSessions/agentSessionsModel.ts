@@ -162,6 +162,9 @@ export const enum AgentSessionSection {
 
 	// Capped Grouping
 	More = 'more',
+
+	// Repository Grouping
+	Repository = 'repository',
 }
 
 export interface IAgentSessionSection {

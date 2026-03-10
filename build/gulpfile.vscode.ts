@@ -101,6 +101,7 @@ const vscodeResourceIncludes = [
 
 	// Sessions
 	'out-build/vs/sessions/contrib/chat/browser/media/*.svg',
+	'out-build/vs/sessions/prompts/*.prompt.md',
 
 	// Extensions
 	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
@@ -550,7 +551,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'**',
 				'!LICENSE',
 				'!version',
-				...(platform === 'darwin' && !isInsiderOrExploration ? ['!**/Contents/Applications'] : []),
+				...(platform === 'darwin' && !isInsiderOrExploration ? ['!**/Contents/Applications', '!**/Contents/Applications/**'] : []),
 				...(platform === 'win32' && !isInsiderOrExploration ? ['!**/electron_proxy.exe'] : []),
 			], { dot: true }));
 
@@ -600,6 +601,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			}
 
 			result = es.merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
+				.pipe(replace('@@VERSIONFOLDER@@', versionedResourcesFolder ? `${versionedResourcesFolder}\\` : ''))
 				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
 
 			result = es.merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })

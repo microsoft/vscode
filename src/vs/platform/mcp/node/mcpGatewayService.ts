@@ -56,6 +56,7 @@ export class McpGatewayService extends Disposable implements IMcpGatewayService 
 
 		const gateway = new McpGatewayRoute(gatewayId, this._logger, toolInvoker);
 		this._gateways.set(gatewayId, gateway);
+		this._logger.info(`[McpGatewayService] Active gateways: ${this._gateways.size}`);
 
 		// Track client ownership if clientId provided (for cleanup on disconnect)
 		if (clientId) {
@@ -83,7 +84,7 @@ export class McpGatewayService extends Disposable implements IMcpGatewayService 
 		gateway.dispose();
 		this._gateways.delete(gatewayId);
 		this._gatewayToClient.delete(gatewayId);
-		this._logger.info(`[McpGatewayService] Disposed gateway: ${gatewayId}`);
+		this._logger.info(`[McpGatewayService] Disposed gateway: ${gatewayId} (remaining: ${this._gateways.size})`);
 
 		// If no more gateways, shut down the server
 		if (this._gateways.size === 0) {
@@ -101,7 +102,7 @@ export class McpGatewayService extends Disposable implements IMcpGatewayService 
 		}
 
 		if (gatewaysToDispose.length > 0) {
-			this._logger.info(`[McpGatewayService] Disposing ${gatewaysToDispose.length} gateway(s) for disconnected client ${clientId}`);
+			this._logger.info(`[McpGatewayService] Disposing ${gatewaysToDispose.length} gateway(s) for disconnected client ${clientId}: [${gatewaysToDispose.join(', ')}]`);
 
 			for (const gatewayId of gatewaysToDispose) {
 				this._gateways.get(gatewayId)?.dispose();
@@ -204,6 +205,8 @@ export class McpGatewayService extends Disposable implements IMcpGatewayService 
 		const url = new URL(req.url!, `http://${req.headers.host}`);
 		const pathParts = url.pathname.split('/').filter(Boolean);
 
+		this._logger.debug(`[McpGatewayService] ${req.method} ${url.pathname} (active gateways: ${this._gateways.size})`);
+
 		// Expected path: /gateway/{gatewayId}
 		if (pathParts.length >= 2 && pathParts[0] === 'gateway') {
 			const gatewayId = pathParts[1];
@@ -216,11 +219,13 @@ export class McpGatewayService extends Disposable implements IMcpGatewayService 
 		}
 
 		// Not found
+		this._logger.warn(`[McpGatewayService] ${req.method} ${url.pathname}: gateway not found`);
 		res.writeHead(404, { 'Content-Type': 'application/json' });
 		res.end(JSON.stringify({ error: 'Gateway not found' }));
 	}
 
 	override dispose(): void {
+		this._logger.info(`[McpGatewayService] Disposing service (gateways: ${this._gateways.size})`);
 		this._stopServer();
 		for (const gateway of this._gateways.values()) {
 			gateway.dispose();
@@ -247,6 +252,8 @@ class McpGatewayRoute extends Disposable {
 	}
 
 	handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+		this._logger.debug(`[McpGateway][route ${this.gatewayId}] ${req.method} request (sessions: ${this._sessions.size})`);
+
 		if (req.method === 'POST') {
 			void this._handlePost(req, res);
 			return;
@@ -266,6 +273,7 @@ class McpGatewayRoute extends Disposable {
 	}
 
 	public override dispose(): void {
+		this._logger.info(`[McpGateway][route ${this.gatewayId}] Disposing route (sessions: ${this._sessions.size})`);
 		for (const session of this._sessions.values()) {
 			session.dispose();
 		}
@@ -286,6 +294,7 @@ class McpGatewayRoute extends Disposable {
 			return;
 		}
 
+		this._logger.info(`[McpGateway][route ${this.gatewayId}] Deleting session ${sessionId}`);
 		session.dispose();
 		this._sessions.delete(sessionId);
 		res.writeHead(204);
@@ -305,6 +314,7 @@ class McpGatewayRoute extends Disposable {
 			return;
 		}
 
+		this._logger.info(`[McpGateway][route ${this.gatewayId}] SSE connection requested for session ${sessionId}`);
 		session.attachSseClient(req, res);
 	}
 
@@ -315,10 +325,13 @@ class McpGatewayRoute extends Disposable {
 			return;
 		}
 
+		this._logger.debug(`[McpGateway][route ${this.gatewayId}] Handling POST`);
+
 		let message: JsonRpcMessage | JsonRpcMessage[];
 		try {
 			message = JSON.parse(body) as JsonRpcMessage | JsonRpcMessage[];
 		} catch (error) {
+			this._logger.warn(`[McpGateway][route ${this.gatewayId}] JSON parse error: ${error instanceof Error ? error.message : String(error)}`);
 			res.writeHead(400, { 'Content-Type': 'application/json' });
 			res.end(JSON.stringify(JsonRpcProtocol.createParseError('Parse error', error instanceof Error ? error.message : String(error))));
 			return;
@@ -339,13 +352,16 @@ class McpGatewayRoute extends Disposable {
 			};
 
 			if (responses.length === 0) {
+				this._logger.debug(`[McpGateway][route ${this.gatewayId}] POST response: 202 (no content)`);
 				res.writeHead(202, headers);
 				res.end();
 				return;
 			}
 
+			const responseBody = JSON.stringify(Array.isArray(message) ? responses : responses[0]);
+			this._logger.debug(`[McpGateway][route ${this.gatewayId}] POST response: 200, body: ${responseBody}`);
 			res.writeHead(200, headers);
-			res.end(JSON.stringify(Array.isArray(message) ? responses : responses[0]));
+			res.end(responseBody);
 		} catch (error) {
 			this._logger.error('[McpGatewayService] Failed handling gateway request', error);
 			this._respondHttpError(res, 500, 'Internal server error');
@@ -356,6 +372,7 @@ class McpGatewayRoute extends Disposable {
 		if (headerSessionId) {
 			const existing = this._sessions.get(headerSessionId);
 			if (!existing) {
+				this._logger.warn(`[McpGateway][route ${this.gatewayId}] Session not found: ${headerSessionId}`);
 				this._respondHttpError(res, 404, 'Session not found');
 				return undefined;
 			}
@@ -369,6 +386,7 @@ class McpGatewayRoute extends Disposable {
 		}
 
 		const sessionId = generateUuid();
+		this._logger.info(`[McpGateway][route ${this.gatewayId}] Creating new session ${sessionId}`);
 		const session = new McpGatewaySession(sessionId, this._logger, () => {
 			this._sessions.delete(sessionId);
 		}, this._toolInvoker);
@@ -377,6 +395,7 @@ class McpGatewayRoute extends Disposable {
 	}
 
 	private _respondHttpError(res: http.ServerResponse, statusCode: number, error: string): void {
+		this._logger.debug(`[McpGateway][route ${this.gatewayId}] HTTP error response: ${statusCode} ${error}`);
 		res.writeHead(statusCode, { 'Content-Type': 'application/json' });
 		res.end(JSON.stringify({ jsonrpc: '2.0', error: { code: statusCode, message: error } } satisfies JsonRpcMessage));
 	}

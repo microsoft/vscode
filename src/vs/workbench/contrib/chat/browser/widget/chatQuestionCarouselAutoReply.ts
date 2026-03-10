@@ -15,7 +15,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IChatQuestion, IChatQuestionCarousel } from '../../common/chatService/chatService.js';
+import { IChatQuestion, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatSingleSelectAnswer } from '../../common/chatService/chatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { ChatMessageRole, getTextResponseFromStream, ILanguageModelsService } from '../../common/languageModels.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -59,7 +59,7 @@ export class ChatQuestionCarouselAutoReply extends Disposable {
 
 	async autoReply(
 		carousel: IChatQuestionCarousel,
-		submit: (answers: Map<string, unknown> | undefined) => Promise<void>,
+		submit: (answers: Map<string, IChatQuestionAnswerValue> | undefined) => Promise<void>,
 		modelName: string | undefined,
 		requestMessageText: string | undefined,
 		token: CancellationToken,
@@ -186,7 +186,7 @@ export class ChatQuestionCarouselAutoReply extends Disposable {
 		carousel: IChatQuestionCarousel,
 		requestMessageText: string | undefined,
 		token: CancellationToken,
-	): Promise<Map<string, unknown>> {
+	): Promise<Map<string, IChatQuestionAnswerValue>> {
 		const prompt = this.buildPrompt(carousel, requestMessageText, false);
 		const response = await this.languageModelsService.sendChatRequest(
 			modelId,
@@ -217,13 +217,13 @@ export class ChatQuestionCarouselAutoReply extends Disposable {
 
 	// #region Answer parsing and resolution
 
-	private parseAnswers(responseText: string, carousel: IChatQuestionCarousel): Map<string, unknown> {
+	private parseAnswers(responseText: string, carousel: IChatQuestionCarousel): Map<string, IChatQuestionAnswerValue> {
 		const parsed = this.tryParseJsonObject(responseText);
 		if (!parsed) {
 			return new Map();
 		}
 
-		const answers = new Map<string, unknown>();
+		const answers = new Map<string, IChatQuestionAnswerValue>();
 		for (const question of carousel.questions) {
 			const rawAnswer = parsed[question.id];
 			const resolved = this.resolveAnswerFromRaw(question, rawAnswer);
@@ -236,10 +236,10 @@ export class ChatQuestionCarouselAutoReply extends Disposable {
 
 	private mergeAnswers(
 		carousel: IChatQuestionCarousel,
-		resolvedAnswers: Map<string, unknown>,
-		fallbackAnswers: Map<string, unknown>,
-	): Map<string, unknown> {
-		const merged = new Map<string, unknown>();
+		resolvedAnswers: Map<string, IChatQuestionAnswerValue>,
+		fallbackAnswers: Map<string, IChatQuestionAnswerValue>,
+	): Map<string, IChatQuestionAnswerValue> {
+		const merged = new Map<string, IChatQuestionAnswerValue>();
 		for (const question of carousel.questions) {
 			const fallback = fallbackAnswers.get(question.id);
 			if (this.hasDefaultValue(question) && fallback !== undefined) {
@@ -270,7 +270,7 @@ export class ChatQuestionCarouselAutoReply extends Disposable {
 		}
 	}
 
-	private resolveAnswerFromRaw(question: IChatQuestion, raw: unknown): unknown | undefined {
+	private resolveAnswerFromRaw(question: IChatQuestion, raw: unknown): IChatQuestionAnswerValue | undefined {
 		switch (question.type) {
 			case 'text': {
 				if (typeof raw === 'string') {
@@ -305,7 +305,7 @@ export class ChatQuestionCarouselAutoReply extends Disposable {
 
 				const match = selectedInput ? this.matchQuestionOption(question, selectedInput) : undefined;
 				if (match) {
-					return { selectedValue: match.value, freeformValue: undefined };
+					return { selectedValue: match.value, freeformValue: undefined } satisfies IChatSingleSelectAnswer;
 				}
 				return undefined;
 			}
@@ -341,7 +341,7 @@ export class ChatQuestionCarouselAutoReply extends Disposable {
 		}
 	}
 
-	private matchQuestionOption(question: IChatQuestion, rawInput: string): { id: string; value: unknown } | undefined {
+	private matchQuestionOption(question: IChatQuestion, rawInput: string): { id: string; value: string } | undefined {
 		const options = question.options ?? [];
 		if (!options.length) {
 			return undefined;
@@ -374,8 +374,8 @@ export class ChatQuestionCarouselAutoReply extends Disposable {
 
 	// #region Fallback answers
 
-	buildFallbackCarouselAnswers(carousel: IChatQuestionCarousel, requestMessageText: string | undefined): Map<string, unknown> {
-		const answers = new Map<string, unknown>();
+	buildFallbackCarouselAnswers(carousel: IChatQuestionCarousel, requestMessageText: string | undefined): Map<string, IChatQuestionAnswerValue> {
+		const answers = new Map<string, IChatQuestionAnswerValue>();
 		for (const question of carousel.questions) {
 			const answer = this.getFallbackAnswerForQuestion(question, requestMessageText);
 			if (answer !== undefined) {
@@ -385,12 +385,12 @@ export class ChatQuestionCarouselAutoReply extends Disposable {
 		return answers;
 	}
 
-	private getFallbackAnswerForQuestion(question: IChatQuestion, requestMessageText: string | undefined): unknown {
+	private getFallbackAnswerForQuestion(question: IChatQuestion, requestMessageText: string | undefined): IChatQuestionAnswerValue | undefined {
 		const fallbackFreeform = requestMessageText?.trim() || localize('chat.questionCarousel.autoReplyFallback', 'OK');
 
 		switch (question.type) {
 			case 'text':
-				return question.defaultValue ?? fallbackFreeform;
+				return typeof question.defaultValue === 'string' ? question.defaultValue : Array.isArray(question.defaultValue) ? { selectedValues: question.defaultValue } : fallbackFreeform;
 			case 'singleSelect': {
 				const defaultOptionId = typeof question.defaultValue === 'string' ? question.defaultValue : undefined;
 				const defaultOption = defaultOptionId ? question.options?.find(opt => opt.id === defaultOptionId) : undefined;

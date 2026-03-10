@@ -226,6 +226,11 @@ export interface ICustomAgent {
 	readonly agents?: readonly string[];
 
 	/**
+	 * Lifecycle hooks scoped to this subagent.
+	 */
+	readonly hooks?: ChatRequestHooks;
+
+	/**
 	 * Where the agent was loaded from.
 	 */
 	readonly source: IAgentSource;
@@ -299,7 +304,8 @@ export type PromptFileSkipReason =
 	| 'parse-error'
 	| 'disabled'
 	| 'all-hooks-disabled'
-	| 'claude-hooks-disabled';
+	| 'claude-hooks-disabled'
+	| 'workspace-untrusted';
 
 /**
  * Result of discovering a single prompt file.
@@ -328,12 +334,6 @@ export interface IPromptFileDiscoveryResult {
 export interface IPromptSourceFolderResult {
 	readonly uri: URI;
 	readonly storage: PromptsStorage;
-	/** Whether the folder exists on disk */
-	readonly exists: boolean;
-	/** Number of matching files found in this folder */
-	readonly fileCount: number;
-	/** Error message if resolution failed */
-	readonly errorMessage?: string;
 }
 
 /**
@@ -342,7 +342,7 @@ export interface IPromptSourceFolderResult {
 export interface IPromptDiscoveryInfo {
 	readonly type: PromptsType;
 	readonly files: readonly IPromptFileDiscoveryResult[];
-	/** Source folders that were searched, with their existence and file count */
+	/** Source folders that were searched */
 	readonly sourceFolders?: readonly IPromptSourceFolderResult[];
 }
 
@@ -418,6 +418,11 @@ export interface IPromptsService extends IDisposable {
 	readonly onDidChangeCustomAgents: Event<void>;
 
 	/**
+	 * Event that is triggered when the list of instruction files changes.
+	 */
+	readonly onDidChangeInstructions: Event<void>;
+
+	/**
 	 * Finds all available custom agents
 	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
@@ -482,6 +487,11 @@ export interface IPromptsService extends IDisposable {
 	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
 	findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined>;
+
+	/**
+	 * Event that is triggered when the list of skills changes.
+	 */
+	readonly onDidChangeSkills: Event<void>;
 
 	/**
 	 * Gets detailed discovery information for a prompt type.
