@@ -14,7 +14,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { IAgentHostService, IAgentAttachment, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentProvider, AgentSession, IAgentProgressEvent } from '../../../../../../platform/agent/common/agentService.js';
+import { IAgentHostService, IAgentAttachment, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentProvider, AgentSession, IAgentProgressEvent } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -449,7 +449,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return invocation;
 	}
 
-	private _createPermissionConfirmation(event: import('../../../../../../platform/agent/common/agentService.js').IAgentPermissionRequestEvent): ChatToolInvocation {
+	private _createPermissionConfirmation(event: import('../../../../../../platform/agentHost/common/agentService.js').IAgentPermissionRequestEvent): ChatToolInvocation {
 		let title: string;
 		let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | undefined;
 

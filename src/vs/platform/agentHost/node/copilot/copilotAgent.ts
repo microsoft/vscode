@@ -321,7 +321,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				type: 'delta',
 				messageId: e.data.messageId,
 				content: e.data.deltaContent,
-				totalResponseSizeBytes: e.data.totalResponseSizeBytes,
 				parentToolCallId: e.data.parentToolCallId,
 			});
 		});

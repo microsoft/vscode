@@ -8,7 +8,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { IAgentHostService, AgentSession } from '../../../../../../platform/agent/common/agentService.js';
+import { IAgentHostService, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
 

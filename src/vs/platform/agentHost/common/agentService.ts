@@ -87,7 +87,6 @@ export interface IAgentDeltaEvent extends IAgentProgressEventBase {
 	readonly type: 'delta';
 	readonly messageId: string;
 	readonly content: string;
-	readonly totalResponseSizeBytes?: number;
 	readonly parentToolCallId?: string;
 }
 
