@@ -898,13 +898,23 @@
 	transition: background-color 0.1s ease, opacity 0.1s ease;
 }
 
-.ai-customization-management-editor .editor-back-button:hover {
+.ai-customization-management-editor .editor-back-button:hover:not(:disabled) {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	opacity: 1;
 }
 
-.ai-customization-management-editor .editor-back-button:active {
+.ai-customization-management-editor .editor-back-button:active:not(:disabled) {
 	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+.ai-customization-management-editor .editor-back-button:disabled {
+	cursor: default;
+	opacity: 0.45;
+}
+
+.ai-customization-management-editor .editor-action-button-icon {
+	font-size: 14px;
+	line-height: 14px;
 }
 
 .ai-customization-management-editor .editor-item-info {
@@ -931,35 +941,6 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-family: var(--monaco-monospace-font);
-}
-
-.ai-customization-management-editor .editor-save-button {
-	display: none;
-	align-items: center;
-	gap: 6px;
-	flex-shrink: 0;
-	padding: 4px 10px;
-	border: 1px solid var(--vscode-button-border, transparent);
-	border-radius: 4px;
-	background: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
-	cursor: pointer;
-	font-size: 12px;
-	line-height: 18px;
-}
-
-.ai-customization-management-editor .editor-save-button-icon {
-	font-size: 14px;
-	line-height: 14px;
-}
-
-.ai-customization-management-editor .editor-save-button:hover:not(:disabled) {
-	background: var(--vscode-button-secondaryHoverBackground);
-}
-
-.ai-customization-management-editor .editor-save-button:disabled {
-	cursor: default;
-	opacity: 0.6;
 }
 
 .ai-customization-management-editor .editor-save-indicator {

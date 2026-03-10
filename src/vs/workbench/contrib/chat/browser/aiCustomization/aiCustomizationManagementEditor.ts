@@ -167,9 +167,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 	// Embedded editor state
 	private editorContentContainer: HTMLElement | undefined;
 	private embeddedEditor: CodeEditorWidget | undefined;
+	private editorActionButton!: HTMLButtonElement;
+	private editorActionButtonIcon!: HTMLElement;
 	private editorItemNameElement!: HTMLElement;
 	private editorItemPathElement!: HTMLElement;
-	private editorSaveButton!: HTMLButtonElement;
 	private editorSaveIndicator!: HTMLElement;
 	private readonly editorModelChangeDisposables = this._register(new DisposableStore());
 	private readonly builtinEditingSessions = new Map<string, { model: ITextModel; originalContent: string }>();
@@ -830,30 +831,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const editorHeader = DOM.append(this.editorContentContainer, $('.editor-header'));
 
-		const backButton = DOM.append(editorHeader, $('button.editor-back-button'));
-		backButton.setAttribute('aria-label', localize('backToList', "Back to list"));
-		const backIcon = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));
-		backIcon.setAttribute('aria-hidden', 'true');
-		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => {
-			this.goBackToList();
+		this.editorActionButton = DOM.append(editorHeader, $('button.editor-back-button'));
+		this.editorActionButton.setAttribute('aria-label', localize('backToList', "Back to list"));
+		this.editorActionButtonIcon = DOM.append(this.editorActionButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}.editor-action-button-icon`));
+		this.editorActionButtonIcon.setAttribute('aria-hidden', 'true');
+		this.editorDisposables.add(DOM.addDisposableListener(this.editorActionButton, 'click', () => {
+			void this.handleEditorActionButton();
 		}));
 
 		const itemInfo = DOM.append(editorHeader, $('.editor-item-info'));
 		this.editorItemNameElement = DOM.append(itemInfo, $('.editor-item-name'));
 		this.editorItemPathElement = DOM.append(itemInfo, $('.editor-item-path'));
-
-		this.editorSaveButton = DOM.append(editorHeader, $('button.editor-save-button'));
-		const saveIcon = DOM.append(this.editorSaveButton, $(`.codicon.codicon-${Codicon.save.id}.editor-save-button-icon`));
-		saveIcon.setAttribute('aria-hidden', 'true');
-		const saveLabel = DOM.append(this.editorSaveButton, $('span.editor-save-button-label'));
-		saveLabel.textContent = localize('savePromptCopy', "Save");
-		this.editorSaveButton.setAttribute('aria-label', localize('savePromptCopyAriaLabel', "Save prompt copy"));
-		this.editorDisposables.add(DOM.addDisposableListener(this.editorSaveButton, 'click', () => {
-			void this.saveBuiltinPromptCopy().catch(error => {
-				console.error('Failed to save built-in prompt copy:', error);
-				this.notificationService.error(localize('saveBuiltinPromptCopyFailed', "Failed to save the prompt copy."));
-			});
-		}));
 
 		this.editorSaveIndicator = DOM.append(editorHeader, $('.editor-save-indicator'));
 
@@ -895,7 +883,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorItemPathElement.textContent = basename(uri);
 		this._editorContentChanged = false;
 		this.resetEditorSaveIndicator();
-		this.updateBuiltinSaveButton();
+		this.updateEditorActionButton();
 		this.updateContentVisibility();
 
 		try {
@@ -909,7 +897,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.embeddedEditor!.setModel(session.model);
 				this.embeddedEditor!.updateOptions({ readOnly: false });
 				this._editorContentChanged = session.model.getValue() !== session.originalContent;
-				this.updateBuiltinSaveButton();
+				this.updateEditorActionButton();
 
 				if (this.dimension) {
 					this.layout(this.dimension);
@@ -918,7 +906,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 				this.editorModelChangeDisposables.add(session.model.onDidChangeContent(() => {
 					this._editorContentChanged = session.model.getValue() !== session.originalContent;
-					this.updateBuiltinSaveButton();
+					this.updateEditorActionButton();
 				}));
 				return;
 			}
@@ -940,7 +928,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.embeddedEditor!.focus();
 
 			this._editorContentChanged = false;
-			this.updateBuiltinSaveButton();
+			this.updateEditorActionButton();
 			const saveDelayer = this.editorModelChangeDisposables.add(new Delayer<void>(500));
 			this.editorModelChangeDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => {
 				this._editorContentChanged = true;
@@ -989,7 +977,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.currentEditingPromptType = undefined;
 		this.editorModelChangeDisposables.clear();
 		this.resetEditorSaveIndicator();
-		this.updateBuiltinSaveButton();
+		this.updateEditorActionButton();
 		this.embeddedEditor?.setModel(null);
 		this.viewMode = 'list';
 		this.updateContentVisibility();
@@ -1055,7 +1043,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.builtinEditingSessions.delete(sourceUri.toString());
 		session.model.dispose();
 		this._editorContentChanged = false;
-		this.updateBuiltinSaveButton();
+		this.updateEditorActionButton();
 		status(target.target === 'workspace'
 			? localize('saveBuiltinPromptCopySuccessWorkspace', "Saved the prompt override to the workspace prompts.")
 			: localize('saveBuiltinPromptCopySuccessUser', "Saved the prompt override to your user prompts."));
@@ -1104,19 +1092,37 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 	}
 
-	private updateBuiltinSaveButton(): void {
-		if (!this.editorSaveButton) {
+	private async handleEditorActionButton(): Promise<void> {
+		if (this.currentEditingStorage === BUILTIN_STORAGE && this.currentEditingPromptType === PromptsType.prompt) {
+			try {
+				await this.saveBuiltinPromptCopy();
+			} catch (error) {
+				console.error('Failed to save built-in prompt copy:', error);
+				this.notificationService.error(localize('saveBuiltinPromptCopyFailed', "Failed to save the prompt copy."));
+			}
+			return;
+		}
+
+		this.goBackToList();
+	}
+
+	private updateEditorActionButton(): void {
+		if (!this.editorActionButton || !this.editorActionButtonIcon) {
 			return;
 		}
 
 		const isBuiltinPrompt = this.currentEditingStorage === BUILTIN_STORAGE && this.currentEditingPromptType === PromptsType.prompt;
-		this.editorSaveButton.style.display = isBuiltinPrompt ? 'inline-flex' : 'none';
-		this.editorSaveButton.disabled = !this._editorContentChanged;
-		this.editorSaveButton.title = isBuiltinPrompt
+		this.editorActionButtonIcon.className = `codicon codicon-${isBuiltinPrompt ? Codicon.save.id : Codicon.arrowLeft.id} editor-action-button-icon`;
+		this.editorActionButton.classList.toggle('editor-save-mode', isBuiltinPrompt);
+		this.editorActionButton.disabled = isBuiltinPrompt && !this._editorContentChanged;
+		this.editorActionButton.setAttribute('aria-label', isBuiltinPrompt
+			? localize('savePromptCopyAriaLabel', "Save prompt copy")
+			: localize('backToList', "Back to list"));
+		this.editorActionButton.title = isBuiltinPrompt
 			? this._editorContentChanged
 				? localize('saveBuiltinPromptCopyTooltip', "Save an edited copy as a workspace or user prompt")
 				: localize('saveBuiltinPromptCopyDisabledTooltip', "Edit the prompt to save a workspace or user copy")
-			: '';
+			: localize('backToList', "Back to list");
 	}
 
 	private resetEditorSaveIndicator(): void {
