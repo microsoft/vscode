@@ -386,14 +386,20 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 						skipped: false
 					};
 				}
-			} else if (hasKey(answer, { selectedValues: true })) {
+			} else if (Array.isArray(answer)) {
+				result.answers[question.header] = {
+					selected: answer.map(a => String(a)),
+					freeText: null,
+					skipped: false
+				};
+			} else if (typeof answer === 'object' && hasKey(answer, { selectedValues: true })) {
 				const { selectedValues, freeformValue } = answer as IChatMultiSelectAnswer;
 				result.answers[question.header] = {
 					selected: selectedValues,
 					freeText: freeformValue ?? null,
 					skipped: false
 				};
-			} else if (hasKey(answer, { selectedValue: true }) || hasKey(answer, { freeformValue: true })) {
+			} else if (typeof answer === 'object' && (hasKey(answer, { selectedValue: true }) || hasKey(answer, { freeformValue: true }))) {
 				const { selectedValue, freeformValue } = answer as IChatSingleSelectAnswer;
 				if (freeformValue) {
 					result.answers[question.header] = {
