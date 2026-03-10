@@ -14,7 +14,7 @@ import { BrowserViewUri } from '../../../../platform/browserView/common/browserV
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { ConfigurationKeyValuePairs, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase } from '../../../common/configuration.js';
+import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -148,19 +148,6 @@ registerWorkbenchContribution2(LocalhostLinkOpenerContribution.ID, LocalhostLink
 
 registerSingleton(IBrowserViewWorkbenchService, BrowserViewWorkbenchService, InstantiationType.Delayed);
 registerSingleton(IBrowserZoomService, BrowserZoomService, InstantiationType.Delayed);
-
-Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
-	.registerConfigurationMigrations([{
-		key: 'workbench.browser.defaultZoomLevel',
-		migrateFn: value => {
-			const result: ConfigurationKeyValuePairs = [];
-			if (value !== undefined) {
-				result.push(['workbench.browser.zoom.defaultZoomLevel', { value }]);
-				result.push(['workbench.browser.defaultZoomLevel', { value: undefined }]);
-			}
-			return result;
-		}
-	}]);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
