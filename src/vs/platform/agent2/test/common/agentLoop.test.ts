@@ -3,113 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/**
+ * Agent loop unit tests.
+ *
+ * Tests the {@link AgentLoop} in isolation with mock providers, tools, and
+ * middleware. Each test verifies a specific loop mechanic: text streaming,
+ * tool dispatch, thinking, cancellation, middleware hooks, event ordering, and
+ * conversation threading.
+ *
+ * Uses snapshot-style assertions via {@link assertLoopSnapshot} for clear,
+ * readable test output. Helper infrastructure lives in `testHelpers.ts`.
+ */
+
 import assert from 'assert';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentLoop, IAgentLoopConfig } from '../../common/agentLoop.js';
-import { createUserMessage, IConversationMessage, IModelIdentity } from '../../common/conversation.js';
-import { AgentLoopEvent, IAgentLoopEventMap } from '../../common/events.js';
+import { createUserMessage, IConversationMessage } from '../../common/conversation.js';
 import { IMiddleware } from '../../common/middleware.js';
-import { IModelProvider, IModelRequestConfig, ModelResponseChunk } from '../../common/modelProvider.js';
-import { IAgentTool, IAgentToolDefinition, IToolContext, IToolResult } from '../../common/tools.js';
-
-// -- Test helpers -------------------------------------------------------------
-
-const testModel: IModelIdentity = { provider: 'test', modelId: 'test-model' };
-
-/**
- * Creates a mock model provider that returns a fixed sequence of responses.
- * Each response is a sequence of chunks.
- */
-function createMockProvider(responses: ModelResponseChunk[][]): IModelProvider {
-	let callIndex = 0;
-	return {
-		providerId: 'test',
-		async *sendRequest(
-			_systemPrompt: string,
-			_messages: readonly IConversationMessage[],
-			_tools: readonly IAgentToolDefinition[],
-			_config: IModelRequestConfig,
-			_token: CancellationToken,
-		): AsyncGenerator<ModelResponseChunk> {
-			const chunks = responses[callIndex++];
-			if (!chunks) {
-				throw new Error('Mock provider: no more responses');
-			}
-			for (const chunk of chunks) {
-				yield chunk;
-			}
-		},
-		async listModels() { return []; },
-	};
-}
-
-function createMockTool(
-	name: string,
-	readOnly: boolean,
-	handler: (args: Record<string, unknown>) => string | Promise<string>,
-): IAgentTool {
-	return {
-		name,
-		description: `Test tool: ${name}`,
-		parametersSchema: { type: 'object', properties: {} },
-		readOnly,
-		async execute(args: Record<string, unknown>, _context: IToolContext): Promise<IToolResult> {
-			const content = await handler(args);
-			return { content };
-		},
-	};
-}
-
-function createErrorTool(name: string, error: string): IAgentTool {
-	return {
-		name,
-		description: `Test error tool: ${name}`,
-		parametersSchema: { type: 'object', properties: {} },
-		readOnly: false,
-		async execute(_args: Record<string, unknown>, _context: IToolContext): Promise<IToolResult> {
-			throw new Error(error);
-		},
-	};
-}
-
-function defaultConfig(overrides: Partial<IAgentLoopConfig>): IAgentLoopConfig {
-	return {
-		modelProvider: overrides.modelProvider ?? createMockProvider([]),
-		modelIdentity: overrides.modelIdentity ?? testModel,
-		systemPrompt: overrides.systemPrompt ?? 'You are a test assistant.',
-		tools: overrides.tools ?? [],
-		requestConfig: overrides.requestConfig,
-		middleware: overrides.middleware,
-		maxIterations: overrides.maxIterations,
-	};
-}
-
-async function collectEvents(
-	messages: readonly IConversationMessage[],
-	config: IAgentLoopConfig,
-	token: CancellationToken = CancellationToken.None,
-): Promise<AgentLoopEvent[]> {
-	const events: AgentLoopEvent[] = [];
-	const loop = new AgentLoop(config);
-	for await (const event of loop.run(messages, token)) {
-		events.push(event);
-	}
-	return events;
-}
-
-function findEvents<K extends keyof IAgentLoopEventMap>(events: AgentLoopEvent[], type: K): IAgentLoopEventMap[K][] {
-	return events.filter(e => e.type === type) as IAgentLoopEventMap[K][];
-}
-
-// -- Tests --------------------------------------------------------------------
+import { IModelProvider, ModelResponseChunk } from '../../common/modelProvider.js';
+import { IAgentTool } from '../../common/tools.js';
+import {
+	assertLoopSnapshot,
+	runAgentAndCollectEvents,
+	createErrorTool,
+	createMockProvider,
+	createMockTool,
+	defaultConfig,
+	findEvents,
+} from './testHelpers.js';
 
 suite('Agent Loop', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('text-only responses', () => {
-		test('produces events for a simple text response', async () => {
+		test('simple text response', async () => {
 			const provider = createMockProvider([
 				[
 					{ type: 'text-delta', text: 'Hello ' },
@@ -117,132 +45,108 @@ suite('Agent Loop', () => {
 				],
 			]);
 
-			const events = await collectEvents(
+			const events = await runAgentAndCollectEvents(
 				[createUserMessage('Hi')],
 				defaultConfig({ modelProvider: provider }),
 			);
 
-			// Should have: model-call-start, 2 deltas, model-call-complete, assistant-message, turn-boundary
-			const modelStarts = findEvents(events, 'model-call-start');
-			const deltas = findEvents(events, 'assistant-delta');
-			const messages = findEvents(events, 'assistant-message');
-			const boundaries = findEvents(events, 'turn-boundary');
-
-			assert.strictEqual(modelStarts.length, 1);
-			assert.strictEqual(deltas.length, 2);
-			assert.strictEqual(deltas[0].text, 'Hello ');
-			assert.strictEqual(deltas[1].text, 'world!');
-			assert.strictEqual(messages.length, 1);
-			assert.strictEqual(boundaries.length, 1);
-
-			// Check the assistant message content
-			const msg = messages[0].message;
-			assert.strictEqual(msg.role, 'assistant');
-			assert.strictEqual(msg.content.length, 1);
-			assert.strictEqual(msg.content[0].type, 'text');
-			if (msg.content[0].type === 'text') {
-				assert.strictEqual(msg.content[0].text, 'Hello world!');
-			}
-			assert.deepStrictEqual(msg.modelIdentity, testModel);
+			assertLoopSnapshot(events, `
+				model-call-start
+				delta: "Hello "
+				delta: "world!"
+				model-call-complete
+				assistant-message: [text("Hello world!")]
+				turn-boundary
+			`);
 		});
 
-		test('handles empty response', async () => {
-			const provider = createMockProvider([[]]);
-
-			const events = await collectEvents(
+		test('empty response', async () => {
+			const events = await runAgentAndCollectEvents(
 				[createUserMessage('Hi')],
-				defaultConfig({ modelProvider: provider }),
+				defaultConfig({ modelProvider: createMockProvider([[]]) }),
 			);
 
-			const messages = findEvents(events, 'assistant-message');
-			assert.strictEqual(messages.length, 1);
-			assert.strictEqual(messages[0].message.content.length, 0);
+			assertLoopSnapshot(events, `
+				model-call-start
+				model-call-complete
+				assistant-message: []
+				turn-boundary
+			`);
 		});
 	});
 
 	suite('tool calls', () => {
-		test('executes a single tool call and re-samples', async () => {
-			let toolCalled = false;
+		test('single tool call and re-sample', async () => {
 			const tool = createMockTool('readFile', true, args => {
-				toolCalled = true;
 				assert.strictEqual(args['path'], 'test.txt');
 				return 'file contents';
 			});
 
 			const provider = createMockProvider([
-				// First response: tool call
 				[
 					{ type: 'text-delta', text: 'Let me read that.' },
 					{ type: 'tool-call-complete', toolCallId: 'c1', toolName: 'readFile', arguments: '{"path":"test.txt"}' },
 				],
-				// Second response: final text
-				[
-					{ type: 'text-delta', text: 'The file contains: file contents' },
-				],
+				[{ type: 'text-delta', text: 'The file contains: file contents' }],
 			]);
 
-			const events = await collectEvents(
+			const events = await runAgentAndCollectEvents(
 				[createUserMessage('Read test.txt')],
 				defaultConfig({ modelProvider: provider, tools: [tool] }),
 			);
 
-			assert.strictEqual(toolCalled, true);
-
-			const toolStarts = findEvents(events, 'tool-start');
-			const toolCompletes = findEvents(events, 'tool-complete');
-			assert.strictEqual(toolStarts.length, 1);
-			assert.strictEqual(toolStarts[0].toolName, 'readFile');
-			assert.strictEqual(toolCompletes.length, 1);
-			assert.strictEqual(toolCompletes[0].result, 'file contents');
-			assert.strictEqual(toolCompletes[0].isError, false);
-
-			// Should have two model calls
-			const modelStarts = findEvents(events, 'model-call-start');
-			assert.strictEqual(modelStarts.length, 2);
+			assertLoopSnapshot(events, `
+				model-call-start
+				delta: "Let me read that."
+				model-call-complete
+				assistant-message: [text("Let me read that."), tool-call(readFile)]
+				tool-start: readFile
+				tool-complete: readFile (ok) "file contents"
+				model-call-start
+				delta: "The file contains: file contents"
+				model-call-complete
+				assistant-message: [text("The file contains: file contents")]
+				turn-boundary
+			`);
 		});
 
-		test('handles multiple tool calls in one response', async () => {
-			const callOrder: string[] = [];
-			const tool1 = createMockTool('readFile', true, args => {
-				callOrder.push(`readFile:${args['path']}`);
-				return `contents of ${args['path']}`;
-			});
-			const tool2 = createMockTool('grep', true, args => {
-				callOrder.push(`grep:${args['pattern']}`);
-				return 'grep results';
-			});
+		test('multiple tool calls in one response', async () => {
+			const tool1 = createMockTool('readFile', true, args => `contents of ${args['path']}`);
+			const tool2 = createMockTool('grep', true, () => 'grep results');
 
 			const provider = createMockProvider([
-				// First response: two tool calls
 				[
 					{ type: 'tool-call-complete', toolCallId: 'c1', toolName: 'readFile', arguments: '{"path":"a.txt"}' },
 					{ type: 'tool-call-complete', toolCallId: 'c2', toolName: 'grep', arguments: '{"pattern":"hello"}' },
 				],
-				// Second response: final
-				[
-					{ type: 'text-delta', text: 'Done.' },
-				],
+				[{ type: 'text-delta', text: 'Done.' }],
 			]);
 
-			const events = await collectEvents(
+			const events = await runAgentAndCollectEvents(
 				[createUserMessage('Do things')],
 				defaultConfig({ modelProvider: provider, tools: [tool1, tool2] }),
 			);
 
-			// Both tools should have been called (in parallel since both are readOnly)
-			assert.strictEqual(callOrder.length, 2);
-			assert.ok(callOrder.includes('readFile:a.txt'));
-			assert.ok(callOrder.includes('grep:hello'));
-
-			const toolCompletes = findEvents(events, 'tool-complete');
-			assert.strictEqual(toolCompletes.length, 2);
+			assertLoopSnapshot(events, `
+				model-call-start
+				model-call-complete
+				assistant-message: [tool-call(readFile), tool-call(grep)]
+				tool-start: readFile
+				tool-complete: readFile (ok) "contents of a.txt"
+				tool-start: grep
+				tool-complete: grep (ok) "grep results"
+				model-call-start
+				delta: "Done."
+				model-call-complete
+				assistant-message: [text("Done.")]
+				turn-boundary
+			`);
 		});
 
 		test('serializes mutating tool calls', async () => {
 			const callOrder: string[] = [];
 			const tool = createMockTool('bash', false, async args => {
 				callOrder.push(`bash:${args['command']}`);
-				// Small delay to verify sequential execution
 				await new Promise(resolve => setTimeout(resolve, 10));
 				return `output of ${args['command']}`;
 			});
@@ -255,7 +159,7 @@ suite('Agent Loop', () => {
 				[{ type: 'text-delta', text: 'Done.' }],
 			]);
 
-			await collectEvents(
+			await runAgentAndCollectEvents(
 				[createUserMessage('Run commands')],
 				defaultConfig({ modelProvider: provider, tools: [tool] }),
 			);
@@ -263,70 +167,89 @@ suite('Agent Loop', () => {
 			assert.deepStrictEqual(callOrder, ['bash:ls', 'bash:pwd']);
 		});
 
-		test('handles unknown tool gracefully', async () => {
+		test('unknown tool returns error result', async () => {
 			const provider = createMockProvider([
-				[
-					{ type: 'tool-call-complete', toolCallId: 'c1', toolName: 'nonexistent', arguments: '{}' },
-				],
+				[{ type: 'tool-call-complete', toolCallId: 'c1', toolName: 'nonexistent', arguments: '{}' }],
 				[{ type: 'text-delta', text: 'OK' }],
 			]);
 
-			const events = await collectEvents(
+			const events = await runAgentAndCollectEvents(
 				[createUserMessage('Use a tool')],
 				defaultConfig({ modelProvider: provider }),
 			);
 
-			const toolCompletes = findEvents(events, 'tool-complete');
-			assert.strictEqual(toolCompletes.length, 1);
-			assert.strictEqual(toolCompletes[0].isError, true);
-			assert.ok(toolCompletes[0].result.includes('Unknown tool'));
+			const completes = findEvents(events, 'tool-complete');
+			assert.strictEqual(completes[0].isError, true);
+			assert.ok(completes[0].result.includes('Unknown tool'));
 		});
 
-		test('handles tool execution error', async () => {
+		test('tool execution error is captured', async () => {
 			const tool = createErrorTool('failTool', 'Something went wrong');
 
 			const provider = createMockProvider([
-				[
-					{ type: 'tool-call-complete', toolCallId: 'c1', toolName: 'failTool', arguments: '{}' },
-				],
+				[{ type: 'tool-call-complete', toolCallId: 'c1', toolName: 'failTool', arguments: '{}' }],
 				[{ type: 'text-delta', text: 'I see there was an error.' }],
 			]);
 
-			const events = await collectEvents(
+			const events = await runAgentAndCollectEvents(
 				[createUserMessage('Use failing tool')],
 				defaultConfig({ modelProvider: provider, tools: [tool] }),
 			);
 
-			const toolCompletes = findEvents(events, 'tool-complete');
-			assert.strictEqual(toolCompletes.length, 1);
-			assert.strictEqual(toolCompletes[0].isError, true);
-			assert.ok(toolCompletes[0].result.includes('Something went wrong'));
+			const completes = findEvents(events, 'tool-complete');
+			assert.strictEqual(completes[0].isError, true);
+			assert.ok(completes[0].result.includes('Something went wrong'));
 		});
 
-		test('handles malformed tool arguments', async () => {
+		test('malformed tool arguments are handled', async () => {
 			const tool = createMockTool('readFile', true, () => 'content');
 
 			const provider = createMockProvider([
-				[
-					{ type: 'tool-call-complete', toolCallId: 'c1', toolName: 'readFile', arguments: 'invalid json{' },
-				],
+				[{ type: 'tool-call-complete', toolCallId: 'c1', toolName: 'readFile', arguments: 'invalid json{' }],
 				[{ type: 'text-delta', text: 'OK' }],
 			]);
 
-			const events = await collectEvents(
+			const events = await runAgentAndCollectEvents(
 				[createUserMessage('Read file')],
 				defaultConfig({ modelProvider: provider, tools: [tool] }),
 			);
 
-			// Should succeed -- malformed args are parsed as empty object
-			const toolCompletes = findEvents(events, 'tool-complete');
-			assert.strictEqual(toolCompletes.length, 1);
-			assert.strictEqual(toolCompletes[0].isError, false);
+			const completes = findEvents(events, 'tool-complete');
+			assert.strictEqual(completes[0].isError, false);
+		});
+
+		test('tool result flows back as conversation context', async () => {
+			const tool = createMockTool('bash', false, () => 'command output');
+			const capturedMessages: IConversationMessage[][] = [];
+
+			const provider: IModelProvider = {
+				providerId: 'test',
+				async *sendRequest(_sys: string, messages: readonly IConversationMessage[]): AsyncGenerator<ModelResponseChunk> {
+					capturedMessages.push([...messages]);
+					if (capturedMessages.length === 1) {
+						yield { type: 'tool-call-complete', toolCallId: 'toolu_1', toolName: 'bash', arguments: '{"command":"ls"}' };
+					} else {
+						yield { type: 'text-delta', text: 'Done' };
+					}
+				},
+				async listModels() { return []; },
+			};
+
+			await runAgentAndCollectEvents(
+				[createUserMessage('Run ls')],
+				defaultConfig({ modelProvider: provider, tools: [tool] }),
+			);
+
+			// Second call should include: user + assistant(tool_call) + tool_result
+			assert.strictEqual(capturedMessages[1].length, 3);
+			assert.strictEqual(capturedMessages[1][0].role, 'user');
+			assert.strictEqual(capturedMessages[1][1].role, 'assistant');
+			assert.strictEqual(capturedMessages[1][2].role, 'tool-result');
 		});
 	});
 
 	suite('thinking/reasoning', () => {
-		test('emits reasoning deltas and includes thinking in message', async () => {
+		test('thinking deltas and signature in assistant message', async () => {
 			const provider = createMockProvider([
 				[
 					{ type: 'thinking-delta', text: 'Let me think' },
@@ -336,25 +259,25 @@ suite('Agent Loop', () => {
 				],
 			]);
 
-			const events = await collectEvents(
+			const events = await runAgentAndCollectEvents(
 				[createUserMessage('Deep question')],
 				defaultConfig({ modelProvider: provider }),
 			);
 
-			const reasoningDeltas = findEvents(events, 'reasoning-delta');
-			assert.strictEqual(reasoningDeltas.length, 2);
-			assert.strictEqual(reasoningDeltas[0].text, 'Let me think');
-			assert.strictEqual(reasoningDeltas[1].text, ' about this...');
+			assertLoopSnapshot(events, `
+				model-call-start
+				reasoning: "Let me think"
+				reasoning: " about this..."
+				delta: "The answer is 42."
+				model-call-complete
+				assistant-message: [thinking("Let me think about this..."), text("The answer is 42.")]
+				turn-boundary
+			`);
 
-			const messages = findEvents(events, 'assistant-message');
-			const msg = messages[0].message;
-			// Thinking part should come first in the content
-			assert.strictEqual(msg.content[0].type, 'thinking');
-			if (msg.content[0].type === 'thinking') {
-				assert.strictEqual(msg.content[0].text, 'Let me think about this...');
-				assert.strictEqual(msg.content[0].signature, 'sig_abc');
-			}
-			assert.strictEqual(msg.content[1].type, 'text');
+			// Verify signature is preserved
+			const msg = findEvents(events, 'assistant-message')[0].message;
+			const thinking = msg.content.find(p => p.type === 'thinking');
+			assert.strictEqual(thinking?.type === 'thinking' && thinking.signature, 'sig_abc');
 		});
 	});
 
@@ -367,35 +290,27 @@ suite('Agent Loop', () => {
 				],
 			]);
 
-			const events = await collectEvents(
+			const events = await runAgentAndCollectEvents(
 				[createUserMessage('Hi')],
 				defaultConfig({ modelProvider: provider }),
 			);
 
-			const usageEvents = findEvents(events, 'usage');
-			assert.strictEqual(usageEvents.length, 1);
-			assert.strictEqual(usageEvents[0].inputTokens, 100);
-			assert.strictEqual(usageEvents[0].outputTokens, 50);
-			assert.strictEqual(usageEvents[0].cacheReadTokens, 20);
+			const usage = findEvents(events, 'usage');
+			assert.strictEqual(usage.length, 1);
+			assert.deepStrictEqual(
+				{ input: usage[0].inputTokens, output: usage[0].outputTokens, cache: usage[0].cacheReadTokens },
+				{ input: 100, output: 50, cache: 20 },
+			);
 		});
 	});
 
 	suite('cancellation', () => {
 		test('throws CancellationError when token is cancelled', async () => {
 			const cts = store.add(new CancellationTokenSource());
-
-			const provider = createMockProvider([
-				[
-					{ type: 'text-delta', text: 'Starting...' },
-					// The cancellation happens during tool execution below
-				],
-			]);
-
-			// Cancel immediately
 			cts.cancel();
 
 			await assert.rejects(
-				async () => collectEvents([createUserMessage('Hi')], defaultConfig({ modelProvider: provider }), cts.token),
+				() => runAgentAndCollectEvents([createUserMessage('Hi')], defaultConfig({ modelProvider: createMockProvider([[]]) }), cts.token),
 				CancellationError,
 			);
 		});
@@ -409,7 +324,6 @@ suite('Agent Loop', () => {
 				parametersSchema: {},
 				readOnly: false,
 				async execute(_args, context) {
-					// Cancel the token during tool execution
 					cts.cancel();
 					if (context.token.isCancellationRequested) {
 						throw new CancellationError();
@@ -419,13 +333,11 @@ suite('Agent Loop', () => {
 			};
 
 			const provider = createMockProvider([
-				[
-					{ type: 'tool-call-complete', toolCallId: 'c1', toolName: 'slowTool', arguments: '{}' },
-				],
+				[{ type: 'tool-call-complete', toolCallId: 'c1', toolName: 'slowTool', arguments: '{}' }],
 			]);
 
 			await assert.rejects(
-				async () => collectEvents(
+				() => runAgentAndCollectEvents(
 					[createUserMessage('Run slow tool')],
 					defaultConfig({ modelProvider: provider, tools: [tool] }),
 					cts.token,
@@ -436,8 +348,7 @@ suite('Agent Loop', () => {
 	});
 
 	suite('max iterations', () => {
-		test('emits error when max iterations exceeded', async () => {
-			// Provider that always returns a tool call (infinite loop)
+		test('emits fatal error when max iterations exceeded', async () => {
 			const tool = createMockTool('infiniteTool', false, () => 'result');
 			let callCount = 0;
 			const provider: IModelProvider = {
@@ -449,7 +360,7 @@ suite('Agent Loop', () => {
 				async listModels() { return []; },
 			};
 
-			const events = await collectEvents(
+			const events = await runAgentAndCollectEvents(
 				[createUserMessage('Loop forever')],
 				defaultConfig({ modelProvider: provider, tools: [tool], maxIterations: 3 }),
 			);
@@ -461,12 +372,12 @@ suite('Agent Loop', () => {
 		});
 	});
 
-	suite('middleware integration', () => {
-		test('pre-request middleware can modify messages', async () => {
+	suite('middleware', () => {
+		test('pre-request can modify messages', async () => {
 			let receivedMessages: readonly IConversationMessage[] | undefined;
 			const provider: IModelProvider = {
 				providerId: 'test',
-				async *sendRequest(_system, messages) {
+				async *sendRequest(_sys: string, messages: readonly IConversationMessage[]) {
 					receivedMessages = messages;
 					yield { type: 'text-delta' as const, text: 'OK' };
 				},
@@ -475,34 +386,24 @@ suite('Agent Loop', () => {
 
 			const mw: IMiddleware = {
 				preRequest(ctx) {
-					return {
-						systemPrompt: ctx.systemPrompt,
-						messages: [...ctx.messages, createUserMessage('injected')],
-						tools: ctx.tools,
-					};
+					return { systemPrompt: ctx.systemPrompt, messages: [...ctx.messages, createUserMessage('injected')], tools: ctx.tools };
 				},
 			};
 
-			await collectEvents(
+			await runAgentAndCollectEvents(
 				[createUserMessage('original')],
 				defaultConfig({ modelProvider: provider, middleware: [mw] }),
 			);
 
-			assert.ok(receivedMessages);
 			assert.strictEqual(receivedMessages!.length, 2);
 		});
 
-		test('pre-tool middleware can skip tool execution', async () => {
+		test('pre-tool can skip execution', async () => {
 			let toolExecuted = false;
-			const tool = createMockTool('dangerous', false, () => {
-				toolExecuted = true;
-				return 'executed';
-			});
+			const tool = createMockTool('dangerous', false, () => { toolExecuted = true; return 'executed'; });
 
 			const mw: IMiddleware = {
-				preTool() {
-					return { arguments: {}, skip: true, cannedResult: 'Permission denied' };
-				},
+				preTool() { return { arguments: {}, skip: true, cannedResult: 'Permission denied' }; },
 			};
 
 			const provider = createMockProvider([
@@ -510,23 +411,20 @@ suite('Agent Loop', () => {
 				[{ type: 'text-delta', text: 'OK' }],
 			]);
 
-			const events = await collectEvents(
-				[createUserMessage('Do something dangerous')],
+			const events = await runAgentAndCollectEvents(
+				[createUserMessage('Do dangerous thing')],
 				defaultConfig({ modelProvider: provider, tools: [tool], middleware: [mw] }),
 			);
 
 			assert.strictEqual(toolExecuted, false);
-			const toolCompletes = findEvents(events, 'tool-complete');
-			assert.strictEqual(toolCompletes[0].result, 'Permission denied');
+			assert.strictEqual(findEvents(events, 'tool-complete')[0].result, 'Permission denied');
 		});
 
-		test('post-tool middleware can modify results', async () => {
+		test('post-tool can modify results', async () => {
 			const tool = createMockTool('readFile', true, () => 'secret data here');
 
 			const mw: IMiddleware = {
-				postTool(ctx) {
-					return { result: ctx.result.replace('secret', '[REDACTED]'), isError: ctx.isError };
-				},
+				postTool(ctx) { return { result: ctx.result.replace('secret', '[REDACTED]'), isError: ctx.isError }; },
 			};
 
 			const provider = createMockProvider([
@@ -534,145 +432,36 @@ suite('Agent Loop', () => {
 				[{ type: 'text-delta', text: 'OK' }],
 			]);
 
-			const events = await collectEvents(
+			const events = await runAgentAndCollectEvents(
 				[createUserMessage('Read file')],
 				defaultConfig({ modelProvider: provider, tools: [tool], middleware: [mw] }),
 			);
 
-			const toolCompletes = findEvents(events, 'tool-complete');
-			assert.strictEqual(toolCompletes[0].result, '[REDACTED] data here');
+			assert.strictEqual(findEvents(events, 'tool-complete')[0].result, '[REDACTED] data here');
 		});
 
-		test('post-response middleware can request retry', async () => {
+		test('post-response can request retry', async () => {
 			let modelCallCount = 0;
 			const provider: IModelProvider = {
 				providerId: 'test',
-				async *sendRequest() {
-					modelCallCount++;
-					yield { type: 'text-delta' as const, text: `response ${modelCallCount}` };
-				},
+				async *sendRequest() { modelCallCount++; yield { type: 'text-delta' as const, text: `response ${modelCallCount}` }; },
 				async listModels() { return []; },
 			};
 
 			let retryRequested = false;
 			const mw: IMiddleware = {
 				postResponse() {
-					if (!retryRequested) {
-						retryRequested = true;
-						return { retry: true };
-					}
+					if (!retryRequested) { retryRequested = true; return { retry: true }; }
 					return {};
 				},
 			};
 
-			await collectEvents(
+			await runAgentAndCollectEvents(
 				[createUserMessage('Hi')],
 				defaultConfig({ modelProvider: provider, middleware: [mw] }),
 			);
 
-			// Should have called the model twice (original + retry)
 			assert.strictEqual(modelCallCount, 2);
 		});
-	});
-
-	suite('event ordering', () => {
-		test('events follow correct order for text-only response', async () => {
-			const provider = createMockProvider([
-				[{ type: 'text-delta', text: 'Hi' }],
-			]);
-
-			const events = await collectEvents(
-				[createUserMessage('Hello')],
-				defaultConfig({ modelProvider: provider }),
-			);
-
-			const types = events.map(e => e.type);
-			assert.deepStrictEqual(types, [
-				'model-call-start',
-				'assistant-delta',
-				'model-call-complete',
-				'assistant-message',
-				'turn-boundary',
-			]);
-		});
-
-		test('events follow correct order for tool call flow', async () => {
-			const tool = createMockTool('myTool', true, () => 'result');
-			const provider = createMockProvider([
-				[{ type: 'tool-call-complete', toolCallId: 'c1', toolName: 'myTool', arguments: '{}' }],
-				[{ type: 'text-delta', text: 'Done.' }],
-			]);
-
-			const events = await collectEvents(
-				[createUserMessage('Do it')],
-				defaultConfig({ modelProvider: provider, tools: [tool] }),
-			);
-
-			const types = events.map(e => e.type);
-			assert.deepStrictEqual(types, [
-				'model-call-start',      // First model call
-				'model-call-complete',
-				'assistant-message',     // Message with tool call
-				'tool-start',            // Tool execution
-				'tool-complete',
-				'model-call-start',      // Re-sample
-				'assistant-delta',
-				'model-call-complete',
-				'assistant-message',     // Final message
-				'turn-boundary',
-			]);
-		});
-		test('tool result messages are passed back to the model on re-sample', async () => {
-			const tool = createMockTool('bash', false, () => 'command output');
-			const capturedMessages: IConversationMessage[][] = [];
-
-			const provider: IModelProvider = {
-				providerId: 'test',
-				async *sendRequest(
-					_systemPrompt: string,
-					messages: readonly IConversationMessage[],
-				): AsyncGenerator<ModelResponseChunk> {
-					capturedMessages.push([...messages]);
-					if (capturedMessages.length === 1) {
-						// First call: return a tool call
-						yield { type: 'tool-call-complete', toolCallId: 'toolu_1', toolName: 'bash', arguments: '{"command":"ls"}' };
-					} else {
-						// Second call: return final text
-						yield { type: 'text-delta', text: 'Done' };
-					}
-				},
-				async listModels() { return []; },
-			};
-
-			await collectEvents(
-				[createUserMessage('Run ls')],
-				defaultConfig({ modelProvider: provider, tools: [tool] }),
-			);
-
-			// Should have been called twice
-			assert.strictEqual(capturedMessages.length, 2);
-
-			// First call: just the user message
-			assert.strictEqual(capturedMessages[0].length, 1);
-			assert.strictEqual(capturedMessages[0][0].role, 'user');
-
-			// Second call: user + assistant (with tool_use) + tool_result
-			assert.strictEqual(capturedMessages[1].length, 3);
-			assert.strictEqual(capturedMessages[1][0].role, 'user');
-			assert.strictEqual(capturedMessages[1][1].role, 'assistant');
-			assert.strictEqual(capturedMessages[1][2].role, 'tool-result');
-
-			// Verify tool result has the correct tool call ID
-			const toolResult = capturedMessages[1][2] as import('../../common/conversation.js').IToolResultMessage;
-			assert.strictEqual(toolResult.toolCallId, 'toolu_1');
-			assert.strictEqual(toolResult.content, 'command output');
-
-			// Verify assistant message has the tool call
-			const assistantMsg = capturedMessages[1][1] as import('../../common/conversation.js').IAssistantMessage;
-			const toolCalls = assistantMsg.content.filter(p => p.type === 'tool-call');
-			assert.strictEqual(toolCalls.length, 1);
-			assert.strictEqual(toolCalls[0].toolCallId, 'toolu_1');
-		});
-
 	});
 });

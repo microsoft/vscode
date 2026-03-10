@@ -43,7 +43,7 @@ import { IAgentTool } from '../common/tools.js';
 import { IMiddleware } from '../common/middleware.js';
 import type { SessionEntry } from '../common/sessionTypes.js';
 import { CAPIRequestType, ICopilotApiService, ICAPIModelsResponse } from './copilotToken.js';
-import { createAnthropicFactory, createOpenAIFactory, ModelProviderService } from './modelProviderService.js';
+import { IModelProviderService } from './modelProviderService.js';
 import { AllowAllPolicy, PermissionMiddleware } from './middleware/permissionMiddleware.js';
 import { ContextWindowMiddleware } from './middleware/contextWindow.js';
 import { ToolOutputTruncationMiddleware } from './middleware/toolOutputTruncation.js';
@@ -68,7 +68,6 @@ export class LocalAgent extends Disposable implements IAgent {
 	private readonly _sessionState = new Map<string, LocalSession>();
 	/** Per-session message ID for correlating streaming deltas with the final assistant message. */
 	private readonly _pendingMessageIds = new Map<string, string>();
-	private readonly _modelProviderService: ModelProviderService;
 	private readonly _tools: readonly IAgentTool[];
 	private readonly _storage: SessionStorage;
 
@@ -76,11 +75,9 @@ export class LocalAgent extends Disposable implements IAgent {
 		@ILogService private readonly _logService: ILogService,
 		@ICopilotApiService private readonly _apiService: ICopilotApiService,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
+		@IModelProviderService private readonly _modelProviderService: IModelProviderService,
 	) {
 		super();
-		this._modelProviderService = new ModelProviderService();
-		this._modelProviderService.registerFactory(createAnthropicFactory(this._apiService, _logService));
-		this._modelProviderService.registerFactory(createOpenAIFactory(this._apiService, _logService));
 		this._tools = [new ReadFileTool(), new BashTool()];
 		this._storage = new SessionStorage(environmentService.userDataPath, _logService);
 	}

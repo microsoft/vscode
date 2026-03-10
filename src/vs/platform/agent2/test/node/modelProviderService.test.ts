@@ -9,7 +9,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IConversationMessage } from '../../common/conversation.js';
 import { IModelInfo, IModelProvider, IModelRequestConfig, ModelResponseChunk } from '../../common/modelProvider.js';
 import { IAgentToolDefinition } from '../../common/tools.js';
-import { ModelProviderService } from '../../node/modelProviderService.js';
+import { IModelProviderService, ModelProviderService } from '../../node/modelProviderService.js';
+import { NullLogService, ILogService } from '../../../log/common/log.js';
+import { CopilotApiService, ICopilotApiService } from '../../node/copilotToken.js';
+import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 
 function createMockProvider(providerId: string): IModelProvider {
 	return {
@@ -30,24 +34,45 @@ function createMockProvider(providerId: string): IModelProvider {
 }
 
 suite('ModelProviderService', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createService(): IModelProviderService {
+		const log = new NullLogService();
+		const services = new ServiceCollection();
+		services.set(ILogService, log);
+		services.set(ICopilotApiService, new CopilotApiService(log));
+		return store.add(new InstantiationService(services)).createInstance(ModelProviderService);
+	}
 
 	test('resolves a model to the correct provider', () => {
-		const service = new ModelProviderService();
+		const service = createService();
 		service.registerFactory({
-			providerId: 'anthropic',
-			canHandle: (modelId: string) => modelId.startsWith('claude-'),
-			create: (modelId: string) => createMockProvider(`anthropic:${modelId}`),
+			providerId: 'test-anthropic',
+			canHandle: (modelId: string) => modelId.startsWith('test-claude-'),
+			create: (modelId: string) => createMockProvider(`test-anthropic:${modelId}`),
 		});
 
-		const result = service.resolve('claude-sonnet-4-20250514');
-		assert.strictEqual(result.identity.provider, 'anthropic');
-		assert.strictEqual(result.identity.modelId, 'claude-sonnet-4-20250514');
+		const result = service.resolve('test-claude-sonnet');
+		assert.strictEqual(result.identity.provider, 'test-anthropic');
+		assert.strictEqual(result.identity.modelId, 'test-claude-sonnet');
 		assert.ok(result.provider);
 	});
 
+	test('built-in factories resolve anthropic and openai models', () => {
+		const service = createService();
+
+		const anthropicResult = service.resolve('claude-sonnet-4-20250514');
+		assert.strictEqual(anthropicResult.identity.provider, 'anthropic');
+
+		const openaiResult = service.resolve('gpt-4o');
+		assert.strictEqual(openaiResult.identity.provider, 'openai');
+
+		const oResult = service.resolve('o3-pro');
+		assert.strictEqual(oResult.identity.provider, 'openai');
+	});
+
 	test('first matching factory wins', () => {
-		const service = new ModelProviderService();
+		const service = createService();
 		service.registerFactory({
 			providerId: 'first',
 			canHandle: () => true,
@@ -59,44 +84,18 @@ suite('ModelProviderService', () => {
 			create: () => createMockProvider('second'),
 		});
 
-		const result = service.resolve('any-model');
+		// Built-in factories handle claude-* and gpt-*, so test with an unmatched model
+		// The first catch-all factory should win
+		const result = service.resolve('unknown-model');
 		assert.strictEqual(result.identity.provider, 'first');
 	});
 
 	test('throws when no factory matches', () => {
-		const service = new ModelProviderService();
-		service.registerFactory({
-			providerId: 'anthropic',
-			canHandle: (modelId: string) => modelId.startsWith('claude-'),
-			create: () => createMockProvider('anthropic'),
-		});
+		const service = createService();
 
 		assert.throws(
-			() => service.resolve('gpt-4o'),
+			() => service.resolve('totally-unknown-model-xyz'),
 			/No model provider found/,
 		);
-	});
-
-	test('multiple providers for different model families', () => {
-		const service = new ModelProviderService();
-		service.registerFactory({
-			providerId: 'anthropic',
-			canHandle: (modelId: string) => modelId.startsWith('claude-'),
-			create: () => createMockProvider('anthropic'),
-		});
-		service.registerFactory({
-			providerId: 'openai',
-			canHandle: (modelId: string) => modelId.startsWith('gpt-') || modelId.startsWith('o'),
-			create: () => createMockProvider('openai'),
-		});
-
-		const anthropicResult = service.resolve('claude-sonnet-4-20250514');
-		assert.strictEqual(anthropicResult.identity.provider, 'anthropic');
-
-		const openaiResult = service.resolve('gpt-4o');
-		assert.strictEqual(openaiResult.identity.provider, 'openai');
-
-		const oResult = service.resolve('o3-pro');
-		assert.strictEqual(oResult.identity.provider, 'openai');
 	});
 });

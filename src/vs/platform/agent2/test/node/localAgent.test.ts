@@ -15,6 +15,7 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { AgentSession } from '../../../agent/common/agentService.js';
 import { LocalAgent } from '../../node/localAgent.js';
 import { CopilotApiService, ICopilotApiService } from '../../node/copilotToken.js';
+import { IModelProviderService, ModelProviderService } from '../../node/modelProviderService.js';
 
 suite('LocalAgent', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,8 +28,11 @@ suite('LocalAgent', () => {
 
 		const services = new ServiceCollection();
 		services.set(ILogService, log);
-		services.set(ICopilotApiService, new CopilotApiService(log));
+		const apiService = new CopilotApiService(log);
+		services.set(ICopilotApiService, apiService);
 		services.set(INativeEnvironmentService, { userDataPath: tmpDir } as Partial<INativeEnvironmentService> as INativeEnvironmentService);
+		const modelProviderService = store.add(new InstantiationService(services)).createInstance(ModelProviderService);
+		services.set(IModelProviderService, modelProviderService);
 		const instantiationService = store.add(new InstantiationService(services));
 
 		agent = store.add(instantiationService.createInstance(LocalAgent));
