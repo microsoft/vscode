@@ -37,18 +37,13 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			default: false,
 			type: 'boolean',
 			tags: ['preview'],
-			experiment: {
-				mode: 'auto'
-			}
 		},
 		[InlineChatConfigKeys.notebookAgent]: {
 			markdownDescription: localize('notebookAgent', "Enable agent-like behavior for inline chat widget in notebooks."),
 			default: false,
 			type: 'boolean',
 			tags: ['experimental'],
-			experiment: {
-				mode: 'startup'
-			}
+			experimentMode: 'startup'
 		},
 		[InlineChatConfigKeys.Affordance]: {
 			description: localize('affordance', "Controls whether an inline chat affordance is shown when text is selected."),
@@ -60,9 +55,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('affordance.gutter', "Show an affordance in the gutter."),
 				localize('affordance.editor', "Show an affordance in the editor at the cursor position."),
 			],
-			experiment: {
-				mode: 'auto'
-			},
 			tags: ['experimental']
 		},
 		[InlineChatConfigKeys.RenderMode]: {
@@ -74,18 +66,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('renderMode.zone', "Render inline chat as a zone widget below the current line."),
 				localize('renderMode.hover', "Render inline chat as a hover overlay."),
 			],
-			experiment: {
-				mode: 'auto'
-			},
 			tags: ['experimental']
 		},
 		[InlineChatConfigKeys.FixDiagnostics]: {
 			description: localize('fixDiagnostics', "Controls whether the Fix action is shown for diagnostics in the editor."),
 			default: true,
 			type: 'boolean',
-			experiment: {
-				mode: 'auto'
-			},
 			tags: ['experimental']
 		}
 	}
