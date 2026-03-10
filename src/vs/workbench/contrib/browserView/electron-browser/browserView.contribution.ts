@@ -218,10 +218,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: MATCH_VSCODE_LABEL,
 			markdownDescription: localize(
 				{ comment: ['This is the description for a setting.'], key: 'browser.pageZoom' },
-				'Controls the default zoom level for the Integrated Browser. The {0} command will restore the zoom to this level.',
-				'`Reset Zoom`'
+				'Default zoom level for all sites. To see zoom levels for certain sites, go to {0}.',
+				'`#workbench.browser.zoom.zoomLevels#`'
 			),
-			scope: ConfigurationScope.WINDOW
+			// Zoom can change from machine to machine, so we don't need the workspace-level nor syncing that WINDOW has.
+			scope: ConfigurationScope.MACHINE
 		},
 		[BROWSER_ZOOM_PER_HOST_SETTING]: {
 			type: 'object',
@@ -233,9 +234,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['advanced'],
 			markdownDescription: localize(
 				{ comment: ['This is the description for a setting. Keys are host strings, e.g. "example.com".'], key: 'browser.zoomLevels' },
-				'Controls the zoom level for specific hosts in the Integrated Browser, overriding the default zoom level. Each key is a host (e.g. `example.com`) and each value is a zoom percentage. Entries are added and removed automatically when you zoom in or out on a page.'
+				'Per-site zoom levels. Each key is a host (for example, `example.com`) and each value is a zoom percentage. Entries are added and removed automatically when you zoom in or out on a page.'
 			),
-			scope: ConfigurationScope.WINDOW
+			// Zoom can change from machine to machine, so we don't need the workspace-level nor syncing that WINDOW has.
+			scope: ConfigurationScope.MACHINE
 		},
 		'workbench.browser.dataStorage': {
 			type: 'string',
