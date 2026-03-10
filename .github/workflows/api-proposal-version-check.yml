@@ -13,6 +13,8 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  actions: write
+  checks: write
 
 concurrency:
   group: api-proposal-${{ github.event.pull_request.number || github.event.issue.number }}
@@ -68,25 +70,53 @@ jobs:
               issue_number: prNumber
             });
 
+            // Only accept overrides from trusted users (repo members/collaborators)
+            const trustedAssociations = ['OWNER', 'MEMBER', 'COLLABORATOR'];
             const overrideComment = comments.find(comment =>
-              comment.body.includes('/api-proposal-change-required')
+              comment.body.includes('/api-proposal-change-required') &&
+              trustedAssociations.includes(comment.author_association)
             );
 
             if (overrideComment) {
-              console.log(`Override comment found by ${overrideComment.user.login}`);
+              console.log(`Override comment found by ${overrideComment.user.login} (${overrideComment.author_association})`);
               core.setOutput('override_found', 'true');
               core.setOutput('override_user', overrideComment.user.login);
             } else {
-              console.log('No override comment found');
+              // Check if there's an override from an untrusted user
+              const untrustedOverride = comments.find(comment =>
+                comment.body.includes('/api-proposal-change-required') &&
+                !trustedAssociations.includes(comment.author_association)
+              );
+              if (untrustedOverride) {
+                console.log(`Override comment by ${untrustedOverride.user.login} ignored (${untrustedOverride.author_association} is not trusted)`);
+              }
+              console.log('No valid override comment found');
               core.setOutput('override_found', 'false');
             }
 
-      # If triggered by the override comment, we just need to pass
+      # If triggered by the override comment, create a successful check run on the PR head
       - name: Pass on override comment
         if: steps.check_override.outputs.override_found == 'true'
-        run: |
-          echo "Override comment found by ${{ steps.check_override.outputs.override_user }}"
-          echo "API proposal version change has been acknowledged."
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const headSha = '${{ steps.pr_info.outputs.head_sha }}';
+            console.log(`Override comment found by ${{ steps.check_override.outputs.override_user }}`);
+            console.log('API proposal version change has been acknowledged.');
+
+            // Create a successful check run on the PR head SHA so the status updates
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Check API Proposal Version Changes',
+              head_sha: headSha,
+              status: 'completed',
+              conclusion: 'success',
+              output: {
+                title: 'API Proposal Version Change Acknowledged',
+                summary: `Override approved by @${{ steps.check_override.outputs.override_user }}`
+              }
+            });
 
       # Only continue checking if no override found
       - name: Checkout repository
@@ -104,8 +134,12 @@ jobs:
         run: |
           set -e
 
-          # Get the list of changed proposed API files
-          CHANGED_FILES=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- 'src/vscode-dts/vscode.proposed.*.d.ts' || true)
+          # Use merge-base to get accurate diff of what the PR actually changes
+          MERGE_BASE=$(git merge-base "$BASE_SHA" "$HEAD_SHA")
+          echo "Merge base: $MERGE_BASE"
+
+          # Get the list of changed proposed API files (diff against merge-base)
+          CHANGED_FILES=$(git diff --name-only "$MERGE_BASE" "$HEAD_SHA" -- 'src/vscode-dts/vscode.proposed.*.d.ts' || true)
 
           if [ -z "$CHANGED_FILES" ]; then
             echo "No proposed API files changed"
@@ -129,8 +163,8 @@ jobs:
             # Get version from head (current PR)
             HEAD_VERSION=$(git show "$HEAD_SHA:$FILE" | grep -E '^// version: [0-9]+' | sed 's/.*version: //' || echo "")
 
-            # Get version from base (target branch)
-            BASE_VERSION=$(git show "$BASE_SHA:$FILE" 2>/dev/null | grep -E '^// version: [0-9]+' | sed 's/.*version: //' || echo "")
+            # Get version from merge-base (what the PR is based on)
+            BASE_VERSION=$(git show "$MERGE_BASE:$FILE" 2>/dev/null | grep -E '^// version: [0-9]+' | sed 's/.*version: //' || echo "")
 
             echo "File: $FILE"
             echo "  Base version: ${BASE_VERSION:-'(none)'}"
