@@ -1107,13 +1107,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const shouldPromptToSave = this.currentEditingStorage === BUILTIN_STORAGE &&
 			this.currentEditingPromptType === PromptsType.prompt &&
 			this._editorContentChanged;
-		this.editorActionButtonIcon.className = `codicon codicon-${Codicon.arrowLeft.id} editor-action-button-icon`;
+		this.editorActionButtonIcon.className = `codicon codicon-${shouldPromptToSave ? Codicon.save.id : Codicon.arrowLeft.id} editor-action-button-icon`;
 		this.editorActionButton.disabled = false;
 		this.editorActionButton.setAttribute('aria-label', shouldPromptToSave
-			? localize('backToListAndSavePromptCopy', "Back to list and choose where to save the prompt override")
+			? localize('savePromptCopyAndChooseLocation', "Save prompt override")
 			: localize('backToList', "Back to list"));
 		this.editorActionButton.title = shouldPromptToSave
-			? localize('backToListAndSavePromptCopyTooltip', "Go back and choose Workspace, User, or Cancel")
+			? localize('savePromptCopyAndChooseLocationTooltip', "Save prompt override (choose Workspace, User, or Cancel)")
 			: localize('backToList', "Back to list");
 	}
 
