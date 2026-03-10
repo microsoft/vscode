@@ -51,8 +51,8 @@ import { OS } from '../../../../../base/common/platform.js';
 const $ = DOM.$;
 
 const ITEM_HEIGHT = 48;
-const GROUP_HEADER_HEIGHT = 36;
-const GROUP_HEADER_HEIGHT_WITH_SEPARATOR = 40;
+const GROUP_HEADER_HEIGHT = 28;
+const GROUP_HEADER_HEIGHT_WITH_SEPARATOR = 32;
 
 /**
  * Represents an AI customization item in the list.
