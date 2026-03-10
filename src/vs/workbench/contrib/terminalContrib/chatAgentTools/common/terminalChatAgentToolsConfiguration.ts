@@ -509,6 +509,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		],
 		default: 'chat',
 		tags: ['experimental'],
+		experiment: {
+			mode: 'auto'
+		}
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxEnabled]: {
 		markdownDescription: localize('terminalSandbox.enabledSetting', "Controls whether to run commands in a sandboxed terminal for the run in terminal tool."),
@@ -516,6 +519,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		default: false,
 		tags: ['preview'],
 		restricted: true,
+		experiment: {
+			mode: 'auto'
+		}
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxNetwork]: {
 		markdownDescription: localize('terminalSandbox.networkSetting', "Note: this setting is applicable only when {0} is enabled. Controls network access in the terminal sandbox.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
@@ -625,6 +631,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		type: 'boolean',
 		default: true,
 		tags: ['experimental'],
+		experiment: {
+			mode: 'auto'
+		},
 		markdownDescription: localize('enforceTimeoutFromModel.description', "Whether to enforce the timeout value provided by the model in the run in terminal tool. When enabled, if the model provides a timeout parameter, the tool will stop tracking the command after that duration and return the output collected so far."),
 	}
 };

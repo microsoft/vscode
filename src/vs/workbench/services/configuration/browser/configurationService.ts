@@ -1335,7 +1335,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 	}
 }
 
-export class ConfigurationDefaultOverridesContribution extends Disposable implements IWorkbenchContribution {
+class ConfigurationDefaultOverridesContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.configurationDefaultOverridesContribution';
 
@@ -1380,7 +1380,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 		const defaultConfigurationsPreventingExperimentOverrides = this.configurationRegistry.getRegisteredDefaultConfigurations().filter(configuration => configuration.preventExperimentOverride);
 		for (const property of properties) {
 			const schema = allProperties[property];
-			if (!schema) {
+			if (!schema?.experiment) {
 				continue;
 			}
 			const defaultValueSource: ConfigurationDefaultSource | undefined = schema.defaultValueSource && !(schema.defaultValueSource instanceof Map) ? schema.defaultValueSource : undefined;
@@ -1391,11 +1391,11 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 				continue;
 			}
 			this.processedExperimentalSettings.add(property);
-			if (schema.experimentMode !== 'startup') {
+			if (schema.experiment.mode === 'auto') {
 				this.autoExperimentalSettings.add(property);
 			}
 			try {
-				const value = await this.workbenchAssignmentService.getTreatment(`config.${property}`);
+				const value = await this.workbenchAssignmentService.getTreatment(schema.experiment.name ?? `config.${property}`);
 				if (!isUndefined(value) && !equals(value, schema.default)) {
 					overrides[property] = value;
 				}
