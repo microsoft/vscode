@@ -105,6 +105,13 @@ declare module 'vscode' {
 		displayName?: string;
 
 		excludes?: string[];
+
+		/**
+		 * Whether this provider uses network requests to provide completions.
+		 * When `true`, the provider is disabled when the network connection is metered.
+		 * Default is `true`.
+		 */
+		usesNetworkRequests?: boolean;
 	}
 
 	export interface InlineCompletionItemProvider {
