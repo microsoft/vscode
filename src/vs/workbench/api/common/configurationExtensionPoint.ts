@@ -294,9 +294,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 				if (extensionConfigurationPolicy?.[key]) {
 					propertyConfiguration.policy = extensionConfigurationPolicy?.[key];
 				}
-				if (!propertyConfiguration.experimentMode) {
-					propertyConfiguration.experimentMode = 'startup';
-				}
+				propertyConfiguration.experimentMode = 'startup';
 				seenProperties.add(key);
 				propertyConfiguration.scope = propertyConfiguration.scope ? parseScope(propertyConfiguration.scope.toString()) : ConfigurationScope.WINDOW;
 			}
