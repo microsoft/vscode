@@ -879,9 +879,9 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		}
 
 		const result: AgentSessionListItem[] = [];
-		for (const [repoId, { label, sessions }] of repoMap) {
+		for (const [, { label, sessions }] of repoMap) {
 			result.push({
-				section: `repo-${repoId}` as AgentSessionSection,
+				section: AgentSessionSection.Repository,
 				label,
 				sessions,
 			});
@@ -1040,7 +1040,7 @@ export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSe
 
 	getId(element: IAgentSessionsModel | AgentSessionListItem): string {
 		if (isAgentSessionSection(element)) {
-			return `section-${element.section}`;
+			return `section-${element.section}-${element.label}`;
 		}
 
 		if (isAgentSession(element)) {
