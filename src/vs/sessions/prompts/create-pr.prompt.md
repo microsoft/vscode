@@ -5,7 +5,8 @@ description: Create a pull request for the current session
 
 Use the GitHub MCP server to create a pull request — do NOT use the `gh` CLI.
 
-1. Review all changes in the current session
-2. Write a clear, concise PR title with a short area prefix (e.g. "sessions: …", "editor: …")
-3. Write a description covering what changed, why, and anything reviewers should know
-4. Create the pull request
+1. Run the compile and hygiene tasks (fixing any errors)
+2. Review all changes in the current session
+3. Write a clear, concise PR title with a short area prefix (e.g. "sessions: …", "editor: …")
+4. Write a description covering what changed, why, and anything reviewers should know
+5. Create the pull request

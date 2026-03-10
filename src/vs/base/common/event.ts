@@ -707,7 +707,7 @@ export namespace Event {
 	 * Creates an {@link Event} from a node event emitter.
 	 */
 	export function fromNodeEventEmitter<T>(emitter: NodeEventEmitter, eventName: string, map: (...args: any[]) => T = id => id): Event<T> {
-		const fn = (...args: any[]) => result.fire(map(...args));
+		const fn = (...args: unknown[]) => result.fire(map(...args));
 		const onFirstListenerAdd = () => emitter.on(eventName, fn);
 		const onLastListenerRemove = () => emitter.removeListener(eventName, fn);
 		const result = new Emitter<T>({ onWillAddFirstListener: onFirstListenerAdd, onDidRemoveLastListener: onLastListenerRemove });
@@ -724,7 +724,7 @@ export namespace Event {
 	 * Creates an {@link Event} from a DOM event emitter.
 	 */
 	export function fromDOMEventEmitter<T>(emitter: DOMEventEmitter, eventName: string, map: (...args: any[]) => T = id => id): Event<T> {
-		const fn = (...args: any[]) => result.fire(map(...args));
+		const fn = (...args: unknown[]) => result.fire(map(...args));
 		const onFirstListenerAdd = () => emitter.addEventListener(eventName, fn);
 		const onLastListenerRemove = () => emitter.removeEventListener(eventName, fn);
 		const result = new Emitter<T>({ onWillAddFirstListener: onFirstListenerAdd, onDidRemoveLastListener: onLastListenerRemove });

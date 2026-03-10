@@ -65,7 +65,6 @@ suite('PromptsService', () => {
 	let testConfigService: TestConfigurationService;
 	let fileService: IFileService;
 	let testPluginsObservable: ISettableObservable<readonly IAgentPlugin[]>;
-	let testAllPluginsObservable: ISettableObservable<readonly IAgentPlugin[]>;
 	let workspaceTrustService: TestWorkspaceTrustManagementService;
 
 	setup(async () => {
@@ -172,12 +171,10 @@ suite('PromptsService', () => {
 		instaService.stub(IWorkspaceTrustManagementService, workspaceTrustService);
 
 		testPluginsObservable = observableValue<readonly IAgentPlugin[]>('testPlugins', []);
-		testAllPluginsObservable = observableValue<readonly IAgentPlugin[]>('testAllPlugins', []);
 
 		instaService.stub(IAgentPluginService, {
 			plugins: testPluginsObservable,
-			allPlugins: testAllPluginsObservable,
-			setPluginEnabled: () => { },
+			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, setEnabled: () => { } },
 		});
 
 		service = disposables.add(instaService.createInstance(PromptsService));
@@ -3514,7 +3511,7 @@ suite('PromptsService', () => {
 
 	suite('hooks', () => {
 		const createTestPlugin = (path: string, initialHooks: readonly IAgentPluginHook[]): { plugin: IAgentPlugin; hooks: ISettableObservable<readonly IAgentPluginHook[]> } => {
-			const enabled = observableValue<boolean>('testPluginEnabled', true);
+			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
 			const hooks = observableValue<readonly IAgentPluginHook[]>('testPluginHooks', initialHooks);
 			const commands = observableValue<readonly IAgentPluginCommand[]>('testPluginCommands', []);
 			const skills = observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', []);
@@ -3525,8 +3522,7 @@ suite('PromptsService', () => {
 				plugin: {
 					uri: URI.file(path),
 					label: basename(URI.file(path)),
-					enabled,
-					setEnabled: () => { },
+					enablement,
 					remove: () => { },
 					hooks,
 					commands,
@@ -3600,7 +3596,6 @@ suite('PromptsService', () => {
 			}]);
 
 			testPluginsObservable.set([plugin], undefined);
-			testAllPluginsObservable.set([plugin], undefined);
 
 			const result = await service.getHooks(CancellationToken.None);
 			assert.ok(result, 'Expected hooks result');
@@ -3622,7 +3617,6 @@ suite('PromptsService', () => {
 			}]);
 
 			testPluginsObservable.set([plugin], undefined);
-			testAllPluginsObservable.set([plugin], undefined);
 
 			const before = await service.getHooks(CancellationToken.None);
 			assert.ok(before, 'Expected hooks result before plugin update');
@@ -3676,33 +3670,6 @@ suite('PromptsService', () => {
 			assert.strictEqual(reTrustedResult.hooks[HookType.PreToolUse]?.length, 1);
 		});
 
-		test('discovery info marks hooks as skipped when workspace is untrusted', async function () {
-			workspaceContextService.setWorkspace(testWorkspace(URI.file('/test-workspace')));
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
-			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, { [HOOKS_SOURCE_FOLDER]: true });
-
-			await mockFiles(fileService, [
-				{
-					path: '/test-workspace/.github/hooks/my-hook.json',
-					contents: [
-						JSON.stringify({
-							hooks: {
-								[HookType.PreToolUse]: [
-									{ type: 'command', command: 'echo test' },
-								],
-							},
-						}),
-					],
-				},
-			]);
-
-			await workspaceTrustService.setWorkspaceTrust(false);
-			const discoveryInfo = await service.getPromptDiscoveryInfo(PromptsType.hook, CancellationToken.None);
-			assert.strictEqual(discoveryInfo.files.length, 1, 'Expected one discovery result');
-			assert.strictEqual(discoveryInfo.files[0].status, 'skipped');
-			assert.strictEqual(discoveryInfo.files[0].skipReason, 'workspace-untrusted');
-		});
-
 		test('suppresses plugin hooks when workspace is untrusted', async function () {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, {});
@@ -3714,7 +3681,6 @@ suite('PromptsService', () => {
 			}]);
 
 			testPluginsObservable.set([plugin], undefined);
-			testAllPluginsObservable.set([plugin], undefined);
 
 			await workspaceTrustService.setWorkspaceTrust(false);
 			const result = await service.getHooks(CancellationToken.None);

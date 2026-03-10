@@ -16,7 +16,7 @@ import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../..
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem } from './chatDebugTypes.js';
@@ -159,7 +159,7 @@ export class ChatDebugOverviewView extends Disposable {
 		// Session type
 		const sessionType = getChatSessionType(sessionUri);
 		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
-		const sessionTypeName = contribution?.displayName || (sessionType === 'local'
+		const sessionTypeName = contribution?.displayName || (sessionType === localChatSessionType
 			? localize('chatDebug.sessionType.local', "Local")
 			: sessionType);
 		details.push({ label: localize('chatDebug.detail.sessionType', "Session Type"), value: sessionTypeName });

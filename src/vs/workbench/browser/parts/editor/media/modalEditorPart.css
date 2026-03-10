@@ -12,17 +12,20 @@
 	left: 0;
 	/* z-index for modal editors: above titlebar (2500) but below quick input (2550) and dialogs (2575) */
 	z-index: 2540;
-	display: flex;
-	justify-content: center;
-	align-items: center;
 	/* Never allow content to escape above the title bar */
 	overflow: hidden;
 	background: rgba(0, 0, 0, 0.3);
+
+	.modal-editor-resizable {
+		position: absolute;
+	}
 
 	.modal-editor-shadow {
 		box-shadow: var(--vscode-shadow-xl);
 		border-radius: 8px;
 		overflow: hidden;
+		width: 100%;
+		height: 100%;
 	}
 }
 
@@ -30,8 +33,8 @@
 .monaco-modal-editor-block .modal-editor-part {
 	display: flex;
 	flex-direction: column;
-	min-width: 400px;
-	min-height: 300px;
+	width: 100%;
+	height: 100%;
 	background-color: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
 	border-radius: 8px;

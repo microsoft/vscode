@@ -334,12 +334,6 @@ export interface IPromptFileDiscoveryResult {
 export interface IPromptSourceFolderResult {
 	readonly uri: URI;
 	readonly storage: PromptsStorage;
-	/** Whether the folder exists on disk */
-	readonly exists: boolean;
-	/** Number of matching files found in this folder */
-	readonly fileCount: number;
-	/** Error message if resolution failed */
-	readonly errorMessage?: string;
 }
 
 /**
@@ -348,7 +342,7 @@ export interface IPromptSourceFolderResult {
 export interface IPromptDiscoveryInfo {
 	readonly type: PromptsType;
 	readonly files: readonly IPromptFileDiscoveryResult[];
-	/** Source folders that were searched, with their existence and file count */
+	/** Source folders that were searched */
 	readonly sourceFolders?: readonly IPromptSourceFolderResult[];
 }
 
@@ -498,14 +492,6 @@ export interface IPromptsService extends IDisposable {
 	 * Event that is triggered when the list of skills changes.
 	 */
 	readonly onDidChangeSkills: Event<void>;
-
-	/**
-	 * Gets detailed discovery information for a prompt type.
-	 * This includes all files found and their load/skip status with reasons.
-	 * Used for diagnostics and config-info displays.
-	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
-	 */
-	getPromptDiscoveryInfo(type: PromptsType, token: CancellationToken, sessionResource?: URI): Promise<IPromptDiscoveryInfo>;
 
 	/**
 	 * Gets all hooks collected from hooks.json files.

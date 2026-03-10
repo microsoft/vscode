@@ -50,13 +50,13 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchIssueService } from '../../../issue/common/issue.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
-import { annotateSpecialMarkdownContent, extractSubAgentInvocationIdFromText, hasEditCodeblockUriTag } from '../../common/widget/annotations.js';
+import { annotateSpecialMarkdownContent, extractSubAgentInvocationIdFromText, hasCodeblockUriTag, hasEditCodeblockUriTag } from '../../common/widget/annotations.js';
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentMetadata } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatTextEditGroup } from '../../common/model/chatModel.js';
 import { chatSubcommandLeader } from '../../common/requestParser/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, ChatRequestQueueKind, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPullRequestContent, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../../common/chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, ChatRequestQueueKind, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../../common/chatService/chatService.js';
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -657,6 +657,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			dispose(coalesce(templateData.renderedParts));
 			templateData.renderedParts = undefined;
 			dom.clearNode(templateData.value);
+		} else if (isPendingDividerVM(templateData.currentElement)) {
+			dom.clearNode(templateData.value);
 		}
 
 		// This template item is no longer in use, or having another element rendered into it,
@@ -682,6 +684,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		templateData.currentElement = element;
 		this.templateDataByRequestId.set(element.id, templateData);
+
+		// Clear pending-related classes and drag handle from previous renders
+		// Do this before element-type checks to ensure dividers also get cleaned up
+		templateData.rowContainer.classList.remove('pending-item', 'pending-divider', 'pending-request', 'chat-pending-dragging');
+		templateData.dragHandle?.remove();
+		templateData.dragHandle = undefined;
+		delete templateData.rowContainer.dataset.pendingRequestId;
+		delete templateData.rowContainer.dataset.pendingKind;
 
 		// Handle pending divider with simplified rendering
 		if (isPendingDividerVM(element)) {
@@ -728,12 +738,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('editing-session', location === ChatAgentLocation.Chat);
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
-		// Clear pending-related classes and drag handle from previous renders
-		templateData.rowContainer.classList.remove('pending-item', 'pending-divider', 'pending-request');
-		templateData.dragHandle?.remove();
-		templateData.dragHandle = undefined;
-		delete templateData.rowContainer.dataset.pendingRequestId;
-		delete templateData.rowContainer.dataset.pendingKind;
 		const progressMessageAtBottomOfResponse = checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse);
 		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length && !progressMessageAtBottomOfResponse);
 		if (!this.rendererOptions.noHeader) {
@@ -2160,9 +2164,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const responseId = isResponseVM(context.element) ? context.element.requestId : undefined;
 		const requestMessageText = isResponseVM(context.element) ? this.getRequestMessageText(context.element) : undefined;
 
-		const handleSubmit = async (answers: Map<string, unknown> | undefined, part: ChatQuestionCarouselPart) => {
+		const handleSubmit = async (answers: Map<string, IChatQuestionAnswerValue> | undefined, part: ChatQuestionCarouselPart) => {
 			// Mark the carousel as used and store the answers
-			const answersRecord = answers ? Object.fromEntries(answers) : undefined;
+			const answersRecord: IChatQuestionAnswers | undefined = answers ? Object.fromEntries(answers) : undefined;
 			carousel.data = answersRecord ?? {};
 			carousel.isUsed = true;
 			if (carousel instanceof ChatQuestionCarouselData) {
@@ -2314,7 +2318,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		context: IChatContentPartRenderContext,
 		carousel: IChatQuestionCarousel,
 		part: ChatQuestionCarouselPart,
-		submit: (answers: Map<string, unknown> | undefined) => Promise<void>,
+		submit: (answers: Map<string, IChatQuestionAnswerValue> | undefined) => Promise<void>,
 		modelName: string | undefined,
 		requestMessageText: string | undefined,
 	): void {
@@ -2416,7 +2420,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const isFinalRenderPass = isResponseVM(element) && element.isComplete && !element.renderData;
 		const lastPinnedPartIndex = isFinalRenderPass ? context.content.findLastIndex(c => c.kind === 'thinking' || c.kind === 'toolInvocation' || c.kind === 'toolInvocationSerialized') : -1;
 		const isFinalAnswerPart = isFinalRenderPass && context.contentIndex > lastPinnedPartIndex;
-		if (!this.hasEditCodeblockUri(markdown) || isFinalAnswerPart) {
+		const isBlankMarkdown = !markdown.content.value.trim();
+		// Don't finalize thinking if the markdown has an incomplete codeblock with a
+		// vscode_codeblock_uri tag — the isEdit annotation may not have arrived yet.
+		// Only check codeblocks that contain a URI tag to avoid catching regular non-edit codeblocks.
+		const hasPendingEditCodeblock = isResponseVM(element) && !element.isComplete
+			&& hasCodeblockUriTag(markdown.content.value)
+			&& !codeblockHasClosingBackticks(markdown.content.value);
+		if ((!this.hasEditCodeblockUri(markdown) || isFinalAnswerPart) && !isBlankMarkdown && !hasPendingEditCodeblock) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
@@ -2522,7 +2533,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						templateData.value
 					);
 				}
-			} else if (!this.shouldPinPart(markdown, context.element)) {
+			} else if (!this.shouldPinPart(markdown, context.element) && !isBlankMarkdown && !hasPendingEditCodeblock) {
 				this.finalizeCurrentThinkingPart(context, templateData);
 			}
 		}

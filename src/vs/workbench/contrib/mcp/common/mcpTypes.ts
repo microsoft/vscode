@@ -23,11 +23,12 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
-import { IGalleryMcpServer, IInstallableMcpServer, IGalleryMcpServerConfiguration, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpDevModeConfig, IMcpSandboxConfiguration, IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolder, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchLocalMcpServer, IWorkbencMcpServerInstallOptions } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { ContributionEnablementState, IEnablementModel } from '../../chat/common/enablement.js';
 import { ToolProgress } from '../../chat/common/tools/languageModelToolsService.js';
 import { IMcpServerSamplingConfiguration } from './mcpConfiguration.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
@@ -245,6 +246,9 @@ export interface IMcpService {
 	_serviceBrand: undefined;
 	readonly servers: IObservable<readonly IMcpServer[]>;
 
+	/** The enablement model for MCP servers. */
+	readonly enablementModel: IEnablementModel;
+
 	/** Resets the cached tools. */
 	resetCaches(): void;
 
@@ -329,6 +333,7 @@ export namespace McpServerTrust {
 export interface IMcpServer extends IDisposable {
 	readonly collection: McpCollectionReference;
 	readonly definition: McpDefinitionReference;
+	readonly enablement: IObservable<ContributionEnablementState>;
 	readonly connection: IObservable<IMcpServerConnection | undefined>;
 	readonly connectionState: IObservable<McpConnectionState>;
 	readonly serverMetadata: IObservable<{
@@ -742,6 +747,8 @@ export interface IMcpServerEditorOptions extends IEditorOptions {
 export const enum McpServerEnablementState {
 	Disabled,
 	DisabledByAccess,
+	DisabledProfile,
+	DisabledWorkspace,
 	Enabled,
 }
 

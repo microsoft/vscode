@@ -250,6 +250,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				if (options?.inputValue) {
 					const chatWidget = await widgetService.revealWidget();
+					chatWidget?.input.showScrollbarUntilAccept();
 					chatWidget?.setInput(options.inputValue);
 				}
 
