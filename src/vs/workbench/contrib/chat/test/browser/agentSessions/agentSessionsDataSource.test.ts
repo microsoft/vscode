@@ -741,10 +741,12 @@ suite('AgentSessionsDataSource', () => {
 			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
 			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
 
-			assert.deepStrictEqual(sortedGroups(result), [
-				{ label: 'Other', count: 1 },
-				{ label: 'other', count: 1 },
-			]);
+			assert.strictEqual(result.length, 2, 'should have 2 separate groups');
+			const labels = result.map(s => s.label);
+			assert.ok(labels.includes('other'), 'should have a group for repo named "other"');
+			assert.ok(labels.includes('Other'), 'should have the fallback "Other" group');
+			assert.strictEqual(result.find(s => s.label === 'other')!.sessions.length, 1);
+			assert.strictEqual(result.find(s => s.label === 'Other')!.sessions.length, 1);
 		});
 
 		test('archived sessions go to Archived section', () => {
