@@ -1,0 +1,11 @@
+{
+	"type": "object",
+	"properties": {
+		"service": { "type": "string" },
+		"version": { "type": "string" },
+		"status": { "type": "string", "enum": ["success", "in-progress", "failed", "rolled-back"] },
+		"timestamp": { "type": "string", "format": "date-time" },
+		"environment": { "type": "string", "enum": ["production", "staging", "development"] }
+	},
+	"required": ["service", "version", "status"]
+}

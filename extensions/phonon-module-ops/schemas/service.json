@@ -1,0 +1,12 @@
+{
+	"type": "object",
+	"properties": {
+		"name": { "type": "string" },
+		"status": { "type": "string", "enum": ["healthy", "degraded", "down"] },
+		"uptime": { "type": "number" },
+		"latencyP99": { "type": "number" },
+		"errorRate": { "type": "number" },
+		"throughput": { "type": "number" }
+	},
+	"required": ["name", "status"]
+}

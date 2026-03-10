@@ -1,0 +1,116 @@
+<style>
+	* { margin: 0; padding: 0; box-sizing: border-box; }
+	body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+	.rg-container {
+		display: flex;
+		justify-content: space-around;
+		align-items: center;
+		padding: 20px 16px;
+		gap: 16px;
+	}
+	.rg-gauge {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		flex: 1;
+	}
+	.rg-svg-wrap { position: relative; width: 120px; height: 120px; }
+	.rg-svg-wrap svg { width: 120px; height: 120px; }
+	.rg-value-overlay {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		text-align: center;
+	}
+	.rg-value {
+		font-size: 24px;
+		font-weight: 700;
+		font-family: 'SF Mono', 'Cascadia Code', monospace;
+	}
+	.rg-value.green { color: #3fb950; }
+	.rg-value.yellow { color: #d29922; }
+	.rg-value.red { color: #f85149; }
+	.rg-unit {
+		font-size: 10px;
+		color: #8b949e;
+	}
+	.rg-label {
+		font-size: 12px;
+		font-weight: 600;
+		color: #8b949e;
+		text-transform: uppercase;
+		letter-spacing: 0.6px;
+		margin-top: 10px;
+	}
+	.rg-threshold {
+		font-size: 10px;
+		color: #6e7681;
+		margin-top: 2px;
+	}
+	.rg-track { fill: none; stroke: #21262d; stroke-width: 8; }
+	.rg-fill { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 0.8s ease; }
+	.rg-fill.green { stroke: #3fb950; filter: drop-shadow(0 0 4px rgba(63, 185, 80, 0.3)); }
+	.rg-fill.yellow { stroke: #d29922; filter: drop-shadow(0 0 6px rgba(210, 153, 34, 0.4)); }
+	.rg-fill.red { stroke: #f85149; filter: drop-shadow(0 0 8px rgba(248, 81, 73, 0.5)); }
+</style>
+
+<div class="rg-container" id="rg-container"></div>
+
+<script>
+window.phonon.onReady(function() {
+	var metrics = [
+		{ name: 'CPU', value: 67, unit: '%', threshold: 80 },
+		{ name: 'Memory', value: 82, unit: '%', threshold: 85 },
+		{ name: 'Disk', value: 45, unit: '%', threshold: 90 }
+	];
+
+	var container = document.getElementById('rg-container');
+	var radius = 46;
+	var circumference = 2 * Math.PI * radius;
+	var arcFraction = 0.75;
+	var arcLength = circumference * arcFraction;
+
+	for (var i = 0; i < metrics.length; i++) {
+		var m = metrics[i];
+		var colorClass = m.value < 60 ? 'green' : (m.value < 80 ? 'yellow' : 'red');
+
+		var gauge = document.createElement('div');
+		gauge.className = 'rg-gauge';
+
+		var svgWrap = document.createElement('div');
+		svgWrap.className = 'rg-svg-wrap';
+
+		var offset = arcLength - (arcLength * m.value / 100);
+		var startAngle = 135;
+
+		svgWrap.innerHTML = '<svg viewBox="0 0 120 120">' +
+			'<circle class="rg-track" cx="60" cy="60" r="' + radius + '" ' +
+			'stroke-dasharray="' + arcLength + ' ' + circumference + '" ' +
+			'stroke-dashoffset="0" ' +
+			'transform="rotate(' + startAngle + ' 60 60)" />' +
+			'<circle class="rg-fill ' + colorClass + '" cx="60" cy="60" r="' + radius + '" ' +
+			'stroke-dasharray="' + arcLength + ' ' + circumference + '" ' +
+			'stroke-dashoffset="' + offset + '" ' +
+			'transform="rotate(' + startAngle + ' 60 60)" />' +
+			'</svg>' +
+			'<div class="rg-value-overlay">' +
+			'<div class="rg-value ' + colorClass + '">' + m.value + '</div>' +
+			'<div class="rg-unit">' + m.unit + '</div>' +
+			'</div>';
+
+		var label = document.createElement('div');
+		label.className = 'rg-label';
+		label.textContent = m.name;
+
+		var threshold = document.createElement('div');
+		threshold.className = 'rg-threshold';
+		threshold.textContent = 'threshold: ' + m.threshold + m.unit;
+
+		gauge.appendChild(svgWrap);
+		gauge.appendChild(label);
+		gauge.appendChild(threshold);
+		container.appendChild(gauge);
+	}
+});
+</script>

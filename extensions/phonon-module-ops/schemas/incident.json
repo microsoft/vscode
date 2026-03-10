@@ -1,0 +1,11 @@
+{
+	"type": "object",
+	"properties": {
+		"title": { "type": "string" },
+		"severity": { "type": "string", "enum": ["P1", "P2", "P3", "P4"] },
+		"owner": { "type": "string" },
+		"duration": { "type": "string" },
+		"status": { "type": "string", "enum": ["active", "investigating", "mitigated", "resolved"] }
+	},
+	"required": ["title", "severity", "status"]
+}

@@ -1,0 +1,11 @@
+{
+	"type": "object",
+	"properties": {
+		"name": { "type": "string" },
+		"value": { "type": "number" },
+		"unit": { "type": "string" },
+		"threshold": { "type": "number" },
+		"timestamp": { "type": "string", "format": "date-time" }
+	},
+	"required": ["name", "value"]
+}

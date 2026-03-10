@@ -1,0 +1,144 @@
+<style>
+	* { margin: 0; padding: 0; box-sizing: border-box; }
+	body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+	.ib-container { padding: 16px; }
+	.ib-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 12px;
+	}
+	.ib-title {
+		font-size: 13px;
+		font-weight: 600;
+		color: #8b949e;
+		text-transform: uppercase;
+		letter-spacing: 0.6px;
+	}
+	.ib-count {
+		font-size: 12px;
+		color: #f85149;
+		background: rgba(248, 81, 73, 0.15);
+		padding: 2px 8px;
+		border-radius: 10px;
+	}
+	.ib-table { width: 100%; border-collapse: collapse; }
+	.ib-table th {
+		font-size: 11px;
+		color: #8b949e;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		text-align: left;
+		padding: 8px 12px;
+		border-bottom: 1px solid #30363d;
+		font-weight: 600;
+	}
+	.ib-table td {
+		font-size: 13px;
+		padding: 10px 12px;
+		border-bottom: 1px solid #21262d;
+		color: #c9d1d9;
+	}
+	.ib-table tr:nth-child(even) td { background: rgba(22, 27, 34, 0.5); }
+	.ib-table tr:hover td { background: rgba(88, 166, 255, 0.06); }
+	.ib-severity {
+		display: inline-block;
+		font-size: 11px;
+		font-weight: 700;
+		padding: 2px 8px;
+		border-radius: 4px;
+		text-align: center;
+		min-width: 32px;
+		font-family: 'SF Mono', 'Cascadia Code', monospace;
+	}
+	.ib-severity.p1 { background: rgba(248, 81, 73, 0.2); color: #f85149; border: 1px solid rgba(248, 81, 73, 0.3); }
+	.ib-severity.p2 { background: rgba(210, 153, 34, 0.2); color: #d29922; border: 1px solid rgba(210, 153, 34, 0.3); }
+	.ib-severity.p3 { background: rgba(187, 128, 9, 0.15); color: #e3b341; border: 1px solid rgba(187, 128, 9, 0.25); }
+	.ib-severity.p4 { background: rgba(88, 166, 255, 0.15); color: #58a6ff; border: 1px solid rgba(88, 166, 255, 0.25); }
+	.ib-status {
+		display: inline-block;
+		font-size: 11px;
+		font-weight: 500;
+		padding: 2px 8px;
+		border-radius: 10px;
+	}
+	.ib-status.investigating { background: rgba(210, 153, 34, 0.15); color: #d29922; }
+	.ib-status.mitigated { background: rgba(63, 185, 80, 0.15); color: #3fb950; }
+	.ib-status.active { background: rgba(248, 81, 73, 0.15); color: #f85149; }
+	.ib-status.resolved { background: rgba(139, 148, 158, 0.15); color: #8b949e; }
+	.ib-owner { color: #58a6ff; }
+	.ib-duration {
+		font-family: 'SF Mono', 'Cascadia Code', monospace;
+		font-size: 12px;
+		color: #8b949e;
+	}
+</style>
+
+<div class="ib-container">
+	<div class="ib-header">
+		<span class="ib-title">Active Incidents</span>
+		<span class="ib-count" id="ib-count"></span>
+	</div>
+	<table class="ib-table">
+		<thead>
+			<tr>
+				<th>Severity</th>
+				<th>Title</th>
+				<th>Owner</th>
+				<th>Duration</th>
+				<th>Status</th>
+			</tr>
+		</thead>
+		<tbody id="ib-body"></tbody>
+	</table>
+</div>
+
+<script>
+window.phonon.onReady(function() {
+	var incidents = [
+		{ severity: 'P1', title: 'Database connection pool exhaustion', owner: 'Sarah Chen', duration: '47m', status: 'investigating' },
+		{ severity: 'P2', title: 'API gateway latency spike (EU-West)', owner: 'Marcus Kim', duration: '2h 15m', status: 'mitigated' },
+		{ severity: 'P3', title: 'Certificate renewal warning \u2014 api.prod', owner: 'DevOps Bot', duration: '3d', status: 'active' },
+		{ severity: 'P3', title: 'Memory leak in recommendation service', owner: 'Alex Rivera', duration: '1h 30m', status: 'investigating' },
+		{ severity: 'P4', title: 'Deprecated endpoint usage detected', owner: 'Platform Team', duration: '5d', status: 'active' }
+	];
+
+	document.getElementById('ib-count').textContent = incidents.length + ' active';
+
+	var tbody = document.getElementById('ib-body');
+	for (var i = 0; i < incidents.length; i++) {
+		var inc = incidents[i];
+		var tr = document.createElement('tr');
+
+		var tdSev = document.createElement('td');
+		var sevBadge = document.createElement('span');
+		sevBadge.className = 'ib-severity ' + inc.severity.toLowerCase();
+		sevBadge.textContent = inc.severity;
+		tdSev.appendChild(sevBadge);
+
+		var tdTitle = document.createElement('td');
+		tdTitle.textContent = inc.title;
+
+		var tdOwner = document.createElement('td');
+		tdOwner.className = 'ib-owner';
+		tdOwner.textContent = inc.owner;
+
+		var tdDur = document.createElement('td');
+		tdDur.className = 'ib-duration';
+		tdDur.textContent = inc.duration;
+
+		var tdStatus = document.createElement('td');
+		var statusBadge = document.createElement('span');
+		statusBadge.className = 'ib-status ' + inc.status;
+		statusBadge.textContent = inc.status;
+		tdStatus.appendChild(statusBadge);
+
+		tr.appendChild(tdSev);
+		tr.appendChild(tdTitle);
+		tr.appendChild(tdOwner);
+		tr.appendChild(tdDur);
+		tr.appendChild(tdStatus);
+		tbody.appendChild(tr);
+	}
+});
+</script>

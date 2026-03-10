@@ -1,0 +1,112 @@
+<style>
+	* { margin: 0; padding: 0; box-sizing: border-box; }
+	body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+	.sh-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 12px;
+		padding: 16px;
+	}
+	.sh-card {
+		background: #161b22;
+		border: 1px solid #30363d;
+		border-radius: 6px;
+		padding: 16px;
+		transition: border-color 0.15s ease;
+	}
+	.sh-card:hover { border-color: #58a6ff; }
+	.sh-label {
+		font-size: 11px;
+		color: #8b949e;
+		text-transform: uppercase;
+		letter-spacing: 0.8px;
+		margin-bottom: 8px;
+	}
+	.sh-value {
+		font-size: 28px;
+		font-weight: 700;
+		font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+		color: #e6edf3;
+		line-height: 1;
+	}
+	.sh-value.healthy { color: #3fb950; }
+	.sh-value.warning { color: #d29922; }
+	.sh-value.critical { color: #f85149; }
+	.sh-trend {
+		font-size: 12px;
+		margin-top: 8px;
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+	.sh-trend.positive { color: #3fb950; }
+	.sh-trend.negative { color: #f85149; }
+	.sh-trend.neutral { color: #8b949e; }
+	.sh-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		display: inline-block;
+		margin-right: 6px;
+	}
+	.sh-dot.healthy { background: #3fb950; box-shadow: 0 0 6px rgba(63, 185, 80, 0.4); }
+	.sh-dot.warning { background: #d29922; box-shadow: 0 0 6px rgba(210, 153, 34, 0.4); }
+</style>
+
+<div class="sh-grid">
+	<div class="sh-card">
+		<div class="sh-label"><span class="sh-dot healthy"></span>Uptime</div>
+		<div class="sh-value healthy" id="sh-uptime">--</div>
+		<div class="sh-trend positive" id="sh-uptime-trend"></div>
+	</div>
+	<div class="sh-card">
+		<div class="sh-label"><span class="sh-dot healthy"></span>P99 Latency</div>
+		<div class="sh-value" id="sh-latency">--</div>
+		<div class="sh-trend positive" id="sh-latency-trend"></div>
+	</div>
+	<div class="sh-card">
+		<div class="sh-label"><span class="sh-dot healthy"></span>Error Rate</div>
+		<div class="sh-value healthy" id="sh-errors">--</div>
+		<div class="sh-trend positive" id="sh-errors-trend"></div>
+	</div>
+	<div class="sh-card">
+		<div class="sh-label"><span class="sh-dot healthy"></span>Throughput</div>
+		<div class="sh-value" id="sh-throughput">--</div>
+		<div class="sh-trend positive" id="sh-throughput-trend"></div>
+	</div>
+</div>
+
+<script>
+window.phonon.onReady(function() {
+	var mock = [
+		{ name: 'auth-service', uptime: 99.98, latencyP99: 128, errorRate: 0.02, throughput: 3200 },
+		{ name: 'payment-api', uptime: 99.95, latencyP99: 165, errorRate: 0.05, throughput: 1800 },
+		{ name: 'user-service', uptime: 99.99, latencyP99: 95, errorRate: 0.01, throughput: 2800 },
+		{ name: 'api-gateway', uptime: 99.97, latencyP99: 180, errorRate: 0.04, throughput: 1600 }
+	];
+
+	var totalUptime = 0;
+	var totalLatency = 0;
+	var totalErrors = 0;
+	var totalThroughput = 0;
+	for (var i = 0; i < mock.length; i++) {
+		totalUptime += mock[i].uptime;
+		totalLatency += mock[i].latencyP99;
+		totalErrors += mock[i].errorRate;
+		totalThroughput += mock[i].throughput;
+	}
+	var n = mock.length;
+
+	document.getElementById('sh-uptime').textContent = (totalUptime / n).toFixed(2) + '%';
+	document.getElementById('sh-uptime-trend').innerHTML = '&#9650; 0.01% vs last week';
+
+	document.getElementById('sh-latency').textContent = Math.round(totalLatency / n) + 'ms';
+	document.getElementById('sh-latency-trend').innerHTML = '&#9660; 8ms vs last week';
+
+	document.getElementById('sh-errors').textContent = (totalErrors / n).toFixed(2) + '%';
+	document.getElementById('sh-errors-trend').innerHTML = '&#9660; 0.01% vs last week';
+
+	document.getElementById('sh-throughput').textContent = (totalThroughput / 1000).toFixed(1) + 'K rps';
+	document.getElementById('sh-throughput-trend').innerHTML = '&#9650; 0.3K vs last week';
+});
+</script>

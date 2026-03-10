@@ -1,0 +1,150 @@
+<style>
+	* { margin: 0; padding: 0; box-sizing: border-box; }
+	body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+	.dt-container {
+		padding: 16px;
+		overflow-x: auto;
+	}
+	.dt-header {
+		font-size: 13px;
+		font-weight: 600;
+		color: #8b949e;
+		text-transform: uppercase;
+		letter-spacing: 0.6px;
+		margin-bottom: 16px;
+	}
+	.dt-timeline {
+		display: flex;
+		align-items: center;
+		position: relative;
+		min-width: max-content;
+		padding: 20px 0;
+	}
+	.dt-line {
+		position: absolute;
+		top: 50%;
+		left: 24px;
+		right: 24px;
+		height: 2px;
+		background: #30363d;
+		transform: translateY(-50%);
+		z-index: 0;
+	}
+	.dt-node {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		position: relative;
+		z-index: 1;
+		min-width: 120px;
+		padding: 0 8px;
+	}
+	.dt-service {
+		font-size: 11px;
+		font-weight: 600;
+		color: #c9d1d9;
+		margin-bottom: 8px;
+		white-space: nowrap;
+		text-align: center;
+	}
+	.dt-dot {
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		border: 2px solid #0d1117;
+		margin-bottom: 8px;
+		position: relative;
+	}
+	.dt-dot.success { background: #3fb950; box-shadow: 0 0 8px rgba(63, 185, 80, 0.3); }
+	.dt-dot.failed { background: #f85149; box-shadow: 0 0 8px rgba(248, 81, 73, 0.4); }
+	.dt-dot.rolled-back { background: #d29922; box-shadow: 0 0 8px rgba(210, 153, 34, 0.3); }
+	.dt-dot.in-progress {
+		background: #58a6ff;
+		box-shadow: 0 0 8px rgba(88, 166, 255, 0.4);
+		animation: dt-pulse 1.5s ease-in-out infinite;
+	}
+	@keyframes dt-pulse {
+		0%, 100% { box-shadow: 0 0 8px rgba(88, 166, 255, 0.4); }
+		50% { box-shadow: 0 0 16px rgba(88, 166, 255, 0.7); }
+	}
+	.dt-version {
+		font-size: 11px;
+		font-family: 'SF Mono', 'Cascadia Code', monospace;
+		color: #8b949e;
+		white-space: nowrap;
+	}
+	.dt-time {
+		font-size: 10px;
+		color: #6e7681;
+		margin-top: 2px;
+		white-space: nowrap;
+	}
+	.dt-status-label {
+		font-size: 10px;
+		font-weight: 500;
+		margin-top: 4px;
+		padding: 1px 6px;
+		border-radius: 8px;
+	}
+	.dt-status-label.failed { background: rgba(248, 81, 73, 0.15); color: #f85149; }
+	.dt-status-label.rolled-back { background: rgba(210, 153, 34, 0.15); color: #d29922; }
+	.dt-status-label.in-progress { background: rgba(88, 166, 255, 0.15); color: #58a6ff; }
+</style>
+
+<div class="dt-container">
+	<div class="dt-header">Recent Deployments</div>
+	<div class="dt-timeline" id="dt-timeline">
+		<div class="dt-line"></div>
+	</div>
+</div>
+
+<script>
+window.phonon.onReady(function() {
+	var deploys = [
+		{ service: 'analytics-svc', version: 'v1.12.0', status: 'in-progress', time: 'now' },
+		{ service: 'auth-service', version: 'v2.14.1', status: 'success', time: '10:32' },
+		{ service: 'payment-api', version: 'v3.2.0', status: 'success', time: '09:15' },
+		{ service: 'recommendation-svc', version: 'v1.8.3', status: 'failed', time: '08:45' },
+		{ service: 'api-gateway', version: 'v5.0.1', status: 'success', time: 'yesterday 22:10' },
+		{ service: 'user-service', version: 'v4.1.0', status: 'rolled-back', time: 'yesterday 18:30' },
+		{ service: 'notification-svc', version: 'v2.3.1', status: 'success', time: 'yesterday 14:20' },
+		{ service: 'search-api', version: 'v3.0.0', status: 'success', time: '2 days ago' }
+	];
+
+	var timeline = document.getElementById('dt-timeline');
+	for (var i = 0; i < deploys.length; i++) {
+		var d = deploys[i];
+		var node = document.createElement('div');
+		node.className = 'dt-node';
+
+		var svc = document.createElement('div');
+		svc.className = 'dt-service';
+		svc.textContent = d.service;
+
+		var dot = document.createElement('div');
+		dot.className = 'dt-dot ' + d.status;
+
+		var ver = document.createElement('div');
+		ver.className = 'dt-version';
+		ver.textContent = d.version;
+
+		var time = document.createElement('div');
+		time.className = 'dt-time';
+		time.textContent = d.time;
+
+		node.appendChild(svc);
+		node.appendChild(dot);
+		node.appendChild(ver);
+		node.appendChild(time);
+
+		if (d.status !== 'success') {
+			var label = document.createElement('div');
+			label.className = 'dt-status-label ' + d.status;
+			label.textContent = d.status.replace('-', ' ');
+			node.appendChild(label);
+		}
+
+		timeline.appendChild(node);
+	}
+});
+</script>

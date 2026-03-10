@@ -1,0 +1,155 @@
+{
+	"name": "phonon-module-ops",
+	"displayName": "Operations Intelligence",
+	"description": "Enterprise operations monitoring and incident management",
+	"version": "1.0.0",
+	"publisher": "Northwind Data",
+	"engines": {
+		"vscode": "^1.100.0"
+	},
+	"categories": ["Other"],
+	"activationEvents": ["*"],
+	"main": "./out/extension.js",
+	"contributes": {
+		"liquidEntities": [
+			{
+				"id": "service",
+				"label": "Service",
+				"schema": "./schemas/service.json"
+			},
+			{
+				"id": "incident",
+				"label": "Incident",
+				"schema": "./schemas/incident.json"
+			},
+			{
+				"id": "deployment",
+				"label": "Deployment",
+				"schema": "./schemas/deployment.json"
+			},
+			{
+				"id": "metric",
+				"label": "Metric",
+				"schema": "./schemas/metric.json"
+			}
+		],
+		"liquidGrafts": [
+			{
+				"id": "ops-service-health",
+				"label": "Service Health",
+				"description": "4 KPI grid showing uptime, p99 latency, error rate, and throughput for monitored services",
+				"entry": "./grafts/service-health.html",
+				"entity": "service",
+				"domain": "monitoring",
+				"category": "stat",
+				"tags": ["health", "uptime", "latency", "kpi"],
+				"layout": { "minCols": 6, "maxCols": 12, "minHeight": 200 },
+				"shows": ["service"],
+				"relatesTo": ["metric"],
+				"tokenWeight": 951
+			},
+			{
+				"id": "ops-incident-board",
+				"label": "Incident Board",
+				"description": "Active incidents table with severity, owner, duration and current status",
+				"entry": "./grafts/incident-board.html",
+				"entity": "incident",
+				"domain": "incidents",
+				"category": "table",
+				"tags": ["incidents", "severity", "sla"],
+				"layout": { "minCols": 6, "maxCols": 12, "minHeight": 300 },
+				"shows": ["incident"],
+				"relatesTo": ["service"],
+				"tokenWeight": 1172
+			},
+			{
+				"id": "ops-deploy-timeline",
+				"label": "Deploy Timeline",
+				"description": "Horizontal timeline of recent deployments with status indicators and version info",
+				"entry": "./grafts/deploy-timeline.html",
+				"entity": "deployment",
+				"domain": "deployments",
+				"category": "chart",
+				"tags": ["deploy", "timeline", "ci-cd"],
+				"layout": { "minCols": 8, "maxCols": 12, "minHeight": 200 },
+				"shows": ["deployment"],
+				"relatesTo": ["service"],
+				"tokenWeight": 1052
+			},
+			{
+				"id": "ops-resource-gauge",
+				"label": "Resource Monitor",
+				"description": "CPU, Memory, and Disk utilization gauges with threshold alerts",
+				"entry": "./grafts/resource-gauge.html",
+				"entity": "metric",
+				"domain": "monitoring",
+				"category": "stat",
+				"tags": ["resources", "cpu", "memory", "disk"],
+				"layout": { "minCols": 6, "maxCols": 12, "minHeight": 200 },
+				"shows": ["metric"],
+				"relatesTo": ["service"],
+				"tokenWeight": 897
+			},
+			{
+				"id": "ops-alert-feed",
+				"label": "Alert Feed",
+				"description": "Live feed of system alerts with timestamp, source service, and severity classification",
+				"entry": "./grafts/alert-feed.html",
+				"entity": "metric",
+				"domain": "monitoring",
+				"category": "list",
+				"tags": ["alerts", "feed", "realtime"],
+				"layout": { "minCols": 4, "maxCols": 6, "minHeight": 300 },
+				"shows": ["metric"],
+				"relatesTo": ["service", "incident"],
+				"tokenWeight": 1185
+			}
+		],
+		"liquidViews": [
+			{
+				"id": "opsDashboard",
+				"label": "Dashboard",
+				"component": "./views/Dashboard.js",
+				"mode": "canvas",
+				"defaultGrafts": ["ops-service-health", "ops-incident-board", "ops-resource-gauge", "ops-alert-feed"]
+			},
+			{
+				"id": "opsIncidents",
+				"label": "Incidents",
+				"component": "./views/Incidents.js",
+				"mode": "canvas",
+				"entity": "incident",
+				"defaultGrafts": ["ops-incident-board"]
+			},
+			{
+				"id": "opsDeployments",
+				"label": "Deployments",
+				"component": "./views/Deployments.js",
+				"mode": "canvas",
+				"entity": "deployment",
+				"defaultGrafts": ["ops-deploy-timeline"]
+			}
+		],
+		"liquidDataProviders": [
+			{
+				"id": "ops-mock-provider",
+				"entities": ["service", "incident", "deployment", "metric"],
+				"provider": "./providers/mock.js",
+				"priority": 0
+			}
+		],
+		"liquidSidebar": [
+			{
+				"id": "ops-nav",
+				"label": "Operations",
+				"icon": "server",
+				"order": 0,
+				"children": [
+					{ "id": "ops-dashboard", "label": "Dashboard", "view": "opsDashboard", "order": 0 },
+					{ "id": "ops-incidents", "label": "Incidents", "view": "opsIncidents", "order": 1 },
+					{ "id": "ops-deployments", "label": "Deployments", "view": "opsDeployments", "order": 2 }
+				]
+			}
+		]
+	}
+}
