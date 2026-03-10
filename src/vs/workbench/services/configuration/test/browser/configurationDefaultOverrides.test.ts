@@ -115,8 +115,9 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		// Wait for the async processing
 		await Event.toPromise(configurationRegistry.onDidUpdateConfiguration);
 
-		const properties = configurationRegistry.getConfigurationProperties();
-		assert.notStrictEqual(properties['test.experiments.noMode']?.defaultValueSource, undefined, 'The default value source should have been set by experiment');
+		const overrides = configurationRegistry.getConfigurationDefaultsOverrides();
+		assert.ok(overrides.has('test.experiments.noMode'), 'The default override should have been registered by experiment');
+		assert.strictEqual(overrides.get('test.experiments.noMode')?.value, true);
 	});
 
 	test('uses config.{settingId} as the experiment name', async () => {
@@ -141,8 +142,8 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			assignmentService.requestedTreatmentNames.includes('config.test.experiments.naming.setting'),
 			'Treatment should be looked up using config.{settingId} format'
 		);
-		const properties = configurationRegistry.getConfigurationProperties();
-		assert.notStrictEqual(properties['test.experiments.naming.setting']?.defaultValueSource, undefined, 'The override should have been applied');
+		const overrides = configurationRegistry.getConfigurationDefaultsOverrides();
+		assert.ok(overrides.has('test.experiments.naming.setting'), 'The override should have been applied');
 	});
 
 	test('does not apply experiment treatment when value equals default', async () => {
@@ -165,8 +166,8 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		await assignmentService.whenTreatmentRequested('config.test.experiments.sameDefault.setting');
 
 		// Since value equals default, no override should be registered
-		const properties = configurationRegistry.getConfigurationProperties();
-		assert.strictEqual(properties['test.experiments.sameDefault.setting']?.defaultValueSource, undefined);
+		const overrides = configurationRegistry.getConfigurationDefaultsOverrides();
+		assert.ok(!overrides.has('test.experiments.sameDefault.setting'), 'No override should be registered when value equals default');
 	});
 
 	test('setting without experimentMode defaults to auto and re-applies on refetch', async () => {
@@ -186,8 +187,8 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 
 		await Event.toPromise(configurationRegistry.onDidUpdateConfiguration);
 
-		const properties = configurationRegistry.getConfigurationProperties();
-		assert.notStrictEqual(properties['test.experiments.autoDefault.setting']?.defaultValueSource, undefined, 'Override should have been applied on initial load');
+		const overrides = configurationRegistry.getConfigurationDefaultsOverrides();
+		assert.ok(overrides.has('test.experiments.autoDefault.setting'), 'Override should have been applied on initial load');
 
 		// Now change the treatment and refetch — auto mode should re-apply
 		assignmentService.setTreatment('config.test.experiments.autoDefault.setting', 99);
@@ -254,7 +255,7 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		// Wait for the treatment to be requested (even though it returns undefined)
 		await assignmentService.whenTreatmentRequested('config.test.experiments.noTreatment.setting');
 
-		const properties = configurationRegistry.getConfigurationProperties();
-		assert.strictEqual(properties['test.experiments.noTreatment.setting']?.defaultValueSource, undefined);
+		const overrides = configurationRegistry.getConfigurationDefaultsOverrides();
+		assert.ok(!overrides.has('test.experiments.noTreatment.setting'), 'No override should be registered when treatment is undefined');
 	});
 });
