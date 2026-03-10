@@ -26,6 +26,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 import { isUntitledChatSession } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import { IGitHubSessionContext } from '../../github/common/types.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 
@@ -99,6 +100,23 @@ export interface ISessionsManagementService {
 	 * so the Changes view reflects the update.
 	 */
 	commitWorktreeFiles(session: IActiveSessionItem, fileUris: URI[]): Promise<void>;
+
+	/**
+	 * Derive a GitHub context (owner, repo, prNumber) from an active session.
+	 * Returns `undefined` if the session is not associated with a GitHub repository.
+	 */
+	getGitHubContext(session: IActiveSessionItem): IGitHubSessionContext | undefined;
+
+	/**
+	 * Derive a GitHub context from a session resource URI.
+	 * Looks up the agent session internally and resolves repository info.
+	 */
+	getGitHubContextForSession(sessionResource: URI): IGitHubSessionContext | undefined;
+
+	/**
+	 * Resolve a relative file path to a full URI based on the session's repository/worktree.
+	 */
+	resolveSessionFileUri(sessionResource: URI, relativePath: string): URI | undefined;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');
@@ -529,6 +547,104 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			);
 		}
 		await this.agentSessionsService.model.resolve(AgentSessionProviders.Background);
+	}
+
+	getGitHubContext(session: IActiveSessionItem): IGitHubSessionContext | undefined {
+		// 1. Try parsing a github-remote-file URI (Cloud sessions)
+		const repoUri = session.repository;
+		if (repoUri && repoUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			const parts = repoUri.path.split('/').filter(Boolean);
+			if (parts.length >= 2) {
+				const owner = decodeURIComponent(parts[0]);
+				const repo = decodeURIComponent(parts[1]);
+				const prNumber = this._parsePRNumberFromSession(session);
+				return { owner, repo, prNumber };
+			}
+		}
+
+		// 2. Try from agent session metadata (Background sessions)
+		const agentSession = this.agentSessionsService.model.getSession(session.resource);
+		if (agentSession?.metadata) {
+			const metadata = agentSession.metadata;
+
+			// owner + name fields
+			if (typeof metadata.owner === 'string' && typeof metadata.name === 'string') {
+				const prNumber = this._parsePRNumberFromSession(session);
+				return { owner: metadata.owner, repo: metadata.name, prNumber };
+			}
+
+			// repositoryNwo: "owner/repo"
+			if (typeof metadata.repositoryNwo === 'string') {
+				const parts = (metadata.repositoryNwo as string).split('/');
+				if (parts.length === 2) {
+					const prNumber = this._parsePRNumberFromSession(session);
+					return { owner: parts[0], repo: parts[1], prNumber };
+				}
+			}
+
+			// pullRequestUrl: "https://github.com/{owner}/{repo}/pull/{number}"
+			if (typeof metadata.pullRequestUrl === 'string') {
+				const match = /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/.exec(metadata.pullRequestUrl as string);
+				if (match) {
+					return { owner: match[1], repo: match[2], prNumber: parseInt(match[3], 10) };
+				}
+			}
+		}
+
+		return undefined;
+	}
+
+	getGitHubContextForSession(sessionResource: URI): IGitHubSessionContext | undefined {
+		const agentSession = this.agentSessionsService.model.getSession(sessionResource);
+		if (!agentSession) {
+			return undefined;
+		}
+		const [repository, worktree] = this.getRepositoryFromMetadata(agentSession);
+		return this.getGitHubContext({
+			resource: sessionResource,
+			isUntitled: false,
+			label: agentSession.label,
+			repository,
+			worktree,
+			worktreeBranchName: undefined,
+			providerType: agentSession.providerType,
+		});
+	}
+
+	resolveSessionFileUri(sessionResource: URI, relativePath: string): URI | undefined {
+		const agentSession = this.agentSessionsService.model.getSession(sessionResource);
+		if (!agentSession) {
+			return undefined;
+		}
+		const [repository, worktree] = this.getRepositoryFromMetadata(agentSession);
+		const baseUri = worktree ?? repository;
+		if (!baseUri) {
+			return undefined;
+		}
+		return URI.joinPath(baseUri, relativePath);
+	}
+
+	private _parsePRNumberFromSession(session: IActiveSessionItem): number | undefined {
+		const agentSession = this.agentSessionsService.model.getSession(session.resource);
+		const metadata = agentSession?.metadata;
+		if (!metadata) {
+			return undefined;
+		}
+
+		// Direct prNumber field
+		if (typeof metadata.pullRequestNumber === 'number') {
+			return metadata.pullRequestNumber as number;
+		}
+
+		// Parse from pullRequestUrl: https://github.com/{owner}/{repo}/pull/{number}
+		if (typeof metadata.pullRequestUrl === 'string') {
+			const match = /\/pull\/(\d+)/.exec(metadata.pullRequestUrl as string);
+			if (match) {
+				return parseInt(match[1], 10);
+			}
+		}
+
+		return undefined;
 	}
 
 	private loadLastSelectedSession(): URI | undefined {
