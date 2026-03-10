@@ -861,6 +861,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Build status sections but don't append yet - we need to control order
 		let unreadSection: HTMLElement | undefined;
 		let activeSection: HTMLElement | undefined;
+		let needsInputSection: HTMLElement | undefined;
 
 		// Unread section (blue dot + count)
 		if (viewSessionsEnabled && hasUnreadSessions && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
@@ -899,29 +900,54 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			disposables.add(this.hoverService.setupManagedHover(hoverDelegate, unreadSection, unreadTooltip));
 		}
 
-		// In-progress/Needs-input section - shows "needs input" state when any session needs attention,
-		// otherwise shows "in progress" state. This is a single section that transforms based on state.
-		if (viewSessionsEnabled && hasActiveSessions) {
+		// Needs-input section - shows sessions requiring user attention (approval/confirmation/input)
+		if (viewSessionsEnabled && hasAttentionNeeded) {
+			needsInputSection = $('span.agent-status-badge-section.active.needs-input');
+			needsInputSection.setAttribute('role', 'button');
+			needsInputSection.tabIndex = 0;
+			const needsInputIcon = $('span.agent-status-icon');
+			reset(needsInputIcon, renderIcon(Codicon.report));
+			needsInputSection.appendChild(needsInputIcon);
+			const needsInputCount = $('span.agent-status-text');
+			needsInputCount.textContent = String(attentionNeededSessions.length);
+			needsInputSection.appendChild(needsInputCount);
+
+			disposables.add(addDisposableListener(needsInputSection, EventType.CLICK, (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				this._openSessionsWithFilter('inProgress');
+			}));
+			disposables.add(addDisposableListener(needsInputSection, EventType.KEY_DOWN, (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					e.stopPropagation();
+					this._openSessionsWithFilter('inProgress');
+				}
+			}));
+
+			const needsInputTooltip = attentionNeededSessions.length === 1
+				? localize('needsInputSessionsTooltip1', "{0} session needs input", attentionNeededSessions.length)
+				: localize('needsInputSessionsTooltip', "{0} sessions need input", attentionNeededSessions.length);
+			disposables.add(this.hoverService.setupManagedHover(hoverDelegate, needsInputSection, needsInputTooltip));
+		}
+
+		// In-progress section - shows sessions that are actively running (excludes needs-input)
+		const inProgressOnly = activeSessions.filter(s => s.status !== AgentSessionStatus.NeedsInput);
+		if (viewSessionsEnabled && inProgressOnly.length > 0) {
 			const { isFilteredToInProgress } = this._getCurrentFilterState();
 			activeSection = $('span.agent-status-badge-section.active');
-			if (hasAttentionNeeded) {
-				activeSection.classList.add('needs-input');
-			}
 			if (isFilteredToInProgress) {
 				activeSection.classList.add('filtered');
 			}
 			activeSection.setAttribute('role', 'button');
 			activeSection.tabIndex = 0;
 			const statusIcon = $('span.agent-status-icon');
-			// Show report icon when needs input, otherwise session-in-progress icon
-			reset(statusIcon, renderIcon(hasAttentionNeeded ? Codicon.report : Codicon.sessionInProgress));
+			reset(statusIcon, renderIcon(Codicon.sessionInProgress));
 			activeSection.appendChild(statusIcon);
 			const statusCount = $('span.agent-status-text');
-			// Show needs-input count when attention needed, otherwise total active count
-			statusCount.textContent = String(hasAttentionNeeded ? attentionNeededSessions.length : activeSessions.length);
+			statusCount.textContent = String(inProgressOnly.length);
 			activeSection.appendChild(statusCount);
 
-			// Click handler - filter to in-progress sessions
 			disposables.add(addDisposableListener(activeSection, EventType.CLICK, (e) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -935,32 +961,24 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				}
 			}));
 
-			// Hover tooltip - different message based on state
-			const activeTooltip = hasAttentionNeeded
-				? (attentionNeededSessions.length === 1
-					? localize('needsInputSessionsTooltip1', "{0} session needs input", attentionNeededSessions.length)
-					: localize('needsInputSessionsTooltip', "{0} sessions need input", attentionNeededSessions.length))
-				: (activeSessions.length === 1
-					? localize('activeSessionsTooltip1', "{0} session in progress", activeSessions.length)
-					: localize('activeSessionsTooltip', "{0} sessions in progress", activeSessions.length));
+			const activeTooltip = inProgressOnly.length === 1
+				? localize('activeSessionsTooltip1', "{0} session in progress", inProgressOnly.length)
+				: localize('activeSessionsTooltip', "{0} sessions in progress", inProgressOnly.length);
 			disposables.add(this.hoverService.setupManagedHover(hoverDelegate, activeSection, activeTooltip));
 		}
 
 		// Append status sections in the correct order
 		if (reverseOrder) {
-			// Add line separator before badge sections when inline in compact mode
-			if (inlineContainer) {
-				const badgeSeparator = $('span.agent-status-badge-separator');
-				badge.appendChild(badgeSeparator);
-			}
-			// [active, unread, sparkle] — populates inward
+			// [needs-input, active, unread, sparkle] — populates inward
+			if (needsInputSection) { badge.appendChild(needsInputSection); }
 			if (activeSection) { badge.appendChild(activeSection); }
 			if (unreadSection) { badge.appendChild(unreadSection); }
 			badge.appendChild(sparkleContainer);
 		} else {
-			// Original: [sparkle (already appended), unread, active]
+			// Original: [sparkle (already appended), unread, active, needs-input]
 			if (unreadSection) { badge.appendChild(unreadSection); }
 			if (activeSection) { badge.appendChild(activeSection); }
+			if (needsInputSection) { badge.appendChild(needsInputSection); }
 		}
 
 	}

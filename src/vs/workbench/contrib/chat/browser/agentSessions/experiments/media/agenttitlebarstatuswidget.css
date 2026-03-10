@@ -65,6 +65,18 @@
 	border-color: var(--vscode-commandCenter-activeBorder, transparent);
 }
 
+/* Compact mode: pill hover is handled by individual sections, not the whole pill */
+.agent-status-pill.compact-mode {
+	padding: 0;
+	gap: 0;
+	background-color: transparent;
+}
+
+.agent-status-pill.compact-mode:hover {
+	background-color: transparent;
+	border-color: var(--vscode-commandCenter-border, transparent);
+}
+
 .agent-status-pill.chat-input-mode {
 	cursor: pointer;
 }
@@ -115,15 +127,6 @@
 	flex-shrink: 0;
 }
 
-/* Vertical line separator before badge sections in compact mode */
-.agent-status-badge-separator {
-	width: 1px;
-	align-self: stretch;
-	margin: 4px 0;
-	background-color: var(--vscode-commandCenter-border, rgba(128, 128, 128, 0.35));
-	flex-shrink: 0;
-}
-
 /* Input hover target - only this area triggers hover, not badge sections */
 .agent-status-pill .agent-status-input-area {
 	display: flex;
@@ -133,6 +136,15 @@
 	overflow: hidden;
 	cursor: pointer;
 	gap: 6px;
+	border-radius: 5px 0 0 5px;
+	height: 100%;
+	padding: 0 10px;
+	background-color: var(--vscode-agentStatusIndicator-background);
+}
+
+/* When preceded by a toolbar/separator, remove left border-radius */
+.agent-status-line-separator + .agent-status-input-area {
+	border-radius: 0;
 }
 
 .agent-status-pill .agent-status-input-area:hover {
@@ -238,6 +250,9 @@
 	display: flex;
 	align-items: center;
 	-webkit-app-region: no-drag;
+	height: 100%;
+	background-color: var(--vscode-agentStatusIndicator-background);
+	border-radius: 5px 0 0 5px;
 }
 
 .agent-status-separator {
@@ -251,9 +266,10 @@
 .agent-status-line-separator {
 	width: 1px;
 	align-self: stretch;
-	margin: 4px 6px;
+	margin: 4px 0;
 	background-color: var(--vscode-commandCenter-border, rgba(128, 128, 128, 0.35));
 	flex-shrink: 0;
+	pointer-events: none;
 }
 
 /* Status Badge */
@@ -279,6 +295,7 @@
 	height: 100%;
 	position: relative;
 	cursor: pointer;
+	background-color: var(--vscode-agentStatusIndicator-background);
 }
 
 .agent-status-badge-section:first-child { border-radius: 5px 0 0 5px; }
@@ -325,7 +342,8 @@
 }
 
 /* Separator between sections */
-.agent-status-badge-section + .agent-status-badge-section::before {
+.agent-status-badge-section + .agent-status-badge-section::before,
+.agent-status-input-area + .agent-status-badge-section::before {
 	content: '';
 	position: absolute;
 	left: 0;
@@ -363,6 +381,11 @@
 .agent-status-badge-section.sparkle .action-container {
 	padding: 0 4px;
 	border-radius: 5px 0 0 5px;
+}
+
+/* In compact mode, no left radius on sparkle - it sits flush next to other sections */
+.agent-status-pill.compact-mode .agent-status-badge-section.sparkle .action-container {
+	border-radius: 0;
 }
 
 .agent-status-badge-section.sparkle .dropdown-action-container {
