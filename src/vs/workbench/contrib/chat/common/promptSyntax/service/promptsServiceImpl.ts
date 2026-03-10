@@ -1186,8 +1186,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const result = await this.cachedHooks.get(token);
 		if (sessionResource) {
 			const elapsed = sw.elapsed();
-			const hookCount = result ? Object.values(result.hooks).reduce((sum, arr) => sum + arr.length, 0) : 0;
 			void this.getHookDiscoveryInfo(token).then((discoveryInfo) => {
+				const hookCount = result ? Object.values(result.hooks).reduce((sum, arr) => sum + arr.length, 0) : 0;
 				const details = hookCount === 1
 					? localize("promptsService.resolvedHook", "Resolved {0} hook in {1}ms", hookCount, elapsed.toFixed(1))
 					: localize("promptsService.resolvedHooks", "Resolved {0} hooks in {1}ms", hookCount, elapsed.toFixed(1));
