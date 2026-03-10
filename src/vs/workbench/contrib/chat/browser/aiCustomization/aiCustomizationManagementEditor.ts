@@ -5,13 +5,16 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { localize } from '../../../../../nls.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
@@ -57,6 +60,9 @@ import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory } from './c
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
@@ -64,6 +70,9 @@ import { IWorkingCopyService } from '../../../../services/workingCopy/common/wor
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { McpServerEditorInput } from '../../../mcp/browser/mcpServerEditorInput.js';
 import { McpServerEditor } from '../../../mcp/browser/mcpServerEditor.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -86,6 +95,11 @@ interface ISectionItem {
 	readonly id: AICustomizationManagementSection;
 	readonly label: string;
 	readonly icon: ThemeIcon;
+}
+
+interface ISaveTargetQuickPickItem extends IQuickPickItem {
+	readonly target: 'workspace' | 'user';
+	readonly folder: URI;
 }
 
 class SectionItemDelegate implements IListVirtualDelegate<ISectionItem> {
@@ -155,10 +169,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private embeddedEditor: CodeEditorWidget | undefined;
 	private editorItemNameElement!: HTMLElement;
 	private editorItemPathElement!: HTMLElement;
+	private editorSaveButton!: HTMLButtonElement;
 	private editorSaveIndicator!: HTMLElement;
 	private readonly editorModelChangeDisposables = this._register(new DisposableStore());
+	private readonly builtinEditingSessions = new Map<string, { model: ITextModel; originalContent: string }>();
 	private currentEditingUri: URI | undefined;
 	private currentEditingProjectRoot: URI | undefined;
+	private currentEditingStorage: PromptsStorage | undefined;
+	private currentEditingPromptType: PromptsType | undefined;
 	private currentModelRef: IReference<IResolvedTextEditorModel> | undefined;
 	private viewMode: 'list' | 'editor' | 'mcpDetail' | 'pluginDetail' = 'list';
 
@@ -204,6 +222,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IModelService private readonly modelService: IModelService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IFileService private readonly fileService: IFileService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -221,6 +243,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.currentModelRef?.dispose();
 			this.currentModelRef = undefined;
 		}));
+		this._register(toDisposable(() => this.disposeBuiltinEditingSessions()));
 
 		// Build sections from the workspace service configuration
 		const sectionInfo: Record<string, { label: string; icon: ThemeIcon }> = {
@@ -451,7 +474,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(this.listWidget.onDidSelectItem(item => {
 			const isWorkspaceFile = item.storage === PromptsStorage.local;
 			const isReadOnly = item.storage === PromptsStorage.extension || item.storage === PromptsStorage.plugin || item.storage === BUILTIN_STORAGE;
-			this.showEmbeddedEditor(item.uri, item.name, isWorkspaceFile, isReadOnly);
+			this.showEmbeddedEditor(item.uri, item.name, item.promptType, item.storage, isWorkspaceFile, isReadOnly);
 		}));
 
 		// Handle create actions - AI-guided creation
@@ -647,7 +670,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				// Sessions: show hooks filtered to Copilot CLI (GitHub Copilot) hook types
 				await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
 					openEditor: async (resource) => {
-						await this.showEmbeddedEditor(resource, basename(resource), true);
+						await this.showEmbeddedEditor(resource, basename(resource), PromptsType.hook, PromptsStorage.local, true);
 						return;
 					},
 					target: Target.GitHubCopilot,
@@ -656,7 +679,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				// Core: use the default core behaviour
 				await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
 					openEditor: async (resource) => {
-						await this.showEmbeddedEditor(resource, basename(resource), true);
+						await this.showEmbeddedEditor(resource, basename(resource), PromptsType.hook, PromptsStorage.local, true);
 						return;
 					}
 				});
@@ -673,7 +696,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			targetStorage: target === 'user' ? PromptsStorage.user : PromptsStorage.local,
 			openFile: async (uri) => {
 				const isWorkspace = target === 'workspace';
-				await this.showEmbeddedEditor(uri, basename(uri), isWorkspace);
+				await this.showEmbeddedEditor(uri, basename(uri), type, target === 'user' ? PromptsStorage.user : PromptsStorage.local, isWorkspace);
 				return this.embeddedEditor;
 			},
 		};
@@ -725,6 +748,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		// Clear transient folder override on close
 		this.workspaceService.clearOverrideProjectRoot();
+		this.disposeBuiltinEditingSessions();
 		super.clearInput();
 	}
 
@@ -817,6 +841,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const itemInfo = DOM.append(editorHeader, $('.editor-item-info'));
 		this.editorItemNameElement = DOM.append(itemInfo, $('.editor-item-name'));
 		this.editorItemPathElement = DOM.append(itemInfo, $('.editor-item-path'));
+
+		this.editorSaveButton = DOM.append(editorHeader, $('button.editor-save-button'));
+		this.editorSaveButton.textContent = localize('savePromptCopy', "Save");
+		this.editorSaveButton.setAttribute('aria-label', localize('savePromptCopyAriaLabel', "Save prompt copy"));
+		this.editorDisposables.add(DOM.addDisposableListener(this.editorSaveButton, 'click', () => {
+			void this.saveBuiltinPromptCopy().catch(error => {
+				console.error('Failed to save built-in prompt copy:', error);
+				this.notificationService.error(localize('saveBuiltinPromptCopyFailed', "Failed to save the prompt copy."));
+			});
+		}));
+
 		this.editorSaveIndicator = DOM.append(editorHeader, $('.editor-save-indicator'));
 
 		const embeddedEditorContainer = DOM.append(this.editorContentContainer, $('.embedded-editor-container'));
@@ -843,18 +878,48 @@ export class AICustomizationManagementEditor extends EditorPane {
 		));
 	}
 
-	private async showEmbeddedEditor(uri: URI, displayName: string, isWorkspaceFile = false, isReadOnly = false): Promise<void> {
+	private async showEmbeddedEditor(uri: URI, displayName: string, promptType: PromptsType, storage: PromptsStorage, isWorkspaceFile = false, isReadOnly = false): Promise<void> {
 		this.currentModelRef?.dispose();
 		this.currentModelRef = undefined;
+		this.editorModelChangeDisposables.clear();
 		this.currentEditingUri = uri;
 		this.currentEditingProjectRoot = isWorkspaceFile ? this.workspaceService.getActiveProjectRoot() : undefined;
+		this.currentEditingStorage = storage;
+		this.currentEditingPromptType = promptType;
 		this.viewMode = 'editor';
 
 		this.editorItemNameElement.textContent = displayName;
 		this.editorItemPathElement.textContent = basename(uri);
+		this._editorContentChanged = false;
+		this.resetEditorSaveIndicator();
+		this.updateBuiltinSaveButton();
 		this.updateContentVisibility();
 
 		try {
+			if (storage === BUILTIN_STORAGE && promptType === PromptsType.prompt) {
+				const session = await this.getOrCreateBuiltinEditingSession(uri);
+
+				if (!isEqual(this.currentEditingUri, uri)) {
+					return;
+				}
+
+				this.embeddedEditor!.setModel(session.model);
+				this.embeddedEditor!.updateOptions({ readOnly: false });
+				this._editorContentChanged = session.model.getValue() !== session.originalContent;
+				this.updateBuiltinSaveButton();
+
+				if (this.dimension) {
+					this.layout(this.dimension);
+				}
+				this.embeddedEditor!.focus();
+
+				this.editorModelChangeDisposables.add(session.model.onDidChangeContent(() => {
+					this._editorContentChanged = session.model.getValue() !== session.originalContent;
+					this.updateBuiltinSaveButton();
+				}));
+				return;
+			}
+
 			const ref = await this.textModelService.createModelReference(uri);
 
 			if (!isEqual(this.currentEditingUri, uri)) {
@@ -871,8 +936,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			this.embeddedEditor!.focus();
 
-			this.editorModelChangeDisposables.clear();
 			this._editorContentChanged = false;
+			this.updateBuiltinSaveButton();
 			const saveDelayer = this.editorModelChangeDisposables.add(new Delayer<void>(500));
 			this.editorModelChangeDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => {
 				this._editorContentChanged = true;
@@ -917,9 +982,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.currentModelRef = undefined;
 		this.currentEditingUri = undefined;
 		this.currentEditingProjectRoot = undefined;
+		this.currentEditingStorage = undefined;
+		this.currentEditingPromptType = undefined;
 		this.editorModelChangeDisposables.clear();
-		this.editorSaveIndicator.className = 'editor-save-indicator';
-		this.editorSaveIndicator.title = '';
+		this.resetEditorSaveIndicator();
+		this.updateBuiltinSaveButton();
 		this.embeddedEditor?.setModel(null);
 		this.viewMode = 'list';
 		this.updateContentVisibility();
@@ -934,6 +1001,132 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	//#endregion
+
+	private async getOrCreateBuiltinEditingSession(uri: URI): Promise<{ model: ITextModel; originalContent: string }> {
+		const key = uri.toString();
+		const existing = this.builtinEditingSessions.get(key);
+		if (existing && !existing.model.isDisposed()) {
+			return existing;
+		}
+
+		const ref = await this.textModelService.createModelReference(uri);
+		try {
+			const session = {
+				model: this.modelService.createModel(
+					createTextBufferFactoryFromSnapshot(ref.object.textEditorModel.createSnapshot()),
+					{ languageId: ref.object.textEditorModel.getLanguageId(), onDidChange: Event.None },
+					URI.from({ scheme: 'ai-customization-builtin', path: uri.path, query: generateUuid() }),
+					false
+				),
+				originalContent: ref.object.textEditorModel.getValue(),
+			};
+			this.builtinEditingSessions.set(key, session);
+			return session;
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	private async saveBuiltinPromptCopy(): Promise<void> {
+		const sourceUri = this.currentEditingUri;
+		const promptType = this.currentEditingPromptType;
+		if (!sourceUri || this.currentEditingStorage !== BUILTIN_STORAGE || promptType !== PromptsType.prompt) {
+			return;
+		}
+
+		const session = this.builtinEditingSessions.get(sourceUri.toString());
+		if (!session || !this._editorContentChanged) {
+			return;
+		}
+
+		const target = await this.pickBuiltinPromptSaveTarget();
+		if (!target) {
+			return;
+		}
+
+		const targetUri = URI.joinPath(target.folder, basename(sourceUri));
+		await this.fileService.createFolder(target.folder);
+		await this.fileService.writeFile(targetUri, VSBuffer.fromString(session.model.getValue()));
+
+		session.originalContent = session.model.getValue();
+		this.builtinEditingSessions.delete(sourceUri.toString());
+		session.model.dispose();
+		this._editorContentChanged = false;
+		this.updateBuiltinSaveButton();
+		status(target.target === 'workspace'
+			? localize('saveBuiltinPromptCopySuccessWorkspace', "Saved the prompt override to the workspace prompts.")
+			: localize('saveBuiltinPromptCopySuccessUser', "Saved the prompt override to your user prompts."));
+
+		await this.showEmbeddedEditor(
+			targetUri,
+			this.editorItemNameElement.textContent || basename(targetUri),
+			PromptsType.prompt,
+			target.target === 'workspace' ? PromptsStorage.local : PromptsStorage.user,
+			target.target === 'workspace',
+		);
+	}
+
+	private async pickBuiltinPromptSaveTarget(): Promise<ISaveTargetQuickPickItem | undefined> {
+		const items: ISaveTargetQuickPickItem[] = [];
+
+		const workspaceFolder = resolveWorkspaceTargetDirectory(this.workspaceService, PromptsType.prompt);
+		if (workspaceFolder) {
+			items.push({
+				label: localize('workspaceSaveTarget', "Workspace"),
+				description: workspaceFolder.fsPath,
+				target: 'workspace',
+				folder: workspaceFolder,
+			});
+		}
+
+		const userFolder = await resolveUserTargetDirectory(this.promptsService, PromptsType.prompt);
+		if (userFolder) {
+			items.push({
+				label: localize('userSaveTarget', "User"),
+				description: userFolder.fsPath,
+				target: 'user',
+				folder: userFolder,
+			});
+		}
+
+		if (items.length === 0) {
+			this.notificationService.error(localize('saveBuiltinPromptCopyNoTargets', "No prompt locations are available for saving this prompt."));
+			return undefined;
+		}
+
+		return this.quickInputService.pick(items, {
+			canPickMany: false,
+			placeHolder: localize('saveBuiltinPromptCopyPlaceholder', "Select where to save the edited prompt"),
+			matchOnDescription: true,
+		});
+	}
+
+	private updateBuiltinSaveButton(): void {
+		if (!this.editorSaveButton) {
+			return;
+		}
+
+		const isBuiltinPrompt = this.currentEditingStorage === BUILTIN_STORAGE && this.currentEditingPromptType === PromptsType.prompt;
+		this.editorSaveButton.style.display = isBuiltinPrompt ? '' : 'none';
+		this.editorSaveButton.disabled = !this._editorContentChanged;
+		this.editorSaveButton.title = isBuiltinPrompt
+			? this._editorContentChanged
+				? localize('saveBuiltinPromptCopyTooltip', "Save an edited copy as a workspace or user prompt")
+				: localize('saveBuiltinPromptCopyDisabledTooltip', "Edit the prompt to save a workspace or user copy")
+			: '';
+	}
+
+	private resetEditorSaveIndicator(): void {
+		this.editorSaveIndicator.className = 'editor-save-indicator';
+		this.editorSaveIndicator.title = '';
+	}
+
+	private disposeBuiltinEditingSessions(): void {
+		for (const session of this.builtinEditingSessions.values()) {
+			session.model.dispose();
+		}
+		this.builtinEditingSessions.clear();
+	}
 
 	//#region Embedded MCP Server Detail
 

@@ -933,6 +933,28 @@
 	font-family: var(--monaco-monospace-font);
 }
 
+.ai-customization-management-editor .editor-save-button {
+	display: none;
+	flex-shrink: 0;
+	padding: 4px 10px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 4px;
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	cursor: pointer;
+	font-size: 12px;
+	line-height: 18px;
+}
+
+.ai-customization-management-editor .editor-save-button:hover:not(:disabled) {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.ai-customization-management-editor .editor-save-button:disabled {
+	cursor: default;
+	opacity: 0.6;
+}
+
 .ai-customization-management-editor .editor-save-indicator {
 	flex-shrink: 0;
 	width: 16px;
