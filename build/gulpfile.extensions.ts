@@ -309,13 +309,6 @@ async function buildWebExtensions(isWatch: boolean): Promise<void> {
 		{ ignore: ['**/node_modules'] }
 	);
 
-	// Find all webpack configs, excluding those that will be esbuilt
-	const esbuildExtensionDirs = new Set(esbuildConfigLocations.map(p => path.dirname(p)));
-	const webpackConfigLocations = (await nodeUtil.promisify(glob)(
-		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),
-		{ ignore: ['**/node_modules'] }
-	)).filter(configPath => !esbuildExtensionDirs.has(path.dirname(configPath)));
-
 	const promises: Promise<unknown>[] = [];
 
 	// Esbuild for extensions
@@ -328,11 +321,6 @@ async function buildWebExtensions(isWatch: boolean): Promise<void> {
 				return roots.map(root => ext.typeCheckExtension(root, true));
 			})
 		);
-	}
-
-	// Run webpack for remaining extensions
-	if (webpackConfigLocations.length > 0) {
-		promises.push(ext.webpackExtensions('packaging web extension', isWatch, webpackConfigLocations.map(configPath => ({ configPath }))));
 	}
 
 	await Promise.all(promises);
