@@ -867,8 +867,8 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			}
 
 			const repoName = this.getRepositoryName(session);
-			const repoId = repoName ?? noRepoId;
-			const repoLabel = repoName ?? noRepoLabel;
+			const repoId = repoName || noRepoId;
+			const repoLabel = repoName || noRepoLabel;
 
 			let group = repoMap.get(repoId);
 			if (!group) {
@@ -948,18 +948,18 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			// repositoryPath: extract repo name from the directory path basename
 			const repositoryPath = metadata.repositoryPath as string | undefined;
 			if (repositoryPath) {
-				const name = this.extractRepoNameFromPath(repositoryPath);
-				if (name) {
-					return name;
+				const repoName = this.extractRepoNameFromPath(repositoryPath);
+				if (repoName) {
+					return repoName;
 				}
 			}
 
 			// workingDirectoryPath: fallback to extract name from the working directory
 			const workingDirectoryPath = metadata.workingDirectoryPath as string | undefined;
 			if (workingDirectoryPath) {
-				const name = this.extractRepoNameFromPath(workingDirectoryPath);
-				if (name) {
-					return name;
+				const repoName = this.extractRepoNameFromPath(workingDirectoryPath);
+				if (repoName) {
+					return repoName;
 				}
 			}
 		}
@@ -968,7 +968,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		const badge = session.badge;
 		if (badge) {
 			const raw = typeof badge === 'string' ? badge : badge.value;
-			const badgeMatch = raw.match(/\$\((?:repo|folder)\)\s*(.+)/);
+			const badgeMatch = raw.match(/\$\((?:repo|folder|worktree)\)\s*(.+)/);
 			if (badgeMatch) {
 				return badgeMatch[1].trim();
 			}
