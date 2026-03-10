@@ -47,6 +47,7 @@ import type { IProgressState } from '@xterm/addon-progress';
 import type { CommandDetectionCapability } from '../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isNumber } from '../../../../../base/common/types.js';
+import { clamp } from '../../../../../base/common/numbers.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -964,16 +965,21 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			this.raw.loadAddon(this._serializeAddon);
 		}
 
+		const lastLine = this.raw.buffer.active.length - 1;
+		if (lastLine < 0) {
+			return '';
+		}
+
 		const hasValidEndMarker = isNumber(endMarker?.line);
-		const start = isNumber(startMarker?.line) && startMarker?.line > -1 ? startMarker.line : 0;
+		const start = clamp(isNumber(startMarker?.line) && startMarker.line > -1 ? startMarker.line : 0, 0, lastLine);
 		let end = hasValidEndMarker ? endMarker.line : this.raw.buffer.active.length - 1;
 		if (skipLastLine && hasValidEndMarker) {
 			end = end - 1;
 		}
-		end = Math.max(end, start);
+		end = clamp(Math.max(end, start), start, lastLine);
 		return this._serializeAddon.serialize({
 			range: {
-				start: startMarker?.line ?? 0,
+				start,
 				end
 			}
 		});
