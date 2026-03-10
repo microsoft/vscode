@@ -46,6 +46,7 @@ import { getTarget, mapClaudeModels, mapClaudeTools } from '../languageProviders
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { getCanonicalPluginCommandId, IAgentPlugin, IAgentPluginService } from '../../plugins/agentPluginService.js';
+import { isContributionEnabled } from '../../enablement.js';
 import { assertNever } from '../../../../../../base/common/assert.js';
 
 /**
@@ -249,7 +250,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		this._register(autorun(reader => {
 			const plugins = this.agentPluginService.plugins.read(reader);
 			for (const plugin of plugins) {
-				plugin.hooks.read(reader);
+				if (isContributionEnabled(plugin.enablement.read(reader))) {
+					plugin.hooks.read(reader);
+				}
 			}
 			this._onDidPluginHooksChange.fire();
 		}));
@@ -263,6 +266,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 			const plugins = this.agentPluginService.plugins.read(reader);
 			const nextFiles: IPluginPromptPath[] = [];
 			for (const plugin of plugins) {
+				if (!isContributionEnabled(plugin.enablement.read(reader))) {
+					continue;
+				}
 				for (const item of getItems(plugin, reader)) {
 					nextFiles.push({
 						uri: item.uri,
@@ -333,42 +339,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	/**
-	 * Collects diagnostic information about which source folders were searched
-	 * and whether they exist, for display in the debug panel.
+	 * Collects diagnostic information about which source folders were searched for display in the debug panel.
 	 */
-	private async _collectSourceFolderDiagnostics(type: PromptsType, foundFiles: readonly { uri: URI }[]): Promise<IPromptSourceFolderResult[]> {
+	private async _collectSourceFolderDiagnostics(type: PromptsType): Promise<IPromptSourceFolderResult[]> {
 		const resolvedFolders = await this.fileLocator.getSourceFoldersInDiscoveryOrder(type);
-		const results: IPromptSourceFolderResult[] = [];
-
-		for (const folder of resolvedFolders) {
-			const fileCount = foundFiles.filter(f => f.uri.path.startsWith(folder.uri.path + '/')).length;
-			let exists = fileCount > 0;
-			let errorMessage: string | undefined;
-
-			if (!exists) {
-				try {
-					const stat = await this.fileService.stat(folder.uri);
-					exists = stat.isDirectory;
-				} catch (e) {
-					if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-						exists = false;
-					} else {
-						exists = false;
-						errorMessage = e instanceof Error ? e.message : String(e);
-					}
-				}
-			}
-
-			results.push({
-				uri: folder.uri,
-				storage: folder.storage,
-				exists,
-				fileCount,
-				errorMessage,
-			});
-		}
-
-		return results;
+		return resolvedFolders.map(folder => ({
+			uri: folder.uri,
+			storage: folder.storage,
+		}));
 	}
 
 	/**
@@ -1314,6 +1292,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Collect hooks from agent plugins
 		const plugins = this.agentPluginService.plugins.get();
 		for (const plugin of plugins) {
+			if (!isContributionEnabled(plugin.enablement.get())) {
+				continue;
+			}
 			for (const hook of plugin.hooks.get()) {
 				let bucket = collectedHooks.get(hook.type);
 				if (!bucket) {
@@ -1367,7 +1348,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		// Add source folder diagnostics if not already present
 		if (!result.sourceFolders) {
-			const sourceFolders = await this._collectSourceFolderDiagnostics(type, result.files.filter(f => f.status === 'loaded'));
+			const sourceFolders = await this._collectSourceFolderDiagnostics(type);
 			result = { ...result, sourceFolders };
 		}
 
@@ -1402,13 +1383,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 				skipReason: 'disabled' as const,
 				extensionId: promptPath.extension?.identifier?.value
 			}));
-			const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.skill, []);
+			const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.skill);
 			return { type: PromptsType.skill, files, sourceFolders };
 		}
 
 		const { files } = await this.computeSkillDiscoveryInfo(token);
-		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.skill, files.filter(f => f.status === 'loaded'));
-		return { type: PromptsType.skill, files, sourceFolders };
+		return { type: PromptsType.skill, files };
 	}
 
 	/**
@@ -1560,7 +1540,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
-		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.agent, files.filter(f => f.status === 'loaded'));
+		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.agent);
 		return { type: PromptsType.agent, files, sourceFolders };
 	}
 
@@ -1589,7 +1569,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
-		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.prompt, files.filter(f => f.status === 'loaded'));
+		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.prompt);
 		return { type: PromptsType.prompt, files, sourceFolders };
 	}
 
@@ -1618,7 +1598,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
-		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.instructions, files.filter(f => f.status === 'loaded'));
+		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.instructions);
 		return { type: PromptsType.instructions, files, sourceFolders };
 	}
 
@@ -1717,7 +1697,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
-		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.hook, files.filter(f => f.status === 'loaded'));
+		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.hook);
 		return { type: PromptsType.hook, files, sourceFolders };
 	}
 }

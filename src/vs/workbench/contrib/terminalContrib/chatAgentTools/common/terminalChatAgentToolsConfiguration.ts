@@ -519,6 +519,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		default: false,
 		tags: ['preview'],
 		restricted: true,
+		experiment: {
+			mode: 'auto'
+		}
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxNetwork]: {
 		markdownDescription: localize('terminalSandbox.networkSetting', "Note: this setting is applicable only when {0} is enabled. Controls network access in the terminal sandbox.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),

@@ -163,7 +163,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 			this._updateCounts();
 		}));
 		this._viewItemDisposables.add(autorun(reader => {
-			this._agentPluginService.allPlugins.read(reader);
+			this._agentPluginService.plugins.read(reader);
 			this._updateCounts();
 		}));
 		this._viewItemDisposables.add(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateCounts()));
@@ -198,7 +198,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 			const total = this._mcpService.servers.get().length;
 			this._renderTotalCount(this._countContainer, total);
 		} else if (this._config.isPlugins) {
-			const total = this._agentPluginService.allPlugins.get().length;
+			const total = this._agentPluginService.plugins.get().length;
 			this._renderTotalCount(this._countContainer, total);
 		}
 	}

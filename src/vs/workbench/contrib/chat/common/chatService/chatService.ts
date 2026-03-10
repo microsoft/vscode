@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, IObservable, IReader } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -351,6 +351,18 @@ export interface IChatConfirmation {
 }
 
 /**
+ * Validation rules for a question in a question carousel.
+ */
+export interface IChatQuestionValidation {
+	minLength?: number;
+	maxLength?: number;
+	format?: 'email' | 'uri' | 'date' | 'date-time';
+	minimum?: number;
+	maximum?: number;
+	isInteger?: boolean;
+}
+
+/**
  * Represents an individual question in a question carousel.
  */
 export interface IChatQuestion {
@@ -358,10 +370,31 @@ export interface IChatQuestion {
 	type: 'text' | 'singleSelect' | 'multiSelect';
 	title: string;
 	message?: string | IMarkdownString;
-	options?: { id: string; label: string; value: unknown }[];
+	description?: string;
+	options?: { id: string; label: string; value: string }[];
 	defaultValue?: string | string[];
 	allowFreeformInput?: boolean;
+	required?: boolean;
+	validation?: IChatQuestionValidation;
 }
+
+/** Answer shape for a single-select question. */
+export interface IChatSingleSelectAnswer {
+	selectedValue?: string;
+	freeformValue?: string;
+}
+
+/** Answer shape for a multi-select question. */
+export interface IChatMultiSelectAnswer {
+	selectedValues: string[];
+	freeformValue?: string;
+}
+
+/** Union of all possible answer values in a question carousel. */
+export type IChatQuestionAnswerValue = string | IChatSingleSelectAnswer | IChatMultiSelectAnswer;
+
+/** Record mapping question IDs to their typed answer values. */
+export type IChatQuestionAnswers = Record<string, IChatQuestionAnswerValue>;
 
 /**
  * A carousel for presenting multiple questions inline in the chat response.
@@ -373,9 +406,13 @@ export interface IChatQuestionCarousel {
 	/** Unique identifier for resolving the carousel answers back to the extension */
 	resolveId?: string;
 	/** Storage for collected answers when user submits */
-	data?: Record<string, unknown>;
+	data?: IChatQuestionAnswers;
 	/** Whether the carousel has been submitted/skipped */
 	isUsed?: boolean;
+	/** Top-level message shown above the questions (e.g. from MCP elicitation message) */
+	message?: string | IMarkdownString;
+	/** Source attribution (e.g. MCP server) */
+	source?: ToolDataSource;
 	kind: 'questionCarousel';
 }
 
@@ -876,6 +913,7 @@ export interface IChatExternalToolInvocationUpdate {
 	pastTenseMessage?: string | IMarkdownString;
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatModifiedFilesConfirmationData;
 	subagentInvocationId?: string;
+	resultDetails?: IToolResultInputOutputDetails;
 }
 
 export interface IChatTodoListContent {
@@ -1458,8 +1496,8 @@ export interface IChatService {
 	readonly onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
 
-	readonly onDidReceiveQuestionCarouselAnswer: Event<{ requestId: string; resolveId: string; answers: Record<string, unknown> | undefined }>;
-	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: Record<string, unknown> | undefined): void;
+	readonly onDidReceiveQuestionCarouselAnswer: Event<{ requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }>;
+	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: IChatQuestionAnswers | undefined): void;
 
 	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI[]; readonly reason: 'cleared' }>;
 
@@ -1468,6 +1506,11 @@ export interface IChatService {
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 
 	readonly requestInProgressObs: IObservable<boolean>;
+
+	/**
+	 * @deprecated
+	 */
+	registerChatModelChangeListeners(chatSessionType: string, onChange: () => void): IDisposable;
 
 	/**
 	 * For tests only!
@@ -1481,9 +1524,7 @@ export interface IChatService {
 }
 
 export interface IChatSessionContext {
-	readonly chatSessionType: string;
 	readonly chatSessionResource: URI;
-	readonly isUntitled: boolean;
 	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | { id: string; name: string } }>;
 }
 
