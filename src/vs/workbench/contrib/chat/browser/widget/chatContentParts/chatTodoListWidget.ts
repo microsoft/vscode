@@ -496,32 +496,18 @@ export class ChatTodoListWidget extends Disposable {
 
 /**
  * Triggers the above-input reveal animation on a widget element.
- * Uses a max-height transition from 0 to the element's actual height for a smooth resize.
+ * Add/remove the class so the CSS keyframe runs each time.
  */
 export function triggerRevealAnimation(element: HTMLElement): void {
 	element.classList.remove('chat-above-input-reveal');
 	element.classList.remove('chat-above-input-collapse');
-	// Force reflow so element is laid out before measuring
-	void element.offsetWidth;
-	const height = element.scrollHeight;
-	// Animate max-height from 0 → actual height via inline transition
-	element.style.maxHeight = '0px';
-	element.style.overflow = 'hidden';
-	void element.offsetWidth; // Force reflow to apply start state
-	element.style.transition = 'max-height 200ms cubic-bezier(0.25, 0.8, 0.25, 1)';
-	element.style.maxHeight = `${height}px`;
-	// Opacity + transform handled by the CSS animation
+	void element.offsetWidth; // Force reflow to restart animation
 	element.classList.add('chat-above-input-reveal');
-	element.addEventListener('animationend', () => {
-		element.style.maxHeight = '';
-		element.style.overflow = '';
-		element.style.transition = '';
-	}, { once: true });
 }
 
 /**
  * Triggers the above-input collapse animation on a widget element.
- * Measures the element's current height so the collapse animation is symmetric with reveal.
+ * After the animation ends, hides the element with display: none.
  */
 export function triggerCollapseAnimation(element: HTMLElement): void {
 	// If already hidden, just ensure it stays hidden
@@ -529,23 +515,12 @@ export function triggerCollapseAnimation(element: HTMLElement): void {
 		element.style.display = 'none';
 		return;
 	}
-	// Measure current height before collapse
-	const height = element.offsetHeight;
 	element.classList.remove('chat-above-input-reveal');
 	element.classList.remove('chat-above-input-collapse');
-	// Set max-height to current height, then animate to 0
-	element.style.maxHeight = `${height}px`;
-	element.style.overflow = 'hidden';
-	void element.offsetWidth; // Force reflow to apply start state
-	element.style.transition = 'max-height 200ms cubic-bezier(0.25, 0.8, 0.25, 1)';
-	element.style.maxHeight = '0px';
-	// Opacity + transform handled by the CSS animation
+	void element.offsetWidth; // Force reflow to restart animation
 	element.classList.add('chat-above-input-collapse');
 	element.addEventListener('animationend', () => {
 		element.style.display = 'none';
 		element.classList.remove('chat-above-input-collapse');
-		element.style.maxHeight = '';
-		element.style.overflow = '';
-		element.style.transition = '';
 	}, { once: true });
 }

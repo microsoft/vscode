@@ -1563,10 +1563,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const rowContainer = item.rowContainer;
 
 				// Capture the bubble width before it's hidden so the expand animation starts from the right size
-				const valueDom = item.renderedParts?.[0]?.domNode;
-				const bubble = valueDom?.firstElementChild as HTMLElement | undefined;
-				const bubbleWidth = bubble?.offsetWidth ?? valueDom?.offsetWidth;
-				const bubbleWidthPct = bubbleWidth ? Math.ceil(bubbleWidth / rowContainer.offsetWidth * 100) : 60;
+				const bubbleWidth = item.renderedParts?.[0]?.domNode?.offsetWidth;
+				const bubbleWidthPct = bubbleWidth ? Math.round(bubbleWidth / rowContainer.offsetWidth * 100) : 60;
 
 				this.inputContainer = dom.$('.chat-edit-input-container');
 				this.inputContainer.style.setProperty('--chat-edit-bubble-width', `${bubbleWidthPct}%`);
