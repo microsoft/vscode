@@ -1380,7 +1380,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 		const defaultConfigurationsPreventingExperimentOverrides = this.configurationRegistry.getRegisteredDefaultConfigurations().filter(configuration => configuration.preventExperimentOverride);
 		for (const property of properties) {
 			const schema = allProperties[property];
-			if (!schema?.experiment) {
+			if (!schema) {
 				continue;
 			}
 			const defaultValueSource: ConfigurationDefaultSource | undefined = schema.defaultValueSource && !(schema.defaultValueSource instanceof Map) ? schema.defaultValueSource : undefined;
@@ -1391,11 +1391,12 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 				continue;
 			}
 			this.processedExperimentalSettings.add(property);
-			if (schema.experiment.mode === 'auto') {
+			const experiment = schema.experiment;
+			if (experiment?.mode === 'auto') {
 				this.autoExperimentalSettings.add(property);
 			}
 			try {
-				const value = await this.workbenchAssignmentService.getTreatment(schema.experiment.name ?? `config.${property}`);
+				const value = await this.workbenchAssignmentService.getTreatment(experiment?.name ?? `config.${property}`);
 				if (!isUndefined(value) && !equals(value, schema.default)) {
 					overrides[property] = value;
 				}
