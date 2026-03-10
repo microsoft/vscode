@@ -39,15 +39,15 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { IBrowserZoomService } from './browserZoomService.js';
 
 /**
- * Extracts the origin (scheme + host) from a URL string.
- * Returns `undefined` for URLs without a host (e.g. `about:blank`, empty string).
+ * Extracts the host from a URL string for zoom tracking purposes.
+ * Only tracks http and https URLs; returns `undefined` for all other schemes.
  */
-function parseOrigin(url: string): string | undefined {
+function parseZoomHost(url: string): string | undefined {
 	const parsed = URL.parse(url);
-	if (!parsed?.host) {
+	if (!parsed?.host || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
 		return undefined;
 	}
-	return `${parsed.protocol}//${parsed.host}`;
+	return parsed.host;
 }
 
 type IntegratedBrowserNavigationEvent = {
@@ -185,7 +185,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _error: IBrowserViewLoadError | undefined = undefined;
 	private _storageScope: BrowserViewStorageScope = BrowserViewStorageScope.Ephemeral;
 	private _isEphemeral: boolean = false;
-	private _origin: string | undefined = undefined;
+	private _zoomHost: string | undefined = undefined;
 	private _sharedWithAgent: boolean = false;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
@@ -313,26 +313,26 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._sharedWithAgent = await this.playwrightService.isPageTracked(this.id);
 		this._browserZoomIndex = state.browserZoomIndex;
 
-		// Derive ephemeral flag and current origin for the zoom cascade.
+		// Derive ephemeral flag and current host for the zoom cascade.
 		this._isEphemeral = this._storageScope === BrowserViewStorageScope.Ephemeral;
-		this._origin = parseOrigin(this._url);
+		this._zoomHost = parseZoomHost(this._url);
 
 		// Apply the effective zoom immediately (cascade: ephemeral override ?? persistent override ?? default).
-		const effectiveZoomIndex = this.zoomService.getEffectiveZoomIndex(this._origin, this._isEphemeral);
+		const effectiveZoomIndex = this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral);
 		if (effectiveZoomIndex !== this._browserZoomIndex) {
 			await this.setBrowserZoomIndex(effectiveZoomIndex);
 		}
 
 		// React to service-wide zoom changes so all open views stay in sync immediately.
-		this._register(this.zoomService.onDidChangeZoom(({ origin, isEphemeralChange }) => {
+		this._register(this.zoomService.onDidChangeZoom(({ host, isEphemeralChange }) => {
 			// Ephemeral-only changes do not affect non-ephemeral views.
 			if (isEphemeralChange && !this._isEphemeral) {
 				return;
 			}
-			// React only when the default changed (origin === undefined) or our origin matches.
-			if (origin === undefined || origin === this._origin) {
+			// React only when the default changed (host === undefined) or our host matches.
+			if (host === undefined || host === this._zoomHost) {
 				void this.setBrowserZoomIndex(
-					this.zoomService.getEffectiveZoomIndex(this._origin, this._isEphemeral)
+					this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral)
 				);
 			}
 		}));
@@ -345,20 +345,20 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 				this._favicon = undefined;
 			}
 
-			const newOrigin = parseOrigin(e.url);
-			const originChanged = newOrigin !== this._origin;
-			this._origin = newOrigin;
+			const newHost = parseZoomHost(e.url);
+			const hostChanged = newHost !== this._zoomHost;
+			this._zoomHost = newHost;
 			this._url = e.url;
 			this._title = e.title;
 			this._canGoBack = e.canGoBack;
 			this._canGoForward = e.canGoForward;
 
-			// Apply the zoom for the newly navigated origin.
+			// Apply the zoom for the newly navigated host.
 			// forceApply=true because Chromium resets zoom on cross-document navigation,
 			// making the local _browserZoomIndex cache stale even if the value looks correct.
-			if (originChanged) {
+			if (hostChanged) {
 				void this.setBrowserZoomIndex(
-					this.zoomService.getEffectiveZoomIndex(this._origin, this._isEphemeral),
+					this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral),
 					true
 				);
 			}
@@ -481,9 +481,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}
 		// Apply the new zoom locally first so this call resolves after the IPC completes.
 		await this.setBrowserZoomIndex(this._browserZoomIndex + 1);
-		// Persist the change so other views with the same origin react immediately.
-		if (this._origin) {
-			this.zoomService.setOriginZoomIndex(this._origin, this._browserZoomIndex, this._isEphemeral);
+		// Persist the change so other views with the same host react immediately.
+		if (this._zoomHost) {
+			this.zoomService.setHostZoomIndex(this._zoomHost, this._browserZoomIndex, this._isEphemeral);
 		}
 	}
 
@@ -492,19 +492,19 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			return;
 		}
 		await this.setBrowserZoomIndex(this._browserZoomIndex - 1);
-		if (this._origin) {
-			this.zoomService.setOriginZoomIndex(this._origin, this._browserZoomIndex, this._isEphemeral);
+		if (this._zoomHost) {
+			this.zoomService.setHostZoomIndex(this._zoomHost, this._browserZoomIndex, this._isEphemeral);
 		}
 	}
 
 	async resetZoom(): Promise<void> {
-		// Use getEffectiveZoomIndex(undefined) to get the pure configured default (no per-origin).
+		// Use getEffectiveZoomIndex(undefined) to get the pure configured default (no per-host).
 		const defaultIndex = this.zoomService.getEffectiveZoomIndex(undefined, false);
 		await this.setBrowserZoomIndex(defaultIndex);
-		if (this._origin) {
+		if (this._zoomHost) {
 			// For non-ephemeral: removes the persistent entry (equals default → not stored).
 			// For ephemeral: stores default explicitly to mask any persistent override.
-			this.zoomService.setOriginZoomIndex(this._origin, defaultIndex, this._isEphemeral);
+			this.zoomService.setHostZoomIndex(this._zoomHost, defaultIndex, this._isEphemeral);
 		}
 	}
 

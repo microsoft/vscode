@@ -7,14 +7,13 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { browserZoomDefaultIndex, browserZoomFactors } from '../../../../platform/browserView/common/browserView.js';
 import { zoomLevelToZoomFactor } from '../../../../platform/window/common/window.js';
 
 export const IBrowserZoomService = createDecorator<IBrowserZoomService>('browserZoomService');
 
-/** Setting key that holds the per-origin persistent zoom map. */
-export const BROWSER_ZOOM_PER_ORIGIN_SETTING = 'workbench.browser.zoom.perOriginZoomLevels';
+/** Setting key that holds the per-host persistent zoom map. */
+export const BROWSER_ZOOM_PER_HOST_SETTING = 'workbench.browser.zoom.perHostZoomLevels';
 
 /**
  * Special value for the default zoom level setting that instructs the browser view
@@ -24,15 +23,15 @@ export const MATCH_VSCODE_LABEL = 'Match VS Code';
 
 export interface IBrowserZoomChangeEvent {
 	/**
-	 * The origin (e.g. `"https://example.com"`) whose zoom changed, or `undefined`
+	 * The host (e.g. `"example.com"`) whose zoom changed, or `undefined`
 	 * when the global default zoom level changed.
 	 */
-	readonly origin: string | undefined;
+	readonly host: string | undefined;
 
 	/**
 	 * Whether the change came from an ephemeral session.
 	 * - `true`  → only ephemeral views need to react.
-	 * - `false` → all views (ephemeral and non-ephemeral) for the origin may be affected.
+	 * - `false` → all views (ephemeral and non-ephemeral) for the host may be affected.
 	 */
 	readonly isEphemeralChange: boolean;
 }
@@ -41,14 +40,14 @@ export interface IBrowserZoomChangeEvent {
  * Manages the three-level cascading zoom hierarchy for integrated browser views:
  *
  *  Level 1 (lowest)  — Configured default: `workbench.browser.zoom.defaultZoomLevel`
- *  Level 2 (middle)  — Persistent per-origin: `workbench.browser.zoom.perOriginZoomLevels` (user setting).
- *  Level 3 (highest) — Ephemeral per-origin: in-memory only, never persisted across restarts.
+ *  Level 2 (middle)  — Persistent per-host: `workbench.browser.zoom.perHostZoomLevels` (user setting).
+ *  Level 3 (highest) — Ephemeral per-host: in-memory only, never persisted across restarts.
  *
  * Cascade resolution (highest-priority first):
  *   `ephemeral override` ?? `persistent override` ?? `configured default`
  *
  * Key rules:
- *  - A persistent per-origin value that equals the current default is never stored; it is removed
+ *  - A persistent per-host value that equals the current default is never stored; it is removed
  *    so the view falls back to the default cleanly.
  *  - Ephemeral overrides are always stored in memory (to mask persistent values within a session)
  *    and are silently dropped on VS Code restart.
@@ -58,25 +57,25 @@ export interface IBrowserZoomChangeEvent {
 export interface IBrowserZoomService {
 	readonly _serviceBrand: undefined;
 
-	/** Fired whenever the effective zoom for an origin may have changed. */
+	/** Fired whenever the effective zoom for a host may have changed. */
 	readonly onDidChangeZoom: Event<IBrowserZoomChangeEvent>;
 
 	/**
-	 * Returns the effective zoom index for the given origin and session type.
-	 * Pass `origin = undefined` to obtain only the configured default zoom index.
+	 * Returns the effective zoom index for the given host and session type.
+	 * Pass `host = undefined` to obtain only the configured default zoom index.
 	 */
-	getEffectiveZoomIndex(origin: string | undefined, isEphemeral: boolean): number;
+	getEffectiveZoomIndex(host: string | undefined, isEphemeral: boolean): number;
 
 	/**
-	 * Set the zoom for an origin.
+	 * Set the zoom for a host.
 	 *
-	 * Non-ephemeral: the value is persisted to `workbench.browser.zoom.perOriginZoomLevels`. If it
+	 * Non-ephemeral: the value is persisted to `workbench.browser.zoom.perHostZoomLevels`. If it
 	 * equals the current default, any existing entry is removed so the view falls back to the default.
 	 *
 	 * Ephemeral: the value is stored in memory only and always kept within the session
 	 * (even when it equals the default) so that it masks any persistent override.
 	 */
-	setOriginZoomIndex(origin: string, zoomIndex: number, isEphemeral: boolean): void;
+	setHostZoomIndex(host: string, zoomIndex: number, isEphemeral: boolean): void;
 
 	/**
 	 * Notifies the service of VS Code's current UI zoom factor.
@@ -90,12 +89,6 @@ export interface IBrowserZoomService {
 // Implementation
 // ---------------------------------------------------------------------------
 
-/**
- * Legacy storage key used before per-origin zoom was promoted to a user setting.
- * Data from this key is migrated to the new setting on first load and then removed.
- */
-const LEGACY_STORAGE_KEY = 'browserView.zoom.perOrigin';
-
 /** Debounce delay for flushing pending config writes (ms). */
 const CONFIG_WRITE_DEBOUNCE_MS = 500;
 
@@ -106,12 +99,12 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 	readonly onDidChangeZoom: Event<IBrowserZoomChangeEvent> = this._onDidChangeZoom.event;
 
 	/**
-	 * In-memory cache of the persistent per-origin map.
+	 * In-memory cache of the persistent per-host map.
 	 * Kept in sync with the configuration setting; written back asynchronously.
 	 */
 	private _persistentZoomMap: Record<string, number>;
 
-	/** Ephemeral per-origin map: origin string → zoom index (integer). In-memory only. */
+	/** Ephemeral per-host map: host string → zoom index (integer). In-memory only. */
 	private readonly _ephemeralZoomMap = new Map<string, number>();
 
 	/**
@@ -127,24 +120,20 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 	private _vsCodeZoomFactor: number = zoomLevelToZoomFactor(0); // default: zoom level 0 → factor 1.0
 
 	constructor(
-		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
-		// Load from the user setting (primary source).
+		// Load from the user setting.
 		this._persistentZoomMap = this._readPersistentZoomMapFromConfig();
-
-		// One-time migration: if the legacy storage key has data and the setting is empty, import it.
-		this._migrateFromLegacyStorage(storageService);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('workbench.browser.zoom.defaultZoomLevel')) {
 				// Signal all views because the baseline changed.
-				this._onDidChangeZoom.fire({ origin: undefined, isEphemeralChange: false });
+				this._onDidChangeZoom.fire({ host: undefined, isEphemeralChange: false });
 			}
 
-			if (e.affectsConfiguration(BROWSER_ZOOM_PER_ORIGIN_SETTING)) {
+			if (e.affectsConfiguration(BROWSER_ZOOM_PER_HOST_SETTING)) {
 				// Skip events caused by our own writes.
 				if (this._pendingConfigWrites > 0) {
 					return;
@@ -152,29 +141,29 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 				// React to external edits (user modified settings.json manually).
 				const oldMap = this._persistentZoomMap;
 				const newMap = this._readPersistentZoomMapFromConfig();
-				const affectedOrigins = new Set([...Object.keys(oldMap), ...Object.keys(newMap)]);
+				const affectedHosts = new Set([...Object.keys(oldMap), ...Object.keys(newMap)]);
 				this._persistentZoomMap = newMap;
-				for (const origin of affectedOrigins) {
-					if (oldMap[origin] !== newMap[origin]) {
-						this._onDidChangeZoom.fire({ origin, isEphemeralChange: false });
+				for (const host of affectedHosts) {
+					if (oldMap[host] !== newMap[host]) {
+						this._onDidChangeZoom.fire({ host, isEphemeralChange: false });
 					}
 				}
 			}
 		}));
 	}
 
-	getEffectiveZoomIndex(origin: string | undefined, isEphemeral: boolean): number {
-		if (origin !== undefined) {
+	getEffectiveZoomIndex(host: string | undefined, isEphemeral: boolean): number {
+		if (host !== undefined) {
 			// Highest priority: ephemeral override (only for ephemeral sessions).
 			if (isEphemeral) {
-				const ephemeralIndex = this._ephemeralZoomMap.get(origin);
+				const ephemeralIndex = this._ephemeralZoomMap.get(host);
 				if (ephemeralIndex !== undefined) {
 					return this._clamp(ephemeralIndex);
 				}
 			}
 
-			// Middle priority: persistent per-origin override.
-			const persistentIndex = this._persistentZoomMap[origin];
+			// Middle priority: persistent per-host override.
+			const persistentIndex = this._persistentZoomMap[host];
 			if (persistentIndex !== undefined) {
 				return this._clamp(persistentIndex);
 			}
@@ -184,33 +173,33 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 		return this._getDefaultZoomIndex();
 	}
 
-	setOriginZoomIndex(origin: string, zoomIndex: number, isEphemeral: boolean): void {
+	setHostZoomIndex(host: string, zoomIndex: number, isEphemeral: boolean): void {
 		const clamped = this._clamp(zoomIndex);
 
 		if (isEphemeral) {
 			// Always store in the ephemeral map to mask persistent values within the session.
-			const prev = this._ephemeralZoomMap.get(origin);
+			const prev = this._ephemeralZoomMap.get(host);
 			if (prev === clamped) {
 				return;
 			}
-			this._ephemeralZoomMap.set(origin, clamped);
-			this._onDidChangeZoom.fire({ origin, isEphemeralChange: true });
+			this._ephemeralZoomMap.set(host, clamped);
+			this._onDidChangeZoom.fire({ host, isEphemeralChange: true });
 		} else {
 			const defaultIndex = this._getDefaultZoomIndex();
 			if (clamped === defaultIndex) {
 				// Value matches the default: remove the stored entry so the view falls back cleanly.
-				if (!Object.prototype.hasOwnProperty.call(this._persistentZoomMap, origin)) {
+				if (!Object.prototype.hasOwnProperty.call(this._persistentZoomMap, host)) {
 					return;
 				}
-				delete this._persistentZoomMap[origin];
+				delete this._persistentZoomMap[host];
 			} else {
-				if (this._persistentZoomMap[origin] === clamped) {
+				if (this._persistentZoomMap[host] === clamped) {
 					return;
 				}
-				this._persistentZoomMap[origin] = clamped;
+				this._persistentZoomMap[host] = clamped;
 			}
 			this._schedulePersistentWrite();
-			this._onDidChangeZoom.fire({ origin, isEphemeralChange: false });
+			this._onDidChangeZoom.fire({ host, isEphemeralChange: false });
 		}
 	}
 
@@ -218,7 +207,7 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 		this._vsCodeZoomFactor = vsCodeZoomFactor;
 		const label = this.configurationService.getValue<string>('workbench.browser.zoom.defaultZoomLevel');
 		if (label === MATCH_VSCODE_LABEL) {
-			this._onDidChangeZoom.fire({ origin: undefined, isEphemeralChange: false });
+			this._onDidChangeZoom.fire({ host: undefined, isEphemeralChange: false });
 		}
 	}
 
@@ -264,16 +253,16 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 	}
 
 	/**
-	 * Reads the persistent per-origin zoom map from the user setting.
+	 * Reads the persistent per-host zoom map from the user setting.
 	 * Ignores any entries with unrecognized zoom labels (tolerates manual edits of unknown values).
 	 */
 	private _readPersistentZoomMapFromConfig(): Record<string, number> {
-		const setting = this.configurationService.getValue<Record<string, string>>(BROWSER_ZOOM_PER_ORIGIN_SETTING) ?? {};
+		const setting = this.configurationService.getValue<Record<string, string>>(BROWSER_ZOOM_PER_HOST_SETTING) ?? {};
 		const result: Record<string, number> = {};
-		for (const [origin, label] of Object.entries(setting)) {
+		for (const [host, label] of Object.entries(setting)) {
 			const index = browserZoomFactors.findIndex(f => `${Math.round(f * 100)}%` === label);
 			if (index >= 0) {
-				result[origin] = index;
+				result[host] = index;
 			}
 		}
 		return result;
@@ -298,50 +287,13 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 	/** Writes _persistentZoomMap to the user setting immediately. */
 	private _flushPersistentWrite(): void {
 		const map: Record<string, string> = {};
-		for (const [origin, index] of Object.entries(this._persistentZoomMap)) {
-			map[origin] = this._indexToLabel(index);
+		for (const [host, index] of Object.entries(this._persistentZoomMap)) {
+			map[host] = this._indexToLabel(index);
 		}
 		this._pendingConfigWrites++;
 		void this.configurationService
-			.updateValue(BROWSER_ZOOM_PER_ORIGIN_SETTING, Object.keys(map).length > 0 ? map : undefined, ConfigurationTarget.USER)
+			.updateValue(BROWSER_ZOOM_PER_HOST_SETTING, Object.keys(map).length > 0 ? map : undefined, ConfigurationTarget.USER)
 			.finally(() => { this._pendingConfigWrites--; });
-	}
-
-	/**
-	 * One-time migration: if the legacy opaque storage key has data and the new setting is empty,
-	 * import the data into the setting and remove the legacy key.
-	 */
-	private _migrateFromLegacyStorage(storageService: IStorageService): void {
-		const raw = storageService.get(LEGACY_STORAGE_KEY, StorageScope.PROFILE);
-		if (!raw) {
-			return;
-		}
-
-		try {
-			const parsed: unknown = JSON.parse(raw);
-			if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
-				// Only migrate when the new setting has no entries yet.
-				if (Object.keys(this._persistentZoomMap).length === 0) {
-					const map: Record<string, string> = {};
-					for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-						if (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < browserZoomFactors.length) {
-							map[key] = this._indexToLabel(value);
-						}
-					}
-					if (Object.keys(map).length > 0) {
-						this._pendingConfigWrites++;
-						void this.configurationService
-							.updateValue(BROWSER_ZOOM_PER_ORIGIN_SETTING, map, ConfigurationTarget.USER)
-							.then(() => { this._persistentZoomMap = this._readPersistentZoomMapFromConfig(); })
-							.finally(() => { this._pendingConfigWrites--; });
-					}
-				}
-			}
-		} catch {
-			// Ignore malformed legacy data.
-		}
-
-		storageService.remove(LEGACY_STORAGE_KEY, StorageScope.PROFILE);
 	}
 
 	private _clamp(index: number): number {
