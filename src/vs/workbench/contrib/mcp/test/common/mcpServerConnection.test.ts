@@ -338,6 +338,117 @@ suite('Workbench - MCP - ServerConnection', () => {
 		await timeout(10);
 	});
 
+	test('should emit a sandbox filesystem block for read-only errors with backtick paths', async () => {
+		const sandboxedDefinition: McpServerDefinition = {
+			...serverDefinition,
+			sandboxEnabled: true,
+		};
+
+		const connection = instantiationService.createInstance(
+			McpServerConnection,
+			collection,
+			sandboxedDefinition,
+			delegate,
+			sandboxedDefinition.launch,
+			new NullLogger(),
+			false,
+			store.add(new McpTaskManager()),
+		);
+		store.add(connection);
+
+		const message = 'error: failed to open file `/home/dileepy/.cache/uv/sdists-v9/.git`: Read-only file system (os error 30)';
+		const sandboxBlock = Event.toPromise(connection.onPotentialSandboxBlock);
+		const startPromise = connection.start({});
+
+		transport.simulateLog(message);
+		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
+
+		assert.deepStrictEqual(await sandboxBlock, {
+			kind: 'filesystem',
+			message,
+			path: '/home/dileepy/.cache/uv/sdists-v9/.git',
+		});
+
+		await startPromise;
+
+		connection.dispose();
+		await timeout(10);
+	});
+
+	test('should emit a sandbox filesystem block for read-only errors with double-quoted paths', async () => {
+		const sandboxedDefinition: McpServerDefinition = {
+			...serverDefinition,
+			sandboxEnabled: true,
+		};
+
+		const connection = instantiationService.createInstance(
+			McpServerConnection,
+			collection,
+			sandboxedDefinition,
+			delegate,
+			sandboxedDefinition.launch,
+			new NullLogger(),
+			false,
+			store.add(new McpTaskManager()),
+		);
+		store.add(connection);
+
+		const message = 'error: failed to open file "/home/dileepy/.cache/uv/sdists-v9/.git": Read-only file system (os error 30)';
+		const sandboxBlock = Event.toPromise(connection.onPotentialSandboxBlock);
+		const startPromise = connection.start({});
+
+		transport.simulateLog(message);
+		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
+
+		assert.deepStrictEqual(await sandboxBlock, {
+			kind: 'filesystem',
+			message,
+			path: '/home/dileepy/.cache/uv/sdists-v9/.git',
+		});
+
+		await startPromise;
+
+		connection.dispose();
+		await timeout(10);
+	});
+
+	test('should emit a sandbox filesystem block for read-only at-path errors with double-quoted paths', async () => {
+		const sandboxedDefinition: McpServerDefinition = {
+			...serverDefinition,
+			sandboxEnabled: true,
+		};
+
+		const connection = instantiationService.createInstance(
+			McpServerConnection,
+			collection,
+			sandboxedDefinition,
+			delegate,
+			sandboxedDefinition.launch,
+			new NullLogger(),
+			false,
+			store.add(new McpTaskManager()),
+		);
+		store.add(connection);
+
+		const message = 'error: Read-only file system (os error 30) at path "/home/dileepy/.cache/uv/.tmpo3offa"';
+		const sandboxBlock = Event.toPromise(connection.onPotentialSandboxBlock);
+		const startPromise = connection.start({});
+
+		transport.simulateLog(message);
+		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
+
+		assert.deepStrictEqual(await sandboxBlock, {
+			kind: 'filesystem',
+			message,
+			path: '/home/dileepy/.cache/uv/.tmpo3offa',
+		});
+
+		await startPromise;
+
+		connection.dispose();
+		await timeout(10);
+	});
+
 	test('should emit a sandbox network block with the denied host', async () => {
 		const sandboxedDefinition: McpServerDefinition = {
 			...serverDefinition,
