@@ -30,7 +30,7 @@ import { ILanguageFeaturesService } from '../../../common/services/languageFeatu
 import { FuzzyScoreOptions } from '../../../../base/common/filters.js';
 import { assertType } from '../../../../base/common/types.js';
 import { InlineCompletionContextKeys } from '../../inlineCompletions/browser/controller/inlineCompletionContextKeys.js';
-import { InlineCompletionsController } from '../../inlineCompletions/browser/controller/inlineCompletionsController.js';
+import { getInlineCompletionsController } from '../../inlineCompletions/browser/controller/common.js';
 import { SnippetController2 } from '../../snippet/browser/snippetController2.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -457,7 +457,7 @@ export class SuggestModel implements IDisposable {
 
 	private _waitForInlineCompletionsAndTrigger(initialModel: ITextModel, initialPosition: Position): void {
 		const initialModelVersion = initialModel.getVersionId();
-		const inlineController = InlineCompletionsController.get(this._editor);
+		const inlineController = getInlineCompletionsController(this._editor);
 		const inlineModel = inlineController?.model.get();
 		if (!inlineModel) {
 			this.trigger({ auto: true });

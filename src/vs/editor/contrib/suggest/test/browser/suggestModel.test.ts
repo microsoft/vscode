@@ -1424,11 +1424,10 @@ suite('SuggestModel - offWhenInlineCompletions with InlineCompletionsController'
 						override isBuilt: boolean = true;
 						override isExtensionDevelopment: boolean = false;
 					}],
-					// eslint-disable-next-line local/code-no-any-casts
-					[IAccessibilitySignalService, {
-						playSignal: async () => { },
-						isSoundEnabled(_signal: unknown) { return false; },
-					} as any],
+					[IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() {
+						override async playSignal() { }
+						override isSoundEnabled() { return false; }
+					}],
 					[IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 						override onDidChangeDefaultAccount = Event.None;
 						override getDefaultAccount = async () => null;
