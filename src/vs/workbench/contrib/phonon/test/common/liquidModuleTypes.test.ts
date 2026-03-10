@@ -21,7 +21,9 @@ import type {
 	ICompositionSlot,
 	ICompositionIntent,
 	ILiquidCapabilitySummary,
+	ICompositionMetrics,
 	ComponentCategory,
+	GraftDNA,
 } from '../../common/liquidGraftTypes.js';
 
 suite('LiquidModuleTypes', () => {
@@ -405,6 +407,56 @@ suite('LiquidModuleTypes', () => {
 			};
 			assert.strictEqual(summary.modules.length, 0);
 			assert.strictEqual(summary.grafts.length, 0);
+		});
+	});
+
+	// ==================== Composition Metrics ====================
+
+	suite('ICompositionMetrics', () => {
+		test('accepts full metrics object', () => {
+			const metrics: ICompositionMetrics = {
+				graftCount: 3,
+				publisherCount: 2,
+				graftEquivalentTokens: 2506,
+				intentTokens: 147,
+			};
+			assert.deepStrictEqual(metrics, {
+				graftCount: 3,
+				publisherCount: 2,
+				graftEquivalentTokens: 2506,
+				intentTokens: 147,
+			});
+		});
+
+		test('accepts zero-token deterministic composition', () => {
+			const metrics: ICompositionMetrics = {
+				graftCount: 4,
+				publisherCount: 1,
+				graftEquivalentTokens: 1860,
+				intentTokens: 0,
+			};
+			assert.strictEqual(metrics.intentTokens, 0);
+			assert.strictEqual(metrics.graftEquivalentTokens, 1860);
+		});
+	});
+
+	// ==================== GraftDNA alias ====================
+
+	suite('GraftDNA', () => {
+		test('GraftDNA is alias for ILiquidGraftContribution', () => {
+			const dna: GraftDNA = {
+				id: 'test-graft',
+				label: 'Test Graft',
+				entry: './grafts/test.html',
+				description: 'A test graft',
+				domain: 'test',
+				category: 'stat',
+				tokenWeight: 500,
+			};
+			// GraftDNA should be assignable to ILiquidGraftContribution
+			const contribution: ILiquidGraftContribution = dna;
+			assert.strictEqual(contribution.id, 'test-graft');
+			assert.strictEqual(contribution.tokenWeight, 500);
 		});
 	});
 });

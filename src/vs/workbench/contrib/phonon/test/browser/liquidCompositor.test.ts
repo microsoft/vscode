@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { LiquidModuleRegistry } from '../../browser/liquidModuleRegistry.js';
 import { CompositionEngine } from '../../browser/liquidCompositor.js';
-import type { ILiquidGraft, ILiquidView } from '../../common/liquidGraftTypes.js';
+import type { ILiquidGraft, ILiquidView, ICompositionMetrics } from '../../common/liquidGraftTypes.js';
 
 function makeGraft(overrides: Partial<ILiquidGraft> & { id: string; label: string }): ILiquidGraft {
 	return {
@@ -401,6 +401,75 @@ suite('CompositionEngine', () => {
 			const result = engine.composeFromIntent(grafts.map((_, i) => `e${i}`), 'show');
 			assert.ok(result);
 			assert.strictEqual(result.layout, 'stack');
+		});
+	});
+
+	// ==================== onDidCompose metrics ====================
+
+	suite('onDidCompose', () => {
+
+		test('composeFromView fires onDidCompose with correct metrics', () => {
+			const received: ICompositionMetrics[] = [];
+			store.add(engine.onDidCompose(m => received.push(m)));
+
+			registry.updateGrafts([
+				makeGraft({ id: 'g1', label: 'One', tokenWeight: 400 }),
+				makeGraft({ id: 'g2', label: 'Two', tokenWeight: 600, extensionId: 'other.ext' }),
+			]);
+
+			engine.composeFromView('viewA', ['g1', 'g2']);
+
+			assert.strictEqual(received.length, 1);
+			assert.deepStrictEqual({
+				graftCount: received[0].graftCount,
+				publisherCount: received[0].publisherCount,
+				graftEquivalentTokens: received[0].graftEquivalentTokens,
+				intentTokens: received[0].intentTokens,
+			}, {
+				graftCount: 2,
+				publisherCount: 2,
+				graftEquivalentTokens: 1000,
+				intentTokens: 0,
+			});
+		});
+
+		test('composeFromIntent fires onDidCompose with estimated intentTokens', () => {
+			const received: ICompositionMetrics[] = [];
+			store.add(engine.onDidCompose(m => received.push(m)));
+
+			registry.updateGrafts([
+				makeGraft({ id: 'dishDetail', label: 'Dish', category: 'detail', shows: ['dish'], tokenWeight: 500 }),
+			]);
+
+			engine.composeFromIntent(['dish'], 'show');
+
+			assert.strictEqual(received.length, 1);
+			assert.strictEqual(received[0].graftCount, 1);
+			assert.strictEqual(received[0].graftEquivalentTokens, 500);
+			assert.ok(received[0].intentTokens > 0, 'intentTokens should be > 0 for AI path');
+		});
+
+		test('composeFromView with tokenWeight=0 reports zero equivalent tokens', () => {
+			const received: ICompositionMetrics[] = [];
+			store.add(engine.onDidCompose(m => received.push(m)));
+
+			registry.updateGrafts([
+				makeGraft({ id: 'g1', label: 'One', tokenWeight: 0 }),
+			]);
+
+			engine.composeFromView('viewA', ['g1']);
+
+			assert.strictEqual(received.length, 1);
+			assert.strictEqual(received[0].graftEquivalentTokens, 0);
+		});
+
+		test('onDidCompose does not fire when composition returns undefined', () => {
+			const received: ICompositionMetrics[] = [];
+			store.add(engine.onDidCompose(m => received.push(m)));
+
+			engine.composeFromView('viewA', []);
+
+			assert.strictEqual(received.length, 0);
 		});
 	});
 });

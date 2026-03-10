@@ -272,3 +272,9 @@ export interface ICompositionMetrics {
 	readonly graftEquivalentTokens: number;
 	readonly intentTokens: number;
 }
+
+/**
+ * GraftDNA is the public name for the graft manifest contract.
+ * Used by the Graft SDK and marketplace. Alias for ILiquidGraftContribution.
+ */
+export type GraftDNA = ILiquidGraftContribution;
