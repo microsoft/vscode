@@ -213,6 +213,8 @@ async function main() {
 	console.log('Server ready.\n');
 
 	// Open browser
+	// --headed if you want to run the test locally and verify the UI interactions
+	// const openResult = runPlaywrightCli(['open', '--headed']);
 	const openResult = runPlaywrightCli(['open', '--headed']);
 	if (!openResult.ok) {
 		console.error('Failed to open browser:', openResult.stdout, openResult.stderr);
