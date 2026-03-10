@@ -3670,33 +3670,6 @@ suite('PromptsService', () => {
 			assert.strictEqual(reTrustedResult.hooks[HookType.PreToolUse]?.length, 1);
 		});
 
-		test('discovery info marks hooks as skipped when workspace is untrusted', async function () {
-			workspaceContextService.setWorkspace(testWorkspace(URI.file('/test-workspace')));
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
-			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, { [HOOKS_SOURCE_FOLDER]: true });
-
-			await mockFiles(fileService, [
-				{
-					path: '/test-workspace/.github/hooks/my-hook.json',
-					contents: [
-						JSON.stringify({
-							hooks: {
-								[HookType.PreToolUse]: [
-									{ type: 'command', command: 'echo test' },
-								],
-							},
-						}),
-					],
-				},
-			]);
-
-			await workspaceTrustService.setWorkspaceTrust(false);
-			const discoveryInfo = await service.getPromptDiscoveryInfo(PromptsType.hook, CancellationToken.None);
-			assert.strictEqual(discoveryInfo.files.length, 1, 'Expected one discovery result');
-			assert.strictEqual(discoveryInfo.files[0].status, 'skipped');
-			assert.strictEqual(discoveryInfo.files[0].skipReason, 'workspace-untrusted');
-		});
-
 		test('suppresses plugin hooks when workspace is untrusted', async function () {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, {});

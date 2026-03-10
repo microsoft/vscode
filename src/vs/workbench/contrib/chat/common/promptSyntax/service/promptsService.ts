@@ -494,14 +494,6 @@ export interface IPromptsService extends IDisposable {
 	readonly onDidChangeSkills: Event<void>;
 
 	/**
-	 * Gets detailed discovery information for a prompt type.
-	 * This includes all files found and their load/skip status with reasons.
-	 * Used for diagnostics and config-info displays.
-	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
-	 */
-	getPromptDiscoveryInfo(type: PromptsType, token: CancellationToken, sessionResource?: URI): Promise<IPromptDiscoveryInfo>;
-
-	/**
 	 * Gets all hooks collected from hooks.json files.
 	 * The result is cached and invalidated when hook files change.
 	 * @param sessionResource Optional session resource to scope debug logging to a specific session.

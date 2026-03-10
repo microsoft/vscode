@@ -559,7 +559,24 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async getPromptSlashCommands(token: CancellationToken, sessionResource?: URI): Promise<readonly IChatPromptSlashCommand[]> {
-		return await this.cachedSlashCommands.get(token);
+		const sw = StopWatch.create();
+		const result = await this.cachedSlashCommands.get(token);
+		if (sessionResource) {
+			const elapsed = sw.elapsed();
+			void this.getPromptSlashCommandDiscoveryInfo(token).then((discoveryInfo) => {
+				const details = result.length === 1
+					? localize("promptsService.resolvedSlashCommand", "Resolved {0} slash command in {1}ms", result.length, elapsed.toFixed(1))
+					: localize("promptsService.resolvedSlashCommands", "Resolved {0} slash commands in {1}ms", result.length, elapsed.toFixed(1));
+				this._onDidLogDiscovery.fire({
+					sessionResource,
+					name: localize("promptsService.loadSlashCommands", "Load Slash Commands"),
+					details,
+					discoveryInfo,
+					category: 'discovery',
+				});
+			});
+		}
+		return result;
 	}
 
 	private async computePromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
@@ -1320,58 +1337,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		this.logger.trace(`[PromptsService] Collected hooks: ${JSON.stringify(Object.keys(result))}`);
 		return { hooks: result, hasDisabledClaudeHooks };
-	}
-
-	public async getPromptDiscoveryInfo(type: PromptsType, token: CancellationToken, sessionResource?: URI): Promise<IPromptDiscoveryInfo> {
-		if (sessionResource) {
-			this._onDidLogDiscovery.fire({
-				sessionResource,
-				name: localize("promptsService.discoveryStart", "Discovery {0} (Start)", type),
-				category: 'discovery',
-			});
-		}
-		const files: IPromptFileDiscoveryResult[] = [];
-
-		let result: IPromptDiscoveryInfo;
-		if (type === PromptsType.skill) {
-			result = await this.getSkillDiscoveryInfo(token);
-		} else if (type === PromptsType.agent) {
-			result = await this.getAgentDiscoveryInfo(token);
-		} else if (type === PromptsType.prompt) {
-			result = await this.getPromptSlashCommandDiscoveryInfo(token);
-		} else if (type === PromptsType.instructions) {
-			result = await this.getInstructionsDiscoveryInfo(token);
-		} else if (type === PromptsType.hook) {
-			result = await this.getHookDiscoveryInfo(token);
-		} else {
-			result = { type, files };
-		}
-
-		const loadedCount = result.files.filter(f => f.status === 'loaded').length;
-		const skippedCount = result.files.filter(f => f.status === 'skipped').length;
-
-		// Add source folder diagnostics if not already present
-		if (!result.sourceFolders) {
-			const sourceFolders = await this._collectSourceFolderDiagnostics(type);
-			result = { ...result, sourceFolders };
-		}
-
-		if (sessionResource) {
-			const details = localize(
-				"promptsService.discoveryResult",
-				"{0} loaded, {1} skipped",
-				loadedCount,
-				skippedCount,
-			);
-			this._onDidLogDiscovery.fire({
-				sessionResource,
-				name: localize("promptsService.discoveryEnd", "Discovery {0} (End)", type),
-				details,
-				discoveryInfo: result,
-				category: 'discovery',
-			});
-		}
-		return result;
 	}
 
 	private async getSkillDiscoveryInfo(token: CancellationToken): Promise<IPromptDiscoveryInfo> {
