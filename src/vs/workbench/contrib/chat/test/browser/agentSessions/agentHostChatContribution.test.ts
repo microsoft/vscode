@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { timeout } from '../../../../../../base/common/async.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IAgentAttachment, IAgentHostService, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentSession } from '../../../../../../platform/agent/common/agentService.js';
+import { IAgentAttachment, IAgentCreateSessionConfig, IAgentHostService, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentSession } from '../../../../../../platform/agent/common/agentService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -43,6 +43,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	private readonly _sessionMessages = new Map<string, (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>();
 	public sendMessageCalls: { session: URI; prompt: string; attachments?: IAgentAttachment[] }[] = [];
+	public createSessionCalls: IAgentCreateSessionConfig[] = [];
 	public models: IAgentModelInfo[] = [];
 	public agents = [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', requiresAuth: true }];
 
@@ -60,7 +61,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return this.models;
 	}
 
-	override async createSession(): Promise<URI> {
+	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
+		if (config) {
+			this.createSessionCalls.push(config);
+		}
 		const id = `sdk-session-${this._nextId++}`;
 		const session = AgentSession.uri('copilot', id);
 		this._sessions.set(id, { session, startTime: Date.now(), modifiedTime: Date.now() });
@@ -162,7 +166,7 @@ function createContribution(disposables: DisposableStore) {
 	return { contribution, listController, sessionHandler, agentHostService, chatAgentService };
 }
 
-function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables'] }> = {}): IChatAgentRequest {
+function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
 		requestId: 'req-1',
@@ -170,6 +174,7 @@ function makeRequest(overrides: Partial<{ message: string; sessionResource: URI;
 		message: overrides.message ?? 'Hello',
 		variables: overrides.variables ?? { variables: [] },
 		location: ChatAgentLocation.Chat,
+		userSelectedModelId: overrides.userSelectedModelId,
 	});
 }
 
@@ -328,6 +333,55 @@ suite('AgentHostChatContribution', () => {
 
 			// Should create a new SDK session, not use "untitled-abc123" literally
 			assert.ok(AgentSession.id(agentHostService.sendMessageCalls[0].session).startsWith('sdk-session-'));
+		});
+
+		test('passes raw model id extracted from language model identifier', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+			agentHostService.sendMessage = async (session: URI, prompt: string) => {
+				agentHostService.sendMessageCalls.push({ session, prompt });
+				agentHostService.fireProgress({ session, type: 'idle' });
+			};
+
+			await agent.impl.invoke(
+				makeRequest({ message: 'Hi', userSelectedModelId: 'agent-host-copilot:claude-sonnet-4-20250514' }),
+				() => { }, [], CancellationToken.None,
+			);
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
+			assert.strictEqual(agentHostService.createSessionCalls[0].model, 'claude-sonnet-4-20250514');
+		});
+
+		test('passes model id as-is when no vendor prefix', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+			agentHostService.sendMessage = async (session: URI, prompt: string) => {
+				agentHostService.sendMessageCalls.push({ session, prompt });
+				agentHostService.fireProgress({ session, type: 'idle' });
+			};
+
+			await agent.impl.invoke(
+				makeRequest({ message: 'Hi', userSelectedModelId: 'gpt-4o' }),
+				() => { }, [], CancellationToken.None,
+			);
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
+			assert.strictEqual(agentHostService.createSessionCalls[0].model, 'gpt-4o');
+		});
+
+		test('does not create backend session eagerly for untitled sessions', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-deferred' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			// No backend session should have been created yet
+			assert.strictEqual(agentHostService.createSessionCalls.length, 0);
 		});
 	});
 

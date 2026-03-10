@@ -187,24 +187,34 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	async provideChatSessionContent(sessionResource: URI, _token: CancellationToken): Promise<IChatSession> {
 		const resourceKey = sessionResource.path.substring(1);
+		const isUntitled = resourceKey.startsWith('untitled-');
 
-		const resolvedSession = await this._resolveSession(sessionResource);
-
+		// For untitled (new) sessions, defer backend session creation until the
+		// first request arrives in _invokeAgent so the user-selected model is
+		// available.  For existing sessions we resolve immediately to load history.
+		let resolvedSession: URI | undefined;
 		const history: IChatSessionHistoryItem[] = [];
-		if (!resourceKey.startsWith('untitled-')) {
+		if (!isUntitled) {
+			resolvedSession = await this._resolveSession(sessionResource);
 			const events = await this._agentHostService.getSessionMessages(resolvedSession);
 			buildHistory(events, history, this._config.agentId);
 		}
+
 		const session = this._instantiationService.createInstance(
 			AgentHostChatSession,
 			sessionResource,
 			history,
-			(message: string, progress: (parts: IChatProgress[]) => void, token: CancellationToken) =>
-				this._sendAndStreamResponse(resolvedSession, message, [], progress, token),
+			async (message: string, progress: (parts: IChatProgress[]) => void, token: CancellationToken) => {
+				const backendSession = resolvedSession ?? await this._resolveSession(sessionResource);
+				resolvedSession = backendSession;
+				return this._sendAndStreamResponse(backendSession, message, [], progress, token);
+			},
 			() => {
 				this._activeSessions.delete(resourceKey);
 				this._resourceToSession.delete(sessionResource.toString());
-				this._agentHostService.disposeSession(resolvedSession);
+				if (resolvedSession) {
+					this._agentHostService.disposeSession(resolvedSession);
+				}
 			},
 		);
 		this._activeSessions.set(resourceKey, session);
@@ -407,16 +417,37 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return existing;
 		}
 
-		this._logService.trace(`[AgentHost] Creating new session for resource ${key}, model=${model ?? '(default)'}, provider=${this._config.provider}`);
+		// The language-model identifier uses the format "vendor:modelId" (e.g.
+		// "agent-host-copilot:claude-sonnet-4-20250514"). The agent host expects
+		// the raw model id, so strip the vendor prefix.
+		const rawModelId = this._extractRawModelId(model);
+
+		this._logService.trace(`[AgentHost] Creating new session for resource ${key}, model=${rawModelId ?? '(default)'}, provider=${this._config.provider}`);
 		const workspaceFolder = this._workspaceContextService.getWorkspace().folders[0];
 		const session = await this._agentHostService.createSession({
-			model,
+			model: rawModelId,
 			provider: this._config.provider,
 			workingDirectory: workspaceFolder?.uri.fsPath,
 		});
 		this._logService.trace(`[AgentHost] Created new session: ${session.toString()}`);
 		this._resourceToSession.set(key, session);
 		return session;
+	}
+
+	/**
+	 * Extracts the raw model id from a language-model service identifier.
+	 * E.g. "agent-host-copilot:claude-sonnet-4-20250514" → "claude-sonnet-4-20250514".
+	 */
+	private _extractRawModelId(languageModelIdentifier: string | undefined): string | undefined {
+		if (!languageModelIdentifier) {
+			return undefined;
+		}
+		const prefix = this._config.sessionType + ':';
+		if (languageModelIdentifier.startsWith(prefix)) {
+			return languageModelIdentifier.substring(prefix.length);
+		}
+		// Already a raw model id or from another vendor
+		return languageModelIdentifier;
 	}
 
 	private _createToolInvocation(event: IAgentToolStartEvent): ChatToolInvocation {
