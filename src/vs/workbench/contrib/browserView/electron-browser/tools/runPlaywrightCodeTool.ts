@@ -97,6 +97,7 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 			],
 			toolResultDetails: {
 				input: params.code.trim(),
+				inputLanguage: 'javascript',
 				output: result.result
 					? [{ type: 'embed', isText: true, value: JSON.stringify(result.result, null, 2) }]
 					: [],

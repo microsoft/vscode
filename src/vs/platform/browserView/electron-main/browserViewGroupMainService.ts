@@ -33,9 +33,9 @@ export class BrowserViewGroupMainService extends Disposable implements IBrowserV
 		super();
 	}
 
-	async createGroup(): Promise<string> {
+	async createGroup(windowId: number): Promise<string> {
 		const id = generateUuid();
-		const group = this.instantiationService.createInstance(BrowserViewGroup, id);
+		const group = this.instantiationService.createInstance(BrowserViewGroup, id, windowId);
 		this.groups.set(id, group);
 
 		// Auto-cleanup when the group disposes itself

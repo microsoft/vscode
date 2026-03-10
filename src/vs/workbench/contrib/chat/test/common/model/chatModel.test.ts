@@ -25,10 +25,10 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestQueueKind, IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
-import { ChatAgentLocation } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
 
 suite('ChatModel', () => {
@@ -273,6 +273,52 @@ suite('ChatModel', () => {
 		// Should filter out string attachments and implicit attachments with StringChatContextValue
 		// Should keep file attachments and implicit attachments with URI values
 		assert.deepStrictEqual(serialized.attachments, [fileAttachment, implicitWithUri]);
+	});
+
+	test('modeInfo roundtrips through serialization', async () => {
+		const modeInfo: IChatRequestModeInfo = {
+			kind: ChatModeKind.Agent,
+			isBuiltin: false,
+			modeId: 'custom',
+			modeInstructions: {
+				name: 'plan',
+				content: 'You are a planning agent',
+				toolReferences: [],
+			},
+			applyCodeBlockSuggestionId: undefined,
+		};
+
+		const serializableData: ISerializableChatData3 = {
+			version: 3,
+			sessionId: 'test-modeinfo-session',
+			creationDate: Date.now(),
+			customTitle: undefined,
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'bot',
+			requests: [{
+				requestId: 'req1',
+				message: { text: 'plan something', parts: [] },
+				variableData: { variables: [] },
+				response: [{ value: 'Here is my plan', isTrusted: false }],
+				modelState: { value: 1 /* ResponseModelState.Complete */, completedAt: Date.now() },
+				modeInfo,
+			}],
+		};
+
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serializableData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+
+		const requests = model.getRequests();
+		assert.strictEqual(requests.length, 1);
+		assert.deepStrictEqual(requests[0].modeInfo, modeInfo);
+
+		// Verify roundtrip through toExport
+		const exported = model.toExport();
+		assert.strictEqual(exported.requests.length, 1);
+		assert.deepStrictEqual(exported.requests[0].modeInfo, modeInfo);
 	});
 });
 

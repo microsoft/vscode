@@ -14,7 +14,6 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
-import { INewSession } from './newSession.js';
 
 // #region --- Session Target Picker ---
 
@@ -138,7 +137,6 @@ export class IsolationModePicker extends Disposable {
 
 	private _isolationMode: IsolationMode = 'worktree';
 	private _preferredIsolationMode: IsolationMode | undefined;
-	private _newSession: INewSession | undefined;
 	private _repository: IGitRepository | undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<IsolationMode>());
@@ -159,13 +157,6 @@ export class IsolationModePicker extends Disposable {
 	}
 
 	/**
-	 * Sets the pending session that this picker writes to.
-	 */
-	setNewSession(session: INewSession | undefined): void {
-		this._newSession = session;
-	}
-
-	/**
 	 * Sets the git repository. When undefined, worktree option is hidden
 	 * and isolation mode falls back to 'workspace'.
 	 */
@@ -174,8 +165,9 @@ export class IsolationModePicker extends Disposable {
 		if (repository) {
 			const preferred = this._preferredIsolationMode;
 			this._preferredIsolationMode = undefined;
-			this._setMode(preferred ?? 'worktree');
+			this._setMode(preferred ?? this._isolationMode);
 		} else if (this._isolationMode === 'worktree') {
+			this._preferredIsolationMode ??= this._isolationMode;
 			this._setMode('workspace');
 		}
 		this._updateTriggerLabel();
@@ -280,7 +272,6 @@ export class IsolationModePicker extends Disposable {
 	private _setMode(mode: IsolationMode): void {
 		if (this._isolationMode !== mode) {
 			this._isolationMode = mode;
-			this._newSession?.setIsolationMode(mode);
 			this._onDidChange.fire(mode);
 			this._updateTriggerLabel();
 		}

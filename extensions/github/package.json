@@ -19,8 +19,8 @@
   "extensionDependencies": [
     "vscode.git-base"
   ],
-  "main": "./out/extension.js",
   "type": "module",
+  "main": "./out/extension.js",
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
@@ -183,20 +183,7 @@
           "when": "github.hasGitHubRepo && timelineItem =~ /git:file:commit\\b/"
         }
       ],
-      "chat/input/editing/sessionToolbar": [
-        {
-          "command": "github.createPullRequest",
-          "group": "navigation",
-          "order": 1,
-          "when": "isSessionsWindow && agentSessionHasChanges && chatSessionType == copilotcli && !github.hasOpenPullRequest"
-        },
-        {
-          "command": "github.openPullRequest",
-          "group": "navigation",
-          "order": 1,
-          "when": "isSessionsWindow && agentSessionHasChanges && chatSessionType == copilotcli && github.hasOpenPullRequest"
-        }
-      ]
+      "chat/input/editing/sessionApplyActions": []
     },
     "configuration": [
       {

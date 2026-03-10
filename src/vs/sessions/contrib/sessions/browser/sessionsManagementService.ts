@@ -25,6 +25,7 @@ import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/brows
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
+import { isUntitledChatSession } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 
@@ -50,6 +51,7 @@ export interface IActiveSessionItem {
 	readonly label: string | undefined;
 	readonly repository: URI | undefined;
 	readonly worktree: URI | undefined;
+	readonly worktreeBranchName: string | undefined;
 	readonly providerType: string;
 }
 
@@ -196,10 +198,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	private getRepositoryFromMetadata(session: IAgentSession): [URI | undefined, URI | undefined] {
+	private getRepositoryFromMetadata(session: IAgentSession): [URI | undefined, URI | undefined, string | undefined] {
 		const metadata = session.metadata;
 		if (!metadata) {
-			return [undefined, undefined];
+			return [undefined, undefined, undefined];
 		}
 
 		if (session.providerType === AgentSessionProviders.Cloud) {
@@ -210,12 +212,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				authority: 'github',
 				path: `/${metadata.owner}/${metadata.name}/${encodeURIComponent(branch)}`
 			});
-			return [repositoryUri, undefined];
+			return [repositoryUri, undefined, undefined];
 		}
 
 		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
 		if (workingDirectoryPath) {
-			return [URI.file(workingDirectoryPath), undefined];
+			return [URI.file(workingDirectoryPath), undefined, undefined];
 		}
 
 		const repositoryPath = metadata?.repositoryPath as string | undefined;
@@ -224,9 +226,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const worktreePath = metadata?.worktreePath as string | undefined;
 		const worktreePathUri = typeof worktreePath === 'string' ? URI.file(worktreePath) : undefined;
 
+		const worktreeBranchName = metadata?.branchName as string | undefined;
+
 		return [
 			URI.isUri(repositoryPathUri) ? repositoryPathUri : undefined,
-			URI.isUri(worktreePathUri) ? worktreePathUri : undefined];
+			URI.isUri(worktreePathUri) ? worktreePathUri : undefined,
+			worktreeBranchName];
 	}
 
 	private getRepositoryFromSessionOption(sessionResource: URI): URI | undefined {
@@ -431,13 +436,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (session) {
 			if (isAgentSession(session)) {
 				this.lastSelectedSession = session.resource;
-				const [repository, worktree] = this.getRepositoryFromMetadata(session);
+				const [repository, worktree, worktreeBranchName] = this.getRepositoryFromMetadata(session);
 				activeSessionItem = {
-					isUntitled: this.chatService.getSession(session.resource)?.contributedChatSession?.isUntitled ?? true,
+					isUntitled: isUntitledChatSession(session.resource),
 					label: session.label,
 					resource: session.resource,
 					repository,
 					worktree,
+					worktreeBranchName,
 					providerType: session.providerType,
 				};
 			} else {
@@ -447,6 +453,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					resource: session.resource,
 					repository: session.repoUri,
 					worktree: undefined,
+					worktreeBranchName: undefined,
 					providerType: session.target,
 				};
 				this._newActiveSessionDisposables.clear();
@@ -458,6 +465,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 							resource: session.resource,
 							repository: session.repoUri,
 							worktree: undefined,
+							worktreeBranchName: undefined,
 							providerType: session.target,
 						});
 					}
@@ -496,6 +504,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			a.resource.toString() === b.resource.toString() &&
 			a.repository?.toString() === b.repository?.toString() &&
 			a.worktree?.toString() === b.worktree?.toString() &&
+			a.worktreeBranchName === b.worktreeBranchName &&
 			a.providerType === b.providerType
 		);
 	}

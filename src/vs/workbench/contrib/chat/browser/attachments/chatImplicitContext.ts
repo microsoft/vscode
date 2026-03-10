@@ -26,7 +26,6 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestVariableEntry, isStringImplicitContextValue, StringChatContextValue } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
-import { getPromptsTypeForLanguageId } from '../../common/promptSyntax/promptTypes.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -258,8 +257,6 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			return;
 		}
 
-		const isPromptFile = languageId && getPromptsTypeForLanguageId(languageId) !== undefined;
-
 		const widgets = updateWidget ? [updateWidget] : [...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat), ...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.EditorInline)];
 		for (const widget of widgets) {
 			if (!widget.input.implicitContext) {
@@ -267,7 +264,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			}
 			const setting = this._implicitContextEnablement[widget.location];
 			const isFirstInteraction = widget.viewModel?.getItems().length === 0;
-			if ((setting === 'always' || setting === 'first' && isFirstInteraction) && !isPromptFile) { // disable implicit context for prompt files
+			if ((setting === 'always' || setting === 'first' && isFirstInteraction)) {
 				// When there's a non-code active editor (e.g. Settings is open), preserve
 				// existing values so the attachment bar stays visible.
 				// But when there's no active editor at all, clear the values.

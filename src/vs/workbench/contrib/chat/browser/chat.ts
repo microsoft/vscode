@@ -289,6 +289,12 @@ export interface IChatWidgetViewOptions {
 	 * redirect to a different workspace rather than executing locally.
 	 */
 	submitHandler?: (query: string, mode: ChatModeKind) => Promise<boolean>;
+
+	/**
+	 * Whether we are running in the sessions window.
+	 * When true, the secondary toolbar (permissions picker) is hidden.
+	 */
+	isSessionsWindow?: boolean;
 }
 
 export interface IChatViewViewContext {

@@ -1040,17 +1040,27 @@ export class CommandCenter {
 	}
 
 	@command('_git.cloneRepository')
-	async cloneRepository(url: string, parentPath: string): Promise<void> {
+	async cloneRepository(url: string, localPath: string, ref?: string): Promise<void> {
 		const opts = {
 			location: ProgressLocation.Notification,
 			title: l10n.t('Cloning git repository "{0}"...', url),
 			cancellable: true
 		};
 
+		const parentPath = path.dirname(localPath);
+		const targetName = path.basename(localPath);
+
 		await window.withProgress(
 			opts,
-			(progress, token) => this.model.git.clone(url, { parentPath, progress }, token)
+			(progress, token) => this.model.git.clone(url, { parentPath, targetName, progress, ref }, token)
 		);
+	}
+
+	@command('_git.checkout')
+	async checkoutRepository(repositoryPath: string, treeish: string, detached?: boolean): Promise<void> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		await repo.checkout(treeish, [], detached ? { detached: true } : {});
 	}
 
 	@command('_git.pull')
@@ -1058,6 +1068,22 @@ export class CommandCenter {
 		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
 		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
 		await repo.pull();
+	}
+
+	@command('_git.revParseAbbrevRef')
+	async revParseAbbrevRef(repositoryPath: string): Promise<string> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		const result = await repo.exec(['rev-parse', '--abbrev-ref', 'HEAD']);
+		return result.stdout.trim();
+	}
+
+	@command('_git.mergeBranch')
+	async mergeBranch(repositoryPath: string, branch: string): Promise<string> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		const result = await repo.exec(['merge', branch, '--no-edit']);
+		return result.stdout.trim();
 	}
 
 	@command('git.init')
@@ -5595,15 +5621,14 @@ export class CommandCenter {
 						options.modal = false;
 						break;
 					default: {
-						const hint = (err.stderr || err.message || String(err))
+						const hintLines = (err.stderr || err.stdout || err.message || String(err))
 							.replace(/^error: /mi, '')
 							.replace(/^> husky.*$/mi, '')
 							.split(/[\r\n]/)
-							.filter((line: string) => !!line)
-						[0];
+							.filter((line: string) => !!line);
 
-						message = hint
-							? l10n.t('Git: {0}', hint)
+						message = hintLines.length > 0
+							? l10n.t('Git: {0}', err.stdout ? hintLines[hintLines.length - 1] : hintLines[0])
 							: l10n.t('Git error');
 
 						break;

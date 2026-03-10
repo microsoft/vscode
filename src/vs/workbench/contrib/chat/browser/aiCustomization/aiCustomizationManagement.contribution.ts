@@ -30,6 +30,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -233,6 +234,15 @@ registerAction2(class extends Action2 {
 			// since each skill is a folder containing SKILL.md.
 			const deleteTarget = isSkill ? dirname(uri) : uri;
 			await fileService.del(deleteTarget, { useTrash: true, recursive: isSkill });
+
+			// Commit the deletion to git (sessions: main repo + worktree)
+			if (storage === PromptsStorage.local) {
+				const workspaceService = accessor.get(IAICustomizationWorkspaceService);
+				const projectRoot = workspaceService.getActiveProjectRoot();
+				if (projectRoot) {
+					await workspaceService.deleteFiles(projectRoot, [deleteTarget]);
+				}
+			}
 		}
 	}
 });

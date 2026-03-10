@@ -342,15 +342,29 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 					return;
 				}
 
+				// Don't capture Escape at this level - let it fall through to the input handler if focused
+				if (e.keyCode === KeyCode.Escape) {
+					this._hide();
+					this._editor.focus();
+					return;
+				}
+
+				// Ctrl+I / Cmd+I explicitly focuses the feedback input
+				if ((e.ctrlKey || e.metaKey) && e.keyCode === KeyCode.KeyI) {
+					e.preventDefault();
+					e.stopPropagation();
+					widget.inputElement.focus();
+					return;
+				}
+
 				// Don't focus if any modifier is held (keyboard shortcuts)
 				if (e.ctrlKey || e.altKey || e.metaKey) {
 					return;
 				}
 
-				// Don't capture Escape at this level - let it fall through to the input handler if focused
-				if (e.keyCode === KeyCode.Escape) {
-					this._hide();
-					this._editor.focus();
+				// Only auto-focus the input on typing when the document is readonly;
+				// when editable the user must click or use Ctrl+I to focus.
+				if (!this._editor.getOption(EditorOption.readOnly)) {
 					return;
 				}
 
@@ -411,6 +425,12 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				this._hide();
 			}, 0);
 		}));
+	}
+
+	focusInput(): void {
+		if (this._visible && this._widget) {
+			this._widget.inputElement.focus();
+		}
 	}
 
 	private _addFeedback(): boolean {

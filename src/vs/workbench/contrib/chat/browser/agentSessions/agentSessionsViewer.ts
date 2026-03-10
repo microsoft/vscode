@@ -43,7 +43,8 @@ import { MarkdownString, IMarkdownString } from '../../../../../base/common/html
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
 import { AgentSessionProviders, getAgentSessionTime } from './agentSessions.js';
 import { AgentSessionsGrouping } from './agentSessionsFilter.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
@@ -87,7 +88,7 @@ interface IAgentSessionItemTemplate {
 }
 
 export interface IAgentSessionRendererOptions {
-	readonly useSimpleHover?: boolean;
+	readonly disableHover?: boolean;
 	readonly showIsolationIcon?: boolean;
 	getHoverPosition(): HoverPosition;
 }
@@ -96,7 +97,14 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 	static readonly TEMPLATE_ID = 'agent-session';
 
-	static readonly APPROVAL_ROW_HEIGHT = 40;
+	static readonly APPROVAL_ROW_MAX_LINES = 3;
+	private static readonly _APPROVAL_ROW_LINE_HEIGHT = 18;
+	private static readonly _APPROVAL_ROW_OVERHEAD = 14; // 4px margin-top + 4px padding-top + 4px padding-bottom + 2px border
+
+	static getApprovalRowHeight(label: string): number {
+		const lineCount = Math.min(label.split(/\r?\n/).length, AgentSessionRenderer.APPROVAL_ROW_MAX_LINES);
+		return lineCount * AgentSessionRenderer._APPROVAL_ROW_LINE_HEIGHT + AgentSessionRenderer._APPROVAL_ROW_OVERHEAD;
+	}
 
 	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
 
@@ -108,6 +116,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	constructor(
 		private readonly options: IAgentSessionRendererOptions,
 		private readonly _approvalModel: AgentSessionApprovalModel | undefined,
+		private readonly _activeSessionResource: IObservable<URI | undefined>,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IProductService private readonly productService: IProductService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -402,9 +411,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
-		if (this.options.useSimpleHover) {
-			const title = renderAsPlaintext(new MarkdownString(session.element.label));
-			template.elementDisposable.add(this.hoverService.setupDelayedHover(template.element, { content: title, position: { hoverPosition: this.options.getHoverPosition() } }, { groupId: 'agent.sessions' }));
+		if (this.options.disableHover) {
 			return;
 		}
 
@@ -459,20 +466,33 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			template.approvalRow.classList.toggle('visible', visible);
 
 			if (info) {
-				// Render as a syntax-highlighted code block
-				const codeblockContent = new MarkdownString().appendCodeblock(info.languageId ?? 'json', info.label);
-				this.renderMarkdownOrText(codeblockContent, template.approvalLabel, buttonStore);
+				// Render up to 3 lines, each as a separate code block so CSS can truncate per-line
+				const lines = info.label.split('\n');
+				const maxLines = AgentSessionRenderer.APPROVAL_ROW_MAX_LINES;
+				const visibleLines = lines.slice(0, maxLines);
+				if (lines.length > maxLines) {
+					visibleLines[maxLines - 1] = `${visibleLines[maxLines - 1]} \u2026`;
+				}
+				const langId = info.languageId ?? 'json';
+				const labelContent = new MarkdownString();
+				for (const line of visibleLines) {
+					labelContent.appendCodeblock(langId, line);
+				}
+				this.renderMarkdownOrText(labelContent, template.approvalLabel, buttonStore);
 
 				// Hover with full content as a code block
+				const fullContent = new MarkdownString().appendCodeblock(info.languageId ?? 'json', info.label);
 				buttonStore.add(this.hoverService.setupDelayedHover(template.approvalLabel, {
-					content: codeblockContent,
+					content: fullContent,
 					style: HoverStyle.Pointer,
 					position: { hoverPosition: HoverPosition.BELOW },
 				}));
 
 				template.approvalButtonContainer.textContent = '';
+				const isActive = this._activeSessionResource.read(reader)?.toString() === session.element.resource.toString();
 				const button = buttonStore.add(new Button(template.approvalButtonContainer, {
 					title: localize('allowActionOnce', "Allow once"),
+					secondary: isActive,
 					...defaultButtonStyles
 				}));
 				button.label = localize('allowAction', "Allow");
@@ -607,8 +627,9 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 		}
 
 		let height = AgentSessionsListDelegate.ITEM_HEIGHT;
-		if (this._approvalModel?.getApproval(element.resource).get()) {
-			height += AgentSessionRenderer.APPROVAL_ROW_HEIGHT;
+		const approval = this._approvalModel?.getApproval(element.resource).get();
+		if (approval) {
+			height += AgentSessionRenderer.getApprovalRowHeight(approval.label);
 		}
 		return height;
 	}

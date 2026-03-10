@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "compile": "node ../../node_modules/typescript/bin/tsc",
-    "bundle-webpack": "webpack --config ./webpack.config.js --bail",
+    "bundle-webpack": "node ../../node_modules/webpack/bin/webpack --config ./webpack.config.js --bail",
     "esm-check": "node esm-check/esm-check.js",
     "test": "node runner.js"
   },
@@ -14,14 +14,6 @@
     "@types/chai": "^4.2.14",
     "axe-playwright": "^2.1.0",
     "chai": "^4.2.0",
-    "css-loader": "^6.9.1",
-    "file-loader": "^6.2.0",
-    "style-loader": "^3.3.2",
-    "warnings-to-errors-webpack-plugin": "^2.3.0",
-    "webpack": "^5.105.0",
-    "webpack-cli": "^5.1.4"
-  },
-  "dependencies": {
-    "postcss": "^8.5.6"
+    "warnings-to-errors-webpack-plugin": "^2.3.0"
   }
 }
