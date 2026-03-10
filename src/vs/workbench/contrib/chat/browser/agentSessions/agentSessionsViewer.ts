@@ -857,8 +857,8 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	private groupSessionsByRepository(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
 		const repoMap = new Map<string, { label: string; sessions: IAgentSession[] }>();
 		const archivedSessions: IAgentSession[] = [];
-		const noRepoKey = '\x00noRepo';
-		const noRepoLabel = localize('agentSessions.noRepository', "Other");
+		const unknownKey = '\x00unknown';
+		const unknownLabel = localize('agentSessions.noRepository', "Other");
 
 		for (const session of sortedSessions) {
 			if (session.isArchived()) {
@@ -867,8 +867,8 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			}
 
 			const repoName = this.getRepositoryName(session);
-			const repoId = repoName || noRepoKey;
-			const repoLabel = repoName || noRepoLabel;
+			const repoId = repoName || unknownKey;
+			const repoLabel = repoName || unknownLabel;
 
 			let group = repoMap.get(repoId);
 			if (!group) {
