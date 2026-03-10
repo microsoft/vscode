@@ -18,7 +18,7 @@ import { ChatElicitationRequestPart } from '../../../../../chat/common/model/cha
 import { ChatModel } from '../../../../../chat/common/model/chatModel.js';
 import { ElicitationState, IChatService } from '../../../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatPermissionLevel } from '../../../../../chat/common/constants.js';
-import { ChatMessageRole, getTextResponseFromStream, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
+import { ChatMessageRole, getTextResponseFromStream, type ILanguageModelChatSelector, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
 import { ILinkLocation } from '../../taskHelpers.js';
@@ -625,7 +625,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts) || this._isAutopilotMode();
 		let model = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)[0]?.input.currentLanguageModel;
 		if (model) {
-			const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: model.replaceAll('copilot/', '') });
+			const models = await this._safeSelectLanguageModels({ vendor: 'copilot', family: model.replaceAll('copilot/', '') });
 			model = models[0];
 		}
 		if (!model) {
@@ -927,8 +927,17 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _getLanguageModel(): Promise<string | undefined> {
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
+		const models = await this._safeSelectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
 		return models.length ? models[0] : undefined;
+	}
+
+	private async _safeSelectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]> {
+		try {
+			return await this._languageModelsService.selectLanguageModels(selector);
+		} catch (error) {
+			this._logService.trace('OutputMonitor: selectLanguageModels failed', { selector, error });
+			return [];
+		}
 	}
 }
 
