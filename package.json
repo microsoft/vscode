@@ -84,7 +84,6 @@
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "^2.5.6",
-    "@playwright/cli": "^0.1.1",
     "@types/semver": "^7.5.8",
     "@vscode/codicons": "^0.0.45-14",
     "@vscode/deviceid": "^0.1.1",
@@ -132,6 +131,7 @@
     "yazl": "^2.4.3"
   },
   "devDependencies": {
+    "@playwright/cli": "^0.1.1",
     "@playwright/test": "^1.56.1",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
     "@types/cookie": "^0.3.3",
