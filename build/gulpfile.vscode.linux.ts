@@ -259,17 +259,32 @@ function prepareSnapPackage(arch: string) {
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = `usr/share/${product.applicationName}/${p.dirname}`; }));
 
+		const debMultiarch =
+			arch === 'x64' ? 'x86_64-linux-gnu' :
+			arch === 'arm64' ? 'aarch64-linux-gnu' :
+			arch === 'armhf' ? 'arm-linux-gnueabihf' :
+			`${arch}-linux-gnu`;
+
 		const snapcraft = gulp.src('resources/linux/snap/snapcraft.yaml', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@VERSION@@', commit!.substr(0, 8)))
-			// Possible run-on values https://snapcraft.io/docs/architectures
+			// Possible values https://snapcraft.io/docs/architectures
 			.pipe(replace('@@ARCHITECTURE@@', arch === 'x64' ? 'amd64' : arch))
+			.pipe(replace('@@DEB_ARCHITECTURE@@', debMultiarch))
 			.pipe(rename('snap/snapcraft.yaml'));
 
 		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })
 			.pipe(rename('electron-launch'));
 
-		const all = es.merge(desktops, icon, code, snapcraft, electronLaunch);
+		const hookInstall = gulp.src('resources/linux/snap/hook-install', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('snap/hooks/install'));
+
+		const hookRemove = gulp.src('resources/linux/snap/hook-remove', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('snap/hooks/remove'));
+
+		const all = es.merge(desktops, icon, code, snapcraft, electronLaunch, hookInstall, hookRemove);
 
 		return all.pipe(vfs.dest(destination));
 	};
