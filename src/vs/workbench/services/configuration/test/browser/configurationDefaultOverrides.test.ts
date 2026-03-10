@@ -21,6 +21,8 @@ class MockAssignmentService implements IWorkbenchAssignmentService {
 	private readonly _onDidRefetchAssignments = new Emitter<void>();
 	readonly onDidRefetchAssignments = this._onDidRefetchAssignments.event;
 
+	private readonly _onDidCallGetTreatment = new Emitter<string>();
+
 	private readonly treatments = new Map<string, unknown>();
 	readonly requestedTreatmentNames: string[] = [];
 
@@ -32,19 +34,40 @@ class MockAssignmentService implements IWorkbenchAssignmentService {
 		this._onDidRefetchAssignments.fire();
 	}
 
+	whenTreatmentRequested(name: string): Promise<void> {
+		if (this.requestedTreatmentNames.includes(name)) {
+			return Promise.resolve();
+		}
+		return this.whenNextTreatmentRequested(name);
+	}
+
+	whenNextTreatmentRequested(name: string): Promise<void> {
+		return new Promise(resolve => {
+			const listener = this._onDidCallGetTreatment.event(requestedName => {
+				if (requestedName === name) {
+					listener.dispose();
+					resolve();
+				}
+			});
+		});
+	}
+
 	async getCurrentExperiments(): Promise<string[] | undefined> {
 		return [];
 	}
 
 	async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
 		this.requestedTreatmentNames.push(name);
-		return this.treatments.get(name) as T | undefined;
+		const value = this.treatments.get(name) as T | undefined;
+		this._onDidCallGetTreatment.fire(name);
+		return value;
 	}
 
 	addTelemetryAssignmentFilter(): void { }
 
 	dispose(): void {
 		this._onDidRefetchAssignments.dispose();
+		this._onDidCallGetTreatment.dispose();
 	}
 }
 
@@ -140,8 +163,8 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		assignmentService.setTreatment('config.test.experiments.sameDefault.setting', true);
 		createContribution();
 
-		// Give the async processing time to complete
-		await new Promise(resolve => setTimeout(resolve, 50));
+		// Wait for treatment to be processed
+		await assignmentService.whenTreatmentRequested('config.test.experiments.sameDefault.setting');
 
 		// Since value equals default, no override should be registered
 		const properties = configurationRegistry.getConfigurationProperties();
@@ -187,29 +210,32 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 					type: 'number',
 					default: 0,
 					experimentMode: 'startup',
+				},
+				'test.experiments.startupMode.sentinel': {
+					type: 'number',
+					default: 0,
 				}
 			}
 		});
-		localDisposables.add({ dispose: () => configurationRegistry.deregisterConfigurations([{ id: 'test.experiments.startupMode', properties: { 'test.experiments.startupMode.setting': { type: 'number', default: 0, experimentMode: 'startup' } } }]) });
+		localDisposables.add({ dispose: () => configurationRegistry.deregisterConfigurations([{ id: 'test.experiments.startupMode', properties: { 'test.experiments.startupMode.setting': { type: 'number', default: 0, experimentMode: 'startup' }, 'test.experiments.startupMode.sentinel': { type: 'number', default: 0 } } }]) });
 
 		assignmentService.setTreatment('config.test.experiments.startupMode.setting', 42);
 		createContribution();
 
 		await Event.toPromise(configurationRegistry.onDidUpdateConfiguration);
 
+		// Record how many times the startup setting was requested
+		const countBefore = assignmentService.requestedTreatmentNames.filter(n => n === 'config.test.experiments.startupMode.setting').length;
+
 		// Now change the treatment and refetch — startup mode should NOT re-apply
-		let overrideRegistered = false;
-		const listener = localDisposables.add(configurationRegistry.onDidUpdateConfiguration(() => {
-			overrideRegistered = true;
-		}));
 		assignmentService.setTreatment('config.test.experiments.startupMode.setting', 99);
 		assignmentService.fireRefetch();
 
-		// Give the async processing time
-		await new Promise(resolve => setTimeout(resolve, 50));
+		// Wait for the auto-mode sentinel setting to be re-requested, confirming refetch completed
+		await assignmentService.whenNextTreatmentRequested('config.test.experiments.startupMode.sentinel');
 
-		assert.strictEqual(overrideRegistered, false, 'Startup mode setting should not be refetched');
-		listener.dispose();
+		const countAfter = assignmentService.requestedTreatmentNames.filter(n => n === 'config.test.experiments.startupMode.setting').length;
+		assert.strictEqual(countAfter, countBefore, 'Startup mode setting should not be re-requested on refetch');
 	});
 
 	test('does not apply experiment when treatment returns undefined', async () => {
@@ -227,7 +253,8 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		// No treatment set — getTreatment returns undefined
 		createContribution();
 
-		await new Promise(resolve => setTimeout(resolve, 50));
+		// Wait for the treatment to be requested (even though it returns undefined)
+		await assignmentService.whenTreatmentRequested('config.test.experiments.noTreatment.setting');
 
 		const properties = configurationRegistry.getConfigurationProperties();
 		assert.strictEqual(properties['test.experiments.noTreatment.setting']?.defaultValueSource, undefined);
