@@ -440,7 +440,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					isUntitled: this.chatService.getSession(session.resource)?.contributedChatSession?.isUntitled ?? true,
 					label: session.label,
 					resource: session.resource,
-					repository,
+					repository: repository ?? this.getRepositoryFromSessionOption(session.resource),
 					worktree,
 					worktreeBranchName,
 					providerType: session.providerType,

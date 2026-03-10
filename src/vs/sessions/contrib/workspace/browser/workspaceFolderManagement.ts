@@ -16,6 +16,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { getGitHubRemoteFileDisplayName } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 import { Queue } from '../../../../base/common/async.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
 
@@ -28,6 +29,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 		this._register(autorun(reader => {
@@ -38,11 +40,15 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 
 	private async updateWorkspaceFoldersForSession(session: IActiveSessionItem | undefined): Promise<void> {
 		await this.manageTrustWorkspaceForSession(session);
-		const activeSessionFolderData = this.getActiveSessionFolderData(session);
+		const activeSessionFolderData = await this.getActiveSessionFolderData(session);
 		const currentRepo = this.workspaceContextService.getWorkspace().folders[0]?.uri;
 
 		if (!activeSessionFolderData) {
-			if (currentRepo) {
+			// Only remove the current workspace folder when there is no active session.
+			// When there IS a session but folder data is not yet available (e.g. metadata
+			// hasn't arrived), keep the existing workspace folder so that file search
+			// continues to work.
+			if (currentRepo && !session) {
 				await this.workspaceEditingService.removeFolders([currentRepo], true);
 			}
 			return;
@@ -60,16 +66,21 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		await this.workspaceEditingService.updateFolders(0, 1, [activeSessionFolderData], true);
 	}
 
-	private getActiveSessionFolderData(session: IActiveSessionItem | undefined): IWorkspaceFolderCreationData | undefined {
+	private async getActiveSessionFolderData(session: IActiveSessionItem | undefined): Promise<IWorkspaceFolderCreationData | undefined> {
 		if (!session) {
 			return undefined;
 		}
 
 		if (session.worktree) {
-			return {
-				uri: session.worktree,
-				name: session.repository ? `${this.uriIdentityService.extUri.basename(session.repository)} (${session.worktreeBranchName ?? this.uriIdentityService.extUri.basename(session.worktree)})` : this.uriIdentityService.extUri.basename(session.worktree)
-			};
+			// Verify the worktree directory still exists on disk before using it.
+			// Worktrees may have been cleaned up after the session ended.
+			if (await this.fileService.exists(session.worktree)) {
+				return {
+					uri: session.worktree,
+					name: session.repository ? `${this.uriIdentityService.extUri.basename(session.repository)} (${session.worktreeBranchName ?? this.uriIdentityService.extUri.basename(session.worktree)})` : this.uriIdentityService.extUri.basename(session.worktree)
+				};
+			}
+			// Worktree doesn't exist — fall through to repository
 		}
 
 		if (session.repository) {
