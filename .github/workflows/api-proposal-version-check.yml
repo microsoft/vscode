@@ -14,7 +14,6 @@ permissions:
   contents: read
   pull-requests: write
   actions: write
-  checks: write
 
 concurrency:
   group: api-proposal-${{ github.event.pull_request.number || github.event.issue.number }}
@@ -94,9 +93,15 @@ jobs:
               core.setOutput('override_found', 'false');
             }
 
-      # If triggered by the override comment, create a successful check run on the PR head
-      - name: Pass on override comment
-        if: steps.check_override.outputs.override_found == 'true'
+      # If triggered by the override comment, re-run the failed workflow to update its status
+      # Only allow trusted users to trigger re-runs to prevent spam
+      - name: Re-run failed workflow on override
+        if: |
+          steps.check_override.outputs.override_found == 'true' &&
+          github.event_name == 'issue_comment' &&
+          (github.event.comment.author_association == 'OWNER' ||
+           github.event.comment.author_association == 'MEMBER' ||
+           github.event.comment.author_association == 'COLLABORATOR')
         uses: actions/github-script@v7
         with:
           script: |
@@ -104,19 +109,39 @@ jobs:
             console.log(`Override comment found by ${{ steps.check_override.outputs.override_user }}`);
             console.log('API proposal version change has been acknowledged.');
 
-            // Create a successful check run on the PR head SHA so the status updates
-            await github.rest.checks.create({
+            // Find the failed workflow run for this PR's head SHA
+            const { data: runs } = await github.rest.actions.listWorkflowRunsForWorkflow({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              name: 'Check API Proposal Version Changes',
+              workflow_id: 'api-proposal-version-check.yml',
               head_sha: headSha,
               status: 'completed',
-              conclusion: 'success',
-              output: {
-                title: 'API Proposal Version Change Acknowledged',
-                summary: `Override approved by @${{ steps.check_override.outputs.override_user }}`
-              }
+              per_page: 10
             });
+
+            // Find the most recent failed run
+            const failedRun = runs.workflow_runs.find(run =>
+              run.conclusion === 'failure' && run.event === 'pull_request'
+            );
+
+            if (failedRun) {
+              console.log(`Re-running failed workflow run ${failedRun.id}`);
+              await github.rest.actions.reRunWorkflow({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: failedRun.id
+              });
+              console.log('Workflow re-run triggered successfully');
+            } else {
+              console.log('No failed pull_request workflow run found to re-run');
+              // The check will pass on this run since override exists
+            }
+
+      - name: Pass on override comment
+        if: steps.check_override.outputs.override_found == 'true'
+        run: |
+          echo "Override comment found by ${{ steps.check_override.outputs.override_user }}"
+          echo "API proposal version change has been acknowledged."
 
       # Only continue checking if no override found
       - name: Checkout repository
