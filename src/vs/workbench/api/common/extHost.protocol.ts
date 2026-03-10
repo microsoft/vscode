@@ -1502,6 +1502,8 @@ export type IChatDebugResolvedEventContentDto = IChatDebugEventTextContentDto | 
 export interface ExtHostChatDebugShape {
 	$provideChatDebugLog(handle: number, sessionResource: UriComponents, token: CancellationToken): Promise<IChatDebugEventDto[] | undefined>;
 	$resolveChatDebugLogEvent(handle: number, eventId: string, token: CancellationToken): Promise<IChatDebugResolvedEventContentDto | undefined>;
+	$exportChatDebugLog(handle: number, sessionResource: UriComponents, coreEvents: IChatDebugEventDto[], sessionTitle: string | undefined, token: CancellationToken): Promise<VSBuffer | undefined>;
+	$importChatDebugLog(handle: number, data: VSBuffer, token: CancellationToken): Promise<{ uri: UriComponents; sessionTitle?: string } | undefined>;
 }
 
 export interface MainThreadChatDebugShape extends IDisposable {
@@ -2114,7 +2116,7 @@ export interface ExtHostCodeMapperShape {
 }
 
 export interface ExtHostCommandsShape {
-	$executeContributedCommand(id: string, ...args: any[]): Promise<unknown>;
+	$executeContributedCommand(id: string, ...args: unknown[]): Promise<unknown>;
 	$getContributedCommandMetadata(): Promise<{ [id: string]: string | ICommandMetadataDto }>;
 }
 
@@ -2443,7 +2445,7 @@ export interface ISuggestDataDto {
 	// Command
 	[ISuggestDataDtoField.commandIdent]?: string;
 	[ISuggestDataDtoField.commandId]?: string;
-	[ISuggestDataDtoField.commandArguments]?: any[];
+	[ISuggestDataDtoField.commandArguments]?: unknown[];
 	// not-standard
 	x?: ChainedCacheId;
 }
@@ -3652,9 +3654,15 @@ export interface GitBranchDto {
 	readonly commit?: string;
 	readonly type: GitRefTypeDto;
 	readonly remote?: string;
+	readonly base?: GitBaseRefDto;
 	readonly upstream?: GitUpstreamRefDto;
 	readonly ahead?: number;
 	readonly behind?: number;
+}
+
+export interface GitBaseRefDto {
+	readonly name: string;
+	readonly isProtected: boolean;
 }
 
 export interface GitUpstreamRefDto {

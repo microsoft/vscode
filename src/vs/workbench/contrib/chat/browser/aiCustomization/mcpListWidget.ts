@@ -29,7 +29,8 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { getContextMenuActions } from '../../../../contrib/mcp/browser/mcpServerActions.js';
 import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
-import { workspaceIcon, userIcon, extensionIcon } from './aiCustomizationIcons.js';
+import { workspaceIcon, userIcon, mcpServerIcon, builtinIcon } from './aiCustomizationIcons.js';
+import { formatDisplayName, truncateToFirstSentence } from './aiCustomizationListWidget.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
@@ -93,6 +94,7 @@ class McpServerItemDelegate implements IListVirtualDelegate<IMcpListEntry> {
 
 interface IMcpServerItemTemplateData {
 	readonly container: HTMLElement;
+	readonly typeIcon: HTMLElement;
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
 	readonly status: HTMLElement;
@@ -113,13 +115,16 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 	renderTemplate(container: HTMLElement): IMcpServerItemTemplateData {
 		container.classList.add('mcp-server-item');
 
+		const typeIcon = DOM.append(container, $('.mcp-server-icon'));
+		typeIcon.classList.add(...ThemeIcon.asClassNameArray(mcpServerIcon));
+
 		const details = DOM.append(container, $('.mcp-server-details'));
 		const name = DOM.append(details, $('.mcp-server-name'));
 		const description = DOM.append(details, $('.mcp-server-description'));
 
 		const status = DOM.append(container, $('.mcp-server-status'));
 
-		return { container, name, description, status, disposables: new DisposableStore() };
+		return { container, typeIcon, name, description, status, disposables: new DisposableStore() };
 	}
 
 	renderElement(element: IMcpServerItemEntry | IMcpBuiltinItemEntry, index: number, templateData: IMcpServerItemTemplateData): void {
@@ -127,9 +132,9 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 
 		if (element.type === 'builtin-item') {
 			templateData.container.classList.add('builtin');
-			templateData.name.textContent = element.label;
+			templateData.name.textContent = formatDisplayName(element.label);
 			if (element.description) {
-				templateData.description.textContent = element.description;
+				templateData.description.textContent = truncateToFirstSentence(element.description);
 				templateData.description.style.display = '';
 			} else {
 				templateData.description.style.display = 'none';
@@ -139,9 +144,9 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		}
 
 		templateData.container.classList.remove('builtin');
-		templateData.name.textContent = element.server.label;
+		templateData.name.textContent = formatDisplayName(element.server.label);
 		if (element.server.description) {
-			templateData.description.textContent = element.server.description;
+			templateData.description.textContent = truncateToFirstSentence(element.server.description);
 			templateData.description.style.display = '';
 		} else {
 			templateData.description.style.display = 'none';
@@ -674,7 +679,7 @@ export class McpListWidget extends Disposable {
 				id: 'mcp-group-builtin',
 				scope: 'builtin',
 				label: localize('builtInGroup', "Built-in"),
-				icon: extensionIcon,
+				icon: builtinIcon,
 				count: builtinServers.length,
 				isFirst,
 				description: localize('builtInGroupDescription', "MCP servers built into VS Code. These are available automatically."),

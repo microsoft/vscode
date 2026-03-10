@@ -142,11 +142,18 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		}
 
 		const updateMode = this.configurationService.getValue<'none' | 'manual' | 'start' | 'default'>('update.mode');
+		const updateModeInspection = this.configurationService.inspect<'none' | 'manual' | 'start' | 'default'>('update.mode');
+		const policyDisablesUpdates = updateModeInspection.policyValue !== undefined && !this.getProductQuality(updateModeInspection.policyValue);
 		const quality = this.getProductQuality(updateMode);
 
 		if (!quality) {
-			this.setState(State.Disabled(DisablementReason.ManuallyDisabled));
-			this.logService.info('update#ctor - updates are disabled by user preference');
+			if (policyDisablesUpdates) {
+				this.setState(State.Disabled(DisablementReason.Policy));
+				this.logService.info('update#ctor - updates are disabled by policy');
+			} else {
+				this.setState(State.Disabled(DisablementReason.ManuallyDisabled));
+				this.logService.info('update#ctor - updates are disabled by user preference');
+			}
 			return;
 		}
 

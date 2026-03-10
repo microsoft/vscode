@@ -65,9 +65,6 @@ export class ChatDebugEditor extends EditorPane {
 	private readonly sessionModelListener = this._register(new MutableDisposable());
 	private readonly modelChangeListeners = this._register(new DisposableMap<string>());
 
-	/** Saved session resource so we can restore it after the editor is re-shown. */
-	private savedSessionResource: URI | undefined;
-
 	/**
 	 * Stops the streaming pipeline and clears cached events for the
 	 * active session. Called when navigating away from a session or
@@ -175,7 +172,10 @@ export class ChatDebugEditor extends EditorPane {
 
 		this._register(this.chatService.onDidCreateModel(model => {
 			if (this.viewState === ViewState.Home) {
-				this.homeView?.render();
+				// Auto-navigate to the new session when the debug panel is
+				// already open on the home view.  This avoids the user having to
+				// wait for the title to resolve and manually clicking the session.
+				this.navigateToSession(model.sessionResource);
 			}
 
 			// Track title changes per model, disposing the previous listener
@@ -307,40 +307,11 @@ export class ChatDebugEditor extends EditorPane {
 		super.setEditorVisible(visible);
 		if (visible) {
 			this.telemetryService.publicLog2<{}, ChatDebugPanelOpenedClassification>('chatDebugPanelOpened');
-			// Note: do NOT read this.options here. When the editor becomes
-			// visible via openEditor(), setEditorVisible fires before
-			// setOptions, so this.options still contains stale values from
-			// the previous openEditor() call. Navigation from new options
-			// is handled entirely by setOptions → _applyNavigationOptions.
-			// Here we only restore the previous state when the editor is
-			// re-shown without a new openEditor() call (e.g., tab switch).
-			if (this.viewState === ViewState.Home) {
-				const sessionResource = this.chatDebugService.activeSessionResource ?? this.savedSessionResource;
-				this.savedSessionResource = undefined;
-				if (sessionResource) {
-					this.navigateToSession(sessionResource, 'overview');
-				} else {
-					this.showView(ViewState.Home);
-				}
-			} else {
-				// Re-activate the streaming pipeline for the current session,
-				// restoring the saved session resource if the editor was temporarily hidden.
-				const sessionResource = this.chatDebugService.activeSessionResource ?? this.savedSessionResource;
-				this.savedSessionResource = undefined;
-				if (sessionResource) {
-					this.chatDebugService.activeSessionResource = sessionResource;
-					if (!this.chatDebugService.hasInvokedProviders(sessionResource)) {
-						this.chatDebugService.invokeProviders(sessionResource);
-					}
-				} else {
-					this.showView(ViewState.Home);
-				}
-			}
-		} else {
-			// Remember the active session so we can restore when re-shown
-			this.savedSessionResource = this.chatDebugService.activeSessionResource;
-			// Stop the streaming pipeline when the editor is hidden
-			this.endActiveSession();
+			// Re-show the current view so it reloads events from scratch,
+			// ensuring correct ordering and no stale duplicates.
+			// Navigation from new openEditor() options is handled by
+			// setOptions → _applyNavigationOptions (fires after this).
+			this.showView(this.viewState);
 		}
 	}
 
