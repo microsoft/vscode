@@ -275,10 +275,6 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 			return undefined;
 		}
 
-		if (!repository.state.HEAD?.name) {
-			return undefined;
-		}
-
 		return this._getRepositoryState(repository);
 	}
 
