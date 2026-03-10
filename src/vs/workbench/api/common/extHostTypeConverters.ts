@@ -2671,7 +2671,7 @@ export namespace ChatResponseQuestionCarouselPart {
 				type: questionTypeToString(q.type),
 				title: q.title,
 				message: q.message ? MarkdownString.from(q.message) : undefined,
-				options: q.options,
+				options: q.options?.map(opt => ({ id: opt.id, label: opt.label, value: String(opt.value) })),
 				defaultValue: q.defaultValue,
 				allowFreeformInput: q.allowFreeformInput
 			})),

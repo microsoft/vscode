@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { AskQuestionsTool, IAnswerResult, IQuestion, IQuestionAnswer } from '../../../../common/tools/builtinTools/askQuestionsTool.js';
+import { NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatQuestionAnswers, IChatService } from '../../../../common/chatService/chatService.js';
+import { AskQuestionsTool, IAnswerResult, IQuestion, IQuestionAnswer } from '../../../../common/tools/builtinTools/askQuestionsTool.js';
 
 class TestableAskQuestionsTool extends AskQuestionsTool {
 	public testConvertCarouselAnswers(questions: IQuestion[], carouselAnswers: IChatQuestionAnswers | undefined): IAnswerResult {
@@ -70,7 +70,7 @@ suite('AskQuestionsTool - convertCarouselAnswers', () => {
 			{ header: 'Features', question: 'Pick features', multiSelect: true, options: [{ label: 'A' }, { label: 'B' }] }
 		];
 
-		const result = tool.testConvertCarouselAnswers(questions, { Features: ['A', 'B'] });
+		const result = tool.testConvertCarouselAnswers(questions, { Features: { selectedValues: ['A', 'B'] } });
 
 		assert.deepStrictEqual(result.answers['Features'], { selected: ['A', 'B'], freeText: null, skipped: false });
 	});
@@ -131,7 +131,7 @@ suite('AskQuestionsTool - convertCarouselAnswers', () => {
 		const result = tool.testConvertCarouselAnswers(questions, {
 			Q1: 'text',
 			Q2: { selectedValue: 'A' },
-			Q3: ['x', 'y']
+			Q3: { selectedValues: ['x', 'y'] }
 		});
 
 		assert.strictEqual(result.answers['Q1'].freeText, 'text');
