@@ -641,9 +641,6 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			data.state.set({ kind: PRReviewStateKind.Error, reason: String(err) }, undefined);
 		});
 		prModel.startPolling();
-		data.disposables.add(new Disposable(() => {
-			prModel.stopPolling();
-		}));
 	}
 
 	private _disposePRReview(sessionResource: URI): void {
