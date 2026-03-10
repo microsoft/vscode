@@ -6,11 +6,13 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ILiquidModuleRegistry } from '../common/liquidModule.js';
 import type {
 	ICompositionIntent,
 	ICompositionSlot,
+	ICompositionMetrics,
 	CompositionLayout,
 	ILiquidGraft,
 	ComponentCategory,
@@ -20,6 +22,9 @@ export const ICompositionEngine = createDecorator<ICompositionEngine>('liquidCom
 
 export interface ICompositionEngine {
 	readonly _serviceBrand: undefined;
+
+	/** Fires after each composition with metrics about the result. */
+	readonly onDidCompose: Event<ICompositionMetrics>;
 
 	/**
 	 * Deterministic composition from a view's declared defaultGrafts.
@@ -60,6 +65,9 @@ const MAX_SLOTS = 6;
 export class CompositionEngine extends Disposable implements ICompositionEngine {
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _onDidCompose = this._register(new Emitter<ICompositionMetrics>());
+	readonly onDidCompose = this._onDidCompose.event;
+
 	constructor(
 		@ILiquidModuleRegistry private readonly _registry: ILiquidModuleRegistry,
 		@ILogService private readonly _logService: ILogService,
@@ -89,12 +97,29 @@ export class CompositionEngine extends Disposable implements ICompositionEngine 
 		const view = this._registry.views.find(v => v.id === viewId);
 		const title = view?.label ?? viewId;
 
-		return {
+		const result: ICompositionIntent = {
 			layout: this._calculateLayout(slots),
 			slots,
 			title,
 			transient: false,
 		};
+
+		const graftEquivalentTokens = slots.reduce((sum, s) => {
+			const g = this._registry.grafts.find(m => m.id === s.graftId);
+			return sum + (g?.tokenWeight ?? 0);
+		}, 0);
+		const publishers = new Set(slots.map(s => {
+			const g = this._registry.grafts.find(m => m.id === s.graftId);
+			return g?.extensionId ?? 'unknown';
+		}));
+		this._onDidCompose.fire({
+			graftCount: slots.length,
+			publisherCount: publishers.size,
+			graftEquivalentTokens,
+			intentTokens: 0,
+		});
+
+		return result;
 	}
 
 	composeFromIntent(entities: readonly string[], action: string, depth: number = 0, preferredLayout?: CompositionLayout): ICompositionIntent | undefined {
@@ -146,12 +171,30 @@ export class CompositionEngine extends Disposable implements ICompositionEngine 
 
 		const layout = this._calculateLayout(slots, preferredLayout);
 
-		return {
+		const result: ICompositionIntent = {
 			layout,
 			slots,
 			title: `${action} ${entities.join(', ')}`,
 			transient: true,
 		};
+
+		const graftEquivalentTokens = slots.reduce((sum, s) => {
+			const g = this._registry.grafts.find(m => m.id === s.graftId);
+			return sum + (g?.tokenWeight ?? 0);
+		}, 0);
+		const publishers = new Set(slots.map(s => {
+			const g = this._registry.grafts.find(m => m.id === s.graftId);
+			return g?.extensionId ?? 'unknown';
+		}));
+		const intentTokens = Math.ceil(JSON.stringify({ entities, action, depth: clampedDepth, preferredLayout }).length / 4);
+		this._onDidCompose.fire({
+			graftCount: slots.length,
+			publisherCount: publishers.size,
+			graftEquivalentTokens,
+			intentTokens,
+		});
+
+		return result;
 	}
 
 	/**

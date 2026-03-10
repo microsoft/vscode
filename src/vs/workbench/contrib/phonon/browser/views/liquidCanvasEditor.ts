@@ -11,15 +11,16 @@ import { localize } from '../../../../../nls.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorOpenContext } from '../../../../common/editor.js';
 import { ILiquidModuleRegistry } from '../../common/liquidModule.js';
-import { ICompositionIntent, ICompositionSlot, ILiquidGraft, CompositionLayout } from '../../common/liquidGraftTypes.js';
+import { ICompositionIntent, ICompositionSlot, ICompositionMetrics, ILiquidGraft, CompositionLayout } from '../../common/liquidGraftTypes.js';
 import { ILiquidDataResolver, LiquidGraftSlotHost, type IGraftWebview, type GraftToHostMessage, type HostToGraftMessage, type IGraftStateChange } from '../liquidGraftBridge.js';
+import { ICompositionEngine } from '../liquidCompositor.js';
 import { LiquidCanvasEditorInput } from './liquidCanvasEditorInput.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 
@@ -54,6 +55,19 @@ const LAYOUT_STRATEGY: Record<CompositionLayout, (slots: readonly ICompositionSl
 };
 
 /**
+ * Simple string hash -> hue value (0-360).
+ * Deterministic: same string always produces the same hue.
+ */
+function hashStringToHue(str: string): number {
+	let hash = 0;
+	for (let i = 0; i < str.length; i++) {
+		hash = ((hash << 5) - hash) + str.charCodeAt(i);
+		hash |= 0; // Convert to 32-bit integer
+	}
+	return Math.abs(hash) % 360;
+}
+
+/**
  * Editor pane that renders composition intents as CSS grid layouts.
  *
  * Each graft slot is rendered as a sandboxed iframe with a postMessage bridge.
@@ -64,14 +78,23 @@ const LAYOUT_STRATEGY: Record<CompositionLayout, (slots: readonly ICompositionSl
  *   LiquidCanvasEditor -> sandboxed iframe per graft
  *   graft DOM <-> window.phonon bridge <-> ILiquidDataResolver
  *   ILiquidModuleRegistry -> graft metadata (entryUri, entity, tags)
+ *   ICompositionEngine -> onDidCompose metrics -> developer view footer
  */
 export class LiquidCanvasEditor extends EditorPane {
 
 	static readonly ID = LiquidCanvasEditorInput.EditorID;
 
+	private static readonly DEVELOPER_VIEW_KEY = 'phonon.developerView.enabled';
+
 	private _container: HTMLElement | undefined;
+	private _gridContainer: HTMLElement | undefined;
+	private _toolbarEl: HTMLElement | undefined;
+	private _footerEl: HTMLElement | undefined;
 	private _currentIntent: ICompositionIntent | undefined;
 	private readonly _slotHosts = this._register(new DisposableStore());
+
+	private _developerView = false;
+	private _lastMetrics: ICompositionMetrics | undefined;
 
 	/**
 	 * Aggregated state per graft. Updated when grafts call phonon.setState().
@@ -83,13 +106,21 @@ export class LiquidCanvasEditor extends EditorPane {
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IFileService private readonly fileService: IFileService,
 		@ILiquidDataResolver private readonly dataResolver: ILiquidDataResolver,
 		@ILiquidModuleRegistry private readonly registry: ILiquidModuleRegistry,
 		@ILogService private readonly logService: ILogService,
+		@ICompositionEngine private readonly _compositor: ICompositionEngine,
 	) {
-		super(LiquidCanvasEditor.ID, group, telemetryService, themeService, storageService);
+		super(LiquidCanvasEditor.ID, group, telemetryService, themeService, _storageService);
+
+		this._register(this._compositor.onDidCompose(metrics => {
+			this._lastMetrics = metrics;
+			if (this._developerView) {
+				this._renderFooter(metrics);
+			}
+		}));
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -101,6 +132,7 @@ export class LiquidCanvasEditor extends EditorPane {
 
 	override async setInput(input: LiquidCanvasEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
+		this._developerView = this._storageService.getBoolean(LiquidCanvasEditor.DEVELOPER_VIEW_KEY, StorageScope.PROFILE, false);
 		// If an intent was composed before the input was set, re-render it.
 		if (this._currentIntent) {
 			this._renderIntent(this._currentIntent);
@@ -156,6 +188,18 @@ export class LiquidCanvasEditor extends EditorPane {
 		this._graftStates.set(change.graftId, { ...current, [change.key]: change.value });
 	}
 
+	private _toggleDeveloperView(): void {
+		this._developerView = !this._developerView;
+		this._storageService.store(LiquidCanvasEditor.DEVELOPER_VIEW_KEY, this._developerView, StorageScope.PROFILE, StorageTarget.USER);
+		this._rerender();
+	}
+
+	private _rerender(): void {
+		if (this._currentIntent) {
+			this._renderIntent(this._currentIntent);
+		}
+	}
+
 	private _renderIntent(intent: ICompositionIntent): void {
 		if (!this._container) {
 			return;
@@ -165,15 +209,36 @@ export class LiquidCanvasEditor extends EditorPane {
 		this._slotHosts.clear();
 
 		dom.clearNode(this._container);
+		this._toolbarEl = undefined;
+		this._gridContainer = undefined;
+		this._footerEl = undefined;
 
-		const grid = dom.append(this._container, dom.$('.liquid-canvas-grid'));
+		// -- Toolbar --
+		this._toolbarEl = dom.append(this._container, dom.$('.liquid-canvas-toolbar'));
+		const devToggle = dom.append(this._toolbarEl, dom.$('button'));
+		devToggle.classList.toggle('active', this._developerView);
+		const devIcon = dom.append(devToggle, dom.$('.codicon.codicon-symbol-misc'));
+		devIcon.style.marginRight = '4px';
+		dom.append(devToggle, document.createTextNode(localize('phononCanvas.developerView', "Developer View")));
+		this._slotHosts.add(dom.addDisposableListener(devToggle, 'click', () => this._toggleDeveloperView()));
+
+		// -- Grid --
+		this._gridContainer = dom.append(this._container, dom.$('.liquid-canvas-grid'));
 		const strategy = LAYOUT_STRATEGY[intent.layout] ?? LAYOUT_STRATEGY['single'];
 		const { columns, rows } = strategy(intent.slots);
-		grid.style.gridTemplateColumns = columns;
-		grid.style.gridTemplateRows = rows;
+		this._gridContainer.style.gridTemplateColumns = columns;
+		this._gridContainer.style.gridTemplateRows = rows;
 
 		for (const slot of intent.slots) {
-			this._renderSlot(grid, slot);
+			this._renderSlot(this._gridContainer, slot);
+		}
+
+		// -- Footer (developer view only) --
+		if (this._developerView) {
+			this._footerEl = dom.append(this._container, dom.$('.liquid-canvas-footer'));
+			if (this._lastMetrics) {
+				this._renderFooter(this._lastMetrics);
+			}
 		}
 	}
 
@@ -181,9 +246,17 @@ export class LiquidCanvasEditor extends EditorPane {
 		const slotEl = dom.append(parent, dom.$('.liquid-canvas-slot'));
 		const slotTargetId = slot.viewId ?? slot.graftId ?? 'unknown';
 
-		// -- Header --
+		// -- Header (thin application bar) --
 		const header = dom.append(slotEl, dom.$('.liquid-canvas-slot-header'));
 		header.textContent = slot.label ?? slotTargetId;
+
+		// -- Developer View Overlay --
+		if (this._developerView && slot.graftId) {
+			const graft = this.registry.grafts.find(m => m.id === slot.graftId);
+			if (graft) {
+				this._renderDevOverlay(slotEl, graft);
+			}
+		}
 
 		// -- Body --
 		const body = dom.append(slotEl, dom.$('.liquid-canvas-slot-body'));
@@ -197,6 +270,7 @@ export class LiquidCanvasEditor extends EditorPane {
 				loading.textContent = localize('phononCanvas.loading', "Loading {0}...", graft.label);
 				loading.style.color = 'var(--vscode-descriptionForeground)';
 				loading.style.fontStyle = 'italic';
+				loading.style.padding = '8px';
 
 				this._renderGraftWebview(body, graft, slot.params).then(() => {
 					loading.remove();
@@ -211,12 +285,81 @@ export class LiquidCanvasEditor extends EditorPane {
 
 		// Fallback: placeholder for views or unknown grafts
 		const viewLine = dom.append(body, dom.$('div'));
+		viewLine.style.padding = '8px';
 		viewLine.textContent = slot.graftId ? `Graft: ${slot.graftId}` : `View: ${slotTargetId}`;
 
 		if (slot.params && Object.keys(slot.params).length > 0) {
 			const paramsBlock = dom.append(body, dom.$('pre.liquid-canvas-slot-params'));
 			paramsBlock.textContent = JSON.stringify(slot.params, null, 2);
 		}
+	}
+
+	/**
+	 * Render developer overlay showing graft metadata: id, publisher, domain, category, motif.
+	 */
+	private _renderDevOverlay(slotEl: HTMLElement, graft: ILiquidGraft): void {
+		const overlay = dom.append(slotEl, dom.$('.liquid-slot-dev-overlay'));
+		const hue = hashStringToHue(graft.extensionId);
+		overlay.style.borderLeft = `3px solid hsl(${hue}, 60%, 50%)`;
+
+		// Line 1: graft-id · publisher-name
+		const idSpan = dom.append(overlay, dom.$('span.dev-graft-id'));
+		idSpan.textContent = graft.id;
+		dom.append(overlay, document.createTextNode(' \u00B7 '));
+		const pubSpan = dom.append(overlay, dom.$('span.dev-publisher'));
+		pubSpan.textContent = graft.extensionId;
+		dom.append(overlay, dom.$('br'));
+
+		// Line 2: domain: X · category: Y
+		dom.append(overlay, document.createTextNode(`domain: ${graft.domain} \u00B7 category: ${graft.category}`));
+		dom.append(overlay, dom.$('br'));
+
+		// Line 3: motif
+		if (graft.description) {
+			const motifSpan = dom.append(overlay, dom.$('span.dev-motif'));
+			motifSpan.textContent = `motif: "${graft.description}"`;
+		}
+	}
+
+	/**
+	 * Render the metrics footer in developer view.
+	 */
+	private _renderFooter(metrics: ICompositionMetrics): void {
+		if (!this._footerEl) {
+			return;
+		}
+		const tokensSaved = metrics.graftEquivalentTokens - metrics.intentTokens;
+		const savings = metrics.graftEquivalentTokens > 0
+			? (1 - metrics.intentTokens / metrics.graftEquivalentTokens) * 100
+			: 0;
+		const energyWh = tokensSaved * 0.01;
+		const co2g = energyWh * 0.4;
+
+		this._footerEl.textContent = [
+			localize(
+				'phononCanvas.footerComposition',
+				"Composition: {0} grafts \u00B7 {1} publishers",
+				metrics.graftCount,
+				metrics.publisherCount,
+			),
+			localize(
+				'phononCanvas.footerTokens',
+				"Tokens: {0} (intent) + 0 (rendering) = {0}",
+				metrics.intentTokens,
+			),
+			localize(
+				'phononCanvas.footerEquivalent',
+				"Equivalent: {0} tokens \u00B7 Savings: {1}%",
+				metrics.graftEquivalentTokens,
+				savings.toFixed(1),
+			),
+			localize(
+				'phononCanvas.footerEnergy',
+				"Energy: ~{0} Wh saved \u00B7 ~{1} gCO\u2082 avoided",
+				energyWh.toFixed(3),
+				co2g.toFixed(3),
+			),
+		].join('\n');
 	}
 
 	/**

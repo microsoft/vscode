@@ -260,3 +260,15 @@ export interface ILiquidCapabilitySummary {
 		readonly shows: readonly string[];
 	}[];
 }
+
+// ==================== Composition Metrics ====================
+
+/**
+ * Metrics emitted after each composition, used by the developer view footer.
+ */
+export interface ICompositionMetrics {
+	readonly graftCount: number;
+	readonly publisherCount: number;
+	readonly graftEquivalentTokens: number;
+	readonly intentTokens: number;
+}

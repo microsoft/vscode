@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
@@ -16,7 +16,8 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { LiquidCanvasEditor } from '../../browser/views/liquidCanvasEditor.js';
 import { LiquidModuleRegistry } from '../../browser/liquidModuleRegistry.js';
 import type { ILiquidDataResolver } from '../../browser/liquidGraftBridge.js';
-import type { ICompositionIntent, ILiquidGraft } from '../../common/liquidGraftTypes.js';
+import type { ICompositionEngine } from '../../browser/liquidCompositor.js';
+import type { ICompositionIntent, ICompositionMetrics, ILiquidGraft } from '../../common/liquidGraftTypes.js';
 import type { IFileService, IFileContent, IFileSystemWatcher } from '../../../../../platform/files/common/files.js';
 
 /**
@@ -31,6 +32,28 @@ class MockDataResolver implements ILiquidDataResolver {
 
 	async mutate(_entity: string, _operation: 'create' | 'update' | 'delete', _data: unknown): Promise<void> {
 		// no-op
+	}
+}
+
+/**
+ * Mock ICompositionEngine - exposes onDidCompose event for test wiring.
+ */
+class MockCompositionEngine implements ICompositionEngine {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidCompose = new Emitter<ICompositionMetrics>();
+	readonly onDidCompose: Event<ICompositionMetrics> = this._onDidCompose.event;
+
+	composeFromView(): ICompositionIntent | undefined {
+		return undefined;
+	}
+
+	composeFromIntent(): ICompositionIntent | undefined {
+		return undefined;
+	}
+
+	dispose(): void {
+		this._onDidCompose.dispose();
 	}
 }
 
@@ -90,11 +113,17 @@ suite('LiquidCanvasEditor', () => {
 	let parent: HTMLElement;
 	let registry: LiquidModuleRegistry;
 	let dataResolver: MockDataResolver;
+	let compositor: MockCompositionEngine;
 
 	setup(() => {
 		parent = document.createElement('div');
 		registry = store.add(new LiquidModuleRegistry());
 		dataResolver = new MockDataResolver();
+		compositor = new MockCompositionEngine();
+	});
+
+	teardown(() => {
+		compositor.dispose();
 	});
 
 	function createEditor(fileService?: IFileService): LiquidCanvasEditor {
@@ -109,6 +138,7 @@ suite('LiquidCanvasEditor', () => {
 			dataResolver,
 			registry,
 			new NullLogService(),
+			compositor,
 		);
 		store.add(editor);
 		editor.create(parent);
