@@ -948,7 +948,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			// repositoryPath: extract repo name from the directory path basename
 			const repositoryPath = metadata.repositoryPath as string | undefined;
 			if (repositoryPath) {
-				const name = repositoryPath.split('/').filter(Boolean).pop();
+				const name = this.extractRepoNameFromPath(repositoryPath);
 				if (name) {
 					return name;
 				}
@@ -957,7 +957,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			// workingDirectoryPath: fallback to extract name from the working directory
 			const workingDirectoryPath = metadata.workingDirectoryPath as string | undefined;
 			if (workingDirectoryPath) {
-				const name = workingDirectoryPath.split('/').filter(Boolean).pop();
+				const name = this.extractRepoNameFromPath(workingDirectoryPath);
 				if (name) {
 					return name;
 				}
@@ -975,6 +975,24 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		}
 
 		return undefined;
+	}
+
+	/**
+	 * Extracts the repository name from a filesystem path, handling git worktree
+	 * conventions where paths follow `<repo>.worktrees/<worktree-name>`.
+	 */
+	private extractRepoNameFromPath(dirPath: string): string | undefined {
+		const segments = dirPath.split(/[/\\]/).filter(Boolean);
+		if (segments.length < 2) {
+			return segments[0];
+		}
+
+		const parent = segments[segments.length - 2];
+		if (parent.endsWith('.worktrees')) {
+			return parent.slice(0, -'.worktrees'.length) || undefined;
+		}
+
+		return segments[segments.length - 1];
 	}
 }
 
