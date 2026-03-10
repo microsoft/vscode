@@ -212,7 +212,8 @@ function promptTypeToIcon(type: PromptsType): ThemeIcon {
 /**
  * Formats a name for display: strips a trailing .md extension, converts dashes/underscores
  * to spaces and applies title case.
- * This is safe to use alongside IMatch highlight positions since the transformation is 1:1.
+ * Note: callers that pass IMatch highlight ranges must compute those ranges against the
+ * formatted string (not the raw input), since .md stripping changes string length.
  */
 export function formatDisplayName(name: string): string {
 	return name
@@ -292,7 +293,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			};
 		}));
 
-		// Name with highlights — transform dashes/underscores to spaces and title-case for display
+		// Name with highlights — nameMatches are pre-computed against the formatted display name
 		const displayName = formatDisplayName(element.name);
 		templateData.nameLabel.set(displayName, element.nameMatches);
 
@@ -1011,7 +1012,10 @@ export class AICustomizationListWidget extends Disposable {
 			matchedItems = [];
 
 			for (const item of this.allItems) {
-				const nameMatches = matchesContiguousSubString(query, item.name);
+				// Compute matches against the formatted display name so highlight positions
+				// are correct even after .md stripping and title-casing.
+				const displayName = formatDisplayName(item.name);
+				const nameMatches = matchesContiguousSubString(query, displayName);
 				const descriptionMatches = item.description ? matchesContiguousSubString(query, item.description) : null;
 				const filenameMatches = matchesContiguousSubString(query, item.filename);
 
