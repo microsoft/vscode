@@ -418,7 +418,6 @@
 
 .ai-customization-list-item .item-name {
 	font-size: 13px;
-	font-weight: 500;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -751,7 +750,6 @@
 
 .mcp-server-item .mcp-server-name {
 	font-size: 13px;
-	font-weight: 500;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
