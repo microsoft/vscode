@@ -109,9 +109,9 @@ export class ComputeAutomaticInstructions {
 		// get copilot instructions
 		await this._addAgentInstructions(variables, telemetryEvent, token);
 
-		const instructionsListVariable = await this._getInstructionsWithPatternsList(instructionFiles, variables, telemetryEvent, token);
-		if (instructionsListVariable) {
-			variables.add(instructionsListVariable);
+		const customizationsIndexVariable = await this._getCustomizationsIndex(instructionFiles, variables, telemetryEvent, token);
+		if (customizationsIndexVariable) {
+			variables.add(customizationsIndexVariable);
 			telemetryEvent.listedInstructionsCount++;
 		}
 
@@ -293,7 +293,7 @@ export class ComputeAutomaticInstructions {
 		return undefined;
 	}
 
-	private async _getInstructionsWithPatternsList(instructionFiles: readonly IPromptPath[], _existingVariables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<IPromptTextVariableEntry | undefined> {
+	private async _getCustomizationsIndex(instructionFiles: readonly IPromptPath[], _existingVariables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<IPromptTextVariableEntry | undefined> {
 		const readTool = this._getTool('readFile');
 		const runSubagentTool = this._getTool(VSCodeToolReference.runSubagent);
 

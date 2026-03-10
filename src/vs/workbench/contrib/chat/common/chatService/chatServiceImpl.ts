@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
@@ -46,14 +46,14 @@ import { IChatSessionsService } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
-import { LocalChatSessionUri } from '../model/chatUri.js';
+import { chatSessionResourceToId, LocalChatSessionUri } from '../model/chatUri.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
-import { ChatRequestHooks } from '../promptSyntax/hookSchema.js';
+import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -67,6 +67,7 @@ class CancellableRequest implements IDisposable {
 	constructor(
 		public readonly cancellationTokenSource: CancellationTokenSource,
 		public requestId: string | undefined,
+		public readonly responseCompletePromise: Promise<void> | undefined,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService
 	) { }
 
@@ -614,8 +615,6 @@ export class ChatService extends Disposable implements IChatService {
 
 		modelRef.object.setContributedChatSession({
 			chatSessionResource: sessionResource,
-			chatSessionType,
-			isUntitled: sessionResource.path.startsWith('/untitled-')  //TODO(jospicer)
 		});
 
 		if (providedSession.title) {
@@ -679,9 +678,9 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		if (providedSession.progressObs && lastRequest && providedSession.interruptActiveResponseCallback) {
-			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
+			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined, undefined);
 			this._pendingRequests.set(model.sessionResource, initialCancellationRequest);
-			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'remoteSession' });
+			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'remoteSession', chatSessionId: chatSessionResourceToId(model.sessionResource) });
 			const cancellationListener = disposables.add(new MutableDisposable());
 
 			const createCancellationListener = (token: CancellationToken) => {
@@ -689,9 +688,9 @@ export class ChatService extends Disposable implements IChatService {
 					providedSession.interruptActiveResponseCallback?.().then(userConfirmedInterruption => {
 						if (!userConfirmedInterruption) {
 							// User cancelled the interruption
-							const newCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
+							const newCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined, undefined);
 							this._pendingRequests.set(model.sessionResource, newCancellationRequest);
-							this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'remoteSession' });
+							this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'remoteSession', chatSessionId: chatSessionResourceToId(model.sessionResource) });
 							cancellationListener.value = createCancellationListener(newCancellationRequest.cancellationTokenSource.token);
 						}
 					});
@@ -721,7 +720,7 @@ export class ChatService extends Disposable implements IChatService {
 				}
 			}));
 		} else {
-			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'notCancelable', source: 'remoteSession' });
+			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'notCancelable', source: 'remoteSession', chatSessionId: chatSessionResourceToId(model.sessionResource) });
 			if (lastRequest && model.editingSession) {
 				// wait for timeline to load so that a 'changes' part is added when the response completes
 				await chatEditingSessionIsReady(model.editingSession);
@@ -959,6 +958,20 @@ export class ChatService extends Disposable implements IChatService {
 				this.logService.warn('[ChatService] Failed to collect hooks:', error);
 			}
 
+			// Merge hooks from the selected custom agent's frontmatter (if any)
+			const agentName = options?.modeInfo?.modeInstructions?.name;
+			if (agentName) {
+				try {
+					const agents = await this.promptsService.getCustomAgents(token, model.sessionResource);
+					const customAgent = agents.find(a => a.name === agentName);
+					if (customAgent?.hooks) {
+						collectedHooks = mergeHooks(collectedHooks, customAgent.hooks);
+					}
+				} catch (error) {
+					this.logService.warn('[ChatService] Failed to collect agent hooks:', error);
+				}
+			}
+
 			const stopWatch = new StopWatch(false);
 			store.add(token.onCancellationRequested(() => {
 				this.trace('sendRequest', `Request for session ${model.sessionResource} was cancelled`);
@@ -1024,6 +1037,7 @@ export class ChatService extends Disposable implements IChatService {
 							userSelectedModelId: options?.userSelectedModelId,
 							userSelectedTools: options?.userSelectedTools?.get(),
 							modeInstructions: options?.modeInfo?.modeInstructions,
+							permissionLevel: options?.modeInfo?.permissionLevel,
 							editedFileEvents: request.editedFileEvents,
 							hooks: collectedHooks,
 							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
@@ -1093,6 +1107,9 @@ export class ChatService extends Disposable implements IChatService {
 							}
 						}));
 						pendingRequest.requestId ??= requestProps.requestId;
+						if (pendingRequest.requestId) {
+							this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'sendRequestId', requestId: pendingRequest.requestId, chatSessionId: chatSessionResourceToId(sessionResource) });
+						}
 					}
 					completeResponseCreated();
 
@@ -1180,6 +1197,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					shouldProcessPending = !rawResult.errorDetails && !token.isCancellationRequested;
 					request.response?.complete();
+
 					if (agentOrCommandFollowups) {
 						agentOrCommandFollowups.then(followups => {
 							model.setFollowups(request!, followups);
@@ -1211,13 +1229,13 @@ export class ChatService extends Disposable implements IChatService {
 		let shouldProcessPending = false;
 		const rawResponsePromise = sendRequestInternal();
 		// Note- requestId is not known at this point, assigned later
-		const cancellableRequest = this.instantiationService.createInstance(CancellableRequest, source, undefined);
+		const cancellableRequest = this.instantiationService.createInstance(CancellableRequest, source, undefined, rawResponsePromise);
 		this._pendingRequests.set(model.sessionResource, cancellableRequest);
-		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'sendRequest' });
+		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'sendRequest', chatSessionId: chatSessionResourceToId(model.sessionResource) });
 		rawResponsePromise.finally(() => {
 			if (this._pendingRequests.get(model.sessionResource) === cancellableRequest) {
 				this._pendingRequests.deleteAndDispose(model.sessionResource);
-				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'sendRequestComplete' });
+				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'sendRequestComplete', requestId: cancellableRequest.requestId, chatSessionId: chatSessionResourceToId(model.sessionResource) });
 			}
 			// Process the next pending request from the queue if any
 			if (shouldProcessPending) {
@@ -1418,7 +1436,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (pendingRequest?.requestId === requestId) {
 			pendingRequest.cancel();
 			this._pendingRequests.deleteAndDispose(sessionResource);
-			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'removeRequest' });
+			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'removeRequest', requestId, chatSessionId: chatSessionResourceToId(model.sessionResource) });
 		}
 
 		model.removeRequest(requestId);
@@ -1441,8 +1459,8 @@ export class ChatService extends Disposable implements IChatService {
 			if (cts) {
 				cts.requestId = request.id;
 				this._pendingRequests.set(target.sessionResource, cts);
-				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'adoptRequest' });
-				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'adoptRequest' });
+				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'adoptRequest', requestId: request.id, chatSessionId: chatSessionResourceToId(oldOwner.sessionResource) });
+				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'adoptRequest', requestId: request.id, chatSessionId: chatSessionResourceToId(target.sessionResource) });
 			}
 		}
 	}
@@ -1474,7 +1492,7 @@ export class ChatService extends Disposable implements IChatService {
 		request.response?.complete();
 	}
 
-	cancelCurrentRequestForSession(sessionResource: URI, source?: string): void {
+	async cancelCurrentRequestForSession(sessionResource: URI, source?: string): Promise<void> {
 		this.trace('cancelCurrentRequestForSession', `session: ${sessionResource}`);
 		const pendingRequest = this._pendingRequests.get(sessionResource);
 		if (!pendingRequest) {
@@ -1489,14 +1507,20 @@ export class ChatService extends Disposable implements IChatService {
 				pendingRequests: pendingRequestsCount,
 				sessionScheme: sessionResource.scheme,
 				lastRequestId: lastRequest?.id,
+				chatSessionId: chatSessionResourceToId(sessionResource),
 			});
 			this.info('cancelCurrentRequestForSession', `No pending request was found for session ${sessionResource}. requestInProgress=${requestInProgress ?? 'unknown'}, pendingRequests=${pendingRequestsCount}`);
 			return;
 		}
 
+		const responseCompletePromise = pendingRequest.responseCompletePromise;
 		pendingRequest.cancel();
 		this._pendingRequests.deleteAndDispose(sessionResource);
-		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: source ?? 'cancelRequest' });
+		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: source ?? 'cancelRequest', requestId: pendingRequest.requestId, chatSessionId: chatSessionResourceToId(sessionResource) });
+
+		if (responseCompletePromise) {
+			await raceTimeout(responseCompletePromise, 1000);
+		}
 	}
 
 	setYieldRequested(sessionResource: URI): void {

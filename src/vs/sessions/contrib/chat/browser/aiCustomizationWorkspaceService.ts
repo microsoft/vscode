@@ -9,6 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter, applyStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { BUILTIN_STORAGE } from '../../chat/common/builtinPromptsStorage.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CustomizationCreatorService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationCreatorService.js';
@@ -69,7 +70,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			joinPath(userHome, '.agents'),
 		];
 		this._cliUserFilter = {
-			sources: [PromptsStorage.local, PromptsStorage.user],
+			sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, BUILTIN_STORAGE],
 			includedUserFileRoots: this._cliUserRoots,
 		};
 
@@ -113,14 +114,15 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		AICustomizationManagementSection.Prompts,
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.McpServers,
+		AICustomizationManagementSection.Plugins,
 	];
 
 	private static readonly _hooksFilter: IStorageSourceFilter = {
-		sources: [PromptsStorage.local],
+		sources: [PromptsStorage.local, PromptsStorage.plugin],
 	};
 
 	private static readonly _allUserRootsFilter: IStorageSourceFilter = {
-		sources: [PromptsStorage.local, PromptsStorage.user],
+		sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, BUILTIN_STORAGE],
 	};
 
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {

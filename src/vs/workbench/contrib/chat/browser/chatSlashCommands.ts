@@ -15,11 +15,9 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatAgentService } from '../common/participants/chatAgents.js';
-import { IChatDebugEvent, IChatDebugService } from '../common/chatDebugService.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
-import { ChatRequestQueueKind, IChatService } from '../common/chatService/chatService.js';
+import { IChatService } from '../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
-import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
 import { ChatSubmitAction, OpenModePickerAction, OpenModelPickerAction } from './actions/chatExecuteActions.js';
 import { ManagePluginsAction } from './actions/chatPluginActions.js';
@@ -34,12 +32,8 @@ import {
 	globalAutoApproveDescription,
 } from './tools/languageModelToolsService.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
-import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { Target } from '../common/promptSyntax/promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { IChatWidgetService } from './chat.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
 
@@ -52,25 +46,14 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 		@IChatService chatService: IChatService,
-		@IChatDebugService chatDebugService: IChatDebugService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IDialogService dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
-		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
-		const troubleshootSessions = new Set<string>();
-		const hasTroubleshootDataKey = ChatContextKeys.chatSessionHasTroubleshootData.bindTo(this.contextKeyService);
-		this._store.add(chatWidgetService.onDidChangeFocusedSession(() => {
-			const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
-			hasTroubleshootDataKey.set(!!sessionResource && troubleshootSessions.has(sessionResource.toString()));
-			languageModelToolsService.flushToolUpdates();
-		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'clear',
 			detail: nls.localize('clear', "Start a new chat and archive the current one"),
@@ -137,54 +120,6 @@ export class ChatSlashCommandsContribution extends Disposable {
 				await commandService.executeCommand('github.copilot.debug.showChatLogView');
 			}));
 		}
-		this._store.add(slashCommandService.registerSlashCommand({
-			command: 'troubleshoot',
-			detail: nls.localize('troubleshoot', "Troubleshoot with a snapshot of debug events from the conversation so far (run again to refresh)"),
-			sortText: 'z3_troubleshoot',
-			executeImmediately: false,
-			silent: true,
-			locations: [ChatAgentLocation.Chat],
-		}, async (prompt, _progress, _history, _location, sessionResource, _token, options) => {
-			troubleshootSessions.add(sessionResource.toString());
-			hasTroubleshootDataKey.set(true);
-			languageModelToolsService.flushToolUpdates();
-			await chatDebugService.invokeProviders(sessionResource);
-			const events = chatDebugService.getEvents(sessionResource);
-			const summary = events.length > 0
-				? formatDebugEventsForContext(events)
-				: nls.localize('troubleshoot.noEvents', "No debug events found for this conversation.");
-
-			const attachedContext: IChatRequestVariableEntry[] = [{
-				id: 'chatDebugEvents',
-				name: nls.localize('troubleshoot.contextName', "Debug Events Snapshot"),
-				kind: 'debugEvents',
-				snapshotTime: Date.now(),
-				sessionResource,
-				value: summary,
-				modelDescription: 'These are the debug event logs from the current chat conversation. Analyze them to help answer the user\'s troubleshooting question.\n'
-					+ '\n'
-					+ 'CRITICAL INSTRUCTION: You MUST call the resolveDebugEventDetails tool on relevant events BEFORE answering. The log lines below are only summaries — they do NOT contain the actual data (file paths, prompt content, tool I/O, etc.). The real information is only available by resolving events. Never answer based solely on the summary lines. Always resolve first, then answer.\n'
-					+ '\n'
-					+ 'Call resolveDebugEventDetails in parallel on all events that could be relevant to the user\'s question. When in doubt, resolve more events rather than fewer.\n'
-					+ '\n'
-					+ 'IMPORTANT: Do NOT mention event IDs, tool resolution steps, or internal debug mechanics in your response. The user does not know about debug events or event IDs. Present your findings directly and naturally, as if you simply know the answer. Never say things like "I need to resolve events" or show event IDs.\n'
-					+ '\n'
-					+ 'Event types and what resolving them returns:\n'
-					+ '- generic (category: "discovery"): File discovery for instructions, skills, agents, hooks. Resolving returns a fileList with full file paths, load status, skip reasons, and source folders. Always resolve these for questions about customization files.\n'
-					+ '- userMessage: The full prompt sent to the model. Resolving returns the complete message and all prompt sections (system prompt, instructions, context). Essential for understanding what the model received.\n'
-					+ '- agentResponse: The model\'s response. Resolving returns the full response text and sections.\n'
-					+ '- modelTurn: An LLM round-trip. Resolving returns model name, token usage, timing, errors, and prompt sections.\n'
-					+ '- toolCall: A tool invocation. Resolving returns tool name, input, output, status, and duration.\n'
-					+ '- subagentInvocation: A sub-agent spawn. Resolving returns agent name, status, duration, and counts.\n'
-					+ '- generic (other): Miscellaneous logs. Resolving returns additional text details.',
-			}];
-
-			chatService.sendRequest(sessionResource, prompt, {
-				...options,
-				queue: ChatRequestQueueKind.Queued,
-				attachedContext,
-			});
-		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'agents',
 			detail: nls.localize('agents', "Configure custom agents"),
@@ -413,38 +348,3 @@ export class ChatSlashCommandsContribution extends Disposable {
 		}));
 	}
 }
-
-function formatDebugEventsForContext(events: readonly IChatDebugEvent[]): string {
-	const lines: string[] = [];
-	for (const event of events) {
-		const ts = event.created.toISOString();
-		const id = event.id ? ` [id=${event.id}]` : '';
-		switch (event.kind) {
-			case 'generic':
-				lines.push(`[${ts}]${id} ${event.level >= 3 ? 'ERROR' : event.level >= 2 ? 'WARN' : 'INFO'}: ${event.name}${event.details ? ' - ' + event.details : ''}${event.category ? ' (category: ' + event.category + ')' : ''}`);
-				break;
-			case 'toolCall':
-				lines.push(`[${ts}]${id} TOOL_CALL: ${event.toolName}${event.result ? ' result=' + event.result : ''}${event.durationInMillis !== undefined ? ' duration=' + event.durationInMillis + 'ms' : ''}`);
-				break;
-			case 'modelTurn':
-				lines.push(`[${ts}]${id} MODEL_TURN: ${event.requestName ?? 'unknown'}${event.model ? ' model=' + event.model : ''}${event.inputTokens !== undefined ? ' tokens(in=' + event.inputTokens + ',out=' + (event.outputTokens ?? '?') + ')' : ''}${event.durationInMillis !== undefined ? ' duration=' + event.durationInMillis + 'ms' : ''}`);
-				break;
-			case 'subagentInvocation':
-				lines.push(`[${ts}]${id} SUBAGENT: ${event.agentName}${event.status ? ' status=' + event.status : ''}${event.durationInMillis !== undefined ? ' duration=' + event.durationInMillis + 'ms' : ''}`);
-				break;
-			case 'userMessage':
-				lines.push(`[${ts}]${id} USER_MESSAGE: ${event.message.substring(0, 200)}${event.message.length > 200 ? '...' : ''} (${event.sections.length} sections)`);
-				break;
-			case 'agentResponse':
-				lines.push(`[${ts}]${id} AGENT_RESPONSE: ${event.message.substring(0, 200)}${event.message.length > 200 ? '...' : ''} (${event.sections.length} sections)`);
-				break;
-			default: {
-				const _: never = event;
-				void _;
-				break;
-			}
-		}
-	}
-	return lines.join('\n');
-}
-

@@ -37,7 +37,7 @@ import '../common/widget/chatColors.js';
 import { IChatEditingService } from '../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../common/widget/chatLayoutService.js';
 import { ChatModeService, IChatMode, IChatModeService } from '../common/chatModes.js';
-import { ChatResponseResourceFileSystemProvider, IChatResponseResourceFileSystemProvider } from '../common/widget/chatResponseResourceFileSystemProvider.js';
+import { ChatResponseResourceFileSystemProvider, ChatResponseResourceWorkbenchContribution, IChatResponseResourceFileSystemProvider } from '../common/widget/chatResponseResourceFileSystemProvider.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
@@ -100,7 +100,7 @@ import { ChatDebugEditor } from './chatDebug/chatDebugEditor.js';
 import { PromptsDebugContribution } from './promptsDebugContribution.js';
 import { ChatDebugEditorInput, ChatDebugEditorInputSerializer } from './chatDebug/chatDebugEditorInput.js';
 import './agentSessions/agentSessions.contribution.js';
-import { backgroundAgentDisplayName } from './agentSessions/agentSessions.js';
+
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 
 import { ChatViewId, IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
@@ -370,6 +370,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['experimental', 'advanced'],
+		},
+		[ChatConfiguration.AutopilotEnabled]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.autopilot.enabled', "Controls whether the Autopilot mode is available in the permissions picker. When enabled, Autopilot auto-approves all tool calls and continues until the task is done."),
+			default: true,
+			tags: ['experimental'],
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
 			default: false,
@@ -722,6 +728,17 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
+			},
+			policy: {
+				name: 'DeprecatedEditModeHidden',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.112',
+				localization: {
+					description: {
+						key: 'chat.editMode.hidden',
+						value: nls.localize('chat.editMode.hidden', "When enabled, hides the Edit mode from the chat mode picker."),
+					}
+				}
 			}
 		},
 		[ChatConfiguration.EnableMath]: {
@@ -1059,6 +1076,15 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			title: nls.localize('chat.useClaudeHooks.title', "Use Claude Hooks",),
 			markdownDescription: nls.localize('chat.useClaudeHooks.description', "Controls whether hooks from Claude configuration files can execute. When disabled, only Copilot-format hooks are used. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`.",),
+			default: false,
+			restricted: true,
+			disallowConfigurationDefault: true,
+			tags: ['preview', 'prompts', 'hooks', 'agent']
+		},
+		[PromptsConfig.USE_CUSTOM_AGENT_HOOKS]: {
+			type: 'boolean',
+			title: nls.localize('chat.useCustomAgentHooks.title', "Use Custom Agent Hooks",),
+			markdownDescription: nls.localize('chat.useCustomAgentHooks.description', "Controls whether hooks defined in custom agent frontmatter are parsed and executed. When disabled, hooks from agent files are ignored.",),
 			default: false,
 			restricted: true,
 			disallowConfigurationDefault: true,
@@ -1427,7 +1453,6 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 		super();
 		this.newChatButtonExperimentIcon = ChatContextKeys.newChatButtonExperimentIcon.bindTo(this.contextKeyService);
 		this.registerMaxRequestsSetting();
-		this.registerBackgroundAgentDisplayName();
 		this.registerNewChatButtonIcon();
 	}
 
@@ -1457,14 +1482,6 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			});
 		};
 		this._register(Event.runAndSubscribe(Event.debounce(this.entitlementService.onDidChangeEntitlement, () => { }, 1000), () => registerMaxRequestsSetting()));
-	}
-
-	private registerBackgroundAgentDisplayName(): void {
-		this.experimentService.getTreatment<string>('backgroundAgentDisplayName').then((value) => {
-			if (value) {
-				backgroundAgentDisplayName.set(value, undefined);
-			}
-		});
 	}
 
 	private registerNewChatButtonIcon(): void {
@@ -1741,9 +1758,9 @@ registerWorkbenchContribution2(SimpleBrowserOverlay.ID, SimpleBrowserOverlay, Wo
 registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEditorContextKeys, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
-registerSingleton(IChatResponseResourceFileSystemProvider, ChatResponseResourceFileSystemProvider, InstantiationType.Eager);
 registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(ChatResponseResourceWorkbenchContribution.ID, ChatResponseResourceWorkbenchContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(PromptLanguageFeaturesProvider.ID, PromptLanguageFeaturesProvider, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatWindowNotifier.ID, ChatWindowNotifier, WorkbenchPhase.AfterRestored);
@@ -1779,6 +1796,7 @@ registerEditorFeature(ChatPasteProvidersFeature);
 agentPluginDiscoveryRegistry.register(new SyncDescriptor(ConfiguredAgentPluginDiscovery));
 agentPluginDiscoveryRegistry.register(new SyncDescriptor(MarketplaceAgentPluginDiscovery));
 
+registerSingleton(IChatResponseResourceFileSystemProvider, ChatResponseResourceFileSystemProvider, InstantiationType.Delayed);
 registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.Delayed);
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);

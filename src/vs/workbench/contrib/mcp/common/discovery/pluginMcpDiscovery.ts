@@ -18,6 +18,7 @@ import {
 	IAgentPluginMcpServerDefinition,
 	IAgentPluginService
 } from '../../../chat/common/plugins/agentPluginService.js';
+import { isContributionEnabled } from '../../../chat/common/enablement.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
@@ -39,6 +40,9 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 			const plugins = this._agentPluginService.plugins.read(reader);
 			const seen = new ResourceSet();
 			for (const plugin of plugins) {
+				if (!isContributionEnabled(plugin.enablement.read(reader))) {
+					continue;
+				}
 				seen.add(plugin.uri);
 
 				let collectionState = this._collections.get(plugin.uri);
@@ -100,6 +104,7 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 				env: config.env ? { ...config.env } : {},
 				envFile: config.envFile,
 				cwd: config.cwd,
+				sandbox: undefined,
 			};
 		}
 

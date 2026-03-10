@@ -3,21 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, timeout } from '../../../../base/common/async.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
-import { TerminalCapability, type ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
-import { getPluginSourceLabel, IMarketplacePlugin, INpmPluginSource, IPipPluginSource, IPluginMarketplaceService, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IPluginMarketplaceService, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 
 export class PluginInstallService implements IPluginInstallService {
 	declare readonly _serviceBrand: undefined;
@@ -28,45 +23,42 @@ export class PluginInstallService implements IPluginInstallService {
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IDialogService private readonly _dialogService: IDialogService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IProgressService private readonly _progressService: IProgressService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
 	async installPlugin(plugin: IMarketplacePlugin): Promise<void> {
-		switch (plugin.sourceDescriptor.kind) {
-			case PluginSourceKind.RelativePath:
-				return this._installRelativePathPlugin(plugin);
-			case PluginSourceKind.GitHub:
-			case PluginSourceKind.GitUrl:
-				return this._installGitPlugin(plugin);
-			case PluginSourceKind.Npm:
-				return this._installNpmPlugin(plugin, plugin.sourceDescriptor);
-			case PluginSourceKind.Pip:
-				return this._installPipPlugin(plugin, plugin.sourceDescriptor);
+		if (!await this._ensureMarketplaceTrusted(plugin)) {
+			return;
 		}
+
+		const kind = plugin.sourceDescriptor.kind;
+
+		if (kind === PluginSourceKind.RelativePath) {
+			return this._installRelativePathPlugin(plugin);
+		}
+
+		if (kind === PluginSourceKind.Npm || kind === PluginSourceKind.Pip) {
+			return this._installPackagePlugin(plugin);
+		}
+
+		// GitHub / GitUrl
+		return this._installGitPlugin(plugin);
 	}
 
 	async updatePlugin(plugin: IMarketplacePlugin): Promise<void> {
-		switch (plugin.sourceDescriptor.kind) {
-			case PluginSourceKind.RelativePath:
-				return this._pluginRepositoryService.pullRepository(plugin.marketplaceReference, {
-					pluginName: plugin.name,
-					failureLabel: plugin.name,
-					marketplaceType: plugin.marketplaceType,
-				});
-			case PluginSourceKind.GitHub:
-			case PluginSourceKind.GitUrl:
-				return this._pluginRepositoryService.updatePluginSource(plugin, {
-					pluginName: plugin.name,
-					failureLabel: plugin.name,
-					marketplaceType: plugin.marketplaceType,
-				});
-			case PluginSourceKind.Npm:
-				return this._installNpmPlugin(plugin, plugin.sourceDescriptor);
-			case PluginSourceKind.Pip:
-				return this._installPipPlugin(plugin, plugin.sourceDescriptor);
+		const kind = plugin.sourceDescriptor.kind;
+
+		if (kind === PluginSourceKind.Npm || kind === PluginSourceKind.Pip) {
+			// Package-manager "update" re-runs install via terminal
+			return this._installPackagePlugin(plugin);
 		}
+
+		// For relative-path and git sources, delegate to repository service
+		return this._pluginRepositoryService.updatePluginSource(plugin, {
+			pluginName: plugin.name,
+			failureLabel: plugin.name,
+			marketplaceType: plugin.marketplaceType,
+		});
 	}
 
 	getPluginInstallUri(plugin: IMarketplacePlugin): URI {
@@ -74,6 +66,31 @@ export class PluginInstallService implements IPluginInstallService {
 			return this._pluginRepositoryService.getPluginInstallUri(plugin);
 		}
 		return this._pluginRepositoryService.getPluginSourceInstallUri(plugin.sourceDescriptor);
+	}
+
+	// --- Trust gate -------------------------------------------------------------
+
+	private async _ensureMarketplaceTrusted(plugin: IMarketplacePlugin): Promise<boolean> {
+		if (this._pluginMarketplaceService.isMarketplaceTrusted(plugin.marketplaceReference)) {
+			return true;
+		}
+
+		const { confirmed } = await this._dialogService.confirm({
+			type: 'question',
+			message: localize('trustMarketplace', "Trust Plugins from '{0}'?", plugin.marketplaceReference.displayLabel),
+			detail: localize('trustMarketplaceDetail', "Plugins can run code on your machine. Only install plugins from sources you trust.\n\nSource: {0}", plugin.marketplaceReference.rawValue),
+			primaryButton: localize({ key: 'trustAndInstall', comment: ['&& denotes a mnemonic'] }, "&&Trust"),
+			custom: {
+				icon: Codicon.shield,
+			},
+		});
+
+		if (!confirmed) {
+			return false;
+		}
+
+		this._pluginMarketplaceService.trustMarketplace(plugin.marketplaceReference);
+		return true;
 	}
 
 	// --- Relative-path source (existing git-based flow) -----------------------
@@ -115,6 +132,7 @@ export class PluginInstallService implements IPluginInstallService {
 	// --- GitHub / Git URL source (independent clone) --------------------------
 
 	private async _installGitPlugin(plugin: IMarketplacePlugin): Promise<void> {
+		const repo = this._pluginRepositoryService.getPluginSource(plugin.sourceDescriptor.kind);
 		let pluginDir: URI;
 		try {
 			pluginDir = await this._pluginRepositoryService.ensurePluginSource(plugin, {
@@ -130,7 +148,7 @@ export class PluginInstallService implements IPluginInstallService {
 		if (!pluginExists) {
 			this._notificationService.notify({
 				severity: Severity.Error,
-				message: localize('pluginSourceNotFound', "Plugin source '{0}' not found after cloning.", getPluginSourceLabel(plugin.sourceDescriptor)),
+				message: localize('pluginSourceNotFound', "Plugin source '{0}' not found after cloning.", repo.getLabel(plugin.sourceDescriptor)),
 			});
 			return;
 		}
@@ -138,186 +156,25 @@ export class PluginInstallService implements IPluginInstallService {
 		this._pluginMarketplaceService.addInstalledPlugin(pluginDir, plugin);
 	}
 
-	// --- npm source -----------------------------------------------------------
+	// --- Package-manager sources (npm / pip) ----------------------------------
 
-	private async _installNpmPlugin(plugin: IMarketplacePlugin, source: INpmPluginSource): Promise<void> {
-		const packageSpec = source.version ? `${source.package}@${source.version}` : source.package;
+	private async _installPackagePlugin(plugin: IMarketplacePlugin): Promise<void> {
+		const repo = this._pluginRepositoryService.getPluginSource(plugin.sourceDescriptor.kind);
+		if (!repo.runInstall) {
+			this._logService.error(`[PluginInstallService] Expected package repository for kind '${plugin.sourceDescriptor.kind}'`);
+			return;
+		}
+
+		// Ensure the parent cache directory exists (returns npm/<pkg> or pip/<pkg>)
 		const installDir = await this._pluginRepositoryService.ensurePluginSource(plugin);
-		const args = ['npm', 'install', '--prefix', installDir.fsPath, packageSpec];
-		if (source.registry) {
-			args.push('--registry', source.registry);
-		}
-		const command = this._formatShellCommand(args);
+		// The actual plugin content location (e.g. npm/<pkg>/node_modules/<pkg>)
+		const pluginDir = this._pluginRepositoryService.getPluginSourceInstallUri(plugin.sourceDescriptor);
 
-		const confirmed = await this._confirmTerminalCommand(plugin.name, command);
-		if (!confirmed) {
+		const result = await repo.runInstall(installDir, pluginDir, plugin);
+		if (!result) {
 			return;
 		}
 
-		const { success, terminal } = await this._runTerminalCommand(
-			command,
-			localize('installingNpmPlugin', "Installing npm plugin '{0}'...", plugin.name),
-		);
-		if (!success) {
-			return;
-		}
-
-		const pluginDir = this._pluginRepositoryService.getPluginSourceInstallUri(source);
-		const pluginExists = await this._fileService.exists(pluginDir);
-		if (!pluginExists) {
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: localize('npmPluginNotFound', "npm package '{0}' was not found after installation.", source.package),
-			});
-			return;
-		}
-
-		terminal?.dispose();
-		this._pluginMarketplaceService.addInstalledPlugin(pluginDir, plugin);
-	}
-
-	// --- pip source -----------------------------------------------------------
-
-	private async _installPipPlugin(plugin: IMarketplacePlugin, source: IPipPluginSource): Promise<void> {
-		const packageSpec = source.version ? `${source.package}==${source.version}` : source.package;
-		const installDir = await this._pluginRepositoryService.ensurePluginSource(plugin);
-		const args = ['pip', 'install', '--target', installDir.fsPath, packageSpec];
-		if (source.registry) {
-			args.push('--index-url', source.registry);
-		}
-		const command = this._formatShellCommand(args);
-
-		const confirmed = await this._confirmTerminalCommand(plugin.name, command);
-		if (!confirmed) {
-			return;
-		}
-
-		const { success, terminal } = await this._runTerminalCommand(
-			command,
-			localize('installingPipPlugin', "Installing pip plugin '{0}'...", plugin.name),
-		);
-		if (!success) {
-			return;
-		}
-
-		const pluginDir = this._pluginRepositoryService.getPluginSourceInstallUri(source);
-		const pluginExists = await this._fileService.exists(pluginDir);
-		if (!pluginExists) {
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: localize('pipPluginNotFound', "pip package '{0}' was not found after installation.", source.package),
-			});
-			return;
-		}
-
-		terminal?.dispose();
-		this._pluginMarketplaceService.addInstalledPlugin(pluginDir, plugin);
-	}
-
-	// --- Helpers --------------------------------------------------------------
-
-	private async _confirmTerminalCommand(pluginName: string, command: string): Promise<boolean> {
-		const { confirmed } = await this._dialogService.confirm({
-			type: 'question',
-			message: localize('confirmPluginInstall', "Install Plugin '{0}'?", pluginName),
-			detail: localize('confirmPluginInstallDetail', "This will run the following command in a terminal:\n\n{0}", command),
-			primaryButton: localize({ key: 'confirmInstall', comment: ['&& denotes a mnemonic'] }, "&&Install"),
-		});
-		return confirmed;
-	}
-
-	private async _runTerminalCommand(command: string, progressTitle: string) {
-		let terminal: ITerminalInstance | undefined;
-		try {
-			await this._progressService.withProgress(
-				{
-					location: ProgressLocation.Notification,
-					title: progressTitle,
-					cancellable: false,
-				},
-				async () => {
-					terminal = await this._terminalService.createTerminal({
-						config: {
-							name: localize('pluginInstallTerminal', "Plugin Install"),
-							forceShellIntegration: true,
-							isTransient: true,
-							isFeatureTerminal: true,
-						},
-					});
-
-					await terminal.processReady;
-					this._terminalService.setActiveInstance(terminal);
-
-					const commandResultPromise = this._waitForTerminalCommandCompletion(terminal);
-					await terminal.runCommand(command, true);
-					const exitCode = await commandResultPromise;
-					if (exitCode !== 0) {
-						throw new Error(localize('terminalCommandExitCode', "Command exited with code {0}", exitCode));
-					}
-				}
-			);
-			return { success: true, terminal };
-		} catch (err) {
-			this._logService.error('[PluginInstallService] Terminal command failed:', err);
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: localize('terminalCommandFailed', "Plugin installation command failed: {0}", err?.message ?? String(err)),
-			});
-			return { success: false, terminal };
-		}
-	}
-
-	private _waitForTerminalCommandCompletion(terminal: ITerminalInstance): Promise<number | undefined> {
-		return new Promise<number | undefined>(resolve => {
-			const disposables = new DisposableStore();
-			let isResolved = false;
-
-			const resolveAndDispose = (exitCode: number | undefined): void => {
-				if (isResolved) {
-					return;
-				}
-				isResolved = true;
-				disposables.dispose();
-				resolve(exitCode);
-			};
-
-			const attachCommandFinishedListener = (): void => {
-				const commandDetection = terminal.capabilities.get(TerminalCapability.CommandDetection);
-				if (!commandDetection) {
-					return;
-				}
-
-				disposables.add(commandDetection.onCommandFinished((command: ITerminalCommand) => {
-					resolveAndDispose(command.exitCode ?? 0);
-				}));
-			};
-
-			attachCommandFinishedListener();
-			disposables.add(terminal.capabilities.onDidAddCommandDetectionCapability(() => attachCommandFinishedListener()));
-
-			const timeoutHandle: CancelablePromise<void> = timeout(120_000);
-			disposables.add(toDisposable(() => timeoutHandle.cancel()));
-			void timeoutHandle.then(() => {
-				if (isResolved) {
-					return;
-				}
-				this._logService.warn('[PluginInstallService] Terminal command completion timed out');
-				resolveAndDispose(undefined);
-			});
-		});
-	}
-
-	private _formatShellCommand(args: readonly string[]): string {
-		const [command, ...rest] = args;
-		return [command, ...rest.map(arg => this._shellEscapeArg(arg))].join(' ');
-	}
-
-	private _shellEscapeArg(value: string): string {
-		if (isWindows) {
-			// PowerShell: use double quotes, escape backticks, dollar signs, and double quotes
-			return `"${value.replace(/[`$"]/g, '`$&')}"`;
-		}
-		// POSIX shells: use single quotes, escape by ending quote, adding escaped quote, reopening
-		return `'${value.replace(/'/g, `'\\''`)}'`;
+		this._pluginMarketplaceService.addInstalledPlugin(result.pluginDir, plugin);
 	}
 }

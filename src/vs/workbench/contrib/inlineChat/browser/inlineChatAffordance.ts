@@ -120,6 +120,13 @@ export class InlineChatAffordance extends Disposable {
 			selectionData.set(undefined, undefined);
 		}));
 
+		// Hide when the editor loses focus (e.g., switching tabs in notebooks)
+		this._store.add(autorun(r => {
+			if (!editorObs.isFocused.read(r)) {
+				selectionData.set(undefined, undefined);
+			}
+		}));
+
 		this._store.add(autorun(r => {
 			const sel = selectionData.read(r);
 			const mode = affordance.read(r);

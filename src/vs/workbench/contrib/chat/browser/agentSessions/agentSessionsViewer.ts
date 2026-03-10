@@ -43,7 +43,8 @@ import { MarkdownString, IMarkdownString } from '../../../../../base/common/html
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
 import { AgentSessionProviders, getAgentSessionTime } from './agentSessions.js';
 import { AgentSessionsGrouping } from './agentSessionsFilter.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
@@ -115,6 +116,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	constructor(
 		private readonly options: IAgentSessionRendererOptions,
 		private readonly _approvalModel: AgentSessionApprovalModel | undefined,
+		private readonly _activeSessionResource: IObservable<URI | undefined>,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IProductService private readonly productService: IProductService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -487,8 +489,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				}));
 
 				template.approvalButtonContainer.textContent = '';
+				const isActive = this._activeSessionResource.read(reader)?.toString() === session.element.resource.toString();
 				const button = buttonStore.add(new Button(template.approvalButtonContainer, {
 					title: localize('allowActionOnce', "Allow once"),
+					secondary: isActive,
 					...defaultButtonStyles
 				}));
 				button.label = localize('allowAction', "Allow");
@@ -804,6 +808,8 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			}
 
 			return this.groupSessionsCapped(sortedSessions);
+		} else if (this.filter?.groupResults?.() === AgentSessionsGrouping.Repository) {
+			return this.groupSessionsByRepository(sortedSessions);
 		} else {
 			return this.groupSessionsByDate(sortedSessions);
 		}
@@ -846,6 +852,114 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		}
 
 		return result;
+	}
+
+	private groupSessionsByRepository(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
+		const repoMap = new Map<string, { label: string; sessions: IAgentSession[] }>();
+		const archivedSessions: IAgentSession[] = [];
+		const noRepoId = 'other';
+		const noRepoLabel = localize('agentSessions.noRepository', "Other");
+
+		for (const session of sortedSessions) {
+			if (session.isArchived()) {
+				archivedSessions.push(session);
+				continue;
+			}
+
+			const repo = this.getRepositoryInfo(session);
+			const repoId = repo?.id ?? noRepoId;
+			const repoLabel = repo?.label ?? noRepoLabel;
+
+			let group = repoMap.get(repoId);
+			if (!group) {
+				group = { label: repoLabel, sessions: [] };
+				repoMap.set(repoId, group);
+			}
+			group.sessions.push(session);
+		}
+
+		const result: AgentSessionListItem[] = [];
+		for (const [, { label, sessions }] of repoMap) {
+			result.push({
+				section: AgentSessionSection.Repository,
+				label,
+				sessions,
+			});
+		}
+
+		if (archivedSessions.length > 0) {
+			result.push({
+				section: AgentSessionSection.Archived,
+				label: AgentSessionSectionLabels[AgentSessionSection.Archived],
+				sessions: archivedSessions,
+			});
+		}
+
+		return result;
+	}
+
+	private getRepositoryInfo(session: IAgentSession): { id: string; label: string } | undefined {
+		const metadata = session.metadata;
+		if (metadata) {
+			// Cloud sessions: metadata.owner + metadata.name
+			const owner = metadata.owner as string | undefined;
+			const name = metadata.name as string | undefined;
+			if (owner && name) {
+				return { id: `${owner}/${name}`, label: name };
+			}
+
+			// repositoryNwo: "owner/repo"
+			const nwo = metadata.repositoryNwo as string | undefined;
+			if (nwo && nwo.includes('/')) {
+				return { id: nwo, label: nwo.split('/').pop()! };
+			}
+
+			// repository: could be "owner/repo" or a URL
+			const repository = metadata.repository as string | undefined;
+			if (repository) {
+				if (repository.includes('/') && !repository.includes(':')) {
+					return { id: repository, label: repository.split('/').pop()! };
+				}
+				try {
+					const url = new URL(repository);
+					const parts = url.pathname.split('/').filter(Boolean);
+					if (parts.length >= 2) {
+						const id = `${parts[0]}/${parts[1]}`;
+						return { id, label: parts[1] };
+					}
+				} catch {
+					// not a URL
+				}
+			}
+
+			// repositoryUrl: "https://github.com/owner/repo"
+			const repositoryUrl = metadata.repositoryUrl as string | undefined;
+			if (repositoryUrl) {
+				try {
+					const url = new URL(repositoryUrl);
+					const parts = url.pathname.split('/').filter(Boolean);
+					if (parts.length >= 2) {
+						const id = `${parts[0]}/${parts[1]}`;
+						return { id, label: parts[1] };
+					}
+				} catch {
+					// not a URL
+				}
+			}
+		}
+
+		// Fallback: extract repo name from badge if it uses the $(repo) icon
+		const badge = session.badge;
+		if (badge) {
+			const raw = typeof badge === 'string' ? badge : badge.value;
+			const repoMatch = raw.match(/\$\(repo\)\s*(.+)/);
+			if (repoMatch) {
+				const label = repoMatch[1].trim();
+				return { id: label, label };
+			}
+		}
+
+		return undefined;
 	}
 }
 
@@ -926,7 +1040,7 @@ export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSe
 
 	getId(element: IAgentSessionsModel | AgentSessionListItem): string {
 		if (isAgentSessionSection(element)) {
-			return `section-${element.section}`;
+			return `section-${element.section}-${element.label}`;
 		}
 
 		if (isAgentSession(element)) {

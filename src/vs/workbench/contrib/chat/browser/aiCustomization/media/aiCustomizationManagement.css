@@ -166,7 +166,7 @@
 	align-items: center;
 	gap: 8px;
 	flex-shrink: 0;
-	margin: 6px 0px;
+	padding: 6px 0;
 }
 
 .ai-customization-list-widget .list-search-container,
@@ -556,6 +556,7 @@
 /* Content container visibility */
 .ai-customization-management-editor .prompts-content-container,
 .ai-customization-management-editor .mcp-content-container,
+.ai-customization-management-editor .plugin-content-container,
 .ai-customization-management-editor .models-content-container {
 	height: 100%;
 	display: flex;
@@ -570,6 +571,18 @@
 }
 
 .ai-customization-management-editor .mcp-detail-editor-container {
+	flex: 1;
+	overflow: hidden;
+}
+
+/* Embedded plugin detail view */
+.ai-customization-management-editor .plugin-detail-container {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.ai-customization-management-editor .plugin-detail-editor-container {
 	flex: 1;
 	overflow: hidden;
 }
@@ -770,6 +783,15 @@
 	color: var(--vscode-badge-foreground);
 }
 
+.mcp-server-item.disabled {
+	opacity: 0.5;
+}
+
+.mcp-server-item .mcp-server-status.disabled {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
 /* Button group for Add Server + Browse Marketplace */
 .mcp-list-widget .list-button-group {
 	display: flex;
@@ -815,6 +837,19 @@
 
 .mcp-gallery-item .mcp-gallery-action {
 	flex-shrink: 0;
+}
+
+.mcp-gallery-item.extension-list-item {
+	padding: 6px 8px 6px 16px;
+}
+
+.mcp-gallery-item.extension-list-item > .details > .footer {
+	display: flex;
+	align-items: center;
+}
+
+.mcp-gallery-item.extension-list-item .mcp-gallery-action {
+	margin-left: auto;
 }
 
 .mcp-gallery-item .mcp-gallery-install-button {

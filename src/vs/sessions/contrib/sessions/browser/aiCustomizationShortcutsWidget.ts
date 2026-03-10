@@ -22,6 +22,7 @@ import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.j
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getCustomizationTotalCount } from './customizationCounts.js';
+import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 
 const $ = DOM.$;
 
@@ -42,6 +43,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		@IMcpService private readonly mcpService: IMcpService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
+		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 	) {
 		super();
 
@@ -93,7 +95,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		let updateCountRequestId = 0;
 		const updateHeaderTotalCount = async () => {
 			const requestId = ++updateCountRequestId;
-			const totalCount = await getCustomizationTotalCount(this.promptsService, this.mcpService, this.workspaceService, this.workspaceContextService);
+			const totalCount = await getCustomizationTotalCount(this.promptsService, this.mcpService, this.workspaceService, this.workspaceContextService, this.agentPluginService);
 			if (requestId !== updateCountRequestId) {
 				return;
 			}
