@@ -528,8 +528,7 @@ class CreateRemoteAgentJobFromEditorAction {
 			}
 			const uri = model.uri;
 			const attachedContext = [toPromptFileVariableEntry(uri, PromptFileVariableKind.PromptFile, undefined, false, [])];
-			const prompt = `Follow instructions in [${basename(uri)}](${uri.toString()}).`;
-			await commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${continuationTarget.type}`, { prompt, attachedContext });
+			await commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${continuationTarget.type}`, { prompt: '', attachedContext });
 		} catch (e) {
 			console.error('Error creating remote agent job from editor', e);
 			throw e;

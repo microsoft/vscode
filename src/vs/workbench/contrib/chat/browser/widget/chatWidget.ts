@@ -23,7 +23,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { filter } from '../../../../../base/common/objects.js';
 import { autorun, derived, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { basename, extUri, isEqual } from '../../../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -2183,9 +2183,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const toolReferences = this.toolsService.toToolReferences(refs);
 		requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 
-		// remove the slash command from the input
-		requestInput.input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();
-
 		const promptPath = slashCommand.promptPath;
 		const promptRunEvent: ChatPromptRunEvent = {
 			storage: promptPath.storage,
@@ -2198,12 +2195,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.telemetryService.publicLog2<ChatPromptRunEvent, ChatPromptRunClassification>('chat.promptRun', promptRunEvent);
 
-		const input = requestInput.input.trim();
-		requestInput.input = `Follow instructions in [${basename(parseResult.uri)}](${parseResult.uri.toString()}).`;
-		if (input) {
-			// if the input is not empty, append it to the prompt
-			requestInput.input += `\n${input}`;
-		}
 		if (parseResult.header) {
 			await this._applyPromptMetadata(parseResult.header, requestInput);
 		}
