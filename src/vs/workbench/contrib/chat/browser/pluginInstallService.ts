@@ -44,7 +44,8 @@ export class PluginInstallService implements IPluginInstallService {
 		}
 
 		if (kind === PluginSourceKind.Npm || kind === PluginSourceKind.Pip) {
-			return this._installPackagePlugin(plugin);
+			await this._installPackagePlugin(plugin);
+			return;
 		}
 
 		// GitHub / GitUrl
@@ -56,8 +57,7 @@ export class PluginInstallService implements IPluginInstallService {
 
 		if (kind === PluginSourceKind.Npm || kind === PluginSourceKind.Pip) {
 			// Package-manager "update" re-runs install via terminal
-			await this._installPackagePlugin(plugin, silent);
-			return true;
+			return this._installPackagePlugin(plugin, silent);
 		}
 
 		// For relative-path and git sources, delegate to repository service
@@ -78,17 +78,12 @@ export class PluginInstallService implements IPluginInstallService {
 		const failedNames: string[] = [];
 
 		const doUpdate = async () => {
-			// Fetch fresh marketplace data to compare against installed versions.
-			const marketplacePlugins = await this._pluginMarketplaceService.fetchMarketplacePlugins(token);
-			const marketplaceByKey = new Map<string, IMarketplacePlugin>();
-			for (const mp of marketplacePlugins) {
-				marketplaceByKey.set(`${mp.marketplaceReference.canonicalId}::${mp.name}`, mp);
-			}
-
 			const gitTasks: Promise<void>[] = [];
 			const packagePlugins: { installed: IMarketplacePlugin; marketplace: IMarketplacePlugin }[] = [];
 
-			// 1. Pull each unique marketplace repository (handles all relative-path plugins).
+			// 1. Pull each unique marketplace repository first (handles all
+			//    relative-path plugins and ensures the marketplace index on
+			//    disk is up-to-date before we re-read it).
 			const seenMarketplaces = new Set<string>();
 			for (const entry of installed) {
 				const ref = entry.plugin.marketplaceReference;
@@ -118,14 +113,23 @@ export class PluginInstallService implements IPluginInstallService {
 				})());
 			}
 
-			// 2. Update non-relative-path plugins individually.
+			await Promise.all(gitTasks);
+
+			// 2. Re-fetch marketplace data *after* pulling so we see any
+			//    updated plugin descriptors (new versions, refs, etc.).
+			const marketplacePlugins = await this._pluginMarketplaceService.fetchMarketplacePlugins(token);
+			const marketplaceByKey = new Map<string, IMarketplacePlugin>();
+			for (const mp of marketplacePlugins) {
+				marketplaceByKey.set(`${mp.marketplaceReference.canonicalId}::${mp.name}`, mp);
+			}
+
+			// 3. Update non-relative-path plugins individually.
+			const independentGitTasks: Promise<void>[] = [];
 			for (const entry of installed) {
 				if (entry.plugin.sourceDescriptor.kind === PluginSourceKind.RelativePath) {
 					continue;
 				}
 
-				// Look up the live marketplace version. If we can't find it, skip
-				// (can't determine whether an update is needed).
 				const livePlugin = marketplaceByKey.get(`${entry.plugin.marketplaceReference.canonicalId}::${entry.plugin.name}`);
 				if (!livePlugin || !hasSourceChanged(entry.plugin.sourceDescriptor, livePlugin.sourceDescriptor)) {
 					continue;
@@ -140,7 +144,7 @@ export class PluginInstallService implements IPluginInstallService {
 					continue;
 				}
 
-				gitTasks.push((async () => {
+				independentGitTasks.push((async () => {
 					if (token.isCancellationRequested) {
 						return;
 					}
@@ -163,9 +167,9 @@ export class PluginInstallService implements IPluginInstallService {
 				})());
 			}
 
-			await Promise.all(gitTasks);
+			await Promise.all(independentGitTasks);
 
-			for (const { marketplace } of packagePlugins) {
+			for (const { installed: _installed, marketplace } of packagePlugins) {
 				if (token.isCancellationRequested) {
 					return;
 				}
@@ -316,11 +320,11 @@ export class PluginInstallService implements IPluginInstallService {
 
 	// --- Package-manager sources (npm / pip) ----------------------------------
 
-	private async _installPackagePlugin(plugin: IMarketplacePlugin, silent?: boolean): Promise<void> {
+	private async _installPackagePlugin(plugin: IMarketplacePlugin, silent?: boolean): Promise<boolean> {
 		const repo = this._pluginRepositoryService.getPluginSource(plugin.sourceDescriptor.kind);
 		if (!repo.runInstall) {
 			this._logService.error(`[PluginInstallService] Expected package repository for kind '${plugin.sourceDescriptor.kind}'`);
-			return;
+			return false;
 		}
 
 		// Ensure the parent cache directory exists (returns npm/<pkg> or pip/<pkg>)
@@ -330,9 +334,10 @@ export class PluginInstallService implements IPluginInstallService {
 
 		const result = await repo.runInstall(installDir, pluginDir, plugin, { silent });
 		if (!result) {
-			return;
+			return false;
 		}
 
 		this._pluginMarketplaceService.addInstalledPlugin(result.pluginDir, plugin);
+		return true;
 	}
 }

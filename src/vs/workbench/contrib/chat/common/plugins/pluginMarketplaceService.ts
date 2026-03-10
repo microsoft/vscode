@@ -157,6 +157,12 @@ export interface IPluginMarketplaceService {
 	 * (approximately once per day) when `extensions.autoUpdate` is enabled.
 	 */
 	readonly hasUpdatesAvailable: IObservable<boolean>;
+	/**
+	 * Observable snapshot of the last {@link fetchMarketplacePlugins} result.
+	 * Empty until the first fetch completes. Views should use this for
+	 * synchronous outdated-detection instead of calling fetchMarketplacePlugins.
+	 */
+	readonly lastFetchedPlugins: IObservable<readonly IMarketplacePlugin[]>;
 	/** Resets {@link hasUpdatesAvailable} to `false`. */
 	clearUpdatesAvailable(): void;
 	fetchMarketplacePlugins(token: CancellationToken): Promise<IMarketplacePlugin[]>;
@@ -185,6 +191,9 @@ const GITHUB_MARKETPLACE_CACHE_STORAGE_KEY = 'chat.plugins.marketplaces.githubCa
 /** Interval between periodic plugin update checks (24 hours). */
 const PLUGIN_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const PLUGIN_UPDATE_LAST_CHECK_STORAGE_KEY = 'chat.plugins.lastUpdateCheck.v1';
+
+/** TTL for the lastFetchedPlugins cache (5 minutes). */
+const LAST_FETCHED_PLUGINS_TTL_MS = 5 * 60 * 1000;
 
 interface IGitHubMarketplaceCacheEntry {
 	readonly plugins: readonly IMarketplacePlugin[];
@@ -237,11 +246,31 @@ const trustedMarketplacesMemento = observableMemento<readonly string[]>({
 	},
 });
 
+interface IStoredLastFetchedPlugins {
+	readonly plugins: readonly IMarketplacePlugin[];
+	readonly fetchedAt: number;
+	readonly configFingerprint: string;
+}
+
+const lastFetchedPluginsMemento = observableMemento<IStoredLastFetchedPlugins>({
+	defaultValue: { plugins: [], fetchedAt: 0, configFingerprint: '' },
+	key: 'chat.plugins.lastFetchedPlugins.v2',
+	toStorage: value => JSON.stringify(value),
+	fromStorage: value => {
+		const parsed = JSON.parse(value);
+		if (parsed && Array.isArray(parsed.plugins)) {
+			return parsed;
+		}
+		return { plugins: [], fetchedAt: 0, configFingerprint: '' };
+	},
+});
+
 export class PluginMarketplaceService extends Disposable implements IPluginMarketplaceService {
 	declare readonly _serviceBrand: undefined;
 	private readonly _gitHubMarketplaceCache = new Lazy<Map<string, IGitHubMarketplaceCacheEntry>>(() => this._loadPersistedGitHubMarketplaceCache());
 	private readonly _installedPluginsStore: ObservableMemento<readonly IStoredInstalledPlugin[]>;
 	private readonly _trustedMarketplacesStore: ObservableMemento<readonly string[]>;
+	private readonly _lastFetchedPluginsStore: ObservableMemento<IStoredLastFetchedPlugins>;
 	private readonly _hasUpdatesAvailable = observableValue<boolean>('hasUpdatesAvailable', false);
 	private _updateCheckTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -249,6 +278,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 	readonly installedPlugins: IObservable<readonly IMarketplaceInstalledPlugin[]>;
 	readonly hasUpdatesAvailable: IObservable<boolean> = this._hasUpdatesAvailable;
+	readonly lastFetchedPlugins: IObservable<readonly IMarketplacePlugin[]>;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -267,6 +297,15 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		this._trustedMarketplacesStore = this._register(
 			trustedMarketplacesMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, _storageService)
 		);
+
+		this._lastFetchedPluginsStore = this._register(
+			lastFetchedPluginsMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, _storageService)
+		);
+
+		this.lastFetchedPlugins = this._lastFetchedPluginsStore.map(s => {
+			const revived = revive(s) as IStoredLastFetchedPlugins;
+			return revived.plugins.map(ensureSourceDescriptor);
+		});
 
 		this.installedPlugins = this._installedPluginsStore.map(s =>
 			(revive(s) as readonly IMarketplaceInstalledPlugin[]).map(e => ({
@@ -310,6 +349,16 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		const configuredRefs = this._configurationService.getValue<unknown[]>(ChatConfiguration.PluginMarketplaces) ?? [];
 		const refs = parseMarketplaceReferences(configuredRefs);
 
+		// Return cached results if recent and the marketplace config is unchanged.
+		const configFingerprint = refs.map(r => r.canonicalId).sort().join('\n');
+		const stored = this._lastFetchedPluginsStore.get();
+		if (stored.configFingerprint === configFingerprint && Date.now() - stored.fetchedAt < LAST_FETCHED_PLUGINS_TTL_MS) {
+			const cached = this.lastFetchedPlugins.get();
+			if (cached.length > 0) {
+				return [...cached];
+			}
+		}
+
 		for (const value of configuredRefs) {
 			if (typeof value !== 'string' || !parseMarketplaceReference(value)) {
 				this._logService.debug(`[PluginMarketplaceService] Ignoring invalid marketplace entry: ${String(value)}`);
@@ -324,7 +373,9 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				return this._fetchFromClonedRepo(ref, token);
 			})
 		);
-		return results.flat();
+		const plugins = results.flat();
+		this._lastFetchedPluginsStore.set({ plugins, fetchedAt: Date.now(), configFingerprint }, undefined);
+		return plugins;
 	}
 
 	private async _fetchFromGitHubRepo(reference: IMarketplaceReference, repo: string, token: CancellationToken): Promise<IMarketplacePlugin[]> {

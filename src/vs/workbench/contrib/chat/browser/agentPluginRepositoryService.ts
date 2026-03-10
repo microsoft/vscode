@@ -136,15 +136,17 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			);
 		} catch (err) {
 			this._logService.error(`[AgentPluginRepositoryService] Failed to update ${marketplace.displayLabel}:`, err);
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: localize('pullFailed', "Failed to update plugin '{0}': {1}", options?.failureLabel ?? updateLabel, err?.message ?? String(err)),
-				actions: {
-					primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
-						this._commandService.executeCommand('git.showOutput');
-					})],
-				},
-			});
+			if (!options?.silent) {
+				this._notificationService.notify({
+					severity: Severity.Error,
+					message: localize('pullFailed', "Failed to update plugin '{0}': {1}", options?.failureLabel ?? updateLabel, err?.message ?? String(err)),
+					actions: {
+						primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
+							this._commandService.executeCommand('git.showOutput');
+						})],
+					},
+				});
+			}
 			throw err;
 		}
 	}

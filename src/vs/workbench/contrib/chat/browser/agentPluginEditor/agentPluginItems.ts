@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../../base/common/uri.js';
+import { IObservable } from '../../../../../base/common/observable.js'; import { URI } from '../../../../../base/common/uri.js';
 import type { IAgentPlugin } from '../../common/plugins/agentPluginService.js';
 import type { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceType } from '../../common/plugins/pluginMarketplaceService.js';
 
@@ -19,9 +19,7 @@ export interface IInstalledPluginItem {
 	readonly marketplace?: string;
 	readonly plugin: IAgentPlugin;
 	/** When set, indicates the plugin has a newer version in the marketplace. */
-	readonly outdated?: boolean;
-	/** The live marketplace plugin data when the plugin is outdated. */
-	readonly liveMarketplacePlugin?: IMarketplacePlugin;
+	readonly outdated?: IObservable<IMarketplacePlugin | undefined>;
 }
 
 export interface IMarketplacePluginItem {

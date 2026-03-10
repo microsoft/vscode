@@ -15,7 +15,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, disposeIfDisposable, IDisposable, isDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReaderWithStore } from '../../../../base/common/observable.js';
 import { IPagedModel, PagedModel } from '../../../../base/common/paging.js';
 import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -55,11 +55,11 @@ export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.install
 
 //#region Item model
 
-function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService, outdated?: boolean, liveMarketplacePlugin?: IMarketplacePlugin): IInstalledPluginItem {
+function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService, outdated?: IObservable<IMarketplacePlugin | undefined>): IInstalledPluginItem {
 	const name = plugin.label;
 	const description = plugin.fromMarketplace?.description ?? labelService.getUriLabel(dirname(plugin.uri), { relative: true });
 	const marketplace = plugin.fromMarketplace?.marketplace;
-	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin, outdated, liveMarketplacePlugin };
+	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin, outdated };
 }
 
 function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePluginItem {
@@ -118,8 +118,9 @@ class UpdatePluginAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin);
-		this.pluginMarketplaceService.addInstalledPlugin(this.plugin.uri, this.liveMarketplacePlugin);
+		if (await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin)) {
+			this.pluginMarketplaceService.addInstalledPlugin(this.plugin.uri, this.liveMarketplacePlugin);
+		}
 	}
 }
 
@@ -332,26 +333,31 @@ class AgentPluginRenderer implements IPagedRenderer<IAgentPluginItem, IAgentPlug
 			data.root.classList.toggle('disabled', element.kind === AgentPluginItemKind.Installed && !element.plugin.enabled.read(reader));
 		}));
 
-		data.actionbar.clear();
-		if (element.kind === AgentPluginItemKind.Marketplace) {
-			data.detail.textContent = element.marketplace;
-			const installAction = this.instantiationService.createInstance(InstallPluginAction, element);
-			data.elementDisposables.push(installAction);
-			data.actionbar.push([installAction], { icon: true, label: true });
-		} else {
-			data.detail.textContent = element.marketplace ?? '';
-			const actions: Action[] = [];
-			if (element.outdated && element.liveMarketplacePlugin) {
-				const updateAction = this.instantiationService.createInstance(UpdatePluginAction, element.plugin, element.liveMarketplacePlugin);
-				data.elementDisposables.push(updateAction);
-				actions.push(updateAction);
+		const updateActions = (reader: IReaderWithStore) => {
+			data.actionbar.clear();
+			if (element.kind === AgentPluginItemKind.Marketplace) {
+				data.detail.textContent = element.marketplace;
+				const installAction = this.instantiationService.createInstance(InstallPluginAction, element);
+				reader.store.add(installAction);
+				data.actionbar.push([installAction], { icon: true, label: true });
+			} else {
+				data.detail.textContent = element.marketplace ?? '';
+				const actions: Action[] = [];
+				const livePlugin = element.outdated?.read(reader);
+				if (livePlugin) {
+					const updateAction = this.instantiationService.createInstance(UpdatePluginAction, element.plugin, livePlugin);
+					reader.store.add(updateAction);
+					actions.push(updateAction);
+				}
+				const manageAction = this.instantiationService.createInstance(ManagePluginAction,
+					() => getInstalledPluginContextMenuActionGroups(element.plugin, this.instantiationService));
+				reader.store.add(manageAction);
+				actions.push(manageAction);
+				data.actionbar.push(actions, { icon: true, label: true });
 			}
-			const manageAction = this.instantiationService.createInstance(ManagePluginAction,
-				() => getInstalledPluginContextMenuActionGroups(element.plugin, this.instantiationService));
-			data.elementDisposables.push(manageAction);
-			actions.push(manageAction);
-			data.actionbar.push(actions, { icon: true, label: true });
-		}
+		};
+
+		data.elementDisposables.push(autorun(updateActions));
 	}
 
 	disposeElement(_element: IAgentPluginItem | undefined, _index: number, data: IAgentPluginTemplateData): void {
@@ -417,7 +423,6 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 
 		this._register(autorun(reader => {
 			this.agentPluginService.plugins.read(reader);
-			this.pluginMarketplaceService.installedPlugins.read(reader);
 			if (this.list && this.isBodyVisible()) {
 				this.refreshOnPluginsChangedScheduler.schedule();
 			}
@@ -525,10 +530,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		this.currentQuery = query;
 		const text = query.replace(/@agentPlugins/i, '').trim().toLowerCase();
 
-		// Always fetch marketplace data for outdated detection.
-		const marketplacePlugins = await this.queryMarketplacePlugins();
-
-		let installed = this.queryInstalled(marketplacePlugins);
+		let installed = this.queryInstalled();
 		if (text) {
 			installed = installed.filter(p =>
 				p.name.toLowerCase().includes(text) ||
@@ -539,6 +541,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		let items: IAgentPluginItem[] = installed;
 
 		if (!this.listOptions.installedOnly) {
+			const marketplacePlugins = await this.queryMarketplacePlugins();
 			const lowerText = text.toLowerCase();
 			const marketplace = marketplacePlugins
 				.filter(p => p.name.toLowerCase().includes(lowerText) || p.description.toLowerCase().includes(lowerText))
@@ -571,33 +574,48 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		return model;
 	}
 
-	private queryInstalled(marketplacePlugins: IMarketplacePlugin[]): IInstalledPluginItem[] {
-		const marketplaceByKey = new Map<string, IMarketplacePlugin>();
-		for (const mp of marketplacePlugins) {
-			marketplaceByKey.set(`${mp.marketplaceReference.canonicalId}::${mp.name}`, mp);
-		}
+	/**
+	 * Builds the installed plugin list using only cached marketplace data
+	 * (no IO). The cached data is populated by {@link fetchMarketplacePlugins}
+	 * and exposed via the {@link IPluginMarketplaceService.lastFetchedPlugins}
+	 * observable, which the view's autorun subscribes to for reactivity.
+	 */
+	private queryInstalled(): IInstalledPluginItem[] {
+		const marketplaceObs = derived(reader => {
+			const cachedMarketplace = this.pluginMarketplaceService.lastFetchedPlugins.read(reader);
+			const marketplaceByKey = new Map<string, IMarketplacePlugin>();
+			for (const mp of cachedMarketplace) {
+				marketplaceByKey.set(`${mp.marketplaceReference.canonicalId}::${mp.name}`, mp);
+			}
 
-		// Read fresh installed plugin metadata from the store (not from
-		// IAgentPlugin.fromMarketplace which may be stale after an update).
-		const installedByUri = new Map<string, IMarketplacePlugin>();
-		for (const entry of this.pluginMarketplaceService.installedPlugins.get()) {
-			installedByUri.set(entry.pluginUri.toString(), entry.plugin);
-		}
+
+			// Read fresh installed plugin metadata from the store (not from
+			// IAgentPlugin.fromMarketplace which may be stale after an update).
+			const installedByUri = new Map<string, IMarketplacePlugin>();
+			for (const entry of this.pluginMarketplaceService.installedPlugins.read(reader)) {
+				installedByUri.set(entry.pluginUri.toString(), entry.plugin);
+			}
+
+			return { marketplaceByKey, installedByUri };
+		});
+
 
 		const allPlugins = this.agentPluginService.allPlugins.get();
 		return allPlugins.map(p => {
-			let outdated = false;
-			let liveMarketplacePlugin: IMarketplacePlugin | undefined;
-			const storedPlugin = installedByUri.get(p.uri.toString()) ?? p.fromMarketplace;
-			if (storedPlugin) {
-				const key = `${storedPlugin.marketplaceReference.canonicalId}::${storedPlugin.name}`;
-				const live = marketplaceByKey.get(key);
-				if (live && hasSourceChanged(storedPlugin.sourceDescriptor, live.sourceDescriptor)) {
-					outdated = true;
-					liveMarketplacePlugin = live;
+			const isOutdated = derived(reader => {
+				const { marketplaceByKey, installedByUri } = marketplaceObs.read(reader);
+				const storedPlugin = installedByUri.get(p.uri.toString()) ?? p.fromMarketplace;
+				if (storedPlugin) {
+					const key = `${storedPlugin.marketplaceReference.canonicalId}::${storedPlugin.name}`;
+					const live = marketplaceByKey.get(key);
+					if (live && hasSourceChanged(storedPlugin.sourceDescriptor, live.sourceDescriptor)) {
+						return live;
+					}
 				}
-			}
-			return installedPluginToItem(p, this.labelService, outdated, liveMarketplacePlugin);
+
+				return undefined;
+			});
+			return installedPluginToItem(p, this.labelService, isOutdated);
 		});
 	}
 

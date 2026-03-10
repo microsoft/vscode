@@ -11,7 +11,7 @@ import { Cache, CacheResult } from '../../../../../base/common/cache.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas, matchesScheme } from '../../../../../base/common/network.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../../base/common/observable.js';
 import { dirname, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -77,7 +77,6 @@ export class AgentPluginEditor extends EditorPane {
 	private readonly transientDisposables = this._register(new DisposableStore());
 	private activeElement: IActiveElement | null = null;
 	private dimension: Dimension | undefined;
-	private marketplaceByKey = new Map<string, IMarketplacePlugin>();
 
 	constructor(
 		group: IEditorGroup,
@@ -157,14 +156,6 @@ export class AgentPluginEditor extends EditorPane {
 		this.transientDisposables.add(toDisposable(() => cts.dispose(true)));
 		const token = cts.token;
 
-		// Fetch marketplace data for outdated detection (best-effort, non-blocking).
-		this.pluginMarketplaceService.fetchMarketplacePlugins(token).then(plugins => {
-			this.marketplaceByKey.clear();
-			for (const mp of plugins) {
-				this.marketplaceByKey.set(`${mp.marketplaceReference.canonicalId}::${mp.name}`, mp);
-			}
-		}, () => { /* ignore errors */ });
-
 		const itemId = item.kind === AgentPluginItemKind.Installed ? item.plugin.uri.toString() : `${item.marketplaceReference.canonicalId}/${item.source}`;
 
 		if (this.currentIdentifier !== itemId) {
@@ -195,12 +186,7 @@ export class AgentPluginEditor extends EditorPane {
 			reset(template.marketplace, marketplaceLabel);
 		}
 
-		// Set up actions reactively
-		const actionDisposables = this.transientDisposables.add(new DisposableStore());
-		this.transientDisposables.add(autorun(reader => {
-			actionDisposables.clear();
-			template.actionBar.clear();
-
+		const currentItem = derived(reader => {
 			// Read observables to subscribe to changes
 			const allPlugins = this.agentPluginService.allPlugins.read(reader);
 
@@ -251,7 +237,33 @@ export class AgentPluginEditor extends EditorPane {
 				}
 			}
 
-			const actions = this.getItemActions(currentItem);
+			return currentItem;
+		});
+
+		const storedPlugin = currentItem.map((item, r) => {
+			if (!item || item.kind === AgentPluginItemKind.Marketplace) {
+				return undefined;
+			}
+
+			return this.pluginMarketplaceService.installedPlugins.read(r)
+				.find(e => e.pluginUri.toString() === item.plugin.uri.toString())?.plugin
+				?? item.plugin.fromMarketplace;
+		});
+
+		// Set up actions reactively
+		const actionDisposables = this.transientDisposables.add(new DisposableStore());
+		this.transientDisposables.add(autorun(reader => {
+			actionDisposables.clear();
+			template.actionBar.clear();
+
+			const current = currentItem.read(reader);
+			if (!current) {
+				return;
+			}
+
+			this.pluginMarketplaceService.lastFetchedPlugins.read(reader);
+
+			const actions = this.getItemActions(current, storedPlugin.read(reader), current.kind === AgentPluginItemKind.Installed ? current.plugin.enabled.read(reader) : true);
 			if (actions.length > 0) {
 				template.actionBar.push(actions, { icon: true, label: true });
 			}
@@ -264,27 +276,25 @@ export class AgentPluginEditor extends EditorPane {
 		this.activeElement = await this.openDetails(item, template, token);
 	}
 
-	private getItemActions(item: IAgentPluginItem): Action[] {
+	private getItemActions(item: IAgentPluginItem, storedPlugin: IMarketplacePlugin | undefined, enabled: boolean): Action[] {
 		if (item.kind === AgentPluginItemKind.Marketplace) {
 			return [this.instantiationService.createInstance(InstallPluginEditorAction, item)];
 		}
 
 		const actions: Action[] = [];
 
-		// Check if the plugin is outdated compared to the live marketplace.
-		// Read fresh metadata from the store (not fromMarketplace which may be stale).
-		const storedPlugin = this.pluginMarketplaceService.installedPlugins.get()
-			.find(e => e.pluginUri.toString() === item.plugin.uri.toString())?.plugin
-			?? item.plugin.fromMarketplace;
 		if (storedPlugin) {
+			const cachedMarketplace = this.pluginMarketplaceService.lastFetchedPlugins.get();
 			const key = `${storedPlugin.marketplaceReference.canonicalId}::${storedPlugin.name}`;
-			const livePlugin = this.marketplaceByKey.get(key);
+			const livePlugin = cachedMarketplace.find(mp =>
+				`${mp.marketplaceReference.canonicalId}::${mp.name}` === key
+			);
 			if (livePlugin && hasSourceChanged(storedPlugin.sourceDescriptor, livePlugin.sourceDescriptor)) {
 				actions.push(this.instantiationService.createInstance(UpdatePluginEditorAction, item.plugin, livePlugin));
 			}
 		}
 
-		if (item.plugin.enabled.get()) {
+		if (enabled) {
 			actions.push(this.instantiationService.createInstance(DisablePluginEditorAction, item.plugin));
 		} else {
 			actions.push(this.instantiationService.createInstance(EnablePluginEditorAction, item.plugin));
@@ -608,8 +618,9 @@ class UpdatePluginEditorAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin);
-		this.pluginMarketplaceService.addInstalledPlugin(this.plugin.uri, this.liveMarketplacePlugin);
+		if (await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin)) {
+			this.pluginMarketplaceService.addInstalledPlugin(this.plugin.uri, this.liveMarketplacePlugin);
+		}
 	}
 }
 

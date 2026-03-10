@@ -146,11 +146,13 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 			);
 		} catch (err) {
 			this._logService.error(`[${this.kind}] Failed to update plugin source '${updateLabel}':`, err);
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: localize('pullPluginSourceFailed', "Failed to update plugin '{0}': {1}", failureLabel, err?.message ?? String(err)),
-				actions: { primary: [showGitOutputAction(this._commandService)] },
-			});
+			if (!options?.silent) {
+				this._notificationService.notify({
+					severity: Severity.Error,
+					message: localize('pullPluginSourceFailed', "Failed to update plugin '{0}': {1}", failureLabel, err?.message ?? String(err)),
+					actions: { primary: [showGitOutputAction(this._commandService)] },
+				});
+			}
 			throw err;
 		}
 	}
