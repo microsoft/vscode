@@ -47,6 +47,10 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 		this.checkForUpdates(false);
 	}
 
+	public testSetState(state: State): void {
+		this.state = state;
+	}
+
 	async isLatestVersion(): Promise<boolean | undefined> {
 		const update = await this.doCheckForUpdates(false);
 		if (update === undefined) {
