@@ -820,7 +820,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public getChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): AsyncIterable<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }> {
 		return new AsyncIterableProducer(async writer => {
 			// First, make sure contributed controller are active
-			await this.tryActivateControllers(providersToResolve);
+			await raceCancellationError(this.tryActivateControllers(providersToResolve), token);
 
 			// Then actually resolve items for all active controllers
 			await Promise.all(Array.from(this._itemControllers, async ([chatSessionType, controllerEntry]) => {
@@ -830,7 +830,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				}
 
 				try {
-					await controllerEntry.initialRefresh; // Ensure initial refresh is complete before accessing items
+					await raceCancellationError(controllerEntry.initialRefresh, token); // Ensure initial refresh is complete before accessing items
 
 					const providerSessions = controllerEntry.controller.items;
 					this._logService.trace(`[ChatSessionsService] Resolved ${providerSessions.length} sessions for provider ${resolvedType}`);
