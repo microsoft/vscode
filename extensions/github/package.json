@@ -19,7 +19,7 @@
   "extensionDependencies": [
     "vscode.git-base"
   ],
-  "main": "./out/extension.js",
+  "main": "./dist/extension.js",
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
@@ -182,7 +182,8 @@
           "when": "github.hasGitHubRepo && timelineItem =~ /git:file:commit\\b/"
         }
       ],
-      "chat/input/editing/sessionApplyActions": []
+      "chat/input/editing/sessionApplyActions": [
+      ]
     },
     "configuration": [
       {
