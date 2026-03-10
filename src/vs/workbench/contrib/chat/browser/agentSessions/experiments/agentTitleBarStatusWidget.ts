@@ -847,9 +847,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Only show status indicators if chat.viewSessions.enabled is true
 		const viewSessionsEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled) !== false;
 
-		// When both unified agents bar and agent status are enabled, show status indicators
-		// before the sparkle button: [active, unread, sparkle] (populating inward)
-		// Otherwise, keep original order: [sparkle, unread, active]
+		// When compact mode is active, show status indicators before the sparkle button:
+		// [needs-input, active, unread, sparkle] (populating inward)
+		// Otherwise, keep original order: [sparkle, unread, active, needs-input]
 		const agentControlModeForBadge = getAgentControlMode(this.configurationService.getValue(ChatConfiguration.AgentStatusEnabled));
 		const reverseOrder = agentControlModeForBadge === 'compact';
 
@@ -902,7 +902,11 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Needs-input section - shows sessions requiring user attention (approval/confirmation/input)
 		if (viewSessionsEnabled && hasAttentionNeeded) {
+			const { isFilteredToInProgress } = this._getCurrentFilterState();
 			needsInputSection = $('span.agent-status-badge-section.active.needs-input');
+			if (isFilteredToInProgress) {
+				needsInputSection.classList.add('filtered');
+			}
 			needsInputSection.setAttribute('role', 'button');
 			needsInputSection.tabIndex = 0;
 			const needsInputIcon = $('span.agent-status-icon');

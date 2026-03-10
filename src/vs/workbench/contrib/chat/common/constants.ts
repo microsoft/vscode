@@ -25,7 +25,7 @@ export function getAgentControlMode(value: unknown): AgentControlMode {
 	if (value === 'compact') {
 		return 'compact';
 	}
-	// New installs get the string default 'compact' from the setting definition
+	// Fallback to the configuration schema default 'compact' for any other or missing value
 	return 'compact';
 }
 
