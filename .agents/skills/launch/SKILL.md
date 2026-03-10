@@ -153,11 +153,15 @@ agent-browser snapshot -i
 3. **Relaunch** with the same flags
 
 ```bash
-# 1. Rebuild (or let ./scripts/code.sh handle it)
-npm run compile
+# 1. Ensure your build is up to date.
+#    Normally you can skip a manual step here and let ./scripts/code.sh in step 3
+#    trigger the build when needed (or run `npm run watch` in another terminal).
 
-# 2. Kill the Code OSS instance listening on the debug port
-kill $(lsof -t -i :9224)
+# 2. Kill the Code OSS instance listening on the debug port (if running)
+pids=$(lsof -t -i :9224)
+if [ -n "$pids" ]; then
+	kill $pids
+fi
 
 # 3. Relaunch
 ./scripts/code.sh --remote-debugging-port=9224
@@ -327,9 +331,12 @@ On ultrawide monitors, the chat sidebar may be in the far-right corner of the CD
 # Disconnect agent-browser
 agent-browser close
 
-# Kill the Code OSS instance listening on the debug port
+# Kill the Code OSS instance listening on the debug port (if running)
 # macOS / Linux:
-kill $(lsof -t -i :9224)
+pids=$(lsof -t -i :9224)
+if [ -n "$pids" ]; then
+	kill $pids
+fi
 
 # Windows:
 # taskkill /F /PID <PID>
