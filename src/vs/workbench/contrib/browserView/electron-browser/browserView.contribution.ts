@@ -20,7 +20,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { Schemas } from '../../../../base/common/network.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
-import { BROWSER_ZOOM_PER_ORIGIN_SETTING, BrowserZoomService, IBrowserZoomService } from '../common/browserZoomService.js';
+import { BROWSER_ZOOM_PER_ORIGIN_SETTING, BrowserZoomService, IBrowserZoomService, MATCH_VSCODE_LABEL } from '../common/browserZoomService.js';
 import { browserZoomFactors, BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 import { IExternalOpener, IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -28,6 +28,9 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
+import { getZoomLevel, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { zoomLevelToZoomFactor } from '../../../../platform/window/common/window.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -146,6 +149,26 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 
 registerWorkbenchContribution2(LocalhostLinkOpenerContribution.ID, LocalhostLinkOpenerContribution, WorkbenchPhase.BlockStartup);
 
+/**
+ * Bridges VS Code's UI zoom level changes into IBrowserZoomService so that
+ * views using the 'Match VS Code' default zoom level stay in sync.
+ */
+class VSCodeZoomSynchronizer extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.browserView.vscodeZoomSynchronizer';
+
+	constructor(@IBrowserZoomService browserZoomService: IBrowserZoomService) {
+		super();
+		// Set the initial VS Code zoom factor.
+		browserZoomService.notifyVSCodeZoomChanged(zoomLevelToZoomFactor(getZoomLevel(mainWindow)));
+		// Keep it updated as VS Code zoom changes.
+		this._register(onDidChangeZoomLevel(() => {
+			browserZoomService.notifyVSCodeZoomChanged(zoomLevelToZoomFactor(getZoomLevel(mainWindow)));
+		}));
+	}
+}
+
+registerWorkbenchContribution2(VSCodeZoomSynchronizer.ID, VSCodeZoomSynchronizer, WorkbenchPhase.BlockStartup);
+
 registerSingleton(IBrowserViewWorkbenchService, BrowserViewWorkbenchService, InstantiationType.Delayed);
 registerSingleton(IBrowserZoomService, BrowserZoomService, InstantiationType.Delayed);
 
@@ -184,8 +207,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'workbench.browser.zoom.defaultZoomLevel': {
 			type: 'string',
-			enum: browserZoomFactors.map(f => `${Math.round(f * 100)}%`),
-			default: '100%',
+			enum: [MATCH_VSCODE_LABEL, ...browserZoomFactors.map(f => `${Math.round(f * 100)}%`)],
+			markdownEnumDescriptions: [
+				localize(
+					{ comment: ['This is the description for a setting enum value.'], key: 'browser.defaultZoomLevel.matchVSCode' },
+					'Dynamically matches the closest zoom level to VS Code\'s current UI zoom.'
+				),
+				...browserZoomFactors.map(() => ''),
+			],
+			default: MATCH_VSCODE_LABEL,
 			markdownDescription: localize(
 				{ comment: ['This is the description for a setting.'], key: 'browser.defaultZoomLevel' },
 				'Controls the default zoom level for the Integrated Browser. The {0} command will restore the zoom to this level.',
