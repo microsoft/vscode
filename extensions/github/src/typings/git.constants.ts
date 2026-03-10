@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as git from './git.d.ts';
+import type * as git from './git';
 
 export type ForcePushMode = git.ForcePushMode;
 export type RefType = git.RefType;
