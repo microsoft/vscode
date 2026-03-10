@@ -158,7 +158,7 @@ suite('PluginInstallService', () => {
 			getCleanupTarget: () => URI.file('/mock-cleanup'),
 			getInstallUri: () => URI.file('/mock'),
 			ensure: async () => state.ensurePluginSourceResult,
-			update: async () => { },
+			update: async () => true,
 			getLabel: (d) => kind === PluginSourceKind.Npm ? (d as { package: string }).package : (d as { package: string }).package,
 			runInstall: async (_installDir: URI, pluginDir: URI, plugin: IMarketplacePlugin) => {
 				// Simulate confirmation dialog
@@ -209,8 +209,8 @@ suite('PluginInstallService', () => {
 
 		const mockSourceRepos = new Map<PluginSourceKind, IPluginSource>([
 			[PluginSourceKind.RelativePath, { kind: PluginSourceKind.RelativePath, getCleanupTarget: () => undefined, getInstallUri: () => { throw new Error(); }, ensure: async () => { throw new Error(); }, update: async () => { throw new Error(); }, getLabel: (d) => (d as { path: string }).path || '.' }],
-			[PluginSourceKind.GitHub, { kind: PluginSourceKind.GitHub, getCleanupTarget: () => URI.file('/mock'), getInstallUri: () => URI.file('/mock'), ensure: async () => URI.file('/mock'), update: async () => { }, getLabel: (d) => (d as { repo: string }).repo }],
-			[PluginSourceKind.GitUrl, { kind: PluginSourceKind.GitUrl, getCleanupTarget: () => URI.file('/mock'), getInstallUri: () => URI.file('/mock'), ensure: async () => URI.file('/mock'), update: async () => { }, getLabel: (d) => (d as { url: string }).url }],
+			[PluginSourceKind.GitHub, { kind: PluginSourceKind.GitHub, getCleanupTarget: () => URI.file('/mock'), getInstallUri: () => URI.file('/mock'), ensure: async () => URI.file('/mock'), update: async () => true, getLabel: (d) => (d as { repo: string }).repo }],
+			[PluginSourceKind.GitUrl, { kind: PluginSourceKind.GitUrl, getCleanupTarget: () => URI.file('/mock'), getInstallUri: () => URI.file('/mock'), ensure: async () => URI.file('/mock'), update: async () => true, getLabel: (d) => (d as { url: string }).url }],
 			[PluginSourceKind.Npm, makeMockPackageRepo(PluginSourceKind.Npm)],
 			[PluginSourceKind.Pip, makeMockPackageRepo(PluginSourceKind.Pip)],
 		]);

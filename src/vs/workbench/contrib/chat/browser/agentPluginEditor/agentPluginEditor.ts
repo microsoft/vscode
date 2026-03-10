@@ -35,6 +35,7 @@ import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../../markdo
 import { IWebview, IWebviewService } from '../../../webview/browser/webview.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
+import { hasSourceChanged, IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { AgentPluginEditorInput } from './agentPluginEditorInput.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from './agentPluginItems.js';
 import './media/agentPluginEditor.css';
@@ -76,6 +77,7 @@ export class AgentPluginEditor extends EditorPane {
 	private readonly transientDisposables = this._register(new DisposableStore());
 	private activeElement: IActiveElement | null = null;
 	private dimension: Dimension | undefined;
+	private marketplaceByKey = new Map<string, IMarketplacePlugin>();
 
 	constructor(
 		group: IEditorGroup,
@@ -91,6 +93,7 @@ export class AgentPluginEditor extends EditorPane {
 		@IRequestService private readonly requestService: IRequestService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
+		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super(AgentPluginEditor.ID, group, telemetryService, themeService, storageService);
@@ -153,6 +156,14 @@ export class AgentPluginEditor extends EditorPane {
 		const cts = new CancellationTokenSource();
 		this.transientDisposables.add(toDisposable(() => cts.dispose(true)));
 		const token = cts.token;
+
+		// Fetch marketplace data for outdated detection (best-effort, non-blocking).
+		this.pluginMarketplaceService.fetchMarketplacePlugins(token).then(plugins => {
+			this.marketplaceByKey.clear();
+			for (const mp of plugins) {
+				this.marketplaceByKey.set(`${mp.marketplaceReference.canonicalId}::${mp.name}`, mp);
+			}
+		}, () => { /* ignore errors */ });
 
 		const itemId = item.kind === AgentPluginItemKind.Installed ? item.plugin.uri.toString() : `${item.marketplaceReference.canonicalId}/${item.source}`;
 
@@ -259,6 +270,20 @@ export class AgentPluginEditor extends EditorPane {
 		}
 
 		const actions: Action[] = [];
+
+		// Check if the plugin is outdated compared to the live marketplace.
+		// Read fresh metadata from the store (not fromMarketplace which may be stale).
+		const storedPlugin = this.pluginMarketplaceService.installedPlugins.get()
+			.find(e => e.pluginUri.toString() === item.plugin.uri.toString())?.plugin
+			?? item.plugin.fromMarketplace;
+		if (storedPlugin) {
+			const key = `${storedPlugin.marketplaceReference.canonicalId}::${storedPlugin.name}`;
+			const livePlugin = this.marketplaceByKey.get(key);
+			if (livePlugin && hasSourceChanged(storedPlugin.sourceDescriptor, livePlugin.sourceDescriptor)) {
+				actions.push(this.instantiationService.createInstance(UpdatePluginEditorAction, item.plugin, livePlugin));
+			}
+		}
+
 		if (item.plugin.enabled.get()) {
 			actions.push(this.instantiationService.createInstance(DisablePluginEditorAction, item.plugin));
 		} else {
@@ -567,6 +592,24 @@ class UninstallPluginEditorAction extends Action {
 
 	override async run(): Promise<void> {
 		this.plugin.remove();
+	}
+}
+
+class UpdatePluginEditorAction extends Action {
+	static readonly ID = 'agentPlugin.editor.update';
+
+	constructor(
+		private readonly plugin: IAgentPlugin,
+		private readonly liveMarketplacePlugin: IMarketplacePlugin,
+		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
+		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
+	) {
+		super(UpdatePluginEditorAction.ID, localize('update', "Update"), 'extension-action label prominent install');
+	}
+
+	override async run(): Promise<void> {
+		await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin);
+		this.pluginMarketplaceService.addInstalledPlugin(this.plugin.uri, this.liveMarketplacePlugin);
 	}
 }
 

@@ -10,7 +10,7 @@ import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js'
 import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, disposeIfDisposable, IDisposable, isDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -46,7 +46,7 @@ import { DefaultViewsContext, extensionsFilterSubMenu, IExtensionsWorkbenchServi
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IAgentPlugin, IAgentPluginService } from '../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
-import { IMarketplacePlugin, IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
+import { hasSourceChanged, IMarketplacePlugin, IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
 
@@ -55,11 +55,11 @@ export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.install
 
 //#region Item model
 
-function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService): IInstalledPluginItem {
+function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService, outdated?: boolean, liveMarketplacePlugin?: IMarketplacePlugin): IInstalledPluginItem {
 	const name = plugin.label;
 	const description = plugin.fromMarketplace?.description ?? labelService.getUriLabel(dirname(plugin.uri), { relative: true });
 	const marketplace = plugin.fromMarketplace?.marketplace;
-	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin };
+	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin, outdated, liveMarketplacePlugin };
 }
 
 function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePluginItem {
@@ -102,6 +102,24 @@ class InstallPluginAction extends Action {
 			marketplaceType: this.item.marketplaceType,
 			readmeUri: this.item.readmeUri,
 		});
+	}
+}
+
+class UpdatePluginAction extends Action {
+	static readonly ID = 'agentPlugin.update';
+
+	constructor(
+		private readonly plugin: IAgentPlugin,
+		private readonly liveMarketplacePlugin: IMarketplacePlugin,
+		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
+		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
+	) {
+		super(UpdatePluginAction.ID, localize('update', "Update"), 'extension-action label prominent install');
+	}
+
+	override async run(): Promise<void> {
+		await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin);
+		this.pluginMarketplaceService.addInstalledPlugin(this.plugin.uri, this.liveMarketplacePlugin);
 	}
 }
 
@@ -322,10 +340,17 @@ class AgentPluginRenderer implements IPagedRenderer<IAgentPluginItem, IAgentPlug
 			data.actionbar.push([installAction], { icon: true, label: true });
 		} else {
 			data.detail.textContent = element.marketplace ?? '';
+			const actions: Action[] = [];
+			if (element.outdated && element.liveMarketplacePlugin) {
+				const updateAction = this.instantiationService.createInstance(UpdatePluginAction, element.plugin, element.liveMarketplacePlugin);
+				data.elementDisposables.push(updateAction);
+				actions.push(updateAction);
+			}
 			const manageAction = this.instantiationService.createInstance(ManagePluginAction,
 				() => getInstalledPluginContextMenuActionGroups(element.plugin, this.instantiationService));
 			data.elementDisposables.push(manageAction);
-			data.actionbar.push([manageAction], { icon: true, label: false });
+			actions.push(manageAction);
+			data.actionbar.push(actions, { icon: true, label: true });
 		}
 	}
 
@@ -392,6 +417,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 
 		this._register(autorun(reader => {
 			this.agentPluginService.plugins.read(reader);
+			this.pluginMarketplaceService.installedPlugins.read(reader);
 			if (this.list && this.isBodyVisible()) {
 				this.refreshOnPluginsChangedScheduler.schedule();
 			}
@@ -499,7 +525,10 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		this.currentQuery = query;
 		const text = query.replace(/@agentPlugins/i, '').trim().toLowerCase();
 
-		let installed = this.queryInstalled();
+		// Always fetch marketplace data for outdated detection.
+		const marketplacePlugins = await this.queryMarketplacePlugins();
+
+		let installed = this.queryInstalled(marketplacePlugins);
 		if (text) {
 			installed = installed.filter(p =>
 				p.name.toLowerCase().includes(text) ||
@@ -510,7 +539,10 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		let items: IAgentPluginItem[] = installed;
 
 		if (!this.listOptions.installedOnly) {
-			const marketplace = await this.queryMarketplace(text);
+			const lowerText = text.toLowerCase();
+			const marketplace = marketplacePlugins
+				.filter(p => p.name.toLowerCase().includes(lowerText) || p.description.toLowerCase().includes(lowerText))
+				.map(marketplacePluginToItem);
 
 			// Filter out marketplace items that are already installed
 			const installedPaths = new Set(installed.map(i => i.plugin.uri.toString()));
@@ -539,22 +571,43 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		return model;
 	}
 
-	private queryInstalled(): IInstalledPluginItem[] {
+	private queryInstalled(marketplacePlugins: IMarketplacePlugin[]): IInstalledPluginItem[] {
+		const marketplaceByKey = new Map<string, IMarketplacePlugin>();
+		for (const mp of marketplacePlugins) {
+			marketplaceByKey.set(`${mp.marketplaceReference.canonicalId}::${mp.name}`, mp);
+		}
+
+		// Read fresh installed plugin metadata from the store (not from
+		// IAgentPlugin.fromMarketplace which may be stale after an update).
+		const installedByUri = new Map<string, IMarketplacePlugin>();
+		for (const entry of this.pluginMarketplaceService.installedPlugins.get()) {
+			installedByUri.set(entry.pluginUri.toString(), entry.plugin);
+		}
+
 		const allPlugins = this.agentPluginService.allPlugins.get();
-		return allPlugins.map(p => installedPluginToItem(p, this.labelService));
+		return allPlugins.map(p => {
+			let outdated = false;
+			let liveMarketplacePlugin: IMarketplacePlugin | undefined;
+			const storedPlugin = installedByUri.get(p.uri.toString()) ?? p.fromMarketplace;
+			if (storedPlugin) {
+				const key = `${storedPlugin.marketplaceReference.canonicalId}::${storedPlugin.name}`;
+				const live = marketplaceByKey.get(key);
+				if (live && hasSourceChanged(storedPlugin.sourceDescriptor, live.sourceDescriptor)) {
+					outdated = true;
+					liveMarketplacePlugin = live;
+				}
+			}
+			return installedPluginToItem(p, this.labelService, outdated, liveMarketplacePlugin);
+		});
 	}
 
-	private async queryMarketplace(text: string): Promise<IMarketplacePluginItem[]> {
+	private async queryMarketplacePlugins(): Promise<IMarketplacePlugin[]> {
 		this.queryCts.value?.cancel();
 		const cts = new CancellationTokenSource();
 		this.queryCts.value = cts;
 
 		try {
-			const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(cts.token);
-			const lowerText = text.toLowerCase();
-			return plugins
-				.filter(p => p.name.toLowerCase().includes(lowerText) || p.description.toLowerCase().includes(lowerText))
-				.map(marketplacePluginToItem);
+			return await this.pluginMarketplaceService.fetchMarketplacePlugins(cts.token);
 		} catch {
 			return [];
 		}
@@ -601,6 +654,38 @@ class AgentPluginsBrowseCommand extends Action2 {
 	}
 }
 
+class CheckForPluginUpdatesCommand extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.agentPlugins.checkForUpdates',
+			title: localize2('agentPlugins.checkForUpdates', "Update Plugins"),
+			category: localize2('chat.category', "Chat"),
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		await accessor.get(IPluginInstallService).updateAllPlugins({}, CancellationToken.None);
+	}
+}
+
+class ForceUpdatePluginsCommand extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.agentPlugins.forceUpdate',
+			title: localize2('agentPlugins.forceUpdate', "Update Plugins (Force)"),
+			category: localize2('chat.category', "Chat"),
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		await accessor.get(IPluginInstallService).updateAllPlugins({ force: true }, CancellationToken.None);
+	}
+}
+
 //#endregion
 //#region Views contribution
 
@@ -620,6 +705,8 @@ export class AgentPluginsViewsContribution extends Disposable implements IWorkbe
 		}));
 
 		registerAction2(AgentPluginsBrowseCommand);
+		registerAction2(CheckForPluginUpdatesCommand);
+		registerAction2(ForceUpdatePluginsCommand);
 
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([
 			{

@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { runWhenGlobalIdle } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
-import { IObservable } from '../../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, joinPath, normalizePath, relativePath } from '../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -20,6 +21,7 @@ import { ObservableMemento, observableMemento } from '../../../../../platform/ob
 import { asJson, IRequestService } from '../../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
+import { AutoUpdateConfigurationKey, AutoUpdateConfigurationValue } from '../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../constants.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 
@@ -149,6 +151,14 @@ export interface IPluginMarketplaceService {
 	readonly onDidChangeMarketplaces: Event<void>;
 	/** Installed marketplace plugins, backed by storage. */
 	readonly installedPlugins: IObservable<readonly IMarketplaceInstalledPlugin[]>;
+	/**
+	 * Observable that is `true` when at least one cloned marketplace
+	 * repository has upstream changes available. Checked periodically
+	 * (approximately once per day) when `extensions.autoUpdate` is enabled.
+	 */
+	readonly hasUpdatesAvailable: IObservable<boolean>;
+	/** Resets {@link hasUpdatesAvailable} to `false`. */
+	clearUpdatesAvailable(): void;
 	fetchMarketplacePlugins(token: CancellationToken): Promise<IMarketplacePlugin[]>;
 	getMarketplacePluginMetadata(pluginUri: URI): IMarketplacePlugin | undefined;
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void;
@@ -171,6 +181,10 @@ const MARKETPLACE_DEFINITIONS: { type: MarketplaceType; path: string }[] = [
 
 const GITHUB_MARKETPLACE_CACHE_TTL_MS = 8 * 60 * 60 * 1000;
 const GITHUB_MARKETPLACE_CACHE_STORAGE_KEY = 'chat.plugins.marketplaces.githubCache.v1';
+
+/** Interval between periodic plugin update checks (24 hours). */
+const PLUGIN_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const PLUGIN_UPDATE_LAST_CHECK_STORAGE_KEY = 'chat.plugins.lastUpdateCheck.v1';
 
 interface IGitHubMarketplaceCacheEntry {
 	readonly plugins: readonly IMarketplacePlugin[];
@@ -228,10 +242,13 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	private readonly _gitHubMarketplaceCache = new Lazy<Map<string, IGitHubMarketplaceCacheEntry>>(() => this._loadPersistedGitHubMarketplaceCache());
 	private readonly _installedPluginsStore: ObservableMemento<readonly IStoredInstalledPlugin[]>;
 	private readonly _trustedMarketplacesStore: ObservableMemento<readonly string[]>;
+	private readonly _hasUpdatesAvailable = observableValue<boolean>('hasUpdatesAvailable', false);
+	private _updateCheckTimer: ReturnType<typeof setTimeout> | undefined;
 
 	readonly onDidChangeMarketplaces: Event<void>;
 
 	readonly installedPlugins: IObservable<readonly IMarketplaceInstalledPlugin[]>;
+	readonly hasUpdatesAvailable: IObservable<boolean> = this._hasUpdatesAvailable;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -262,6 +279,27 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			_configurationService.onDidChangeConfiguration,
 			e => e.affectsConfiguration(ChatConfiguration.PluginsEnabled) || e.affectsConfiguration(ChatConfiguration.PluginMarketplaces),
 		) as Event<unknown> as Event<void>;
+
+		this._register(runWhenGlobalIdle(() => {
+			// Schedule periodic update checks when auto-update is enabled.
+			this._scheduleUpdateCheck();
+			this._register(Event.filter(
+				_configurationService.onDidChangeConfiguration,
+				e => e.affectsConfiguration(AutoUpdateConfigurationKey),
+			)(() => this._scheduleUpdateCheck()));
+		}));
+	}
+
+	override dispose(): void {
+		if (this._updateCheckTimer !== undefined) {
+			clearTimeout(this._updateCheckTimer);
+			this._updateCheckTimer = undefined;
+		}
+		super.dispose();
+	}
+
+	clearUpdatesAvailable(): void {
+		this._hasUpdatesAvailable.set(false, undefined);
 	}
 
 	async fetchMarketplacePlugins(token: CancellationToken): Promise<IMarketplacePlugin[]> {
@@ -454,9 +492,10 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void {
 		const current = this.installedPlugins.get();
-		if (current.some(e => isEqual(e.pluginUri, pluginUri))) {
+		const existing = current.find(e => isEqual(e.pluginUri, pluginUri));
+		if (existing) {
 			// Still update to trigger watchers to re-check, something might have happened that we want to know about
-			this._installedPluginsStore.set([...current], undefined);
+			this._installedPluginsStore.set(current.map(c => c === existing ? { pluginUri, plugin, enabled: existing.enabled } : c), undefined);
 		} else {
 			this._installedPluginsStore.set([...current, { pluginUri, plugin, enabled: true }], undefined);
 		}
@@ -483,6 +522,84 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		const current = this._trustedMarketplacesStore.get();
 		if (!current.includes(ref.canonicalId)) {
 			this._trustedMarketplacesStore.set([...current, ref.canonicalId], undefined);
+		}
+	}
+
+	// --- Periodic update check ------------------------------------------------
+
+	private _isAutoUpdateEnabled(): AutoUpdateConfigurationValue {
+		return this._configurationService.getValue<AutoUpdateConfigurationValue>(AutoUpdateConfigurationKey);
+	}
+
+	/**
+	 * (Re-)schedules the next periodic update check. Called on
+	 * construction and whenever the auto-update config changes.
+	 */
+	private _scheduleUpdateCheck(): void {
+		if (this._updateCheckTimer !== undefined) {
+			clearTimeout(this._updateCheckTimer);
+			this._updateCheckTimer = undefined;
+		}
+
+		if (!this._isAutoUpdateEnabled()) {
+			return;
+		}
+
+		const lastCheck = this._storageService.getNumber(
+			PLUGIN_UPDATE_LAST_CHECK_STORAGE_KEY,
+			StorageScope.APPLICATION,
+			0,
+		);
+		const elapsed = Date.now() - lastCheck;
+		const delay = Math.max(0, PLUGIN_UPDATE_CHECK_INTERVAL_MS - elapsed);
+
+		this._updateCheckTimer = setTimeout(() => this._runUpdateCheck(), delay);
+	}
+
+	private async _runUpdateCheck(): Promise<void> {
+		this._updateCheckTimer = undefined;
+
+		try {
+			const installed = this.installedPlugins.get().filter(e => e.enabled);
+			if (installed.length === 0) {
+				return;
+			}
+
+			const seenMarketplaces = new Set<string>();
+			let hasUpdates = false;
+
+			for (const entry of installed) {
+				const ref = entry.plugin.marketplaceReference;
+				if (seenMarketplaces.has(ref.canonicalId)) {
+					continue;
+				}
+				seenMarketplaces.add(ref.canonicalId);
+
+				try {
+					const behind = await this._pluginRepositoryService.fetchRepository(ref);
+					if (behind) {
+						hasUpdates = true;
+						break;
+					}
+				} catch (err) {
+					this._logService.debug(`[PluginMarketplaceService] Update check failed for ${ref.displayLabel}:`, err);
+				}
+			}
+
+			this._hasUpdatesAvailable.set(hasUpdates, undefined);
+			this._storageService.store(
+				PLUGIN_UPDATE_LAST_CHECK_STORAGE_KEY,
+				Date.now(),
+				StorageScope.APPLICATION,
+				StorageTarget.MACHINE,
+			);
+		} catch (err) {
+			this._logService.debug('[PluginMarketplaceService] Periodic update check failed:', err);
+		} finally {
+			// Reschedule for the next check
+			if (this._isAutoUpdateEnabled()) {
+				this._updateCheckTimer = setTimeout(() => this._runUpdateCheck(), PLUGIN_UPDATE_CHECK_INTERVAL_MS);
+			}
 		}
 	}
 
@@ -888,6 +1005,31 @@ export function getPluginSourceLabel(descriptor: IPluginSourceDescriptor): strin
 			return descriptor.version ? `${descriptor.package}@${descriptor.version}` : descriptor.package;
 		case PluginSourceKind.Pip:
 			return descriptor.version ? `${descriptor.package}==${descriptor.version}` : descriptor.package;
+	}
+}
+
+/**
+ * Returns `true` when the marketplace source descriptor differs from the
+ * installed one — meaning an update should be performed.
+ */
+export function hasSourceChanged(installed: IPluginSourceDescriptor, marketplace: IPluginSourceDescriptor): boolean {
+	if (installed.kind !== marketplace.kind) {
+		return true;
+	}
+
+	switch (installed.kind) {
+		case PluginSourceKind.GitHub:
+			return installed.ref !== (marketplace as typeof installed).ref
+				|| installed.sha !== (marketplace as typeof installed).sha;
+		case PluginSourceKind.GitUrl:
+			return installed.ref !== (marketplace as typeof installed).ref
+				|| installed.sha !== (marketplace as typeof installed).sha;
+		case PluginSourceKind.Npm:
+			return installed.version !== (marketplace as typeof installed).version;
+		case PluginSourceKind.Pip:
+			return installed.version !== (marketplace as typeof installed).version;
+		default:
+			return false;
 	}
 }
 

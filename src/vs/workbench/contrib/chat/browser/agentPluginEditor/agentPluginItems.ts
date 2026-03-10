@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import type { IAgentPlugin } from '../../common/plugins/agentPluginService.js';
-import type { IMarketplaceReference, IPluginSourceDescriptor, MarketplaceType } from '../../common/plugins/pluginMarketplaceService.js';
+import type { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceType } from '../../common/plugins/pluginMarketplaceService.js';
 
 export const enum AgentPluginItemKind {
 	Installed = 'installed',
@@ -18,6 +18,10 @@ export interface IInstalledPluginItem {
 	readonly description: string;
 	readonly marketplace?: string;
 	readonly plugin: IAgentPlugin;
+	/** When set, indicates the plugin has a newer version in the marketplace. */
+	readonly outdated?: boolean;
+	/** The live marketplace plugin data when the plugin is outdated. */
+	readonly liveMarketplacePlugin?: IMarketplacePlugin;
 }
 
 export interface IMarketplacePluginItem {
