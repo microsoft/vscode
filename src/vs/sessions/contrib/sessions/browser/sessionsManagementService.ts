@@ -320,11 +320,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const sessionResource = newSession.resource;
 		const chatWidget = await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
 		if (!chatWidget?.viewModel) {
-			this.logService.warn(`[ActiveSessionService] Failed to open session: ${sessionResource.toString()}`);
+			this.logService.warn(`[SessionsManagementService] Failed to open session: ${sessionResource.toString()}`);
 			return;
 		}
 		const repository = this.getRepositoryFromSessionOption(sessionResource);
-		this.logService.info(`[ActiveSessionService] Active session changed (new): ${sessionResource.toString()}, repository: ${repository?.toString() ?? 'none'}`);
+		this.logService.info(`[SessionsManagementService] Active session changed (new): ${sessionResource.toString()}, repository: ${repository?.toString() ?? 'none'}`);
 	}
 
 	async sendRequestForNewSession(sessionResource: URI, options?: { openNewSessionView?: boolean; permissionLevel?: ChatPermissionLevel }): Promise<void> {
@@ -440,7 +440,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		);
 		const result = await this.chatService.sendRequest(session.resource, query, sendOptions);
 		if (result.kind === 'rejected') {
-			this.logService.error(`[ActiveSessionService] sendRequest rejected: ${result.reason}`);
+			this.logService.error(`[SessionsManagementService] sendRequest rejected: ${result.reason}`);
 			return;
 		}
 
@@ -532,10 +532,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		if (activeSessionItem) {
-			this.logService.info(`[ActiveSessionService] Active session changed: ${activeSessionItem.resource.toString()}`);
-			this.logService.trace(`[ActiveSessionService] Active session details: ${JSON.stringify(activeSessionItem)}`);
+			this.logService.info(`[SessionsManagementService] Active session changed: ${activeSessionItem.resource.toString()}`);
+			this.logService.trace(`[SessionsManagementService] Active session details: ${JSON.stringify(activeSessionItem)}`);
 		} else {
-			this.logService.trace('[ActiveSessionService] Active session cleared');
+			this.logService.trace('[SessionsManagementService] Active session cleared');
 		}
 
 		this._isBackgroundProvider.set(activeSessionItem?.providerType === AgentSessionProviders.Background);

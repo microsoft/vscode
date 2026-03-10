@@ -50,25 +50,19 @@ src/vs/sessions/
 │   ├── layoutActions.ts                ← Layout toggle actions
 │   ├── menus.ts                        ← Menu IDs for agent sessions menus (Menus export)
 │   ├── paneCompositePartService.ts     ← AgenticPaneCompositePartService
-│   ├── style.css                       ← Layout styles
-│   ├── widget/                         ← Agent sessions chat widget
-│   │   ├── AGENTS_CHAT_WIDGET.md       ← Chat widget architecture documentation
-│   │   ├── agentSessionsChatWidget.ts  ← Main chat widget wrapper
-│   │   ├── agentSessionsChatTargetConfig.ts ← Target configuration (observable)
-│   │   ├── agentSessionsTargetPickerActionItem.ts ← Target picker for input toolbar
-│   │   └── media/
-│   │       └── agentSessionsChatWidget.css
-│   └── parts/                          ← Workbench part implementations
-│       ├── titlebarPart.ts             ← Simplified titlebar part & title service
-│       ├── sidebarPart.ts              ← Sidebar part (with footer)
-│       ├── auxiliaryBarPart.ts         ← Auxiliary bar part (with run script dropdown)
-│       ├── panelPart.ts               ← Panel part
-│       ├── chatBarPart.ts             ← Chat bar part
-│       ├── projectBarPart.ts          ← Project bar part (folder entries)
-│       ├── parts.ts                   ← AgenticParts enum
-│       ├── agentSessionsChatInputPart.ts  ← Chat input part adapter
-│       ├── agentSessionsChatWelcomePart.ts ← Chat welcome part
-│       └── media/                     ← Part CSS
+│   ├── widget/
+│   │   └── AGENTS_CHAT_WIDGET.md       ← Current chat surface architecture notes
+│   ├── parts/                          ← Workbench part implementations
+│   │   ├── titlebarPart.ts             ← Simplified titlebar part & title service
+│   │   ├── sidebarPart.ts              ← Sidebar part (with footer)
+│   │   ├── auxiliaryBarPart.ts         ← Auxiliary bar part (with run script dropdown)
+│   │   ├── panelPart.ts                ← Panel part
+│   │   ├── chatBarPart.ts              ← Chat bar container part
+│   │   ├── projectBarPart.ts           ← Project bar part (folder entries)
+│   │   ├── parts.ts                    ← AgenticParts enum
+│   │   └── media/                      ← Part CSS
+│   └── media/
+│       └── style.css                   ← Layout styles
 ├── electron-browser/                   ← Desktop-specific entry points
 │   ├── sessions.main.ts
 │   ├── sessions.ts
@@ -77,25 +71,28 @@ src/vs/sessions/
 ├── contrib/                            ← Feature contributions
 │   ├── accountMenu/browser/            ← Account menu widget and sidebar footer
 │   │   └── account.contribution.ts
-│   ├── aiCustomizationManagement/      ← AI customization management editor
-│   │   └── browser/
 │   ├── aiCustomizationTreeView/        ← AI customization tree view sidebar
-│   │   └── browser/
-│   ├── changesView/browser/            ← File changes view
+│   ├── applyCommitsToParentRepo/browser/ ← Apply changes to parent repo
+│   ├── changes/browser/                ← File changes view
 │   │   ├── changesView.contribution.ts
 │   │   └── changesView.ts
-│   ├── chat/browser/                   ← Chat-related actions and services
+│   ├── chat/browser/                   ← Chat pane registration, new-session UI, prompts
 │   │   ├── chat.contribution.ts
-│   │   ├── branchChatSessionAction.ts
-│   │   ├── runScriptAction.ts
+│   │   ├── newChatViewPane.ts
+│   │   ├── newSession.ts
+│   │   ├── sessionTargetPicker.ts
+│   │   ├── aiCustomizationWorkspaceService.ts
 │   │   └── promptsService.ts
+│   ├── codeReview/browser/             ← Code review contributions
 │   ├── configuration/browser/          ← Configuration contribution
 │   │   └── configuration.contribution.ts
-│   └── sessions/browser/              ← Sessions view and title bar widget
+│   ├── git/browser/                    ← Git contributions
+│   ├── github/browser/                 ← GitHub contributions and services
+│   └── sessions/browser/               ← Sessions view and title bar widget
 │       ├── sessions.contribution.ts
 │       ├── sessionsViewPane.ts
 │       ├── sessionsTitleBarWidget.ts
-│       ├── activeSessionService.ts
+│       ├── sessionsManagementService.ts
 │       └── media/
 ```
 

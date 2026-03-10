@@ -391,7 +391,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 /**
  * Provides custom rendering for the sessions title bar widget
  * in the command center. Uses IActionViewItemService to render a custom widget
- * for the TitleBarControlMenu submenu.
+ * for the Menus.TitleBarSessionTitle submenu.
  */
 export class SessionsTitleBarContribution extends Disposable implements IWorkbenchContribution {
 

@@ -37,9 +37,9 @@ import { Menus } from '../menus.js';
  * Simplified agent sessions titlebar part.
  *
  * Three sections driven entirely by menus:
- * - **Left**: `Menus.TitleBarLeft` toolbar
+ * - **Left**: `Menus.TitleBarLeftLayout` toolbar
  * - **Center**: `Menus.CommandCenter` toolbar (renders session picker via IActionViewItemService)
- * - **Right**: `Menus.TitleBarRight` toolbar (includes account submenu)
+ * - **Right**: `Menus.TitleBarRightLayout` toolbar
  *
  * No menubar, no editor actions, no layout controls, no WindowTitle dependency.
  */
@@ -183,7 +183,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			}
 		}
 
-		// Left toolbar (driven by Menus.TitleBarLeft, rendered after window controls via CSS order)
+		// Left toolbar (driven by Menus.TitleBarLeftLayout, rendered after window controls via CSS order)
 		const leftToolbarContainer = append(this.leftContent, $('div.left-toolbar-container'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, leftToolbarContainer, Menus.TitleBarLeftLayout, {
 			contextMenu: Menus.TitleBarContext,
@@ -203,7 +203,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		// Right toolbar (driven by Menus.TitleBarRight - includes account submenu)
+		// Right toolbar (driven by Menus.TitleBarRightLayout)
 		const rightToolbarContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-layout-actions-container'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, rightToolbarContainer, Menus.TitleBarRightLayout, {
 			contextMenu: Menus.TitleBarContext,
