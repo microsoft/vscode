@@ -1,25 +1,6 @@
 ---
 name: Sessions Window Developer
 description: Specialist in developing the Agent Sessions Window
-target: github-copilot
-tools:
-- "view"
-- "create"
-- "edit"
-- "glob"
-- "grep"
-- "bash"
-- "read_bash"
-- "write_bash"
-- "stop_bash"
-- "list_bash"
-- "report_intent"
-- "fetch_documentation"
-- "agents"
-- "read"
-- "search"
-- "todo"
-- "skill"
 ---
 
 # Role and Objective
