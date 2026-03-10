@@ -1626,6 +1626,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerChatSessionItemProvider: (chatSessionType: string, provider: vscode.ChatSessionItemProvider) => {
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
+				extHostApiDeprecation.report('chat.registerChatSessionItemProvider', extension, `Please migrate to the new chat session controller API`, {
+					usageId: chatSessionType
+				});
 				return extHostChatSessions.registerChatSessionItemProvider(extension, chatSessionType, provider);
 			},
 			createChatSessionItemController: (chatSessionType: string, refreshHandler: (token: vscode.CancellationToken) => Thenable<void>) => {
@@ -1676,6 +1679,30 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerChatDebugLogProvider(provider: vscode.ChatDebugLogProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'chatDebug');
 				return extHostChatDebug.registerChatDebugLogProvider(provider);
+			},
+			get customAgents() {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.customAgents as readonly vscode.ChatResource[];
+			},
+			onDidChangeCustomAgents: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.onDidChangeCustomAgents(listener, thisArgs, disposables);
+			},
+			get instructions() {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.instructions as readonly vscode.ChatResource[];
+			},
+			onDidChangeInstructions: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.onDidChangeInstructions(listener, thisArgs, disposables);
+			},
+			get skills() {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.skills as readonly vscode.ChatResource[];
+			},
+			onDidChangeSkills: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.onDidChangeSkills(listener, thisArgs, disposables);
 			},
 		};
 

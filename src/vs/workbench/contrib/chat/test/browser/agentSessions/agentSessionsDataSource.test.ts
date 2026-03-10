@@ -95,7 +95,7 @@ suite('sessionDateFromNow', () => {
 
 suite('AgentSessionsDataSource', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const ONE_DAY = 24 * 60 * 60 * 1000;
 	const WEEK_THRESHOLD = 7 * ONE_DAY; // 7 days
@@ -152,7 +152,9 @@ suite('AgentSessionsDataSource', () => {
 			onDidChange: Event.None,
 			groupResults: () => options.groupBy,
 			exclude: options.exclude ?? (() => false),
-			getExcludes: () => ({ providers: [], states: [], archived: false, read: options.excludeRead ?? false })
+			getExcludes: () => ({ providers: [], states: [], archived: false, read: options.excludeRead ?? false }),
+			isDefault: () => true,
+			reset: () => { },
 		};
 	}
 
@@ -182,7 +184,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: undefined });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -202,7 +204,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -223,7 +225,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -244,7 +246,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -263,7 +265,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -281,7 +283,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -299,7 +301,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -319,7 +321,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -353,7 +355,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -382,7 +384,7 @@ suite('AgentSessionsDataSource', () => {
 		test('empty sessions returns empty result', () => {
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel([]);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -399,7 +401,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -422,7 +424,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -456,7 +458,7 @@ suite('AgentSessionsDataSource', () => {
 				excludeRead: true  // Filtering to show only unread sessions
 			});
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -481,7 +483,7 @@ suite('AgentSessionsDataSource', () => {
 				excludeRead: false  // Not filtering to unread only
 			});
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));

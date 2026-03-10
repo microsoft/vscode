@@ -283,6 +283,7 @@
 .chat-debug-editor-header .viewpane-filter-container {
 	flex: 1;
 	max-width: 500px;
+	margin-right: auto;
 }
 .chat-debug-editor-header .viewpane-filter-container .monaco-inputbox {
 	border-color: var(--vscode-panelInput-border, transparent) !important;
@@ -292,6 +293,12 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
+}
+.chat-debug-troubleshoot-button.monaco-button {
+	width: auto;
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
 }
 .chat-debug-view-mode-labels {
 	display: grid;
@@ -526,6 +533,18 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	flex-shrink: 0;
+}
+.chat-debug-file-list-group-header {
+	margin-top: 4px;
+	padding: 2px 4px;
+	color: var(--vscode-descriptionForeground);
+}
+.chat-debug-file-list-group-header:first-child {
+	margin-top: 0;
+}
+.chat-debug-file-list-group-label {
+	font-weight: 600;
+	font-size: 11px;
 }
 .chat-debug-file-list-icon {
 	flex-shrink: 0;

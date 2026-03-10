@@ -31,7 +31,65 @@
 	overflow: hidden;
 }
 
+/* Folder picker footer (sessions window only) */
+.ai-customization-management-editor .sidebar-folder-picker {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	padding: 6px 4px;
+	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
+}
 
+.ai-customization-management-editor .folder-picker-button {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: 1;
+	min-width: 0;
+	padding: 4px 6px;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	font-size: 11px;
+}
+
+.ai-customization-management-editor .folder-picker-button:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.ai-customization-management-editor .folder-picker-icon {
+	flex-shrink: 0;
+	font-size: 14px;
+}
+
+.ai-customization-management-editor .folder-picker-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .folder-picker-clear {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.ai-customization-management-editor .folder-picker-clear:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
 
 /* Section list items */
 .ai-customization-management-editor .section-list-item {
@@ -108,7 +166,7 @@
 	align-items: center;
 	gap: 8px;
 	flex-shrink: 0;
-	margin: 6px 0px;
+	padding: 6px 0;
 }
 
 .ai-customization-list-widget .list-search-container,
@@ -137,7 +195,8 @@
 
 .ai-customization-list-widget .list-container {
 	flex: 1;
-	overflow: hidden;
+	min-height: 0;
+	overflow: auto;
 }
 
 .ai-customization-list-widget .list-empty-message {
@@ -193,11 +252,9 @@
 	border-radius: 4px;
 }
 
-/* Separator line above non-first group headers */
+/* Spacing above non-first group headers */
 .ai-customization-group-header.has-previous-group {
-	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
 	margin-top: 4px;
-	padding-top: 12px;
 }
 
 .ai-customization-group-header:hover {
@@ -499,6 +556,7 @@
 /* Content container visibility */
 .ai-customization-management-editor .prompts-content-container,
 .ai-customization-management-editor .mcp-content-container,
+.ai-customization-management-editor .plugin-content-container,
 .ai-customization-management-editor .models-content-container {
 	height: 100%;
 	display: flex;
@@ -513,6 +571,18 @@
 }
 
 .ai-customization-management-editor .mcp-detail-editor-container {
+	flex: 1;
+	overflow: hidden;
+}
+
+/* Embedded plugin detail view */
+.ai-customization-management-editor .plugin-detail-container {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.ai-customization-management-editor .plugin-detail-editor-container {
 	flex: 1;
 	overflow: hidden;
 }
@@ -590,7 +660,8 @@
 
 .mcp-list-widget .mcp-list-container {
 	flex: 1;
-	overflow: hidden;
+	min-height: 0;
+	overflow: auto;
 }
 
 /* MCP Empty State */
@@ -632,15 +703,21 @@
 .mcp-server-item {
 	display: flex;
 	align-items: center;
-	padding: 8px 12px;
+	padding: 6px 8px 6px 24px;
 	cursor: pointer;
 	border-radius: 4px;
 	margin: 2px 0;
-	gap: 12px;
+	min-height: 32px;
+	gap: 10px;
 }
 
 .mcp-server-item:hover {
 	background-color: var(--vscode-list-hoverBackground);
+}
+
+.mcp-server-item.builtin {
+	cursor: default;
+	opacity: 0.85;
 }
 
 .mcp-server-item .mcp-server-icon {
@@ -663,10 +740,10 @@
 
 .mcp-server-item .mcp-server-name {
 	font-size: 13px;
-	font-weight: 500;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	line-height: 18px;
 }
 
 .mcp-server-item .mcp-server-description {
@@ -675,6 +752,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	line-height: 14px;
 }
 
 .mcp-server-item .mcp-server-status {
@@ -701,6 +779,15 @@
 }
 
 .mcp-server-item .mcp-server-status.stopped {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.mcp-server-item.disabled {
+	opacity: 0.5;
+}
+
+.mcp-server-item .mcp-server-status.disabled {
 	background-color: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
 }
@@ -750,6 +837,19 @@
 
 .mcp-gallery-item .mcp-gallery-action {
 	flex-shrink: 0;
+}
+
+.mcp-gallery-item.extension-list-item {
+	padding: 6px 8px 6px 16px;
+}
+
+.mcp-gallery-item.extension-list-item > .details > .footer {
+	display: flex;
+	align-items: center;
+}
+
+.mcp-gallery-item.extension-list-item .mcp-gallery-action {
+	margin-left: auto;
 }
 
 .mcp-gallery-item .mcp-gallery-install-button {

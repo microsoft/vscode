@@ -38,7 +38,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMcpServerContainer, IMcpServerEditorOptions, IMcpWorkbenchService, IWorkbenchMcpServer, McpServerContainers, McpServerInstallState } from '../common/mcpTypes.js';
 import { StarredWidget, McpServerIconWidget, McpServerStatusWidget, McpServerWidget, onClick, PublisherWidget, McpServerScopeBadgeWidget, LicenseWidget } from './mcpServerWidgets.js';
-import { ButtonWithDropDownExtensionAction, ButtonWithDropdownExtensionActionViewItem, DropDownAction, InstallAction, InstallingLabelAction, InstallInRemoteAction, InstallInWorkspaceAction, ManageMcpServerAction, McpServerStatusAction, UninstallAction } from './mcpServerActions.js';
+import { ButtonWithDropDownExtensionAction, ButtonWithDropdownExtensionActionViewItem, DisableMcpDropDownAction, DropDownAction, EnableMcpDropDownAction, InstallAction, InstallingLabelAction, InstallInRemoteAction, InstallInWorkspaceAction, ManageMcpServerAction, McpServerStatusAction, UninstallAction } from './mcpServerActions.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { ILocalMcpServer, IGalleryMcpServerConfiguration, IMcpServerPackage, IMcpServerKeyValueInput, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -251,6 +251,8 @@ export class McpServerEditor extends EditorPane {
 					this.instantiationService.createInstance(InstallInRemoteAction, false)
 				]
 			]),
+			this.instantiationService.createInstance(EnableMcpDropDownAction),
+			this.instantiationService.createInstance(DisableMcpDropDownAction),
 			this.instantiationService.createInstance(ManageMcpServerAction, true),
 		];
 

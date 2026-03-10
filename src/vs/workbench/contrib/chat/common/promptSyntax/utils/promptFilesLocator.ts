@@ -9,10 +9,10 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import * as nls from '../../../../../../nls.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { getPromptFileLocationsConfigKey, isTildePath, PromptsConfig } from '../config/config.js';
-import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
+import { basename, dirname, isEqual, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource, isInClaudeRulesFolder } from '../config/promptFileLocations.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
 import { PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -25,6 +25,11 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
+
+/**
+ * Maximum recursion depth when traversing subdirectories for instruction files.
+ */
+const MAX_INSTRUCTIONS_RECURSION_DEPTH = 5;
 
 /**
  * Utility class to locate prompt files.
@@ -492,14 +497,23 @@ export class PromptFilesLocator {
 
 	/**
 	 * Uses the file service to resolve the provided location and return either the file at the location of files in the directory.
-	 * For claude rules folders (.claude/rules), this searches recursively to support subdirectories.
+	 * For instruction folders, this searches recursively (up to {@link MAX_INSTRUCTIONS_RECURSION_DEPTH} levels deep) provided
+	 * the location is not a workspace folder root and does not contain wildcards, to support subdirectories while avoiding
+	 * accidentally broad traversal.
 	 */
-	private async resolveFilesAtLocation(location: URI, type: PromptsType, token: CancellationToken): Promise<URI[]> {
+	private async resolveFilesAtLocation(location: URI, type: PromptsType, token: CancellationToken, depth: number = 0): Promise<URI[]> {
 		if (type === PromptsType.skill) {
 			return this.findAgentSkillsInFolder(location, token);
 		}
-		// Claude rules folders support subdirectories, so search recursively
-		const recursive = type === PromptsType.instructions && isInClaudeRulesFolder(joinPath(location, 'dummy.md'));
+		// Recurse into subdirectories for instruction folders, but only if:
+		// - the location is not a workspace folder root (to avoid full workspace traversal)
+		// - the path does not contain wildcards (already filtered upstream, but guard here too)
+		// - the recursion depth hasn't exceeded the limit
+		const isWorkspaceRoot = depth === 0 && this.getWorkspaceFolders().some(f => isEqual(f.uri, location));
+		const recursive = type === PromptsType.instructions
+			&& !isWorkspaceRoot
+			&& !hasGlobPattern(location.path)
+			&& depth < MAX_INSTRUCTIONS_RECURSION_DEPTH;
 		try {
 			const info = await this.fileService.resolve(location);
 			if (token.isCancellationRequested) {
@@ -513,8 +527,8 @@ export class PromptFilesLocator {
 					if (child.isFile) {
 						result.push(child.resource);
 					} else if (recursive && child.isDirectory) {
-						// Recursively search subdirectories for claude rules
-						const subFiles = await this.resolveFilesAtLocation(child.resource, type, token);
+						// Recursively search subdirectories for instructions
+						const subFiles = await this.resolveFilesAtLocation(child.resource, type, token, depth + 1);
 						result.push(...subFiles);
 					}
 				}

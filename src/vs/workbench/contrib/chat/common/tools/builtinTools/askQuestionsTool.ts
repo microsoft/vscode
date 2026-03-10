@@ -8,11 +8,13 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
-import { IChatQuestion, IChatService } from '../../chatService/chatService.js';
+import { IChatQuestion, IChatQuestionAnswers, IChatQuestionAnswerValue, IChatMultiSelectAnswer, IChatService, IChatSingleSelectAnswer } from '../../chatService/chatService.js';
 import { ChatQuestionCarouselData } from '../../model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatRequestModel } from '../../model/chatModel.js';
+import { ChatPermissionLevel } from '../../constants.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -21,6 +23,12 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { raceCancellation } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
+
+/**
+ * Response returned to the model when the user is not available (autopilot mode).
+ */
+export const AUTOPILOT_ASK_USER_RESPONSE =
+	'The user is not available to respond and will review your work later. Work autonomously and make good decisions.';
 
 // Use a distinct id to avoid clashing with extension-provided tools
 export const AskQuestionsToolId = 'vscode_askQuestions';
@@ -187,6 +195,17 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 			return this.createSkippedResult(questions);
 		}
 
+		// In autopilot mode, the user is not available — auto-respond instead of blocking.
+		// Still append a completed carousel so the user can see the auto-selected answers.
+		if (request.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot) {
+			this.logService.info('[AskQuestionsTool] Autopilot mode: auto-responding to questions');
+			const { carousel, idToHeaderMap } = this.toQuestionCarousel(questions);
+			carousel.data = this.buildAutopilotCarouselAnswers(questions, carousel, idToHeaderMap);
+			carousel.isUsed = true;
+			this.chatService.appendProgress(request, carousel);
+			return this.createAutopilotResult(questions);
+		}
+
 		const { carousel, idToHeaderMap } = this.toQuestionCarousel(questions);
 		this.chatService.appendProgress(request, carousel);
 
@@ -318,7 +337,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		};
 	}
 
-	protected convertCarouselAnswers(questions: IQuestion[], carouselAnswers: Record<string, unknown> | undefined, idToHeaderMap: Map<string, string>): IAnswerResult {
+	protected convertCarouselAnswers(questions: IQuestion[], carouselAnswers: IChatQuestionAnswers | undefined, idToHeaderMap: Map<string, string>): IAnswerResult {
 		const result: IAnswerResult = { answers: {} };
 
 		if (carouselAnswers) {
@@ -344,7 +363,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 
 			// Look up the answer using the internal ID that was used in the carousel
 			const internalId = headerToIdMap.get(question.header);
-			const answer = internalId ? carouselAnswers[internalId] : undefined;
+			const answer: IChatQuestionAnswerValue | undefined = internalId ? carouselAnswers[internalId] : undefined;
 			this.logService.trace(`[AskQuestionsTool] Processing question "${question.header}" (internal ID: ${internalId}), raw answer: ${JSON.stringify(answer)}, type: ${typeof answer}`);
 
 			if (answer === undefined) {
@@ -373,67 +392,36 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 					freeText: null,
 					skipped: false
 				};
-			} else if (typeof answer === 'object' && answer !== null) {
-				const answerObj = answer as Record<string, unknown>;
-				const freeformValue = typeof answerObj.freeformValue === 'string' && answerObj.freeformValue ? answerObj.freeformValue : null;
-				const selectedValues = Array.isArray(answerObj.selectedValues) ? answerObj.selectedValues.map(v => String(v)) : undefined;
-				const selectedValue = answerObj.selectedValue;
-				const label = typeof answerObj.label === 'string' ? answerObj.label : undefined;
-
-				if (selectedValues) {
-					result.answers[question.header] = {
-						selected: selectedValues,
-						freeText: freeformValue,
-						skipped: false
-					};
-				} else if (typeof selectedValue === 'string') {
-					if (question.options?.some(opt => opt.label === selectedValue)) {
-						result.answers[question.header] = {
-							selected: [selectedValue],
-							freeText: freeformValue,
-							skipped: false
-						};
-					} else {
-						result.answers[question.header] = {
-							selected: [],
-							freeText: freeformValue ?? selectedValue,
-							skipped: false
-						};
-					}
-				} else if (Array.isArray(selectedValue)) {
-					result.answers[question.header] = {
-						selected: selectedValue.map(v => String(v)),
-						freeText: freeformValue,
-						skipped: false
-					};
-				} else if (selectedValue === undefined || selectedValue === null) {
-					if (freeformValue) {
-						result.answers[question.header] = {
-							selected: [],
-							freeText: freeformValue,
-							skipped: false
-						};
-					} else {
-						result.answers[question.header] = {
-							selected: [],
-							freeText: null,
-							skipped: true
-						};
-					}
-				} else if (freeformValue) {
+			} else if (typeof answer === 'object' && hasKey(answer, { selectedValues: true })) {
+				const { selectedValues, freeformValue } = answer as IChatMultiSelectAnswer;
+				result.answers[question.header] = {
+					selected: selectedValues,
+					freeText: freeformValue ?? null,
+					skipped: false
+				};
+			} else if (typeof answer === 'object' && (hasKey(answer, { selectedValue: true }) || hasKey(answer, { freeformValue: true }))) {
+				const { selectedValue, freeformValue } = answer as IChatSingleSelectAnswer;
+				if (freeformValue) {
 					result.answers[question.header] = {
 						selected: [],
 						freeText: freeformValue,
 						skipped: false
 					};
-				} else if (label) {
-					result.answers[question.header] = {
-						selected: [label],
-						freeText: null,
-						skipped: false
-					};
+				} else if (selectedValue !== undefined) {
+					if (question.options?.some(opt => opt.label === selectedValue)) {
+						result.answers[question.header] = {
+							selected: [selectedValue],
+							freeText: null,
+							skipped: false
+						};
+					} else {
+						result.answers[question.header] = {
+							selected: [],
+							freeText: selectedValue,
+							skipped: false
+						};
+					}
 				} else {
-					this.logService.warn(`[AskQuestionsTool] Unknown answer object format for "${question.header}": ${JSON.stringify(answer)}`);
 					result.answers[question.header] = {
 						selected: [],
 						freeText: null,
@@ -441,7 +429,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 					};
 				}
 			} else {
-				this.logService.warn(`[AskQuestionsTool] Unknown answer format for "${question.header}": ${typeof answer}`);
+				this.logService.warn(`[AskQuestionsTool] Unknown answer format for "${question.header}": ${JSON.stringify(answer)}`);
 				result.answers[question.header] = {
 					selected: [],
 					freeText: null,
@@ -475,6 +463,63 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		return {
 			content: [{ kind: 'text', value: JSON.stringify({ answers: skippedAnswers }) }]
 		};
+	}
+
+	private createAutopilotResult(questions: IQuestion[]): IToolResult {
+		const answers: Record<string, IQuestionAnswer> = {};
+		for (const question of questions) {
+			// Pick the recommended option if available, otherwise pick the first option
+			const recommended = question.options?.find(opt => opt.recommended);
+			const firstOption = question.options?.[0];
+			const selected = recommended?.label ?? firstOption?.label;
+			answers[question.header] = {
+				selected: selected ? [selected] : [],
+				freeText: selected ? null : AUTOPILOT_ASK_USER_RESPONSE,
+				skipped: false,
+			};
+		}
+		return {
+			content: [{ kind: 'text', value: JSON.stringify({ answers } satisfies IAnswerResult) }]
+		};
+	}
+
+	/**
+	 * Build carousel answer data keyed by carousel question IDs for rendering
+	 * the completed summary in the UI during autopilot mode.
+	 */
+	private buildAutopilotCarouselAnswers(questions: IQuestion[], carousel: ChatQuestionCarouselData, idToHeaderMap: Map<string, string>): IChatQuestionAnswers {
+		const data: IChatQuestionAnswers = {};
+		// Build reverse map: original header -> internal carousel question ID
+		const headerToIdMap = new Map<string, string>();
+		for (const [internalId, originalHeader] of idToHeaderMap) {
+			headerToIdMap.set(originalHeader, internalId);
+		}
+
+		for (const question of questions) {
+			const internalId = headerToIdMap.get(question.header);
+			if (!internalId) {
+				continue;
+			}
+
+			const chatQuestion = carousel.questions.find(q => q.id === internalId);
+			if (!chatQuestion) {
+				continue;
+			}
+
+			const recommended = question.options?.find(opt => opt.recommended);
+			const firstOption = question.options?.[0];
+			const selectedLabel = recommended?.label ?? firstOption?.label;
+
+			if (chatQuestion.type === 'text' || !selectedLabel) {
+				data[internalId] = AUTOPILOT_ASK_USER_RESPONSE;
+			} else if (chatQuestion.type === 'multiSelect') {
+				data[internalId] = { selectedValues: [selectedLabel] };
+			} else {
+				data[internalId] = { selectedValue: selectedLabel };
+			}
+		}
+
+		return data;
 	}
 
 	private sendTelemetry(requestId: string | undefined, questionCount: number, answeredCount: number, skippedCount: number, freeTextCount: number, recommendedAvailableCount: number, recommendedSelectedCount: number, duration: number): void {

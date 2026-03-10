@@ -194,6 +194,10 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return WorkbenchState.EMPTY;
 	}
 
+	public hasWorkspaceData(): boolean {
+		return this.getWorkbenchState() !== WorkbenchState.EMPTY;
+	}
+
 	public getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
 		return this.workspace.getFolder(resource);
 	}
@@ -1331,7 +1335,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 	}
 }
 
-class ConfigurationDefaultOverridesContribution extends Disposable implements IWorkbenchContribution {
+export class ConfigurationDefaultOverridesContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.configurationDefaultOverridesContribution';
 
@@ -1376,7 +1380,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 		const defaultConfigurationsPreventingExperimentOverrides = this.configurationRegistry.getRegisteredDefaultConfigurations().filter(configuration => configuration.preventExperimentOverride);
 		for (const property of properties) {
 			const schema = allProperties[property];
-			if (!schema?.experiment) {
+			if (!schema) {
 				continue;
 			}
 			const defaultValueSource: ConfigurationDefaultSource | undefined = schema.defaultValueSource && !(schema.defaultValueSource instanceof Map) ? schema.defaultValueSource : undefined;
@@ -1387,11 +1391,11 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 				continue;
 			}
 			this.processedExperimentalSettings.add(property);
-			if (schema.experiment.mode === 'auto') {
+			if (schema.experimentMode !== 'startup') {
 				this.autoExperimentalSettings.add(property);
 			}
 			try {
-				const value = await this.workbenchAssignmentService.getTreatment(schema.experiment.name ?? `config.${property}`);
+				const value = await this.workbenchAssignmentService.getTreatment(`config.${property}`);
 				if (!isUndefined(value) && !equals(value, schema.default)) {
 					overrides[property] = value;
 				}

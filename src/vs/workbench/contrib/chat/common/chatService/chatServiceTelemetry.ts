@@ -11,7 +11,7 @@ import { ChatRequestModel, IChatRequestVariableData } from '../model/chatModel.j
 import { ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from '../requestParser/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatCopyKind, IChatSendRequestOptions, IChatUserActionEvent } from './chatService.js';
 import { isImageVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentLocation } from '../constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ILanguageModelsService } from '../languageModels.js';
 import { chatSessionResourceToId } from '../model/chatUri.js';
 
@@ -149,6 +149,9 @@ export type ChatProviderInvokedEvent = {
 	enableCommandDetection: boolean;
 	attachmentKinds: string[];
 	model: string | undefined;
+	permissionLevel: ChatPermissionLevel | undefined;
+	chatMode: string | undefined;
+	sessionType: string | undefined;
 };
 
 export type ChatProviderInvokedClassification = {
@@ -167,6 +170,9 @@ export type ChatProviderInvokedClassification = {
 	enableCommandDetection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether participation detection was disabled for this invocation.' };
 	attachmentKinds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The types of variables/attachments that the user included with their query.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model used to generate the response.' };
+	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval permission level selected in the permission picker (default, autoApprove, or autopilot). Undefined when the picker is not applicable (e.g. ask mode or API-driven requests).' };
+	chatMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat mode used for the request. Built-in modes (ask, agent, edit), extension-contributed names (e.g. Plan), or a hashed identifier for user-created custom agents.' };
+	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session type scheme (e.g. vscodeLocalChatSession for local, or remote session scheme).' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -303,6 +309,9 @@ export class ChatRequestTelemetry {
 			numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length,
 			attachmentKinds: this.attachmentKindsForTelemetry(request.variableData),
 			model: this.resolveModelId(this.opts.options?.userSelectedModelId),
+			permissionLevel: this.opts.options?.modeInfo?.kind === ChatModeKind.Ask ? undefined : this.opts.options?.modeInfo?.permissionLevel,
+			chatMode: this.opts.options?.modeInfo?.modeName ?? this.opts.options?.modeInfo?.modeId,
+			sessionType: this.opts.sessionResource.scheme,
 		});
 	}
 

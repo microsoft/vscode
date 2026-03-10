@@ -449,8 +449,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			dispose: () => disposables.dispose(),
 		});
 
-		disposables.add(this._chatSessionsService.registerChatModelChangeListeners(
-			this._chatService,
+		disposables.add(this._chatService.registerChatModelChangeListeners(
 			chatSessionType,
 			() => controller.fireOnDidChangeChatSessionItems()
 		));

@@ -49,6 +49,7 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 
 	constructor(
 		readonly id: string,
+		private readonly windowId: number,
 		@IBrowserViewMainService private readonly browserViewMainService: IBrowserViewMainService,
 		@IBrowserViewCDPProxyServer private readonly cdpProxyServer: IBrowserViewCDPProxyServer,
 	) {
@@ -127,12 +128,12 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		return this.views.values();
 	}
 
-	async createTarget(url: string, browserContextId?: string): Promise<ICDPTarget> {
+	async createTarget(url: string, browserContextId?: string, windowId = this.windowId): Promise<ICDPTarget> {
 		if (browserContextId && !this.knownContextIds.has(browserContextId)) {
 			throw new Error(`Unknown browser context ${browserContextId}`);
 		}
 
-		const target = await this.browserViewMainService.createTarget(url, browserContextId);
+		const target = await this.browserViewMainService.createTarget(url, browserContextId, windowId);
 		if (target instanceof BrowserView) {
 			await this.addView(target.id);
 		}

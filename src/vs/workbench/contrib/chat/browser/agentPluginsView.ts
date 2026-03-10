@@ -5,17 +5,19 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore, IDisposable, isDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, disposeIfDisposable, IDisposable, isDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IPagedModel, PagedModel } from '../../../../base/common/paging.js';
-import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
+import { dirname } from '../../../../base/common/resources.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -25,7 +27,6 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchPagedList } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -35,47 +36,27 @@ import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPan
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewDescriptorService, IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
+import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
+import { manageExtensionIcon } from '../../extensions/browser/extensionsIcons.js';
 import { AbstractExtensionsListView } from '../../extensions/browser/extensionsViews.js';
 import { DefaultViewsContext, extensionsFilterSubMenu, IExtensionsWorkbenchService, SearchAgentPluginsContext } from '../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IAgentPlugin, IAgentPluginService } from '../common/plugins/agentPluginService.js';
+import { isContributionEnabled } from '../common/enablement.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
-import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, MarketplaceType } from '../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
+import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
+import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
+import { getInstalledPluginContextMenuActions, InstallPluginAction, OpenPluginReadmeAction } from './agentPluginActions.js';
 
 export const HasInstalledAgentPluginsContext = new RawContextKey<boolean>('hasInstalledAgentPlugins', false);
 export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.installed';
 
 //#region Item model
 
-const enum AgentPluginItemKind {
-	Installed = 'installed',
-	Marketplace = 'marketplace',
-}
-
-interface IInstalledPluginItem {
-	readonly kind: AgentPluginItemKind.Installed;
-	readonly name: string;
-	readonly description: string;
-	readonly marketplace?: string;
-	readonly plugin: IAgentPlugin;
-}
-
-interface IMarketplacePluginItem {
-	readonly kind: AgentPluginItemKind.Marketplace;
-	readonly name: string;
-	readonly description: string;
-	readonly source: string;
-	readonly marketplace: string;
-	readonly marketplaceReference: IMarketplaceReference;
-	readonly marketplaceType: MarketplaceType;
-	readonly readmeUri?: URI;
-}
-
-type IAgentPluginItem = IInstalledPluginItem | IMarketplacePluginItem;
-
 function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService): IInstalledPluginItem {
-	const name = basename(plugin.uri);
+	const name = plugin.label;
 	const description = plugin.fromMarketplace?.description ?? labelService.getUriLabel(dirname(plugin.uri), { relative: true });
 	const marketplace = plugin.fromMarketplace?.marketplace;
 	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin };
@@ -87,6 +68,7 @@ function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePlugin
 		name: plugin.name,
 		description: plugin.description,
 		source: plugin.source,
+		sourceDescriptor: plugin.sourceDescriptor,
 		marketplace: plugin.marketplace,
 		marketplaceReference: plugin.marketplaceReference,
 		marketplaceType: plugin.marketplaceType,
@@ -98,108 +80,53 @@ function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePlugin
 
 //#region Actions
 
-class InstallPluginAction extends Action {
-	static readonly ID = 'agentPlugin.install';
+class ManagePluginAction extends Action {
+	static readonly ID = 'agentPlugin.manage';
+	static readonly CLASS = `extension-action icon manage ${ThemeIcon.asClassName(manageExtensionIcon)}`;
+
+	private _actionViewItem: DropDownActionViewItem | null = null;
 
 	constructor(
-		private readonly item: IMarketplacePluginItem,
-		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
+		private readonly getActionGroups: () => IAction[][],
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(InstallPluginAction.ID, localize('install', "Install"), 'extension-action label prominent install');
+		super(ManagePluginAction.ID, '', ManagePluginAction.CLASS, true);
+		this.tooltip = localize('manage', "Manage");
+	}
+
+	createActionViewItem(options: IActionViewItemOptions): DropDownActionViewItem {
+		this._actionViewItem = this.instantiationService.createInstance(DropDownActionViewItem, this, options);
+		return this._actionViewItem;
 	}
 
 	override async run(): Promise<void> {
-		await this.pluginInstallService.installPlugin({
-			name: this.item.name,
-			description: this.item.description,
-			version: '',
-			source: this.item.source,
-			marketplace: this.item.marketplace,
-			marketplaceReference: this.item.marketplaceReference,
-			marketplaceType: this.item.marketplaceType,
-			readmeUri: this.item.readmeUri,
-		});
+		this._actionViewItem?.showMenu(this.getActionGroups());
 	}
 }
 
-class EnablePluginAction extends Action {
-	static readonly ID = 'agentPlugin.enable';
-
+class DropDownActionViewItem extends ActionViewItem {
 	constructor(
-		private readonly plugin: IAgentPlugin,
-		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		action: IAction,
+		options: IActionViewItemOptions,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
-		super(EnablePluginAction.ID, localize('enable', "Enable"));
+		super(null, action, { ...options, icon: true, label: false });
 	}
 
-	override async run(): Promise<void> {
-		this.agentPluginService.setPluginEnabled(this.plugin.uri, true);
-	}
-}
-
-class DisablePluginAction extends Action {
-	static readonly ID = 'agentPlugin.disable';
-
-	constructor(
-		private readonly plugin: IAgentPlugin,
-		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
-	) {
-		super(DisablePluginAction.ID, localize('disable', "Disable"));
-	}
-
-	override async run(): Promise<void> {
-		this.agentPluginService.setPluginEnabled(this.plugin.uri, false);
-	}
-}
-
-class UninstallPluginAction extends Action {
-	static readonly ID = 'agentPlugin.uninstall';
-
-	constructor(
-		private readonly plugin: IAgentPlugin,
-		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
-	) {
-		super(UninstallPluginAction.ID, localize('uninstall', "Uninstall"));
-	}
-
-	override async run(): Promise<void> {
-		this.pluginInstallService.uninstallPlugin(this.plugin.uri);
-	}
-}
-
-class OpenPluginFolderAction extends Action {
-	static readonly ID = 'agentPlugin.openFolder';
-
-	constructor(
-		private readonly plugin: IAgentPlugin,
-		@ICommandService private readonly commandService: ICommandService,
-		@IOpenerService private readonly openerService: IOpenerService,
-	) {
-		super(OpenPluginFolderAction.ID, localize('openPluginFolder', "Open Plugin Folder"));
-	}
-
-	override async run(): Promise<void> {
-		try {
-			await this.commandService.executeCommand('revealFileInOS', this.plugin.uri);
-		} catch {
-			// Fallback for web where 'revealFileInOS' is not available
-			await this.openerService.open(dirname(this.plugin.uri));
+	showMenu(actionGroups: IAction[][]): void {
+		if (!this.element) {
+			return;
 		}
-	}
-}
-
-class OpenPluginReadmeAction extends Action {
-	static readonly ID = 'agentPlugin.openReadme';
-
-	constructor(
-		private readonly readmeUri: URI,
-		@IOpenerService private readonly openerService: IOpenerService,
-	) {
-		super(OpenPluginReadmeAction.ID, localize('openReadme', "Open README"));
-	}
-
-	override async run(): Promise<void> {
-		await this.openerService.open(this.readmeUri);
+		const actions = actionGroups.flatMap(group => [...group, new Separator()]);
+		if (actions.length > 0) {
+			actions.pop();
+		}
+		const { left, top, height } = dom.getDomNodePagePosition(this.element);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => ({ x: left, y: top + height + 10 }),
+			getActions: () => actions,
+			onHide: () => disposeIfDisposable(actions),
+		});
 	}
 }
 
@@ -236,7 +163,15 @@ class AgentPluginRenderer implements IPagedRenderer<IAgentPluginItem, IAgentPlug
 		const footer = dom.append(details, dom.$('.footer'));
 		const detailContainer = dom.append(footer, dom.$('.publisher-container'));
 		const detail = dom.append(detailContainer, dom.$('span.publisher-name'));
-		const actionbar = new ActionBar(footer, { focusOnlyEnabledItems: true });
+		const actionbar = new ActionBar(footer, {
+			focusOnlyEnabledItems: true,
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
+				if (action instanceof ManagePluginAction) {
+					return action.createActionViewItem(options);
+				}
+				return undefined;
+			}
+		});
 		actionbar.setFocusable(false);
 		return { root, name, description, detail, actionbar, disposables: [actionbar], elementDisposables: [] };
 	}
@@ -256,7 +191,7 @@ class AgentPluginRenderer implements IPagedRenderer<IAgentPluginItem, IAgentPlug
 		data.description.textContent = element.description;
 
 		data.elementDisposables.push(autorun(reader => {
-			data.root.classList.toggle('disabled', element.kind === AgentPluginItemKind.Installed && !element.plugin.enabled.read(reader));
+			data.root.classList.toggle('disabled', element.kind === AgentPluginItemKind.Installed && !isContributionEnabled(element.plugin.enablement.read(reader)));
 		}));
 
 		data.actionbar.clear();
@@ -267,6 +202,10 @@ class AgentPluginRenderer implements IPagedRenderer<IAgentPluginItem, IAgentPlug
 			data.actionbar.push([installAction], { icon: true, label: true });
 		} else {
 			data.detail.textContent = element.marketplace ?? '';
+			const manageAction = this.instantiationService.createInstance(ManagePluginAction,
+				() => getInstalledPluginContextMenuActions(element.plugin, this.instantiationService));
+			data.elementDisposables.push(manageAction);
+			data.actionbar.push([manageAction], { icon: true, label: false });
 		}
 	}
 
@@ -327,11 +266,15 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this._register(autorun(reader => {
-			this.agentPluginService.plugins.read(reader);
+			const plugins = this.agentPluginService.plugins.read(reader);
+			for (const plugin of plugins) {
+				plugin.enablement.read(reader);
+			}
 			if (this.list && this.isBodyVisible()) {
 				this.refreshOnPluginsChangedScheduler.schedule();
 			}
@@ -378,6 +321,14 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 			}) as WorkbenchPagedList<IAgentPluginItem>);
 
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
+
+		this._register(Event.debounce(Event.filter(this.list.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
+			this.editorService.openEditor(
+				this.instantiationService.createInstance(AgentPluginEditorInput, options.element!),
+				options.editorOptions,
+				MODAL_GROUP
+			);
+		}));
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<IAgentPluginItem>): void {
@@ -397,20 +348,15 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 	}
 
 	private getContextMenuActions(item: IAgentPluginItem): IAction[] {
-		const actions: IAction[] = [];
+		let actions: IAction[];
 		if (item.kind === AgentPluginItemKind.Installed) {
-			if (item.plugin.enabled.get()) {
-				actions.push(this.instantiationService.createInstance(DisablePluginAction, item.plugin));
-			} else {
-				actions.push(this.instantiationService.createInstance(EnablePluginAction, item.plugin));
+			const groups = getInstalledPluginContextMenuActions(item.plugin, this.instantiationService);
+			actions = groups.flatMap(group => [...group, new Separator()]);
+			if (actions.length > 0) {
+				actions.pop();
 			}
-
-			actions.push(new Separator());
-			actions.push(this.instantiationService.createInstance(OpenPluginFolderAction, item.plugin));
-			actions.push(this.instantiationService.createInstance(OpenPluginReadmeAction, joinPath(item.plugin.uri, 'README.md')));
-			actions.push(new Separator());
-			actions.push(this.instantiationService.createInstance(UninstallPluginAction, item.plugin));
 		} else {
+			actions = [];
 			if (item.readmeUri) {
 				actions.push(this.instantiationService.createInstance(OpenPluginReadmeAction, item.readmeUri));
 			}
@@ -457,6 +403,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 					description: m.description,
 					version: '',
 					source: m.source,
+					sourceDescriptor: m.sourceDescriptor,
 					marketplace: m.marketplace,
 					marketplaceReference: m.marketplaceReference,
 					marketplaceType: m.marketplaceType,
@@ -476,8 +423,8 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 	}
 
 	private queryInstalled(): IInstalledPluginItem[] {
-		const allPlugins = this.agentPluginService.allPlugins.get();
-		return allPlugins.map(p => installedPluginToItem(p, this.labelService));
+		const plugins = this.agentPluginService.plugins.get();
+		return plugins.map(p => installedPluginToItem(p, this.labelService));
 	}
 
 	private async queryMarketplace(text: string): Promise<IMarketplacePluginItem[]> {
@@ -552,7 +499,7 @@ export class AgentPluginsViewsContribution extends Disposable implements IWorkbe
 
 		const hasInstalledKey = HasInstalledAgentPluginsContext.bindTo(contextKeyService);
 		this._register(autorun(reader => {
-			hasInstalledKey.set(agentPluginService.allPlugins.read(reader).length > 0);
+			hasInstalledKey.set(agentPluginService.plugins.read(reader).length > 0);
 		}));
 
 		registerAction2(AgentPluginsBrowseCommand);

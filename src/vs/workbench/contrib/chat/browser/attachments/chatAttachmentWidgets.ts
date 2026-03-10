@@ -51,7 +51,7 @@ import { IOpenerService, OpenInternalOptions } from '../../../../../platform/ope
 import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
-import { ResourceContextKey } from '../../../../common/contextkeys.js';
+import { StaticResourceContextKey } from '../../../../common/contextkeys.js';
 import { IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { revealInSideBarCommand } from '../../../files/browser/fileActions.contribution.js';
@@ -158,6 +158,8 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		}));
 		this._register(dom.addStandardDisposableListener(this.element, dom.EventType.KEY_DOWN, e => {
 			if (e.keyCode === KeyCode.Backspace || e.keyCode === KeyCode.Delete) {
+				e.preventDefault();
+				e.stopPropagation();
 				this._onDidDelete.fire(e.browserEvent);
 			}
 		}));
@@ -637,6 +639,16 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, async () => {
 				const chatContextService = this.instantiationService.invokeFunction(accessor => accessor.get(IChatContextService));
 				await chatContextService.executeChatContextItemCommand(contextItemHandle);
+			}));
+		}
+
+		// Handle click for debug events attachments
+		if (attachment.kind === 'debugEvents') {
+			this.element.style.cursor = 'pointer';
+			this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, () => {
+				const d = new Date(attachment.snapshotTime);
+				const filter = `before:${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+				this.commandService.executeCommand('workbench.action.chat.openAgentDebugPanelForSession', attachment.sessionResource, filter);
 			}));
 		}
 
@@ -1388,7 +1400,7 @@ export function hookUpResourceAttachmentDragAndContextMenu(accessor: ServicesAcc
 
 	// Context
 	const scopedContextKeyService = store.add(contextKeyService.createScoped(widget));
-	store.add(setResourceContext(accessor, scopedContextKeyService, resource));
+	setResourceContext(accessor, scopedContextKeyService, resource);
 
 	// Drag and drop
 	widget.draggable = true;
@@ -1427,21 +1439,27 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 		e.dataTransfer?.setDragImage(widget, 0, 0);
 	}));
 
-	// Context menu (context key service created eagerly for keybinding preconditions,
-	// but resource context and provider contexts are initialized lazily on first use)
-	const scopedContextKeyService = store.add(parentContextKeyService.createScoped(widget));
-	chatAttachmentResourceContextKey.bindTo(scopedContextKeyService).set(attachment.value.uri.toString());
-	store.add(setResourceContext(accessor, scopedContextKeyService, attachment.value.uri));
-
+	// Context menu (context key service and resource contexts are initialized lazily on first context menu open)
+	let scopedContextKeyService: IScopedContextKeyService | undefined;
 	let providerContexts: ReadonlyArray<[IContextKey<boolean>, LanguageFeatureRegistry<unknown>]> | undefined;
 
+	const ensureContextKeyService = () => {
+		if (!scopedContextKeyService) {
+			scopedContextKeyService = store.add(parentContextKeyService.createScoped(widget));
+			chatAttachmentResourceContextKey.bindTo(scopedContextKeyService).set(attachment.value.uri.toString());
+			setResourceContext(accessor, scopedContextKeyService, attachment.value.uri);
+		}
+		return scopedContextKeyService;
+	};
+
 	const ensureProviderContexts = () => {
+		const cks = ensureContextKeyService();
 		if (!providerContexts) {
 			providerContexts = [
-				[EditorContextKeys.hasDefinitionProvider.bindTo(scopedContextKeyService), languageFeaturesService.definitionProvider],
-				[EditorContextKeys.hasReferenceProvider.bindTo(scopedContextKeyService), languageFeaturesService.referenceProvider],
-				[EditorContextKeys.hasImplementationProvider.bindTo(scopedContextKeyService), languageFeaturesService.implementationProvider],
-				[EditorContextKeys.hasTypeDefinitionProvider.bindTo(scopedContextKeyService), languageFeaturesService.typeDefinitionProvider],
+				[EditorContextKeys.hasDefinitionProvider.bindTo(cks), languageFeaturesService.definitionProvider],
+				[EditorContextKeys.hasReferenceProvider.bindTo(cks), languageFeaturesService.referenceProvider],
+				[EditorContextKeys.hasImplementationProvider.bindTo(cks), languageFeaturesService.implementationProvider],
+				[EditorContextKeys.hasTypeDefinitionProvider.bindTo(cks), languageFeaturesService.typeDefinitionProvider],
 			];
 		}
 	};
@@ -1463,6 +1481,8 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 		const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
 		dom.EventHelper.stop(domEvent, true);
 
+		const cks = ensureContextKeyService();
+
 		try {
 			await updateContextKeys();
 		} catch (e) {
@@ -1470,10 +1490,10 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 		}
 
 		contextMenuService.showContextMenu({
-			contextKeyService: scopedContextKeyService,
+			contextKeyService: cks,
 			getAnchor: () => event,
 			getActions: () => {
-				const menu = menuService.getMenuActions(contextMenuId, scopedContextKeyService, { arg: attachment.value });
+				const menu = menuService.getMenuActions(contextMenuId, cks, { arg: attachment.value });
 				return getFlatContextMenuActions(menu);
 			},
 		});
@@ -1482,14 +1502,13 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 	return store;
 }
 
-function setResourceContext(accessor: ServicesAccessor, scopedContextKeyService: IScopedContextKeyService, resource: URI) {
+function setResourceContext(accessor: ServicesAccessor, scopedContextKeyService: IScopedContextKeyService, resource: URI): void {
 	const fileService = accessor.get(IFileService);
 	const languageService = accessor.get(ILanguageService);
 	const modelService = accessor.get(IModelService);
 
-	const resourceContextKey = new ResourceContextKey(scopedContextKeyService, fileService, languageService, modelService);
+	const resourceContextKey = new StaticResourceContextKey(scopedContextKeyService, fileService, languageService, modelService);
 	resourceContextKey.set(resource);
-	return resourceContextKey;
 }
 
 function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, menuId: MenuId, arg: unknown, updateContextKeys?: () => Promise<void>): IDisposable {

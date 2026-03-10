@@ -108,7 +108,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 				args: [],
 				env: {},
 				envFile: undefined,
-				cwd: '/test'
+				cwd: '/test',
+				sandbox: undefined
 			}
 		};
 	});
@@ -332,6 +333,42 @@ suite('Workbench - MCP - ServerConnection', () => {
 
 		// Check that the message was logged
 		assert.ok(loggedMessages.some(msg => msg === 'Test log message'));
+
+		connection.dispose();
+		await timeout(10);
+	});
+
+	test('should emit a sandbox network block with the denied host', async () => {
+		const sandboxedDefinition: McpServerDefinition = {
+			...serverDefinition,
+			sandboxEnabled: true,
+		};
+
+		const connection = instantiationService.createInstance(
+			McpServerConnection,
+			collection,
+			sandboxedDefinition,
+			delegate,
+			sandboxedDefinition.launch,
+			new NullLogger(),
+			false,
+			store.add(new McpTaskManager()),
+		);
+		store.add(connection);
+
+		const sandboxBlock = Event.toPromise(connection.onPotentialSandboxBlock);
+		const startPromise = connection.start({});
+
+		transport.simulateLog('No matching config rule, denying: api.example.com:443.');
+		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
+
+		assert.deepStrictEqual(await sandboxBlock, {
+			kind: 'network',
+			message: 'No matching config rule, denying: api.example.com:443.',
+			host: 'api.example.com',
+		});
+
+		await startPromise;
 
 		connection.dispose();
 		await timeout(10);

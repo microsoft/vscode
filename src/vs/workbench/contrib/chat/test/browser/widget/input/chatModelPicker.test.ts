@@ -10,7 +10,6 @@ import { IStringDictionary } from '../../../../../../../base/common/collections.
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
-import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { buildModelPickerItems, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IModelControlEntry } from '../../../../common/languageModels.js';
@@ -48,13 +47,6 @@ function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 	return createModel('auto', 'Auto', 'copilot');
 }
 
-const stubCommandService: ICommandService = {
-	_serviceBrand: undefined,
-	onWillExecuteCommand: () => ({ dispose() { } }),
-	onDidExecuteCommand: () => ({ dispose() { } }),
-	executeCommand: () => Promise.resolve(undefined),
-};
-
 function getActionItems(items: IActionListItem<IActionWidgetDropdownAction>[]): IActionListItem<IActionWidgetDropdownAction>[] {
 	return items.filter(i => i.kind === ActionListItemKind.Action);
 }
@@ -66,6 +58,16 @@ function getActionLabels(items: IActionListItem<IActionWidgetDropdownAction>[]):
 function getSeparatorCount(items: IActionListItem<IActionWidgetDropdownAction>[]): number {
 	return items.filter(i => i.kind === ActionListItemKind.Separator).length;
 }
+
+const stubManageModelsAction: IActionWidgetDropdownAction = {
+	id: 'manageModels',
+	enabled: true,
+	checked: false,
+	class: undefined,
+	tooltip: 'Manage Language Models',
+	label: 'Manage Models...',
+	run: () => { }
+};
 
 function callBuild(
 	models: ILanguageModelChatMetadataAndIdentifier[],
@@ -95,7 +97,7 @@ function callBuild(
 		onSelect,
 		opts.manageSettingsUrl,
 		true,
-		stubCommandService,
+		stubManageModelsAction,
 		entitlementService,
 	);
 }
@@ -470,7 +472,7 @@ suite('buildModelPickerItems', () => {
 			onSelect,
 			undefined,
 			true,
-			stubCommandService,
+			undefined,
 			stubChatEntitlementService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
@@ -552,7 +554,7 @@ suite('buildModelPickerItems', () => {
 			() => { },
 			'https://aka.ms/github-copilot-settings',
 			true,
-			stubCommandService,
+			undefined,
 			stubChatEntitlementService,
 		);
 
@@ -580,7 +582,7 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(unavailable.group?.icon?.id, Codicon.blank.id);
 	});
 
-	test('anonymous user sees upgrade description only on first unavailable model', () => {
+	test('anonymous user sees upgrade description on each unavailable model', () => {
 		const auto = createAutoModel();
 		const items = callBuild([auto], {
 			recentModelIds: ['model-a', 'model-b'],
@@ -596,10 +598,11 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(disabledItems.length, 2);
 		assert.ok(disabledItems[0].description instanceof MarkdownString);
 		assert.ok(disabledItems[0].description.value.includes('Upgrade'));
-		assert.strictEqual(disabledItems[1].description, undefined);
+		assert.ok(disabledItems[1].description instanceof MarkdownString);
+		assert.ok(disabledItems[1].description.value.includes('Upgrade'));
 	});
 
-	test('free user sees upgrade description only on first unavailable model', () => {
+	test('free user sees upgrade description on each unavailable model', () => {
 		const auto = createAutoModel();
 		const items = callBuild([auto], {
 			recentModelIds: ['model-a', 'model-b'],
@@ -614,7 +617,8 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(disabledItems.length, 2);
 		assert.ok(disabledItems[0].description instanceof MarkdownString);
 		assert.ok(disabledItems[0].description.value.includes('Upgrade'));
-		assert.strictEqual(disabledItems[1].description, undefined);
+		assert.ok(disabledItems[1].description instanceof MarkdownString);
+		assert.ok(disabledItems[1].description.value.includes('Upgrade'));
 	});
 
 	test('anonymous user model selection triggers onSelect normally', () => {
@@ -633,7 +637,7 @@ suite('buildModelPickerItems', () => {
 			onSelect,
 			undefined,
 			true,
-			stubCommandService,
+			undefined,
 			anonymousEntitlementService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');

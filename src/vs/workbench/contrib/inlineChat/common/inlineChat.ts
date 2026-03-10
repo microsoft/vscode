@@ -15,7 +15,6 @@ import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../notebook/common/notebookContext
 
 export const enum InlineChatConfigKeys {
 	FinishOnType = 'inlineChat.finishOnType',
-	HoldToSpeech = 'inlineChat.holdToSpeech',
 	/** @deprecated do not read on client */
 	EnableV2 = 'inlineChat.enableV2',
 	notebookAgent = 'inlineChat.notebookAgent',
@@ -33,28 +32,18 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			default: false,
 			type: 'boolean'
 		},
-		[InlineChatConfigKeys.HoldToSpeech]: {
-			description: localize('holdToSpeech', "Whether holding the inline chat keybinding will automatically enable speech recognition."),
-			default: true,
-			type: 'boolean'
-		},
 		[InlineChatConfigKeys.EnableV2]: {
 			description: localize('enableV2', "Whether to use the next version of inline chat."),
 			default: false,
 			type: 'boolean',
 			tags: ['preview'],
-			experiment: {
-				mode: 'auto'
-			}
 		},
 		[InlineChatConfigKeys.notebookAgent]: {
 			markdownDescription: localize('notebookAgent', "Enable agent-like behavior for inline chat widget in notebooks."),
 			default: false,
 			type: 'boolean',
 			tags: ['experimental'],
-			experiment: {
-				mode: 'startup'
-			}
+			experimentMode: 'startup'
 		},
 		[InlineChatConfigKeys.Affordance]: {
 			description: localize('affordance', "Controls whether an inline chat affordance is shown when text is selected."),
@@ -66,9 +55,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('affordance.gutter', "Show an affordance in the gutter."),
 				localize('affordance.editor', "Show an affordance in the editor at the cursor position."),
 			],
-			experiment: {
-				mode: 'auto'
-			},
 			tags: ['experimental']
 		},
 		[InlineChatConfigKeys.RenderMode]: {
@@ -80,18 +66,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('renderMode.zone', "Render inline chat as a zone widget below the current line."),
 				localize('renderMode.hover', "Render inline chat as a hover overlay."),
 			],
-			experiment: {
-				mode: 'auto'
-			},
 			tags: ['experimental']
 		},
 		[InlineChatConfigKeys.FixDiagnostics]: {
 			description: localize('fixDiagnostics', "Controls whether the Fix action is shown for diagnostics in the editor."),
 			default: true,
 			type: 'boolean',
-			experiment: {
-				mode: 'auto'
-			},
 			tags: ['experimental']
 		}
 	}
@@ -130,6 +110,7 @@ export const CTX_INLINE_CHAT_REQUEST_IN_PROGRESS = new RawContextKey<boolean>('i
 export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType>('inlineChatResponseType', InlineChatResponseType.None, localize('inlineChatResponseTypes', "What type was the responses have been receieved, nothing yet, just messages, or messaged and local edits"));
 export const CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT = new RawContextKey<boolean>('inlineChatFileBelongsToChat', false, localize('inlineChatFileBelongsToChat', "Whether the current file belongs to a chat editing session"));
 export const CTX_INLINE_CHAT_PENDING_CONFIRMATION = new RawContextKey<boolean>('inlineChatPendingConfirmation', false, localize('inlineChatPendingConfirmation', "Whether an inline chat request is pending user confirmation"));
+export const CTX_INLINE_CHAT_AFFORDANCE_VISIBLE = new RawContextKey<boolean>('inlineChatAffordanceVisible', false, localize('inlineChatAffordanceVisible', "Whether an inline chat affordance widget is visible"));
 
 export const CTX_INLINE_CHAT_V1_ENABLED = ContextKeyExpr.or(
 	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE)

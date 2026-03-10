@@ -14,8 +14,8 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatModel, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
-import { IChatProgress, IChatService, IChatSessionTiming } from './chatService/chatService.js';
-import { Target } from './promptSyntax/service/promptsService.js';
+import { IChatProgress, IChatSessionTiming } from './chatService/chatService.js';
+import { Target } from './promptSyntax/promptTypes.js';
 
 export const enum ChatSessionStatus {
 	Failed = 0,
@@ -256,7 +256,7 @@ export interface IChatSessionsService {
 	getContentProviderSchemes(): string[];
 
 	registerChatSessionContentProvider(scheme: string, provider: IChatSessionContentProvider): IDisposable;
-	canResolveChatSession(sessionResource: URI): Promise<boolean>;
+	canResolveChatSession(sessionType: string): Promise<boolean>;
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
 	hasAnySessionOptions(sessionResource: URI): boolean;
@@ -298,7 +298,6 @@ export interface IChatSessionsService {
 	readonly onRequestNotifyExtension: Event<IChatSessionOptionsWillNotifyExtensionEvent>;
 	notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): Promise<void>;
 
-	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable;
 	getInProgressSessionDescription(chatModel: IChatModel): string | undefined;
 
 	/**
@@ -306,6 +305,12 @@ export interface IChatSessionsService {
 	 * Returns undefined if the controller doesn't have a handler or if no controller is registered.
 	 */
 	createNewChatSessionItem(chatSessionType: string, request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	/**
+	 * Registers an alias so that session-option lookups by the real resource
+	 * are redirected to the canonical (untitled) resource in the internal session map.
+	 */
+	registerSessionResourceAlias(untitledResource: URI, realResource: URI): void;
 }
 
 export function isSessionInProgressStatus(state: ChatSessionStatus): boolean {

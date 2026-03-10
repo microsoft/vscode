@@ -10,14 +10,14 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IChatHookPart } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
-import { HookType, HOOK_TYPES, HookTypeValue } from '../../../common/promptSyntax/hookSchema.js';
+import { HookType, HOOK_METADATA, HookTypeValue } from '../../../common/promptSyntax/hookTypes.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import './media/chatHookContentPart.css';
 
 function getHookTypeLabel(hookType: HookTypeValue): string {
-	return HOOK_TYPES.find(hook => hook.id === hookType)?.label ?? hookType;
+	return HOOK_METADATA[hookType as HookType]?.label ?? hookType;
 }
 
 export class ChatHookContentPart extends ChatCollapsibleContentPart implements IChatContentPart {

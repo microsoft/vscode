@@ -12,8 +12,6 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { INewSession } from './newSession.js';
-
 const COPILOT_WORKTREE_PATTERN = 'copilot-worktree-';
 const FILTER_THRESHOLD = 10;
 
@@ -31,7 +29,7 @@ interface IBranchItem {
 export class BranchPicker extends Disposable {
 
 	private _selectedBranch: string | undefined;
-	private _newSession: INewSession | undefined;
+	private _preferredBranch: string | undefined;
 	private _branches: string[] = [];
 
 	private readonly _onDidChange = this._register(new Emitter<string | undefined>());
@@ -48,17 +46,17 @@ export class BranchPicker extends Disposable {
 		return this._selectedBranch;
 	}
 
+	/**
+	 * Sets a preferred branch to select when branches are loaded.
+	 */
+	setPreferredBranch(branch: string | undefined): void {
+		this._preferredBranch = branch;
+	}
+
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 	) {
 		super();
-	}
-
-	/**
-	 * Sets the new session that this picker writes to.
-	 */
-	setNewSession(session: INewSession | undefined): void {
-		this._newSession = session;
 	}
 
 	/**
@@ -70,7 +68,7 @@ export class BranchPicker extends Disposable {
 		this._selectedBranch = undefined;
 
 		if (!repository) {
-			this._newSession?.setBranch(undefined);
+			this._onDidChange.fire(undefined);
 			this._setLoading(false);
 			this._updateTriggerLabel();
 			return;
@@ -85,8 +83,11 @@ export class BranchPicker extends Disposable {
 				.filter((name): name is string => !!name)
 				.filter(name => !name.includes(COPILOT_WORKTREE_PATTERN));
 
-			// Select active branch, main, master, or the first branch by default
-			const defaultBranch = this._branches.find(b => b === repository.state.get().HEAD?.name)
+			// Select preferred branch (from draft), active branch, main, master, or the first branch
+			const preferred = this._preferredBranch;
+			this._preferredBranch = undefined;
+			const defaultBranch = (preferred ? this._branches.find(b => b === preferred) : undefined)
+				?? this._branches.find(b => b === repository.state.get().HEAD?.name)
 				?? this._branches.find(b => b === 'main')
 				?? this._branches.find(b => b === 'master')
 				?? this._branches[0];
@@ -185,7 +186,6 @@ export class BranchPicker extends Disposable {
 	private _selectBranch(branch: string): void {
 		if (this._selectedBranch !== branch) {
 			this._selectedBranch = branch;
-			this._newSession?.setBranch(branch);
 			this._onDidChange.fire(branch);
 			this._updateTriggerLabel();
 		}

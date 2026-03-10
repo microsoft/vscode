@@ -14,7 +14,6 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
-import { INewSession } from './newSession.js';
 
 // #region --- Session Target Picker ---
 
@@ -137,7 +136,7 @@ export type IsolationMode = 'worktree' | 'workspace';
 export class IsolationModePicker extends Disposable {
 
 	private _isolationMode: IsolationMode = 'worktree';
-	private _newSession: INewSession | undefined;
+	private _preferredIsolationMode: IsolationMode | undefined;
 	private _repository: IGitRepository | undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<IsolationMode>());
@@ -158,21 +157,17 @@ export class IsolationModePicker extends Disposable {
 	}
 
 	/**
-	 * Sets the pending session that this picker writes to.
-	 */
-	setNewSession(session: INewSession | undefined): void {
-		this._newSession = session;
-	}
-
-	/**
 	 * Sets the git repository. When undefined, worktree option is hidden
 	 * and isolation mode falls back to 'workspace'.
 	 */
 	setRepository(repository: IGitRepository | undefined): void {
 		this._repository = repository;
 		if (repository) {
-			this._setMode('worktree');
+			const preferred = this._preferredIsolationMode;
+			this._preferredIsolationMode = undefined;
+			this._setMode(preferred ?? this._isolationMode);
 		} else if (this._isolationMode === 'worktree') {
+			this._preferredIsolationMode ??= this._isolationMode;
 			this._setMode('workspace');
 		}
 		this._updateTriggerLabel();
@@ -205,6 +200,20 @@ export class IsolationModePicker extends Disposable {
 				this._showPicker();
 			}
 		}));
+	}
+
+	/**
+	 * Sets a preferred isolation mode to apply when a repository is set.
+	 */
+	setPreferredIsolationMode(mode: IsolationMode): void {
+		this._preferredIsolationMode = mode;
+	}
+
+	/**
+	 * Programmatically set the isolation mode.
+	 */
+	setIsolationMode(mode: IsolationMode): void {
+		this._setMode(mode);
 	}
 
 	/**
@@ -263,7 +272,6 @@ export class IsolationModePicker extends Disposable {
 	private _setMode(mode: IsolationMode): void {
 		if (this._isolationMode !== mode) {
 			this._isolationMode = mode;
-			this._newSession?.setIsolationMode(mode);
 			this._onDidChange.fire(mode);
 			this._updateTriggerLabel();
 		}

@@ -17,7 +17,8 @@ import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessi
 
 export enum AgentSessionsGrouping {
 	Capped = 'capped',
-	Date = 'date'
+	Date = 'date',
+	Repository = 'repository'
 }
 
 export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilter> {
@@ -287,7 +288,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 				});
 			}
 			run(): void {
-				that.storeExcludes({ ...DEFAULT_EXCLUDES });
+				that.reset();
 			}
 		}));
 	}
@@ -331,5 +332,9 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	notifyResults(count: number): void {
 		this.options.notifyResults?.(count);
+	}
+
+	reset(): void {
+		this.storeExcludes({ ...DEFAULT_EXCLUDES });
 	}
 }

@@ -1368,7 +1368,7 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 export interface ExtHostLanguageModelsShape {
 	$provideLanguageModelChatInfo(vendor: string, options: ILanguageModelChatInfoOptions, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
-	$startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: { [name: string]: any }, token: CancellationToken): Promise<void>;
+	$startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier | undefined, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: { [name: string]: any }, token: CancellationToken): Promise<void>;
 	$acceptResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponsePart | IChatResponsePart[]>): Promise<void>;
 	$acceptResponseDone(requestId: number, error: SerializedError | undefined): Promise<void>;
 	$provideTokenLength(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number>;
@@ -1614,6 +1614,21 @@ export interface ExtHostChatAgentsShape2 {
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 	$setYieldRequested(requestId: string, value: boolean): void;
 	$acceptActiveChatSession(sessionResource: UriComponents | undefined): void;
+	$acceptCustomAgents(agents: ICustomAgentDto[]): void;
+	$acceptInstructions(instructions: IInstructionDto[]): void;
+	$acceptSkills(skills: ISkillDto[]): void;
+}
+
+export interface ICustomAgentDto {
+	uri: UriComponents;
+}
+
+export interface IInstructionDto {
+	uri: UriComponents;
+}
+
+export interface ISkillDto {
+	uri: UriComponents;
 }
 export interface IChatParticipantMetadata {
 	participant: string;
@@ -2513,6 +2528,7 @@ export interface IChatUsageDto {
 	kind: 'usage';
 	promptTokens: number;
 	completionTokens: number;
+	outputBuffer?: number;
 	promptTokenDetails?: readonly { category: string; label: string; percentageOfPrompt: number }[];
 }
 
@@ -3612,8 +3628,23 @@ export interface GitRefDto {
 	readonly revision: string;
 }
 
+export interface GitChangeDto {
+	readonly uri: UriComponents;
+	readonly originalUri: UriComponents | undefined;
+	readonly modifiedUri: UriComponents | undefined;
+}
+
+export interface GitDiffChangeDto extends GitChangeDto {
+	readonly insertions: number;
+	readonly deletions: number;
+}
+
 export interface GitRepositoryStateDto {
 	readonly HEAD?: GitBranchDto;
+	readonly mergeChanges: readonly GitChangeDto[];
+	readonly indexChanges: readonly GitChangeDto[];
+	readonly workingTreeChanges: readonly GitChangeDto[];
+	readonly untrackedChanges: readonly GitChangeDto[];
 }
 
 export interface GitBranchDto {
@@ -3621,9 +3652,15 @@ export interface GitBranchDto {
 	readonly commit?: string;
 	readonly type: GitRefTypeDto;
 	readonly remote?: string;
+	readonly base?: GitBaseRefDto;
 	readonly upstream?: GitUpstreamRefDto;
 	readonly ahead?: number;
 	readonly behind?: number;
+}
+
+export interface GitBaseRefDto {
+	readonly name: string;
+	readonly isProtected: boolean;
 }
 
 export interface GitUpstreamRefDto {
@@ -3637,6 +3674,7 @@ export interface ExtHostGitExtensionShape {
 	$openRepository(root: UriComponents): Promise<{ handle: number; rootUri: UriComponents; state: GitRepositoryStateDto } | undefined>;
 	$getRefs(handle: number, query: GitRefQueryDto, token?: CancellationToken): Promise<GitRefDto[]>;
 	$getRepositoryState(handle: number): Promise<GitRepositoryStateDto | undefined>;
+	$diffBetweenWithStats(handle: number, ref1: string, ref2: string, path?: string): Promise<GitDiffChangeDto[]>;
 }
 
 // --- proxy identifiers
