@@ -5,7 +5,7 @@ applyTo: 'src/vs/workbench/contrib/chat/browser/aiCustomization/**'
 
 # AI/Chat Customizations
 
-Use [`../skills/ai-chat-customizations/SKILL.md`](../skills/ai-chat-customizations/SKILL.md) for the shared architecture across core VS Code and Agent Sessions. This file stays intentionally lightweight for the core workbench surface.
+Use [`../skills/chat-customizations-editor/SKILL.md`](../skills/chat-customizations-editor/SKILL.md) for the shared architecture across core VS Code and Agent Sessions. This file stays intentionally lightweight for the core workbench surface.
 
 ## Core Structure
 

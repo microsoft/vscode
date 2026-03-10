@@ -1,6 +1,6 @@
 ---
-name: ai-chat-customizations
-description: AI/chat customization architecture for agents, skills, instructions, prompts, hooks, MCP servers, and related UI in core VS Code and Agent Sessions. Use when changing customization discovery, storage scoping, creation flows, or customization surfaces.
+name: chat-customizations-editor
+description: Chat customizations editor architecture for the core VS Code management editor and Agent Sessions customization surfaces. Use when changing customization discovery, storage scoping, creation flows, or customization editor UI.
 ---
 
 Use this skill for anything touching AI/chat customizations. Older spec docs may lag; prefer current code plus this guide.

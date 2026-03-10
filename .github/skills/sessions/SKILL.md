@@ -13,7 +13,7 @@ The `src/vs/sessions/` directory contains authoritative specification documents.
 |----------|------|--------|
 | Layer spec | `src/vs/sessions/README.md` | Layering rules, dependency constraints, folder conventions |
 | Layout spec | `src/vs/sessions/LAYOUT.md` | Grid structure, part positions, sizing, CSS classes, API reference |
-| AI/Chat Customizations | `../ai-chat-customizations/SKILL.md` | Shared guidance for customization discovery, UI, and sessions-specific overrides |
+| Chat Customizations Editor | `../chat-customizations-editor/SKILL.md` | Shared guidance for customization discovery, UI, and sessions-specific overrides |
 | Chat Widget | `src/vs/sessions/browser/widget/AGENTS_CHAT_WIDGET.md` | Chat widget wrapper architecture, deferred session creation, option delivery |
 
 If you modify the implementation, you **must** update the corresponding spec to keep it in sync. Update the Revision History table at the bottom of `LAYOUT.md` with a dated entry.
@@ -295,7 +295,7 @@ Views and contributions that should only appear in the agent sessions window (no
 
 ### 10.4 AI Customization Changes
 
-1. **Read `../ai-chat-customizations/SKILL.md` first** — it covers the shared core/sessions customization architecture
+1. **Read `../chat-customizations-editor/SKILL.md` first** — it covers the shared core/sessions customization architecture
 2. Lean on existing VS Code services (`IPromptsService`, `IMcpService`, `IChatService`)
 3. Browser compatibility required — no Node.js APIs
 4. Active worktree comes from `IActiveSessionService`

@@ -1,6 +1,6 @@
 # AI Customizations
 
-This document is now a lightweight sessions entry point. The shared guidance lives in [`../../../.github/skills/ai-chat-customizations/SKILL.md`](../../../.github/skills/ai-chat-customizations/SKILL.md), which replaces the older spec-style writeup.
+This document is now a lightweight sessions entry point. The shared guidance lives in [`../../../.github/skills/chat-customizations-editor/SKILL.md`](../../../.github/skills/chat-customizations-editor/SKILL.md), which replaces the older spec-style writeup.
 
 ## Sessions-Specific Structure
 
