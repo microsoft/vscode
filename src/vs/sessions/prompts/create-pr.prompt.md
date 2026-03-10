@@ -1,6 +1,7 @@
 ---
 description: Create a pull request for the current session
 ---
+<!-- Customize this built-in prompt by editing it in AI Customization, then click Save to create a workspace or user override. -->
 
 Use the GitHub MCP server to create a pull request — do NOT use the `gh` CLI.
 
