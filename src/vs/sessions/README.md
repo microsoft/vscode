@@ -40,7 +40,7 @@ The `vs/sessions` layer follows the same layering conventions as `vs/workbench`:
 src/vs/sessions/
 ├── README.md                           ← This specification
 ├── LAYOUT.md                           ← Layout specification for the agentic workbench
-├── AI_CUSTOMIZATIONS.md                ← AI customization design document
+├── AI_CUSTOMIZATIONS.md                ← Sessions note pointing to the shared AI/chat customizations skill
 ├── sessions.common.main.ts             ← Common (browser + desktop) entry point
 ├── sessions.desktop.main.ts            ← Desktop entry point
 ├── common/                             ← Shared types and context keys

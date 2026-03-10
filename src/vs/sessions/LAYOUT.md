@@ -482,7 +482,7 @@ The Sessions view is registered in `contrib/sessions/browser/sessions.contributi
 src/vs/sessions/
 ├── README.md                               # Layer specification
 ├── LAYOUT.md                               # This specification
-├── AI_CUSTOMIZATIONS.md                    # AI customization design document
+├── AI_CUSTOMIZATIONS.md                    # Sessions note pointing to the shared AI/chat customizations skill
 ├── sessions.common.main.ts                 # Common entry point (browser + desktop)
 ├── sessions.desktop.main.ts                # Desktop entry point (imports all contributions)
 ├── common/
