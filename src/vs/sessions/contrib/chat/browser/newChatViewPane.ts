@@ -687,7 +687,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			},
 			getModels: () => this._getAvailableModels(),
 			useGroupedModelPicker: () => true,
-			showManageModelsAction: () => true,
+			showManageModelsAction: () => false,
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
