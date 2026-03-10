@@ -503,9 +503,9 @@ function cacheSymbolReference(uri: URI, range: IRange, text: string, valuePromis
 		key: getSymbolReferenceCacheKey(uri, range, text),
 		promise: valuePromise,
 	};
-	symbolReferenceCache.push(entry);
+	symbolReferenceCache.unshift(entry);
 	while (symbolReferenceCache.length > symbolCacheMaxSize) {
-		symbolReferenceCache.shift();
+		symbolReferenceCache.pop();
 	}
 
 	valuePromise.catch(() => {
