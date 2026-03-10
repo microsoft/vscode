@@ -491,12 +491,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
 
-		const providerResults = await this.chatSessionsService.getChatSessionItems(providerFilter, token);
+		const providerResults = this.chatSessionsService.getChatSessionItems(providerFilter, token);
 
 		const resolvedProviders = new Set<string>();
 		const sessions = new ResourceMap<IInternalAgentSession>();
 
-		for (const { chatSessionType, items: providerSessions } of providerResults) {
+		for await (const { chatSessionType, items: providerSessions } of providerResults) {
 			resolvedProviders.add(chatSessionType);
 
 			if (token.isCancellationRequested) {
