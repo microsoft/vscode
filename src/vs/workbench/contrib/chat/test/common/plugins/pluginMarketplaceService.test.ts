@@ -16,6 +16,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IWorkspacePluginSettingsService } from '../../../common/plugins/claudePluginSettings.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 
 suite('PluginMarketplaceService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -159,6 +163,14 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: new Emitter<boolean>().event,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}

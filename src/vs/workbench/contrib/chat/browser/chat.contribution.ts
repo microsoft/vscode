@@ -149,7 +149,9 @@ import { AgentPluginService, ConfiguredAgentPluginDiscovery, MarketplaceAgentPlu
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
+import { WorkspacePluginSettingsService, IWorkspacePluginSettingsService } from '../common/plugins/claudePluginSettings.js';
 import { AgentPluginsViewsContribution } from './agentPluginsView.js';
+import { AgentPluginRecommendations } from './claudePluginRecommendations.js';
 import { AgentPluginEditor } from './agentPluginEditor/agentPluginEditor.js';
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
 import { AgentPluginRepositoryService } from './agentPluginRepositoryService.js';
@@ -1766,6 +1768,7 @@ registerWorkbenchContribution2(PromptLanguageFeaturesProvider.ID, PromptLanguage
 registerWorkbenchContribution2(ChatWindowNotifier.ID, ChatWindowNotifier, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatRepoInfoContribution.ID, ChatRepoInfoContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(AgentPluginsViewsContribution.ID, AgentPluginsViewsContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentPluginRecommendations.ID, AgentPluginRecommendations, WorkbenchPhase.Eventually);
 
 registerChatActions();
 registerChatAccessibilityActions();
@@ -1812,6 +1815,7 @@ registerSingleton(IChatAgentNameService, ChatAgentNameService, InstantiationType
 registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType.Delayed);
 registerSingleton(IAgentPluginService, AgentPluginService, InstantiationType.Delayed);
 registerSingleton(IPluginMarketplaceService, PluginMarketplaceService, InstantiationType.Delayed);
+registerSingleton(IWorkspacePluginSettingsService, WorkspacePluginSettingsService, InstantiationType.Delayed);
 registerSingleton(IAgentPluginRepositoryService, AgentPluginRepositoryService, InstantiationType.Delayed);
 registerSingleton(IPluginInstallService, PluginInstallService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelToolsService, LanguageModelToolsService, InstantiationType.Delayed);
