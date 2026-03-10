@@ -306,8 +306,9 @@
 	flex-shrink: 0;
 	font-size: 10px;
 	font-weight: 500;
-	color: var(--vscode-descriptionForeground);
-	opacity: 0.8;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	opacity: 0.6;
 	padding: 0 5px;
 	border-radius: 8px;
 	min-width: 14px;
@@ -557,8 +558,9 @@
 	font-size: 9px;
 	font-weight: 500;
 	padding: 1px 5px;
-	color: var(--vscode-descriptionForeground);
-	opacity: 0.8;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	opacity: 0.6;
 	border-radius: 8px;
 	min-width: 14px;
 	text-align: center;
