@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Liquid Module Types - Pure type surface for the Phonon Module Manifest System.
+ * Liquid Graft Types - Pure type surface for the Phonon Module Manifest System.
  *
  * Relationship graph:
  *   Contribution types (raw from package.json)
@@ -45,26 +45,28 @@ export interface ILiquidViewContribution {
 	readonly mode: 'structured' | 'canvas';
 	/** Entity this view is bound to. Omitted for entity-agnostic views. */
 	readonly entity?: string;
+	/** Default graft IDs to compose when this view is selected. */
+	readonly defaultGrafts?: readonly string[];
 }
 
-/** Category classifying a molecule's UI purpose. */
+/** Category classifying a graft's UI purpose. */
 export type ComponentCategory = 'stat' | 'table' | 'detail' | 'chart' | 'form' | 'list';
 
 /**
- * Molecule contribution from an extension's package.json.
- * A molecule is a sandboxed HTML webview: any language, any framework.
+ * Graft contribution from an extension's package.json.
+ * A graft is a sandboxed HTML webview: any language, any framework.
  * The `entry` path points to an HTML file loaded in an iframe.
  */
-export interface ILiquidMoleculeContribution {
+export interface ILiquidGraftContribution {
 	readonly id: string;
 	readonly label: string;
 	/** Human-readable description for AI and developer tooling. */
 	readonly description?: string;
-	/** Relative path to the molecule's HTML entry file within the extension. */
+	/** Relative path to the graft's HTML entry file within the extension. */
 	readonly entry: string;
-	/** Entity this molecule displays data for. */
+	/** Entity this graft displays data for. */
 	readonly entity?: string;
-	/** Business domain this molecule belongs to (e.g. "inventory", "orders", "analytics"). */
+	/** Business domain this graft belongs to (e.g. "inventory", "orders", "analytics"). */
 	readonly domain?: string;
 	/** UI purpose category. */
 	readonly category?: ComponentCategory;
@@ -72,10 +74,12 @@ export interface ILiquidMoleculeContribution {
 	readonly tags?: readonly string[];
 	/** Grid layout constraints. */
 	readonly layout?: { readonly minCols?: number; readonly maxCols?: number; readonly minHeight?: number };
-	/** Entity IDs this molecule can visualise. */
+	/** Entity IDs this graft can visualise. */
 	readonly shows?: readonly string[];
-	/** IDs of related molecules or entities for composition hints. */
+	/** IDs of related grafts or entities for composition hints. */
 	readonly relatesTo?: readonly string[];
+	/** Approximate token weight for AI context budgeting. */
+	readonly tokenWeight?: number;
 }
 
 /**
@@ -132,22 +136,24 @@ export interface ILiquidView {
 	readonly mode: 'structured' | 'canvas';
 	/** Entity this view is bound to. Omitted for entity-agnostic views. */
 	readonly entity?: string;
+	/** Default graft IDs to compose when this view is selected via sidebar. */
+	readonly defaultGrafts: readonly string[];
 	readonly extensionId: string;
 }
 
 /**
- * Resolved molecule - entry path resolved to URI, extensionId attached.
+ * Resolved graft - entry path resolved to URI, extensionId attached.
  * The entryUri points to an HTML file that will be loaded in a sandboxed iframe.
  */
-export interface ILiquidMolecule {
+export interface ILiquidGraft {
 	readonly id: string;
 	readonly label: string;
 	/** Human-readable description for AI and developer tooling. */
 	readonly description: string;
-	/** Fully resolved URI to the molecule's HTML entry file. */
+	/** Fully resolved URI to the graft's HTML entry file. */
 	readonly entryUri: URI;
 	readonly entity?: string;
-	/** Business domain this molecule belongs to. */
+	/** Business domain this graft belongs to. */
 	readonly domain: string;
 	/** UI purpose category. */
 	readonly category: ComponentCategory;
@@ -155,10 +161,12 @@ export interface ILiquidMolecule {
 	/** Grid layout constraints. */
 	readonly layout: { readonly minCols: number; readonly maxCols: number; readonly minHeight: number };
 	readonly extensionId: string;
-	/** Entity IDs this molecule can visualise. */
+	/** Entity IDs this graft can visualise. */
 	readonly shows: readonly string[];
-	/** IDs of related molecules or entities for composition hints. */
+	/** IDs of related grafts or entities for composition hints. */
 	readonly relatesTo: readonly string[];
+	/** Approximate token weight for AI context budgeting. */
+	readonly tokenWeight: number;
 }
 
 /**
@@ -194,13 +202,13 @@ export interface ILiquidSidebarNode {
 export type CompositionLayout = 'single' | 'split-horizontal' | 'split-vertical' | 'grid' | 'stack';
 
 /**
- * A slot in a composition - one view or molecule instance with optional parameters.
+ * A slot in a composition - one view or graft instance with optional parameters.
  */
 export interface ICompositionSlot {
-	/** View ID for macro views. Mutually exclusive with moleculeId. */
+	/** View ID for macro views. Mutually exclusive with graftId. */
 	readonly viewId?: string;
-	/** Molecule ID for micro-molecules. Mutually exclusive with viewId. */
-	readonly moleculeId?: string;
+	/** Graft ID for micro-grafts. Mutually exclusive with viewId. */
+	readonly graftId?: string;
 	readonly params?: Record<string, unknown>;
 	readonly weight?: number;
 	readonly label?: string;
@@ -241,7 +249,7 @@ export interface ILiquidCapabilitySummary {
 		readonly mode: 'structured' | 'canvas';
 		readonly entity?: string;
 	}[];
-	readonly molecules: readonly {
+	readonly grafts: readonly {
 		readonly id: string;
 		readonly label: string;
 		readonly description: string;

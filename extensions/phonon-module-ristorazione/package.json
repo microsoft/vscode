@@ -15,7 +15,7 @@
 			{ "id": "order", "label": "Ordine", "schema": "./schemas/order.json", "icon": "package" }
 		],
 		"liquidViews": [
-			{ "id": "ristDashboard", "label": "Dashboard", "component": "./views/Dashboard.js", "mode": "canvas" },
+			{ "id": "ristDashboard", "label": "Dashboard", "component": "./views/Dashboard.js", "mode": "canvas", "defaultGrafts": ["rist-food-cost", "rist-orders-incoming", "rist-revenue-today", "rist-inventory-alert"] },
 			{ "id": "ristDishList", "label": "Piatti", "component": "./views/DishList.js", "mode": "canvas", "entity": "dish" },
 			{ "id": "ristSupplierList", "label": "Fornitori", "component": "./views/SupplierList.js", "mode": "canvas", "entity": "supplier" },
 			{ "id": "ristOrderList", "label": "Ordini", "component": "./views/OrderList.js", "mode": "canvas", "entity": "order" }
@@ -23,7 +23,7 @@
 		"liquidDataProviders": [
 			{ "id": "rist-mock", "entities": ["dish", "supplier", "order"], "provider": "./providers/mock" }
 		],
-		"liquidMolecules": [
+		"liquidGrafts": [
 			{
 				"id": "rist-food-cost",
 				"label": "Food Cost",

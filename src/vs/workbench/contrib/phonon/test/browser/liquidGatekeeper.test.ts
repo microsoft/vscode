@@ -8,9 +8,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { LiquidModuleRegistry } from '../../browser/liquidModuleRegistry.js';
 import { validateIntent } from '../../browser/liquidGatekeeper.js';
-import type { ILiquidMolecule } from '../../common/liquidModuleTypes.js';
+import type { ILiquidGraft } from '../../common/liquidGraftTypes.js';
 
-function makeMolecule(overrides: Partial<ILiquidMolecule> & { id: string; label: string; entryUri: URI; extensionId: string }): ILiquidMolecule {
+function makeGraft(overrides: Partial<ILiquidGraft> & { id: string; label: string; entryUri: URI; extensionId: string }): ILiquidGraft {
 	return {
 		description: '',
 		domain: 'general',
@@ -19,6 +19,7 @@ function makeMolecule(overrides: Partial<ILiquidMolecule> & { id: string; label:
 		layout: { minCols: 4, maxCols: 12, minHeight: 150 },
 		shows: [],
 		relatesTo: [],
+		tokenWeight: 0,
 		...overrides,
 	};
 }
@@ -26,7 +27,7 @@ function makeMolecule(overrides: Partial<ILiquidMolecule> & { id: string; label:
 /**
  * Populate a registry with standard test data:
  * - entities: dish, ingredient, supplier
- * - molecules: dishCost (shows dish, ingredient), orderSummary (shows order — no entity for order though)
+ * - grafts: dishCost (shows dish, ingredient), ingredientStock (shows ingredient)
  */
 function seedRegistry(registry: LiquidModuleRegistry): void {
 	registry.updateEntities([
@@ -34,9 +35,9 @@ function seedRegistry(registry: LiquidModuleRegistry): void {
 		{ id: 'ingredient', label: 'Ingrediente', schema: { type: 'object' }, extensionId: 'test' },
 		{ id: 'supplier', label: 'Fornitore', schema: { type: 'object' }, extensionId: 'test' },
 	]);
-	registry.updateMolecules([
-		makeMolecule({ id: 'dishCost', label: 'Dish Cost', entryUri: URI.parse('test://a'), shows: ['dish', 'ingredient'], extensionId: 'test' }),
-		makeMolecule({ id: 'ingredientStock', label: 'Stock', entryUri: URI.parse('test://b'), shows: ['ingredient'], extensionId: 'test' }),
+	registry.updateGrafts([
+		makeGraft({ id: 'dishCost', label: 'Dish Cost', entryUri: URI.parse('test://a'), shows: ['dish', 'ingredient'], extensionId: 'test' }),
+		makeGraft({ id: 'ingredientStock', label: 'Stock', entryUri: URI.parse('test://b'), shows: ['ingredient'], extensionId: 'test' }),
 	]);
 }
 
@@ -178,8 +179,8 @@ suite('LiquidGatekeeper', () => {
 
 	suite('Gate 4 — Existence', () => {
 
-		test('entity exists but no molecule shows it fails', () => {
-			// supplier is a registered entity but no molecule has it in `shows`
+		test('entity exists but no graft shows it fails', () => {
+			// supplier is a registered entity but no graft has it in `shows`
 			const result = validateIntent({ action: 'show', entities: ['supplier'] }, registry);
 			assert.deepStrictEqual(
 				{ valid: result.valid, gate: result.gate, gateName: result.gateName },
@@ -188,12 +189,12 @@ suite('LiquidGatekeeper', () => {
 			assert.ok(result.error!.includes('supplier'));
 		});
 
-		test('entity with molecule passes', () => {
+		test('entity with graft passes', () => {
 			const result = validateIntent({ action: 'show', entities: ['dish'] }, registry);
 			assert.notStrictEqual(result.gate, 4);
 		});
 
-		test('multiple entities all with molecules pass', () => {
+		test('multiple entities all with grafts pass', () => {
 			const result = validateIntent({ action: 'show', entities: ['dish', 'ingredient'] }, registry);
 			assert.notStrictEqual(result.gate, 4);
 		});

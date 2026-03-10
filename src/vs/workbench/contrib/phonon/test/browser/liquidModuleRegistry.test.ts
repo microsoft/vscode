@@ -7,9 +7,9 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { LiquidModuleRegistry } from '../../browser/liquidModuleRegistry.js';
-import type { ILiquidEntity, ILiquidView, ILiquidMolecule, ILiquidDataProvider, ILiquidSidebarNode, ICompositionIntent } from '../../common/liquidModuleTypes.js';
+import type { ILiquidEntity, ILiquidView, ILiquidGraft, ILiquidDataProvider, ILiquidSidebarNode, ICompositionIntent } from '../../common/liquidGraftTypes.js';
 
-function makeMolecule(overrides: Partial<ILiquidMolecule> & { id: string; label: string; entryUri: URI; extensionId: string }): ILiquidMolecule {
+function makeGraft(overrides: Partial<ILiquidGraft> & { id: string; label: string; entryUri: URI; extensionId: string }): ILiquidGraft {
 	return {
 		description: '',
 		domain: 'general',
@@ -18,6 +18,7 @@ function makeMolecule(overrides: Partial<ILiquidMolecule> & { id: string; label:
 		layout: { minCols: 4, maxCols: 12, minHeight: 150 },
 		shows: [],
 		relatesTo: [],
+		tokenWeight: 0,
 		...overrides,
 	};
 }
@@ -55,8 +56,8 @@ suite('LiquidModuleRegistry', () => {
 		store.add(registry.onDidChangeViews(() => { fired = true; }));
 
 		const views: ILiquidView[] = [
-			{ id: 'dishList', label: 'Piatti', componentUri: URI.parse('vscode-resource://ext/views/DishList.js'), mode: 'structured', entity: 'dish', extensionId: 'test.module' },
-			{ id: 'dashboard', label: 'Dashboard', componentUri: URI.parse('vscode-resource://ext/views/Dashboard.js'), mode: 'canvas', extensionId: 'test.module' },
+			{ id: 'dishList', label: 'Piatti', componentUri: URI.parse('vscode-resource://ext/views/DishList.js'), mode: 'structured', entity: 'dish', extensionId: 'test.module', defaultGrafts: [] },
+			{ id: 'dashboard', label: 'Dashboard', componentUri: URI.parse('vscode-resource://ext/views/Dashboard.js'), mode: 'canvas', extensionId: 'test.module', defaultGrafts: [] },
 		];
 		registry.updateViews(views);
 
@@ -80,9 +81,9 @@ suite('LiquidModuleRegistry', () => {
 
 	test('getViewsForEntity returns filtered views', () => {
 		registry.updateViews([
-			{ id: 'dishList', label: 'Piatti', componentUri: URI.parse('test://a'), mode: 'structured', entity: 'dish', extensionId: 'test' },
-			{ id: 'dashboard', label: 'Dashboard', componentUri: URI.parse('test://b'), mode: 'canvas', extensionId: 'test' },
-			{ id: 'dishDetail', label: 'Dettaglio', componentUri: URI.parse('test://c'), mode: 'canvas', entity: 'dish', extensionId: 'test' },
+			{ id: 'dishList', label: 'Piatti', componentUri: URI.parse('test://a'), mode: 'structured', entity: 'dish', extensionId: 'test', defaultGrafts: [] },
+			{ id: 'dashboard', label: 'Dashboard', componentUri: URI.parse('test://b'), mode: 'canvas', extensionId: 'test', defaultGrafts: [] },
+			{ id: 'dishDetail', label: 'Dettaglio', componentUri: URI.parse('test://c'), mode: 'canvas', entity: 'dish', extensionId: 'test', defaultGrafts: [] },
 		]);
 
 		const dishViews = registry.getViewsForEntity('dish');
@@ -98,52 +99,52 @@ suite('LiquidModuleRegistry', () => {
 		assert.strictEqual(registry.getEntitySchema('nonexistent'), undefined);
 	});
 
-	test('getMoleculesForEntity returns molecules bound to the given entity', () => {
-		const molecules: ILiquidMolecule[] = [
-			makeMolecule({ id: 'costMolecule', label: 'Costi', entryUri: URI.parse('test://a'), entity: 'dish', tags: ['cost'], extensionId: 'test' }),
-			makeMolecule({ id: 'stockMolecule', label: 'Giacenze', entryUri: URI.parse('test://b'), entity: 'ingredient', tags: ['stock'], extensionId: 'test' }),
-			makeMolecule({ id: 'dishPhoto', label: 'Foto Piatto', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['media'], extensionId: 'test' }),
-			makeMolecule({ id: 'global', label: 'KPI', entryUri: URI.parse('test://d'), extensionId: 'test' }),
+	test('getGraftsForEntity returns grafts bound to the given entity', () => {
+		const grafts: ILiquidGraft[] = [
+			makeGraft({ id: 'costGraft', label: 'Costi', entryUri: URI.parse('test://a'), entity: 'dish', tags: ['cost'], extensionId: 'test' }),
+			makeGraft({ id: 'stockGraft', label: 'Giacenze', entryUri: URI.parse('test://b'), entity: 'ingredient', tags: ['stock'], extensionId: 'test' }),
+			makeGraft({ id: 'dishPhoto', label: 'Foto Piatto', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['media'], extensionId: 'test' }),
+			makeGraft({ id: 'global', label: 'KPI', entryUri: URI.parse('test://d'), extensionId: 'test' }),
 		];
-		registry.updateMolecules(molecules);
+		registry.updateGrafts(grafts);
 
 		assert.deepStrictEqual(
-			registry.getMoleculesForEntity('dish').map(m => m.id),
-			['costMolecule', 'dishPhoto']
+			registry.getGraftsForEntity('dish').map(m => m.id),
+			['costGraft', 'dishPhoto']
 		);
 		assert.deepStrictEqual(
-			registry.getMoleculesForEntity('ingredient').map(m => m.id),
-			['stockMolecule']
+			registry.getGraftsForEntity('ingredient').map(m => m.id),
+			['stockGraft']
 		);
-		assert.deepStrictEqual(registry.getMoleculesForEntity('nonexistent'), []);
+		assert.deepStrictEqual(registry.getGraftsForEntity('nonexistent'), []);
 	});
 
-	test('getMoleculesByTag returns molecules matching the given tag', () => {
-		const molecules: ILiquidMolecule[] = [
-			makeMolecule({ id: 'costMolecule', label: 'Costi', entryUri: URI.parse('test://a'), entity: 'dish', tags: ['cost', 'analytics'], extensionId: 'test' }),
-			makeMolecule({ id: 'revenueMolecule', label: 'Ricavi', entryUri: URI.parse('test://b'), entity: 'order', tags: ['revenue', 'analytics'], extensionId: 'test' }),
-			makeMolecule({ id: 'dishPhoto', label: 'Foto', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['media'], extensionId: 'test' }),
+	test('getGraftsByTag returns grafts matching the given tag', () => {
+		const grafts: ILiquidGraft[] = [
+			makeGraft({ id: 'costGraft', label: 'Costi', entryUri: URI.parse('test://a'), entity: 'dish', tags: ['cost', 'analytics'], extensionId: 'test' }),
+			makeGraft({ id: 'revenueGraft', label: 'Ricavi', entryUri: URI.parse('test://b'), entity: 'order', tags: ['revenue', 'analytics'], extensionId: 'test' }),
+			makeGraft({ id: 'dishPhoto', label: 'Foto', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['media'], extensionId: 'test' }),
 		];
-		registry.updateMolecules(molecules);
+		registry.updateGrafts(grafts);
 
 		assert.deepStrictEqual(
-			registry.getMoleculesByTag('analytics').map(m => m.id),
-			['costMolecule', 'revenueMolecule']
+			registry.getGraftsByTag('analytics').map(m => m.id),
+			['costGraft', 'revenueGraft']
 		);
 		assert.deepStrictEqual(
-			registry.getMoleculesByTag('media').map(m => m.id),
+			registry.getGraftsByTag('media').map(m => m.id),
 			['dishPhoto']
 		);
-		assert.deepStrictEqual(registry.getMoleculesByTag('nonexistent'), []);
+		assert.deepStrictEqual(registry.getGraftsByTag('nonexistent'), []);
 	});
 
-	test('findByEntity returns molecules that show a given entity', () => {
-		const molecules: ILiquidMolecule[] = [
-			makeMolecule({ id: 'dishCost', label: 'Dish Cost', entryUri: URI.parse('test://a'), entity: 'dish', shows: ['dish', 'ingredient'], extensionId: 'test' }),
-			makeMolecule({ id: 'orderSummary', label: 'Order Summary', entryUri: URI.parse('test://b'), entity: 'order', shows: ['order'], extensionId: 'test' }),
-			makeMolecule({ id: 'supplierDetail', label: 'Supplier', entryUri: URI.parse('test://c'), entity: 'supplier', shows: ['supplier', 'ingredient'], extensionId: 'test' }),
+	test('findByEntity returns grafts that show a given entity', () => {
+		const grafts: ILiquidGraft[] = [
+			makeGraft({ id: 'dishCost', label: 'Dish Cost', entryUri: URI.parse('test://a'), entity: 'dish', shows: ['dish', 'ingredient'], extensionId: 'test' }),
+			makeGraft({ id: 'orderSummary', label: 'Order Summary', entryUri: URI.parse('test://b'), entity: 'order', shows: ['order'], extensionId: 'test' }),
+			makeGraft({ id: 'supplierDetail', label: 'Supplier', entryUri: URI.parse('test://c'), entity: 'supplier', shows: ['supplier', 'ingredient'], extensionId: 'test' }),
 		];
-		registry.updateMolecules(molecules);
+		registry.updateGrafts(grafts);
 
 		assert.deepStrictEqual(
 			registry.findByEntity('ingredient').map(m => m.id),
@@ -156,13 +157,13 @@ suite('LiquidModuleRegistry', () => {
 		assert.deepStrictEqual(registry.findByEntity('nonexistent'), []);
 	});
 
-	test('findByDomain returns molecules in the given domain', () => {
-		const molecules: ILiquidMolecule[] = [
-			makeMolecule({ id: 'costAnalysis', label: 'Cost Analysis', entryUri: URI.parse('test://a'), domain: 'analytics', extensionId: 'test' }),
-			makeMolecule({ id: 'orderList', label: 'Order List', entryUri: URI.parse('test://b'), domain: 'operations', extensionId: 'test' }),
-			makeMolecule({ id: 'revenueChart', label: 'Revenue Chart', entryUri: URI.parse('test://c'), domain: 'analytics', extensionId: 'test' }),
+	test('findByDomain returns grafts in the given domain', () => {
+		const grafts: ILiquidGraft[] = [
+			makeGraft({ id: 'costAnalysis', label: 'Cost Analysis', entryUri: URI.parse('test://a'), domain: 'analytics', extensionId: 'test' }),
+			makeGraft({ id: 'orderList', label: 'Order List', entryUri: URI.parse('test://b'), domain: 'operations', extensionId: 'test' }),
+			makeGraft({ id: 'revenueChart', label: 'Revenue Chart', entryUri: URI.parse('test://c'), domain: 'analytics', extensionId: 'test' }),
 		];
-		registry.updateMolecules(molecules);
+		registry.updateGrafts(grafts);
 
 		assert.deepStrictEqual(
 			registry.findByDomain('analytics').map(m => m.id),
@@ -177,7 +178,7 @@ suite('LiquidModuleRegistry', () => {
 
 	test('validateIntent catches unknown viewId', () => {
 		registry.updateViews([
-			{ id: 'dishList', label: 'Piatti', componentUri: URI.parse('test://a'), mode: 'canvas', extensionId: 'test' },
+			{ id: 'dishList', label: 'Piatti', componentUri: URI.parse('test://a'), mode: 'canvas', extensionId: 'test', defaultGrafts: [] },
 		]);
 
 		const validIntent: ICompositionIntent = {
@@ -195,33 +196,33 @@ suite('LiquidModuleRegistry', () => {
 		assert.ok(result.errors[0].includes('nonexistent'));
 	});
 
-	test('validateIntent accepts valid moleculeId slot', () => {
-		registry.updateMolecules([
-			makeMolecule({ id: 'costMolecule', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], extensionId: 'test' }),
+	test('validateIntent accepts valid graftId slot', () => {
+		registry.updateGrafts([
+			makeGraft({ id: 'costGraft', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], extensionId: 'test' }),
 		]);
 
 		const intent: ICompositionIntent = {
 			layout: 'single',
-			slots: [{ moleculeId: 'costMolecule' }],
+			slots: [{ graftId: 'costGraft' }],
 		};
 		assert.deepStrictEqual(registry.validateIntent(intent), { valid: true, errors: [] });
 	});
 
-	test('validateIntent catches unknown moleculeId', () => {
-		registry.updateMolecules([
-			makeMolecule({ id: 'costMolecule', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], extensionId: 'test' }),
+	test('validateIntent catches unknown graftId', () => {
+		registry.updateGrafts([
+			makeGraft({ id: 'costGraft', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], extensionId: 'test' }),
 		]);
 
 		const intent: ICompositionIntent = {
 			layout: 'single',
-			slots: [{ moleculeId: 'nonexistent' }],
+			slots: [{ graftId: 'nonexistent' }],
 		};
 		const result = registry.validateIntent(intent);
 		assert.ok(!result.valid);
 		assert.ok(result.errors[0].includes('nonexistent'));
 	});
 
-	test('validateIntent rejects slot with neither viewId nor moleculeId', () => {
+	test('validateIntent rejects slot with neither viewId nor graftId', () => {
 		const intent: ICompositionIntent = {
 			layout: 'single',
 			slots: [{}],
@@ -233,7 +234,7 @@ suite('LiquidModuleRegistry', () => {
 
 	test('validateIntent rejects structured-only views', () => {
 		registry.updateViews([
-			{ id: 'dishList', label: 'Piatti', componentUri: URI.parse('test://a'), mode: 'structured', extensionId: 'test' },
+			{ id: 'dishList', label: 'Piatti', componentUri: URI.parse('test://a'), mode: 'structured', extensionId: 'test', defaultGrafts: [] },
 		]);
 
 		const intent: ICompositionIntent = {
@@ -285,34 +286,34 @@ suite('LiquidModuleRegistry', () => {
 		assert.strictEqual(children[2].id, 'suppliers');
 	});
 
-	test('getCapabilities returns summary with molecules', () => {
+	test('getCapabilities returns summary with grafts', () => {
 		registry.updateEntities([
 			{ id: 'dish', label: 'Piatto', schema: { type: 'object', properties: { name: { type: 'string' }, cost: { type: 'number' } } }, extensionId: 'test' },
 		]);
 		registry.updateViews([
-			{ id: 'dishList', label: 'Piatti', componentUri: URI.parse('test://a'), mode: 'structured', entity: 'dish', extensionId: 'test' },
+			{ id: 'dishList', label: 'Piatti', componentUri: URI.parse('test://a'), mode: 'structured', entity: 'dish', extensionId: 'test', defaultGrafts: [] },
 		]);
-		registry.updateMolecules([
-			makeMolecule({ id: 'costMolecule', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], domain: 'analytics', category: 'stat', extensionId: 'test' }),
+		registry.updateGrafts([
+			makeGraft({ id: 'costGraft', label: 'Costi', entryUri: URI.parse('test://c'), entity: 'dish', tags: ['cost'], domain: 'analytics', category: 'stat', extensionId: 'test' }),
 		]);
 
 		const caps = registry.getCapabilities();
 		assert.strictEqual(caps.entities.length, 1);
 		assert.deepStrictEqual(caps.entities[0].fields, ['name', 'cost']);
 		assert.strictEqual(caps.views.length, 1);
-		assert.strictEqual(caps.molecules.length, 1);
-		assert.strictEqual(caps.molecules[0].id, 'costMolecule');
-		assert.deepStrictEqual(caps.molecules[0].tags, ['cost']);
-		assert.strictEqual(caps.molecules[0].domain, 'analytics');
-		assert.strictEqual(caps.molecules[0].category, 'stat');
+		assert.strictEqual(caps.grafts.length, 1);
+		assert.strictEqual(caps.grafts[0].id, 'costGraft');
+		assert.deepStrictEqual(caps.grafts[0].tags, ['cost']);
+		assert.strictEqual(caps.grafts[0].domain, 'analytics');
+		assert.strictEqual(caps.grafts[0].category, 'stat');
 	});
 
-	test('onDidChangeMolecules fires on updateMolecules', () => {
+	test('onDidChangeGrafts fires on updateGrafts', () => {
 		let fired = false;
-		store.add(registry.onDidChangeMolecules(() => { fired = true; }));
+		store.add(registry.onDidChangeGrafts(() => { fired = true; }));
 
-		registry.updateMolecules([
-			makeMolecule({ id: 'test', label: 'Test', entryUri: URI.parse('test://a'), extensionId: 'test' }),
+		registry.updateGrafts([
+			makeGraft({ id: 'test', label: 'Test', entryUri: URI.parse('test://a'), extensionId: 'test' }),
 		]);
 
 		assert.ok(fired);

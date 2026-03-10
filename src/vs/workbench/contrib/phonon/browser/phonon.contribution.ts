@@ -49,6 +49,7 @@ import { ILiquidModuleRegistry } from '../common/liquidModule.js';
 import { LiquidModuleRegistry } from './liquidModuleRegistry.js';
 import { registerLiquidExtensionPointHandlers } from './liquidExtensionPoints.js';
 import { registerLiquidSidebarTreeView } from './liquidSidebarTreeView.js';
+import { ICompositionEngine } from './liquidCompositor.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { registerEditorContribution, EditorContributionInstantiation } from '../../../../editor/browser/editorExtensions.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
@@ -88,6 +89,7 @@ class PhononContribution extends Disposable implements IWorkbenchContribution {
 		@ISpeechService private readonly speechService: ISpeechService,
 		@ILiquidModuleRegistry private readonly liquidModuleRegistry: ILiquidModuleRegistry,
 		@IEditorService private readonly editorService: IEditorService,
+		@ICompositionEngine private readonly compositionEngine: ICompositionEngine,
 	) {
 		super();
 		this._markChatProviderInstalled();
@@ -103,7 +105,7 @@ class PhononContribution extends Disposable implements IWorkbenchContribution {
 		this._wireIntentToCanvas();
 		this._registerPlaywrightTools();
 		registerLiquidExtensionPointHandlers(this.liquidModuleRegistry as LiquidModuleRegistry);
-		const sidebarDataProvider = registerLiquidSidebarTreeView(this.instantiationService, this.liquidModuleRegistry, this.logService);
+		const sidebarDataProvider = registerLiquidSidebarTreeView(this.instantiationService, this.liquidModuleRegistry, this.compositionEngine, this.logService);
 		this._register(sidebarDataProvider.onDidRequestNavigation(async (intent) => {
 			const input = this.instantiationService.createInstance(LiquidCanvasEditorInput);
 			const pane = await this.editorService.openEditor(input, { pinned: false }, ACTIVE_GROUP);

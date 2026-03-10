@@ -12,9 +12,9 @@ import type {
 	ICompositionIntent,
 	ICompositionSlot,
 	CompositionLayout,
-	ILiquidMolecule,
+	ILiquidGraft,
 	ComponentCategory,
-} from '../common/liquidModuleTypes.js';
+} from '../common/liquidGraftTypes.js';
 
 export const ICompositionEngine = createDecorator<ICompositionEngine>('liquidCompositionEngine');
 
@@ -22,14 +22,14 @@ export interface ICompositionEngine {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Deterministic composition from a view's declared defaultMolecules.
+	 * Deterministic composition from a view's declared defaultGrafts.
 	 * Zero AI involvement. Used by sidebar navigation.
 	 */
-	composeFromView(viewId: string, defaultMoleculeIds: readonly string[]): ICompositionIntent | undefined;
+	composeFromView(viewId: string, defaultGraftIds: readonly string[]): ICompositionIntent | undefined;
 
 	/**
 	 * AI-enhanced composition from entity + action.
-	 * Uses pickComponent + category preference to select molecules.
+	 * Uses pickComponent + category preference to select grafts.
 	 * Ported from gestionale compositor logic.
 	 */
 	composeFromIntent(entities: readonly string[], action: string, depth?: number, preferredLayout?: CompositionLayout): ICompositionIntent | undefined;
@@ -67,18 +67,18 @@ export class CompositionEngine extends Disposable implements ICompositionEngine 
 		super();
 	}
 
-	composeFromView(viewId: string, defaultMoleculeIds: readonly string[]): ICompositionIntent | undefined {
-		if (defaultMoleculeIds.length === 0) {
+	composeFromView(viewId: string, defaultGraftIds: readonly string[]): ICompositionIntent | undefined {
+		if (defaultGraftIds.length === 0) {
 			return undefined;
 		}
 
 		const slots: ICompositionSlot[] = [];
-		for (const moleculeId of defaultMoleculeIds) {
-			const molecule = this._registry.molecules.find(m => m.id === moleculeId);
-			if (molecule) {
-				slots.push({ moleculeId: molecule.id, label: molecule.label });
+		for (const graftId of defaultGraftIds) {
+			const graft = this._registry.grafts.find(m => m.id === graftId);
+			if (graft) {
+				slots.push({ graftId: graft.id, label: graft.label });
 			} else {
-				this._logService.warn(`[CompositionEngine] composeFromView: molecule "${moleculeId}" not found in registry, skipping`);
+				this._logService.warn(`[CompositionEngine] composeFromView: graft "${graftId}" not found in registry, skipping`);
 			}
 		}
 
@@ -100,18 +100,18 @@ export class CompositionEngine extends Disposable implements ICompositionEngine 
 	composeFromIntent(entities: readonly string[], action: string, depth: number = 0, preferredLayout?: CompositionLayout): ICompositionIntent | undefined {
 		const clampedDepth = Math.min(Math.max(depth, 0), MAX_DEPTH);
 		const slots: ICompositionSlot[] = [];
-		const seenMoleculeIds = new Set<string>();
+		const seenGraftIds = new Set<string>();
 
-		// Phase 1: pick best molecule for each entity
+		// Phase 1: pick best graft for each entity
 		for (const entity of entities) {
 			if (slots.length >= MAX_SLOTS) {
 				break;
 			}
 			const candidates = this._registry.findByEntity(entity);
 			const picked = this._pickComponent(entity, action, candidates);
-			if (picked && !seenMoleculeIds.has(picked.id)) {
-				seenMoleculeIds.add(picked.id);
-				slots.push({ moleculeId: picked.id, label: picked.label });
+			if (picked && !seenGraftIds.has(picked.id)) {
+				seenGraftIds.add(picked.id);
+				slots.push({ graftId: picked.id, label: picked.label });
 			}
 		}
 
@@ -122,19 +122,19 @@ export class CompositionEngine extends Disposable implements ICompositionEngine 
 				if (slots.length >= MAX_SLOTS) {
 					break;
 				}
-				const molecule = this._registry.molecules.find(m => m.id === slot.moleculeId);
-				if (!molecule) {
+				const graft = this._registry.grafts.find(m => m.id === slot.graftId);
+				if (!graft) {
 					continue;
 				}
-				for (const relatedId of molecule.relatesTo) {
+				for (const relatedId of graft.relatesTo) {
 					if (slots.length >= MAX_SLOTS) {
 						break;
 					}
 					const relatedCandidates = this._registry.findByEntity(relatedId);
 					const relatedPicked = this._pickComponent(relatedId, action, relatedCandidates);
-					if (relatedPicked && !seenMoleculeIds.has(relatedPicked.id)) {
-						seenMoleculeIds.add(relatedPicked.id);
-						slots.push({ moleculeId: relatedPicked.id, label: relatedPicked.label });
+					if (relatedPicked && !seenGraftIds.has(relatedPicked.id)) {
+						seenGraftIds.add(relatedPicked.id);
+						slots.push({ graftId: relatedPicked.id, label: relatedPicked.label });
 					}
 				}
 			}
@@ -155,10 +155,10 @@ export class CompositionEngine extends Disposable implements ICompositionEngine 
 	}
 
 	/**
-	 * Picks the best molecule for a given entity + action from a candidate set.
+	 * Picks the best graft for a given entity + action from a candidate set.
 	 * Sorts by category preference rank, then alphabetical label as tiebreaker.
 	 */
-	private _pickComponent(_entity: string, action: string, candidates: readonly ILiquidMolecule[]): ILiquidMolecule | undefined {
+	private _pickComponent(_entity: string, action: string, candidates: readonly ILiquidGraft[]): ILiquidGraft | undefined {
 		if (candidates.length === 0) {
 			return undefined;
 		}

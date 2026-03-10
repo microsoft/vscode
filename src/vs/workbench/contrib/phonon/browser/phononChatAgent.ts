@@ -353,9 +353,9 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 		const capabilities = this.liquidModuleRegistry.getCapabilities();
 		const hasEntities = capabilities.entities.length > 0;
 		const hasViews = capabilities.views.length > 0;
-		const hasMolecules = capabilities.molecules.length > 0;
+		const hasGrafts = capabilities.grafts.length > 0;
 
-		if (!hasEntities && !hasViews && !hasMolecules) {
+		if (!hasEntities && !hasViews && !hasGrafts) {
 			return base;
 		}
 
@@ -380,10 +380,10 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 			}
 		}
 
-		if (hasMolecules) {
-			sections.push('', '### Available Molecules');
-			sections.push('Molecules are prefabricated UI components in sandboxed iframes. Use moleculeId in composition intents.');
-			for (const mol of capabilities.molecules) {
+		if (hasGrafts) {
+			sections.push('', '### Available Grafts');
+			sections.push('Grafts are prefabricated UI components in sandboxed iframes. Use graftId in composition intents.');
+			for (const mol of capabilities.grafts) {
 				const parts: string[] = [];
 				parts.push(`domain=${mol.domain}`);
 				parts.push(`category=${mol.category}`);
@@ -398,10 +398,10 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 			'',
 			'### Canvas Composition',
 			'When the user asks to see data visually, emit a composition intent.',
-			'Use moleculeId for molecules (preferred for dashboards) or viewId for full views.',
-			'Example with molecules:',
+			'Use graftId for grafts (preferred for dashboards) or viewId for full views.',
+			'Example with grafts:',
 			'```phonon-intent',
-			'{ "layout": "grid", "slots": [{ "moleculeId": "rist-food-cost" }, { "moleculeId": "rist-orders-incoming" }, { "moleculeId": "rist-revenue-today" }] }',
+			'{ "layout": "grid", "slots": [{ "graftId": "rist-food-cost" }, { "graftId": "rist-orders-incoming" }, { "graftId": "rist-revenue-today" }] }',
 			'```',
 			'Example with view:',
 			'```phonon-intent',
@@ -411,7 +411,7 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 			'Do NOT generate HTML. The compositor renders the intent.',
 		);
 
-		// Append active canvas state if a canvas editor is showing molecules
+		// Append active canvas state if a canvas editor is showing grafts
 		const canvasState = this._getActiveCanvasState();
 		if (canvasState) {
 			sections.push('', '## Active Canvas State', canvasState);

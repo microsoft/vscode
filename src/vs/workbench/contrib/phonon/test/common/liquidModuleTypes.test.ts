@@ -9,12 +9,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import type {
 	ILiquidEntityContribution,
 	ILiquidViewContribution,
-	ILiquidMoleculeContribution,
+	ILiquidGraftContribution,
 	ILiquidDataProviderContribution,
 	ILiquidSidebarContribution,
 	ILiquidEntity,
 	ILiquidView,
-	ILiquidMolecule,
+	ILiquidGraft,
 	ILiquidDataProvider,
 	ILiquidSidebarNode,
 	CompositionLayout,
@@ -22,7 +22,7 @@ import type {
 	ICompositionIntent,
 	ILiquidCapabilitySummary,
 	ComponentCategory,
-} from '../../common/liquidModuleTypes.js';
+} from '../../common/liquidGraftTypes.js';
 
 suite('LiquidModuleTypes', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -80,22 +80,22 @@ suite('LiquidModuleTypes', () => {
 		});
 	});
 
-	suite('ILiquidMoleculeContribution', () => {
-		test('accepts molecule with all fields', () => {
-			const contribution: ILiquidMoleculeContribution = {
-				id: 'ristorante.costi-molecule',
+	suite('ILiquidGraftContribution', () => {
+		test('accepts graft with all fields', () => {
+			const contribution: ILiquidGraftContribution = {
+				id: 'ristorante.costi-graft',
 				label: 'Costi',
 				description: 'Analisi costi piatti',
-				entry: './molecules/costi.html',
+				entry: './grafts/costi.html',
 				entity: 'ristorante.ordine',
 				domain: 'analytics',
 				category: 'stat',
 				tags: ['analytics', 'cost'],
 				layout: { minCols: 4, maxCols: 12, minHeight: 150 },
 				shows: ['ristorante.ordine', 'ristorante.costo'],
-				relatesTo: ['ristorante.revenue-molecule'],
+				relatesTo: ['ristorante.revenue-graft'],
 			};
-			assert.strictEqual(contribution.entry, './molecules/costi.html');
+			assert.strictEqual(contribution.entry, './grafts/costi.html');
 			assert.strictEqual(contribution.tags?.length, 2);
 			assert.strictEqual(contribution.category, 'stat');
 			assert.strictEqual(contribution.domain, 'analytics');
@@ -103,11 +103,11 @@ suite('LiquidModuleTypes', () => {
 			assert.strictEqual(contribution.relatesTo?.length, 1);
 		});
 
-		test('accepts minimal molecule without optional fields', () => {
-			const contribution: ILiquidMoleculeContribution = {
-				id: 'ristorante.info-molecule',
+		test('accepts minimal graft without optional fields', () => {
+			const contribution: ILiquidGraftContribution = {
+				id: 'ristorante.info-graft',
 				label: 'Info',
-				entry: './molecules/info.html',
+				entry: './grafts/info.html',
 			};
 			assert.strictEqual(contribution.entity, undefined);
 			assert.strictEqual(contribution.tags, undefined);
@@ -191,19 +191,20 @@ suite('LiquidModuleTypes', () => {
 				mode: 'structured',
 				entity: 'ristorante.tavolo',
 				extensionId: 'phonon.ristorante',
+				defaultGrafts: [],
 			};
 			assert.strictEqual(view.componentUri.scheme, 'file');
 			assert.strictEqual(view.extensionId, 'phonon.ristorante');
 		});
 	});
 
-	suite('ILiquidMolecule', () => {
+	suite('ILiquidGraft', () => {
 		test('holds resolved entryUri and extensionId', () => {
-			const molecule: ILiquidMolecule = {
-				id: 'ristorante.costi-molecule',
+			const graft: ILiquidGraft = {
+				id: 'ristorante.costi-graft',
 				label: 'Costi',
 				description: 'Analisi costi piatti',
-				entryUri: URI.parse('file:///extensions/ristorante/molecules/costi.html'),
+				entryUri: URI.parse('file:///extensions/ristorante/grafts/costi.html'),
 				entity: 'ristorante.ordine',
 				domain: 'analytics',
 				category: 'stat',
@@ -212,20 +213,21 @@ suite('LiquidModuleTypes', () => {
 				extensionId: 'phonon.ristorante',
 				shows: ['ristorante.ordine'],
 				relatesTo: [],
+				tokenWeight: 0,
 			};
-			assert.strictEqual(molecule.entryUri.scheme, 'file');
-			assert.strictEqual(molecule.extensionId, 'phonon.ristorante');
-			assert.strictEqual(molecule.tags.length, 2);
-			assert.strictEqual(molecule.domain, 'analytics');
-			assert.strictEqual(molecule.category, 'stat');
+			assert.strictEqual(graft.entryUri.scheme, 'file');
+			assert.strictEqual(graft.extensionId, 'phonon.ristorante');
+			assert.strictEqual(graft.tags.length, 2);
+			assert.strictEqual(graft.domain, 'analytics');
+			assert.strictEqual(graft.category, 'stat');
 		});
 
-		test('accepts molecule with full layout and relatesTo', () => {
-			const molecule: ILiquidMolecule = {
-				id: 'ristorante.revenue-molecule',
+		test('accepts graft with full layout and relatesTo', () => {
+			const graft: ILiquidGraft = {
+				id: 'ristorante.revenue-graft',
 				label: 'Revenue Analytics',
 				description: 'Revenue analysis dashboard',
-				entryUri: URI.parse('file:///extensions/ristorante/molecules/revenue.html'),
+				entryUri: URI.parse('file:///extensions/ristorante/grafts/revenue.html'),
 				entity: 'ristorante.ordine',
 				domain: 'analytics',
 				category: 'chart',
@@ -233,12 +235,13 @@ suite('LiquidModuleTypes', () => {
 				layout: { minCols: 6, maxCols: 12, minHeight: 300 },
 				extensionId: 'phonon.ristorante',
 				shows: ['ristorante.ordine', 'ristorante.piatto'],
-				relatesTo: ['ristorante.costi-molecule'],
+				relatesTo: ['ristorante.costi-graft'],
+				tokenWeight: 0,
 			};
-			assert.strictEqual(molecule.category, 'chart');
-			assert.strictEqual(molecule.shows.length, 2);
-			assert.strictEqual(molecule.relatesTo.length, 1);
-			assert.strictEqual(molecule.relatesTo[0], 'ristorante.costi-molecule');
+			assert.strictEqual(graft.category, 'chart');
+			assert.strictEqual(graft.shows.length, 2);
+			assert.strictEqual(graft.relatesTo.length, 1);
+			assert.strictEqual(graft.relatesTo[0], 'ristorante.costi-graft');
 		});
 	});
 
@@ -314,18 +317,18 @@ suite('LiquidModuleTypes', () => {
 				label: 'Tavoli Liberi',
 			};
 			assert.strictEqual(slot.viewId, 'ristorante.tavoli-view');
-			assert.strictEqual(slot.moleculeId, undefined);
+			assert.strictEqual(slot.graftId, undefined);
 			assert.strictEqual(slot.weight, 2);
 		});
 
-		test('accepts molecule slot', () => {
+		test('accepts graft slot', () => {
 			const slot: ICompositionSlot = {
-				moleculeId: 'ristorante.costi-molecule',
+				graftId: 'ristorante.costi-graft',
 				weight: 1,
 				label: 'Costi',
 			};
 			assert.strictEqual(slot.viewId, undefined);
-			assert.strictEqual(slot.moleculeId, 'ristorante.costi-molecule');
+			assert.strictEqual(slot.graftId, 'ristorante.costi-graft');
 		});
 
 		test('accepts minimal view slot', () => {
@@ -379,18 +382,18 @@ suite('LiquidModuleTypes', () => {
 					{ id: 'ristorante.tavoli-view', label: 'Tavoli', mode: 'structured', entity: 'ristorante.tavolo' },
 					{ id: 'ristorante.dashboard', label: 'Dashboard', mode: 'canvas' },
 				],
-				molecules: [
-					{ id: 'ristorante.costi-molecule', label: 'Costi', description: 'Cost analysis', entity: 'ristorante.ordine', domain: 'analytics', category: 'stat', tags: ['analytics', 'cost'], shows: ['ristorante.ordine'] },
+				grafts: [
+					{ id: 'ristorante.costi-graft', label: 'Costi', description: 'Cost analysis', entity: 'ristorante.ordine', domain: 'analytics', category: 'stat', tags: ['analytics', 'cost'], shows: ['ristorante.ordine'] },
 				],
 			};
 			assert.strictEqual(summary.modules.length, 1);
 			assert.strictEqual(summary.entities.length, 2);
 			assert.strictEqual(summary.views.length, 2);
 			assert.strictEqual(summary.views[1].entity, undefined);
-			assert.strictEqual(summary.molecules.length, 1);
-			assert.strictEqual(summary.molecules[0].tags.length, 2);
-			assert.strictEqual(summary.molecules[0].domain, 'analytics');
-			assert.strictEqual(summary.molecules[0].category, 'stat');
+			assert.strictEqual(summary.grafts.length, 1);
+			assert.strictEqual(summary.grafts[0].tags.length, 2);
+			assert.strictEqual(summary.grafts[0].domain, 'analytics');
+			assert.strictEqual(summary.grafts[0].category, 'stat');
 		});
 
 		test('accepts empty capability summary', () => {
@@ -398,10 +401,10 @@ suite('LiquidModuleTypes', () => {
 				modules: [],
 				entities: [],
 				views: [],
-				molecules: [],
+				grafts: [],
 			};
 			assert.strictEqual(summary.modules.length, 0);
-			assert.strictEqual(summary.molecules.length, 0);
+			assert.strictEqual(summary.grafts.length, 0);
 		});
 	});
 });

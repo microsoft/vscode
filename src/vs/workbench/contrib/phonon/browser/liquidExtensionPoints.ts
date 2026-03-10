@@ -10,15 +10,15 @@ import { ExtensionsRegistry, type IExtensionPointUser } from '../../../services/
 import type {
 	ILiquidEntityContribution,
 	ILiquidViewContribution,
-	ILiquidMoleculeContribution,
+	ILiquidGraftContribution,
 	ILiquidDataProviderContribution,
 	ILiquidSidebarContribution,
 	ILiquidEntity,
 	ILiquidView,
-	ILiquidMolecule,
+	ILiquidGraft,
 	ILiquidDataProvider,
 	ILiquidSidebarNode,
-} from '../common/liquidModuleTypes.js';
+} from '../common/liquidGraftTypes.js';
 import type { LiquidModuleRegistry } from './liquidModuleRegistry.js';
 
 // ==================== JSON Schemas ====================
@@ -78,12 +78,17 @@ const viewSchema: IJSONSchema = {
 				type: 'string',
 				description: nls.localize('phonon.liquid.view.entity', "Entity this view is bound to. Omit for entity-agnostic views."),
 			},
+			defaultGrafts: {
+				type: 'array',
+				items: { type: 'string' },
+				description: nls.localize('phonon.liquid.view.defaultGrafts', "Default graft IDs to compose when this view is selected."),
+			},
 		},
 	},
 };
 
-const moleculeSchema: IJSONSchema = {
-	description: nls.localize('phonon.liquid.molecule', "Declares a Liquid Module molecule (sandboxed HTML webview)."),
+const graftSchema: IJSONSchema = {
+	description: nls.localize('phonon.liquid.graft', "Declares a Liquid Module graft (sandboxed HTML webview)."),
 	type: 'array',
 	items: {
 		type: 'object',
@@ -91,65 +96,69 @@ const moleculeSchema: IJSONSchema = {
 		properties: {
 			id: {
 				type: 'string',
-				description: nls.localize('phonon.liquid.molecule.id', "Unique identifier for this molecule."),
+				description: nls.localize('phonon.liquid.graft.id', "Unique identifier for this graft."),
 			},
 			label: {
 				type: 'string',
-				description: nls.localize('phonon.liquid.molecule.label', "Human-readable label for this molecule."),
+				description: nls.localize('phonon.liquid.graft.label', "Human-readable label for this graft."),
 			},
 			description: {
 				type: 'string',
-				description: nls.localize('phonon.liquid.molecule.description', "Human-readable description for AI and developer tooling."),
+				description: nls.localize('phonon.liquid.graft.description', "Human-readable description for AI and developer tooling."),
 			},
 			entry: {
 				type: 'string',
-				description: nls.localize('phonon.liquid.molecule.entry', "Relative path to the molecule's HTML entry file within the extension."),
+				description: nls.localize('phonon.liquid.graft.entry', "Relative path to the graft's HTML entry file within the extension."),
 			},
 			entity: {
 				type: 'string',
-				description: nls.localize('phonon.liquid.molecule.entity', "Entity this molecule displays data for."),
+				description: nls.localize('phonon.liquid.graft.entity', "Entity this graft displays data for."),
 			},
 			domain: {
 				type: 'string',
-				description: nls.localize('phonon.liquid.molecule.domain', "Business domain this molecule belongs to (e.g. inventory, orders, analytics)."),
+				description: nls.localize('phonon.liquid.graft.domain', "Business domain this graft belongs to (e.g. inventory, orders, analytics)."),
 			},
 			category: {
 				type: 'string',
 				enum: ['stat', 'table', 'detail', 'chart', 'form', 'list'],
-				description: nls.localize('phonon.liquid.molecule.category', "UI purpose category for this molecule."),
+				description: nls.localize('phonon.liquid.graft.category', "UI purpose category for this graft."),
 			},
 			tags: {
 				type: 'array',
 				items: { type: 'string' },
-				description: nls.localize('phonon.liquid.molecule.tags', "Tags for AI-driven composition (e.g. analytics, cost, dashboard)."),
+				description: nls.localize('phonon.liquid.graft.tags', "Tags for AI-driven composition (e.g. analytics, cost, dashboard)."),
 			},
 			layout: {
 				type: 'object',
-				description: nls.localize('phonon.liquid.molecule.layout', "Grid layout constraints for this molecule."),
+				description: nls.localize('phonon.liquid.graft.layout', "Grid layout constraints for this graft."),
 				properties: {
 					minCols: {
 						type: 'number',
-						description: nls.localize('phonon.liquid.molecule.layout.minCols', "Minimum grid columns (default 4)."),
+						description: nls.localize('phonon.liquid.graft.layout.minCols', "Minimum grid columns (default 4)."),
 					},
 					maxCols: {
 						type: 'number',
-						description: nls.localize('phonon.liquid.molecule.layout.maxCols', "Maximum grid columns (default 12)."),
+						description: nls.localize('phonon.liquid.graft.layout.maxCols', "Maximum grid columns (default 12)."),
 					},
 					minHeight: {
 						type: 'number',
-						description: nls.localize('phonon.liquid.molecule.layout.minHeight', "Minimum height in pixels (default 150)."),
+						description: nls.localize('phonon.liquid.graft.layout.minHeight', "Minimum height in pixels (default 150)."),
 					},
 				},
 			},
 			shows: {
 				type: 'array',
 				items: { type: 'string' },
-				description: nls.localize('phonon.liquid.molecule.shows', "Entity IDs this molecule can visualise."),
+				description: nls.localize('phonon.liquid.graft.shows', "Entity IDs this graft can visualise."),
 			},
 			relatesTo: {
 				type: 'array',
 				items: { type: 'string' },
-				description: nls.localize('phonon.liquid.molecule.relatesTo', "IDs of related molecules or entities for composition hints."),
+				description: nls.localize('phonon.liquid.graft.relatesTo', "IDs of related grafts or entities for composition hints."),
+			},
+			tokenWeight: {
+				type: 'number',
+				description: nls.localize('phonon.liquid.graft.tokenWeight', "Approximate token weight for AI context budgeting."),
 			},
 		},
 	},
@@ -227,9 +236,9 @@ const liquidViewsExtPoint = ExtensionsRegistry.registerExtensionPoint<ILiquidVie
 	jsonSchema: viewSchema,
 });
 
-const liquidMoleculesExtPoint = ExtensionsRegistry.registerExtensionPoint<ILiquidMoleculeContribution[]>({
-	extensionPoint: 'liquidMolecules',
-	jsonSchema: moleculeSchema,
+const liquidGraftsExtPoint = ExtensionsRegistry.registerExtensionPoint<ILiquidGraftContribution[]>({
+	extensionPoint: 'liquidGrafts',
+	jsonSchema: graftSchema,
 });
 
 const liquidDataProvidersExtPoint = ExtensionsRegistry.registerExtensionPoint<ILiquidDataProviderContribution[]>({
@@ -290,6 +299,7 @@ export function registerLiquidExtensionPointHandlers(registry: LiquidModuleRegis
 					componentUri: URI.joinPath(ext.description.extensionLocation, contrib.component),
 					mode: contrib.mode,
 					entity: contrib.entity,
+					defaultGrafts: Object.freeze([...(contrib.defaultGrafts ?? [])]),
 					extensionId,
 				});
 			}
@@ -297,8 +307,8 @@ export function registerLiquidExtensionPointHandlers(registry: LiquidModuleRegis
 		registry.updateViews(resolved);
 	});
 
-	liquidMoleculesExtPoint.setHandler((extensions: readonly IExtensionPointUser<ILiquidMoleculeContribution[]>[]) => {
-		const resolved: ILiquidMolecule[] = [];
+	liquidGraftsExtPoint.setHandler((extensions: readonly IExtensionPointUser<ILiquidGraftContribution[]>[]) => {
+		const resolved: ILiquidGraft[] = [];
 		for (const ext of extensions) {
 			const extensionId = ext.description.identifier.value;
 			for (const contrib of ext.value) {
@@ -315,10 +325,11 @@ export function registerLiquidExtensionPointHandlers(registry: LiquidModuleRegis
 					extensionId,
 					shows: Object.freeze([...(contrib.shows ?? [])]),
 					relatesTo: Object.freeze([...(contrib.relatesTo ?? [])]),
+					tokenWeight: contrib.tokenWeight ?? 0,
 				});
 			}
 		}
-		registry.updateMolecules(resolved);
+		registry.updateGrafts(resolved);
 	});
 
 	liquidDataProvidersExtPoint.setHandler((extensions: readonly IExtensionPointUser<ILiquidDataProviderContribution[]>[]) => {

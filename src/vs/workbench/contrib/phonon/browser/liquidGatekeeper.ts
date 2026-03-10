@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILiquidModuleRegistry } from '../common/liquidModule.js';
-import type { CompositionLayout } from '../common/liquidModuleTypes.js';
+import type { CompositionLayout } from '../common/liquidGraftTypes.js';
 
 /** Allowed actions for intent validation. */
 const ALLOWED_ACTIONS = ['show', 'compare', 'summarize', 'navigate', 'filter'] as const;
@@ -110,12 +110,12 @@ function sanitizeParams(params: Record<string, unknown>, remainingDepth: number)
  * gate that fails stops validation and returns the error immediately.
  *
  * This is a pure function (stateless). It takes the registry as a parameter
- * so it can check entity existence and molecule availability.
+ * so it can check entity existence and graft availability.
  *
  * Gate 1 - Structure: valid object with at least action or entities.
  * Gate 2 - Action: in the allowlist (defaults to 'show' if missing).
  * Gate 3 - Entity: every declared entity exists in the registry.
- * Gate 4 - Existence: at least one molecule can show each requested entity.
+ * Gate 4 - Existence: at least one graft can show each requested entity.
  * Gate 5 - Depth: clamped to [0, MAX_DEPTH].
  * Gate 6 - Layout: preferred layout in the allowlist.
  * Gate 7 - Params: sanitize all parameter values.
@@ -164,9 +164,9 @@ export function validateIntent(intent: unknown, registry: ILiquidModuleRegistry)
 
 	// Gate 4 - Existence
 	for (const entity of entities) {
-		const molecules = registry.findByEntity(entity);
-		if (molecules.length === 0) {
-			return fail(4, 'Existence', `No molecule can show entity: ${entity}`);
+		const grafts = registry.findByEntity(entity);
+		if (grafts.length === 0) {
+			return fail(4, 'Existence', `No graft can show entity: ${entity}`);
 		}
 	}
 

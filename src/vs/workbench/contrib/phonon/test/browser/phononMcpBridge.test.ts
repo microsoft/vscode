@@ -11,10 +11,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { PhononMcpBridge } from '../../browser/phononMcpBridge.js';
 import { LiquidModuleRegistry } from '../../browser/liquidModuleRegistry.js';
-import type { ICompositionIntent, ILiquidMolecule } from '../../common/liquidModuleTypes.js';
+import type { ICompositionIntent, ILiquidGraft } from '../../common/liquidGraftTypes.js';
 import type { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import type { IPhononAgentPoolService } from '../../common/phononAgentPool.js';
 import type { ILiquidModuleRegistry } from '../../common/liquidModule.js';
+import type { ICompositionEngine } from '../../browser/liquidCompositor.js';
 
 function createMockMcpService(): IMcpService {
 	return {
@@ -49,7 +50,7 @@ function createMockAgentPoolService(): IPhononAgentPoolService {
 	} as unknown as IPhononAgentPoolService;
 }
 
-function makeMolecule(overrides: Partial<ILiquidMolecule> & { id: string; label: string; entryUri: URI; extensionId: string }): ILiquidMolecule {
+function makeGraft(overrides: Partial<ILiquidGraft> & { id: string; label: string; entryUri: URI; extensionId: string }): ILiquidGraft {
 	return {
 		description: '',
 		domain: 'general',
@@ -58,11 +59,20 @@ function makeMolecule(overrides: Partial<ILiquidMolecule> & { id: string; label:
 		layout: { minCols: 4, maxCols: 12, minHeight: 150 },
 		shows: [],
 		relatesTo: [],
+		tokenWeight: 0,
 		...overrides,
 	};
 }
 
-function makeIntent(layout: string, slots: Array<{ viewId?: string; moleculeId?: string; params?: Record<string, unknown> }>): ICompositionIntent {
+function createMockCompositionEngine(): ICompositionEngine {
+	return {
+		_serviceBrand: undefined,
+		composeFromView: () => undefined,
+		composeFromIntent: () => undefined,
+	} as unknown as ICompositionEngine;
+}
+
+function makeIntent(layout: string, slots: Array<{ viewId?: string; graftId?: string; params?: Record<string, unknown> }>): ICompositionIntent {
 	return { layout: layout as ICompositionIntent['layout'], slots };
 }
 
@@ -74,10 +84,10 @@ suite('PhononMcpBridge', () => {
 	setup(() => {
 		registry = store.add(new LiquidModuleRegistry());
 		registry.updateViews([
-			{ id: 'testView', label: 'Test', componentUri: URI.parse('file:///test'), mode: 'canvas', entity: 'test', extensionId: 'test' },
+			{ id: 'testView', label: 'Test', componentUri: URI.parse('file:///test'), mode: 'canvas', entity: 'test', extensionId: 'test', defaultGrafts: [] },
 		]);
-		registry.updateMolecules([
-			makeMolecule({ id: 'testMolecule', label: 'Test Molecule', entryUri: URI.parse('file:///molecule.html'), entity: 'test', tags: ['test'], extensionId: 'test' }),
+		registry.updateGrafts([
+			makeGraft({ id: 'testGraft', label: 'Test Graft', entryUri: URI.parse('file:///graft.html'), entity: 'test', tags: ['test'], extensionId: 'test' }),
 		]);
 
 		bridge = store.add(new PhononMcpBridge(
@@ -85,6 +95,7 @@ suite('PhononMcpBridge', () => {
 			createMockMcpService() as IMcpService,
 			createMockAgentPoolService() as IPhononAgentPoolService,
 			registry as ILiquidModuleRegistry,
+			createMockCompositionEngine(),
 		));
 	});
 
@@ -141,7 +152,7 @@ suite('PhononMcpBridge', () => {
 		const received: ICompositionIntent[] = [];
 		store.add(bridge.onDidReceiveIntent(e => received.push(e)));
 
-		const intent = makeIntent('split-horizontal', [{ viewId: 'testView' }, { moleculeId: 'testMolecule' }]);
+		const intent = makeIntent('split-horizontal', [{ viewId: 'testView' }, { graftId: 'testGraft' }]);
 		bridge.processOutput(
 			'```json\n' +
 			JSON.stringify(intent) + '\n' +
@@ -171,7 +182,7 @@ suite('PhononMcpBridge', () => {
 		store.add(bridge.onDidReceiveIntent(e => received.push(e)));
 
 		const phononIntent = makeIntent('single', [{ viewId: 'testView' }]);
-		const jsonIntent = makeIntent('grid', [{ moleculeId: 'testMolecule' }]);
+		const jsonIntent = makeIntent('grid', [{ graftId: 'testGraft' }]);
 		bridge.processOutput(
 			'```phonon-intent\n' +
 			JSON.stringify(phononIntent) + '\n' +
@@ -193,7 +204,7 @@ suite('PhononMcpBridge', () => {
 		const received: ICompositionIntent[] = [];
 		store.add(bridge.onDidReceiveIntent(e => received.push(e)));
 
-		const intent = makeIntent('single', [{ moleculeId: 'testMolecule' }]);
+		const intent = makeIntent('single', [{ graftId: 'testGraft' }]);
 		bridge.processOutput(
 			'I suggest the following composition: ' +
 			JSON.stringify(intent) +
@@ -201,7 +212,7 @@ suite('PhononMcpBridge', () => {
 		);
 
 		assert.strictEqual(received.length, 1);
-		assert.strictEqual(received[0].slots[0].moleculeId, 'testMolecule');
+		assert.strictEqual(received[0].slots[0].graftId, 'testGraft');
 	});
 
 	test('bare JSON is only tried when no fenced blocks found', () => {
@@ -209,7 +220,7 @@ suite('PhononMcpBridge', () => {
 		store.add(bridge.onDidReceiveIntent(e => received.push(e)));
 
 		const fencedIntent = makeIntent('single', [{ viewId: 'testView' }]);
-		const bareIntent = makeIntent('grid', [{ moleculeId: 'testMolecule' }]);
+		const bareIntent = makeIntent('grid', [{ graftId: 'testGraft' }]);
 		bridge.processOutput(
 			'```phonon-intent\n' +
 			JSON.stringify(fencedIntent) + '\n' +
@@ -252,11 +263,11 @@ suite('PhononMcpBridge', () => {
 		assert.strictEqual(received.length, 0);
 	});
 
-	test('intent with existing moleculeId fires', () => {
+	test('intent with existing graftId fires', () => {
 		const received: ICompositionIntent[] = [];
 		store.add(bridge.onDidReceiveIntent(e => received.push(e)));
 
-		const intent = makeIntent('single', [{ moleculeId: 'testMolecule' }]);
+		const intent = makeIntent('single', [{ graftId: 'testGraft' }]);
 		bridge.processOutput(
 			'```phonon-intent\n' +
 			JSON.stringify(intent) + '\n' +
@@ -264,7 +275,7 @@ suite('PhononMcpBridge', () => {
 		);
 
 		assert.strictEqual(received.length, 1);
-		assert.strictEqual(received[0].slots[0].moleculeId, 'testMolecule');
+		assert.strictEqual(received[0].slots[0].graftId, 'testGraft');
 	});
 
 	// ── edge cases ──────────────────────────────────────────────────────
@@ -296,7 +307,7 @@ suite('PhononMcpBridge', () => {
 		store.add(bridge.onDidReceiveIntent(e => received.push(e)));
 
 		const intent1 = makeIntent('single', [{ viewId: 'testView' }]);
-		const intent2 = makeIntent('grid', [{ moleculeId: 'testMolecule' }]);
+		const intent2 = makeIntent('grid', [{ graftId: 'testGraft' }]);
 		bridge.processOutput(
 			'First:\n' +
 			'```phonon-intent\n' +
@@ -352,7 +363,7 @@ suite('PhononMcpBridge', () => {
 		assert.strictEqual(received.length, 0);
 	});
 
-	test('slot with neither viewId nor moleculeId fails validation', () => {
+	test('slot with neither viewId nor graftId fails validation', () => {
 		const received: ICompositionIntent[] = [];
 		store.add(bridge.onDidReceiveIntent(e => received.push(e)));
 
@@ -382,7 +393,7 @@ suite('PhononMcpBridge', () => {
 		const received: ICompositionIntent[] = [];
 		store.add(bridge.onDidReceiveIntent(e => received.push(e)));
 
-		const intent = makeIntent('single', [{ moleculeId: 'testMolecule', params: { filter: { type: 'active' } } }]);
+		const intent = makeIntent('single', [{ graftId: 'testGraft', params: { filter: { type: 'active' } } }]);
 		bridge.processOutput(
 			'Try this composition: ' + JSON.stringify(intent) + ' for the view.'
 		);
@@ -408,6 +419,7 @@ suite('PhononMcpBridge', () => {
 			createMockMcpService() as IMcpService,
 			createMockAgentPoolService() as IPhononAgentPoolService,
 			emptyRegistry as ILiquidModuleRegistry,
+			createMockCompositionEngine(),
 		));
 
 		const received: ICompositionIntent[] = [];

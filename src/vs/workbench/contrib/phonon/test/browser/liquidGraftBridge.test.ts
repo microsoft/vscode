@@ -8,28 +8,28 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import {
-	LiquidMoleculeSlotHost,
-	type IMoleculeWebview,
+	LiquidGraftSlotHost,
+	type IGraftWebview,
 	type ILiquidDataResolver,
-	type MoleculeToHostMessage,
-	type HostToMoleculeMessage,
-} from '../../browser/liquidMoleculeBridge.js';
+	type GraftToHostMessage,
+	type HostToGraftMessage,
+} from '../../browser/liquidGraftBridge.js';
 
 /**
- * Mock IMoleculeWebview -- records posted messages and exposes a fire() helper
- * to simulate messages arriving from the molecule webview.
+ * Mock IGraftWebview -- records posted messages and exposes a fire() helper
+ * to simulate messages arriving from the graft webview.
  */
-class MockMoleculeWebview implements IMoleculeWebview {
-	private readonly _emitter = new Emitter<MoleculeToHostMessage>();
+class MockGraftWebview implements IGraftWebview {
+	private readonly _emitter = new Emitter<GraftToHostMessage>();
 	readonly onDidReceiveMessage = this._emitter.event;
-	readonly posted: HostToMoleculeMessage[] = [];
+	readonly posted: HostToGraftMessage[] = [];
 
-	async postMessage(msg: HostToMoleculeMessage): Promise<boolean> {
+	async postMessage(msg: HostToGraftMessage): Promise<boolean> {
 		this.posted.push(msg);
 		return true;
 	}
 
-	fire(msg: MoleculeToHostMessage): void {
+	fire(msg: GraftToHostMessage): void {
 		this._emitter.fire(msg);
 	}
 
@@ -79,14 +79,14 @@ function tick(): Promise<void> {
 	return new Promise(resolve => queueMicrotask(resolve));
 }
 
-suite('LiquidMoleculeSlotHost', () => {
+suite('LiquidGraftSlotHost', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	let webview: MockMoleculeWebview;
+	let webview: MockGraftWebview;
 	let resolver: MockDataResolver;
 	let logService: NullLogService;
 
 	setup(() => {
-		webview = new MockMoleculeWebview();
+		webview = new MockGraftWebview();
 		resolver = new MockDataResolver();
 		logService = new NullLogService();
 	});
@@ -96,40 +96,40 @@ suite('LiquidMoleculeSlotHost', () => {
 	});
 
 	function createHost(
-		moleculeId: string = 'molecule-1',
+		graftId: string = 'graft-1',
 		entity?: string,
 		params?: Record<string, unknown>,
-	): LiquidMoleculeSlotHost {
-		const host = new LiquidMoleculeSlotHost(webview, moleculeId, entity, params, resolver, logService);
+	): LiquidGraftSlotHost {
+		const host = new LiquidGraftSlotHost(webview, graftId, entity, params, resolver, logService);
 		store.add(host);
 		return host;
 	}
 
 	// ---- phonon:ready handler ----
 
-	test('phonon:ready sends phonon:init with moleculeId and entity', async () => {
-		createHost('molecule-1', 'dish');
+	test('phonon:ready sends phonon:init with graftId and entity', async () => {
+		createHost('graft-1', 'dish');
 		webview.fire({ type: 'phonon:ready' });
 		await tick();
 
 		assert.deepStrictEqual(webview.posted, [
-			{ type: 'phonon:init', moleculeId: 'molecule-1', entity: 'dish' },
+			{ type: 'phonon:init', graftId: 'graft-1', entity: 'dish' },
 		]);
 	});
 
 	test('phonon:ready with params sends phonon:init then phonon:params', async () => {
-		createHost('molecule-2', 'order', { id: 42, filter: 'active' });
+		createHost('graft-2', 'order', { id: 42, filter: 'active' });
 		webview.fire({ type: 'phonon:ready' });
 		await tick();
 
 		assert.deepStrictEqual(webview.posted, [
-			{ type: 'phonon:init', moleculeId: 'molecule-2', entity: 'order' },
+			{ type: 'phonon:init', graftId: 'graft-2', entity: 'order' },
 			{ type: 'phonon:params', params: { id: 42, filter: 'active' } },
 		]);
 	});
 
 	test('phonon:ready without params sends only phonon:init', async () => {
-		createHost('molecule-3', 'supplier', undefined);
+		createHost('graft-3', 'supplier', undefined);
 		webview.fire({ type: 'phonon:ready' });
 		await tick();
 
@@ -138,12 +138,12 @@ suite('LiquidMoleculeSlotHost', () => {
 	});
 
 	test('phonon:ready with entity undefined sends phonon:init with entity undefined', async () => {
-		createHost('molecule-4', undefined);
+		createHost('graft-4', undefined);
 		webview.fire({ type: 'phonon:ready' });
 		await tick();
 
 		assert.deepStrictEqual(webview.posted, [
-			{ type: 'phonon:init', moleculeId: 'molecule-4', entity: undefined },
+			{ type: 'phonon:init', graftId: 'graft-4', entity: undefined },
 		]);
 	});
 
@@ -313,7 +313,7 @@ suite('LiquidMoleculeSlotHost', () => {
 		createHost();
 
 		// Force a message with an unknown phonon: type through the typed system
-		webview.fire({ type: 'phonon:unknownType' } as unknown as MoleculeToHostMessage);
+		webview.fire({ type: 'phonon:unknownType' } as unknown as GraftToHostMessage);
 		await tick();
 
 		assert.strictEqual(webview.posted.length, 0);
@@ -322,7 +322,7 @@ suite('LiquidMoleculeSlotHost', () => {
 	test('message without type field does not throw', async () => {
 		createHost();
 
-		webview.fire({} as MoleculeToHostMessage);
+		webview.fire({} as GraftToHostMessage);
 		await tick();
 
 		assert.strictEqual(webview.posted.length, 0);
@@ -331,7 +331,7 @@ suite('LiquidMoleculeSlotHost', () => {
 	test('null message does not throw', async () => {
 		createHost();
 
-		webview.fire(null as unknown as MoleculeToHostMessage);
+		webview.fire(null as unknown as GraftToHostMessage);
 		await tick();
 
 		assert.strictEqual(webview.posted.length, 0);
@@ -340,7 +340,7 @@ suite('LiquidMoleculeSlotHost', () => {
 	test('undefined message does not throw', async () => {
 		createHost();
 
-		webview.fire(undefined as unknown as MoleculeToHostMessage);
+		webview.fire(undefined as unknown as GraftToHostMessage);
 		await tick();
 
 		assert.strictEqual(webview.posted.length, 0);
@@ -349,13 +349,13 @@ suite('LiquidMoleculeSlotHost', () => {
 	// ---- handleExternalMessage ----
 
 	test('handleExternalMessage routes identically to internal listener', async () => {
-		const host = createHost('ext-molecule', 'menu', { section: 'appetizers' });
+		const host = createHost('ext-graft', 'menu', { section: 'appetizers' });
 
 		host.handleExternalMessage({ type: 'phonon:ready' });
 		await tick();
 
 		assert.deepStrictEqual(webview.posted, [
-			{ type: 'phonon:init', moleculeId: 'ext-molecule', entity: 'menu' },
+			{ type: 'phonon:init', graftId: 'ext-graft', entity: 'menu' },
 			{ type: 'phonon:params', params: { section: 'appetizers' } },
 		]);
 	});
@@ -384,23 +384,23 @@ suite('LiquidMoleculeSlotHost', () => {
 
 	// ---- phonon:setState ----
 
-	test('phonon:setState fires onDidStateChange with molecule id, key, and value', async () => {
-		const host = createHost('state-mol', 'order');
-		const stateChanges: Array<{ moleculeId: string; key: string; value: unknown }> = [];
+	test('phonon:setState fires onDidStateChange with graft id, key, and value', async () => {
+		const host = createHost('state-graft', 'order');
+		const stateChanges: Array<{ graftId: string; key: string; value: unknown }> = [];
 		store.add(host.onDidStateChange(change => stateChanges.push(change)));
 
 		webview.fire({ type: 'phonon:setState', key: 'orderCount', value: 42 });
 		await tick();
 
 		assert.deepStrictEqual(stateChanges, [
-			{ moleculeId: 'state-mol', key: 'orderCount', value: 42 },
+			{ graftId: 'state-graft', key: 'orderCount', value: 42 },
 		]);
 		assert.strictEqual(webview.posted.length, 0);
 	});
 
 	test('phonon:setState fires multiple times for multiple keys', async () => {
 		const host = createHost('multi-state');
-		const stateChanges: Array<{ moleculeId: string; key: string; value: unknown }> = [];
+		const stateChanges: Array<{ graftId: string; key: string; value: unknown }> = [];
 		store.add(host.onDidStateChange(change => stateChanges.push(change)));
 
 		webview.fire({ type: 'phonon:setState', key: 'loading', value: true });
@@ -412,8 +412,8 @@ suite('LiquidMoleculeSlotHost', () => {
 		assert.strictEqual(stateChanges[1].key, 'count');
 	});
 
-	test('pushState sends phonon:stateUpdate to molecule', () => {
-		const host = createHost('push-mol');
+	test('pushState sends phonon:stateUpdate to graft', () => {
+		const host = createHost('push-graft');
 		const state = { orderCount: 42, loading: false };
 
 		host.pushState(state);

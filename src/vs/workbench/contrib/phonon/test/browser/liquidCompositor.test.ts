@@ -9,9 +9,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { LiquidModuleRegistry } from '../../browser/liquidModuleRegistry.js';
 import { CompositionEngine } from '../../browser/liquidCompositor.js';
-import type { ILiquidMolecule, ILiquidView } from '../../common/liquidModuleTypes.js';
+import type { ILiquidGraft, ILiquidView } from '../../common/liquidGraftTypes.js';
 
-function makeMolecule(overrides: Partial<ILiquidMolecule> & { id: string; label: string }): ILiquidMolecule {
+function makeGraft(overrides: Partial<ILiquidGraft> & { id: string; label: string }): ILiquidGraft {
 	return {
 		entryUri: URI.parse(`test://${overrides.id}`),
 		description: '',
@@ -22,6 +22,7 @@ function makeMolecule(overrides: Partial<ILiquidMolecule> & { id: string; label:
 		extensionId: 'test.ext',
 		shows: [],
 		relatesTo: [],
+		tokenWeight: 0,
 		...overrides,
 	};
 }
@@ -31,6 +32,7 @@ function makeView(overrides: Partial<ILiquidView> & { id: string; label: string 
 		componentUri: URI.parse(`test://${overrides.id}`),
 		mode: 'canvas',
 		extensionId: 'test.ext',
+		defaultGrafts: [],
 		...overrides,
 	};
 }
@@ -49,89 +51,89 @@ suite('CompositionEngine', () => {
 
 	suite('composeFromView', () => {
 
-		test('returns undefined for empty defaultMoleculeIds', () => {
+		test('returns undefined for empty defaultGraftIds', () => {
 			assert.strictEqual(engine.composeFromView('viewA', []), undefined);
 		});
 
-		test('returns undefined when no molecules are found in registry', () => {
+		test('returns undefined when no grafts are found in registry', () => {
 			assert.strictEqual(engine.composeFromView('viewA', ['nonexistent1', 'nonexistent2']), undefined);
 		});
 
-		test('single molecule yields single layout', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'mol1', label: 'Molecule One' }),
+		test('single graft yields single layout', () => {
+			registry.updateGrafts([
+				makeGraft({ id: 'graft1', label: 'Graft One' }),
 			]);
 
-			const result = engine.composeFromView('viewA', ['mol1']);
+			const result = engine.composeFromView('viewA', ['graft1']);
 			assert.ok(result);
 			assert.deepStrictEqual({
 				layout: result.layout,
 				slotsCount: result.slots.length,
-				moleculeId: result.slots[0].moleculeId,
+				graftId: result.slots[0].graftId,
 			}, {
 				layout: 'single',
 				slotsCount: 1,
-				moleculeId: 'mol1',
+				graftId: 'graft1',
 			});
 		});
 
-		test('two molecules yield split-horizontal layout', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'mol1', label: 'One' }),
-				makeMolecule({ id: 'mol2', label: 'Two' }),
+		test('two grafts yield split-horizontal layout', () => {
+			registry.updateGrafts([
+				makeGraft({ id: 'graft1', label: 'One' }),
+				makeGraft({ id: 'graft2', label: 'Two' }),
 			]);
 
-			const result = engine.composeFromView('viewA', ['mol1', 'mol2']);
+			const result = engine.composeFromView('viewA', ['graft1', 'graft2']);
 			assert.ok(result);
 			assert.strictEqual(result.layout, 'split-horizontal');
 			assert.strictEqual(result.slots.length, 2);
 		});
 
-		test('three molecules yield grid layout', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'mol1', label: 'One' }),
-				makeMolecule({ id: 'mol2', label: 'Two' }),
-				makeMolecule({ id: 'mol3', label: 'Three' }),
+		test('three grafts yield grid layout', () => {
+			registry.updateGrafts([
+				makeGraft({ id: 'graft1', label: 'One' }),
+				makeGraft({ id: 'graft2', label: 'Two' }),
+				makeGraft({ id: 'graft3', label: 'Three' }),
 			]);
 
-			const result = engine.composeFromView('viewA', ['mol1', 'mol2', 'mol3']);
+			const result = engine.composeFromView('viewA', ['graft1', 'graft2', 'graft3']);
 			assert.ok(result);
 			assert.strictEqual(result.layout, 'grid');
 			assert.strictEqual(result.slots.length, 3);
 		});
 
-		test('four molecules yield grid layout', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'mol1', label: 'One' }),
-				makeMolecule({ id: 'mol2', label: 'Two' }),
-				makeMolecule({ id: 'mol3', label: 'Three' }),
-				makeMolecule({ id: 'mol4', label: 'Four' }),
+		test('four grafts yield grid layout', () => {
+			registry.updateGrafts([
+				makeGraft({ id: 'graft1', label: 'One' }),
+				makeGraft({ id: 'graft2', label: 'Two' }),
+				makeGraft({ id: 'graft3', label: 'Three' }),
+				makeGraft({ id: 'graft4', label: 'Four' }),
 			]);
 
-			const result = engine.composeFromView('viewA', ['mol1', 'mol2', 'mol3', 'mol4']);
+			const result = engine.composeFromView('viewA', ['graft1', 'graft2', 'graft3', 'graft4']);
 			assert.ok(result);
 			assert.strictEqual(result.layout, 'grid');
 		});
 
-		test('five molecules yield stack layout', () => {
-			const molecules = Array.from({ length: 5 }, (_, i) =>
-				makeMolecule({ id: `mol${i}`, label: `Molecule ${i}` })
+		test('five grafts yield stack layout', () => {
+			const grafts = Array.from({ length: 5 }, (_, i) =>
+				makeGraft({ id: `graft${i}`, label: `Graft ${i}` })
 			);
-			registry.updateMolecules(molecules);
+			registry.updateGrafts(grafts);
 
-			const result = engine.composeFromView('viewA', molecules.map(m => m.id));
+			const result = engine.composeFromView('viewA', grafts.map(m => m.id));
 			assert.ok(result);
 			assert.strictEqual(result.layout, 'stack');
 			assert.strictEqual(result.slots.length, 5);
 		});
 
-		test('skips unknown molecules, composes the rest', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'mol1', label: 'One' }),
-				makeMolecule({ id: 'mol3', label: 'Three' }),
+		test('skips unknown grafts, composes the rest', () => {
+			registry.updateGrafts([
+				makeGraft({ id: 'graft1', label: 'One' }),
+				makeGraft({ id: 'graft3', label: 'Three' }),
 			]);
 
-			const result = engine.composeFromView('viewA', ['mol1', 'nonexistent', 'mol3']);
+			const result = engine.composeFromView('viewA', ['graft1', 'nonexistent', 'graft3']);
 			assert.ok(result);
 			assert.strictEqual(result.slots.length, 2);
 			assert.strictEqual(result.layout, 'split-horizontal');
@@ -141,21 +143,21 @@ suite('CompositionEngine', () => {
 			registry.updateViews([
 				makeView({ id: 'dashView', label: 'Dashboard' }),
 			]);
-			registry.updateMolecules([
-				makeMolecule({ id: 'mol1', label: 'One' }),
+			registry.updateGrafts([
+				makeGraft({ id: 'graft1', label: 'One' }),
 			]);
 
-			const result = engine.composeFromView('dashView', ['mol1']);
+			const result = engine.composeFromView('dashView', ['graft1']);
 			assert.ok(result);
 			assert.strictEqual(result.title, 'Dashboard');
 		});
 
 		test('falls back to viewId as title when view not found', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'mol1', label: 'One' }),
+			registry.updateGrafts([
+				makeGraft({ id: 'graft1', label: 'One' }),
 			]);
 
-			const result = engine.composeFromView('unknownView', ['mol1']);
+			const result = engine.composeFromView('unknownView', ['graft1']);
 			assert.ok(result);
 			assert.strictEqual(result.title, 'unknownView');
 		});
@@ -165,7 +167,7 @@ suite('CompositionEngine', () => {
 
 	suite('composeFromIntent', () => {
 
-		test('returns undefined for entities with no matching molecules', () => {
+		test('returns undefined for entities with no matching grafts', () => {
 			assert.strictEqual(engine.composeFromIntent(['nonexistent'], 'show'), undefined);
 		});
 
@@ -174,150 +176,150 @@ suite('CompositionEngine', () => {
 		});
 
 		test('show action picks detail category first', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'dishTable', label: 'Dish Table', category: 'table', shows: ['dish'] }),
-				makeMolecule({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
-				makeMolecule({ id: 'dishChart', label: 'Dish Chart', category: 'chart', shows: ['dish'] }),
+			registry.updateGrafts([
+				makeGraft({ id: 'dishTable', label: 'Dish Table', category: 'table', shows: ['dish'] }),
+				makeGraft({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
+				makeGraft({ id: 'dishChart', label: 'Dish Chart', category: 'chart', shows: ['dish'] }),
 			]);
 
 			const result = engine.composeFromIntent(['dish'], 'show');
 			assert.ok(result);
-			assert.strictEqual(result.slots[0].moleculeId, 'dishDetail');
+			assert.strictEqual(result.slots[0].graftId, 'dishDetail');
 		});
 
 		test('summarize action picks stat category first', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
-				makeMolecule({ id: 'dishStat', label: 'Dish Stats', category: 'stat', shows: ['dish'] }),
-				makeMolecule({ id: 'dishTable', label: 'Dish Table', category: 'table', shows: ['dish'] }),
+			registry.updateGrafts([
+				makeGraft({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
+				makeGraft({ id: 'dishStat', label: 'Dish Stats', category: 'stat', shows: ['dish'] }),
+				makeGraft({ id: 'dishTable', label: 'Dish Table', category: 'table', shows: ['dish'] }),
 			]);
 
 			const result = engine.composeFromIntent(['dish'], 'summarize');
 			assert.ok(result);
-			assert.strictEqual(result.slots[0].moleculeId, 'dishStat');
+			assert.strictEqual(result.slots[0].graftId, 'dishStat');
 		});
 
 		test('compare action picks table category first', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
-				makeMolecule({ id: 'dishTable', label: 'Dish Table', category: 'table', shows: ['dish'] }),
-				makeMolecule({ id: 'dishChart', label: 'Dish Chart', category: 'chart', shows: ['dish'] }),
+			registry.updateGrafts([
+				makeGraft({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
+				makeGraft({ id: 'dishTable', label: 'Dish Table', category: 'table', shows: ['dish'] }),
+				makeGraft({ id: 'dishChart', label: 'Dish Chart', category: 'chart', shows: ['dish'] }),
 			]);
 
 			const result = engine.composeFromIntent(['dish'], 'compare');
 			assert.ok(result);
-			assert.strictEqual(result.slots[0].moleculeId, 'dishTable');
+			assert.strictEqual(result.slots[0].graftId, 'dishTable');
 		});
 
 		test('navigate action picks list category first', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
-				makeMolecule({ id: 'dishList', label: 'Dish List', category: 'list', shows: ['dish'] }),
+			registry.updateGrafts([
+				makeGraft({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
+				makeGraft({ id: 'dishList', label: 'Dish List', category: 'list', shows: ['dish'] }),
 			]);
 
 			const result = engine.composeFromIntent(['dish'], 'navigate');
 			assert.ok(result);
-			assert.strictEqual(result.slots[0].moleculeId, 'dishList');
+			assert.strictEqual(result.slots[0].graftId, 'dishList');
 		});
 
 		test('filter action picks form category first', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'dishTable', label: 'Dish Table', category: 'table', shows: ['dish'] }),
-				makeMolecule({ id: 'dishForm', label: 'Dish Form', category: 'form', shows: ['dish'] }),
+			registry.updateGrafts([
+				makeGraft({ id: 'dishTable', label: 'Dish Table', category: 'table', shows: ['dish'] }),
+				makeGraft({ id: 'dishForm', label: 'Dish Form', category: 'form', shows: ['dish'] }),
 			]);
 
 			const result = engine.composeFromIntent(['dish'], 'filter');
 			assert.ok(result);
-			assert.strictEqual(result.slots[0].moleculeId, 'dishForm');
+			assert.strictEqual(result.slots[0].graftId, 'dishForm');
 		});
 
 		test('unknown action falls back to default preference (detail first)', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'dishTable', label: 'Dish Table', category: 'table', shows: ['dish'] }),
-				makeMolecule({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
+			registry.updateGrafts([
+				makeGraft({ id: 'dishTable', label: 'Dish Table', category: 'table', shows: ['dish'] }),
+				makeGraft({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
 			]);
 
 			const result = engine.composeFromIntent(['dish'], 'unknownAction');
 			assert.ok(result);
-			assert.strictEqual(result.slots[0].moleculeId, 'dishDetail');
+			assert.strictEqual(result.slots[0].graftId, 'dishDetail');
 		});
 
 		test('same-category tiebreaker is alphabetical by label', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'zDetail', label: 'Zebra Detail', category: 'detail', shows: ['dish'] }),
-				makeMolecule({ id: 'aDetail', label: 'Alpha Detail', category: 'detail', shows: ['dish'] }),
+			registry.updateGrafts([
+				makeGraft({ id: 'zDetail', label: 'Zebra Detail', category: 'detail', shows: ['dish'] }),
+				makeGraft({ id: 'aDetail', label: 'Alpha Detail', category: 'detail', shows: ['dish'] }),
 			]);
 
 			const result = engine.composeFromIntent(['dish'], 'show');
 			assert.ok(result);
-			assert.strictEqual(result.slots[0].moleculeId, 'aDetail');
+			assert.strictEqual(result.slots[0].graftId, 'aDetail');
 		});
 
 		test('multiple entities produce one slot each', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
-				makeMolecule({ id: 'supplierDetail', label: 'Supplier Detail', category: 'detail', shows: ['supplier'] }),
+			registry.updateGrafts([
+				makeGraft({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
+				makeGraft({ id: 'supplierDetail', label: 'Supplier Detail', category: 'detail', shows: ['supplier'] }),
 			]);
 
 			const result = engine.composeFromIntent(['dish', 'supplier'], 'show');
 			assert.ok(result);
-			assert.deepStrictEqual(result.slots.map(s => s.moleculeId), ['dishDetail', 'supplierDetail']);
+			assert.deepStrictEqual(result.slots.map(s => s.graftId), ['dishDetail', 'supplierDetail']);
 			assert.strictEqual(result.layout, 'split-horizontal');
 		});
 
-		test('depth=1 adds related molecules via relatesTo', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'], relatesTo: ['ingredient'] }),
-				makeMolecule({ id: 'ingredientTable', label: 'Ingredient Table', category: 'table', shows: ['ingredient'] }),
+		test('depth=1 adds related grafts via relatesTo', () => {
+			registry.updateGrafts([
+				makeGraft({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'], relatesTo: ['ingredient'] }),
+				makeGraft({ id: 'ingredientTable', label: 'Ingredient Table', category: 'table', shows: ['ingredient'] }),
 			]);
 
 			const result = engine.composeFromIntent(['dish'], 'show', 1);
 			assert.ok(result);
-			assert.deepStrictEqual(result.slots.map(s => s.moleculeId), ['dishDetail', 'ingredientTable']);
+			assert.deepStrictEqual(result.slots.map(s => s.graftId), ['dishDetail', 'ingredientTable']);
 		});
 
 		test('depth is clamped to max 2', () => {
 			// depth=10 should behave like depth=2
-			registry.updateMolecules([
-				makeMolecule({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'], relatesTo: ['ingredient'] }),
-				makeMolecule({ id: 'ingredientTable', label: 'Ingredient Table', category: 'table', shows: ['ingredient'] }),
+			registry.updateGrafts([
+				makeGraft({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'], relatesTo: ['ingredient'] }),
+				makeGraft({ id: 'ingredientTable', label: 'Ingredient Table', category: 'table', shows: ['ingredient'] }),
 			]);
 
 			const result = engine.composeFromIntent(['dish'], 'show', 10);
 			assert.ok(result);
 			// Should work the same as depth=1 in this case (only one hop needed)
-			assert.deepStrictEqual(result.slots.map(s => s.moleculeId), ['dishDetail', 'ingredientTable']);
+			assert.deepStrictEqual(result.slots.map(s => s.graftId), ['dishDetail', 'ingredientTable']);
 		});
 
-		test('negative depth is clamped to 0 (no related molecules)', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'], relatesTo: ['ingredient'] }),
-				makeMolecule({ id: 'ingredientTable', label: 'Ingredient Table', category: 'table', shows: ['ingredient'] }),
+		test('negative depth is clamped to 0 (no related grafts)', () => {
+			registry.updateGrafts([
+				makeGraft({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'], relatesTo: ['ingredient'] }),
+				makeGraft({ id: 'ingredientTable', label: 'Ingredient Table', category: 'table', shows: ['ingredient'] }),
 			]);
 
 			const result = engine.composeFromIntent(['dish'], 'show', -5);
 			assert.ok(result);
-			assert.deepStrictEqual(result.slots.map(s => s.moleculeId), ['dishDetail']);
+			assert.deepStrictEqual(result.slots.map(s => s.graftId), ['dishDetail']);
 		});
 
-		test('does not duplicate molecules across entities and relatesTo', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish', 'ingredient'], relatesTo: ['ingredient'] }),
-				makeMolecule({ id: 'ingredientStat', label: 'Ingredient Stats', category: 'stat', shows: ['ingredient'] }),
+		test('does not duplicate grafts across entities and relatesTo', () => {
+			registry.updateGrafts([
+				makeGraft({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish', 'ingredient'], relatesTo: ['ingredient'] }),
+				makeGraft({ id: 'ingredientStat', label: 'Ingredient Stats', category: 'stat', shows: ['ingredient'] }),
 			]);
 
 			// dishDetail already picked for 'dish', should not appear again from relatesTo
 			const result = engine.composeFromIntent(['dish', 'ingredient'], 'show', 1);
 			assert.ok(result);
-			const moleculeIds = result.slots.map(s => s.moleculeId);
-			assert.strictEqual(moleculeIds.length, new Set(moleculeIds).size, 'no duplicates');
+			const graftIds = result.slots.map(s => s.graftId);
+			assert.strictEqual(graftIds.length, new Set(graftIds).size, 'no duplicates');
 		});
 
 		test('total slots capped at 6', () => {
-			const molecules = Array.from({ length: 8 }, (_, i) =>
-				makeMolecule({ id: `mol${i}`, label: `Molecule ${i}`, category: 'detail', shows: [`entity${i}`] })
+			const grafts = Array.from({ length: 8 }, (_, i) =>
+				makeGraft({ id: `graft${i}`, label: `Graft ${i}`, category: 'detail', shows: [`entity${i}`] })
 			);
-			registry.updateMolecules(molecules);
+			registry.updateGrafts(grafts);
 
 			const entities = Array.from({ length: 8 }, (_, i) => `entity${i}`);
 			const result = engine.composeFromIntent(entities, 'show');
@@ -326,9 +328,9 @@ suite('CompositionEngine', () => {
 		});
 
 		test('preferredLayout is respected', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
-				makeMolecule({ id: 'supplierDetail', label: 'Supplier Detail', category: 'detail', shows: ['supplier'] }),
+			registry.updateGrafts([
+				makeGraft({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
+				makeGraft({ id: 'supplierDetail', label: 'Supplier Detail', category: 'detail', shows: ['supplier'] }),
 			]);
 
 			const result = engine.composeFromIntent(['dish', 'supplier'], 'show', 0, 'split-vertical');
@@ -337,8 +339,8 @@ suite('CompositionEngine', () => {
 		});
 
 		test('intent result is marked transient', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
+			registry.updateGrafts([
+				makeGraft({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
 			]);
 
 			const result = engine.composeFromIntent(['dish'], 'show');
@@ -347,8 +349,8 @@ suite('CompositionEngine', () => {
 		});
 
 		test('title reflects action and entities', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
+			registry.updateGrafts([
+				makeGraft({ id: 'dishDetail', label: 'Dish Detail', category: 'detail', shows: ['dish'] }),
 			]);
 
 			const result = engine.composeFromIntent(['dish'], 'show');
@@ -362,8 +364,8 @@ suite('CompositionEngine', () => {
 	suite('layout calculation', () => {
 
 		test('1 slot yields single', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'mol1', label: 'One', shows: ['e1'] }),
+			registry.updateGrafts([
+				makeGraft({ id: 'graft1', label: 'One', shows: ['e1'] }),
 			]);
 			const result = engine.composeFromIntent(['e1'], 'show');
 			assert.ok(result);
@@ -371,9 +373,9 @@ suite('CompositionEngine', () => {
 		});
 
 		test('2 slots yield split-horizontal', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'mol1', label: 'One', shows: ['e1'] }),
-				makeMolecule({ id: 'mol2', label: 'Two', shows: ['e2'] }),
+			registry.updateGrafts([
+				makeGraft({ id: 'graft1', label: 'One', shows: ['e1'] }),
+				makeGraft({ id: 'graft2', label: 'Two', shows: ['e2'] }),
 			]);
 			const result = engine.composeFromIntent(['e1', 'e2'], 'show');
 			assert.ok(result);
@@ -381,10 +383,10 @@ suite('CompositionEngine', () => {
 		});
 
 		test('3 slots yield grid', () => {
-			registry.updateMolecules([
-				makeMolecule({ id: 'mol1', label: 'One', shows: ['e1'] }),
-				makeMolecule({ id: 'mol2', label: 'Two', shows: ['e2'] }),
-				makeMolecule({ id: 'mol3', label: 'Three', shows: ['e3'] }),
+			registry.updateGrafts([
+				makeGraft({ id: 'graft1', label: 'One', shows: ['e1'] }),
+				makeGraft({ id: 'graft2', label: 'Two', shows: ['e2'] }),
+				makeGraft({ id: 'graft3', label: 'Three', shows: ['e3'] }),
 			]);
 			const result = engine.composeFromIntent(['e1', 'e2', 'e3'], 'show');
 			assert.ok(result);
@@ -392,11 +394,11 @@ suite('CompositionEngine', () => {
 		});
 
 		test('5+ slots yield stack', () => {
-			const molecules = Array.from({ length: 5 }, (_, i) =>
-				makeMolecule({ id: `mol${i}`, label: `Mol ${i}`, shows: [`e${i}`] })
+			const grafts = Array.from({ length: 5 }, (_, i) =>
+				makeGraft({ id: `graft${i}`, label: `Graft ${i}`, shows: [`e${i}`] })
 			);
-			registry.updateMolecules(molecules);
-			const result = engine.composeFromIntent(molecules.map((_, i) => `e${i}`), 'show');
+			registry.updateGrafts(grafts);
+			const result = engine.composeFromIntent(grafts.map((_, i) => `e${i}`), 'show');
 			assert.ok(result);
 			assert.strictEqual(result.layout, 'stack');
 		});

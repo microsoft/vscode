@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
@@ -14,9 +15,9 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { LiquidCanvasEditor } from '../../browser/views/liquidCanvasEditor.js';
 import { LiquidModuleRegistry } from '../../browser/liquidModuleRegistry.js';
-import type { ILiquidDataResolver } from '../../browser/liquidMoleculeBridge.js';
-import type { ICompositionIntent, ILiquidMolecule } from '../../common/liquidModuleTypes.js';
-import type { IFileService, IFileContent } from '../../../../../platform/files/common/files.js';
+import type { ILiquidDataResolver } from '../../browser/liquidGraftBridge.js';
+import type { ICompositionIntent, ILiquidGraft } from '../../common/liquidGraftTypes.js';
+import type { IFileService, IFileContent, IFileSystemWatcher } from '../../../../../platform/files/common/files.js';
 
 /**
  * Mock ILiquidDataResolver - returns empty arrays for all fetches.
@@ -34,7 +35,7 @@ class MockDataResolver implements ILiquidDataResolver {
 }
 
 /**
- * Mock IFileService - only implements readFile for molecule HTML loading.
+ * Mock IFileService - only implements readFile for graft HTML loading.
  */
 function createMockFileService(files: Map<string, string>): IFileService {
 	return {
@@ -60,10 +61,17 @@ function createMockFileService(files: Map<string, string>): IFileService {
 				isSymbolicLink: false,
 			} as unknown as IFileContent);
 		},
+		createWatcher(): IFileSystemWatcher {
+			const emitter = new Emitter<unknown>();
+			return {
+				onDidChange: emitter.event,
+				dispose: () => emitter.dispose(),
+			} as unknown as IFileSystemWatcher;
+		},
 	} as unknown as IFileService;
 }
 
-function makeMolecule(overrides: Partial<ILiquidMolecule> & { id: string; label: string; entryUri: URI; extensionId: string }): ILiquidMolecule {
+function makeGraft(overrides: Partial<ILiquidGraft> & { id: string; label: string; entryUri: URI; extensionId: string }): ILiquidGraft {
 	return {
 		description: '',
 		domain: 'general',
@@ -72,6 +80,7 @@ function makeMolecule(overrides: Partial<ILiquidMolecule> & { id: string; label:
 		layout: { minCols: 4, maxCols: 12, minHeight: 150 },
 		shows: [],
 		relatesTo: [],
+		tokenWeight: 0,
 		...overrides,
 	};
 }
@@ -225,42 +234,42 @@ suite('LiquidCanvasEditor', () => {
 		assert.ok(paramsBlock.textContent?.includes('"id": 42'));
 	});
 
-	test('unknown moleculeId renders fallback text', () => {
+	test('unknown graftId renders fallback text', () => {
 		const editor = createEditor();
 		editor.composeIntent({
 			layout: 'single',
-			slots: [{ moleculeId: 'nonexistent-molecule' }],
+			slots: [{ graftId: 'nonexistent-graft' }],
 		});
 		const body = parent.querySelector('.liquid-canvas-slot-body');
-		assert.ok(body?.textContent?.includes('Molecule: nonexistent-molecule'));
+		assert.ok(body?.textContent?.includes('Graft: nonexistent-graft'));
 	});
 
-	// ---- Molecule rendering (with mock file service) ----
+	// ---- Graft rendering (with mock file service) ----
 
-	test('known molecule renders in sandboxed iframe', async () => {
-		const moleculeHtml = '<div class="test-molecule"><h2>Food Cost</h2><p>32%</p></div>';
-		const moleculeUri = URI.parse('vscode-resource://ext/molecules/food-cost.html');
-		const files = new Map([[moleculeUri.toString(), moleculeHtml]]);
+	test('known graft renders in sandboxed iframe', async () => {
+		const graftHtml = '<div class="test-graft"><h2>Food Cost</h2><p>32%</p></div>';
+		const graftUri = URI.parse('vscode-resource://ext/grafts/food-cost.html');
+		const files = new Map([[graftUri.toString(), graftHtml]]);
 
-		const molecules: ILiquidMolecule[] = [
-			makeMolecule({
+		const grafts: ILiquidGraft[] = [
+			makeGraft({
 				id: 'foodCost',
 				label: 'Food Cost',
-				entryUri: moleculeUri,
+				entryUri: graftUri,
 				entity: 'dish',
 				tags: ['cost'],
 				extensionId: 'test',
 			}),
 		];
-		registry.updateMolecules(molecules);
+		registry.updateGrafts(grafts);
 
 		const editor = createEditor(createMockFileService(files));
 		editor.composeIntent({
 			layout: 'single',
-			slots: [{ moleculeId: 'foodCost', label: 'Food Cost' }],
+			slots: [{ graftId: 'foodCost', label: 'Food Cost' }],
 		});
 
-		// Molecule rendering is async (fileService.readFile). setTimeout(0) flushes
+		// Graft rendering is async (fileService.readFile). setTimeout(0) flushes
 		// all pending microtasks deterministically (mock readFile resolves immediately).
 		await new Promise(resolve => setTimeout(resolve, 0));
 
@@ -269,33 +278,33 @@ suite('LiquidCanvasEditor', () => {
 		const iframe = body.querySelector('iframe');
 		assert.ok(iframe, 'Expected iframe in slot body');
 		assert.ok(iframe.sandbox.contains('allow-scripts'), 'Expected sandbox with allow-scripts');
-		assert.ok(iframe.srcdoc.includes('Food Cost'), 'Expected molecule HTML in srcdoc');
+		assert.ok(iframe.srcdoc.includes('Food Cost'), 'Expected graft HTML in srcdoc');
 		assert.ok(iframe.srcdoc.includes('window.phonon'), 'Expected bridge shim in srcdoc');
 	});
 
-	test('molecule file read error renders error message', async () => {
-		const moleculeUri = URI.parse('vscode-resource://ext/molecules/missing.html');
-		const molecules: ILiquidMolecule[] = [
-			makeMolecule({
-				id: 'missingMolecule',
+	test('graft file read error renders error message', async () => {
+		const graftUri = URI.parse('vscode-resource://ext/grafts/missing.html');
+		const grafts: ILiquidGraft[] = [
+			makeGraft({
+				id: 'missingGraft',
 				label: 'Missing',
-				entryUri: moleculeUri,
+				entryUri: graftUri,
 				entity: 'dish',
 				extensionId: 'test',
 			}),
 		];
-		registry.updateMolecules(molecules);
+		registry.updateGrafts(grafts);
 
 		const editor = createEditor(createMockFileService(new Map()));
 		editor.composeIntent({
 			layout: 'single',
-			slots: [{ moleculeId: 'missingMolecule' }],
+			slots: [{ graftId: 'missingGraft' }],
 		});
 
 		await new Promise(resolve => setTimeout(resolve, 0));
 
 		const body = parent.querySelector('.liquid-canvas-slot-body');
-		assert.ok(body?.textContent?.includes('Molecule load error'));
+		assert.ok(body?.textContent?.includes('Graft load error'));
 	});
 
 	// ---- Re-render on new intent ----

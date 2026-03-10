@@ -9,19 +9,19 @@ import { ILiquidModuleRegistry } from '../common/liquidModule.js';
 import type {
 	ILiquidEntity,
 	ILiquidView,
-	ILiquidMolecule,
+	ILiquidGraft,
 	ILiquidDataProvider,
 	ILiquidSidebarNode,
 	ILiquidCapabilitySummary,
 	ICompositionIntent,
-} from '../common/liquidModuleTypes.js';
+} from '../common/liquidGraftTypes.js';
 
 export class LiquidModuleRegistry extends Disposable implements ILiquidModuleRegistry {
 	declare readonly _serviceBrand: undefined;
 
 	private _entities: ILiquidEntity[] = [];
 	private _views: ILiquidView[] = [];
-	private _molecules: ILiquidMolecule[] = [];
+	private _grafts: ILiquidGraft[] = [];
 	private _dataProviders: ILiquidDataProvider[] = [];
 	private _sidebarTree: ILiquidSidebarNode[] = [];
 
@@ -31,8 +31,8 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 	private readonly _onDidChangeViews = this._register(new Emitter<void>());
 	readonly onDidChangeViews: Event<void> = this._onDidChangeViews.event;
 
-	private readonly _onDidChangeMolecules = this._register(new Emitter<void>());
-	readonly onDidChangeMolecules: Event<void> = this._onDidChangeMolecules.event;
+	private readonly _onDidChangeGrafts = this._register(new Emitter<void>());
+	readonly onDidChangeGrafts: Event<void> = this._onDidChangeGrafts.event;
 
 	private readonly _onDidChangeDataProviders = this._register(new Emitter<void>());
 	readonly onDidChangeDataProviders: Event<void> = this._onDidChangeDataProviders.event;
@@ -42,7 +42,7 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 
 	get entities(): ReadonlyArray<ILiquidEntity> { return this._entities; }
 	get views(): ReadonlyArray<ILiquidView> { return this._views; }
-	get molecules(): ReadonlyArray<ILiquidMolecule> { return this._molecules; }
+	get grafts(): ReadonlyArray<ILiquidGraft> { return this._grafts; }
 	get dataProviders(): ReadonlyArray<ILiquidDataProvider> { return this._dataProviders; }
 	get sidebarTree(): ReadonlyArray<ILiquidSidebarNode> { return this._sidebarTree; }
 
@@ -56,9 +56,9 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 		this._onDidChangeViews.fire();
 	}
 
-	updateMolecules(molecules: ILiquidMolecule[]): void {
-		this._molecules = molecules;
-		this._onDidChangeMolecules.fire();
+	updateGrafts(grafts: ILiquidGraft[]): void {
+		this._grafts = grafts;
+		this._onDidChangeGrafts.fire();
 	}
 
 	updateDataProviders(providers: ILiquidDataProvider[]): void {
@@ -84,20 +84,20 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 		return this._views.filter(v => v.entity === entityId);
 	}
 
-	getMoleculesForEntity(entityId: string): ILiquidMolecule[] {
-		return this._molecules.filter(m => m.entity === entityId);
+	getGraftsForEntity(entityId: string): ILiquidGraft[] {
+		return this._grafts.filter(m => m.entity === entityId);
 	}
 
-	getMoleculesByTag(tag: string): ILiquidMolecule[] {
-		return this._molecules.filter(m => m.tags.includes(tag));
+	getGraftsByTag(tag: string): ILiquidGraft[] {
+		return this._grafts.filter(m => m.tags.includes(tag));
 	}
 
-	findByEntity(entityId: string): ILiquidMolecule[] {
-		return this._molecules.filter(m => m.shows.includes(entityId));
+	findByEntity(entityId: string): ILiquidGraft[] {
+		return this._grafts.filter(m => m.shows.includes(entityId));
 	}
 
-	findByDomain(domain: string): ILiquidMolecule[] {
-		return this._molecules.filter(m => m.domain === domain);
+	findByDomain(domain: string): ILiquidGraft[] {
+		return this._grafts.filter(m => m.domain === domain);
 	}
 
 	getEntitySchema(entityId: string): object | undefined {
@@ -120,7 +120,7 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 				mode: v.mode,
 				entity: v.entity,
 			})),
-			molecules: this._molecules.map(m => ({
+			grafts: this._grafts.map(m => ({
 				id: m.id,
 				label: m.label,
 				description: m.description,
@@ -136,10 +136,10 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 	validateIntent(intent: ICompositionIntent): { valid: boolean; errors: string[] } {
 		const errors: string[] = [];
 		for (const slot of intent.slots) {
-			if (slot.moleculeId) {
-				const molecule = this._molecules.find(m => m.id === slot.moleculeId);
-				if (!molecule) {
-					errors.push(`Molecule "${slot.moleculeId}" not found in registry`);
+			if (slot.graftId) {
+				const graft = this._grafts.find(m => m.id === slot.graftId);
+				if (!graft) {
+					errors.push(`Graft "${slot.graftId}" not found in registry`);
 				}
 			} else if (slot.viewId) {
 				const view = this._views.find(v => v.id === slot.viewId);
@@ -151,7 +151,7 @@ export class LiquidModuleRegistry extends Disposable implements ILiquidModuleReg
 					errors.push(`View "${slot.viewId}" is structured-only, cannot be used in canvas`);
 				}
 			} else {
-				errors.push('Slot has neither viewId nor moleculeId');
+				errors.push('Slot has neither viewId nor graftId');
 			}
 		}
 		return { valid: errors.length === 0, errors };

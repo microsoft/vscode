@@ -18,8 +18,8 @@ import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorOpenContext } from '../../../../common/editor.js';
 import { ILiquidModuleRegistry } from '../../common/liquidModule.js';
-import { ICompositionIntent, ICompositionSlot, ILiquidMolecule, CompositionLayout } from '../../common/liquidModuleTypes.js';
-import { ILiquidDataResolver, LiquidMoleculeSlotHost, type IMoleculeWebview, type MoleculeToHostMessage, type HostToMoleculeMessage, type IMoleculeStateChange } from '../liquidMoleculeBridge.js';
+import { ICompositionIntent, ICompositionSlot, ILiquidGraft, CompositionLayout } from '../../common/liquidGraftTypes.js';
+import { ILiquidDataResolver, LiquidGraftSlotHost, type IGraftWebview, type GraftToHostMessage, type HostToGraftMessage, type IGraftStateChange } from '../liquidGraftBridge.js';
 import { LiquidCanvasEditorInput } from './liquidCanvasEditorInput.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 
@@ -56,14 +56,14 @@ const LAYOUT_STRATEGY: Record<CompositionLayout, (slots: readonly ICompositionSl
 /**
  * Editor pane that renders composition intents as CSS grid layouts.
  *
- * Each molecule slot is rendered as a sandboxed iframe with a postMessage bridge.
+ * Each graft slot is rendered as a sandboxed iframe with a postMessage bridge.
  * The iframe communicates with the host via postMessage and the host routes data
  * requests through ILiquidDataResolver.
  *
  * Relationship graph:
- *   LiquidCanvasEditor -> sandboxed iframe per molecule
- *   molecule DOM <-> window.phonon bridge <-> ILiquidDataResolver
- *   ILiquidModuleRegistry -> molecule metadata (entryUri, entity, tags)
+ *   LiquidCanvasEditor -> sandboxed iframe per graft
+ *   graft DOM <-> window.phonon bridge <-> ILiquidDataResolver
+ *   ILiquidModuleRegistry -> graft metadata (entryUri, entity, tags)
  */
 export class LiquidCanvasEditor extends EditorPane {
 
@@ -74,10 +74,10 @@ export class LiquidCanvasEditor extends EditorPane {
 	private readonly _slotHosts = this._register(new DisposableStore());
 
 	/**
-	 * Aggregated state per molecule. Updated when molecules call phonon.setState().
-	 * Keys are molecule IDs, values are key-value state maps.
+	 * Aggregated state per graft. Updated when grafts call phonon.setState().
+	 * Keys are graft IDs, values are key-value state maps.
 	 */
-	private readonly _moleculeStates = new Map<string, Record<string, unknown>>();
+	private readonly _graftStates = new Map<string, Record<string, unknown>>();
 
 	constructor(
 		group: IEditorGroup,
@@ -123,37 +123,37 @@ export class LiquidCanvasEditor extends EditorPane {
 	 */
 	composeIntent(intent: ICompositionIntent): void {
 		this._currentIntent = intent;
-		this._moleculeStates.clear();
+		this._graftStates.clear();
 		this._renderIntent(intent);
 	}
 
 	/**
-	 * Returns a human-readable snapshot of all molecule states on the active canvas.
+	 * Returns a human-readable snapshot of all graft states on the active canvas.
 	 * Used by the chat agent to enrich the system prompt with live canvas context.
 	 */
 	getCanvasStateSnapshot(): string {
-		if (this._moleculeStates.size === 0) {
+		if (this._graftStates.size === 0) {
 			return '';
 		}
 		const parts: string[] = [];
-		for (const [moleculeId, state] of this._moleculeStates) {
+		for (const [graftId, state] of this._graftStates) {
 			const entries = Object.entries(state).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ');
-			parts.push(`- ${moleculeId}: ${entries}`);
+			parts.push(`- ${graftId}: ${entries}`);
 		}
 		return parts.join('\n');
 	}
 
 	/**
-	 * Returns the raw state map for a specific molecule. Used for state preservation
+	 * Returns the raw state map for a specific graft. Used for state preservation
 	 * during hot reload.
 	 */
-	getMoleculeState(moleculeId: string): Record<string, unknown> | undefined {
-		return this._moleculeStates.get(moleculeId);
+	getGraftState(graftId: string): Record<string, unknown> | undefined {
+		return this._graftStates.get(graftId);
 	}
 
-	private _onMoleculeStateChange(change: IMoleculeStateChange): void {
-		const current = this._moleculeStates.get(change.moleculeId) ?? {};
-		this._moleculeStates.set(change.moleculeId, { ...current, [change.key]: change.value });
+	private _onGraftStateChange(change: IGraftStateChange): void {
+		const current = this._graftStates.get(change.graftId) ?? {};
+		this._graftStates.set(change.graftId, { ...current, [change.key]: change.value });
 	}
 
 	private _renderIntent(intent: ICompositionIntent): void {
@@ -179,7 +179,7 @@ export class LiquidCanvasEditor extends EditorPane {
 
 	private _renderSlot(parent: HTMLElement, slot: ICompositionSlot): void {
 		const slotEl = dom.append(parent, dom.$('.liquid-canvas-slot'));
-		const slotTargetId = slot.viewId ?? slot.moleculeId ?? 'unknown';
+		const slotTargetId = slot.viewId ?? slot.graftId ?? 'unknown';
 
 		// -- Header --
 		const header = dom.append(slotEl, dom.$('.liquid-canvas-slot-header'));
@@ -188,30 +188,30 @@ export class LiquidCanvasEditor extends EditorPane {
 		// -- Body --
 		const body = dom.append(slotEl, dom.$('.liquid-canvas-slot-body'));
 
-		// Attempt molecule rendering
-		if (slot.moleculeId) {
-			const molecule = this.registry.molecules.find(m => m.id === slot.moleculeId);
-			if (molecule) {
-				// Sync placeholder while async molecule loads
+		// Attempt graft rendering
+		if (slot.graftId) {
+			const graft = this.registry.grafts.find(m => m.id === slot.graftId);
+			if (graft) {
+				// Sync placeholder while async graft loads
 				const loading = dom.append(body, dom.$('div'));
-				loading.textContent = localize('phononCanvas.loading', "Loading {0}...", molecule.label);
+				loading.textContent = localize('phononCanvas.loading', "Loading {0}...", graft.label);
 				loading.style.color = 'var(--vscode-descriptionForeground)';
 				loading.style.fontStyle = 'italic';
 
-				this._renderMoleculeWebview(body, molecule, slot.params).then(() => {
+				this._renderGraftWebview(body, graft, slot.params).then(() => {
 					loading.remove();
 				}).catch(err => {
-					loading.textContent = localize('phononCanvas.moleculeError', "Molecule error: {0} - {1}", molecule.id, String(err));
+					loading.textContent = localize('phononCanvas.graftError', "Graft error: {0} - {1}", graft.id, String(err));
 					loading.style.color = 'var(--vscode-errorForeground)';
-					this.logService.error(`[Phonon Canvas] Molecule render failed: ${molecule.id}`, err);
+					this.logService.error(`[Phonon Canvas] Graft render failed: ${graft.id}`, err);
 				});
 				return;
 			}
 		}
 
-		// Fallback: placeholder for views or unknown molecules
+		// Fallback: placeholder for views or unknown grafts
 		const viewLine = dom.append(body, dom.$('div'));
-		viewLine.textContent = slot.moleculeId ? `Molecule: ${slot.moleculeId}` : `View: ${slotTargetId}`;
+		viewLine.textContent = slot.graftId ? `Graft: ${slot.graftId}` : `View: ${slotTargetId}`;
 
 		if (slot.params && Object.keys(slot.params).length > 0) {
 			const paramsBlock = dom.append(body, dom.$('pre.liquid-canvas-slot-params'));
@@ -220,46 +220,46 @@ export class LiquidCanvasEditor extends EditorPane {
 	}
 
 	/**
-	 * Render a molecule inside a sandboxed iframe with a postMessage bridge shim.
+	 * Render a graft inside a sandboxed iframe with a postMessage bridge shim.
 	 *
 	 * Creates the iframe + slot host, then sets up a file watcher for hot reload.
 	 * The watcher persists across reloads -- only the iframe and host are recreated.
 	 */
-	private async _renderMoleculeWebview(
+	private async _renderGraftWebview(
 		container: HTMLElement,
-		molecule: ILiquidMolecule,
+		graft: ILiquidGraft,
 		params?: Record<string, unknown>,
 	): Promise<void> {
-		this.logService.info(`[Phonon Canvas] Rendering molecule: ${molecule.id} from ${molecule.entryUri.toString()}`);
+		this.logService.info(`[Phonon Canvas] Rendering graft: ${graft.id} from ${graft.entryUri.toString()}`);
 
-		const result = await this._createMoleculeIframe(container, molecule, params);
+		const result = await this._createGraftIframe(container, graft, params);
 		if (!result) {
 			return;
 		}
 
 		// The lifecycle manager owns the initial iframe+host AND the watcher.
 		// On file change, it recreates only the iframe+host while the watcher persists.
-		this._slotHosts.add(this._createMoleculeLifecycle(container, molecule, params, result));
+		this._slotHosts.add(this._createGraftLifecycle(container, graft, params, result));
 	}
 
 	/**
-	 * Create a sandboxed iframe for a molecule, wire up the bridge, and return
+	 * Create a sandboxed iframe for a graft, wire up the bridge, and return
 	 * the iframe + slot host disposable. Does NOT create a file watcher.
 	 */
-	private async _createMoleculeIframe(
+	private async _createGraftIframe(
 		container: HTMLElement,
-		molecule: ILiquidMolecule,
+		graft: ILiquidGraft,
 		params?: Record<string, unknown>,
 		restoredState?: Record<string, unknown>,
 	): Promise<{ iframe: HTMLIFrameElement; slotHostDisposable: IDisposable } | undefined> {
-		let moleculeHtml: string;
+		let graftHtml: string;
 		try {
-			const fileContent = await this.fileService.readFile(molecule.entryUri);
-			moleculeHtml = fileContent.value.toString();
+			const fileContent = await this.fileService.readFile(graft.entryUri);
+			graftHtml = fileContent.value.toString();
 		} catch (err) {
-			this.logService.warn(`[Phonon Canvas] Failed to read molecule HTML: ${molecule.id}`, err);
+			this.logService.warn(`[Phonon Canvas] Failed to read graft HTML: ${graft.id}`, err);
 			const errorEl = dom.append(container, dom.$('div'));
-			errorEl.textContent = localize('phononCanvas.loadError', "Molecule load error: {0}", molecule.id);
+			errorEl.textContent = localize('phononCanvas.loadError', "Graft load error: {0}", graft.id);
 			errorEl.style.color = 'var(--vscode-errorForeground)';
 			return undefined;
 		}
@@ -271,7 +271,7 @@ export class LiquidCanvasEditor extends EditorPane {
 		iframe.style.height = '100%';
 		iframe.style.border = 'none';
 
-		// Build srcdoc: bridge shim + molecule HTML
+		// Build srcdoc: bridge shim + graft HTML
 		const bridgeShim = this._buildBridgeShim(params);
 		const srcdoc = `<!DOCTYPE html>
 <html>
@@ -282,7 +282,7 @@ export class LiquidCanvasEditor extends EditorPane {
 </style>
 </head>
 <body>
-${moleculeHtml}
+${graftHtml}
 <script>${bridgeShim}</script>
 </body>
 </html>`;
@@ -297,21 +297,21 @@ ${moleculeHtml}
 		dom.append(container, iframe);
 
 		// Create slot host for message routing
-		const slotHostDisposable = this._createSlotHost(iframe, molecule.id, molecule.entity, params, restoredState);
+		const slotHostDisposable = this._createSlotHost(iframe, graft.id, graft.entity, params, restoredState);
 
-		this.logService.info(`[Phonon Canvas] Rendered molecule in iframe: ${molecule.id}`);
+		this.logService.info(`[Phonon Canvas] Rendered graft in iframe: ${graft.id}`);
 
 		return { iframe, slotHostDisposable };
 	}
 
 	/**
-	 * Manage the full lifecycle of a molecule slot: initial iframe + host,
+	 * Manage the full lifecycle of a graft slot: initial iframe + host,
 	 * file watcher, and hot reloads. The watcher persists across reloads
 	 * (fixes the accumulation bug where each reload created a new watcher).
 	 */
-	private _createMoleculeLifecycle(
+	private _createGraftLifecycle(
 		container: HTMLElement,
-		molecule: ILiquidMolecule,
+		graft: ILiquidGraft,
 		params: Record<string, unknown> | undefined,
 		initial: { iframe: HTMLIFrameElement; slotHostDisposable: IDisposable },
 	): IDisposable {
@@ -325,8 +325,8 @@ ${moleculeHtml}
 		// Guard against rapid file changes causing overlapping reloads
 		let reloadInFlight = false;
 
-		// Use a correlated file watcher so events only fire for this molecule's file
-		const watcher = this.fileService.createWatcher(molecule.entryUri, { recursive: false, excludes: [] });
+		// Use a correlated file watcher so events only fire for this graft's file
+		const watcher = this.fileService.createWatcher(graft.entryUri, { recursive: false, excludes: [] });
 		disposables.add(watcher);
 
 		disposables.add(watcher.onDidChange(() => {
@@ -334,23 +334,23 @@ ${moleculeHtml}
 				return;
 			}
 			reloadInFlight = true;
-			this.logService.info(`[Phonon Canvas] Hot reload: ${molecule.id}`);
+			this.logService.info(`[Phonon Canvas] Hot reload: ${graft.id}`);
 
 			// Preserve state before destroying the iframe
-			const savedState = this.getMoleculeState(molecule.id);
+			const savedState = this.getGraftState(graft.id);
 
 			// Tear down old iframe + host
 			currentIframe.remove();
 			slotHostRef.clear();
 
 			// Recreate iframe + host (no new watcher)
-			this._createMoleculeIframe(container, molecule, params, savedState).then(result => {
+			this._createGraftIframe(container, graft, params, savedState).then(result => {
 				if (result) {
 					currentIframe = result.iframe;
 					slotHostRef.value = result.slotHostDisposable;
 				}
 			}).catch(err => {
-				this.logService.error(`[Phonon Canvas] Hot reload failed: ${molecule.id}`, err);
+				this.logService.error(`[Phonon Canvas] Hot reload failed: ${graft.id}`, err);
 			}).finally(() => {
 				reloadInFlight = false;
 			});
@@ -360,7 +360,7 @@ ${moleculeHtml}
 	}
 
 	/**
-	 * Build the ES5-compatible bridge shim injected inside the molecule iframe.
+	 * Build the ES5-compatible bridge shim injected inside the graft iframe.
 	 *
 	 * Exposes `window.phonon` with data.fetch, data.mutate, navigate, intent,
 	 * setTitle, setLoading, setState, getState, onParams, onReady, and params.
@@ -455,20 +455,20 @@ ${moleculeHtml}
 	}
 
 	/**
-	 * Create a LiquidMoleculeSlotHost wired to a raw iframe via postMessage.
+	 * Create a LiquidGraftSlotHost wired to a raw iframe via postMessage.
 	 *
 	 * Returns a composite IDisposable that tears down the message listener,
 	 * the emitter, and the slot host.
 	 */
 	private _createSlotHost(
 		iframe: HTMLIFrameElement,
-		moleculeId: string,
+		graftId: string,
 		entity: string | undefined,
 		params: Record<string, unknown> | undefined,
 		restoredState?: Record<string, unknown>,
 	): IDisposable {
-		// Adapt the raw iframe to IMoleculeWebview
-		const onMessage = new Emitter<MoleculeToHostMessage>();
+		// Adapt the raw iframe to IGraftWebview
+		const onMessage = new Emitter<GraftToHostMessage>();
 
 		const messageHandler = (event: MessageEvent) => {
 			if (event.source === iframe.contentWindow) {
@@ -477,8 +477,8 @@ ${moleculeHtml}
 		};
 		dom.getWindow(this._container ?? iframe).addEventListener('message', messageHandler);
 
-		const webviewAdapter: IMoleculeWebview = {
-			postMessage: async (msg: HostToMoleculeMessage) => {
+		const webviewAdapter: IGraftWebview = {
+			postMessage: async (msg: HostToGraftMessage) => {
 				if (iframe.contentWindow) {
 					iframe.contentWindow.postMessage(msg, '*');
 					return true;
@@ -488,13 +488,13 @@ ${moleculeHtml}
 			onDidReceiveMessage: onMessage.event,
 		};
 
-		const host = new LiquidMoleculeSlotHost(
-			webviewAdapter, moleculeId, entity, params,
+		const host = new LiquidGraftSlotHost(
+			webviewAdapter, graftId, entity, params,
 			this.dataResolver, this.logService,
 		);
 
-		// Wire molecule state changes to the canvas state aggregator
-		const stateListener = host.onDidStateChange(change => this._onMoleculeStateChange(change));
+		// Wire graft state changes to the canvas state aggregator
+		const stateListener = host.onDidStateChange(change => this._onGraftStateChange(change));
 
 		// If this is a hot reload with preserved state, push it after init
 		let readyListener: IDisposable | undefined;

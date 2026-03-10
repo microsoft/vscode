@@ -10,7 +10,9 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMcpService, IMcpServer } from '../../mcp/common/mcpTypes.js';
 import { IPhononAgentPoolService, IPhononAgentOutput } from '../common/phononAgentPool.js';
 import { ILiquidModuleRegistry } from '../common/liquidModule.js';
-import { ICompositionIntent } from '../common/liquidModuleTypes.js';
+import { ICompositionIntent, CompositionLayout } from '../common/liquidGraftTypes.js';
+import { ICompositionEngine } from './liquidCompositor.js';
+import { validateIntent as validateGatekeeperIntent } from './liquidGatekeeper.js';
 import { autorun } from '../../../../base/common/observable.js';
 
 /**
@@ -32,10 +34,10 @@ export interface IMcpToolCallResult {
 /**
  * Bridges MCP tool invocations from Phonon agent output to the MCP server infrastructure.
  *
- * Flow:
- *   Agent output contains [MCP:tool_name](params) → bridge parses →
- *   finds tool on MCP server → calls tool.call(params) →
- *   result injected as follow-up to agent
+ * Also processes composition intents in two formats:
+ *   1. Composed intent: { layout, slots } -- validated via registry, fired directly.
+ *   2. Raw intent: { action, entities } -- validated via 7-gate gatekeeper,
+ *      composed via compositor, then fired.
  */
 export class PhononMcpBridge extends Disposable {
 
@@ -49,6 +51,7 @@ export class PhononMcpBridge extends Disposable {
 		@IMcpService private readonly mcpService: IMcpService,
 		@IPhononAgentPoolService private readonly agentPoolService: IPhononAgentPoolService,
 		@ILiquidModuleRegistry private readonly liquidModuleRegistry: ILiquidModuleRegistry,
+		@ICompositionEngine private readonly compositionEngine: ICompositionEngine,
 	) {
 		super();
 		this._observeServers();
@@ -203,13 +206,18 @@ export class PhononMcpBridge extends Disposable {
 	}
 
 	/**
-	 * Scan output for composition intent blocks, validate via the liquid
-	 * module registry, and fire onDidReceiveIntent.
+	 * Scan output for composition intent blocks, validate, and fire onDidReceiveIntent.
 	 *
-	 * Strategy:
-	 *   1. Extract content from ```phonon-intent fenced blocks (preferred)
-	 *   2. If none found, extract from ```json fenced blocks that look like intents
-	 *   3. If still none, scan for bare JSON objects with bracket-counting
+	 * Supports two intent formats:
+	 *   1. Raw intent: { action, entities, depth?, preferredLayout?, params? }
+	 *      Validated via 7-gate gatekeeper, then composed via compositor.
+	 *   2. Composed intent: { layout, slots }
+	 *      Validated via registry.validateIntent(), fired directly.
+	 *
+	 * Extraction strategy:
+	 *   1. ```phonon-intent fenced blocks (preferred, unambiguous)
+	 *   2. ```json fenced blocks that contain intent-like keys
+	 *   3. Bare JSON objects with bracket-counting
 	 */
 	private _processIntentBlocks(output: string): void {
 		const candidates: string[] = [];
@@ -221,19 +229,21 @@ export class PhononMcpBridge extends Disposable {
 			candidates.push(match[1]);
 		}
 
-		// Pattern 2: ```json fenced blocks, only if they contain "layout" and "slots"
+		// Pattern 2: ```json fenced blocks, only if they contain intent-like keys
 		if (candidates.length === 0) {
 			const jsonFenceRe = /```json\s*\n([\s\S]*?)\n```/g;
 			while ((match = jsonFenceRe.exec(output)) !== null) {
 				const content = match[1];
-				if (content.includes('"layout"') && content.includes('"slots"')) {
+				const hasComposedKeys = content.includes('"layout"') && content.includes('"slots"');
+				const hasRawKeys = content.includes('"action"') || content.includes('"entities"');
+				if (hasComposedKeys || hasRawKeys) {
 					candidates.push(content);
 				}
 			}
 		}
 
 		// allow-any-unicode-next-line
-		// Pattern 3: bare JSON — bracket-counting parser for nested objects
+		// Pattern 3: bare JSON -- bracket-counting parser for nested objects
 		if (candidates.length === 0) {
 			const bareResults = this._extractBareIntentJSON(output);
 			for (const result of bareResults) {
@@ -242,44 +252,84 @@ export class PhononMcpBridge extends Disposable {
 		}
 
 		for (const raw of candidates) {
-			let intent: ICompositionIntent;
+			let parsed: Record<string, unknown>;
 			try {
-				intent = JSON.parse(raw) as ICompositionIntent;
+				parsed = JSON.parse(raw) as Record<string, unknown>;
 			} catch {
 				this.logService.warn('[Phonon MCP Bridge] Failed to parse phonon-intent JSON');
 				continue;
 			}
 
-			// Structural check: must have layout and slots array
-			if (!intent.layout || !Array.isArray(intent.slots)) {
+			// Detect format: raw intent (action/entities) vs composed intent (layout/slots)
+			if ((parsed.action !== undefined || parsed.entities !== undefined) && parsed.layout === undefined) {
+				this._processRawIntent(parsed);
 				continue;
 			}
 
-			const validation = this.liquidModuleRegistry.validateIntent(intent);
-			if (validation.valid) {
-				this.logService.info(`[Phonon MCP Bridge] Valid composition intent: layout=${intent.layout}, slots=${intent.slots.length}`);
-				this._onDidReceiveIntent.fire(intent);
-			} else {
-				this.logService.warn(`[Phonon MCP Bridge] Invalid composition intent: ${validation.errors.join('; ')}`);
-			}
+			this._processComposedIntent(parsed);
+		}
+	}
+
+	/**
+	 * Process a raw intent through the 7-gate gatekeeper then the compositor.
+	 */
+	private _processRawIntent(parsed: Record<string, unknown>): void {
+		const gateResult = validateGatekeeperIntent(parsed, this.liquidModuleRegistry);
+		if (!gateResult.valid) {
+			this.logService.warn(`[Phonon MCP Bridge] Gatekeeper rejected: gate ${gateResult.gate} (${gateResult.gateName}) - ${gateResult.error}`);
+			return;
+		}
+
+		const sp = gateResult.sanitizedParams!;
+		const entities = (sp.entities as string[]) ?? [];
+		const action = (sp.action as string) ?? 'show';
+		const depth = (sp.depth as number) ?? 0;
+		const preferredLayout = sp.preferredLayout as CompositionLayout | undefined;
+
+		const composed = this.compositionEngine.composeFromIntent(entities, action, depth, preferredLayout);
+		if (composed) {
+			this.logService.info(`[Phonon MCP Bridge] Raw intent composed: layout=${composed.layout}, slots=${composed.slots.length}`);
+			this._onDidReceiveIntent.fire(composed);
+		} else {
+			this.logService.warn('[Phonon MCP Bridge] Compositor returned no intent for raw input');
+		}
+	}
+
+	/**
+	 * Process a composed intent (layout + slots) via registry validation.
+	 */
+	private _processComposedIntent(parsed: Record<string, unknown>): void {
+		const intent = parsed as unknown as ICompositionIntent;
+
+		// Structural check: must have layout and slots array
+		if (!intent.layout || !Array.isArray(intent.slots)) {
+			return;
+		}
+
+		const validation = this.liquidModuleRegistry.validateIntent(intent);
+		if (validation.valid) {
+			this.logService.info(`[Phonon MCP Bridge] Valid composition intent: layout=${intent.layout}, slots=${intent.slots.length}`);
+			this._onDidReceiveIntent.fire(intent);
+		} else {
+			this.logService.warn(`[Phonon MCP Bridge] Invalid composition intent: ${validation.errors.join('; ')}`);
 		}
 	}
 
 	/**
 	 * Bracket-counting JSON extraction: finds `{` characters in text,
 	 * counts nested braces to find the matching `}`, and attempts
-	 * JSON.parse. Only returns objects that have "layout" and "slots".
+	 * JSON.parse. Only returns objects that have intent-like keys.
 	 */
 	private _extractBareIntentJSON(output: string): string[] {
 		const results: string[] = [];
 		// allow-any-unicode-next-line
-		// Find positions where `"layout"` appears — only scan from nearby `{`
-		const layoutRe = /"layout"\s*:/g;
-		let layoutMatch: RegExpExecArray | null;
+		// Find positions where intent-like keys appear -- only scan from nearby `{`
+		const intentKeyRe = /"(?:layout|action)"\s*:/g;
+		let keyMatch: RegExpExecArray | null;
 
-		while ((layoutMatch = layoutRe.exec(output)) !== null) {
+		while ((keyMatch = intentKeyRe.exec(output)) !== null) {
 			// Walk backwards to find the opening `{`
-			let start = layoutMatch.index;
+			let start = keyMatch.index;
 			while (start > 0 && output[start] !== '{') {
 				start--;
 			}
@@ -306,7 +356,8 @@ export class PhononMcpBridge extends Disposable {
 			}
 
 			const candidate = output.substring(start, end + 1);
-			if (candidate.includes('"slots"')) {
+			const hasIntentShape = candidate.includes('"slots"') || candidate.includes('"entities"');
+			if (hasIntentShape) {
 				try {
 					JSON.parse(candidate); // validate it's parseable
 					results.push(candidate);

@@ -25,7 +25,8 @@ import {
 	ViewContainerLocation,
 } from '../../../common/views.js';
 import { ILiquidModuleRegistry } from '../common/liquidModule.js';
-import type { ICompositionIntent, ILiquidSidebarNode } from '../common/liquidModuleTypes.js';
+import type { ICompositionIntent, ILiquidSidebarNode } from '../common/liquidGraftTypes.js';
+import { ICompositionEngine } from './liquidCompositor.js';
 
 export const LIQUID_VIEW_CONTAINER_ID = 'workbench.view.phonon.liquid';
 export const LIQUID_TREE_VIEW_ID = 'workbench.view.phonon.liquid.tree';
@@ -51,6 +52,7 @@ export class LiquidSidebarDataProvider extends Disposable implements ITreeViewDa
 
 	constructor(
 		private readonly registry: ILiquidModuleRegistry,
+		private readonly compositionEngine: ICompositionEngine,
 		private readonly logService: ILogService,
 	) {
 		super();
@@ -108,27 +110,24 @@ export class LiquidSidebarDataProvider extends Disposable implements ITreeViewDa
 
 	/**
 	 * Called when the user clicks a tree item.
-	 * Fires a composition intent so the canvas opens the corresponding view.
+	 * Uses the compositor for views with defaultGrafts, otherwise single-slot.
 	 */
 	handleClick(item: ITreeItem): void {
 		const node = this._findNode(item.handle, this.registry.sidebarTree);
 		if (!node?.view) { return; }
 
-		// Dashboard: compose grid from dashboard-tagged molecules
-		if (node.view.includes('Dashboard')) {
-			const dashMolecules = this.registry.getMoleculesByTag('dashboard');
-			if (dashMolecules.length > 0) {
-				this.logService.info(`[Phonon] Sidebar navigation: dashboard grid with ${dashMolecules.length} molecules`);
-				this._onDidRequestNavigation.fire({
-					layout: 'grid',
-					slots: dashMolecules.map((m: { id: string; label: string }) => ({ moleculeId: m.id, label: m.label })),
-					title: node.label,
-				});
+		// Try compositor: view with defaultGrafts
+		const view = this.registry.views.find(v => v.id === node.view);
+		if (view && view.defaultGrafts.length > 0) {
+			const composed = this.compositionEngine.composeFromView(view.id, view.defaultGrafts);
+			if (composed) {
+				this.logService.info(`[Phonon] Sidebar navigation: composed view="${view.id}" with ${composed.slots.length} grafts`);
+				this._onDidRequestNavigation.fire(composed);
 				return;
 			}
 		}
 
-		// Regular view
+		// Fallback: single view slot
 		this.logService.info(`[Phonon] Sidebar navigation: single view="${node.view}"`);
 		this._onDidRequestNavigation.fire({
 			layout: 'single',
@@ -145,6 +144,7 @@ export class LiquidSidebarDataProvider extends Disposable implements ITreeViewDa
 export function registerLiquidSidebarTreeView(
 	instantiationService: IInstantiationService,
 	registry: ILiquidModuleRegistry,
+	compositionEngine: ICompositionEngine,
 	logService: ILogService,
 ): LiquidSidebarDataProvider {
 	// 1. Register ViewContainer in the activity bar (Sidebar location)
@@ -166,7 +166,7 @@ export function registerLiquidSidebarTreeView(
 	);
 
 	// 3. Create data provider and wire it
-	const dataProvider = new LiquidSidebarDataProvider(registry, logService);
+	const dataProvider = new LiquidSidebarDataProvider(registry, compositionEngine, logService);
 	treeView.dataProvider = dataProvider;
 
 	// 4. Refresh when sidebar tree changes
@@ -174,7 +174,7 @@ export function registerLiquidSidebarTreeView(
 		treeView.refresh();
 	});
 
-	// 5. Handle item selection (click) -- logs for now, Task 7 wires navigation
+	// 5. Handle item selection (click)
 	treeView.onDidChangeSelectionAndFocus(e => {
 		if (e.selection.length > 0) {
 			dataProvider.handleClick(e.selection[0]);
