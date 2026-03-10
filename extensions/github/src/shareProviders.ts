@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type { API } from './typings/git.d.ts';
+import { API } from './typings/git.js';
 import { getRepositoryFromUrl, repositoryHasGitHubRemote } from './util.js';
 import { encodeURIComponentExceptSlashes, ensurePublished, getRepositoryForFile, notebookCellRangeString, rangeString } from './links.js';
 
