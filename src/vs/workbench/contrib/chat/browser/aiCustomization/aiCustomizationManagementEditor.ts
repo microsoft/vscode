@@ -362,17 +362,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		));
 
 		this.sectionsList.splice(0, this.sectionsList.length, this.sections);
-
-		// Select the saved section
-		const selectedIndex = this.sections.findIndex(s => s.id === this.selectedSection);
-		if (selectedIndex >= 0) {
-			this.sectionsList.setSelection([selectedIndex]);
-		}
+		this.ensureSectionsListReflectsActiveSection();
 
 		this.editorDisposables.add(this.sectionsList.onDidChangeSelection(e => {
-			if (e.elements.length > 0) {
-				this.selectSection(e.elements[0].id);
+			if (e.elements.length === 0) {
+				this.ensureSectionsListReflectsActiveSection();
+				return;
 			}
+			this.selectSection(e.elements[0].id);
 		}));
 
 		// Folder picker (sessions window only)
@@ -539,6 +536,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private selectSection(section: AICustomizationManagementSection): void {
 		if (this.selectedSection === section) {
+			this.ensureSectionsListReflectsActiveSection(section);
 			return;
 		}
 
@@ -564,6 +562,29 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Load items for the new section (only for prompts-based sections)
 		if (this.isPromptsSection(section)) {
 			void this.listWidget.setSection(section);
+		}
+
+		this.ensureSectionsListReflectsActiveSection(section);
+	}
+
+	private ensureSectionsListReflectsActiveSection(section: AICustomizationManagementSection = this.selectedSection): void {
+		if (!this.sectionsList) {
+			return;
+		}
+
+		const index = this.sections.findIndex(s => s.id === section);
+		if (index < 0) {
+			return;
+		}
+
+		const selection = this.sectionsList.getSelection();
+		if (selection.length !== 1 || selection[0] !== index) {
+			this.sectionsList.setSelection([index]);
+		}
+
+		const focus = this.sectionsList.getFocus();
+		if (focus.length !== 1 || focus[0] !== index) {
+			this.sectionsList.setFocus([index]);
 		}
 	}
 
@@ -758,8 +779,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.isPromptsSection(sectionId)) {
 				void this.listWidget.setSection(sectionId);
 			}
-			this.sectionsList.setFocus([index]);
-			this.sectionsList.setSelection([index]);
+			this.ensureSectionsListReflectsActiveSection(sectionId);
 		}
 	}
 
