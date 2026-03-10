@@ -935,6 +935,8 @@
 
 .ai-customization-management-editor .editor-save-button {
 	display: none;
+	align-items: center;
+	gap: 6px;
 	flex-shrink: 0;
 	padding: 4px 10px;
 	border: 1px solid var(--vscode-button-border, transparent);
@@ -944,6 +946,11 @@
 	cursor: pointer;
 	font-size: 12px;
 	line-height: 18px;
+}
+
+.ai-customization-management-editor .editor-save-button-icon {
+	font-size: 14px;
+	line-height: 14px;
 }
 
 .ai-customization-management-editor .editor-save-button:hover:not(:disabled) {

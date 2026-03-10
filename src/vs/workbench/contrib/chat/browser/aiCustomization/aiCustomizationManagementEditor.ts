@@ -843,7 +843,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorItemPathElement = DOM.append(itemInfo, $('.editor-item-path'));
 
 		this.editorSaveButton = DOM.append(editorHeader, $('button.editor-save-button'));
-		this.editorSaveButton.textContent = localize('savePromptCopy', "Save");
+		const saveIcon = DOM.append(this.editorSaveButton, $(`.codicon.codicon-${Codicon.save.id}.editor-save-button-icon`));
+		saveIcon.setAttribute('aria-hidden', 'true');
+		const saveLabel = DOM.append(this.editorSaveButton, $('span.editor-save-button-label'));
+		saveLabel.textContent = localize('savePromptCopy', "Save");
 		this.editorSaveButton.setAttribute('aria-label', localize('savePromptCopyAriaLabel', "Save prompt copy"));
 		this.editorDisposables.add(DOM.addDisposableListener(this.editorSaveButton, 'click', () => {
 			void this.saveBuiltinPromptCopy().catch(error => {
@@ -1107,7 +1110,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		const isBuiltinPrompt = this.currentEditingStorage === BUILTIN_STORAGE && this.currentEditingPromptType === PromptsType.prompt;
-		this.editorSaveButton.style.display = isBuiltinPrompt ? '' : 'none';
+		this.editorSaveButton.style.display = isBuiltinPrompt ? 'inline-flex' : 'none';
 		this.editorSaveButton.disabled = !this._editorContentChanged;
 		this.editorSaveButton.title = isBuiltinPrompt
 			? this._editorContentChanged
