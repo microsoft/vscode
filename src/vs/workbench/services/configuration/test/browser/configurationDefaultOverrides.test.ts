@@ -12,8 +12,8 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchAssignmentService } from '../../../assignment/common/assignmentService.js';
 import { NullExtensionService } from '../../../extensions/common/extensions.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ConfigurationDefaultOverridesContribution, WorkspaceService } from '../../browser/configurationService.js';
-import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 
 class MockAssignmentService implements IWorkbenchAssignmentService {
 	_serviceBrand: undefined;
@@ -71,10 +71,6 @@ class MockAssignmentService implements IWorkbenchAssignmentService {
 	}
 }
 
-class MockConfigurationService {
-	reloadConfiguration(_target: ConfigurationTarget): void { }
-}
-
 suite('ConfigurationDefaultOverridesContribution', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -92,7 +88,9 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		const contribution = new ConfigurationDefaultOverridesContribution(
 			assignmentService,
 			new NullExtensionService(),
-			new MockConfigurationService() as unknown as WorkspaceService,
+			new class extends mock<WorkspaceService>() {
+				override reloadConfiguration() { return Promise.resolve(); }
+			},
 			new NullLogService()
 		);
 		localDisposables.add(contribution);
