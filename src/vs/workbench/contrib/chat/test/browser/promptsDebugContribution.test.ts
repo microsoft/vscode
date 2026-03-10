@@ -71,8 +71,6 @@ suite('PromptsDebugContribution', () => {
 			sourceFolders: [{
 				uri: URI.file('/workspace/.github/instructions'),
 				storage: PromptsStorage.local,
-				exists: true,
-				fileCount: 1,
 			}],
 		};
 

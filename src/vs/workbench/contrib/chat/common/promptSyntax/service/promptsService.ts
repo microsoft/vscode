@@ -342,7 +342,7 @@ export interface IPromptSourceFolderResult {
 export interface IPromptDiscoveryInfo {
 	readonly type: PromptsType;
 	readonly files: readonly IPromptFileDiscoveryResult[];
-	/** Source folders that were searched, with their existence and file count */
+	/** Source folders that were searched */
 	readonly sourceFolders?: readonly IPromptSourceFolderResult[];
 }
 

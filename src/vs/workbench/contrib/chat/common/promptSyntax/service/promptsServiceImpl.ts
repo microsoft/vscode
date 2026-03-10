@@ -339,8 +339,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	/**
-	 * Collects diagnostic information about which source folders were searched
-	 * and whether they exist, for display in the debug panel.
+	 * Collects diagnostic information about which source folders were searched for display in the debug panel.
 	 */
 	private async _collectSourceFolderDiagnostics(type: PromptsType): Promise<IPromptSourceFolderResult[]> {
 		const resolvedFolders = await this.fileLocator.getSourceFoldersInDiscoveryOrder(type);
