@@ -213,6 +213,12 @@ export interface IChatSessionOptionsWillNotifyExtensionEvent extends IWaitUntil 
 	readonly updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>;
 }
 
+export type ResolvedChatSessionsExtensionPoint = Omit<IChatSessionsExtensionPoint, 'icon'> & {
+	readonly icon: ThemeIcon | URI | undefined;
+};
+
+export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
+
 export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
 
@@ -223,16 +229,11 @@ export interface IChatSessionsService {
 	readonly onDidChangeAvailability: Event<void>;
 	readonly onDidChangeInProgress: Event<void>;
 
-	getChatSessionContribution(chatSessionType: string): IChatSessionsExtensionPoint | undefined;
+	getChatSessionContribution(chatSessionType: string): ResolvedChatSessionsExtensionPoint | undefined;
+	getAllChatSessionContributions(): ResolvedChatSessionsExtensionPoint[];
 
 	registerChatSessionItemController(chatSessionType: string, controller: IChatSessionItemController): IDisposable;
 	activateChatSessionItemProvider(chatSessionType: string): Promise<void>;
-
-	getAllChatSessionContributions(): IChatSessionsExtensionPoint[];
-	getIconForSessionType(chatSessionType: string): ThemeIcon | URI | undefined;
-	getWelcomeTitleForSessionType(chatSessionType: string): string | undefined;
-	getWelcomeMessageForSessionType(chatSessionType: string): string | undefined;
-	getInputPlaceholderForSessionType(chatSessionType: string): string | undefined;
 
 	/**
 	 * Get the list of current chat session items grouped by session type.
@@ -322,4 +323,3 @@ export function isIChatSessionFileChange2(obj: unknown): obj is IChatSessionFile
 	return candidate && candidate.uri instanceof URI && typeof candidate.insertions === 'number' && typeof candidate.deletions === 'number';
 }
 
-export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
