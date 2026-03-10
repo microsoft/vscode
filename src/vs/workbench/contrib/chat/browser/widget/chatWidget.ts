@@ -82,7 +82,6 @@ import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewWelcomePart, IChatViewWelcomeContent } from '../viewsWelcome/chatViewWelcomeController.js';
 import { IChatTipService } from '../chatTipService.js';
 import { ChatTipContentPart } from './chatContentParts/chatTipContentPart.js';
-import { triggerRevealAnimation } from './chatContentParts/chatTodoListWidget.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
@@ -1059,7 +1058,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._gettingStartedTipPart.value = store;
 		dom.setVisibility(true, tipContainer);
-		triggerRevealAnimation(tipPart.domNode);
 	}
 
 	private _getGenerateInstructionsMessage(): IMarkdownString {
@@ -1561,13 +1559,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			if (!isInput) {
 				const rowContainer = item.rowContainer;
-
-				// Capture the bubble width before it's hidden so the expand animation starts from the right size
-				const bubbleWidth = item.renderedParts?.[0]?.domNode?.offsetWidth;
-				const bubbleWidthPct = bubbleWidth ? Math.round(bubbleWidth / rowContainer.offsetWidth * 100) : 60;
-
 				this.inputContainer = dom.$('.chat-edit-input-container');
-				this.inputContainer.style.setProperty('--chat-edit-bubble-width', `${bubbleWidthPct}%`);
 				rowContainer.appendChild(this.inputContainer);
 				this.createInput(this.inputContainer);
 				this.input.setChatMode(this.inputPart.currentModeObs.get().id);

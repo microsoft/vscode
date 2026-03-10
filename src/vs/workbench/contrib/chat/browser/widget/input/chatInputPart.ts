@@ -113,7 +113,7 @@ import { IDisposableReference } from '../chatContentParts/chatCollections.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../chatContentParts/chatQuestionCarouselPart.js';
 import { IChatContentPartRenderContext } from '../chatContentParts/chatContentParts.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatContentParts/chatReferencesContentPart.js';
-import { ChatTodoListWidget, triggerCollapseAnimation, triggerRevealAnimation } from '../chatContentParts/chatTodoListWidget.js';
+import { ChatTodoListWidget } from '../chatContentParts/chatTodoListWidget.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { ChatInputPartWidgetController } from './chatInputPartWidgets.js';
@@ -2690,7 +2690,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._hasQuestionCarouselContextKey?.set(true);
 
 		dom.append(this.chatQuestionCarouselContainer, part.domNode);
-		triggerRevealAnimation(part.domNode);
 
 		return part;
 	}
@@ -2912,7 +2911,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Working set
 		// eslint-disable-next-line no-restricted-syntax
 		const workingSetContainer = innerContainer.querySelector('.chat-editing-session-list') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-list'));
-		let lastRenderedWorkingSetCollapsed: boolean | undefined;
 
 		const button = this._chatEditsActionsDisposables.add(new ButtonWithIcon(overviewTitle, {
 			supportIcons: true,
@@ -2987,11 +2985,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._workingSetLinesAddedSpan.value.textContent = `+${added}`;
 			this._workingSetLinesRemovedSpan.value.textContent = `-${removed}`;
 
-			const wasHidden = this.chatEditingSessionWidgetContainer.style.display === 'none';
 			dom.setVisibility(shouldShowEditingSession, this.chatEditingSessionWidgetContainer);
-			if (shouldShowEditingSession && wasHidden) {
-				triggerRevealAnimation(innerContainer);
-			}
 		}));
 
 		const countsContainer = dom.$('.working-set-line-counts');
@@ -3018,20 +3012,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatEditsActionsDisposables.add(autorun(reader => {
 			const collapsed = this._workingSetCollapsed.read(reader);
 			button.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
-			button.element.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-
-			if (lastRenderedWorkingSetCollapsed === undefined) {
-				workingSetContainer.style.display = collapsed ? 'none' : 'block';
-			} else if (lastRenderedWorkingSetCollapsed !== collapsed) {
-				if (collapsed) {
-					triggerCollapseAnimation(workingSetContainer);
-				} else {
-					workingSetContainer.style.display = 'block';
-					triggerRevealAnimation(workingSetContainer);
-				}
-			}
-
-			lastRenderedWorkingSetCollapsed = collapsed;
+			workingSetContainer.classList.toggle('collapsed', collapsed);
 		}));
 
 		if (!this._chatEditList) {

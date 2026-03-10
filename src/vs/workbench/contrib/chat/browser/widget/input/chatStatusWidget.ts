@@ -16,7 +16,6 @@ import { defaultButtonStyles } from '../../../../../../platform/theme/browser/de
 import { ChatEntitlement, ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
-import { triggerRevealAnimation } from '../chatContentParts/chatTodoListWidget.js';
 import { ChatInputPartWidgetsRegistry, IChatInputPartWidget } from './chatInputPartWidgets.js';
 import './media/chatStatusWidget.css';
 
@@ -61,7 +60,6 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 		}
 
 		this.domNode.style.display = '';
-		triggerRevealAnimation(this.domNode);
 	}
 
 	get height(): number {

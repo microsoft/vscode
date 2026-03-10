@@ -280,13 +280,9 @@ export class ChatTodoListWidget extends Disposable {
 			return;
 		}
 
-		const wasHidden = !this.domNode.classList.contains('has-todos') || this.domNode.style.display === 'none';
 		this.domNode.classList.add('has-todos');
 		this.renderTodoList(todoList);
 		this.domNode.style.display = 'block';
-		if (wasHidden) {
-			triggerRevealAnimation(this.domNode);
-		}
 	}
 
 	private renderTodoList(todoList: IChatTodo[]): void {
@@ -336,12 +332,12 @@ export class ChatTodoListWidget extends Disposable {
 		if ((hasInProgressTask || hasCompletedTask) && this._isExpanded && !this._userManuallyExpanded) {
 			this._isExpanded = false;
 			this.expandoButton.element.setAttribute('aria-expanded', 'false');
-			triggerCollapseAnimation(this.todoListContainer);
+			this.todoListContainer.style.display = 'none';
 
 			this.expandIcon.classList.remove('codicon-chevron-down');
 			this.expandIcon.classList.add('codicon-chevron-right');
 
-			this.updateTitleElement(this.titleElement, todoList, true /* skip animation during collapse transition */);
+			this.updateTitleElement(this.titleElement, todoList);
 		}
 	}
 
@@ -352,16 +348,11 @@ export class ChatTodoListWidget extends Disposable {
 		this.expandIcon.classList.toggle('codicon-chevron-down', this._isExpanded);
 		this.expandIcon.classList.toggle('codicon-chevron-right', !this._isExpanded);
 
-		if (this._isExpanded) {
-			this.todoListContainer.style.display = 'block';
-			triggerRevealAnimation(this.todoListContainer);
-		} else {
-			triggerCollapseAnimation(this.todoListContainer);
-		}
+		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
 
 		if (this._currentSessionResource) {
 			const todoList = this.chatTodoListService.getTodos(this._currentSessionResource);
-			this.updateTitleElement(this.titleElement, todoList, true);
+			this.updateTitleElement(this.titleElement, todoList);
 		}
 	}
 
@@ -394,23 +385,8 @@ export class ChatTodoListWidget extends Disposable {
 		}
 	}
 
-	private updateTitleElement(titleElement: HTMLElement, todoList: IChatTodo[], skipAnimation?: boolean): void {
-		// Snapshot old content for the exit animation before clearing
-		const previousText = titleElement.textContent;
-		// Only animate when collapsed and content actually changed — not during expand/collapse transitions
-		const shouldAnimate = !skipAnimation && !this._isExpanded && !!previousText;
-
-		// Clone old children into a ghost for the exit-up animation
-		let exitGhost: HTMLElement | undefined;
-		if (shouldAnimate) {
-			exitGhost = dom.$('.todo-title-exit-ghost');
-			for (const child of Array.from(titleElement.childNodes)) {
-				exitGhost.appendChild(child.cloneNode(true));
-			}
-		}
-
+	private updateTitleElement(titleElement: HTMLElement, todoList: IChatTodo[]): void {
 		titleElement.textContent = '';
-		const titleContent = dom.$('.todo-title-content');
 
 		const completedCount = todoList.filter(todo => todo.status === 'completed').length;
 		const totalCount = todoList.length;
@@ -431,7 +407,7 @@ export class ChatTodoListWidget extends Disposable {
 			titleText.textContent = totalCount > 0 ?
 				localize('chat.todoList.titleWithCount', 'Todos ({0}/{1})', currentTaskNumber, totalCount) :
 				localize('chat.todoList.title', 'Todos');
-			titleContent.appendChild(titleText);
+			titleElement.appendChild(titleText);
 		} else {
 			// Show first in-progress todo, or if none, the first not-started todo
 			const todoToShow = firstInProgressTodo || firstNotStartedTodo;
@@ -446,7 +422,7 @@ export class ChatTodoListWidget extends Disposable {
 				}
 				icon.style.marginRight = '4px';
 				icon.style.verticalAlign = 'middle';
-				titleContent.appendChild(icon);
+				titleElement.appendChild(icon);
 
 				const todoText = dom.$('span');
 				todoText.textContent = localize('chat.todoList.currentTask', '{0} ({1}/{2})', todoToShow.title, currentTaskNumber, totalCount);
@@ -455,29 +431,15 @@ export class ChatTodoListWidget extends Disposable {
 				todoText.style.textOverflow = 'ellipsis';
 				todoText.style.whiteSpace = 'nowrap';
 				todoText.style.minWidth = '0';
-				titleContent.appendChild(todoText);
+				titleElement.appendChild(todoText);
 			}
 			// Show "Done" when all tasks are completed
 			else if (completedCount > 0 && completedCount === totalCount) {
 				const doneText = dom.$('span');
 				doneText.textContent = localize('chat.todoList.titleWithCount', 'Todos ({0}/{1})', totalCount, totalCount);
 				doneText.style.verticalAlign = 'middle';
-				titleContent.appendChild(doneText);
+				titleElement.appendChild(doneText);
 			}
-		}
-
-		titleElement.appendChild(titleContent);
-
-		// Run flip animation: old content exits up, new content enters from below
-		if (shouldAnimate && previousText !== titleElement.textContent && exitGhost) {
-			titleElement.classList.remove('todo-title-flip');
-			titleElement.appendChild(exitGhost);
-			void titleElement.offsetWidth; // Force reflow
-			titleElement.classList.add('todo-title-flip');
-			exitGhost.addEventListener('animationend', () => {
-				exitGhost.remove();
-				titleElement.classList.remove('todo-title-flip');
-			}, { once: true });
 		}
 	}
 
@@ -492,35 +454,4 @@ export class ChatTodoListWidget extends Disposable {
 				return localize('chat.todoList.status.notStarted', 'not started');
 		}
 	}
-}
-
-/**
- * Triggers the above-input reveal animation on a widget element.
- * Add/remove the class so the CSS keyframe runs each time.
- */
-export function triggerRevealAnimation(element: HTMLElement): void {
-	element.classList.remove('chat-above-input-reveal');
-	element.classList.remove('chat-above-input-collapse');
-	void element.offsetWidth; // Force reflow to restart animation
-	element.classList.add('chat-above-input-reveal');
-}
-
-/**
- * Triggers the above-input collapse animation on a widget element.
- * After the animation ends, hides the element with display: none.
- */
-export function triggerCollapseAnimation(element: HTMLElement): void {
-	// If already hidden, just ensure it stays hidden
-	if (element.style.display === 'none' || element.offsetHeight === 0) {
-		element.style.display = 'none';
-		return;
-	}
-	element.classList.remove('chat-above-input-reveal');
-	element.classList.remove('chat-above-input-collapse');
-	void element.offsetWidth; // Force reflow to restart animation
-	element.classList.add('chat-above-input-collapse');
-	element.addEventListener('animationend', () => {
-		element.style.display = 'none';
-		element.classList.remove('chat-above-input-collapse');
-	}, { once: true });
 }
