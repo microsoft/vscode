@@ -1,107 +1,254 @@
 {
 	"name": "phonon-module-ristorazione",
-	"displayName": "Gestionale Ristorazione",
+	"displayName": "Gestione Ristorante",
 	"description": "Restaurant management module for Phonon IDE Liquid App platform",
 	"version": "0.0.1",
-	"publisher": "phonon",
+	"publisher": "Marco Rossetti",
 	"engines": {
 		"vscode": "^1.110.0"
 	},
 	"main": "./out/extension.js",
 	"contributes": {
 		"liquidEntities": [
-			{ "id": "dish", "label": "Piatto", "schema": "./schemas/dish.json", "icon": "symbol-class" },
-			{ "id": "supplier", "label": "Fornitore", "schema": "./schemas/supplier.json", "icon": "organization" },
-			{ "id": "order", "label": "Ordine", "schema": "./schemas/order.json", "icon": "package" }
+			{
+				"id": "dish",
+				"label": "Piatto",
+				"schema": "./schemas/dish.json",
+				"icon": "symbol-class"
+			},
+			{
+				"id": "supplier",
+				"label": "Fornitore",
+				"schema": "./schemas/supplier.json",
+				"icon": "organization"
+			},
+			{
+				"id": "order",
+				"label": "Ordine",
+				"schema": "./schemas/order.json",
+				"icon": "package"
+			}
 		],
 		"liquidViews": [
-			{ "id": "ristDashboard", "label": "Dashboard", "component": "./views/Dashboard.js", "mode": "canvas", "defaultGrafts": ["rist-food-cost", "rist-orders-incoming", "rist-revenue-today", "rist-inventory-alert"] },
-			{ "id": "ristDishList", "label": "Piatti", "component": "./views/DishList.js", "mode": "canvas", "entity": "dish" },
-			{ "id": "ristSupplierList", "label": "Fornitori", "component": "./views/SupplierList.js", "mode": "canvas", "entity": "supplier" },
-			{ "id": "ristOrderList", "label": "Ordini", "component": "./views/OrderList.js", "mode": "canvas", "entity": "order" },
-			{ "id": "ristTraffic", "label": "Traffico", "component": "./views/Traffic.js", "mode": "canvas", "defaultGrafts": ["rist-traffic-heatmap", "rist-traffic-insight"] }
+			{
+				"id": "ristDashboard",
+				"label": "Dashboard",
+				"component": "./views/Dashboard.js",
+				"mode": "canvas",
+				"defaultGrafts": [
+					"rist-food-cost",
+					"rist-orders-incoming",
+					"rist-revenue-today",
+					"rist-inventory-alert"
+				]
+			},
+			{
+				"id": "ristDishList",
+				"label": "Piatti",
+				"component": "./views/DishList.js",
+				"mode": "canvas",
+				"entity": "dish"
+			},
+			{
+				"id": "ristSupplierList",
+				"label": "Fornitori",
+				"component": "./views/SupplierList.js",
+				"mode": "canvas",
+				"entity": "supplier"
+			},
+			{
+				"id": "ristOrderList",
+				"label": "Ordini",
+				"component": "./views/OrderList.js",
+				"mode": "canvas",
+				"entity": "order"
+			},
+			{
+				"id": "ristTraffic",
+				"label": "Traffico",
+				"component": "./views/Traffic.js",
+				"mode": "canvas",
+				"defaultGrafts": [
+					"rist-traffic-heatmap",
+					"rist-traffic-insight"
+				]
+			}
 		],
 		"liquidDataProviders": [
-			{ "id": "rist-mock", "entities": ["dish", "supplier", "order"], "provider": "./providers/mock" }
+			{
+				"id": "rist-mock",
+				"entities": [
+					"dish",
+					"supplier",
+					"order"
+				],
+				"provider": "./providers/mock"
+			}
 		],
 		"liquidGrafts": [
 			{
 				"id": "rist-food-cost",
 				"label": "Food Cost",
 				"description": "KPI card showing food cost percentage, margin analysis, and ingredient cost breakdown",
-				"entry": "./cards/food-cost.html",
+				"entry": "./grafts/food-cost.html",
 				"entity": "dish",
 				"domain": "controlli",
 				"category": "stat",
-				"tags": ["analytics", "cost", "food-cost", "margin"],
-				"layout": { "minCols": 4, "maxCols": 6, "minHeight": 180 },
-				"shows": ["dish"],
-				"relatesTo": ["ingredient", "supplier"]
+				"tags": [
+					"analytics",
+					"cost",
+					"food-cost",
+					"margin"
+				],
+				"layout": {
+					"minCols": 4,
+					"maxCols": 6,
+					"minHeight": 180
+				},
+				"shows": [
+					"dish"
+				],
+				"relatesTo": [
+					"ingredient",
+					"supplier"
+				],
+				"tokenWeight": 416
 			},
 			{
 				"id": "rist-orders-incoming",
 				"label": "Ordini in Arrivo",
 				"description": "Live list of incoming orders with status, timestamps, and delivery tracking",
-				"entry": "./cards/orders-incoming.html",
+				"entry": "./grafts/orders-incoming.html",
 				"entity": "order",
 				"domain": "operativo",
 				"category": "list",
-				"tags": ["operations", "orders", "incoming", "live"],
-				"layout": { "minCols": 5, "maxCols": 8, "minHeight": 200 },
-				"shows": ["order"],
-				"relatesTo": ["supplier", "dish"]
+				"tags": [
+					"operations",
+					"orders",
+					"incoming",
+					"live"
+				],
+				"layout": {
+					"minCols": 5,
+					"maxCols": 8,
+					"minHeight": 200
+				},
+				"shows": [
+					"order"
+				],
+				"relatesTo": [
+					"supplier",
+					"dish"
+				],
+				"tokenWeight": 544
 			},
 			{
 				"id": "rist-supplier-status",
 				"label": "Stato Fornitori",
 				"description": "Overview table of supplier statuses, reliability scores, and pending deliveries",
-				"entry": "./cards/supplier-status.html",
+				"entry": "./grafts/supplier-status.html",
 				"entity": "supplier",
 				"domain": "operativo",
 				"category": "table",
-				"tags": ["operations", "suppliers", "status", "reliability"],
-				"layout": { "minCols": 4, "maxCols": 6, "minHeight": 180 },
-				"shows": ["supplier"],
-				"relatesTo": ["order"]
+				"tags": [
+					"operations",
+					"suppliers",
+					"status",
+					"reliability"
+				],
+				"layout": {
+					"minCols": 4,
+					"maxCols": 6,
+					"minHeight": 180
+				},
+				"shows": [
+					"supplier"
+				],
+				"relatesTo": [
+					"order"
+				],
+				"tokenWeight": 499
 			},
 			{
 				"id": "rist-daily-specials",
 				"label": "Piatti del Giorno",
 				"description": "Today's special dishes with availability, allergens, and suggested pairings",
-				"entry": "./cards/daily-specials.html",
+				"entry": "./grafts/daily-specials.html",
 				"entity": "dish",
 				"domain": "cucina",
 				"category": "list",
-				"tags": ["menu", "daily", "specials", "cucina"],
-				"layout": { "minCols": 3, "maxCols": 5, "minHeight": 150 },
-				"shows": ["dish"],
-				"relatesTo": ["order"]
+				"tags": [
+					"menu",
+					"daily",
+					"specials",
+					"cucina"
+				],
+				"layout": {
+					"minCols": 3,
+					"maxCols": 5,
+					"minHeight": 150
+				},
+				"shows": [
+					"dish"
+				],
+				"relatesTo": [
+					"order"
+				],
+				"tokenWeight": 400
 			},
 			{
 				"id": "rist-revenue-today",
 				"label": "Incasso Oggi",
 				"description": "Real-time revenue KPI with today's total, comparison to average, and order count",
-				"entry": "./cards/revenue-today.html",
+				"entry": "./grafts/revenue-today.html",
 				"entity": "order",
 				"domain": "operativo",
 				"category": "stat",
-				"tags": ["analytics", "revenue", "kpi", "daily"],
-				"layout": { "minCols": 3, "maxCols": 4, "minHeight": 120 },
-				"shows": ["order"],
-				"relatesTo": ["dish"]
+				"tags": [
+					"analytics",
+					"revenue",
+					"kpi",
+					"daily"
+				],
+				"layout": {
+					"minCols": 3,
+					"maxCols": 4,
+					"minHeight": 120
+				},
+				"shows": [
+					"order"
+				],
+				"relatesTo": [
+					"dish"
+				],
+				"tokenWeight": 244
 			},
 			{
 				"id": "rist-inventory-alert",
 				"label": "Avvisi Scorte",
 				"description": "Alert list for low-stock ingredients with reorder suggestions and supplier links",
-				"entry": "./cards/inventory-alert.html",
+				"entry": "./grafts/inventory-alert.html",
 				"entity": "dish",
 				"domain": "controlli",
 				"category": "list",
-				"tags": ["operations", "inventory", "alerts", "stock"],
-				"layout": { "minCols": 4, "maxCols": 6, "minHeight": 150 },
-				"shows": ["dish"],
-				"relatesTo": ["supplier"]
+				"tags": [
+					"operations",
+					"inventory",
+					"alerts",
+					"stock"
+				],
+				"layout": {
+					"minCols": 4,
+					"maxCols": 6,
+					"minHeight": 150
+				},
+				"shows": [
+					"dish"
+				],
+				"relatesTo": [
+					"supplier"
+				],
+				"tokenWeight": 403
 			},
 			{
 				"id": "rist-traffic-heatmap",
@@ -111,10 +258,23 @@
 				"entity": "order",
 				"domain": "andamento",
 				"category": "chart",
-				"tags": ["traffic", "heatmap", "territory", "roadwise"],
-				"layout": { "minCols": 6, "maxCols": 12, "minHeight": 300 },
-				"shows": ["order"],
-				"relatesTo": ["dish"],
+				"tags": [
+					"traffic",
+					"heatmap",
+					"territory",
+					"roadwise"
+				],
+				"layout": {
+					"minCols": 6,
+					"maxCols": 12,
+					"minHeight": 300
+				},
+				"shows": [
+					"order"
+				],
+				"relatesTo": [
+					"dish"
+				],
 				"tokenWeight": 1089
 			},
 			{
@@ -125,21 +285,66 @@
 				"entity": "order",
 				"domain": "andamento",
 				"category": "list",
-				"tags": ["traffic", "insights", "territory", "analytics"],
-				"layout": { "minCols": 4, "maxCols": 6, "minHeight": 200 },
-				"shows": ["order"],
-				"relatesTo": ["dish"],
+				"tags": [
+					"traffic",
+					"insights",
+					"territory",
+					"analytics"
+				],
+				"layout": {
+					"minCols": 4,
+					"maxCols": 6,
+					"minHeight": 200
+				},
+				"shows": [
+					"order"
+				],
+				"relatesTo": [
+					"dish"
+				],
 				"tokenWeight": 866
 			}
 		],
 		"liquidSidebar": [
-			{ "id": "rist-dashboard", "label": "Dashboard", "view": "ristDashboard", "icon": "dashboard", "order": 0 },
-			{ "id": "rist-menu", "label": "Menu", "icon": "book", "order": 1, "children": [
-				{ "id": "rist-dishes", "label": "Piatti", "view": "ristDishList" },
-				{ "id": "rist-suppliers", "label": "Fornitori", "view": "ristSupplierList" }
-			]},
-			{ "id": "rist-orders", "label": "Ordini", "view": "ristOrderList", "icon": "package", "order": 2 },
-			{ "id": "rist-traffic", "label": "Traffico", "view": "ristTraffic", "icon": "pulse", "order": 3 }
+			{
+				"id": "rist-dashboard",
+				"label": "Dashboard",
+				"view": "ristDashboard",
+				"icon": "dashboard",
+				"order": 0
+			},
+			{
+				"id": "rist-menu",
+				"label": "Menu",
+				"icon": "book",
+				"order": 1,
+				"children": [
+					{
+						"id": "rist-dishes",
+						"label": "Piatti",
+						"view": "ristDishList"
+					},
+					{
+						"id": "rist-suppliers",
+						"label": "Fornitori",
+						"view": "ristSupplierList"
+					}
+				]
+			},
+			{
+				"id": "rist-orders",
+				"label": "Ordini",
+				"view": "ristOrderList",
+				"icon": "package",
+				"order": 2
+			},
+			{
+				"id": "rist-traffic",
+				"label": "Traffico",
+				"view": "ristTraffic",
+				"icon": "pulse",
+				"order": 3
+			}
 		]
 	}
 }
