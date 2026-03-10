@@ -213,7 +213,7 @@ jobs:
 
             API proposal version changes should only be used when maintaining compatibility is not possible. Consider keeping the version as is and maintaining backward compatibility.
 
-            **Any version changes must be updated by the consuming extensions before the next insiders for the extension to work.**
+            **Any version changes must be adopted by the consuming extensions before the next insiders for the extension to work.**
 
             ---
 
