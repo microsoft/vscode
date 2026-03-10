@@ -50,7 +50,7 @@ import { OS } from '../../../../../base/common/platform.js';
 
 const $ = DOM.$;
 
-const ITEM_HEIGHT = 44;
+const ITEM_HEIGHT = 48;
 const GROUP_HEADER_HEIGHT = 36;
 const GROUP_HEADER_HEIGHT_WITH_SEPARATOR = 40;
 
@@ -1221,8 +1221,8 @@ export class AICustomizationListWidget extends Disposable {
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {
-		this.element.style.height = `${Math.max(0, height)}px`;
-		this.element.style.width = `${Math.max(0, width)}px`;
+		this.element.style.height = '';
+		this.element.style.width = '';
 		this.listContainer.style.height = '';
 
 		this.searchInput.layout();

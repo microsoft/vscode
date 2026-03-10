@@ -152,6 +152,15 @@
 	box-sizing: border-box;
 }
 
+.ai-customization-management-editor .prompts-content-container,
+.ai-customization-management-editor .models-content-container,
+.ai-customization-management-editor .mcp-content-container,
+.ai-customization-management-editor .plugin-content-container,
+.ai-customization-management-editor .mcp-detail-container,
+.ai-customization-management-editor .plugin-detail-container {
+	height: 100%;
+}
+
 /* List Widget */
 .ai-customization-list-widget {
 	display: flex;

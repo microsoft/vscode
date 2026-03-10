@@ -37,7 +37,7 @@ import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTO
 
 const $ = DOM.$;
 
-const MCP_ITEM_HEIGHT = 36;
+const MCP_ITEM_HEIGHT = 48;
 
 /**
  * Represents a collapsible group header in the MCP server list.
@@ -730,8 +730,8 @@ export class McpListWidget extends Disposable {
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {
-		this.element.style.height = `${Math.max(0, height)}px`;
-		this.element.style.width = `${Math.max(0, width)}px`;
+		this.element.style.height = '';
+		this.element.style.width = '';
 		this.listContainer.style.height = '';
 		this.searchInput.layout();
 		this.list.layout(this.listContainer.clientHeight, this.listContainer.clientWidth);

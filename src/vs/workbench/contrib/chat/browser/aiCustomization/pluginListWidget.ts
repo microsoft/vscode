@@ -38,7 +38,7 @@ import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTO
 
 const $ = DOM.$;
 
-const PLUGIN_ITEM_HEIGHT = 36;
+const PLUGIN_ITEM_HEIGHT = 48;
 
 //#region Entry types
 
@@ -670,8 +670,8 @@ export class PluginListWidget extends Disposable {
 	}
 
 	layout(height: number, width: number): void {
-		this.element.style.height = `${Math.max(0, height)}px`;
-		this.element.style.width = `${Math.max(0, width)}px`;
+		this.element.style.height = '';
+		this.element.style.width = '';
 		this.listContainer.style.height = '';
 		this.searchInput.layout();
 		this.list.layout(this.listContainer.clientHeight, this.listContainer.clientWidth);
