@@ -662,7 +662,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts) || this._isAutopilotMode();
 		let model = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)[0]?.input.currentLanguageModel;
 		if (model) {
-			const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: model.replaceAll('copilot/', '') });
+			const models = await this._safeSelectLanguageModels({ vendor: 'copilot', family: model.replaceAll('copilot/', '') });
 			model = models[0];
 		}
 		if (!model) {
@@ -964,8 +964,17 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _getLanguageModel(): Promise<string | undefined> {
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
+		const models = await this._safeSelectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
 		return models.length ? models[0] : undefined;
+	}
+
+	private async _safeSelectLanguageModels(selector: { vendor: string; family?: string; id?: string }): Promise<string[]> {
+		try {
+			return await this._languageModelsService.selectLanguageModels(selector);
+		} catch (error) {
+			this._logService.trace('OutputMonitor: selectLanguageModels failed', error);
+			return [];
+		}
 	}
 }
 
