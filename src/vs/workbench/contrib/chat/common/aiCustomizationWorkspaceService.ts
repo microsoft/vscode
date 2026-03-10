@@ -17,6 +17,7 @@ export const IAICustomizationWorkspaceService = createDecorator<IAICustomization
  * Possible section IDs for the AI Customization Management Editor sidebar.
  */
 export const AICustomizationManagementSection = {
+	Overview: 'overview',
 	Agents: 'agents',
 	Skills: 'skills',
 	Instructions: 'instructions',

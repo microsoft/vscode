@@ -140,6 +140,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private sidebarContainer!: HTMLElement;
 	private sectionsList!: WorkbenchList<ISectionItem>;
 	private contentContainer!: HTMLElement;
+	private overviewContentContainer: HTMLElement | undefined;
+	private firstOverviewAction: HTMLButtonElement | undefined;
 	private listWidget!: AICustomizationListWidget;
 	private mcpListWidget: McpListWidget | undefined;
 	private pluginListWidget: PluginListWidget | undefined;
@@ -174,7 +176,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private dimension: DOM.Dimension | undefined;
 	private readonly sections: ISectionItem[] = [];
-	private selectedSection: AICustomizationManagementSection = AICustomizationManagementSection.Agents;
+	private selectedSection: AICustomizationManagementSection = AICustomizationManagementSection.Overview;
 
 	private readonly editorDisposables = this._register(new DisposableStore());
 	private _editorContentChanged = false;
@@ -224,6 +226,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Build sections from the workspace service configuration
 		const sectionInfo: Record<string, { label: string; icon: ThemeIcon }> = {
+			[AICustomizationManagementSection.Overview]: { label: localize('overview', "Overview"), icon: Codicon.home },
 			[AICustomizationManagementSection.Agents]: { label: localize('agents', "Agents"), icon: agentIcon },
 			[AICustomizationManagementSection.Skills]: { label: localize('skills', "Skills"), icon: skillIcon },
 			[AICustomizationManagementSection.Instructions]: { label: localize('instructions', "Instructions"), icon: instructionsIcon },
@@ -441,6 +444,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private createContent(): void {
 		const contentInner = DOM.append(this.contentContainer, $('.content-inner'));
+		const hasSections = new Set(this.workspaceService.managementSections);
+
+		if (hasSections.has(AICustomizationManagementSection.Overview)) {
+			this.overviewContentContainer = DOM.append(contentInner, $('.overview-content-container'));
+			this.createOverviewContent();
+		}
 
 		// Container for prompts-based content (Agents, Skills, Instructions, Prompts)
 		this.promptsContentContainer = DOM.append(contentInner, $('.prompts-content-container'));
@@ -465,7 +474,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 
 		// Container for Models content (only in sessions)
-		const hasSections = new Set(this.workspaceService.managementSections);
 		if (hasSections.has(AICustomizationManagementSection.Models)) {
 			this.modelsContentContainer = DOM.append(contentInner, $('.models-content-container'));
 			this.modelsWidget = this.editorDisposables.add(this.instantiationService.createInstance(ChatModelsWidget));
@@ -593,11 +601,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const isMcpDetailMode = this.viewMode === 'mcpDetail';
 		const isPluginDetailMode = this.viewMode === 'pluginDetail';
 		const isDetailMode = isMcpDetailMode || isPluginDetailMode;
+		const isOverviewSection = this.selectedSection === AICustomizationManagementSection.Overview;
 		const isPromptsSection = this.isPromptsSection(this.selectedSection);
 		const isModelsSection = this.selectedSection === AICustomizationManagementSection.Models;
 		const isMcpSection = this.selectedSection === AICustomizationManagementSection.McpServers;
 		const isPluginsSection = this.selectedSection === AICustomizationManagementSection.Plugins;
 
+		if (this.overviewContentContainer) {
+			this.overviewContentContainer.style.display = !isEditorMode && !isDetailMode && isOverviewSection ? '' : 'none';
+		}
 		this.promptsContentContainer.style.display = !isEditorMode && !isDetailMode && isPromptsSection ? '' : 'none';
 		if (this.modelsContentContainer) {
 			this.modelsContentContainer.style.display = !isEditorMode && !isDetailMode && isModelsSection ? '' : 'none';
@@ -625,6 +637,101 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.layout(this.dimension);
 			}
 		}
+	}
+
+	/**
+	 * Creates the Overview content.
+	 */
+	private createOverviewContent(): void {
+		if (!this.overviewContentContainer) {
+			return;
+		}
+
+		const header = DOM.append(this.overviewContentContainer, $('.overview-header'));
+		const title = DOM.append(header, $('h1.overview-title'));
+		title.textContent = localize('aiCustomizationOverviewTitle', "Customize AI for This Project");
+
+		const subtitle = DOM.append(header, $('p.overview-subtitle'));
+		subtitle.textContent = localize('aiCustomizationOverviewSubtitle', "Pick the customization that matches your use case.");
+
+		const actionsContainer = DOM.append(this.overviewContentContainer, $('.overview-actions'));
+		for (const section of this.sections) {
+			if (section.id === AICustomizationManagementSection.Overview) {
+				continue;
+			}
+
+			this.createOverviewAction(
+				actionsContainer,
+				section.label,
+				this.getOverviewSectionExample(section.id),
+				section.icon,
+				() => this.selectSectionById(section.id)
+			);
+		}
+
+		const linksContainer = DOM.append(this.overviewContentContainer, $('.overview-links'));
+		this.createOverviewLink(
+			linksContainer,
+			localize('customizationOverviewLink', "Learn about customizations"),
+			'https://code.visualstudio.com/docs/copilot/customization/overview'
+		);
+	}
+
+	private createOverviewAction(container: HTMLElement, title: string, description: string, icon: ThemeIcon, action: () => void): void {
+		const actionElement = DOM.append(container, $('button.overview-action')) as HTMLButtonElement;
+		actionElement.type = 'button';
+		actionElement.setAttribute('aria-label', title);
+		this.firstOverviewAction ??= actionElement;
+
+		const iconContainer = DOM.append(actionElement, $('.action-icon-container'));
+		const iconElement = DOM.append(iconContainer, $('.action-icon'));
+		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+		iconElement.setAttribute('aria-hidden', 'true');
+
+		const contentElement = DOM.append(actionElement, $('.action-content'));
+		const titleElement = DOM.append(contentElement, $('.action-title'));
+		titleElement.textContent = title;
+		const descriptionElement = DOM.append(contentElement, $('.action-description'));
+		descriptionElement.textContent = description;
+
+		const arrowIcon = DOM.append(actionElement, $('.action-arrow'));
+		arrowIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowRight));
+		arrowIcon.setAttribute('aria-hidden', 'true');
+
+		this.editorDisposables.add(DOM.addDisposableListener(actionElement, 'click', () => action()));
+	}
+
+	private getOverviewSectionExample(section: AICustomizationManagementSection): string {
+		switch (section) {
+			case AICustomizationManagementSection.Instructions:
+				return localize('overviewInstructionsExample', "Example: apply coding standards automatically.");
+			case AICustomizationManagementSection.Prompts:
+				return localize('overviewPromptsExample', "Example: scaffold a React component.");
+			case AICustomizationManagementSection.Skills:
+				return localize('overviewSkillsExample', "Example: package a test, lint, and deploy workflow.");
+			case AICustomizationManagementSection.Agents:
+				return localize('overviewAgentsExample', "Example: create a security reviewer.");
+			case AICustomizationManagementSection.Hooks:
+				return localize('overviewHooksExample', "Example: run a formatter after edits.");
+			case AICustomizationManagementSection.McpServers:
+				return localize('overviewMcpExample', "Example: query a PostgreSQL database.");
+			case AICustomizationManagementSection.Plugins:
+				return localize('overviewPluginsExample', "Example: install a pre-packaged testing workflow.");
+			case AICustomizationManagementSection.Models:
+				return localize('overviewModelsExample', "Example: choose a fast or more capable model.");
+			case AICustomizationManagementSection.Overview:
+				return '';
+		}
+	}
+
+	private createOverviewLink(container: HTMLElement, label: string, href: string): void {
+		const link = DOM.append(container, $('a.overview-link')) as HTMLAnchorElement;
+		link.textContent = label;
+		link.href = href;
+		this.editorDisposables.add(DOM.addDisposableListener(link, 'click', e => {
+			e.preventDefault();
+			this.openerService.open(URI.parse(href));
+		}));
 	}
 
 	/**
@@ -741,6 +848,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		super.focus();
 		if (this.viewMode === 'editor') {
 			this.embeddedEditor?.focus();
+			return;
+		}
+		if (this.selectedSection === AICustomizationManagementSection.Overview) {
+			this.firstOverviewAction?.focus();
 			return;
 		}
 		if (this.selectedSection === AICustomizationManagementSection.McpServers) {
