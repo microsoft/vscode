@@ -224,22 +224,13 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	policy?: IPolicy;
 
 	/**
-	 * When specified, this setting's default value can always be overwritten by
-	 * an experiment.
+	 * Every setting's default value can be overwritten by an experiment using
+	 * the experiment name `config.${settingId}`. By default the experiment
+	 * value is applied only on startup. Use this property to change the mode:
+	 * - `startup`: The setting value is updated to the experiment value only on startup.
+	 * - `auto`: The setting value is updated to the experiment value automatically (whenever the experiment value changes).
 	 */
-	experiment?: {
-		/**
-		 * The mode of the experiment.
-		 * - `startup`: The setting value is updated to the experiment value only on startup.
-		 * - `auto`: The setting value is updated to the experiment value automatically (whenever the experiment value changes).
-		 */
-		mode: 'startup' | 'auto';
-
-		/**
-		 * The name of the experiment. By default, this is `config.${settingId}`
-		 */
-		name?: string;
-	};
+	experiment?: 'startup' | 'auto';
 }
 
 export interface IExtensionInfo {
@@ -722,7 +713,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 					}
 				} else if (property.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
 					console.error(`Invalid tag 'onExP' found for property '${key}'. Please use 'experiment' property instead.`);
-					property.experiment = { mode: 'startup' };
+					property.experiment = 'startup';
 				}
 
 				const excluded = properties[key].hasOwnProperty('included') && !properties[key].included;

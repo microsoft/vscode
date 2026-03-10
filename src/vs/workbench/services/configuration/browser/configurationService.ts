@@ -1391,12 +1391,11 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 				continue;
 			}
 			this.processedExperimentalSettings.add(property);
-			const experiment = schema.experiment;
-			if (experiment?.mode === 'auto') {
+			if (schema.experiment === 'auto') {
 				this.autoExperimentalSettings.add(property);
 			}
 			try {
-				const value = await this.workbenchAssignmentService.getTreatment(experiment?.name ?? `config.${property}`);
+				const value = await this.workbenchAssignmentService.getTreatment(`config.${property}`);
 				if (!isUndefined(value) && !equals(value, schema.default)) {
 					overrides[property] = value;
 				}

@@ -267,9 +267,7 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 					default: systemCertificatesNodeDefault,
 					markdownDescription: localize('systemCertificatesNode', "Controls whether system certificates should be loaded using Node.js built-in support. Reload the window after changing this setting. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
 					restricted: true,
-					experiment: {
-						mode: 'auto'
-					}
+					experiment: 'auto'
 				},
 				'http.experimental.systemCertificatesV2': {
 					type: 'boolean',
@@ -291,9 +289,7 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 					tags: ['experimental'],
 					markdownDescription: localize('networkInterfaceCheckInterval', "Controls the interval in seconds for checking network interface changes to invalidate the proxy cache. Set to -1 to disable. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
 					restricted: true,
-					experiment: {
-						mode: 'auto'
-					}
+					experiment: 'auto'
 				}
 			}
 		}
