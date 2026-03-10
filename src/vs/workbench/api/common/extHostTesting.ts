@@ -773,7 +773,10 @@ class TestRunTracker extends Disposable {
 			enqueued: guardTestMutation(test => {
 				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Queued);
 			}),
-			skipped: guardTestMutation(test => {
+			skipped: guardTestMutation((test, message?) => {
+				if (message) {
+					appendMessages(test, message);
+				}
 				this.proxy.$updateTestStateInRun(runId, taskId, TestId.fromExtHostTestItem(test, ctrlId).toString(), TestResultState.Skipped);
 			}),
 			started: guardTestMutation(test => {

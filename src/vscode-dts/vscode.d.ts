@@ -18674,8 +18674,9 @@ declare module 'vscode' {
 		/**
 		 * Indicates a test has been skipped.
 		 * @param test Test item to update.
+		 * @param message Optional message to describe why the test was skipped.
 		 */
-		skipped(test: TestItem): void;
+		skipped(test: TestItem, message?: TestMessage | readonly TestMessage[]): void;
 
 		/**
 		 * Indicates a test has failed. You should pass one or more

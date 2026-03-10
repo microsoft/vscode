@@ -855,6 +855,40 @@ suite('ExtHost Testing', () => {
 			task.end();
 		});
 
+		test('adds skip message to run', () => {
+			const test1 = new TestItemImpl('ctrlId', 'id-c', 'test c', URI.file('/testc.txt'));
+			test1.range = new Range(new Position(0, 0), new Position(1, 0));
+			single.root.children.replace([test1]);
+			const task = c.createTestRun(ext, 'ctrlId', single, req, 'hello world', false);
+
+			// skipped without message should not append messages
+			task.skipped(test1);
+			assert.strictEqual(proxy.$appendTestMessagesInRun.called, false);
+
+			// skipped with message should append messages
+			const message1 = new TestMessage('skip reason');
+			message1.location = new Location(URI.file('/a.txt'), new Position(0, 0));
+			task.skipped(test1, message1);
+
+			const args = proxy.$appendTestMessagesInRun.args[0];
+			assert.deepStrictEqual(proxy.$appendTestMessagesInRun.args[0], [
+				args[0],
+				args[1],
+				new TestId(['ctrlId', 'id-c']).toString(),
+				[{
+					message: 'skip reason',
+					type: TestMessageType.Error,
+					expected: undefined,
+					contextValue: undefined,
+					actual: undefined,
+					location: convert.location.from(message1.location),
+					stackTrace: undefined,
+				}]
+			]);
+
+			task.end();
+		});
+
 		test('guards calls after runs are ended', () => {
 			const task = c.createTestRun(ext, 'ctrl', single, req, 'hello world', false);
 			task.end();
