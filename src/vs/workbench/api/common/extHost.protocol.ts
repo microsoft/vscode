@@ -2116,7 +2116,7 @@ export interface ExtHostCodeMapperShape {
 }
 
 export interface ExtHostCommandsShape {
-	$executeContributedCommand(id: string, ...args: any[]): Promise<unknown>;
+	$executeContributedCommand(id: string, ...args: unknown[]): Promise<unknown>;
 	$getContributedCommandMetadata(): Promise<{ [id: string]: string | ICommandMetadataDto }>;
 }
 
@@ -2445,7 +2445,7 @@ export interface ISuggestDataDto {
 	// Command
 	[ISuggestDataDtoField.commandIdent]?: string;
 	[ISuggestDataDtoField.commandId]?: string;
-	[ISuggestDataDtoField.commandArguments]?: any[];
+	[ISuggestDataDtoField.commandArguments]?: unknown[];
 	// not-standard
 	x?: ChainedCacheId;
 }

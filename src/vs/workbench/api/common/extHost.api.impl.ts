@@ -351,11 +351,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: commands
 		const commands: typeof vscode.commands = {
-			registerCommand(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
+			registerCommand(id: string, command: <T>(...args: unknown[]) => T | Thenable<T>, thisArgs?: unknown): vscode.Disposable {
 				return extHostCommands.registerCommand(true, id, command, thisArgs, undefined, extension);
 			},
-			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: any[]) => void, thisArg?: any): vscode.Disposable {
-				return extHostCommands.registerCommand(true, id, (...args: any[]): any => {
+			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: unknown[]) => void, thisArg?: unknown): vscode.Disposable {
+				return extHostCommands.registerCommand(true, id, (...args: unknown[]): any => {
 					const activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
 						extHostLogService.warn('Cannot execute ' + id + ' because there is no active text editor.');
@@ -364,7 +364,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 					return activeTextEditor.edit((edit: vscode.TextEditorEdit) => {
 						callback.apply(thisArg, [activeTextEditor, edit, ...args]);
-
 					}).then((result) => {
 						if (!result) {
 							extHostLogService.warn('Edits from command ' + id + ' were not applied.');
@@ -374,9 +373,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					});
 				}, undefined, undefined, extension);
 			},
-			registerDiffInformationCommand: (id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable => {
+			registerDiffInformationCommand: (id: string, callback: (diff: vscode.LineChange[], ...args: unknown[]) => any, thisArg?: unknown): vscode.Disposable => {
 				checkProposedApiEnabled(extension, 'diffCommand');
-				return extHostCommands.registerCommand(true, id, async (...args: any[]): Promise<any> => {
+				return extHostCommands.registerCommand(true, id, async (...args: unknown[]): Promise<any> => {
 					const activeTextEditor = extHostDocumentsAndEditors.activeEditor(true);
 					if (!activeTextEditor) {
 						extHostLogService.warn('Cannot execute ' + id + ' because there is no active text editor.');
@@ -387,7 +386,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					callback.apply(thisArg, [diff, ...args]);
 				}, undefined, undefined, extension);
 			},
-			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
+			executeCommand<T>(id: string, ...args: unknown[]): Thenable<T> {
 				return extHostCommands.executeCommand<T>(id, ...args);
 			},
 			getCommands(filterInternal: boolean = false): Thenable<string[]> {
@@ -1304,13 +1303,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidRenameFiles: (listener, thisArg, disposables) => {
 				return _asExtensionEvent(extHostFileSystemEvent.onDidRenameFile)(listener, thisArg, disposables);
 			},
-			onWillCreateFiles: (listener: (e: vscode.FileWillCreateEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+			onWillCreateFiles: (listener: (e: vscode.FileWillCreateEvent) => any, thisArg?: unknown, disposables?: vscode.Disposable[]) => {
 				return _asExtensionEvent(extHostFileSystemEvent.getOnWillCreateFileEvent(extension))(listener, thisArg, disposables);
 			},
-			onWillDeleteFiles: (listener: (e: vscode.FileWillDeleteEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+			onWillDeleteFiles: (listener: (e: vscode.FileWillDeleteEvent) => any, thisArg?: unknown, disposables?: vscode.Disposable[]) => {
 				return _asExtensionEvent(extHostFileSystemEvent.getOnWillDeleteFileEvent(extension))(listener, thisArg, disposables);
 			},
-			onWillRenameFiles: (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+			onWillRenameFiles: (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: unknown, disposables?: vscode.Disposable[]) => {
 				return _asExtensionEvent(extHostFileSystemEvent.getOnWillRenameFileEvent(extension))(listener, thisArg, disposables);
 			},
 			openTunnel: (forward: vscode.TunnelOptions) => {
