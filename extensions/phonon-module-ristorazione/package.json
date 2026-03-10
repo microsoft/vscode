@@ -18,7 +18,8 @@
 			{ "id": "ristDashboard", "label": "Dashboard", "component": "./views/Dashboard.js", "mode": "canvas", "defaultGrafts": ["rist-food-cost", "rist-orders-incoming", "rist-revenue-today", "rist-inventory-alert"] },
 			{ "id": "ristDishList", "label": "Piatti", "component": "./views/DishList.js", "mode": "canvas", "entity": "dish" },
 			{ "id": "ristSupplierList", "label": "Fornitori", "component": "./views/SupplierList.js", "mode": "canvas", "entity": "supplier" },
-			{ "id": "ristOrderList", "label": "Ordini", "component": "./views/OrderList.js", "mode": "canvas", "entity": "order" }
+			{ "id": "ristOrderList", "label": "Ordini", "component": "./views/OrderList.js", "mode": "canvas", "entity": "order" },
+			{ "id": "ristTraffic", "label": "Traffico", "component": "./views/Traffic.js", "mode": "canvas", "defaultGrafts": ["rist-traffic-heatmap", "rist-traffic-insight"] }
 		],
 		"liquidDataProviders": [
 			{ "id": "rist-mock", "entities": ["dish", "supplier", "order"], "provider": "./providers/mock" }
@@ -101,6 +102,34 @@
 				"layout": { "minCols": 4, "maxCols": 6, "minHeight": 150 },
 				"shows": ["dish"],
 				"relatesTo": ["supplier"]
+			},
+			{
+				"id": "rist-traffic-heatmap",
+				"label": "Traffico Zona",
+				"description": "Heatmap 7 giorni × 8 fasce orarie con passaggi stimati da sensore SP69 Roadwise",
+				"entry": "./grafts/traffic-heatmap.html",
+				"entity": "order",
+				"domain": "andamento",
+				"category": "chart",
+				"tags": ["traffic", "heatmap", "territory", "roadwise"],
+				"layout": { "minCols": 6, "maxCols": 12, "minHeight": 300 },
+				"shows": ["order"],
+				"relatesTo": ["dish"],
+				"tokenWeight": 1089
+			},
+			{
+				"id": "rist-traffic-insight",
+				"label": "Insight Territorio",
+				"description": "Insight cards su traffico zona: picchi, anomalie, effetti stagionali, correlazioni attrattori",
+				"entry": "./grafts/traffic-insight.html",
+				"entity": "order",
+				"domain": "andamento",
+				"category": "list",
+				"tags": ["traffic", "insights", "territory", "analytics"],
+				"layout": { "minCols": 4, "maxCols": 6, "minHeight": 200 },
+				"shows": ["order"],
+				"relatesTo": ["dish"],
+				"tokenWeight": 866
 			}
 		],
 		"liquidSidebar": [
@@ -109,7 +138,8 @@
 				{ "id": "rist-dishes", "label": "Piatti", "view": "ristDishList" },
 				{ "id": "rist-suppliers", "label": "Fornitori", "view": "ristSupplierList" }
 			]},
-			{ "id": "rist-orders", "label": "Ordini", "view": "ristOrderList", "icon": "package", "order": 2 }
+			{ "id": "rist-orders", "label": "Ordini", "view": "ristOrderList", "icon": "package", "order": 2 },
+			{ "id": "rist-traffic", "label": "Traffico", "view": "ristTraffic", "icon": "pulse", "order": 3 }
 		]
 	}
 }

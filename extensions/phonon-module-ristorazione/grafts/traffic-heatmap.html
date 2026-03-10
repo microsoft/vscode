@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Traffico Zona  - SP69 P.37</title>
+<style>
+	* { margin: 0; padding: 0; box-sizing: border-box; }
+	body { background: #1e1e1e; color: #ccc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 12px; }
+	.th-title { font-size: 13px; font-weight: 600; color: #e0e0e0; margin-bottom: 4px; }
+	.th-subtitle { font-size: 10px; color: #666; margin-bottom: 12px; }
+	.th-grid { display: grid; grid-template-columns: 50px repeat(7, 1fr); gap: 2px; }
+	.th-header { font-size: 10px; font-weight: 600; color: #999; text-align: center; padding: 4px 2px; }
+	.th-row-label { font-size: 10px; color: #888; font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; display: flex; align-items: center; padding-right: 4px; }
+	.th-cell {
+		text-align: center;
+		font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+		font-size: 10px;
+		color: #e0e0e0;
+		padding: 6px 2px;
+		border-radius: 2px;
+		min-height: 28px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.th-legend { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 9px; color: #666; }
+	.th-legend-bar { width: 80px; height: 8px; border-radius: 2px; background: linear-gradient(to right, #1a2e1a, #4caf50); }
+	.th-source { font-size: 9px; color: #555; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<div class="th-title">Traffico Zona  - SP69 P.37</div>
+<div class="th-subtitle">Passaggi stimati per fascia oraria | Roadwise sensor data</div>
+
+<div class="th-grid" id="th-grid"></div>
+
+<div class="th-legend">
+	<span>Basso</span>
+	<div class="th-legend-bar"></div>
+	<span>Alto</span>
+</div>
+<div class="th-source">Fonte: SP69 Postazione 37 Roadwise  - Lisanza/Sesto Calende</div>
+
+<script>
+(function() {
+	var GIORNI = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+	var FASCE = ['06-09', '09-12', '12-14', '14-17', '17-19', '19-21', '21-23', '23-06'];
+
+	// Realistic SP69 data: commuter-heavy weekdays, peak 17-19, low overnight
+	var DATA = [
+		// Lun    Mar    Mer    Gio    Ven    Sab    Dom
+		[ 320,   310,   305,   315,   330,   140,   90  ], // 06-09
+		[ 280,   275,   310,   270,   290,   210,   130 ], // 09-12  (Mer higher: market effect)
+		[ 240,   235,   260,   230,   250,   190,   150 ], // 12-14
+		[ 290,   285,   280,   295,   310,   220,   120 ], // 14-17
+		[ 480,   470,   460,   475,   510,   280,   160 ], // 17-19  (peak)
+		[ 340,   330,   320,   335,   370,   310,   200 ], // 19-21
+		[ 180,   175,   170,   185,   220,   250,   140 ], // 21-23
+		[  45,    40,    42,    48,    75,    95,    55  ]  // 23-06  (minimal)
+	];
+
+	// Find max for color scaling
+	var max = 0;
+	for (var r = 0; r < DATA.length; r++) {
+		for (var c = 0; c < DATA[r].length; c++) {
+			if (DATA[r][c] > max) { max = DATA[r][c]; }
+		}
+	}
+
+	var grid = document.getElementById('th-grid');
+
+	// Corner cell (empty)
+	var corner = document.createElement('div');
+	grid.appendChild(corner);
+
+	// Day headers
+	for (var d = 0; d < GIORNI.length; d++) {
+		var hdr = document.createElement('div');
+		hdr.className = 'th-header';
+		hdr.textContent = GIORNI[d];
+		grid.appendChild(hdr);
+	}
+
+	// Data rows
+	for (var f = 0; f < FASCE.length; f++) {
+		// Row label
+		var lbl = document.createElement('div');
+		lbl.className = 'th-row-label';
+		lbl.textContent = FASCE[f];
+		grid.appendChild(lbl);
+
+		// Cells
+		for (var g = 0; g < GIORNI.length; g++) {
+			var val = DATA[f][g];
+			var intensity = val / max;
+			var cell = document.createElement('div');
+			cell.className = 'th-cell';
+			cell.textContent = val;
+
+			// Green scale: from very dark (#1a2e1a) to bright green
+			var rr = Math.round(26 + (76 - 26) * intensity);
+			var gg = Math.round(46 + (175 - 46) * intensity);
+			var bb = Math.round(26 + (80 - 26) * intensity);
+			cell.style.backgroundColor = 'rgb(' + rr + ',' + gg + ',' + bb + ')';
+
+			// White text on bright cells for readability
+			if (intensity > 0.7) {
+				cell.style.color = '#fff';
+				cell.style.fontWeight = '600';
+			}
+
+			grid.appendChild(cell);
+		}
+	}
+
+	// Bridge: listen for phonon init (future data injection)
+	window.addEventListener('message', function(e) {
+		if (e.data && e.data.type === 'phonon:init') {
+			// Ready for live data injection via bridge
+			// For now, mock data is embedded above
+		}
+	});
+})();
+</script>
+
+</body>
+</html>

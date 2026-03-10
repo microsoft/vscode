@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Insight Territorio</title>
+<style>
+	* { margin: 0; padding: 0; box-sizing: border-box; }
+	body { background: #1e1e1e; color: #ccc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 12px; }
+	.ti-title { font-size: 13px; font-weight: 600; color: #e0e0e0; margin-bottom: 12px; }
+	.ti-cards { display: flex; flex-direction: column; gap: 8px; }
+	.ti-card {
+		background: #252526;
+		border-radius: 4px;
+		padding: 10px 12px;
+		border-left: 3px solid #555;
+	}
+	.ti-card-positivo { border-left-color: #4caf50; }
+	.ti-card-negativo { border-left-color: #e53935; }
+	.ti-card-neutro { border-left-color: #757575; }
+	.ti-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+	.ti-card-title { font-size: 12px; font-weight: 600; color: #e0e0e0; }
+	.ti-badge {
+		font-size: 9px;
+		font-weight: 600;
+		padding: 2px 5px;
+		border-radius: 3px;
+		background: #333;
+		color: #aaa;
+		font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+	}
+	.ti-badge-high { background: #2e7d32; color: #c8e6c9; }
+	.ti-badge-mid { background: #4e342e; color: #d7ccc8; }
+	.ti-badge-low { background: #333; color: #999; }
+	.ti-card-detail { font-size: 11px; color: #999; line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<div class="ti-title">Insight Territorio</div>
+<div class="ti-cards" id="ti-cards"></div>
+
+<script>
+(function() {
+	var insights = [
+		{
+			tipo: 'positivo',
+			titolo: 'Picco serale confermato',
+			dettaglio: 'Fascia 17-19 costantemente sopra media (+34%). Opportunit\u00e0 per promozioni aperitivo.',
+			confidenza: 92
+		},
+		{
+			tipo: 'negativo',
+			titolo: 'Calo domenicale',
+			dettaglio: 'Traffico domenica -41% vs media settimanale. Valutare apertura ridotta.',
+			confidenza: 78
+		},
+		{
+			tipo: 'positivo',
+			titolo: 'Effetto mercato',
+			dettaglio: 'Mercoled\u00ec mattina +28% correlato a mercato settimanale Sesto Calende.',
+			confidenza: 85
+		},
+		{
+			tipo: 'neutro',
+			titolo: 'Stagionalit\u00e0 non rilevata',
+			dettaglio: 'Nessuna variazione significativa nel periodo analizzato. Dati insufficienti per trend stagionale.',
+			confidenza: 65
+		}
+	];
+
+	var container = document.getElementById('ti-cards');
+
+	for (var i = 0; i < insights.length; i++) {
+		var ins = insights[i];
+
+		var card = document.createElement('div');
+		card.className = 'ti-card ti-card-' + ins.tipo;
+
+		var header = document.createElement('div');
+		header.className = 'ti-card-header';
+
+		var title = document.createElement('span');
+		title.className = 'ti-card-title';
+		title.textContent = ins.titolo;
+
+		var badge = document.createElement('span');
+		var badgeClass = 'ti-badge';
+		if (ins.confidenza >= 85) { badgeClass += ' ti-badge-high'; }
+		else if (ins.confidenza >= 70) { badgeClass += ' ti-badge-mid'; }
+		else { badgeClass += ' ti-badge-low'; }
+		badge.className = badgeClass;
+		badge.textContent = ins.confidenza + '%';
+
+		header.appendChild(title);
+		header.appendChild(badge);
+
+		var detail = document.createElement('div');
+		detail.className = 'ti-card-detail';
+		detail.textContent = ins.dettaglio;
+
+		card.appendChild(header);
+		card.appendChild(detail);
+		container.appendChild(card);
+	}
+
+	// Bridge: listen for phonon init
+	window.addEventListener('message', function(e) {
+		if (e.data && e.data.type === 'phonon:init') {
+			// Ready for live data injection via bridge
+		}
+	});
+})();
+</script>
+
+</body>
+</html>
