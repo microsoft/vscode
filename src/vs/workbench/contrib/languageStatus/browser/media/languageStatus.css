@@ -31,6 +31,10 @@
 	animation-name: wiggle;
 }
 
+.monaco-workbench.monaco-reduce-motion .statusbar DIV#status\.languageStatus A > SPAN.codicon.wiggle {
+	animation: none;
+}
+
 @keyframes flash {
 	0% {
 		background-color: initial;
@@ -49,6 +53,10 @@
 	animation-duration: .8s;
 	animation-iteration-count: 1;
 	animation-name: flash;
+}
+
+.monaco-workbench.monaco-reduce-motion .statusbar DIV#status\.languageStatus.flash A {
+	animation: none;
 }
 
 /* --- hover */
