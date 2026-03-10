@@ -18,9 +18,9 @@ const BROWSER_ZOOM_PER_HOST_STORAGE_KEY = 'browserView.zoomPerHost';
 
 /**
  * Special value for the default zoom level setting that instructs the browser view
- * to dynamically match the closest zoom level to VS Code's current UI zoom.
+ * to dynamically match the closest zoom level to the application's current UI zoom.
  */
-export const MATCH_VSCODE_LABEL = 'Match VS Code';
+export const MATCH_WINDOW_ZOOM_LABEL = 'Match Window';
 
 export interface IBrowserZoomChangeEvent {
 	/**
@@ -77,11 +77,11 @@ export interface IBrowserZoomService {
 	setHostZoomIndex(host: string, zoomIndex: number, isEphemeral: boolean): void;
 
 	/**
-	 * Notifies the service of VS Code's current UI zoom factor.
-	 * Must be called once on startup and again whenever VS Code's zoom changes.
-	 * Only relevant when the default zoom level is set to `MATCH_VSCODE_LABEL`.
+	 * Notifies the service of the application's current UI zoom factor.
+	 * Must be called once on startup and again whenever the window zoom changes.
+	 * Only relevant when the default zoom level is set to `MATCH_WINDOW_LABEL`.
 	 */
-	notifyVSCodeZoomChanged(vsCodeZoomFactor: number): void;
+	notifyWindowZoomChanged(windowZoomFactor: number): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,7 +108,7 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 	/** In-memory only; dropped on restart. */
 	private readonly _ephemeralZoomMap = new Map<string, number>();
 
-	private _vsCodeZoomFactor: number = zoomLevelToZoomFactor(0); // default: zoom level 0 → factor 1.0
+	private _windowZoomFactor: number = zoomLevelToZoomFactor(0); // default: zoom level 0 → factor 1.0
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -192,10 +192,10 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 		}
 	}
 
-	notifyVSCodeZoomChanged(vsCodeZoomFactor: number): void {
-		this._vsCodeZoomFactor = vsCodeZoomFactor;
+	notifyWindowZoomChanged(windowZoomFactor: number): void {
+		this._windowZoomFactor = windowZoomFactor;
 		const label = this.configurationService.getValue<string>('workbench.browser.zoom.pageZoom');
-		if (label === MATCH_VSCODE_LABEL) {
+		if (label === MATCH_WINDOW_ZOOM_LABEL) {
 			this._onDidChangeZoom.fire({ host: undefined, isEphemeralChange: false });
 		}
 	}
@@ -206,22 +206,22 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 
 	private _getDefaultZoomIndex(): number {
 		const label = this.configurationService.getValue<string>('workbench.browser.zoom.pageZoom');
-		if (label === MATCH_VSCODE_LABEL) {
-			return this._getMatchVSCodeZoomIndex();
+		if (label === MATCH_WINDOW_ZOOM_LABEL) {
+			return this._getMatchWindowZoomIndex();
 		}
 		return ZOOM_LABEL_TO_INDEX.get(label) ?? browserZoomDefaultIndex;
 	}
 
 	/**
-	 * Finds the browser zoom index whose factor is closest to VS Code's current UI zoom
-	 * factor, measuring distance on a log scale (since VS Code zoom levels are powers of 1.2).
+	 * Finds the browser zoom index whose factor is closest to the application's current UI zoom
+	 * factor, measuring distance on a log scale (since window zoom levels are powers of 1.2).
 	 */
-	private _getMatchVSCodeZoomIndex(): number {
-		const vscodeFactor = this._vsCodeZoomFactor;
+	private _getMatchWindowZoomIndex(): number {
+		const windowFactor = this._windowZoomFactor;
 		let bestIndex = browserZoomDefaultIndex;
 		let bestDist = Infinity;
 		for (let i = 0; i < browserZoomFactors.length; i++) {
-			const dist = Math.abs(Math.log(browserZoomFactors[i]) - Math.log(vscodeFactor));
+			const dist = Math.abs(Math.log(browserZoomFactors[i]) - Math.log(windowFactor));
 			if (dist < bestDist) {
 				bestDist = dist;
 				bestIndex = i;
