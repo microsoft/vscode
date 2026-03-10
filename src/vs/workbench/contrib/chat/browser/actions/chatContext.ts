@@ -33,6 +33,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { troubleshootSkill } from '../../common/promptSyntax/internalCustomizations/internalCustomizations.js';
 
 
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
@@ -62,6 +63,15 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 			if (focusedSession && focusedSession.toString() === sessionResource.toString()) {
 				hasAttachedDebugDataKey.set(true);
 				languageModelToolsService.flushToolUpdates();
+			}
+		}));
+
+		// When the troubleshoot skill is read by the model, enable the
+		// resolveDebugEventDetails tool by marking debug data as attached.
+		this._store.add(troubleshootSkill.onDidRead(() => {
+			const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+			if (sessionResource) {
+				chatDebugService.markDebugDataAttached(sessionResource);
 			}
 		}));
 

@@ -74,6 +74,7 @@ export enum PromptsStorage {
 	user = 'user',
 	extension = 'extension',
 	plugin = 'plugin',
+	internal = 'internal',
 }
 
 /**
@@ -88,7 +89,7 @@ export enum ExtensionAgentSourceType {
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
-export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath | IPluginPromptPath;
+export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath | IPluginPromptPath | IInternalPromptPath;
 
 
 export interface IPromptPathBase {
@@ -137,6 +138,10 @@ export interface IPluginPromptPath extends IPromptPathBase {
 	readonly pluginUri: URI;
 }
 
+export interface IInternalPromptPath extends IPromptPathBase {
+	readonly storage: PromptsStorage.internal;
+}
+
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
@@ -146,6 +151,8 @@ export type IAgentSource = {
 } | {
 	readonly storage: PromptsStorage.plugin;
 	readonly pluginUri: URI;
+} | {
+	readonly storage: PromptsStorage.internal;
 };
 
 /**
