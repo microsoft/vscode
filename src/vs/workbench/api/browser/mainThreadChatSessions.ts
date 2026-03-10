@@ -706,7 +706,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	async $handleProgressChunk(handle: number, sessionResource: UriComponents, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void> {
 		const resource = URI.revive(sessionResource);
-		warnOnUntitledSessionResource(resource);
 		const observableSession = this._activeSessions.get(resource);
 		if (!observableSession) {
 			this._logService.warn(`No session found for progress chunks: handle ${handle}, sessionResource ${resource}, requestId ${requestId}`);
