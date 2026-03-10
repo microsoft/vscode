@@ -750,10 +750,11 @@ export class ChangesViewPane extends ViewPane {
 			}));
 
 			// Set context key for merge base branch protection
-			const isMergeBaseBranchProtectedContextKey = new RawContextKey<boolean>('sessions.isMergeBaseBranchProtected', false);
-			this.renderDisposables.add(bindContextKey(isMergeBaseBranchProtectedContextKey, this.scopedContextKeyService, r => {
-				const repository = this.activeSessionRepositoryObs.read(r)?.read(r).value;
-				return repository?.state.read(r).HEAD?.base?.isProtected === true;
+			const isMergeBaseBranchProtectedContextKey = scopedContextKeyService.createKey<boolean>('sessions.isMergeBaseBranchProtected', false);
+			this.renderDisposables.add(autorun(reader => {
+				const repository = this.activeSessionRepositoryObs.read(reader)?.read(reader).value;
+				const state = repository?.state.read(reader);
+				isMergeBaseBranchProtectedContextKey.set(state?.HEAD?.base?.isProtected === true);
 			}));
 
 			// Set context key for PR state from session metadata
