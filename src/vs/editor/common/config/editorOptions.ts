@@ -3807,7 +3807,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 			],
 			default: defaults,
 			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", '`#editor.suggestOnTriggerCharacters#`'),
-			experiment: 'auto'
+			experimentMode: 'auto'
 		});
 		this.defaultValue = defaults;
 	}
@@ -4603,21 +4603,21 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.experimental.suppressInlineSuggestions,
 					tags: ['experimental'],
 					description: nls.localize('inlineSuggest.suppressInlineSuggestions', "Suppresses inline completions for specified extension IDs -- comma separated."),
-					experiment: 'auto'
+					experimentMode: 'auto'
 				},
 				'editor.inlineSuggest.experimental.emptyResponseInformation': {
 					type: 'boolean',
 					default: defaults.experimental.emptyResponseInformation,
 					tags: ['experimental'],
 					description: nls.localize('inlineSuggest.emptyResponseInformation', "Controls whether to send request information from the inline suggestion provider."),
-					experiment: 'auto'
+					experimentMode: 'auto'
 				},
 				'editor.inlineSuggest.triggerCommandOnProviderChange': {
 					type: 'boolean',
 					default: defaults.triggerCommandOnProviderChange,
 					tags: ['experimental'],
 					description: nls.localize('inlineSuggest.triggerCommandOnProviderChange', "Controls whether to trigger a command when the inline suggestion provider changes."),
-					experiment: 'auto'
+					experimentMode: 'auto'
 				},
 				'editor.inlineSuggest.experimental.showOnSuggestConflict': {
 					type: 'string',
@@ -4625,7 +4625,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					tags: ['experimental'],
 					enum: ['always', 'never', 'whenSuggestListIsIncomplete'],
 					description: nls.localize('inlineSuggest.showOnSuggestConflict', "Controls whether to show inline suggestions when there is a suggest conflict."),
-					experiment: 'auto'
+					experimentMode: 'auto'
 				},
 				'editor.inlineSuggest.fontFamily': {
 					type: 'string',
@@ -6507,7 +6507,7 @@ export const EditorOptions = {
 		10, 0, Constants.MAX_SAFE_SMALL_INTEGER,
 		{
 			description: nls.localize('quickSuggestionsDelay', "Controls the delay in milliseconds after which quick suggestions will show up."),
-			experiment: 'auto'
+			experimentMode: 'auto'
 		}
 	)),
 	readOnly: register(new EditorBooleanOption(

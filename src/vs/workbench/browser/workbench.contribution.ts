@@ -361,7 +361,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('useModal', "Controls whether editors open in a modal overlay."),
 				'default': product.quality !== 'stable' ? 'some' : 'off', // TODO@bpasero figure out the default
 				tags: ['experimental'],
-				experiment: 'auto'
+				experimentMode: 'auto'
 			},
 			'workbench.editor.swipeToNavigate': {
 				'type': 'boolean',
@@ -626,7 +626,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.notifications.position.top-right', "Show notifications in the top right corner, similar to OS-level notifications.")
 				],
 				'tags': ['experimental'],
-				'experiment': 'auto'
+				'experimentMode': 'auto'
 			},
 			[NotificationsSettings.NOTIFICATIONS_BUTTON]: {
 				'type': 'boolean',

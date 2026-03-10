@@ -1391,7 +1391,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 				continue;
 			}
 			this.processedExperimentalSettings.add(property);
-			if (schema.experiment === 'auto') {
+			if (schema.experimentMode === 'auto') {
 				this.autoExperimentalSettings.add(property);
 			}
 			try {

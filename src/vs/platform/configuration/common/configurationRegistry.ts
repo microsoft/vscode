@@ -230,7 +230,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * - `startup`: The setting value is updated to the experiment value only on startup.
 	 * - `auto`: The setting value is updated to the experiment value automatically (whenever the experiment value changes).
 	 */
-	experiment?: 'startup' | 'auto';
+	experimentMode?: 'startup' | 'auto';
 }
 
 export interface IExtensionInfo {
@@ -706,14 +706,14 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 					property.restricted = types.isUndefinedOrNull(property.restricted) ? !!restrictedProperties?.includes(key) : property.restricted;
 				}
 
-				if (property.experiment) {
+				if (property.experimentMode) {
 					if (!property.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
 						property.tags = property.tags ?? [];
 						property.tags.push('onExP');
 					}
 				} else if (property.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
 					console.error(`Invalid tag 'onExP' found for property '${key}'. Please use 'experiment' property instead.`);
-					property.experiment = 'startup';
+					property.experimentMode = 'startup';
 				}
 
 				const excluded = properties[key].hasOwnProperty('included') && !properties[key].included;
