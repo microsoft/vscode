@@ -706,7 +706,8 @@ export const SUPPORTED_ENCODINGS: EncodingsMap = {
 	gb18030: {
 		labelLong: 'Simplified Chinese (GB18030)',
 		labelShort: 'GB18030',
-		order: 36
+		order: 36,
+		guessableName: 'GB2312'
 	},
 	cp950: {
 		labelLong: 'Traditional Chinese (Big5)',
