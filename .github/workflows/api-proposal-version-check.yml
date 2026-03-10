@@ -110,7 +110,7 @@ jobs:
             console.log('API proposal version change has been acknowledged.');
 
             // Find the failed workflow run for this PR's head SHA
-            const { data: runs } = await github.rest.actions.listWorkflowRunsForRepo({
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'api-proposal-version-check.yml',
