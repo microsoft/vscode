@@ -12,8 +12,8 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
 const $ = DOM.$;
 
-export const CUSTOMIZATION_GROUP_HEADER_HEIGHT = 28;
-export const CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR = 32;
+export const CUSTOMIZATION_GROUP_HEADER_HEIGHT = 36;
+export const CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR = 40;
 
 /**
  * Common shape for a collapsible group header entry used in the

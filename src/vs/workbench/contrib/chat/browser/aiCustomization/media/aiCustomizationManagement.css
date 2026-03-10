@@ -263,7 +263,7 @@
 
 /* Spacing above non-first group headers */
 .ai-customization-group-header.has-previous-group {
-	margin-top: 4px;
+	padding-top: 12px;
 }
 
 .ai-customization-group-header:hover {
@@ -356,7 +356,6 @@
 	padding: 6px 8px 6px 24px;
 	cursor: pointer;
 	border-radius: 4px;
-	margin: 2px 0;
 	min-height: 32px;
 }
 
@@ -725,7 +724,6 @@
 	padding: 6px 8px;
 	cursor: pointer;
 	border-radius: 4px;
-	margin: 2px 0;
 	min-height: 32px;
 	gap: 10px;
 }
