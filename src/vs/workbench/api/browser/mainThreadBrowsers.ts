@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { BrowserTabDto, ExtHostBrowsersShape, ExtHostContext, MainContext, MainThreadBrowsersShape } from '../common/extHost.protocol.js';
@@ -13,13 +13,13 @@ import { IMainProcessService } from '../../../platform/ipc/common/mainProcessSer
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
 import { BrowserViewUri } from '../../../platform/browserView/common/browserViewUri.js';
-import { EditorInput } from '../../common/editor/editorInput.js';
 import { EditorGroupColumn, columnToEditorGroup } from '../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IEditorOptions } from '../../../platform/editor/common/editor.js';
 import { CDPRequest } from '../../../platform/browserView/common/cdp/types.js';
-import { t } from '../../contrib/chat/common/model/objectMutationLog.js';
+
+const BROWSER_EDITOR_INPUT_ID = 'workbench.editorinputs.browser';
 
 @extHostNamedCustomer(MainContext.MainThreadBrowsers)
 export class MainThreadBrowsers extends Disposable implements MainThreadBrowsersShape {
@@ -30,7 +30,7 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 
 	/** Maps CDP session IDs to the browser view group ID and disposables. */
 	private readonly _sessions = this._register(new DisposableMap<string, DisposableStore>());
-	/** Maps CDP session ID to group ID. */
+	/** Maps CDP session ID to group ID for message routing. */
 	private readonly _sessionGroupIds = new Map<string, string>();
 
 	/** Browser view models we are currently tracking. */
@@ -79,7 +79,11 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		);
 
 		const model = await this._resolveAndTrack(parsed.id);
-		return this._toDto(model!);
+		if (!model) {
+			throw new Error(`Failed to open browser tab`);
+		}
+
+		return this._toDto(model);
 	}
 
 	// #endregion
@@ -193,6 +197,12 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		// Add the browser to the group
 		await this._groupService.addViewToGroup(groupId, browserId);
 
+		// Destroy the main-process group when this session is disposed
+		disposables.add(toDisposable(() => {
+			this._sessionGroupIds.delete(sessionId);
+			this._groupService.destroyGroup(groupId).catch(() => { });
+		}));
+
 		// Wire CDP messages from main process back to ext host
 		disposables.add(this._groupService.onDynamicCDPMessage(groupId)(message => {
 			this._proxy.$onCDPSessionMessage(sessionId, message);
@@ -201,19 +211,13 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		disposables.add(this._groupService.onDynamicDidDestroy(groupId)(() => {
 			this._proxy.$onCDPSessionClosed(sessionId);
 			this._sessions.deleteAndDispose(sessionId);
-			this._sessionGroupIds.delete(sessionId);
 		}));
 
 		this._sessions.set(sessionId, disposables);
 	}
 
 	async $closeCDPSession(sessionId: string): Promise<void> {
-		const groupId = this._sessionGroupIds.get(sessionId);
-		if (groupId) {
-			await this._groupService.destroyGroup(groupId);
-			this._sessions.deleteAndDispose(sessionId);
-			this._sessionGroupIds.delete(sessionId);
-		}
+		this._sessions.deleteAndDispose(sessionId);
 	}
 
 	async $sendCDPMessage(sessionId: string, message: CDPRequest): Promise<void> {
