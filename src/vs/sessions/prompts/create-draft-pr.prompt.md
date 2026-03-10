@@ -1,7 +1,7 @@
 ---
 description: Create a draft pull request for the current session
 ---
-<!-- Edit in AI Customization and click the Save icon to create an override. Delete that copy to restore the built-in behavior. -->
+<!-- Customize this prompt and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 
 Use the GitHub MCP server to create a draft pull request — do NOT use the `gh` CLI.
 

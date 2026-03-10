@@ -98,8 +98,8 @@ interface ISectionItem {
 }
 
 interface ISaveTargetQuickPickItem extends IQuickPickItem {
-	readonly target: 'workspace' | 'user';
-	readonly folder: URI;
+	readonly target: 'workspace' | 'user' | 'cancel';
+	readonly folder?: URI;
 }
 
 class SectionItemDelegate implements IListVirtualDelegate<ISectionItem> {
@@ -836,7 +836,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorActionButtonIcon = DOM.append(this.editorActionButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}.editor-action-button-icon`));
 		this.editorActionButtonIcon.setAttribute('aria-hidden', 'true');
 		this.editorDisposables.add(DOM.addDisposableListener(this.editorActionButton, 'click', () => {
-			void this.handleEditorActionButton();
+			void this.handleEditorActionButton().catch(error => {
+				console.error('Failed to handle editor back action:', error);
+				this.notificationService.error(localize('editorActionButtonFailed', "Failed to finish the prompt action."));
+			});
 		}));
 
 		const itemInfo = DOM.append(editorHeader, $('.editor-item-info'));
@@ -968,6 +971,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (fileUri && projectRoot && this._editorContentChanged) {
 			this.workspaceService.commitFiles(projectRoot, [fileUri]);
 		}
+		if (fileUri && this.currentEditingStorage === BUILTIN_STORAGE) {
+			this.disposeBuiltinEditingSession(fileUri);
+		}
 
 		this.currentModelRef?.dispose();
 		this.currentModelRef = undefined;
@@ -1018,10 +1024,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private async saveBuiltinPromptCopy(): Promise<void> {
+	private async saveBuiltinPromptCopy(target: ISaveTargetQuickPickItem): Promise<void> {
 		const sourceUri = this.currentEditingUri;
 		const promptType = this.currentEditingPromptType;
-		if (!sourceUri || this.currentEditingStorage !== BUILTIN_STORAGE || promptType !== PromptsType.prompt) {
+		if (!sourceUri || this.currentEditingStorage !== BUILTIN_STORAGE || promptType !== PromptsType.prompt || !target.folder) {
 			return;
 		}
 
@@ -1030,31 +1036,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		const target = await this.pickBuiltinPromptSaveTarget();
-		if (!target) {
-			return;
-		}
-
 		const targetUri = URI.joinPath(target.folder, basename(sourceUri));
 		await this.fileService.createFolder(target.folder);
 		await this.fileService.writeFile(targetUri, VSBuffer.fromString(session.model.getValue()));
 
-		session.originalContent = session.model.getValue();
-		this.builtinEditingSessions.delete(sourceUri.toString());
-		session.model.dispose();
-		this._editorContentChanged = false;
-		this.updateEditorActionButton();
 		status(target.target === 'workspace'
 			? localize('saveBuiltinPromptCopySuccessWorkspace', "Saved the prompt override to the workspace prompts.")
 			: localize('saveBuiltinPromptCopySuccessUser', "Saved the prompt override to your user prompts."));
-
-		await this.showEmbeddedEditor(
-			targetUri,
-			this.editorItemNameElement.textContent || basename(targetUri),
-			PromptsType.prompt,
-			target.target === 'workspace' ? PromptsStorage.local : PromptsStorage.user,
-			target.target === 'workspace',
-		);
 	}
 
 	private async pickBuiltinPromptSaveTarget(): Promise<ISaveTargetQuickPickItem | undefined> {
@@ -1080,27 +1068,32 @@ export class AICustomizationManagementEditor extends EditorPane {
 			});
 		}
 
-		if (items.length === 0) {
-			this.notificationService.error(localize('saveBuiltinPromptCopyNoTargets', "No prompt locations are available for saving this prompt."));
-			return undefined;
-		}
+		items.push({
+			label: localize('cancelSaveTarget', "Cancel"),
+			target: 'cancel',
+		});
 
 		return this.quickInputService.pick(items, {
 			canPickMany: false,
-			placeHolder: localize('saveBuiltinPromptCopyPlaceholder', "Select where to save the edited prompt"),
+			placeHolder: localize('saveBuiltinPromptCopyPlaceholder', "Select Workspace, User, or Cancel"),
 			matchOnDescription: true,
 		});
 	}
 
 	private async handleEditorActionButton(): Promise<void> {
-		if (this.currentEditingStorage === BUILTIN_STORAGE && this.currentEditingPromptType === PromptsType.prompt) {
-			try {
-				await this.saveBuiltinPromptCopy();
-			} catch (error) {
-				console.error('Failed to save built-in prompt copy:', error);
-				this.notificationService.error(localize('saveBuiltinPromptCopyFailed', "Failed to save the prompt copy."));
+		const shouldPromptToSave = this.currentEditingStorage === BUILTIN_STORAGE &&
+			this.currentEditingPromptType === PromptsType.prompt &&
+			this._editorContentChanged;
+
+		if (shouldPromptToSave) {
+			const selection = await this.pickBuiltinPromptSaveTarget();
+			if (!selection) {
+				return;
 			}
-			return;
+
+			if (selection.target !== 'cancel') {
+				await this.saveBuiltinPromptCopy(selection);
+			}
 		}
 
 		this.goBackToList();
@@ -1111,17 +1104,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		const isBuiltinPrompt = this.currentEditingStorage === BUILTIN_STORAGE && this.currentEditingPromptType === PromptsType.prompt;
-		this.editorActionButtonIcon.className = `codicon codicon-${isBuiltinPrompt ? Codicon.save.id : Codicon.arrowLeft.id} editor-action-button-icon`;
-		this.editorActionButton.classList.toggle('editor-save-mode', isBuiltinPrompt);
-		this.editorActionButton.disabled = isBuiltinPrompt && !this._editorContentChanged;
-		this.editorActionButton.setAttribute('aria-label', isBuiltinPrompt
-			? localize('savePromptCopyAriaLabel', "Save prompt copy")
+		const shouldPromptToSave = this.currentEditingStorage === BUILTIN_STORAGE &&
+			this.currentEditingPromptType === PromptsType.prompt &&
+			this._editorContentChanged;
+		this.editorActionButtonIcon.className = `codicon codicon-${Codicon.arrowLeft.id} editor-action-button-icon`;
+		this.editorActionButton.disabled = false;
+		this.editorActionButton.setAttribute('aria-label', shouldPromptToSave
+			? localize('backToListAndSavePromptCopy', "Back to list and choose where to save the prompt override")
 			: localize('backToList', "Back to list"));
-		this.editorActionButton.title = isBuiltinPrompt
-			? this._editorContentChanged
-				? localize('saveBuiltinPromptCopyTooltip', "Save an edited copy as a workspace or user prompt")
-				: localize('saveBuiltinPromptCopyDisabledTooltip', "Edit the prompt to save a workspace or user copy")
+		this.editorActionButton.title = shouldPromptToSave
+			? localize('backToListAndSavePromptCopyTooltip', "Go back and choose Workspace, User, or Cancel")
 			: localize('backToList', "Back to list");
 	}
 
@@ -1135,6 +1127,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 			session.model.dispose();
 		}
 		this.builtinEditingSessions.clear();
+	}
+
+	private disposeBuiltinEditingSession(uri: URI): void {
+		const key = uri.toString();
+		const session = this.builtinEditingSessions.get(key);
+		if (!session) {
+			return;
+		}
+
+		session.model.dispose();
+		this.builtinEditingSessions.delete(key);
 	}
 
 	//#region Embedded MCP Server Detail
