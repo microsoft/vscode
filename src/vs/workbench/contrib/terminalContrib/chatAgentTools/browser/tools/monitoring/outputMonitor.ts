@@ -972,6 +972,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			if (currentFamilyModels.length) {
 				return currentFamilyModels[0];
 			}
+		}
 
 		const fastModels = await this._safeSelectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
 		if (fastModels.length) {
