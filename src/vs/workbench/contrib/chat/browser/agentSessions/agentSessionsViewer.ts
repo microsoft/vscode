@@ -866,9 +866,9 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 				continue;
 			}
 
-			const repo = this.getRepositoryInfo(session);
-			const repoId = repo?.id ?? noRepoId;
-			const repoLabel = repo?.label ?? noRepoLabel;
+			const repoName = this.getRepositoryName(session);
+			const repoId = repoName ?? noRepoId;
+			const repoLabel = repoName ?? noRepoLabel;
 
 			let group = repoMap.get(repoId);
 			if (!group) {
@@ -898,35 +898,33 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		return result;
 	}
 
-	private getRepositoryInfo(session: IAgentSession): { id: string; label: string } | undefined {
+	private getRepositoryName(session: IAgentSession): string | undefined {
 		const metadata = session.metadata;
 		if (metadata) {
 			// Cloud sessions: metadata.owner + metadata.name
 			const owner = metadata.owner as string | undefined;
 			const name = metadata.name as string | undefined;
 			if (owner && name) {
-				return { id: name, label: name };
+				return name;
 			}
 
 			// repositoryNwo: "owner/repo"
 			const nwo = metadata.repositoryNwo as string | undefined;
 			if (nwo && nwo.includes('/')) {
-				const label = nwo.split('/').pop()!;
-				return { id: label, label };
+				return nwo.split('/').pop()!;
 			}
 
 			// repository: could be "owner/repo" or a URL
 			const repository = metadata.repository as string | undefined;
 			if (repository) {
 				if (repository.includes('/') && !repository.includes(':')) {
-					const label = repository.split('/').pop()!;
-					return { id: label, label };
+					return repository.split('/').pop()!;
 				}
 				try {
 					const url = new URL(repository);
 					const parts = url.pathname.split('/').filter(Boolean);
 					if (parts.length >= 2) {
-						return { id: parts[1], label: parts[1] };
+						return parts[1];
 					}
 				} catch {
 					// not a URL
@@ -940,7 +938,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 					const url = new URL(repositoryUrl);
 					const parts = url.pathname.split('/').filter(Boolean);
 					if (parts.length >= 2) {
-						return { id: parts[1], label: parts[1] };
+						return parts[1];
 					}
 				} catch {
 					// not a URL
@@ -950,18 +948,18 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			// repositoryPath: extract repo name from the directory path basename
 			const repositoryPath = metadata.repositoryPath as string | undefined;
 			if (repositoryPath) {
-				const label = repositoryPath.split('/').filter(Boolean).pop();
-				if (label) {
-					return { id: label, label };
+				const name = repositoryPath.split('/').filter(Boolean).pop();
+				if (name) {
+					return name;
 				}
 			}
 
 			// workingDirectoryPath: fallback to extract name from the working directory
 			const workingDirectoryPath = metadata.workingDirectoryPath as string | undefined;
 			if (workingDirectoryPath) {
-				const label = workingDirectoryPath.split('/').filter(Boolean).pop();
-				if (label) {
-					return { id: label, label };
+				const name = workingDirectoryPath.split('/').filter(Boolean).pop();
+				if (name) {
+					return name;
 				}
 			}
 		}
@@ -972,8 +970,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			const raw = typeof badge === 'string' ? badge : badge.value;
 			const badgeMatch = raw.match(/\$\((?:repo|folder)\)\s*(.+)/);
 			if (badgeMatch) {
-				const label = badgeMatch[1].trim();
-				return { id: label, label };
+				return badgeMatch[1].trim();
 			}
 		}
 
