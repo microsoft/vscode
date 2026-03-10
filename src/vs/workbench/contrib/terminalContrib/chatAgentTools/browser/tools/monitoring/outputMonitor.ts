@@ -990,7 +990,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		try {
 			return await this._languageModelsService.selectLanguageModels(selector);
 		} catch (error) {
-			this._logService.trace('OutputMonitor: selectLanguageModels failed', error);
+			this._logService.trace('OutputMonitor: selectLanguageModels failed', selector, error);
 			return [];
 		}
 	}
