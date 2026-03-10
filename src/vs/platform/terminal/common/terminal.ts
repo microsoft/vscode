@@ -720,6 +720,7 @@ export interface IShellLaunchConfigDto {
 	reconnectionProperties?: IReconnectionProperties;
 	type?: 'Task' | 'Local';
 	isFeatureTerminal?: boolean;
+	forceShellIntegration?: boolean;
 	tabActions?: ITerminalTabAction[];
 	shellIntegrationEnvironmentReporting?: boolean;
 	titleTemplate?: string;
