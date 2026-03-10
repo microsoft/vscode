@@ -14,7 +14,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatModel, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
-import { IChatProgress, IChatService, IChatSessionTiming } from './chatService/chatService.js';
+import { IChatProgress, IChatSessionTiming } from './chatService/chatService.js';
 import { Target } from './promptSyntax/promptTypes.js';
 
 export const enum ChatSessionStatus {
