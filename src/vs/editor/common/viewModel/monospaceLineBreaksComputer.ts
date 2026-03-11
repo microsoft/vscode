@@ -35,7 +35,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 			},
 			finalize: () => {
 				const fontInfo = options.get(EditorOption.fontInfo);
-				const wrappingColumn = options.get(EditorOption.wordWrapColumn);
+				const wrappingColumn = options.get(EditorOption.wrappingInfo).wrappingColumn;
 				const wrappingIndent = options.get(EditorOption.wrappingIndent);
 				const wordBreak = options.get(EditorOption.wordBreak);
 				const wrapOnEscapedLineFeeds = options.get(EditorOption.wrapOnEscapedLineFeeds);

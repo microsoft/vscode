@@ -58,7 +58,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 	const wrappingIndent = options.get(EditorOption.wrappingIndent);
 	const fontInfo = options.get(EditorOption.fontInfo);
 	const wordBreak = options.get(EditorOption.wordBreak);
-	const firstLineBreakColumn = options.get(EditorOption.wordWrapColumn);
+	const firstLineBreakColumn = options.get(EditorOption.wrappingInfo).wrappingColumn;
 	if (firstLineBreakColumn === -1) {
 		const result: (ModelLineProjectionData | null)[] = [];
 		for (let i = 0, len = lineNumbers.length; i < len; i++) {
