@@ -54,7 +54,7 @@ import { ContextMenuController } from '../../../../editor/contrib/contextmenu/br
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { IsolationMode, IsolationModePicker } from './sessionTargetPicker.js';
+import { IsolationMode, TargetPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { SyncIndicator } from './syncIndicator.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
@@ -103,7 +103,7 @@ interface INewChatWidgetOptions {
 class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private readonly _projectPicker: ProjectPicker;
-	private readonly _isolationModePicker: IsolationModePicker;
+	private readonly _targetPicker: TargetPicker;
 	private readonly _branchPicker: BranchPicker;
 	private readonly _syncIndicator: SyncIndicator;
 	private readonly _options: INewChatWidgetOptions;
@@ -194,7 +194,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._permissionPicker = this._register(this.instantiationService.createInstance(NewChatPermissionPicker));
 		this._cloudModelPicker = this._register(this.instantiationService.createInstance(CloudModelPicker));
 		this._modePicker = this._register(this.instantiationService.createInstance(ModePicker));
-		this._isolationModePicker = this._register(this.instantiationService.createInstance(IsolationModePicker));
+		this._targetPicker = this._register(this.instantiationService.createInstance(TargetPicker));
 		this._branchPicker = this._register(this.instantiationService.createInstance(BranchPicker));
 		this._syncIndicator = this._register(this.instantiationService.createInstance(SyncIndicator));
 		this._options = options;
@@ -218,7 +218,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._focusEditor();
 		}));
 
-		this._register(this._isolationModePicker.onDidChange((mode) => {
+		this._register(this._targetPicker.onDidChange((mode) => {
 			this._newSession.value?.setIsolationMode(mode);
 			this._branchPicker.setVisible(mode === 'worktree');
 			this._syncIndicator.setVisible(mode === 'worktree');
@@ -246,28 +246,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._currentLanguageModel.read(reader);
 			this._updateDraftState();
 		}));
-
-		// When isolation option config changes, update picker visibility
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('github.copilot.chat.cli.isolationOption.enabled')) {
-				this._updateIsolationPickerVisibility();
-			}
-		}));
 	}
 
-	private get _isIsolationOptionEnabled(): boolean {
-		return this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
-	}
-
-	private _updateIsolationPickerVisibility(): void {
+	private _updateTargetPickerState(): void {
 		const isLocal = this._currentTarget === AgentSessionProviders.Background;
-		const enabled = this._isIsolationOptionEnabled;
-		if (!enabled) {
-			this._isolationModePicker.setPreferredIsolationMode('worktree');
-		}
-		this._isolationModePicker.setCloudMode(!isLocal);
-		this._isolationModePicker.setVisible(true);
-		this._isolationModePicker.setEnabled(isLocal && enabled);
+		this._targetPicker.setCloudMode(!isLocal);
+		this._targetPicker.setVisible(true);
 	}
 
 	// --- Rendering ---
@@ -308,7 +292,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Isolation mode and branch pickers (below the input, shown when Local target is selected)
 		const isolationContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-local-mode'));
-		this._isolationModePicker.render(isolationContainer);
+		this._targetPicker.render(isolationContainer);
 		this._permissionPicker.render(isolationContainer);
 		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
 		const branchContainer = dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-right'));
@@ -317,9 +301,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Set initial visibility based on inferred target and isolation mode
 		const isLocal = this._currentTarget === AgentSessionProviders.Background;
-		this._updateIsolationPickerVisibility();
+		this._updateTargetPickerState();
 		this._permissionPicker.setVisible(isLocal);
-		const isWorktree = this._isolationModePicker.isolationMode === 'worktree';
+		const isWorktree = this._targetPicker.isolationMode === 'worktree';
 		this._branchPicker.setVisible(isLocal && isWorktree);
 		this._syncIndicator.setVisible(isLocal && isWorktree);
 
@@ -381,7 +365,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Wire pickers to the new session and disconnect inactive ones
 		const target = this._currentTarget;
 		if (target === AgentSessionProviders.Background) {
-			session.setIsolationMode(this._isolationModePicker.isolationMode);
+			session.setIsolationMode(this._targetPicker.isolationMode);
 			if (this._branchPicker.selectedBranch) {
 				session.setBranch(this._branchPicker.selectedBranch);
 			}
@@ -435,8 +419,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._repositoryLoading = true;
 		this._updateInputLoadingState();
 		this._branchPicker.setRepository(undefined);
-		this._isolationModePicker.setRepository(undefined);
-		this._updateIsolationPickerVisibility();
+		this._targetPicker.setRepository(undefined);
+		this._updateTargetPickerState();
 		this._syncIndicator.setRepository(undefined);
 		this._modePicker.setRepository(undefined);
 
@@ -446,8 +430,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			}
 			this._repositoryLoading = false;
 			this._updateInputLoadingState();
-			this._isolationModePicker.setRepository(repository);
-			this._updateIsolationPickerVisibility();
+			this._targetPicker.setRepository(repository);
+			this._updateTargetPickerState();
 			this._branchPicker.setRepository(repository);
 			this._syncIndicator.setRepository(repository);
 			this._modePicker.setRepository(repository);
@@ -458,8 +442,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this.logService.warn(`Failed to open repository at ${folderUri.toString()}`, getErrorMessage(e));
 			this._repositoryLoading = false;
 			this._updateInputLoadingState();
-			this._isolationModePicker.setRepository(undefined);
-			this._updateIsolationPickerVisibility();
+			this._targetPicker.setRepository(undefined);
+			this._updateTargetPickerState();
 			this._branchPicker.setRepository(undefined);
 			this._syncIndicator.setRepository(undefined);
 			this._modePicker.setRepository(undefined);
@@ -894,7 +878,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selections: this._editor?.getSelections() ?? [],
 			contrib: {},
 			target: this._currentTarget,
-			isolationMode: this._isolationModePicker.isolationMode,
+			isolationMode: this._targetPicker.isolationMode,
 			branch: this._branchPicker.selectedBranch,
 			projectKind: this._projectPicker.selectedProject?.kind,
 			projectUri: this._projectPicker.selectedProject?.uri.toString(),
@@ -1040,13 +1024,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 				}
 			}
 			if (draft.isolationMode) {
-				if (this._isIsolationOptionEnabled) {
-					this._isolationModePicker.setPreferredIsolationMode(draft.isolationMode);
-					this._isolationModePicker.setIsolationMode(draft.isolationMode);
-				} else {
-					this._isolationModePicker.setPreferredIsolationMode('worktree');
-					this._isolationModePicker.setIsolationMode('worktree');
-				}
+				this._targetPicker.setPreferredIsolationMode(draft.isolationMode);
+				this._targetPicker.setIsolationMode(draft.isolationMode);
 			}
 			if (draft.branch) {
 				this._branchPicker.setPreferredBranch(draft.branch);
@@ -1089,7 +1068,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selections: [],
 			contrib: {},
 			target,
-			isolationMode: isLocal ? this._isolationModePicker.isolationMode : undefined,
+			isolationMode: isLocal ? this._targetPicker.isolationMode : undefined,
 			branch: isLocal ? this._branchPicker.selectedBranch : undefined,
 			projectKind: project?.kind,
 			projectUri: project?.uri.toString(),
@@ -1129,9 +1108,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const isLocal = newTarget === AgentSessionProviders.Background;
 
 		// Show/hide local-only pickers
-		this._updateIsolationPickerVisibility();
+		this._updateTargetPickerState();
 		this._permissionPicker.setVisible(isLocal);
-		const isWorktree = this._isolationModePicker.isolationMode === 'worktree';
+		const isWorktree = this._targetPicker.isolationMode === 'worktree';
 		this._branchPicker.setVisible(isLocal && isWorktree);
 		this._syncIndicator.setVisible(isLocal && isWorktree);
 

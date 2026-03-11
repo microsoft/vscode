@@ -12,6 +12,7 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
 
@@ -125,21 +126,29 @@ function getTargetLabel(provider: AgentSessionProviders): string {
 
 // #endregion
 
-// #region --- Isolation Mode Picker ---
+// #region --- Target Picker ---
 
 export type IsolationMode = 'worktree' | 'workspace';
 
-/**
- * A self-contained widget for selecting the isolation mode (Worktree vs Folder).
- * Encapsulates state, events, and rendering. Can be placed anywhere in the view.
- */
-export class IsolationModePicker extends Disposable {
+export type TargetMode = 'worktree' | 'workspace' | 'cloud';
 
-	private _isolationMode: IsolationMode = 'worktree';
-	private _preferredIsolationMode: IsolationMode | undefined;
+/**
+ * A self-contained widget for selecting the session target mode.
+ *
+ * Options:
+ * - **Copilot CLI** (`worktree`) — always shown
+ * - **Local** (`workspace`) — shown only when isolation option is enabled
+ * - **Cloud** (`cloud`) — shown and auto-selected when a repository is picked; disabled
+ *
+ * Emits `onDidChange` with the underlying `IsolationMode` (`'worktree' | 'workspace'`)
+ * when the user selects a local option. Cloud mode is informational only.
+ */
+export class TargetPicker extends Disposable {
+
+	private _targetMode: TargetMode = 'worktree';
+	private _preferredLocalMode: IsolationMode | undefined;
 	private _repository: IGitRepository | undefined;
-	private _enabled: boolean = true;
-	private _cloudMode: boolean = false;
+	private _isolationOptionEnabled: boolean = true;
 
 	private readonly _onDidChange = this._register(new Emitter<IsolationMode>());
 	readonly onDidChange: Event<IsolationMode> = this._onDidChange.event;
@@ -149,35 +158,51 @@ export class IsolationModePicker extends Disposable {
 	private _triggerElement: HTMLElement | undefined;
 
 	get isolationMode(): IsolationMode {
-		return this._isolationMode;
+		if (this._targetMode === 'cloud') {
+			return 'worktree';
+		}
+		return this._targetMode;
+	}
+
+	get isCloud(): boolean {
+		return this._targetMode === 'cloud';
 	}
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
+		this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('github.copilot.chat.cli.isolationOption.enabled')) {
+				this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
+				if (!this._isolationOptionEnabled && this._targetMode === 'workspace') {
+					this._setMode('worktree');
+				}
+				this._updateTriggerLabel();
+			}
+		}));
 	}
 
 	/**
-	 * Sets the git repository. When undefined, worktree option is hidden
-	 * and isolation mode falls back to 'workspace'.
+	 * Sets the git repository. When undefined and in worktree mode,
+	 * the picker becomes disabled.
 	 */
 	setRepository(repository: IGitRepository | undefined): void {
 		this._repository = repository;
-		if (repository) {
-			const preferred = this._preferredIsolationMode;
-			this._preferredIsolationMode = undefined;
-			this._setMode(preferred ?? this._isolationMode);
-		} else if (this._isolationMode === 'worktree') {
-			this._preferredIsolationMode ??= this._isolationMode;
+		if (repository && this._targetMode !== 'cloud') {
+			const preferred = this._preferredLocalMode;
+			this._preferredLocalMode = undefined;
+			this._setMode(preferred ?? this._targetMode);
+		} else if (!repository && this._targetMode === 'worktree') {
+			this._preferredLocalMode ??= 'worktree';
 			this._setMode('workspace');
 		}
 		this._updateTriggerLabel();
 	}
 
-	/**
-	 * Renders the isolation mode picker into the given container.
-	 */
 	render(container: HTMLElement): void {
 		this._renderDisposables.clear();
 
@@ -204,68 +229,64 @@ export class IsolationModePicker extends Disposable {
 		}));
 	}
 
-	/**
-	 * Sets a preferred isolation mode to apply when a repository is set.
-	 */
 	setPreferredIsolationMode(mode: IsolationMode): void {
-		this._preferredIsolationMode = mode;
+		this._preferredLocalMode = mode;
 	}
 
-	/**
-	 * Programmatically set the isolation mode.
-	 */
 	setIsolationMode(mode: IsolationMode): void {
-		this._setMode(mode);
+		if (this._targetMode !== 'cloud') {
+			this._setMode(mode);
+		}
 	}
 
 	/**
-	 * Shows or hides the picker.
+	 * Sets cloud mode. When true, the picker shows "Cloud" and is disabled.
+	 * When false, reverts to the last local mode.
 	 */
+	setCloudMode(cloud: boolean): void {
+		if (cloud) {
+			if (this._targetMode !== 'cloud') {
+				this._preferredLocalMode = this._targetMode as IsolationMode;
+			}
+			this._targetMode = 'cloud';
+		} else if (this._targetMode === 'cloud') {
+			this._targetMode = this._preferredLocalMode ?? 'worktree';
+			this._preferredLocalMode = undefined;
+		}
+		this._updateTriggerLabel();
+	}
+
 	setVisible(visible: boolean): void {
 		if (this._slotElement) {
 			this._slotElement.style.display = visible ? '' : 'none';
 		}
 	}
 
-	/**
-	 * Enables or disables the picker. When disabled, the picker is shown
-	 * but cannot be interacted with.
-	 */
-	setEnabled(enabled: boolean): void {
-		this._enabled = enabled;
-		this._updateTriggerLabel();
-	}
-
-	/**
-	 * When cloud mode is set, the picker shows "Cloud" label and is disabled.
-	 */
-	setCloudMode(cloud: boolean): void {
-		this._cloudMode = cloud;
-		this._updateTriggerLabel();
-	}
-
 	private _showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible || !this._repository || !this._enabled || this._cloudMode) {
+		if (!this._triggerElement || this.actionWidgetService.isVisible || this._targetMode === 'cloud') {
 			return;
 		}
 
-		const items: IActionListItem<IsolationMode>[] = [
+		const items: IActionListItem<TargetMode>[] = [
 			{
 				kind: ActionListItemKind.Action,
-				label: localize('isolationMode.worktree', "Copilot CLI"),
+				label: localize('targetMode.copilotCli', "Copilot CLI"),
 				group: { title: '', icon: Codicon.worktree },
 				item: 'worktree',
 			},
-			{
-				kind: ActionListItemKind.Action,
-				label: localize('isolationMode.folder', "Local"),
-				group: { title: '', icon: Codicon.folder },
-				item: 'workspace',
-			},
 		];
 
+		if (this._isolationOptionEnabled) {
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: localize('targetMode.local', "Local"),
+				group: { title: '', icon: Codicon.folder },
+				item: 'workspace',
+			});
+		}
+
 		const triggerElement = this._triggerElement;
-		const delegate: IActionListDelegate<IsolationMode> = {
+		const delegate: IActionListDelegate<TargetMode> = {
 			onSelect: (mode) => {
 				this.actionWidgetService.hide();
 				this._setMode(mode);
@@ -273,8 +294,8 @@ export class IsolationModePicker extends Disposable {
 			onHide: () => { triggerElement.focus(); },
 		};
 
-		this.actionWidgetService.show<IsolationMode>(
-			'isolationModePicker',
+		this.actionWidgetService.show<TargetMode>(
+			'targetPicker',
 			false,
 			items,
 			delegate,
@@ -283,16 +304,18 @@ export class IsolationModePicker extends Disposable {
 			[],
 			{
 				getAriaLabel: (item) => item.label ?? '',
-				getWidgetAriaLabel: () => localize('isolationModePicker.ariaLabel', "Isolation Mode"),
+				getWidgetAriaLabel: () => localize('targetPicker.ariaLabel', "Target"),
 			},
 		);
 	}
 
-	private _setMode(mode: IsolationMode): void {
-		if (this._isolationMode !== mode) {
-			this._isolationMode = mode;
-			this._onDidChange.fire(mode);
+	private _setMode(mode: TargetMode): void {
+		if (this._targetMode !== mode) {
+			this._targetMode = mode;
 			this._updateTriggerLabel();
+			if (mode !== 'cloud') {
+				this._onDidChange.fire(mode);
+			}
 		}
 	}
 
@@ -307,16 +330,23 @@ export class IsolationModePicker extends Disposable {
 		let modeLabel: string;
 		let isDisabled: boolean;
 
-		if (this._cloudMode) {
-			modeIcon = Codicon.cloud;
-			modeLabel = localize('isolationMode.cloud', "Cloud");
-			isDisabled = true;
-		} else {
-			isDisabled = !this._repository;
-			modeIcon = this._isolationMode === 'worktree' ? Codicon.worktree : Codicon.folder;
-			modeLabel = this._isolationMode === 'worktree'
-				? localize('isolationMode.worktree', "Copilot CLI")
-				: localize('isolationMode.folder', "Local");
+		switch (this._targetMode) {
+			case 'cloud':
+				modeIcon = Codicon.cloud;
+				modeLabel = localize('targetMode.cloud', "Cloud");
+				isDisabled = true;
+				break;
+			case 'workspace':
+				modeIcon = Codicon.folder;
+				modeLabel = localize('targetMode.local', "Local");
+				isDisabled = !this._repository;
+				break;
+			case 'worktree':
+			default:
+				modeIcon = Codicon.worktree;
+				modeLabel = localize('targetMode.copilotCli', "Copilot CLI");
+				isDisabled = !this._repository;
+				break;
 		}
 
 		dom.append(this._triggerElement, renderIcon(modeIcon));
@@ -324,10 +354,10 @@ export class IsolationModePicker extends Disposable {
 		labelSpan.textContent = modeLabel;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
-		this._slotElement?.classList.toggle('disabled', isDisabled || !this._enabled);
+		this._slotElement?.classList.toggle('disabled', isDisabled);
 		if (this._triggerElement) {
-			this._triggerElement.tabIndex = (!isDisabled && this._enabled) ? 0 : -1;
-			this._triggerElement.setAttribute('aria-disabled', String(isDisabled || !this._enabled));
+			this._triggerElement.tabIndex = isDisabled ? -1 : 0;
+			this._triggerElement.setAttribute('aria-disabled', String(isDisabled));
 		}
 	}
 }
