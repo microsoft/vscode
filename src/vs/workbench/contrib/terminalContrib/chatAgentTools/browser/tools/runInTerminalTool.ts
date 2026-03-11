@@ -1298,7 +1298,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			sessionCounts = new Map<string, number>();
 			this._sessionDeniedCommandCounts.set(chatSessionResource, sessionCounts);
 		}
-		const signature = `${denial.scope}|${denial.deniedCommand}|${denial.ruleSourceText ?? denial.reason}`;
+		const signature = JSON.stringify([denial.scope, denial.deniedCommand, denial.ruleSourceText ?? denial.reason]);
 		const attempts = (sessionCounts.get(signature) ?? 0) + 1;
 		sessionCounts.set(signature, attempts);
 		return attempts;
