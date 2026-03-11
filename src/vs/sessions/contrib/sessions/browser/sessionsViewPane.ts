@@ -29,8 +29,6 @@ import { ISessionsManagementService, IsNewChatSessionContext } from './sessionsM
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ACTION_ID_NEW_CHAT } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -120,19 +118,6 @@ export class AgenticSessionsViewPane extends ViewPane {
 
 		// Sessions content container
 		const sessionsContent = DOM.append(sessionsSection, $('.agent-sessions-content'));
-
-		// New Session Button
-		const newSessionButtonContainer = DOM.append(sessionsContent, $('.agent-sessions-new-button-container'));
-		const newSessionButton = this._register(new Button(newSessionButtonContainer, { ...defaultButtonStyles, secondary: true }));
-		newSessionButton.label = localize('newSession', "New Session");
-		this._register(newSessionButton.onDidClick(() => this.activeSessionService.openNewSessionView()));
-
-		// Keybinding hint inside the button
-		const keybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_CHAT);
-		if (keybinding) {
-			const keybindingHint = DOM.append(newSessionButton.element, $('span.new-session-keybinding-hint'));
-			keybindingHint.textContent = keybinding.getLabel() ?? '';
-		}
 
 		// Sessions Control
 		this.sessionsControlContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
@@ -285,6 +270,28 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	icon: Codicon.filter,
 	when: ContextKeyExpr.equals('view', SessionsViewId)
 } satisfies ISubmenuItem);
+
+registerAction2(class NewSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsView.newSession',
+			title: localize2('newSession', "New Session"),
+			icon: Codicon.newSession,
+			category: SessionsCategories.Sessions,
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.equals('view', SessionsViewId),
+			}]
+		});
+	}
+
+	override run(accessor: ServicesAccessor) {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		sessionsManagementService.openNewSessionView();
+	}
+});
 
 registerAction2(class GroupByRepositoryAction extends Action2 {
 	constructor() {
