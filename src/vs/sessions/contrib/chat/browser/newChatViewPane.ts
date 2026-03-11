@@ -265,8 +265,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		if (!enabled) {
 			this._isolationModePicker.setPreferredIsolationMode('worktree');
 		}
-		this._isolationModePicker.setVisible(isLocal);
-		this._isolationModePicker.setEnabled(enabled);
+		this._isolationModePicker.setCloudMode(!isLocal);
+		this._isolationModePicker.setVisible(true);
+		this._isolationModePicker.setEnabled(isLocal && enabled);
 	}
 
 	// --- Rendering ---

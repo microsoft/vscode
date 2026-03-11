@@ -139,6 +139,7 @@ export class IsolationModePicker extends Disposable {
 	private _preferredIsolationMode: IsolationMode | undefined;
 	private _repository: IGitRepository | undefined;
 	private _enabled: boolean = true;
+	private _cloudMode: boolean = false;
 
 	private readonly _onDidChange = this._register(new Emitter<IsolationMode>());
 	readonly onDidChange: Event<IsolationMode> = this._onDidChange.event;
@@ -235,8 +236,16 @@ export class IsolationModePicker extends Disposable {
 		this._updateTriggerLabel();
 	}
 
+	/**
+	 * When cloud mode is set, the picker shows "Cloud" label and is disabled.
+	 */
+	setCloudMode(cloud: boolean): void {
+		this._cloudMode = cloud;
+		this._updateTriggerLabel();
+	}
+
 	private _showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible || !this._repository || !this._enabled) {
+		if (!this._triggerElement || this.actionWidgetService.isVisible || !this._repository || !this._enabled || this._cloudMode) {
 			return;
 		}
 
@@ -293,11 +302,22 @@ export class IsolationModePicker extends Disposable {
 		}
 
 		dom.clearNode(this._triggerElement);
-		const isDisabled = !this._repository;
-		const modeIcon = this._isolationMode === 'worktree' ? Codicon.worktree : Codicon.folder;
-		const modeLabel = this._isolationMode === 'worktree'
-			? localize('isolationMode.worktree', "Copilot CLI")
-			: localize('isolationMode.folder', "Local");
+
+		let modeIcon;
+		let modeLabel: string;
+		let isDisabled: boolean;
+
+		if (this._cloudMode) {
+			modeIcon = Codicon.cloud;
+			modeLabel = localize('isolationMode.cloud', "Cloud");
+			isDisabled = true;
+		} else {
+			isDisabled = !this._repository;
+			modeIcon = this._isolationMode === 'worktree' ? Codicon.worktree : Codicon.folder;
+			modeLabel = this._isolationMode === 'worktree'
+				? localize('isolationMode.worktree', "Copilot CLI")
+				: localize('isolationMode.folder', "Local");
+		}
 
 		dom.append(this._triggerElement, renderIcon(modeIcon));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
