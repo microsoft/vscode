@@ -8,7 +8,7 @@ import { raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { AsyncEmitter, Emitter, Event } from '../../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import * as resources from '../../../../../base/common/resources.js';
@@ -720,14 +720,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this.resolveChatSessionContribution(entry.extension, entry.contribution);
 	}
 
-	private resolveChatSessionContribution(ext: IRelaxedExtensionDescription, contribution: IChatSessionsExtensionPoint) {
+	private resolveChatSessionContribution(ext: IRelaxedExtensionDescription | undefined, contribution: IChatSessionsExtensionPoint) {
 		return {
 			...contribution,
 			icon: this.resolveIconForCurrentColorTheme(this.getContributionIcon(ext, contribution)),
 		};
 	}
 
-	private getContributionIcon(ext: IRelaxedExtensionDescription, contribution: IChatSessionsExtensionPoint): ThemeIcon | { light: URI; dark: URI } | undefined {
+	private getContributionIcon(ext: IRelaxedExtensionDescription | undefined, contribution: IChatSessionsExtensionPoint): ThemeIcon | { light: URI; dark: URI } | undefined {
 		if (!contribution.icon) {
 			return undefined;
 		}
@@ -737,8 +737,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				: ThemeIcon.fromId(contribution.icon);
 		}
 		return {
-			dark: resources.joinPath(ext.extensionLocation, contribution.icon.dark),
-			light: resources.joinPath(ext.extensionLocation, contribution.icon.light)
+			dark: ext ? resources.joinPath(ext.extensionLocation, contribution.icon.dark) : URI.parse(contribution.icon.dark),
+			light: ext ? resources.joinPath(ext.extensionLocation, contribution.icon.light) : URI.parse(contribution.icon.light)
 		};
 	}
 

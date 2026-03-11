@@ -131,7 +131,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				this._registerAgent(agent);
 			}
 		} catch (err) {
-			this._logService.error('[AgentHost] Failed to discover agents', err);
+			this._logService.error(err, '[AgentHost] Failed to discover agents');
 		}
 	}
 

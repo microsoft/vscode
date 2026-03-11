@@ -9,9 +9,9 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from '../../common/participants/chatAgents.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemController, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItem, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from '../../common/participants/chatAgents.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
@@ -226,15 +226,6 @@ export class MockChatSessionsService implements IChatSessionsService {
 		// noop
 	}
 
-	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable {
-		// Store the emitter so tests can trigger it
-		this.onChange = onChange;
-		return {
-			dispose: () => {
-			}
-		};
-	}
-
 	registerChatSessionContribution(contribution: IChatSessionsExtensionPoint): IDisposable {
 		this.contributions.push(contribution);
 		return {
@@ -245,12 +236,5 @@ export class MockChatSessionsService implements IChatSessionsService {
 				}
 			}
 		};
-	}
-
-	// Helper method for tests to trigger progress events
-	triggerProgressEvent(): void {
-		if (this.onChange) {
-			this.onChange();
-		}
 	}
 }
