@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertNever } from '../../base/common/assert.js';
-import { WrappingIndent } from './config/editorOptions.js';
-import { FontInfo } from './config/fontInfo.js';
+import { IComputedEditorOptions } from './config/editorOptions.js';
 import { Position } from './core/position.js';
 import { InjectedTextCursorStops, InjectedTextOptions, PositionAffinity } from './model.js';
 import { LineInjectedText } from './textModelEvents.js';
@@ -334,7 +333,7 @@ export interface ILineBreaksComputerContext {
 }
 
 export interface ILineBreaksComputerFactory {
-	createLineBreaksComputer(context: ILineBreaksComputerContext, fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ILineBreaksComputer;
+	createLineBreaksComputer(context: ILineBreaksComputerContext, options: IComputedEditorOptions, tabSize: number): ILineBreaksComputer;
 }
 
 export interface ILineBreaksComputer {
