@@ -5,5 +5,5 @@
 				Square150x150Logo="@@VERSIONFOLDER@@resources\app\resources\win32\code_150x150.png"
 				Square70x70Logo="@@VERSIONFOLDER@@resources\app\resources\win32\code_70x70.png"
 				ForegroundText="light"
-				ShortDisplayName="Code - OSS" />
+				ShortDisplayName="CodeBoard" />
 </Application>

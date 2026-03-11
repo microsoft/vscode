@@ -169,14 +169,14 @@ fn apply_win32_version_resources() {
 	};
 
 	let product: HashMap<String, Value> = read_json_from_path(&product_json_path);
-	let name_long = product
-		.get("nameLong")
-		.and_then(|v| v.as_str())
-		.unwrap_or("Code - OSS");
-	let application_name = product
-		.get("applicationName")
-		.and_then(|v| v.as_str())
-		.unwrap_or("code");
+		let name_long = product
+			.get("nameLong")
+			.and_then(|v| v.as_str())
+			.unwrap_or("CodeBoard");
+		let application_name = product
+			.get("applicationName")
+			.and_then(|v| v.as_str())
+			.unwrap_or("codeboard");
 	let exe_name = format!("{application_name}.exe");
 
 	let base_version = package_json.version.split('-').next().unwrap_or("0.0.0");
@@ -188,8 +188,8 @@ fn apply_win32_version_resources() {
 	let mut res = winresource::WindowsResource::new();
 	res.set("ProductName", name_long);
 	res.set("FileDescription", name_long);
-	res.set("CompanyName", "Microsoft Corporation");
-	res.set("LegalCopyright", "Copyright (C) 2026 Microsoft. All rights reserved");
+		res.set("CompanyName", "CodeBoard");
+		res.set("LegalCopyright", "Copyright (C) 2026 CodeBoard. All rights reserved");
 	res.set("FileVersion", &package_json.version);
 	res.set("ProductVersion", &package_json.version);
 	res.set("InternalName", &exe_name);

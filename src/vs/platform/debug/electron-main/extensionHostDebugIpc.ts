@@ -12,9 +12,13 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ISocket } from '../../../base/parts/ipc/common/ipc.net.js';
 import { upgradeToISocket } from '../../../base/parts/ipc/node/ipc.net.js';
 import { OPTIONS, parseArgs } from '../../environment/node/argv.js';
+import product from '../../product/common/product.js';
 import { IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { IOpenExtensionWindowResult } from '../common/extensionHostDebug.js';
 import { ExtensionHostDebugBroadcastChannel } from '../common/extensionHostDebugIpc.js';
+
+const rendererLabel = `${product.nameShort} Renderer`;
+const rendererUrl = `${product.urlProtocol ?? 'codeboard'}://renderer`;
 
 export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHostDebugBroadcastChannel<TContext> {
 
@@ -77,19 +81,19 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			if (req.url === '/json/list' || req.url === '/json') {
 				res.setHeader('Content-Type', 'application/json');
 				res.end(JSON.stringify([{
-					description: 'VS Code Renderer',
+					description: rendererLabel,
 					devtoolsFrontendUrl: '',
 					id: ident,
-					title: 'VS Code Renderer',
+					title: rendererLabel,
 					type: 'page',
-					url: 'vscode://renderer',
+					url: rendererUrl,
 					webSocketDebuggerUrl: wsUrl
 				}]));
 				return;
 			} else if (req.url === '/json/version') {
 				res.setHeader('Content-Type', 'application/json');
 				res.end(JSON.stringify({
-					'Browser': 'VS Code Renderer',
+					'Browser': rendererLabel,
 					'Protocol-Version': '1.3',
 					'webSocketDebuggerUrl': wsUrl
 				}));
@@ -169,7 +173,7 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 
 				if (debugRenderer) {
 					// Emulate Target.* methods that js-debug expects but Electron's debugger doesn't support
-					const targetInfo = { targetId: ident, type: 'page', title: 'VS Code Renderer', url: 'vscode://renderer' };
+					const targetInfo = { targetId: ident, type: 'page', title: rendererLabel, url: rendererUrl };
 					if (data.method === 'Target.setDiscoverTargets') {
 						writeMessage({ id: data.id, sessionId: data.sessionId, result: {} });
 						writeMessage({ method: 'Target.targetCreated', sessionId: data.sessionId, params: { targetInfo: { ...targetInfo, attached: false, canAccessOpener: false } } });

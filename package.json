@@ -1,9 +1,9 @@
 {
-  "name": "code-oss-dev",
+  "name": "codeboard-dev",
   "version": "1.112.0",
   "distro": "af92bdba4fde517633b51b6706479a636c8d541a",
   "author": {
-    "name": "Microsoft Corporation"
+    "name": "CodeBoard"
   },
   "license": "MIT",
   "main": "./out/main.js",
