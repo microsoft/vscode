@@ -792,6 +792,15 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IActionsColumnTemplateData): void {
+		if (entry.model.metadata.configurationSchema) {
+			const secondaryActions: IAction[] = [];
+			secondaryActions.push(toAction({
+				id: 'configureModel',
+				label: localize('models.configureModel', 'Configure...'),
+				run: () => this.languageModelsService.configureModel(entry.model.identifier)
+			}));
+			templateData.actionBar.setActions([], secondaryActions);
+		}
 	}
 }
 

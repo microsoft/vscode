@@ -381,6 +381,12 @@ export interface ILanguageModelsService {
 
 	configureLanguageModelsProviderGroup(vendorId: string, name?: string): Promise<void>;
 
+	/**
+	 * Opens the language models configuration file and navigates to
+	 * or creates the per-model configuration for the given model.
+	 */
+	configureModel(modelId: string): Promise<void>;
+
 	migrateLanguageModelsProviderGroup(languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void>;
 
 	/**
@@ -1032,6 +1038,66 @@ export class LanguageModelsService implements ILanguageModelsService {
 			}
 			throw error;
 		}
+	}
+
+	async configureModel(modelId: string): Promise<void> {
+		const metadata = this._modelCache.get(modelId);
+		if (!metadata || !metadata.configurationSchema) {
+			return;
+		}
+
+		// Find the group that contains this model
+		const vendorGroups = this._modelsGroups.get(metadata.vendor);
+		let group: ILanguageModelsProviderGroup | undefined;
+		if (vendorGroups) {
+			for (const vg of vendorGroups) {
+				if (vg.modelIdentifiers.includes(modelId) && vg.group) {
+					group = vg.group;
+					break;
+				}
+			}
+		}
+
+		// If the model doesn't belong to any configured group, create one
+		if (!group) {
+			const vendor = this.getVendors().find(v => v.vendor === metadata.vendor);
+			if (!vendor) {
+				return;
+			}
+			const groupName = vendor.displayName;
+			const newGroup: ILanguageModelsProviderGroup = { name: groupName, vendor: metadata.vendor, models: { [metadata.id]: {} } };
+			group = await this._languageModelsConfigurationService.addLanguageModelsProviderGroup(newGroup);
+			await this._resolveAllLanguageModels(metadata.vendor, true);
+		}
+
+		// Generate a snippet for the model's configuration schema
+		const snippet = this._getModelConfigurationSnippet(metadata.id, metadata.configurationSchema);
+		await this._languageModelsConfigurationService.configureLanguageModels({ group, snippet });
+	}
+
+	private _getModelConfigurationSnippet(modelId: string, schema: IJSONSchema): string {
+		const properties: string[] = [];
+		if (schema.properties) {
+			for (const [key, propSchema] of Object.entries(schema.properties)) {
+				if (typeof propSchema === 'boolean') {
+					continue;
+				}
+				if (propSchema.defaultSnippets?.[0]) {
+					const snippet = propSchema.defaultSnippets[0];
+					let bodyText = snippet.bodyText ?? JSON.stringify(snippet.body, null, '\t\t\t');
+					bodyText = bodyText.replace(/"(\^[^"]*)"/g, (_, value) => value.substring(1));
+					properties.push(`\t\t\t"${key}": ${bodyText}`);
+				} else if (propSchema.default !== undefined) {
+					properties.push(`\t\t\t"${key}": ${JSON.stringify(propSchema.default)}`);
+				} else {
+					properties.push(`\t\t\t"${key}": $\{${key}\}`);
+				}
+			}
+		}
+		const modelContent = properties.length > 0
+			? `{\n${properties.join(',\n')}\n\t\t}`
+			: '{\n\t\t\t$0\n\t\t}';
+		return `"models": {\n\t\t"${modelId}": ${modelContent}\n\t}`;
 	}
 
 	async addLanguageModelsProviderGroup(name: string, vendorId: string, configuration: IStringDictionary<unknown> | undefined): Promise<void> {
