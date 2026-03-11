@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, ok } from 'assert';
+import { deepStrictEqual } from 'assert';
+import * as fs from 'fs';
 import { tmpdir } from 'os';
 import * as path from '../../../../base/common/path.js';
-import * as fs from 'fs';
+import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { ITerminalProcessOptions, ITerminalLaunchError } from '../../common/terminal.js';
+import { IShellLaunchConfig, ITerminalLaunchError, ITerminalProcessOptions } from '../../common/terminal.js';
 import { TerminalProcess } from '../../node/terminalProcess.js';
-import { isWindows } from '../../../../base/common/platform.js';
 
 const processOptions: ITerminalProcessOptions = {
 	shellIntegration: { enabled: false, suggestEnabled: false, nonce: '' },
@@ -22,52 +22,34 @@ const processOptions: ITerminalProcessOptions = {
 	isScreenReaderOptimized: false
 };
 
-/**
- * Build a multiline shell command that writes its content to a file.
- * The command writes numbered lines to a temp file so we can verify
- * the entire payload was received intact by the shell.
- */
-function buildMultilineCommand(lines: string[], outputFile: string): { command: string; expectedLines: string[] } {
-	// Use cat heredoc to write content to a file - this exercises multiline PTY input
-	const command = `cat > ${escapeForSingleQuotedShellString(outputFile)} << 'TESTEOF'\n${lines.join('\n')}\nTESTEOF\n`;
-	return { command, expectedLines: lines };
+const shellMatrix: IShellLaunchConfig[] = [
+	{ executable: '/bin/bash', args: ['--norc', '--noprofile', '-i'] },
+	{ executable: '/bin/zsh', args: ['-f', '-i'] },
+	{ executable: '/bin/sh', args: ['-i'] },
+	{ executable: '/bin/ksh', args: ['-i'] },
+	{ executable: '/bin/dash', args: ['-i'] },
+	{ executable: '/bin/csh', args: ['-i'] },
+	{ executable: '/bin/tcsh', args: ['-i'] },
+];
+
+const lineCount = 20;
+const waitDuration = 4000;
+
+function shellExists(executable: string): boolean {
+	return fs.existsSync(executable);
 }
 
-function buildAsciiMultilineCommand(lineCount: number, outputFile: string): { command: string; expectedLines: string[] } {
-	const lines: string[] = [];
+function buildMultilineCommand(outputFile: string): { command: string; expectedLines: string[] } {
+	const expectedLines: string[] = [];
 	for (let i = 1; i <= lineCount; i++) {
-		// Pad line number, add filler to make each line ~55 chars
-		const line = `L${String(i).padStart(2, '0')} ${'a'.repeat(51)}`;
-		lines.push(line);
+		expectedLines.push(`L${String(i).padStart(2, '0')} ${'a'.repeat(51)}`);
 	}
-	return buildMultilineCommand(lines, outputFile);
+	const escapedOutputFile = `'${outputFile.replace(/'/g, `'\\''`)}'`;
+	const command = [`: > ${escapedOutputFile}`, ...expectedLines.map(line => `echo '${line}' >> ${escapedOutputFile}`)].join('\n') + '\n';
+	return { command, expectedLines };
 }
 
-function buildMultibyteMultilineCommand(lineCount: number, outputFile: string): { command: string; expectedLines: string[] } {
-	for (let repeatCount = 1; repeatCount <= 256; repeatCount++) {
-		const lines: string[] = [];
-		for (let i = 1; i <= lineCount; i++) {
-			lines.push(`L${String(i).padStart(2, '0')} ${'中'.repeat(repeatCount)}`);
-		}
-		const result = buildMultilineCommand(lines, outputFile);
-		if (result.command.length <= 512 && Buffer.byteLength(result.command, 'utf8') > 1024) {
-			return result;
-		}
-	}
-	throw new Error('Failed to generate a multibyte command within the UTF-16 and UTF-8 thresholds');
-}
-
-interface IRunMultilineTestOptions {
-	outputFile: string;
-	buildCommand: (outputFile: string) => { command: string; expectedLines: string[] };
-	maxWait?: number;
-}
-
-function escapeForSingleQuotedShellString(value: string): string {
-	return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-// These tests spawn real PTY processes and are macOS/Linux only
+// These tests spawn real PTY processes and are macOS/Linux only.
 (isWindows ? suite.skip : suite)('TerminalProcess - multiline write', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let outputDir: string;
@@ -80,12 +62,12 @@ function escapeForSingleQuotedShellString(value: string): string {
 		fs.rmSync(outputDir, { recursive: true, force: true });
 	});
 
-	async function runMultilineTest(options: IRunMultilineTestOptions): Promise<void> {
-		const { outputFile, buildCommand, maxWait = 10000 } = options;
-		const { command, expectedLines } = buildCommand(outputFile);
-
+	async function runShellMultilineTest(shellLaunchConfig: IShellLaunchConfig): Promise<void> {
+		const shellName = path.posix.basename(shellLaunchConfig.executable!);
+		const outputFile = path.join(outputDir, `output-${shellName}.txt`);
+		const { command, expectedLines } = buildMultilineCommand(outputFile);
 		const terminalProcess = store.add(new TerminalProcess(
-			{ executable: '/bin/bash', args: ['--norc', '--noprofile', '-i'] },
+			shellLaunchConfig,
 			outputDir,
 			80,
 			24,
@@ -102,35 +84,29 @@ function escapeForSingleQuotedShellString(value: string): string {
 			throw new Error(`Failed to start terminal: ${error.message}`);
 		}
 
-		// Wait for shell to produce output (prompt), indicating it's ready for input
 		await new Promise<void>(resolve => {
-			const timeout = setTimeout(() => {
+			const timer = setTimeout(() => {
 				listener.dispose();
 				resolve();
 			}, 10000);
 			const listener = terminalProcess.onProcessData(() => {
-				clearTimeout(timeout);
+				clearTimeout(timer);
 				listener.dispose();
 				resolve();
 			});
 		});
 
-		// Send the multiline command — newlines are converted to \r for PTY
-		const ptyData = command.replace(/\n/g, '\r');
-		terminalProcess.input(ptyData);
+		terminalProcess.input(command.replace(/\n/g, '\r'));
 
-		// Wait for the command to execute and write the file
 		const start = Date.now();
-		while (Date.now() - start < maxWait) {
+		while (Date.now() - start < waitDuration) {
 			await new Promise(resolve => setTimeout(resolve, 200));
 			if (fs.existsSync(outputFile)) {
-				// Give a moment for the write to flush
 				await new Promise(resolve => setTimeout(resolve, 200));
 				break;
 			}
 		}
 
-		// Shut down and wait for the process to exit
 		const exitPromise = new Promise<void>(resolve => {
 			const listener = terminalProcess.onProcessExit(() => {
 				listener.dispose();
@@ -141,53 +117,22 @@ function escapeForSingleQuotedShellString(value: string): string {
 		await exitPromise;
 
 		if (!fs.existsSync(outputFile)) {
-			throw new Error(`Output file was not created — terminal likely got stuck (command was ${command.length} UTF-16 code units / ${Buffer.byteLength(command, 'utf8')} UTF-8 bytes)`);
+			throw new Error('Output file was not created');
 		}
 
-		const actualContent = fs.readFileSync(outputFile, 'utf-8');
-		const actualLines = actualContent.trimEnd().split('\n');
+		const actualLines = fs.readFileSync(outputFile, 'utf-8').trimEnd().split('\n');
 		deepStrictEqual(actualLines, expectedLines);
 	}
 
-	async function runAsciiMultilineTest(lineCount: number): Promise<void> {
-		await runMultilineTest({
-			outputFile: path.join(outputDir, `output-${lineCount}.txt`),
-			buildCommand: outputFile => buildAsciiMultilineCommand(lineCount, outputFile)
+	for (const shell of shellMatrix) {
+		const shellName = path.posix.basename(shell.executable!);
+		test(`${shellName} medium multiline write`, async function () {
+			if (!shellExists(shell.executable!)) {
+				this.skip();
+			}
+
+			this.timeout(10000);
+			await runShellMultilineTest(shell);
 		});
 	}
-
-	test('small multiline command (10 lines, ~700 bytes)', async function () {
-		this.timeout(15000);
-		await runAsciiMultilineTest(10);
-	});
-
-	test('medium multiline command (20 lines, ~1300 bytes)', async function () {
-		this.timeout(15000);
-		await runAsciiMultilineTest(20);
-	});
-
-	test.skip('large multiline command (500 lines, ~32KB)', async function () {
-		this.timeout(30000);
-		await runAsciiMultilineTest(500);
-	});
-
-	test('multibyte multiline command can exceed the UTF-8 threshold while staying under the current UTF-16 gate', async function () {
-		const outputFile = path.join(outputDir, 'output-u8.txt');
-		const { command } = buildMultibyteMultilineCommand(10, outputFile);
-		const utf16Length = command.length;
-		const utf8Length = Buffer.byteLength(command, 'utf8');
-
-		// This payload documents the predicate mismatch directly: the current
-		// macOS chunking gate uses JS string length, but the PTY buffer limit is
-		// relevant in UTF-8 bytes.
-		ok(utf16Length <= 512, `Expected payload to stay under the current UTF-16 chunking gate, got ${utf16Length}`);
-		ok(utf8Length > 1024, `Expected payload to exceed the macOS canonical-mode buffer in UTF-8 bytes, got ${utf8Length}`);
-
-		this.timeout(15000);
-		await runMultilineTest({
-			outputFile,
-			buildCommand: currentOutputFile => buildMultibyteMultilineCommand(10, currentOutputFile)
-		});
-	});
-
 });

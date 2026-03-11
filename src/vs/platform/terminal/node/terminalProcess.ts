@@ -78,30 +78,6 @@ const generalShellTypeMap = new Map<string, GeneralShellType>([
 	['xonsh', GeneralShellType.Xonsh],
 ]);
 
-const MacMultilineWriteChunkByteLength = 512;
-const MacMultilineWritePauseDuration = 5;
-
-function getUtf8ChunkEnd(buffer: Buffer, start: number, chunkByteLength: number): number {
-	let end = Math.min(start + chunkByteLength, buffer.length);
-	if (end >= buffer.length) {
-		return buffer.length;
-	}
-	while (end > start && (buffer[end] & 0b11000000) === 0b10000000) {
-		end--;
-	}
-	return end > start ? end : Math.min(start + chunkByteLength, buffer.length);
-}
-
-function splitUtf8Chunks(data: string, chunkByteLength: number): string[] {
-	const buffer = Buffer.from(data, 'utf8');
-	const chunks: string[] = [];
-	for (let start = 0; start < buffer.length;) {
-		const end = getUtf8ChunkEnd(buffer, start, chunkByteLength);
-		chunks.push(buffer.subarray(start, end).toString('utf8'));
-		start = end;
-	}
-	return chunks;
-}
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;
 	readonly shouldPersist = false;
@@ -135,7 +111,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _isPtyPaused: boolean = false;
 	private _unacknowledgedCharCount: number = 0;
-	private _writeQueue: Promise<void> = Promise.resolve();
 	get exitMessage(): string | undefined { return this._exitMessage; }
 
 	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
@@ -494,31 +469,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._logService.trace('node-pty.IPty#write', data, isBinary);
 		if (isBinary) {
 			this._ptyProcess!.write(Buffer.from(data, 'binary'));
-		} else if (isMacintosh && Buffer.byteLength(data, 'utf8') > MacMultilineWriteChunkByteLength && data.includes('\r')) {
-			// macOS PTY has a ~1024-byte canonical-mode input buffer. Multiline
-			// input exceeding this causes writes to block or corrupt due to
-			// backpressure from the shell's line editor echoing characters.
-			// https://github.com/microsoft/vscode/issues/296955
-			this._writeChunked(data);
 		} else {
 			this._ptyProcess!.write(data);
 		}
 		this._childProcessMonitor?.handleInput();
-	}
-
-	private _writeChunked(data: string): void {
-		this._writeQueue = this._writeQueue.then(async () => {
-			const chunks = splitUtf8Chunks(data, MacMultilineWriteChunkByteLength);
-			for (let i = 0; i < chunks.length; i++) {
-				if (this._store.isDisposed) {
-					return;
-				}
-				this._ptyProcess!.write(chunks[i]);
-				if (i + 1 < chunks.length) {
-					await timeout(MacMultilineWritePauseDuration);
-				}
-			}
-		});
 	}
 
 	sendSignal(signal: string): void {
