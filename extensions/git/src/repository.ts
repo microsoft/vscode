@@ -1899,9 +1899,8 @@ export class Repository implements Disposable {
 	}
 
 	private async _setupWorktree(worktreePath: string): Promise<void> {
-		// Copy worktree include files. We explicitly do not await this
-		// since we don't want to block the worktree creation on the
-		// copy operation.
+		// Copy worktree include files and wait for the copy to complete
+		// before running any worktree-created tasks.
 		await this._copyWorktreeIncludeFiles(worktreePath);
 
 		await this._runWorktreeCreatedTasks(worktreePath);
