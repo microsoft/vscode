@@ -196,6 +196,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	private _widget: AgentFeedbackInputWidget | undefined;
 	private _visible = false;
 	private _mouseDown = false;
+	private _suppressSelectionChangeOnce = false;
 	private _sessionResource: URI | undefined;
 	private readonly _widgetListeners = this._store.add(new DisposableStore());
 
@@ -262,10 +263,16 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _onModelChanged(): void {
 		this._hide();
+		this._suppressSelectionChangeOnce = false;
 		this._sessionResource = undefined;
 	}
 
 	private _onSelectionChanged(): void {
+		if (this._suppressSelectionChangeOnce) {
+			this._suppressSelectionChangeOnce = false;
+			return;
+		}
+
 		if (this._mouseDown || !this._editor.hasTextFocus()) {
 			return;
 		}
@@ -433,6 +440,12 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 	}
 
+	private _hideAndRefocusEditor(): void {
+		this._suppressSelectionChangeOnce = true;
+		this._hide();
+		this._editor.focus();
+	}
+
 	private _addFeedback(): boolean {
 		if (!this._widget) {
 			return false;
@@ -450,8 +463,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		this._agentFeedbackService.addFeedback(this._sessionResource, model.uri, selection, text);
-		this._hide();
-		this._editor.focus();
+		this._hideAndRefocusEditor();
 		return true;
 	}
 
@@ -472,8 +484,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		const sessionResource = this._sessionResource;
-		this._hide();
-		this._editor.focus();
+		this._hideAndRefocusEditor();
 		this._agentFeedbackService.addFeedbackAndSubmit(sessionResource, model.uri, selection, text);
 	}
 

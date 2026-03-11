@@ -188,7 +188,7 @@ class DebugSession extends Disposable implements ICDPConnection {
 		super();
 	}
 
-	async sendMessage(method: string, params?: unknown, _sessionId?: string): Promise<unknown> {
+	async sendCommand(method: string, params?: unknown, _sessionId?: string): Promise<unknown> {
 		// This crashes Electron. Don't pass it through.
 		if (method === 'Emulation.setDeviceMetricsOverride') {
 			return Promise.resolve({});

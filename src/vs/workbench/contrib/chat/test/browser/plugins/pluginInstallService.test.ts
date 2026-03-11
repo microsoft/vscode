@@ -158,7 +158,7 @@ suite('PluginInstallService', () => {
 			getCleanupTarget: () => URI.file('/mock-cleanup'),
 			getInstallUri: () => URI.file('/mock'),
 			ensure: async () => state.ensurePluginSourceResult,
-			update: async () => { },
+			update: async () => true,
 			getLabel: (d) => kind === PluginSourceKind.Npm ? (d as { package: string }).package : (d as { package: string }).package,
 			runInstall: async (_installDir: URI, pluginDir: URI, plugin: IMarketplacePlugin) => {
 				// Simulate confirmation dialog
@@ -209,8 +209,8 @@ suite('PluginInstallService', () => {
 
 		const mockSourceRepos = new Map<PluginSourceKind, IPluginSource>([
 			[PluginSourceKind.RelativePath, { kind: PluginSourceKind.RelativePath, getCleanupTarget: () => undefined, getInstallUri: () => { throw new Error(); }, ensure: async () => { throw new Error(); }, update: async () => { throw new Error(); }, getLabel: (d) => (d as { path: string }).path || '.' }],
-			[PluginSourceKind.GitHub, { kind: PluginSourceKind.GitHub, getCleanupTarget: () => URI.file('/mock'), getInstallUri: () => URI.file('/mock'), ensure: async () => URI.file('/mock'), update: async () => { }, getLabel: (d) => (d as { repo: string }).repo }],
-			[PluginSourceKind.GitUrl, { kind: PluginSourceKind.GitUrl, getCleanupTarget: () => URI.file('/mock'), getInstallUri: () => URI.file('/mock'), ensure: async () => URI.file('/mock'), update: async () => { }, getLabel: (d) => (d as { url: string }).url }],
+			[PluginSourceKind.GitHub, { kind: PluginSourceKind.GitHub, getCleanupTarget: () => URI.file('/mock'), getInstallUri: () => URI.file('/mock'), ensure: async () => URI.file('/mock'), update: async () => true, getLabel: (d) => (d as { repo: string }).repo }],
+			[PluginSourceKind.GitUrl, { kind: PluginSourceKind.GitUrl, getCleanupTarget: () => URI.file('/mock'), getInstallUri: () => URI.file('/mock'), ensure: async () => URI.file('/mock'), update: async () => true, getLabel: (d) => (d as { url: string }).url }],
 			[PluginSourceKind.Npm, makeMockPackageRepo(PluginSourceKind.Npm)],
 			[PluginSourceKind.Pip, makeMockPackageRepo(PluginSourceKind.Pip)],
 		]);
@@ -668,6 +668,23 @@ suite('PluginInstallService', () => {
 			assert.ok(state.terminalCommands[0].includes('npm'));
 		});
 
+		test('does not report npm plugin as updated when install is declined', async () => {
+			const { service, state } = createService({
+				dialogConfirmResult: false,
+				ensurePluginSourceResult: URI.file('/cache/agentPlugins/npm/my-pkg'),
+				pluginSourceInstallUris: new Map([['npm', URI.file('/cache/agentPlugins/npm/my-pkg/node_modules/my-pkg')]]),
+			});
+			const plugin = createPlugin({
+				sourceDescriptor: { kind: PluginSourceKind.Npm, package: 'my-pkg' },
+			});
+
+			const updated = await service.updatePlugin(plugin);
+
+			assert.strictEqual(updated, false);
+			assert.strictEqual(state.terminalCommands.length, 0);
+			assert.strictEqual(state.addedPlugins.length, 0);
+		});
+
 		test('re-installs for pip plugin updates', async () => {
 			const { service, state } = createService({
 				ensurePluginSourceResult: URI.file('/cache/agentPlugins/pip/my-pkg'),
@@ -681,6 +698,23 @@ suite('PluginInstallService', () => {
 
 			assert.strictEqual(state.terminalCommands.length, 1);
 			assert.ok(state.terminalCommands[0].includes('pip'));
+		});
+
+		test('does not report pip plugin as updated when install is declined', async () => {
+			const { service, state } = createService({
+				dialogConfirmResult: false,
+				ensurePluginSourceResult: URI.file('/cache/agentPlugins/pip/my-pkg'),
+				pluginSourceInstallUris: new Map([['pip', URI.file('/cache/agentPlugins/pip/my-pkg')]]),
+			});
+			const plugin = createPlugin({
+				sourceDescriptor: { kind: PluginSourceKind.Pip, package: 'my-pkg' },
+			});
+
+			const updated = await service.updatePlugin(plugin);
+
+			assert.strictEqual(updated, false);
+			assert.strictEqual(state.terminalCommands.length, 0);
+			assert.strictEqual(state.addedPlugins.length, 0);
 		});
 	});
 

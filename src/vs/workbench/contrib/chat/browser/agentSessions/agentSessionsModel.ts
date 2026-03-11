@@ -26,7 +26,7 @@ import { IWorkspaceTrustManagementService } from '../../../../../platform/worksp
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
-import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { IChatWidgetService } from '../chat.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isBuiltInAgentSessionProvider } from './agentSessions.js';
 
@@ -162,6 +162,9 @@ export const enum AgentSessionSection {
 
 	// Capped Grouping
 	More = 'more',
+
+	// Repository Grouping
+	Repository = 'repository',
 }
 
 export interface IAgentSessionSection {
@@ -483,7 +486,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	 * Update the sessions by fetching from the service. This does not trigger an explicit refresh
 	 */
 	private async updateItems(providerFilter: readonly string[] | undefined, token: CancellationToken): Promise<void> {
-		const mapSessionContributionToType = new Map<string, IChatSessionsExtensionPoint>();
+		const mapSessionContributionToType = new Map<string, ResolvedChatSessionsExtensionPoint>();
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}

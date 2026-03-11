@@ -19,8 +19,8 @@ import { WorkbenchList } from '../../../../../platform/list/browser/listService.
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../../base/browser/ui/list/list.js';
 import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon } from './aiCustomizationIcons.js';
-import { AICustomizationManagementItemMenuId, AICustomizationManagementSection } from './aiCustomizationManagement.js';
+import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon, builtinIcon } from './aiCustomizationIcons.js';
+import { AICustomizationManagementItemMenuId, AICustomizationManagementSection, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { Delayer } from '../../../../../base/common/async.js';
@@ -115,6 +115,7 @@ class AICustomizationListDelegate implements IListVirtualDelegate<IListEntry> {
 interface IAICustomizationItemTemplateData {
 	readonly container: HTMLElement;
 	readonly actionsContainer: HTMLElement;
+	readonly typeIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly description: HighlightedLabel;
 	readonly disposables: DisposableStore;
@@ -195,6 +196,47 @@ class GroupHeaderRenderer implements IListRenderer<IGroupHeaderEntry, IGroupHead
 }
 
 /**
+ * Returns the icon for a given prompt type.
+ */
+function promptTypeToIcon(type: PromptsType): ThemeIcon {
+	switch (type) {
+		case PromptsType.agent: return agentIcon;
+		case PromptsType.skill: return skillIcon;
+		case PromptsType.instructions: return instructionsIcon;
+		case PromptsType.prompt: return promptIcon;
+		case PromptsType.hook: return hookIcon;
+		default: return promptIcon;
+	}
+}
+
+/**
+ * Formats a name for display: strips a trailing .md extension, converts dashes/underscores
+ * to spaces and applies title case.
+ * Note: callers that pass IMatch highlight ranges must compute those ranges against the
+ * formatted string (not the raw input), since .md stripping changes string length.
+ */
+export function formatDisplayName(name: string): string {
+	return name
+		.replace(/\.md$/i, '')
+		.replace(/[-_]/g, ' ')
+		.replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/**
+ * Truncates a description string to the first sentence, with a maximum character fallback.
+ */
+export function truncateToFirstSentence(text: string, maxChars = 120): string {
+	const match = text.match(/^[^.!?]*[.!?]/);
+	if (match && match[0].length <= maxChars) {
+		return match[0];
+	}
+	if (text.length > maxChars) {
+		return text.substring(0, maxChars).trimEnd() + '\u2026';
+	}
+	return text;
+}
+
+/**
  * Renderer for AI customization list items.
  */
 class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICustomizationItemTemplateData> {
@@ -212,6 +254,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		container.classList.add('ai-customization-list-item');
 
 		const leftSection = DOM.append(container, $('.item-left'));
+		const typeIcon = DOM.append(leftSection, $('.item-type-icon'));
 		const textContainer = DOM.append(leftSection, $('.item-text'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-name'))));
 		const description = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-description'))));
@@ -222,6 +265,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		return {
 			container,
 			actionsContainer,
+			typeIcon,
 			nameLabel,
 			description,
 			disposables,
@@ -232,6 +276,10 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	renderElement(entry: IFileItemEntry, index: number, templateData: IAICustomizationItemTemplateData): void {
 		templateData.elementDisposables.clear();
 		const element = entry.item;
+
+		// Type icon based on prompt type
+		templateData.typeIcon.className = 'item-type-icon';
+		templateData.typeIcon.classList.add(...ThemeIcon.asClassNameArray(promptTypeToIcon(element.promptType)));
 
 		// Hover tooltip: name + full path
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
@@ -245,11 +293,12 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			};
 		}));
 
-		// Name with highlights
-		templateData.nameLabel.set(element.name, element.nameMatches);
+		// Name with highlights — nameMatches are pre-computed against the formatted display name
+		const displayName = formatDisplayName(element.name);
+		templateData.nameLabel.set(displayName, element.nameMatches);
 
-		// Description - show either description or filename as secondary text
-		const secondaryText = element.description || element.filename;
+		// Description - show either truncated description or filename as secondary text
+		const secondaryText = element.description ? truncateToFirstSentence(element.description) : element.filename;
 		if (secondaryText) {
 			templateData.description.set(secondaryText, element.description ? element.descriptionMatches : undefined);
 			templateData.description.element.style.display = '';
@@ -889,6 +938,7 @@ export class AICustomizationListWidget extends Disposable {
 			const userItems = allItems.filter(item => item.storage === PromptsStorage.user);
 			const extensionItems = allItems.filter(item => item.storage === PromptsStorage.extension);
 			const pluginItems = allItems.filter(item => item.storage === PromptsStorage.plugin);
+			const builtinItems = allItems.filter(item => item.storage === BUILTIN_STORAGE);
 
 			const mapToListItem = (item: IPromptPath): IAICustomizationListItem => {
 				const filename = basename(item.uri);
@@ -909,6 +959,7 @@ export class AICustomizationListWidget extends Disposable {
 			items.push(...userItems.map(mapToListItem));
 			items.push(...extensionItems.map(mapToListItem));
 			items.push(...pluginItems.map(mapToListItem));
+			items.push(...builtinItems.map(mapToListItem));
 		}
 
 		// Apply storage source filter (removes items not in visible sources or excluded user roots)
@@ -961,7 +1012,10 @@ export class AICustomizationListWidget extends Disposable {
 			matchedItems = [];
 
 			for (const item of this.allItems) {
-				const nameMatches = matchesContiguousSubString(query, item.name);
+				// Compute matches against the formatted display name so highlight positions
+				// are correct even after .md stripping and title-casing.
+				const displayName = formatDisplayName(item.name);
+				const nameMatches = matchesContiguousSubString(query, displayName);
 				const descriptionMatches = item.description ? matchesContiguousSubString(query, item.description) : null;
 				const filenameMatches = matchesContiguousSubString(query, item.filename);
 
@@ -983,6 +1037,7 @@ export class AICustomizationListWidget extends Disposable {
 			{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
 			{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
 			{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
+			{ groupKey: BUILTIN_STORAGE, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
 			{ groupKey: 'agents', label: localize('agentsGroup', "Agents"), icon: agentIcon, description: localize('agentsGroupDescription', "Hooks defined in agent files."), items: [] },
 		].filter(g => visibleSources.has(g.groupKey as PromptsStorage) || g.groupKey === 'agents');
 

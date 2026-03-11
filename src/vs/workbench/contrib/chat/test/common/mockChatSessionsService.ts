@@ -11,8 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from '../../common/participants/chatAgents.js';
 import { IChatModel } from '../../common/model/chatModel.js';
-import { IChatService } from '../../common/chatService/chatService.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItem, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItem, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
@@ -47,7 +46,6 @@ export class MockChatSessionsService implements IChatSessionsService {
 	private optionGroups = new Map<string, IChatSessionProviderOptionGroup[]>();
 	private sessionOptions = new ResourceMap<Map<string, string>>();
 	private inProgress = new Map<string, number>();
-	private onChange = () => { };
 
 	// For testing: allow triggering events
 	fireDidChangeItemsProviders(event: { chatSessionType: string }): void {
@@ -75,12 +73,24 @@ export class MockChatSessionsService implements IChatSessionsService {
 		};
 	}
 
-	getAllChatSessionContributions(): IChatSessionsExtensionPoint[] {
-		return this.contributions;
+	getAllChatSessionContributions(): ResolvedChatSessionsExtensionPoint[] {
+		return this.contributions.map(contribution => this.resolveContribution(contribution));
 	}
 
-	getChatSessionContribution(chatSessionType: string): IChatSessionsExtensionPoint | undefined {
-		return this.contributions.find(contrib => contrib.type === chatSessionType);
+	getChatSessionContribution(chatSessionType: string): ResolvedChatSessionsExtensionPoint | undefined {
+		const contribution = this.contributions.find(c => c.type === chatSessionType);
+		if (!contribution) {
+			return undefined;
+		}
+
+		return this.resolveContribution(contribution);
+	}
+
+	private resolveContribution(contribution: IChatSessionsExtensionPoint): ResolvedChatSessionsExtensionPoint {
+		return {
+			...contribution,
+			icon: contribution.icon && typeof contribution.icon === 'string' ? ThemeIcon.fromId(contribution.icon) : undefined,
+		};
 	}
 
 	setContributions(contributions: IChatSessionsExtensionPoint[]): void {
@@ -89,23 +99,6 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	async activateChatSessionItemProvider(chatSessionType: string): Promise<void> {
 		// Noop, nothing to activate
-	}
-
-	getIconForSessionType(chatSessionType: string): ThemeIcon | URI | undefined {
-		const contribution = this.contributions.find(c => c.type === chatSessionType);
-		return contribution?.icon && typeof contribution.icon === 'string' ? ThemeIcon.fromId(contribution.icon) : undefined;
-	}
-
-	getWelcomeTitleForSessionType(chatSessionType: string): string | undefined {
-		return this.contributions.find(c => c.type === chatSessionType)?.welcomeTitle;
-	}
-
-	getWelcomeMessageForSessionType(chatSessionType: string): string | undefined {
-		return this.contributions.find(c => c.type === chatSessionType)?.welcomeMessage;
-	}
-
-	getInputPlaceholderForSessionType(chatSessionType: string): string | undefined {
-		return this.contributions.find(c => c.type === chatSessionType)?.inputPlaceholder;
 	}
 
 	getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }>> {

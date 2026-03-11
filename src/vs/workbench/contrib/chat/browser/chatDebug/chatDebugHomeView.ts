@@ -85,7 +85,24 @@ export class ChatDebugHomeView extends Disposable {
 			const items: HTMLButtonElement[] = [];
 
 			for (const sessionResource of sessionResources) {
-				const sessionTitle = this.chatService.getSessionTitle(sessionResource) || LocalChatSessionUri.parseLocalSessionId(sessionResource) || sessionResource.toString();
+				const rawTitle = this.chatService.getSessionTitle(sessionResource);
+				let sessionTitle: string;
+				if (rawTitle && !isUUID(rawTitle)) {
+					sessionTitle = rawTitle;
+				} else if (LocalChatSessionUri.isLocalSession(sessionResource)) {
+					sessionTitle = localize('chatDebug.newSession', "New Chat");
+				} else {
+					// For imported/external sessions, use the stored title if available
+					const importedTitle = this.chatDebugService.getImportedSessionTitle(sessionResource);
+					if (importedTitle) {
+						sessionTitle = localize('chatDebug.importedSession', "Imported: {0}", importedTitle);
+					} else {
+						// Fall back to URI segment
+						const uriLabel = sessionResource.path || sessionResource.fragment || sessionResource.toString();
+						const segment = uriLabel.replace(/^\/+/, '').split('/').pop() || uriLabel;
+						sessionTitle = localize('chatDebug.importedSession', "Imported: {0}", segment);
+					}
+				}
 				const isActive = activeSessionResource !== undefined && sessionResource.toString() === activeSessionResource.toString();
 
 				const item = DOM.append(sessionList, $<HTMLButtonElement>('button.chat-debug-home-session-item'));
@@ -98,32 +115,20 @@ export class ChatDebugHomeView extends Disposable {
 				DOM.append(item, $(`span${ThemeIcon.asCSSSelector(Codicon.comment)}`));
 
 				const titleSpan = DOM.append(item, $('span.chat-debug-home-session-item-title'));
-				// Show shimmer when the title is still a UUID — the session is
-				// either not yet loaded or hasn't produced a real title yet.
-				const isShimmering = isUUID(sessionTitle);
-				if (isShimmering) {
-					titleSpan.classList.add('chat-debug-home-session-item-shimmer');
-					item.disabled = true;
-					item.setAttribute('aria-busy', 'true');
-					item.setAttribute('aria-label', localize('chatDebug.loadingSession', "Loading session…"));
-				} else {
-					titleSpan.textContent = sessionTitle;
-					const ariaLabel = isActive
-						? localize('chatDebug.sessionItemActive', "{0} (active)", sessionTitle)
-						: sessionTitle;
-					item.setAttribute('aria-label', ariaLabel);
-				}
+				titleSpan.textContent = sessionTitle;
+				const ariaLabel = isActive
+					? localize('chatDebug.sessionItemActive', "{0} (active)", sessionTitle)
+					: sessionTitle;
+				item.setAttribute('aria-label', ariaLabel);
 
 				if (isActive) {
 					DOM.append(item, $('span.chat-debug-home-session-badge', undefined, localize('chatDebug.active', "Active")));
 				}
 
-				if (!isShimmering) {
-					this.renderDisposables.add(DOM.addDisposableListener(item, DOM.EventType.CLICK, () => {
-						this._onNavigateToSession.fire(sessionResource);
-					}));
-					items.push(item);
-				}
+				this.renderDisposables.add(DOM.addDisposableListener(item, DOM.EventType.CLICK, () => {
+					this._onNavigateToSession.fire(sessionResource);
+				}));
+				items.push(item);
 			}
 
 			// Arrow key navigation between session items
