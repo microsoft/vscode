@@ -10,9 +10,7 @@ import { IAgentSkill, IInternalPromptPath, PromptsStorage } from '../service/pro
 import { PromptsType } from '../promptTypes.js';
 import { registerChatInternalFileSystem } from './internalPromptFileSystem.js';
 import { InternalSkill } from './internalSkill.js';
-import { troubleshootSkill } from './skills/troubleshootSkill.js';
 export { InternalSkill } from './internalSkill.js';
-export { troubleshootSkill } from './skills/troubleshootSkill.js';
 
 /**
  * Manages built-in internal customizations (skills, instructions, agents, etc.)
@@ -33,9 +31,7 @@ export class ChatInternalCustomizations extends Disposable {
 		this._register(fsDisposable);
 
 		// --- Built-in skills (add new entries here) ---
-		this.skills = [
-			troubleshootSkill,
-		];
+		this.skills = [];
 
 		for (const skill of this.skills) {
 			provider.registerFile(skill.uri, skill.content);
