@@ -67,7 +67,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 		[InlineChatConfigKeys.RenderMode]: {
 			description: localize('renderMode', "Controls how inline chat is rendered."),
-			default: 'zone',
+			default: 'hover',
 			type: 'string',
 			enum: ['zone', 'hover'],
 			enumDescriptions: [
