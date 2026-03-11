@@ -20,14 +20,14 @@
  */
 
 .agent-sessions-workbench .part.sidebar {
-	margin: 8px 0 10px 8px;
+	margin: 8px 0 18px 16px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
 }
 
 .agent-sessions-workbench .part.auxiliarybar {
-	margin: 8px 8px 10px 0;
+	margin: 8px 16px 18px 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
@@ -40,7 +40,7 @@
 }
 
 .agent-sessions-workbench .part.panel {
-	margin: 0 8px 8px 8px;
+	margin: 0 16px 16px 16px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
