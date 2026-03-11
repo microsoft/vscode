@@ -267,7 +267,7 @@ class OpenSessionInTerminalAction extends Action2 {
 			title: localize2('openInTerminal', "Open Terminal"),
 			icon: Codicon.terminal,
 			toggled: {
-				condition: ContextKeyExpr.has(`${TERMINAL_VIEW_ID}.visible`),
+				condition: ContextKeyExpr.has(`view.${TERMINAL_VIEW_ID}.visible`),
 				icon: Codicon.terminal,
 				title: localize('hideTerminal', 'Hide Terminal'),
 			},
