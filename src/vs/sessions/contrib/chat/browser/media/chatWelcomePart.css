@@ -189,7 +189,8 @@
 }
 
 .sessions-chat-project-picker .action-label:hover {
-	background-color: var(--vscode-button-secondaryHoverBackground) !important;
+	background-color: var(--vscode-toolbar-hoverBackground) !important;
+	color: var(--vscode-foreground) !important;
 }
 
 .sessions-chat-project-picker .action-label .codicon {
