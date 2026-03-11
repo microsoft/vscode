@@ -131,7 +131,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		const runningX64OnArm64 = shouldDisableUpdatesForWindowsX64OnArm64(
 			process.arch,
-			process.arch === 'x64' && await this.nativeHostMainService.isRunningUnderARM64Translation()
+			process.arch === 'x64' && await this.nativeHostMainService.isRunningUnderARM64Translation(undefined)
 		);
 
 		if (runningX64OnArm64) {

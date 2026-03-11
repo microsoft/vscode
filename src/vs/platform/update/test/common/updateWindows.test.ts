@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getWindowsArm64DownloadPlatform, getWindowsArm64DownloadUrl, shouldDisableUpdatesForWindowsX64OnArm64 } from '../../common/updateWindows.js';
 
 suite('UpdateWindows', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('detects x64 builds running under ARM64 translation', () => {
 		assert.strictEqual(shouldDisableUpdatesForWindowsX64OnArm64('x64', true), true);
 		assert.strictEqual(shouldDisableUpdatesForWindowsX64OnArm64('x64', false), false);
@@ -32,7 +35,9 @@ suite('UpdateWindows', () => {
 		assert.strictEqual(getWindowsArm64DownloadUrl({
 			downloadUrl: 'https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-user',
 			quality: 'insider',
-			target: 'user'
+			target: 'user',
+			updateUrl: '',
+			version: ''
 		}), 'https://code.visualstudio.com/sha/download?build=insider&os=win32-arm64-user');
 	});
 });
