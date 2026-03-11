@@ -316,8 +316,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Isolation mode and branch pickers (below the input, shown when Local target is selected)
 		const isolationContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-local-mode'));
 		this._isolationModePicker.render(isolationContainer);
-		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
 		this._permissionPicker.render(isolationContainer);
+		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
 		const branchContainer = dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-right'));
 		this._branchPicker.render(branchContainer);
 		this._syncIndicator.render(branchContainer);
@@ -656,13 +656,13 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		this._createAttachButton(toolbar);
 
+		// Mode picker (before model pickers)
+		this._modePicker.render(toolbar);
+		this._modePicker.setVisible(false);
+
 		// Local model picker (EnhancedModelPickerActionItem)
 		this._localModelPickerContainer = dom.append(toolbar, dom.$('.sessions-chat-model-picker'));
 		this._createLocalModelPicker(this._localModelPickerContainer);
-
-		// Local mode picker
-		this._modePicker.render(toolbar);
-		this._modePicker.setVisible(false);
 
 		// Remote model picker (action list dropdown)
 		this._cloudModelPicker.render(toolbar);
