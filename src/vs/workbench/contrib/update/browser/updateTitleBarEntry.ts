@@ -113,7 +113,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 	private shouldShowTooltip(state: State): boolean {
 		switch (state.type) {
 			case StateType.Disabled:
-				return state.reason === DisablementReason.InvalidConfiguration || state.reason === DisablementReason.RunningAsAdmin;
+				return state.reason === DisablementReason.InvalidConfiguration || state.reason === DisablementReason.RunningAsAdmin || state.reason === DisablementReason.RunningX64OnArm64;
 			case StateType.Idle:
 				return !!state.error || state.notAvailable || this.isMajorMinorVersionChange();
 			case StateType.AvailableForDownload:
