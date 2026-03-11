@@ -5,15 +5,15 @@
 import { MessagePoster } from './messaging';
 
 export class StyleLoadingMonitor {
-	private readonly _unloadedStyles: string[] = [];
-	private _finishedLoading: boolean = false;
+	readonly #unloadedStyles: string[] = [];
+	#finishedLoading: boolean = false;
 
-	private _poster?: MessagePoster;
+	#poster?: MessagePoster;
 
 	constructor() {
 		const onStyleLoadError = (event: any) => {
 			const source = event.target.dataset.source;
-			this._unloadedStyles.push(source);
+			this.#unloadedStyles.push(source);
 		};
 
 		window.addEventListener('DOMContentLoaded', () => {
@@ -25,18 +25,18 @@ export class StyleLoadingMonitor {
 		});
 
 		window.addEventListener('load', () => {
-			if (!this._unloadedStyles.length) {
+			if (!this.#unloadedStyles.length) {
 				return;
 			}
-			this._finishedLoading = true;
-			this._poster?.postMessage('previewStyleLoadError', { unloadedStyles: this._unloadedStyles });
+			this.#finishedLoading = true;
+			this.#poster?.postMessage('previewStyleLoadError', { unloadedStyles: this.#unloadedStyles });
 		});
 	}
 
 	public setPoster(poster: MessagePoster): void {
-		this._poster = poster;
-		if (this._finishedLoading) {
-			poster.postMessage('previewStyleLoadError', { unloadedStyles: this._unloadedStyles });
+		this.#poster = poster;
+		if (this.#finishedLoading) {
+			poster.postMessage('previewStyleLoadError', { unloadedStyles: this.#unloadedStyles });
 		}
 	}
 }

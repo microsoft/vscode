@@ -333,7 +333,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				if (markerOrChange instanceof Marker) {
 					this.widget.updateMarker(markerOrChange);
 				} else {
-					if (markerOrChange.added.size || markerOrChange.removed.size) {
+					if (markerOrChange.added.size || markerOrChange.removed.size || this.filters.activeFile) {
 						// Reset complete widget
 						this.resetWidget();
 					} else {

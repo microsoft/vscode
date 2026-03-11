@@ -116,10 +116,10 @@ export interface ISuggestEnabledInputStyleOverrides {
 
 export class SuggestEnabledInput extends Widget {
 
-	private readonly _onShouldFocusResults = new Emitter<void>();
+	private readonly _onShouldFocusResults = this._register(new Emitter<void>());
 	readonly onShouldFocusResults: Event<void> = this._onShouldFocusResults.event;
 
-	private readonly _onInputDidChange = new Emitter<string | undefined>();
+	private readonly _onInputDidChange = this._register(new Emitter<string | undefined>());
 	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());

@@ -12,6 +12,7 @@ export interface IRemoteAgentEnvironment {
 	pid: number;
 	connectionToken: string;
 	appRoot: URI;
+	tmpDir: URI;
 	settingsPath: URI;
 	mcpResource: URI;
 	logsPath: URI;

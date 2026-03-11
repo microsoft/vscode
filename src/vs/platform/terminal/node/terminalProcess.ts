@@ -17,10 +17,11 @@ import { ILogService, LogLevel } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType, ITerminalLaunchResult } from '../common/terminal.js';
 import { ChildProcessMonitor } from './childProcessMonitor.js';
-import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from './terminalEnvironment.js';
+import { getShellIntegrationInjection, IShellIntegrationConfigInjection, sanitizeEnvForLogging } from './terminalEnvironment.js';
 import { WindowsShellHelper } from './windowsShellHelper.js';
 import { IPty, IPtyForkOptions, IWindowsPtyForkOptions, spawn } from 'node-pty';
 import { isNumber } from '../../../base/common/types.js';
+import { getWindowsBuildNumberSync } from '../../../base/node/windowsVersion.js';
 
 const enum ShutdownConstants {
 	/**
@@ -109,6 +110,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _isPtyPaused: boolean = false;
 	private _unacknowledgedCharCount: number = 0;
+	private _writeQueue: Promise<void> = Promise.resolve();
 	get exitMessage(): string | undefined { return this._exitMessage; }
 
 	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
@@ -150,7 +152,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._initialCwd = cwd;
 		this._properties[ProcessPropertyType.InitialCwd] = this._initialCwd;
 		this._properties[ProcessPropertyType.Cwd] = this._initialCwd;
-		const useConpty = process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
+		const useConpty = process.platform === 'win32' && getWindowsBuildNumberSync() >= 18309;
 		const useConptyDll = useConpty && this._options.windowsUseConptyDll;
 		this._ptyOptions = {
 			name,
@@ -244,7 +246,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return undefined;
 		} catch (err) {
 			this._logService.trace('node-pty.node-pty.IPty#spawn native exception', err);
-			return { message: `A native exception occurred during launch (${err.message})` };
+			const errorMessage = err.message;
+			if (errorMessage?.includes('Cannot launch conpty')) {
+				return { message: localize('conptyLaunchFailed', "A native exception occurred during launch (Cannot launch conpty). Winpty has been removed, see {0} for more details. You can also try enabling the `{1}` setting.", 'https://code.visualstudio.com/updates/v1_109#_removal-of-winpty-support', 'terminal.integrated.windowsUseConptyDll') };
+			}
+			return { message: `A native exception occurred during launch (${errorMessage})` };
 		}
 	}
 
@@ -301,7 +307,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	): Promise<void> {
 		const args = shellIntegrationInjection?.newArgs || shellLaunchConfig.args || [];
 		await this._throttleKillSpawn();
-		this._logService.trace('node-pty.IPty#spawn', shellLaunchConfig.executable, args, options);
+		const sanitizedOptions = { ...options, env: sanitizeEnvForLogging(options.env as IProcessEnvironment | undefined) };
+		this._logService.trace('node-pty.IPty#spawn', shellLaunchConfig.executable, args, sanitizedOptions);
 		const ptyProcess = spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
 		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
@@ -462,10 +469,30 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._logService.trace('node-pty.IPty#write', data, isBinary);
 		if (isBinary) {
 			this._ptyProcess!.write(Buffer.from(data, 'binary'));
+		} else if (isMacintosh && data.length > 512 && data.includes('\r')) {
+			// macOS PTY has a ~1024-byte canonical-mode input buffer. Multiline
+			// input exceeding this causes writes to block or corrupt due to
+			// backpressure from the shell's line editor echoing characters.
+			// https://github.com/microsoft/vscode/issues/296955
+			this._writeChunked(data);
 		} else {
 			this._ptyProcess!.write(data);
 		}
 		this._childProcessMonitor?.handleInput();
+	}
+
+	private _writeChunked(data: string): void {
+		this._writeQueue = this._writeQueue.then(async () => {
+			for (let i = 0; i < data.length; i += 512) {
+				if (this._store.isDisposed) {
+					return;
+				}
+				this._ptyProcess!.write(data.slice(i, i + 512));
+				if (i + 512 < data.length) {
+					await timeout(5);
+				}
+			}
+		});
 	}
 
 	sendSignal(signal: string): void {
@@ -510,7 +537,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	resize(cols: number, rows: number): void {
+	resize(cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): void {
 		if (this._store.isDisposed) {
 			return;
 		}
@@ -532,7 +559,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 			this._logService.trace('node-pty.IPty#resize', cols, rows);
 			try {
-				this._ptyProcess.resize(cols, rows);
+				const pixelSize = pixelWidth !== undefined && pixelHeight !== undefined
+					? { width: pixelWidth, height: pixelHeight }
+					: undefined;
+				this._ptyProcess.resize(cols, rows, pixelSize);
 			} catch (e) {
 				// Swallow error if the pty has already exited
 				this._logService.trace('node-pty.IPty#resize exception ' + e.message);
@@ -617,7 +647,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	getWindowsPty(): IProcessReadyWindowsPty | undefined {
 		return isWindows ? {
 			backend: 'conpty',
-			buildNumber: getWindowsBuildNumber()
+			buildNumber: getWindowsBuildNumberSync()
 		} : undefined;
 	}
 }

@@ -1,0 +1,59 @@
+{
+	"scenario": "Scenario: Chat message produces real file diffs in the changes view",
+	"generatedAt": "2026-03-10T00:00:00.000Z",
+	"note": "Uses semantic selectors — regenerate with 'npm run generate' if UI labels change",
+	"steps": [
+		{
+			"description": "Type \"build the project\" in the chat input",
+			"commands": [
+				"click textbox \"Chat input\"",
+				"type \"build the project\""
+			]
+		},
+		{
+			"description": "Press Enter to submit",
+			"commands": [
+				"click textbox \"Chat input\"",
+				"press Enter"
+			]
+		},
+		{
+			"description": "Verify there is a response in the chat",
+			"commands": [
+				"# ASSERT_VISIBLE: I'll help you build the project. Here are the changes:"
+			]
+		},
+		{
+			"description": "Toggle the secondary side bar",
+			"commands": [
+				"click button \"Toggle Secondary Side Bar\""
+			]
+		},
+		{
+			"description": "Verify the changes view shows modified files",
+			"commands": [
+				"# ASSERT_VISIBLE: index.ts",
+				"# ASSERT_VISIBLE: build.ts",
+				"# ASSERT_VISIBLE: package.json"
+			]
+		},
+		{
+			"description": "Click on \"index.ts\" in the changes list",
+			"commands": [
+				"click treeitem \"index.ts\""
+			]
+		},
+		{
+			"description": "Verify a diff editor opens with the modified content",
+			"commands": [
+				"# ASSERT_VISIBLE: import { build } from"
+			]
+		},
+		{
+			"description": "Press Escape to close the diff editor",
+			"commands": [
+				"press Escape"
+			]
+		}
+	]
+}

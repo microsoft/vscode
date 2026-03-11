@@ -1,0 +1,288 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Main widget container - speech bubble style */
+.agent-feedback-widget {
+	position: absolute;
+	max-width: 280px;
+	min-width: 180px;
+	background-color: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	border-radius: 8px;
+	box-shadow: var(--vscode-shadow-lg);
+	font-size: 12px;
+	line-height: 1.4;
+	opacity: 0;
+	transition: opacity 0.2s ease-in-out;
+	z-index: 10;
+}
+
+.agent-feedback-widget.visible {
+	opacity: 1;
+}
+
+.agent-feedback-widget.fadeOut {
+	animation: agentFeedbackFadeOut 150ms ease-out forwards;
+}
+
+@keyframes agentFeedbackFadeOut {
+	from { opacity: 1; }
+	to { opacity: 0; }
+}
+
+/* Arrow pointer pointing left toward the code */
+.agent-feedback-widget-arrow {
+	position: absolute;
+	left: -8px;
+	top: 12px;
+	width: 0;
+	height: 0;
+	border-top: 8px solid transparent;
+	border-bottom: 8px solid transparent;
+	border-right: 8px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+}
+
+.agent-feedback-widget.collapsed .agent-feedback-widget-arrow {
+	display: none;
+}
+
+.agent-feedback-widget-arrow::after {
+	content: '';
+	position: absolute;
+	left: 2px;
+	top: -7px;
+	width: 0;
+	height: 0;
+	border-top: 7px solid transparent;
+	border-bottom: 7px solid transparent;
+	border-right: 7px solid var(--vscode-editorWidget-background);
+}
+
+/* Header */
+.agent-feedback-widget-header {
+	display: flex;
+	align-items: center;
+	padding: 8px 10px;
+	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	border-radius: 8px 8px 0 0;
+	overflow: hidden;
+	cursor: pointer;
+	gap: 6px;
+}
+
+.agent-feedback-widget.collapsed .agent-feedback-widget-header {
+	border-bottom: none;
+	border-radius: 8px 8px 8px 8px;
+}
+
+.agent-feedback-widget-header:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Title */
+.agent-feedback-widget-title {
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+}
+
+/* Spacer to push buttons to the right */
+.agent-feedback-widget-spacer {
+	flex: 1;
+}
+
+/* Toggle button */
+.agent-feedback-widget-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+	transition: opacity 0.1s;
+}
+
+.agent-feedback-widget-toggle:hover {
+	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Dismiss button */
+/* Body - collapsible */
+.agent-feedback-widget-body {
+	transition: max-height 0.2s ease-in-out, padding 0.2s ease-in-out;
+	border-radius: 0 0 8px 8px;
+	overflow: hidden;
+}
+
+.agent-feedback-widget-body.collapsed {
+	max-height: 0;
+	overflow: hidden;
+	padding: 0;
+}
+
+/* Individual feedback item */
+.agent-feedback-widget-item {
+	display: flex;
+	flex-direction: column;
+	padding: 8px 10px;
+	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	cursor: pointer;
+	position: relative;
+	gap: 6px;
+}
+
+.agent-feedback-widget-item:last-child {
+	border-bottom: none;
+}
+
+.agent-feedback-widget-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.agent-feedback-widget-item.focused {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.agent-feedback-widget-item-codeReview {
+	box-shadow: inset 2px 0 0 var(--vscode-editorWarning-foreground);
+}
+
+.agent-feedback-widget-item-prReview {
+	box-shadow: inset 2px 0 0 var(--vscode-editorInfo-foreground);
+}
+
+.agent-feedback-widget-item-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.agent-feedback-widget-item-meta {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	flex-wrap: wrap;
+}
+
+.agent-feedback-widget-item-actions {
+	margin-left: auto;
+	flex: 0 0 auto;
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.agent-feedback-widget-item:hover .agent-feedback-widget-item-actions {
+	opacity: 1;
+	visibility: visible;
+	pointer-events: auto;
+}
+
+.agent-feedback-widget-item-type {
+	display: inline-flex;
+	align-items: center;
+	padding: 1px 6px;
+	border-radius: 999px;
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.2px;
+	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-feedback-widget-item-codeReview .agent-feedback-widget-item-type {
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 22%, transparent);
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.agent-feedback-widget-item-prReview .agent-feedback-widget-item-type {
+	background: color-mix(in srgb, var(--vscode-editorInfo-foreground) 22%, transparent);
+	color: var(--vscode-editorInfo-foreground);
+}
+
+/* Line info */
+.agent-feedback-widget-line-info {
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--vscode-descriptionForeground);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+/* Feedback text */
+.agent-feedback-widget-text {
+	color: var(--vscode-foreground);
+	word-wrap: break-word;
+}
+
+.agent-feedback-widget-text .rendered-markdown p {
+	margin: 0;
+}
+
+.agent-feedback-widget-text .rendered-markdown code {
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	padding: 1px 4px;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
+}
+
+.agent-feedback-widget-suggestion {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 8px;
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 12%, transparent);
+}
+
+.agent-feedback-widget-item-codeReview .agent-feedback-widget-suggestion {
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 10%, transparent);
+}
+
+.agent-feedback-widget-item-prReview .agent-feedback-widget-suggestion {
+	background: color-mix(in srgb, var(--vscode-editorInfo-foreground) 10%, transparent);
+}
+
+.agent-feedback-widget-suggestion-title,
+.agent-feedback-widget-suggestion-range {
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-feedback-widget-suggestion-edit {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.agent-feedback-widget-suggestion-text {
+	margin: 0;
+	padding: 6px 8px;
+	border-radius: 4px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	font-family: monospace;
+	font-size: 11px;
+	line-height: 1.45;
+	background: color-mix(in srgb, var(--vscode-editor-background) 65%, transparent);
+}
+
+/* Gutter decoration for range indicator on hover */
+.agent-feedback-widget-range-glyph {
+	margin-left: 8px;
+	z-index: 5;
+	border-left: 2px solid var(--vscode-editorGutter-modifiedBackground);
+}

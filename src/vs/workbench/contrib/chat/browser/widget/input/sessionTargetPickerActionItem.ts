@@ -23,6 +23,7 @@ import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatIn
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
 
+
 export interface ISessionTypeItem {
 	type: AgentSessionProviders;
 	label: string;
@@ -95,15 +96,16 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			actionProvider,
 			actionBarActionProvider,
 			showItemKeybindings: true,
-			reporter: { name: `ChatSessionTypePicker`, includeOptions: true },
+			reporter: { id: 'ChatSessionTypePicker', name: `ChatSessionTypePicker`, includeOptions: true },
 		};
 
 		super(action, sessionTargetPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
-		this._updateAgentSessionItems();
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
 			this._updateAgentSessionItems();
 		}));
+
+		this._updateAgentSessionItems();
 	}
 
 	protected _run(sessionTypeItem: ISessionTypeItem): void {
@@ -175,7 +177,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _isSessionTypeEnabled(type: AgentSessionProviders): boolean {
-		return true;
+		if (type === AgentSessionProviders.Local) {
+			return true; // Local is always available
+		}
+		// Disable non-local session types when their provider is not registered yet
+		return !!this.chatSessionsService.getChatSessionContribution(type);
 	}
 
 	protected _getSessionCategory(sessionTypeItem: ISessionTypeItem) {
@@ -184,6 +190,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	protected _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
 		return undefined;
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-session-target-picker-item');
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
@@ -195,9 +206,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const labelElements = [];
 		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
-		if (currentType !== AgentSessionProviders.Local || !this.pickerOptions.onlyShowIconsForDefaultActions.get()) {
-			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
-		}
+		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...labelElements);

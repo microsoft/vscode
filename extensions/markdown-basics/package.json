@@ -2,13 +2,15 @@
   "name": "markdown",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
     "vscode": "^1.20.0"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {
@@ -20,12 +22,16 @@
         "extensions": [
           ".md",
           ".mkd",
+          ".mkdn",
           ".mdwn",
           ".mdown",
           ".markdown",
           ".markdn",
           ".mdtxt",
           ".mdtext",
+          ".litcoffee",
+          ".ron",
+          ".ronn",
           ".workbook"
         ],
         "filenamePatterns": [

@@ -101,6 +101,7 @@ suite('PromptFilesLocator', () => {
 			'explorer.excludeGitIgnore': false,
 			'files.exclude': {},
 			'search.exclude': {},
+			[PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS]: false,
 			[PromptsConfig.PROMPT_LOCATIONS_KEY]: configValue,
 			[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: configValue,
 			[PromptsConfig.MODE_LOCATION_KEY]: configValue,
@@ -2366,6 +2367,69 @@ suite('PromptFilesLocator', () => {
 		});
 	});
 
+	suite('instructions', () => {
+		testT('finds instructions files in subdirectories of .github/instructions', async () => {
+			const locator = await createPromptsLocator(
+				{
+					'.github/instructions': true,
+					'.claude/rules': false,
+					'~/.copilot/instructions': false,
+				},
+				['/Users/legomushroom/repos/vscode'],
+				[
+					{
+						name: '/Users/legomushroom/repos/vscode',
+						children: [
+							{
+								name: '.github/instructions',
+								children: [
+									{
+										name: 'root.instructions.md',
+										contents: 'root instructions',
+									},
+									{
+										name: 'frontend',
+										children: [
+											{
+												name: 'react.instructions.md',
+												contents: 'react instructions',
+											},
+											{
+												name: 'css.instructions.md',
+												contents: 'css instructions',
+											},
+										],
+									},
+									{
+										name: 'backend',
+										children: [
+											{
+												name: 'api.instructions.md',
+												contents: 'api instructions',
+											},
+										],
+									},
+								],
+							},
+						],
+					},
+				],
+			);
+
+			assertOutcome(
+				await locator.listFiles(PromptsType.instructions, PromptsStorage.local, CancellationToken.None),
+				[
+					'/Users/legomushroom/repos/vscode/.github/instructions/root.instructions.md',
+					'/Users/legomushroom/repos/vscode/.github/instructions/frontend/react.instructions.md',
+					'/Users/legomushroom/repos/vscode/.github/instructions/frontend/css.instructions.md',
+					'/Users/legomushroom/repos/vscode/.github/instructions/backend/api.instructions.md',
+				],
+				'Must find instructions files recursively in subdirectories of .github/instructions.',
+			);
+			await locator.disposeAsync();
+		});
+	});
+
 	suite('skills', () => {
 		suite('findAgentSkills', () => {
 			testT('finds skill files in configured locations', async () => {
@@ -2629,8 +2693,10 @@ suite('PromptFilesLocator', () => {
 						'**/skills': true,
 						// disable defaults
 						'.github/skills': false,
+						'.agents/skills': false,
 						'.claude/skills': false,
 						'~/.copilot/skills': false,
+						'~/.agents/skills': false,
 						'~/.claude/skills': false,
 					},
 					['/Users/legomushroom/repos/vscode'],
@@ -2652,8 +2718,10 @@ suite('PromptFilesLocator', () => {
 						'/absolute/path/skills': true,
 						// disable defaults
 						'.github/skills': false,
+						'.agents/skills': false,
 						'.claude/skills': false,
 						'~/.copilot/skills': false,
+						'~/.agents/skills': false,
 						'~/.claude/skills': false,
 					},
 					['/Users/legomushroom/repos/vscode'],
@@ -2676,8 +2744,10 @@ suite('PromptFilesLocator', () => {
 						'custom/skills': true,
 						// disable defaults
 						'.github/skills': false,
+						'.agents/skills': false,
 						'.claude/skills': false,
 						'~/.copilot/skills': false,
+						'~/.agents/skills': false,
 						'~/.claude/skills': false,
 					},
 					['/Users/legomushroom/repos/vscode'],
@@ -2702,8 +2772,10 @@ suite('PromptFilesLocator', () => {
 						'../shared-skills': true,
 						// disable defaults
 						'.github/skills': false,
+						'.agents/skills': false,
 						'.claude/skills': false,
 						'~/.copilot/skills': false,
+						'~/.agents/skills': false,
 						'~/.claude/skills': false,
 					},
 					['/Users/legomushroom/repos/vscode'],
@@ -2727,8 +2799,10 @@ suite('PromptFilesLocator', () => {
 						'~/my-skills': true,
 						// disable defaults
 						'.github/skills': false,
+						'.agents/skills': false,
 						'.claude/skills': false,
 						'~/.copilot/skills': false,
+						'~/.agents/skills': false,
 						'~/.claude/skills': false,
 					},
 					['/Users/legomushroom/repos/vscode'],
@@ -2755,7 +2829,9 @@ suite('PromptFilesLocator', () => {
 						'custom-skills': true,
 						// explicitly disable other defaults we don't want for this test
 						'.github/skills': false,
+						'.agents/skills': false,
 						'~/.copilot/skills': false,
+						'~/.agents/skills': false,
 						'~/.claude/skills': false,
 					},
 					[
@@ -2787,7 +2863,9 @@ suite('PromptFilesLocator', () => {
 						'/absolute/skills': true, // absolute - should be filtered out
 						// explicitly disable other defaults we don't want for this test
 						'.github/skills': false,
+						'.agents/skills': false,
 						'~/.copilot/skills': false,
+						'~/.agents/skills': false,
 						'~/.claude/skills': false,
 					},
 					['/Users/legomushroom/repos/vscode'],
@@ -2820,8 +2898,10 @@ suite('PromptFilesLocator', () => {
 					[
 						// defaults
 						'/Users/legomushroom/repos/vscode/.github/skills',
+						'/Users/legomushroom/repos/vscode/.agents/skills',
 						'/Users/legomushroom/repos/vscode/.claude/skills',
 						'/Users/legomushroom/.copilot/skills',
+						'/Users/legomushroom/.agents/skills',
 						'/Users/legomushroom/.claude/skills',
 						// custom
 						'/Users/legomushroom/repos/vscode/custom-skills',
@@ -3338,7 +3418,7 @@ suite('PromptFilesLocator', () => {
 
 			return {
 				async findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
-					return locator.findAgentMDsInWorkspace(token);
+					return (await locator.findAgentMDsInWorkspace(token)).map(f => f.uri);
 				},
 				async disposeAsync(): Promise<void> {
 					await mockFs.delete();
