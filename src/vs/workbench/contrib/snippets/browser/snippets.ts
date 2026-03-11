@@ -5,6 +5,7 @@
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { SnippetFile, Snippet } from './snippetsFile.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
 
@@ -27,7 +28,7 @@ export interface ISnippetsService {
 
 	updateUsageTimestamp(snippet: Snippet): void;
 
-	getSnippets(languageId: string | undefined, opt?: ISnippetGetOptions): Promise<Snippet[]>;
+	getSnippets(languageId: string | undefined, resourceUri?: URI, opt?: ISnippetGetOptions): Promise<Snippet[]>;
 
-	getSnippetsSync(languageId: string, opt?: ISnippetGetOptions): Snippet[];
+	getSnippetsSync(languageId: string, resourceUri?: URI, opt?: ISnippetGetOptions): Snippet[];
 }

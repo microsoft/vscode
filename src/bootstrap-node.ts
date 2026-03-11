@@ -143,7 +143,7 @@ export function configurePortable(product: Partial<IProductConfiguration>): { po
 		}
 
 		// appRoot = ..\Microsoft VS Code Insiders\<version>\resources\app
-		if (process.platform === 'win32' && product.quality === 'insider') {
+		if (process.platform === 'win32' && product.win32VersionedUpdate) {
 			return path.dirname(path.dirname(path.dirname(appRoot)));
 		}
 

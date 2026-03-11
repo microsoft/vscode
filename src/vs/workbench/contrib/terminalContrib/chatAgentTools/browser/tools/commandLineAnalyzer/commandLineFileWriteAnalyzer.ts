@@ -47,30 +47,62 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 
 	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<FileWrite[]> {
 		let fileWrites: FileWrite[] = [];
+
+		// Get file writes from redirections (via tree-sitter grammar)
 		const capturedFileWrites = (await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine))
 			.map(this._mapNullDevice.bind(this, options));
-		if (capturedFileWrites.length) {
+
+		// Get file writes from command-specific parsers (e.g., sed -i in-place editing)
+		const commandFileWrites = (await this._treeSitterCommandParser.getCommandFileWrites(options.treeSitterLanguage, options.commandLine))
+			.map(this._mapNullDevice.bind(this, options));
+
+		const allCapturedFileWrites = [...capturedFileWrites, ...commandFileWrites];
+
+		if (allCapturedFileWrites.length) {
 			const cwd = options.cwd;
 			if (cwd) {
 				this._log('Detected cwd', cwd.toString());
-				fileWrites = capturedFileWrites.map(e => {
+				fileWrites = allCapturedFileWrites.map(e => {
 					if (e === nullDevice) {
 						return e;
 					}
+
+					// Surrounding quotes where it's difficult to determine whether this is absolute
+					// or relative
+					if (/^['"].*['"]$/.test(e)) {
+						// Strip surrounding quotes to get a more reasonable view of the path. Note
+						// that this may not get the real file in the case of inner quotes, but the
+						// important thing here is the resolving whether it's absolute or not.
+						e = this._stripSurroundingQuotes(e);
+					}
+
+					// Absolute
 					const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(e) : posix.isAbsolute(e);
 					if (isAbsolute) {
-						return URI.file(e);
-					} else {
-						return URI.joinPath(cwd, e);
+						// Ensure cwd's scheme and authority is retained
+						return cwd.with({ path: e });
 					}
+
+					// Relative
+					return URI.joinPath(cwd, e);
 				});
 			} else {
 				this._log('Cwd could not be detected');
-				fileWrites = capturedFileWrites;
+				fileWrites = allCapturedFileWrites;
 			}
 		}
 		this._log('File writes detected', fileWrites.map(e => e.toString()));
 		return fileWrites;
+	}
+
+	private _stripSurroundingQuotes(text: string): string {
+		if (
+			(text.startsWith('"') && text.endsWith('"')) ||
+			(text.startsWith('\'') && text.endsWith('\''))
+		) {
+			return text.slice(1, -1);
+		}
+		return text;
 	}
 
 	private _mapNullDevice(options: ICommandLineAnalyzerOptions, rawFileWrite: string): string | typeof nullDevice {
@@ -114,11 +146,12 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							const fileUri = URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite);
 							// TODO: Handle command substitutions/complex destinations properly https://github.com/microsoft/vscode/issues/274167
 							// TODO: Handle environment variables properly https://github.com/microsoft/vscode/issues/274166
-							if (fileUri.fsPath.match(/[$\(\){}]/)) {
+							if (fileUri.fsPath.match(/[$\(\){}`]/)) {
 								isAutoApproveAllowed = false;
-								this._log('File write blocked due to likely containing a variable', fileUri.toString());
+								this._log('File write blocked due to likely containing a variable or sub-command', fileUri.toString());
 								break;
 							}
+
 							const isInsideWorkspace = workspaceFolders.some(folder =>
 								folder.uri.scheme === fileUri.scheme &&
 								(fileUri.path.startsWith(folder.uri.path + '/') || fileUri.path === folder.uri.path)

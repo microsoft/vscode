@@ -184,17 +184,17 @@ export class CursorMoveCommands {
 
 		if (!inSelectionMode) {
 			// Entering line selection for the first time
-			const lineCount = viewModel.getLineCount();
+			const lineCount = viewModel.model.getLineCount();
 
-			let selectToLineNumber = viewPosition.lineNumber + 1;
+			let selectToLineNumber = position.lineNumber + 1;
 			let selectToColumn = 1;
 			if (selectToLineNumber > lineCount) {
 				selectToLineNumber = lineCount;
-				selectToColumn = viewModel.getLineMaxColumn(selectToLineNumber);
+				selectToColumn = viewModel.model.getLineMaxColumn(selectToLineNumber);
 			}
 
-			return CursorState.fromViewState(new SingleCursorState(
-				new Range(viewPosition.lineNumber, 1, selectToLineNumber, selectToColumn), SelectionStartKind.Line, 0,
+			return CursorState.fromModelState(new SingleCursorState(
+				new Range(position.lineNumber, 1, selectToLineNumber, selectToColumn), SelectionStartKind.Line, 0,
 				new Position(selectToLineNumber, selectToColumn), 0
 			));
 		}
@@ -294,6 +294,9 @@ export class CursorMoveCommands {
 				if (unit === CursorMove.Unit.WrappedLine) {
 					// Move up by view lines
 					return this._moveUpByViewLines(viewModel, cursors, inSelectionMode, value);
+				} else if (unit === CursorMove.Unit.FoldedLine) {
+					// Move up by model lines, skipping over folded regions
+					return this._moveUpByFoldedLines(viewModel, cursors, inSelectionMode, value);
 				} else {
 					// Move up by model lines
 					return this._moveUpByModelLines(viewModel, cursors, inSelectionMode, value);
@@ -303,6 +306,9 @@ export class CursorMoveCommands {
 				if (unit === CursorMove.Unit.WrappedLine) {
 					// Move down by view lines
 					return this._moveDownByViewLines(viewModel, cursors, inSelectionMode, value);
+				} else if (unit === CursorMove.Unit.FoldedLine) {
+					// Move down by model lines, skipping over folded regions
+					return this._moveDownByFoldedLines(viewModel, cursors, inSelectionMode, value);
 				} else {
 					// Move down by model lines
 					return this._moveDownByModelLines(viewModel, cursors, inSelectionMode, value);
@@ -515,6 +521,113 @@ export class CursorMoveCommands {
 		return result;
 	}
 
+	private static _moveDownByFoldedLines(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, count: number): PartialCursorState[] {
+		const model = viewModel.model;
+		const lineCount = model.getLineCount();
+		const hiddenAreas = viewModel.getHiddenAreas();
+
+		return cursors.map(cursor => {
+			const startLine = cursor.modelState.hasSelection() && !inSelectionMode
+				? cursor.modelState.selection.endLineNumber
+				: cursor.modelState.position.lineNumber;
+
+			const targetLine = CursorMoveCommands._targetFoldedDown(startLine, count, hiddenAreas, lineCount);
+			const delta = targetLine - startLine;
+			if (delta === 0) {
+				return CursorState.fromModelState(cursor.modelState);
+			}
+			return CursorState.fromModelState(MoveOperations.moveDown(viewModel.cursorConfig, model, cursor.modelState, inSelectionMode, delta));
+		});
+	}
+
+	private static _moveUpByFoldedLines(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, count: number): PartialCursorState[] {
+		const model = viewModel.model;
+		const hiddenAreas = viewModel.getHiddenAreas();
+
+		return cursors.map(cursor => {
+			const startLine = cursor.modelState.hasSelection() && !inSelectionMode
+				? cursor.modelState.selection.startLineNumber
+				: cursor.modelState.position.lineNumber;
+
+			const targetLine = CursorMoveCommands._targetFoldedUp(startLine, count, hiddenAreas);
+			const delta = startLine - targetLine;
+			if (delta === 0) {
+				return CursorState.fromModelState(cursor.modelState);
+			}
+			return CursorState.fromModelState(MoveOperations.moveUp(viewModel.cursorConfig, model, cursor.modelState, inSelectionMode, delta));
+		});
+	}
+
+	// Compute the target line after moving `count` steps downward from `startLine`,
+	// treating each folded region as a single step.
+	private static _targetFoldedDown(startLine: number, count: number, hiddenAreas: Range[], lineCount: number): number {
+		let line = startLine;
+		let i = 0;
+
+		while (i < hiddenAreas.length && hiddenAreas[i].endLineNumber < line + 1) {
+			i++;
+		}
+
+		for (let step = 0; step < count; step++) {
+			if (line >= lineCount) {
+				return lineCount;
+			}
+
+			let candidate = line + 1;
+			while (i < hiddenAreas.length && hiddenAreas[i].endLineNumber < candidate) {
+				i++;
+			}
+
+			if (i < hiddenAreas.length && hiddenAreas[i].startLineNumber <= candidate) {
+				candidate = hiddenAreas[i].endLineNumber + 1;
+			}
+
+			if (candidate > lineCount) {
+				// The next visible line does not exist (e.g. a fold reaches EOF).
+				return line;
+			}
+
+			line = candidate;
+		}
+
+		return line;
+	}
+
+	// Compute the target line after moving `count` steps upward from `startLine`,
+	// treating each folded region as a single step.
+	private static _targetFoldedUp(startLine: number, count: number, hiddenAreas: Range[]): number {
+		let line = startLine;
+		let i = hiddenAreas.length - 1;
+
+		while (i >= 0 && hiddenAreas[i].startLineNumber > line - 1) {
+			i--;
+		}
+
+		for (let step = 0; step < count; step++) {
+			if (line <= 1) {
+				return 1;
+			}
+
+			let candidate = line - 1;
+			while (i >= 0 && hiddenAreas[i].startLineNumber > candidate) {
+				i--;
+			}
+
+			if (i >= 0 && hiddenAreas[i].endLineNumber >= candidate) {
+				candidate = hiddenAreas[i].startLineNumber - 1;
+			}
+
+			if (candidate < 1) {
+				// The previous visible line does not exist (e.g. a fold reaches BOF).
+				return line;
+			}
+
+			line = candidate;
+		}
+
+		return line;
+	}
+
 	private static _moveToViewPosition(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, toViewLineNumber: number, toViewColumn: number): PartialCursorState {
 		return CursorState.fromViewState(cursor.viewState.move(inSelectionMode, toViewLineNumber, toViewColumn, 0));
 	}
@@ -626,8 +739,10 @@ export namespace CursorMove {
 						\`\`\`
 					* 'by': Unit to move. Default is computed based on 'to' value.
 						\`\`\`
-						'line', 'wrappedLine', 'character', 'halfLine'
+						'line', 'wrappedLine', 'character', 'halfLine', 'foldedLine'
 						\`\`\`
+						Use 'foldedLine' with 'up'/'down' to move by logical lines while treating each
+						folded region as a single step.
 					* 'value': Number of units to move. Default is '1'.
 					* 'select': If 'true' makes the selection. Default is 'false'.
 					* 'noHistory': If 'true' does not add the movement to navigation history. Default is 'false'.
@@ -643,7 +758,7 @@ export namespace CursorMove {
 						},
 						'by': {
 							'type': 'string',
-							'enum': ['line', 'wrappedLine', 'character', 'halfLine']
+							'enum': ['line', 'wrappedLine', 'character', 'halfLine', 'foldedLine']
 						},
 						'value': {
 							'type': 'number',
@@ -695,7 +810,8 @@ export namespace CursorMove {
 		Line: 'line',
 		WrappedLine: 'wrappedLine',
 		Character: 'character',
-		HalfLine: 'halfLine'
+		HalfLine: 'halfLine',
+		FoldedLine: 'foldedLine'
 	};
 
 	/**
@@ -781,6 +897,9 @@ export namespace CursorMove {
 			case RawUnit.HalfLine:
 				unit = Unit.HalfLine;
 				break;
+			case RawUnit.FoldedLine:
+				unit = Unit.FoldedLine;
+				break;
 		}
 
 		return {
@@ -855,6 +974,7 @@ export namespace CursorMove {
 		WrappedLine,
 		Character,
 		HalfLine,
+		FoldedLine,
 	}
 
 }

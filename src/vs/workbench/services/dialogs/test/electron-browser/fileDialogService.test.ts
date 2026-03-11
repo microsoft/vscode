@@ -35,6 +35,7 @@ import { IPathService } from '../../../path/common/pathService.js';
 import { BrowserWorkspaceEditingService } from '../../../workspaces/browser/workspaceEditingService.js';
 import { IWorkspaceEditingService } from '../../../workspaces/common/workspaceEditing.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
 
 class TestFileDialogService extends FileDialogService {
 	constructor(
@@ -56,10 +57,11 @@ class TestFileDialogService extends FileDialogService {
 		@ICommandService commandService: ICommandService,
 		@IEditorService editorService: IEditorService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService,
-			openerService, nativeHostService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService, logService);
+			openerService, nativeHostService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService, logService, remoteAgentService);
 	}
 
 	protected override getSimpleFileDialog() {
@@ -87,10 +89,10 @@ suite('FileDialogService', function () {
 
 	test('Local - open/save workspaces availableFilesystems', async function () {
 		class TestSimpleFileDialog implements ISimpleFileDialog {
-			async showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined> {
+			async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 				assert.strictEqual(options.availableFileSystems?.length, 1);
 				assert.strictEqual(options.availableFileSystems[0], Schemas.file);
-				return testFile;
+				return [testFile];
 			}
 			async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 				assert.strictEqual(options.availableFileSystems?.length, 1);
@@ -109,10 +111,10 @@ suite('FileDialogService', function () {
 
 	test('Virtual - open/save workspaces availableFilesystems', async function () {
 		class TestSimpleFileDialog {
-			async showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined> {
+			async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 				assert.strictEqual(options.availableFileSystems?.length, 1);
 				assert.strictEqual(options.availableFileSystems[0], Schemas.file);
-				return testFile;
+				return [testFile];
 			}
 			async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 				assert.strictEqual(options.availableFileSystems?.length, 1);
@@ -135,11 +137,11 @@ suite('FileDialogService', function () {
 
 	test('Remote - open/save workspaces availableFilesystems', async function () {
 		class TestSimpleFileDialog implements ISimpleFileDialog {
-			async showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined> {
+			async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 				assert.strictEqual(options.availableFileSystems?.length, 2);
 				assert.strictEqual(options.availableFileSystems[0], Schemas.vscodeRemote);
 				assert.strictEqual(options.availableFileSystems[1], Schemas.file);
-				return testFile;
+				return [testFile];
 			}
 			async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 				assert.strictEqual(options.availableFileSystems?.length, 2);
@@ -168,8 +170,8 @@ suite('FileDialogService', function () {
 
 	test('Remote - filters default files/folders to RA (#195938)', async function () {
 		class TestSimpleFileDialog implements ISimpleFileDialog {
-			async showOpenDialog(): Promise<URI | undefined> {
-				return testFile;
+			async showOpenDialog(): Promise<URI[] | undefined> {
+				return [testFile];
 			}
 			async showSaveDialog(): Promise<URI | undefined> {
 				return testFile;

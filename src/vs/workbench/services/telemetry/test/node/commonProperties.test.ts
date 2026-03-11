@@ -12,9 +12,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { hasKey } from '../../../../../base/common/types.js';
 
 suite('Telemetry - common properties', function () {
-	const commit: string = (undefined)!;
-	const version: string = (undefined)!;
-	const date = undefined;
 	let testStorageService: InMemoryStorageService;
 
 	teardown(() => {
@@ -28,7 +25,7 @@ suite('Telemetry - common properties', function () {
 	});
 
 	test('default', function () {
-		const props = resolveWorkbenchCommonProperties(testStorageService, release(), hostname(), commit, version, 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process, date);
+		const props = resolveWorkbenchCommonProperties(testStorageService, undefined!, release(), hostname(), 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process);
 		assert.ok(hasKey(props, {
 			commitHash: true,
 			sessionID: true,
@@ -54,14 +51,14 @@ suite('Telemetry - common properties', function () {
 
 		testStorageService.store('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const props = resolveWorkbenchCommonProperties(testStorageService, release(), hostname(), commit, version, 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process, date);
+		const props = resolveWorkbenchCommonProperties(testStorageService, undefined!, release(), hostname(), 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process);
 		assert.ok(props['common.lastSessionDate']); // conditional, see below
 		assert.ok(props['common.isNewSession']);
 		assert.strictEqual(props['common.isNewSession'], '0');
 	});
 
 	test('values chance on ask', async function () {
-		const props = resolveWorkbenchCommonProperties(testStorageService, release(), hostname(), commit, version, 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process, date);
+		const props = resolveWorkbenchCommonProperties(testStorageService, undefined!, release(), hostname(), 'someMachineId', 'someSqmId', 'somedevDeviceId', false, process);
 		let value1 = props['common.sequence'];
 		let value2 = props['common.sequence'];
 		assert.ok(value1 !== value2, 'seq');

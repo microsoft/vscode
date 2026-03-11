@@ -7,7 +7,6 @@ import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
@@ -21,15 +20,16 @@ import { ILanguageService } from '../../../../../../common/languages/language.js
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel/inlineDecorations.js';
 import { GhostText, GhostTextPart } from '../../../model/ghostText.js';
+import { InlineCompletionEditorType } from '../../../model/provideInlineCompletions.js';
 import { GhostTextView, IGhostTextWidgetData } from '../../ghostText/ghostTextView.js';
 import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getModifiedBorderColor, modifiedBackgroundColor } from '../theme.js';
+import { getEditorBackgroundColor, getModifiedBorderColor, INLINE_EDITS_BORDER_RADIUS, modifiedBackgroundColor } from '../theme.js';
 import { getPrefixTrim, mapOutFalsy } from '../utils/utils.js';
 
 const BORDER_WIDTH = 1;
 const WIDGET_SEPARATOR_WIDTH = 1;
 const WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH = 3;
-const BORDER_RADIUS = 4;
+const BORDER_RADIUS = INLINE_EDITS_BORDER_RADIUS;
 
 export class InlineEditsInsertionView extends Disposable implements IInlineEditsView {
 	private readonly _editorObs: ObservableCodeEditor;
@@ -126,7 +126,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			lineNumber: number;
 			startColumn: number;
 			text: string;
-			inDiffEditor: boolean;
+			editorType: InlineCompletionEditorType;
 		} | undefined>,
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -272,17 +272,18 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 			layoutInfo.overlay.bottom
 		)).read(reader);
 
-		const separatorWidth = this._input.map(i => i?.inDiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH : WIDGET_SEPARATOR_WIDTH).read(reader);
+		const separatorWidth = this._input.map(i => i?.editorType === InlineCompletionEditorType.DiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH : WIDGET_SEPARATOR_WIDTH).read(reader);
 		const overlayRect = overlayLayoutObs.map(l => l.overlay.withMargin(0, BORDER_WIDTH, 0, l.startsAtContentLeft ? 0 : BORDER_WIDTH).intersectHorizontal(new OffsetRange(overlayHider.left, Number.MAX_SAFE_INTEGER)));
 		const underlayRect = overlayRect.map(rect => rect.withMargin(separatorWidth, separatorWidth));
 
+		const editorBackground = getEditorBackgroundColor(this._input.read(undefined)?.editorType ?? InlineCompletionEditorType.TextEditor);
 		return [
 			n.div({
 				class: 'originalUnderlayInsertion',
 				style: {
 					...underlayRect.read(reader).toStyles(),
 					borderRadius: BORDER_RADIUS,
-					border: `${BORDER_WIDTH + separatorWidth}px solid ${asCssVariable(editorBackground)}`,
+					border: `${BORDER_WIDTH + separatorWidth}px solid ${editorBackground}`,
 					boxSizing: 'border-box',
 				}
 			}),
@@ -300,7 +301,7 @@ export class InlineEditsInsertionView extends Disposable implements IInlineEdits
 				class: 'originalOverlayHiderInsertion',
 				style: {
 					...overlayHider.toStyles(),
-					backgroundColor: asCssVariable(editorBackground),
+					backgroundColor: editorBackground,
 				}
 			})
 		];

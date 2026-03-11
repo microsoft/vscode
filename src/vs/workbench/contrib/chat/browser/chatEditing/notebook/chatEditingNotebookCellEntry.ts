@@ -6,7 +6,6 @@
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { IRange } from '../../../../../../editor/common/core/range.js';
 import { IDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit } from '../../../../../../editor/common/languages.js';
@@ -16,8 +15,8 @@ import { CellEditState } from '../../../../notebook/browser/notebookBrowser.js';
 import { INotebookEditorService } from '../../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
 import { CellKind } from '../../../../notebook/common/notebookCommon.js';
-import { ModifiedFileEntryState } from '../../../common/chatEditingService.js';
-import { IChatResponseModel } from '../../../common/chatModel.js';
+import { ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatEditingTextModelChangeService } from '../chatEditingTextModelChangeService.js';
 
 
@@ -74,11 +73,6 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 			}
 		}));
-
-	}
-
-	public hasModificationAt(range: IRange): boolean {
-		return this._textModelChangeService.hasHunkAt(range);
 	}
 
 	public clearCurrentEditLineDecoration() {

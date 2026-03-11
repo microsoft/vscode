@@ -513,7 +513,7 @@
 		"action": "updateLabels",
 		"addLabel": "verification-steps-needed",
 		"removeLabel": "~verification-steps-needed",
-		"comment": "Friendly ping! Looks like this issue requires some further steps to be verified. Please provide us with the steps necessary to verify this issue."
+		"comment": "Friendly ping for the VS Code team member who owns this issue- Looks like this issue requires some further steps to be verified. Please provide us with the steps necessary to verify this issue."
 	},
 	{
 		"type": "label",
@@ -631,7 +631,7 @@
 		"addLabel": "capi",
 		"removeLabel": "~capi",
 		"assign": [
-			"samvantran",
+			"rheapatel",
 			"sharonlo"
 		],
 		"comment": "Thank you for creating this issue! Please provide one or more `requestIds` to help the platform team investigate. You can follow instructions [found here](https://github.com/microsoft/vscode/wiki/Copilot-Issues#language-model-requests-and-responses) to locate the `requestId` value.\n\nHappy Coding!"

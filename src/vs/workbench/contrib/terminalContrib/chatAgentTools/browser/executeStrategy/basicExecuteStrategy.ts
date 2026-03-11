@@ -6,14 +6,14 @@
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { setupRecreatingStartMarker } from './strategyHelpers.js';
+import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHelpers.js';
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -37,11 +37,11 @@ import { setupRecreatingStartMarker } from './strategyHelpers.js';
  * output. We lean on the LLM to be able to differentiate the actual output from prompts and bad
  * output when it's not ideal.
  */
-export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
+export class BasicExecuteStrategy extends Disposable implements ITerminalExecuteStrategy {
 	readonly type = 'basic';
-	private readonly _startMarker = new MutableDisposable<IXtermMarker>();
+	private readonly _startMarker = this._register(new MutableDisposable<IXtermMarker>());
 
-	private readonly _onDidCreateStartMarker = new Emitter<IXtermMarker | undefined>;
+	private readonly _onDidCreateStartMarker = this._register(new Emitter<IXtermMarker | undefined>);
 	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
 
 
@@ -51,6 +51,7 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 		private readonly _commandDetection: ICommandDetectionCapability,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
+		super();
 	}
 
 	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
@@ -92,6 +93,7 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			if (!xterm) {
 				throw new Error('Xterm is not available');
 			}
+			const alternateBufferPromise = createAltBufferPromise(xterm, store, this._log.bind(this));
 
 			// Wait for the terminal to idle before executing the command
 			this._log('Waiting for idle');
@@ -126,9 +128,18 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			// Wait for the next end execution event - note that this may not correspond to the actual
 			// execution requested
 			this._log('Waiting for done event');
-			const onDoneResult = await onDone;
+			const onDoneResult = await Promise.race([onDone, alternateBufferPromise.then(() => ({ type: 'alternateBuffer' } as const))]);
 			if (onDoneResult && onDoneResult.type === 'disposal') {
 				throw new Error('The terminal was closed');
+			}
+			if (onDoneResult && onDoneResult.type === 'alternateBuffer') {
+				this._log('Detected alternate buffer entry, skipping output capture');
+				return {
+					output: undefined,
+					exitCode: undefined,
+					error: 'alternateBuffer',
+					didEnterAltBuffer: true
+				};
 			}
 			const finishedCommand = onDoneResult && onDoneResult.type === 'success' ? onDoneResult.command : undefined;
 			if (finishedCommand) {

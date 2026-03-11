@@ -589,6 +589,18 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				targetTextModel.setLanguage(sourceLanguageId); // only use if more specific than plain/text
 			}
 
+			// indentation options (preserve tabs vs spaces, tab size, indent size)
+			const sourceOptions = sourceTextModel.getOptions();
+			targetTextModel.updateOptions({
+				tabSize: sourceOptions.tabSize,
+				indentSize: sourceOptions.indentSize,
+				insertSpaces: sourceOptions.insertSpaces
+			});
+
+			// end of line sequence (preserve LF vs CRLF)
+			const sourceEOL = sourceTextModel.getEndOfLineSequence();
+			targetTextModel.setEOL(sourceEOL);
+
 			// transient properties
 			const sourceTransientProperties = this.codeEditorService.getTransientModelProperties(sourceTextModel);
 			if (sourceTransientProperties) {

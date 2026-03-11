@@ -13,9 +13,8 @@ import { tmpdir } from 'os';
 import { existsSync, mkdirSync, rmSync } from 'fs';
 import * as task from './lib/task.ts';
 import watcher from './lib/watch/index.ts';
-import { debounce } from './lib/util.ts';
+import { debounce, untar } from './lib/util.ts';
 import { createReporter } from './lib/reporter.ts';
-import untar from 'gulp-untar';
 import gunzip from 'gulp-gunzip';
 
 const root = 'cli';

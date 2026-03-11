@@ -22,12 +22,12 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/q
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
-import { IChatContextPicker, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../../../chat/browser/chatContextPickService.js';
-import { ChatDynamicVariableModel } from '../../../../chat/browser/contrib/chatDynamicVariables.js';
-import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatInputCompletions.js';
-import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
-import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
-import { chatVariableLeader } from '../../../../chat/common/chatParserTypes.js';
+import { IChatContextPicker, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../../../chat/browser/attachments/chatContextPickService.js';
+import { ChatDynamicVariableModel } from '../../../../chat/browser/attachments/chatDynamicVariables.js';
+import { computeCompletionRanges } from '../../../../chat/browser/widget/input/editor/chatInputCompletions.js';
+import { IChatAgentService } from '../../../../chat/common/participants/chatAgents.js';
+import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
+import { chatVariableLeader } from '../../../../chat/common/requestParser/chatParserTypes.js';
 import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_OUTPUT_MIME_TYPE_LIST_FOR_CHAT, NOTEBOOK_CELL_OUTPUT_MIMETYPE } from '../../../common/notebookContextKeys.js';
 import { INotebookKernelService } from '../../../common/notebookKernelService.js';

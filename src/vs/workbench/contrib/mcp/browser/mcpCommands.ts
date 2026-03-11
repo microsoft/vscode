@@ -50,20 +50,22 @@ import { IUserDataProfileService } from '../../../services/userDataProfile/commo
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService.js';
-import { ChatModeKind } from '../../chat/common/constants.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
+import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
-import { ILanguageModelToolsService } from '../../chat/common/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
-import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
+import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
+import { McpAddConfigurationCommand, McpInstallFromManifestCommand } from './mcpCommandsAddConfiguration.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
+import { startServerAndWaitForLiveTools } from '../common/mcpTypesUtils.js';
+import { isContributionDisabled } from '../../chat/common/enablement.js';
 import './media/mcpServerAction.css';
 import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
 
@@ -103,6 +105,7 @@ export class ListMcpServerCommand extends Action2 {
 		const mcpService = accessor.get(IMcpService);
 		const commandService = accessor.get(ICommandService);
 		const quickInput = accessor.get(IQuickInputService);
+		const mcpWorkbenchService = accessor.get(IMcpWorkbenchService);
 
 		type ItemType = { id: string } & IQuickPickItem;
 
@@ -121,11 +124,16 @@ export class ListMcpServerCommand extends Action2 {
 				{ id: '$add', label: localize('mcp.addServer', 'Add Server'), description: localize('mcp.addServer.description', 'Add a new server configuration'), alwaysShow: true, iconClass: ThemeIcon.asClassName(Codicon.add) },
 				...Object.values(servers).filter(s => s!.length).flatMap((servers): (ItemType | IQuickPickSeparator)[] => [
 					{ type: 'separator', label: servers![0].collection.label, id: servers![0].collection.id },
-					...servers!.map(server => ({
-						id: server.definition.id,
-						label: server.definition.label,
-						description: McpConnectionState.toString(server.connectionState.read(reader)),
-					})),
+					...servers!.map(server => {
+						const disabled = isContributionDisabled(server.enablement.read(reader));
+						return {
+							id: server.definition.id,
+							label: server.definition.label,
+							description: disabled
+								? localize('mcp.disabled', 'Disabled')
+								: McpConnectionState.toString(server.connectionState.read(reader)),
+						};
+					}),
 				]),
 			];
 
@@ -152,7 +160,15 @@ export class ListMcpServerCommand extends Action2 {
 		} else if (picked.id === '$add') {
 			commandService.executeCommand(McpCommandIds.AddConfiguration);
 		} else {
-			commandService.executeCommand(McpCommandIds.ServerOptions, picked.id);
+			const server = mcpService.servers.get().find(s => s.definition.id === picked.id);
+			if (server && isContributionDisabled(server.enablement.get())) {
+				const workbenchServer = mcpWorkbenchService.local.find(s => s.id === picked.id);
+				if (workbenchServer) {
+					mcpWorkbenchService.open(workbenchServer);
+				}
+			} else {
+				commandService.executeCommand(McpCommandIds.ServerOptions, picked.id);
+			}
 		}
 	}
 }
@@ -549,9 +565,10 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 
 				protected override getHoverContents({ state, servers } = displayedStateCurrent.get()): string | undefined | IManagedHoverTooltipHTMLElement {
 					const link = (s: IMcpServer) => createMarkdownCommandLink({
-						title: s.definition.label,
+						text: s.definition.label,
 						id: McpCommandIds.ServerOptions,
 						arguments: [s.definition.id],
+						tooltip: localize('mcp.server.options.tooltip', 'Show server options for {0}', s.definition.label),
 					});
 
 					const single = servers.length === 1;
@@ -715,6 +732,26 @@ export class AddConfigurationAction extends Action2 {
 	}
 }
 
+export class InstallFromManifestAction extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.InstallFromManifest,
+			title: localize2('mcp.installFromManifest', "Install Server from Manifest..."),
+			metadata: {
+				description: localize2('mcp.installFromManifest.description', "Install an MCP server from a JSON manifest file"),
+			},
+			category,
+			f1: true,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
+		return instantiationService.createInstance(McpInstallFromManifestCommand).run();
+	}
+}
+
 
 export class RemoveStoredInput extends Action2 {
 	constructor() {
@@ -821,9 +858,18 @@ export class StartServer extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts) {
-		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
-		await s?.start({ promptType: 'all-untrusted', ...opts });
+	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts & { waitForLiveTools?: boolean }) {
+		let servers = accessor.get(IMcpService).servers.get();
+		if (serverId !== '*') {
+			servers = servers.filter(s => s.definition.id === serverId);
+		}
+
+		const startOpts: IMcpServerStartOpts = { promptType: 'all-untrusted', ...opts };
+		if (opts?.waitForLiveTools) {
+			await Promise.all(servers.map(s => startServerAndWaitForLiveTools(s, startOpts)));
+		} else {
+			await Promise.all(servers.map(s => s.start(startOpts)));
+		}
 	}
 }
 
@@ -1057,7 +1103,7 @@ export class McpConfigureSamplingModels extends Action2 {
 				label: model.name,
 				description: model.tooltip,
 				id,
-				picked: existingIds.size ? existingIds.has(id) : model.isDefault,
+				picked: existingIds.size ? existingIds.has(id) : model.isDefaultForLocation[ChatAgentLocation.Chat],
 			};
 		}).filter(isDefined);
 

@@ -1,0 +1,41 @@
+{
+	"version": 1,
+	"hooks": {
+		"sessionStart": [
+			{
+				"type": "command",
+				"bash": ""
+			}
+		],
+		"sessionEnd": [
+			{
+				"type": "command",
+				"bash": ""
+			}
+		],
+		"agentStop": [
+			{
+				"type": "command",
+				"bash": ""
+			}
+		],
+		"userPromptSubmitted": [
+			{
+				"type": "command",
+				"bash": ""
+			}
+		],
+		"preToolUse": [
+			{
+				"type": "command",
+				"bash": ""
+			}
+		],
+		"postToolUse": [
+			{
+				"type": "command",
+				"bash": ""
+			}
+		]
+	}
+}

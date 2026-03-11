@@ -1,0 +1,39 @@
+{
+	"scenario": "Scenario: Session appears in sidebar after sending a message",
+	"generatedAt": "2026-03-10T00:00:00.000Z",
+	"note": "Uses semantic selectors — regenerate with 'npm run generate' if UI labels change",
+	"steps": [
+		{
+			"description": "Type \"fix the bug\" in the chat input",
+			"commands": [
+				"click textbox \"Chat input\"",
+				"type \"fix the bug\""
+			]
+		},
+		{
+			"description": "Press Enter to submit",
+			"commands": [
+				"click textbox \"Chat input\"",
+				"press Enter"
+			]
+		},
+		{
+			"description": "Verify the session appears in the sessions list",
+			"commands": [
+				"# ASSERT_VISIBLE: fix the bug"
+			]
+		},
+		{
+			"description": "Toggle the secondary side bar",
+			"commands": [
+				"click button \"Toggle Secondary Side Bar\""
+			]
+		},
+		{
+			"description": "Verify the changes view shows the modified file",
+			"commands": [
+				"# ASSERT_VISIBLE: utils.ts"
+			]
+		}
+	]
+}

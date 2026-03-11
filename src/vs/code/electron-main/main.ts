@@ -496,14 +496,14 @@ class CodeMain {
 	}
 
 	private async checkInnoSetupMutex(productService: IProductService): Promise<boolean> {
-		if (!isWindows || !productService.win32MutexName || productService.quality !== 'insider') {
+		if (!(isWindows && productService.win32MutexName && productService.win32VersionedUpdate)) {
 			return false;
 		}
 
 		try {
-			const readyMutexName = `${productService.win32MutexName}setup`;
+			const updatingMutexName = `${productService.win32MutexName}-updating`;
 			const mutex = await import('@vscode/windows-mutex');
-			return mutex.isActive(readyMutexName);
+			return mutex.isActive(updatingMutexName);
 		} catch (error) {
 			console.error('Failed to check Inno Setup mutex:', error);
 			return false;

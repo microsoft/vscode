@@ -7,7 +7,7 @@ parameters:
 jobs:
   - job: macOS${{ parameters.VSCODE_TEST_SUITE }}
     displayName: ${{ parameters.VSCODE_TEST_SUITE }} Tests
-    timeoutInMinutes: 30
+    timeoutInMinutes: 90
     variables:
       VSCODE_ARCH: arm64
     templateContext:

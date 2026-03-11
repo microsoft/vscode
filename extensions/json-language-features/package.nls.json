@@ -19,6 +19,6 @@
 	"json.enableSchemaDownload.desc": "When enabled, JSON schemas can be fetched from http and https locations.",
 	"json.command.clearCache": "Clear Schema Cache",
 	"json.command.sort": "Sort Document",
-	"json.workspaceTrust": "The extension requires workspace trust to load schemas from http and https."
-
+	"json.workspaceTrust": "The extension requires workspace trust to load schemas from http and https.",
+	"json.schemaDownload.trustedDomains.desc": "List of trusted domains for downloading JSON schemas over http(s). Use '*' to trust all domains. '*' can also be used as a wildcard in domain names."
 }

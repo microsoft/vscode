@@ -3,87 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './experiments/agentSessionsExperiments.contribution.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { localize2 } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { registerSingleton, InstantiationType } from '../../../../../platform/instantiation/common/extensions.js';
-import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
-import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
-import { IViewContainersRegistry, ViewContainerLocation, IViewDescriptor, IViewsRegistry, Extensions as ViewExtensions } from '../../../../common/views.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ChatConfiguration } from '../../common/constants.js';
-import { AGENT_SESSIONS_VIEW_CONTAINER_ID, AGENT_SESSIONS_VIEW_ID, AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from './agentSessions.js';
-import { IAgentSessionsService, AgentSessionsService } from './agentSessionsService.js';
-import { AgentSessionsView } from './agentSessionsView.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { LocalAgentsSessionsProvider } from './localAgentSessionsProvider.js';
+import { Extensions as QuickAccessExtensions, IQuickAccessRegistry } from '../../../../../platform/quickinput/common/quickAccess.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from './agentSessions.js';
+import { IAgentSessionsService, AgentSessionsService } from './agentSessionsService.js';
+import { LocalAgentsSessionsController } from './localAgentSessionsController.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ArchiveAgentSessionAction, UnarchiveAgentSessionAction, RefreshAgentSessionsViewAction, FindAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction } from './agentSessionsActions.js';
-
-//#region View Container and View Registration
-
-const chatAgentsIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View');
-
-const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Agents");
-
-const agentSessionsViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
-	id: AGENT_SESSIONS_VIEW_CONTAINER_ID,
-	title: AGENT_SESSIONS_VIEW_TITLE,
-	icon: chatAgentsIcon,
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [AGENT_SESSIONS_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
-	storageId: AGENT_SESSIONS_VIEW_CONTAINER_ID,
-	hideIfEmpty: true,
-	order: 6,
-}, ViewContainerLocation.AuxiliaryBar);
-
-const agentSessionsViewDescriptor: IViewDescriptor = {
-	id: AGENT_SESSIONS_VIEW_ID,
-	containerIcon: chatAgentsIcon,
-	containerTitle: AGENT_SESSIONS_VIEW_TITLE.value,
-	singleViewPaneContainerTitle: AGENT_SESSIONS_VIEW_TITLE.value,
-	name: AGENT_SESSIONS_VIEW_TITLE,
-	canToggleVisibility: false,
-	canMoveView: true,
-	openCommandActionDescriptor: {
-		id: AGENT_SESSIONS_VIEW_ID,
-		title: AGENT_SESSIONS_VIEW_TITLE
-	},
-	ctorDescriptor: new SyncDescriptor(AgentSessionsView),
-	when: ContextKeyExpr.and(
-		ChatContextKeys.Setup.hidden.negate(),
-		ChatContextKeys.Setup.disabled.negate(),
-		ContextKeyExpr.equals(`config.${ChatConfiguration.AgentSessionsViewLocation}`, 'single-view'),
-	)
-};
-Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([agentSessionsViewDescriptor], agentSessionsViewContainer);
-
-//#endregion
+import { ArchiveAgentSessionAction, ArchiveAgentSessionSectionAction, UnarchiveAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, PickAgentSessionAction, ArchiveAllAgentSessionsAction, MarkAllAgentSessionsReadAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction, MarkAgentSessionSectionReadAction, ToggleShowAgentSessionsAction, UnarchiveAgentSessionSectionAction } from './agentSessionsActions.js';
+import { AgentSessionsQuickAccessProvider, AGENT_SESSIONS_QUICK_ACCESS_PREFIX } from './agentSessionsQuickAccess.js';
 
 //#region Actions and Menus
 
+registerAction2(FocusAgentSessionsAction);
+registerAction2(PickAgentSessionAction);
+registerAction2(ArchiveAllAgentSessionsAction);
+registerAction2(MarkAllAgentSessionsReadAction);
+registerAction2(ArchiveAgentSessionSectionAction);
+registerAction2(UnarchiveAgentSessionSectionAction);
+registerAction2(MarkAgentSessionSectionReadAction);
 registerAction2(ArchiveAgentSessionAction);
 registerAction2(UnarchiveAgentSessionAction);
+registerAction2(RenameAgentSessionAction);
+registerAction2(DeleteAgentSessionAction);
+registerAction2(DeleteAllLocalSessionsAction);
 registerAction2(MarkAgentSessionUnreadAction);
 registerAction2(MarkAgentSessionReadAction);
 registerAction2(OpenAgentSessionInNewWindowAction);
 registerAction2(OpenAgentSessionInEditorGroupAction);
 registerAction2(OpenAgentSessionInNewEditorGroupAction);
-registerAction2(RefreshAgentSessionsViewAction);
-registerAction2(FindAgentSessionAction);
 registerAction2(RefreshAgentSessionsViewerAction);
 registerAction2(FindAgentSessionInViewerAction);
 registerAction2(ShowAgentSessionsSidebar);
 registerAction2(HideAgentSessionsSidebar);
+registerAction2(ToggleAgentSessionsSidebar);
+registerAction2(ToggleShowAgentSessionsAction);
+registerAction2(SetAgentSessionsOrientationStackedAction);
+registerAction2(SetAgentSessionsOrientationSideBySideAction);
 
-MenuRegistry.appendMenuItem(MenuId.AgentSessionsViewTitle, {
-	submenu: MenuId.AgentSessionsFilterSubMenu,
-	title: localize2('filterAgentSessions', "Filter Agent Sessions"),
-	group: 'navigation',
-	order: 100,
-	icon: Codicon.filter
-} satisfies ISubmenuItem);
+// --- Agent Sessions Toolbar
 
 MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	submenu: MenuId.AgentSessionsViewerFilterSubMenu,
@@ -91,7 +55,6 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	group: 'navigation',
 	order: 3,
 	icon: Codicon.filter,
-	when: ChatContextKeys.agentSessionsViewerLimited.negate()
 } satisfies ISubmenuItem);
 
 MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
@@ -150,11 +113,64 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	)
 });
 
+// --- Sessions Title Toolbar
+
+MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
+	command: {
+		id: ShowAgentSessionsSidebar.ID,
+		title: ShowAgentSessionsSidebar.TITLE,
+		icon: Codicon.layoutSidebarLeftOff,
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.or(
+			ChatContextKeys.agentSessionsViewerVisible.negate(),
+			ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+		),
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
+	)
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
+	command: {
+		id: ShowAgentSessionsSidebar.ID,
+		title: ShowAgentSessionsSidebar.TITLE,
+		icon: Codicon.layoutSidebarRightOff,
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.or(
+			ChatContextKeys.agentSessionsViewerVisible.negate(),
+			ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+		),
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
+	)
+});
+
+//#endregion
+
+//#region Quick Access
+
+Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
+	ctor: AgentSessionsQuickAccessProvider,
+	prefix: AGENT_SESSIONS_QUICK_ACCESS_PREFIX,
+	contextKey: 'inAgentSessionsPicker',
+	when: ChatContextKeys.enabled,
+	placeholder: localize('agentSessionsQuickAccessPlaceholder', "Search agent sessions by name"),
+	helpEntries: [{
+		description: localize('agentSessionsQuickAccessHelp', "Show All Agent Sessions"),
+		commandId: 'workbench.action.chat.history',
+	}]
+});
+
 //#endregion
 
 //#region Workbench Contributions
 
-registerWorkbenchContribution2(LocalAgentsSessionsProvider.ID, LocalAgentsSessionsProvider, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(LocalAgentsSessionsController.ID, LocalAgentsSessionsController, WorkbenchPhase.AfterRestored);
+
 registerSingleton(IAgentSessionsService, AgentSessionsService, InstantiationType.Delayed);
 
 //#endregion

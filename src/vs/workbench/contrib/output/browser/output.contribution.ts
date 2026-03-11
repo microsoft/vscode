@@ -29,7 +29,6 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ILoggerService, LogLevel, LogLevelToLocalizedString, LogLevelToString } from '../../../../platform/log/common/log.js';
-import { IDefaultLogLevelsService } from '../../logs/common/defaultLogLevels.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
@@ -43,11 +42,17 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { IDefaultLogLevelsService } from '../../../services/log/common/defaultLogLevels.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { OutputAccessibilityHelp } from './outputAccessibilityHelp.js';
 
 const IMPORTED_LOG_ID_PREFIX = 'importedLog.';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
+
+// Register Accessibility Help
+AccessibleViewRegistry.register(new OutputAccessibilityHelp());
 
 // Register Output Mode
 ModesRegistry.registerLanguage({

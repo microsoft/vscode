@@ -238,6 +238,8 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				listInactiveFocusForeground: quickInputListFocusForeground,
 				listInactiveSelectionIconForeground: quickInputListFocusIconForeground,
 				listInactiveFocusBackground: quickInputListFocusBackground,
+				listInactiveSelectionBackground: quickInputListFocusBackground,
+				listInactiveSelectionForeground: quickInputListFocusForeground,
 				listFocusOutline: activeContrastBorder,
 				listInactiveFocusOutline: activeContrastBorder,
 				treeStickyScrollBackground: quickInputBackground,

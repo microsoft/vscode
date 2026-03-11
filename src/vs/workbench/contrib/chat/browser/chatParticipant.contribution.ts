@@ -17,6 +17,7 @@ import { ExtensionIdentifier, IExtensionManifest } from '../../../../platform/ex
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
@@ -25,19 +26,21 @@ import { isProposedApiEnabled } from '../../../services/extensions/common/extens
 import * as extensionsRegistry from '../../../services/extensions/common/extensionsRegistry.js';
 import { showExtensionsWithIdsCommandId } from '../../extensions/browser/extensionsActions.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IRawChatParticipantContribution } from '../common/chatParticipantContribTypes.js';
+import { IChatAgentData, IChatAgentService } from '../common/participants/chatAgents.js';
+import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
+import { IRawChatParticipantContribution } from '../common/participants/chatParticipantContribTypes.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatViewId, ChatViewContainerId } from './chat.js';
-import { ChatViewPane } from './chatViewPane.js';
+import { ChatViewPane } from './widgetHosts/viewPane/chatViewPane.js';
 
 // --- Chat Container &  View Registration
+
+const chatViewIcon = registerIcon('chat-view-icon', Codicon.chatSparkle, localize('chatViewIcon', 'View icon of the chat view.'));
 
 const chatViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: ChatViewContainerId,
 	title: localize2('chat.viewContainer.label', "Chat"),
-	icon: Codicon.chatSparkle,
+	icon: chatViewIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [ChatViewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: ChatViewContainerId,
 	hideIfEmpty: true,

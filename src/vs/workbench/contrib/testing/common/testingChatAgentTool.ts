@@ -29,7 +29,7 @@ import {
 	IToolResult,
 	ToolDataSource,
 	ToolProgress,
-} from '../../chat/common/languageModelToolsService.js';
+} from '../../chat/common/tools/languageModelToolsService.js';
 import { TestId } from './testId.js';
 import { FileCoverage, getTotalCoveragePercent } from './testCoverage.js';
 import { TestingContextKeys } from './testingContextKeys.js';

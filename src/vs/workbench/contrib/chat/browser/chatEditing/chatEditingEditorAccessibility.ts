@@ -8,7 +8,7 @@ import { autorun, observableFromEvent } from '../../../../../base/common/observa
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatEditingService } from '../../common/editing/chatEditingService.js';
 
 export class ChatEditingEditorAccessibility implements IWorkbenchContribution {
 

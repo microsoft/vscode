@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
-import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, privateExtensionIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, warningIcon } from './extensionsIcons.js';
+import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, privateExtensionIcon, ratingIcon, remoteIcon, restartRequiredIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, warningIcon } from './extensionsIcons.js';
 import { registerColor, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -76,6 +76,7 @@ export function onClick(element: HTMLElement, callback: () => void): IDisposable
 export class ExtensionIconWidget extends ExtensionWidget {
 
 	private readonly iconLoadingDisposable = this._register(new MutableDisposable());
+	private readonly iconErrorDisposable = this._register(new MutableDisposable());
 	private readonly element: HTMLElement;
 	private readonly iconElement: HTMLImageElement;
 	private readonly defaultIconElement: HTMLElement;
@@ -103,6 +104,7 @@ export class ExtensionIconWidget extends ExtensionWidget {
 		this.iconElement.src = '';
 		this.iconElement.style.display = 'none';
 		this.defaultIconElement.style.display = 'none';
+		this.iconErrorDisposable.clear();
 		this.iconLoadingDisposable.clear();
 	}
 
@@ -117,7 +119,7 @@ export class ExtensionIconWidget extends ExtensionWidget {
 				this.iconElement.style.display = 'inherit';
 				this.defaultIconElement.style.display = 'none';
 				this.iconUrl = this.extension.iconUrl;
-				this.iconLoadingDisposable.value = addDisposableListener(this.iconElement, 'error', () => {
+				this.iconErrorDisposable.value = addDisposableListener(this.iconElement, 'error', () => {
 					if (this.extension?.iconUrlFallback) {
 						this.iconElement.src = this.extension.iconUrlFallback;
 					} else {
@@ -128,7 +130,9 @@ export class ExtensionIconWidget extends ExtensionWidget {
 				this.iconElement.src = this.iconUrl;
 				if (!this.iconElement.complete) {
 					this.iconElement.style.visibility = 'hidden';
-					this.iconElement.onload = () => this.iconElement.style.visibility = 'inherit';
+					this.iconLoadingDisposable.value = addDisposableListener(this.iconElement, 'load', () => {
+						this.iconElement.style.visibility = 'inherit';
+					});
 				} else {
 					this.iconElement.style.visibility = 'inherit';
 				}
@@ -138,6 +142,7 @@ export class ExtensionIconWidget extends ExtensionWidget {
 			this.iconElement.style.display = 'none';
 			this.iconElement.src = '';
 			this.defaultIconElement.style.display = 'inherit';
+			this.iconErrorDisposable.clear();
 			this.iconLoadingDisposable.clear();
 		}
 	}
@@ -691,6 +696,34 @@ export class SyncIgnoredWidget extends ExtensionWidget {
 			const element = append(this.container, $('span.extension-sync-ignored' + ThemeIcon.asCSSSelector(syncIgnoredIcon)));
 			this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), element, localize('syncingore.label', "This extension is ignored during sync.")));
 			element.classList.add(...ThemeIcon.asClassNameArray(syncIgnoredIcon));
+		}
+	}
+}
+
+export class ExtensionRestartRequiredWidget extends ExtensionWidget {
+
+	private readonly disposables = this._register(new DisposableStore());
+
+	constructor(
+		private readonly container: HTMLElement,
+		@IHoverService private readonly hoverService: IHoverService,
+	) {
+		super();
+	}
+
+	render(): void {
+		this.disposables.clear();
+		this.container.innerText = '';
+
+		const runtimeState = this.extension?.runtimeState;
+		const reason = typeof runtimeState?.reason === 'string' ? runtimeState.reason : '';
+
+		// Only show "Restart Required" when the runtime state reason clearly indicates
+		// a restart or reload is needed, to avoid mislabeling other runtime actions.
+		if (runtimeState && /restart|reload/i.test(reason)) {
+			const element = append(this.container, $('span.extension-restart-required' + ThemeIcon.asCSSSelector(restartRequiredIcon)));
+			append(this.container, $('span.extension-restart-required-label', undefined, localize('restart required', "Restart Required")));
+			this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), element, reason));
 		}
 	}
 }

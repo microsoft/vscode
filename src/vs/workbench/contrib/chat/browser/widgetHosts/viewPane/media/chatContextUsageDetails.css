@@ -1,0 +1,222 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Remove the outline and change border color on focus instead */
+.workbench-hover-container.locked:has(.chat-context-usage-details) .monaco-hover.workbench-hover {
+	outline: none;
+}
+.workbench-hover-container:focus-within.locked:has(.chat-context-usage-details) .monaco-hover.workbench-hover {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+}
+
+.chat-context-usage-details {
+	display: flex;
+	flex-direction: column;
+	margin-top: 4px;
+	margin-bottom: 4px;
+	min-width: 200px;
+}
+
+.chat-context-usage-details:focus {
+	outline: none;
+}
+
+/* Section headers — matching ChatStatusDashboard */
+.chat-context-usage-details div.header {
+	display: flex;
+	align-items: center;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 4px;
+	font-weight: 600;
+}
+
+/* Quota indicator — matching ChatStatusDashboard */
+.chat-context-usage-details .quota-indicator .quota-label {
+	display: flex;
+	justify-content: space-between;
+	gap: 20px;
+	margin-bottom: 3px;
+}
+
+.chat-context-usage-details .quota-indicator .quota-label .quota-value {
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-context-usage-details .quota-indicator .quota-bar {
+	width: 100%;
+	height: 4px;
+	background-color: var(--vscode-gauge-background);
+	border-radius: 4px;
+	border: 1px solid var(--vscode-gauge-border);
+	margin: 4px 0;
+	display: flex;
+}
+
+.chat-context-usage-details .quota-indicator .quota-bar .quota-bit {
+	height: 100%;
+	background-color: var(--vscode-gauge-foreground);
+	border-radius: 4px;
+	transition: width 0.3s ease;
+}
+
+.chat-context-usage-details .quota-indicator .quota-bar .quota-bit.output-buffer {
+	background: repeating-linear-gradient(
+		-45deg,
+		var(--vscode-gauge-foreground),
+		var(--vscode-gauge-foreground) 2px,
+		transparent 2px,
+		transparent 4px
+	);
+	border-radius: 0 4px 4px 0;
+}
+
+.chat-context-usage-details .quota-indicator .quota-bar .quota-bit:not(.output-buffer):has(+ .quota-bit.output-buffer:not([style*="display: none"])) {
+	border-radius: 4px 0 0 4px;
+}
+
+/* Output buffer legend */
+.chat-context-usage-details .quota-indicator .output-buffer-legend {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 4px;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-context-usage-details .quota-indicator .output-buffer-legend .output-buffer-swatch {
+	width: 12px;
+	height: 8px;
+	border-radius: 2px;
+	background: repeating-linear-gradient(
+		-45deg,
+		var(--vscode-gauge-foreground),
+		var(--vscode-gauge-foreground) 2px,
+		transparent 2px,
+		transparent 4px
+	);
+	flex-shrink: 0;
+}
+
+.chat-context-usage-details .quota-indicator.warning .output-buffer-swatch {
+	background: repeating-linear-gradient(
+		-45deg,
+		var(--vscode-gauge-warningForeground),
+		var(--vscode-gauge-warningForeground) 2px,
+		transparent 2px,
+		transparent 4px
+	);
+}
+
+.chat-context-usage-details .quota-indicator.warning .quota-bar {
+	background-color: var(--vscode-gauge-warningBackground);
+}
+
+.chat-context-usage-details .quota-indicator.warning .quota-bar .quota-bit {
+	background-color: var(--vscode-gauge-warningForeground);
+}
+
+.chat-context-usage-details .quota-indicator.warning .quota-bar .quota-bit.output-buffer {
+	background: repeating-linear-gradient(
+		-45deg,
+		var(--vscode-gauge-warningForeground),
+		var(--vscode-gauge-warningForeground) 2px,
+		transparent 2px,
+		transparent 4px
+	);
+}
+
+.chat-context-usage-details .quota-indicator.error .output-buffer-swatch {
+	background: repeating-linear-gradient(
+		-45deg,
+		var(--vscode-gauge-errorForeground),
+		var(--vscode-gauge-errorForeground) 2px,
+		transparent 2px,
+		transparent 4px
+	);
+}
+
+.chat-context-usage-details .quota-indicator.error .quota-bar {
+	background-color: var(--vscode-gauge-errorBackground);
+}
+
+.chat-context-usage-details .quota-indicator.error .quota-bar .quota-bit {
+	background-color: var(--vscode-gauge-errorForeground);
+}
+
+.chat-context-usage-details .quota-indicator.error .quota-bar .quota-bit.output-buffer {
+	background: repeating-linear-gradient(
+		-45deg,
+		var(--vscode-gauge-errorForeground),
+		var(--vscode-gauge-errorForeground) 2px,
+		transparent 2px,
+		transparent 4px
+	);
+}
+
+/* Description / warning text — matching ChatStatusDashboard */
+.chat-context-usage-details div.description {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	display: flex;
+	align-items: center;
+	gap: 3px;
+}
+
+/* Token details breakdown */
+.chat-context-usage-details .token-category {
+	margin-bottom: 6px;
+}
+
+.chat-context-usage-details .token-category-header {
+	display: flex;
+	align-items: center;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 16px;
+	margin-bottom: 4px;
+	font-weight: 600;
+}
+
+.chat-context-usage-details .token-category:first-child .token-category-header {
+	margin-top: 8px;
+}
+
+.chat-context-usage-details .token-detail-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 20px;
+	margin-bottom: 2px;
+}
+
+.chat-context-usage-details .token-detail-label {
+	color: var(--vscode-foreground);
+}
+
+.chat-context-usage-details .token-detail-value {
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Actions section */
+.chat-context-usage-details .actions-section {
+	margin-top: 8px;
+}
+
+.chat-context-usage-details .actions-section .button-bar-container {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.chat-context-usage-details .actions-section .button-bar-container .monaco-button-bar {
+	flex-direction: column;
+	gap: 4px;
+}
+
+.chat-context-usage-details .actions-section .button-bar-container .monaco-button {
+	width: 100%;
+	justify-content: center;
+}

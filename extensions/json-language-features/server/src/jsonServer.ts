@@ -5,7 +5,7 @@
 
 import {
 	Connection,
-	TextDocuments, InitializeParams, InitializeResult, NotificationType, RequestType,
+	TextDocuments, InitializeParams, InitializeResult, NotificationType, RequestType, ResponseError,
 	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit, DocumentFormattingRequest, TextDocumentIdentifier, FormattingOptions, Diagnostic, CodeAction, CodeActionKind
 } from 'vscode-languageserver';
 
@@ -34,6 +34,10 @@ namespace SchemaContentChangeNotification {
 
 namespace ForceValidateRequest {
 	export const type: RequestType<string, Diagnostic[], any> = new RequestType('json/validate');
+}
+
+namespace ForceValidateAllRequest {
+	export const type: RequestType<void, void, any> = new RequestType('json/validateAll');
 }
 
 namespace LanguageStatusRequest {
@@ -102,8 +106,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			}
 			return connection.sendRequest(VSCodeContentRequest.type, uri).then(responseText => {
 				return responseText;
-			}, error => {
-				return Promise.reject(error.message);
+			}, (error: ResponseError<any>) => {
+				return Promise.reject(error);
 			});
 		};
 	}
@@ -298,6 +302,10 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	// Retry schema validation on all open documents
+	connection.onRequest(ForceValidateAllRequest.type, async () => {
+		diagnosticsSupport?.requestRefresh();
+	});
+
 	connection.onRequest(ForceValidateRequest.type, async uri => {
 		const document = documents.get(uri);
 		if (document) {
@@ -387,11 +395,11 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	connection.onDidChangeWatchedFiles((change) => {
 		// Monitored files have changed in VSCode
 		let hasChanges = false;
-		change.changes.forEach(c => {
+		for (const c of change.changes) {
 			if (languageService.resetSchema(c.uri)) {
 				hasChanges = true;
 			}
-		});
+		}
 		if (hasChanges) {
 			diagnosticsSupport?.requestRefresh();
 		}

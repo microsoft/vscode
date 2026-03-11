@@ -12,7 +12,7 @@ import { ILogService } from '../../log/common/log.js';
 
 export class NativePolicyService extends AbstractPolicyService implements IPolicyService {
 
-	private throttler = new Throttler();
+	private throttler = this._register(new Throttler());
 	private readonly watcher = this._register(new MutableDisposable<Watcher>());
 
 	constructor(

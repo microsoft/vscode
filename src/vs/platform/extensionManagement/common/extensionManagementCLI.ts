@@ -14,6 +14,7 @@ import { EXTENSION_IDENTIFIER_REGEX, IExtensionGalleryService, IExtensionInfo, I
 import { areSameExtensions, getExtensionId, getGalleryExtensionId, getIdAndVersion } from './extensionManagementUtil.js';
 import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from '../../extensions/common/extensions.js';
 import { ILogger } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
 
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
@@ -25,10 +26,14 @@ type InstallGalleryExtensionInfo = { id: string; version?: string; installOption
 export class ExtensionManagementCLI {
 
 	constructor(
+		private readonly extensionsForceVersionByQuality: readonly string[],
 		protected readonly logger: ILogger,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-	) { }
+		@IProductService private readonly productService: IProductService,
+	) {
+		this.extensionsForceVersionByQuality = this.extensionsForceVersionByQuality.map(e => e.toLowerCase());
+	}
 
 	protected get location(): string | undefined {
 		return undefined;
@@ -81,6 +86,9 @@ export class ExtensionManagementCLI {
 			const installVSIXInfos: InstallVSIXInfo[] = [];
 			const installExtensionInfos: InstallGalleryExtensionInfo[] = [];
 			const addInstallExtensionInfo = (id: string, version: string | undefined, isBuiltin: boolean) => {
+				if (this.extensionsForceVersionByQuality?.some(e => e === id.toLowerCase())) {
+					version = this.productService.quality !== 'stable' ? 'prerelease' : undefined;
+				}
 				installExtensionInfos.push({ id, version: version !== 'prerelease' ? version : undefined, installOptions: { ...installOptions, isBuiltin, installPreReleaseVersion: version === 'prerelease' || installOptions.installPreReleaseVersion } });
 			};
 			for (const extension of extensions) {

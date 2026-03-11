@@ -17,37 +17,43 @@ export type LanguageClientConstructor = (name: string, description: string, clie
 
 export class MdLanguageClient implements IDisposable {
 
+	readonly #client: BaseLanguageClient;
+	readonly #workspace: VsCodeMdWorkspace;
+
 	constructor(
-		private readonly _client: BaseLanguageClient,
-		private readonly _workspace: VsCodeMdWorkspace,
-	) { }
+		client: BaseLanguageClient,
+		workspace: VsCodeMdWorkspace,
+	) {
+		this.#client = client;
+		this.#workspace = workspace;
+	}
 
 	dispose(): void {
-		this._client.stop();
-		this._workspace.dispose();
+		this.#client.stop();
+		this.#workspace.dispose();
 	}
 
 	resolveLinkTarget(linkText: string, uri: vscode.Uri): Promise<proto.ResolvedDocumentLinkTarget> {
-		return this._client.sendRequest(proto.resolveLinkTarget, { linkText, uri: uri.toString() });
+		return this.#client.sendRequest(proto.resolveLinkTarget, { linkText, uri: uri.toString() });
 	}
 
 	getEditForFileRenames(files: ReadonlyArray<{ oldUri: string; newUri: string }>, token: vscode.CancellationToken) {
-		return this._client.sendRequest(proto.getEditForFileRenames, files, token);
+		return this.#client.sendRequest(proto.getEditForFileRenames, files, token);
 	}
 
 	getReferencesToFileInWorkspace(resource: vscode.Uri, token: vscode.CancellationToken) {
-		return this._client.sendRequest(proto.getReferencesToFileInWorkspace, { uri: resource.toString() }, token);
+		return this.#client.sendRequest(proto.getReferencesToFileInWorkspace, { uri: resource.toString() }, token);
 	}
 
 	prepareUpdatePastedLinks(doc: vscode.Uri, ranges: readonly vscode.Range[], token: vscode.CancellationToken) {
-		return this._client.sendRequest(proto.prepareUpdatePastedLinks, {
+		return this.#client.sendRequest(proto.prepareUpdatePastedLinks, {
 			uri: doc.toString(),
 			ranges: ranges.map(range => Range.create(range.start.line, range.start.character, range.end.line, range.end.character)),
 		}, token);
 	}
 
 	getUpdatePastedLinksEdit(pastingIntoDoc: vscode.Uri, edits: readonly vscode.TextEdit[], metadata: string, token: vscode.CancellationToken) {
-		return this._client.sendRequest(proto.getUpdatePastedLinksEdit, {
+		return this.#client.sendRequest(proto.getUpdatePastedLinksEdit, {
 			metadata,
 			pasteIntoDoc: pastingIntoDoc.toString(),
 			edits: edits.map(edit => TextEdit.replace(edit.range, edit.newText)),
