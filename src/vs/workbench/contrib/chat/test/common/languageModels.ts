@@ -67,6 +67,7 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 		return [];
 	}
 
+
 	sendChatRequest(identifier: string, from: ExtensionIdentifier | undefined, messages: IChatMessage[], options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<ILanguageModelChatResponse> {
 		throw new Error('Method not implemented.');
 	}
