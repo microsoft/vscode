@@ -23,12 +23,30 @@ Automate VS Code (Code OSS) using agent-browser. VS Code is built on Electron/Ch
 4. **Interact** using element refs
 5. **Re-snapshot** after navigation or state changes
 
+> **📸 Take screenshots for a paper trail.** Use `agent-browser screenshot <path>` at key moments — after launch, before/after interactions, and when something goes wrong. Screenshots provide visual proof of what the UI looked like and are invaluable for debugging failures or documenting what was accomplished.
+>
+> Save screenshots inside a timestamped subfolder so each run is isolated and nothing gets overwritten:
+>
+> ```bash
+> # Create a timestamped folder for this run's screenshots
+> SCREENSHOT_DIR="/tmp/code-oss-screenshots/$(date +%Y-%m-%dT%H-%M-%S)"
+> mkdir -p "$SCREENSHOT_DIR"
+>
+> # Save a screenshot (path is a positional argument — use ./ or absolute paths)
+> # Bare filenames without ./ may be misinterpreted as CSS selectors
+> agent-browser screenshot "$SCREENSHOT_DIR/after-launch.png"
+> ```
+
 ```bash
 # Launch Code OSS with remote debugging
 ./scripts/code.sh --remote-debugging-port=9224
 
 # Wait for Code OSS to start, retry until connected
 for i in 1 2 3 4 5; do agent-browser connect 9224 2>/dev/null && break || sleep 3; done
+
+# Verify you're connected to the right target (not about:blank)
+# If `tab` shows the wrong target, run `agent-browser close` and reconnect
+agent-browser tab
 
 # Discover UI elements
 agent-browser snapshot -i
@@ -81,6 +99,10 @@ Wait for the window to fully initialize, then connect:
 ```bash
 # Wait for Code OSS to start, retry until connected
 for i in 1 2 3 4 5; do agent-browser connect 9224 2>/dev/null && break || sleep 3; done
+
+# Verify you're connected to the right target (not about:blank)
+# If `tab` shows the wrong target, run `agent-browser close` and reconnect
+agent-browser tab
 agent-browser snapshot -i
 ```
 
@@ -106,6 +128,10 @@ code-insiders \
 
 # Wait for VS Code to start, retry until connected
 for i in 1 2 3 4 5; do agent-browser connect 9223 2>/dev/null && break || sleep 3; done
+
+# Verify you're connected to the right target (not about:blank)
+# If `tab` shows the wrong target, run `agent-browser close` and reconnect
+agent-browser tab
 agent-browser snapshot -i
 ```
 
@@ -115,6 +141,38 @@ agent-browser snapshot -i
 - `--user-data-dir=<path>` — uses a separate profile so it starts a new process instead of sending to an existing VS Code instance
 
 **Without `--user-data-dir`**, VS Code detects the running instance, forwards the args to it, and exits immediately — you'll see "Sent env to running instance. Terminating..." and CDP never starts.
+
+## Restarting After Code Changes
+
+**After making changes to Code OSS source code, you must restart to pick up the new build.** The workbench loads the compiled JavaScript at startup — changes are not hot-reloaded.
+
+### Restart Workflow
+
+1. **Rebuild** the changed code
+2. **Kill** the running Code OSS instance
+3. **Relaunch** with the same flags
+
+```bash
+# 1. Ensure your build is up to date.
+#    Normally you can skip a manual step here and let ./scripts/code.sh in step 3
+#    trigger the build when needed (or run `npm run watch` in another terminal).
+
+# 2. Kill the Code OSS instance listening on the debug port (if running)
+pids=$(lsof -t -i :9224)
+if [ -n "$pids" ]; then
+	kill $pids
+fi
+
+# 3. Relaunch
+./scripts/code.sh --remote-debugging-port=9224
+
+# 4. Reconnect agent-browser
+for i in 1 2 3 4 5; do agent-browser connect 9224 2>/dev/null && break || sleep 3; done
+agent-browser tab
+agent-browser snapshot -i
+```
+
+> **Tip:** If you're iterating frequently, run `npm run watch` in a separate terminal so compilation happens automatically. You still need to kill and relaunch Code OSS to load the new build.
 
 ## Interacting with Monaco Editor (Chat Input, Code Editors)
 
@@ -173,7 +231,11 @@ agent-browser snapshot -i
 agent-browser type @e62 "Hello from George!"
 ```
 
+> **Tip:** If `type @ref` silently drops text (the editor stays empty), the ref may be stale or the editor not yet ready. Re-snapshot to get a fresh ref and try again. You can verify text was entered using the snippet in "Verifying Text and Clearing" below.
+
 However, **`type @ref` silently fails on Code OSS** — the command completes without error but no text appears. This also applies to `keyboard type` and `keyboard inserttext`. Always verify text appeared after typing, and fall back to the keyboard shortcut + `press` pattern if it didn't. The `press`-per-key approach works universally across all builds.
+
+> **⚠️ Warning:** `keyboard type` can hang indefinitely in some focus states (e.g., after JS mouse events). If it doesn't return within a few seconds, interrupt it and fall back to `press` for individual keystrokes.
 
 ### Compatibility Matrix
 
@@ -261,30 +323,27 @@ On ultrawide monitors, the chat sidebar may be in the far-right corner of the CD
 - `type @ref`, `keyboard type`, and `keyboard inserttext` work on VS Code Insiders but **silently fail on Code OSS** — they complete without error but no text appears. The `press`-per-key approach works universally.
 - See the "Interacting with Monaco Editor" section above for the full compatibility matrix.
 
-## Cleanup / Disconnect
+## Cleanup
 
-> **⚠️ IMPORTANT: Always quit Code OSS when you're done.** Code OSS is a full Electron app that consumes significant memory (often 1–4 GB+). Leaving it running in the background will slow your machine considerably. Don't just disconnect agent-browser — **kill the Code OSS process too.**
+**Always kill the Code OSS instance when you're done.** Code OSS is a full Electron app that consumes significant memory (often 1–4 GB+). Leaving it running wastes resources and holds the CDP port.
 
 ```bash
-# 1. Disconnect agent-browser
+# Disconnect agent-browser
 agent-browser close
 
-# 2. QUIT Code OSS — do not leave it running!
-# macOS: Cmd+Q in the app window, or:
-# Find the process
-lsof -i :9224 | grep LISTEN
-# Kill it (replace <PID> with the actual PID)
-kill <PID>
-
-# Linux:
-# kill $(lsof -t -i :9224)
+# Kill the Code OSS instance listening on the debug port (if running)
+# macOS / Linux:
+pids=$(lsof -t -i :9224)
+if [ -n "$pids" ]; then
+	kill $pids
+fi
 
 # Windows:
 # taskkill /F /PID <PID>
 # Or use Task Manager to end "Code - OSS"
 ```
 
-If you launched with `./scripts/code.sh`, the process name is `Electron` or `Code - OSS`. Verify it's gone:
+Verify it's gone:
 ```bash
 # Confirm no process is listening on the debug port
 lsof -i :9224  # should return nothing

@@ -12,7 +12,7 @@
 	height: 100%;
 	box-sizing: border-box;
 	overflow: hidden;
-	padding: 0 12px 10% 12px;
+	padding: 0 12px 48px 12px;
 	container-type: size;
 }
 
@@ -109,6 +109,7 @@
 	display: none;
 	flex-direction: row;
 	align-items: center;
+	gap: 4px;
 	min-height: 28px;
 }
 

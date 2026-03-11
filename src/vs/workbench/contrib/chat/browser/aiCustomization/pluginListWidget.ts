@@ -32,6 +32,7 @@ import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plug
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { pluginIcon } from './aiCustomizationIcons.js';
+import { formatDisplayName, truncateToFirstSentence } from './aiCustomizationListWidget.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 
@@ -100,6 +101,7 @@ class PluginItemDelegate implements IListVirtualDelegate<IPluginListEntry> {
 
 interface IPluginInstalledItemTemplateData {
 	readonly container: HTMLElement;
+	readonly typeIcon: HTMLElement;
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
 	readonly status: HTMLElement;
@@ -112,21 +114,24 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 	renderTemplate(container: HTMLElement): IPluginInstalledItemTemplateData {
 		container.classList.add('mcp-server-item');
 
+		const typeIcon = DOM.append(container, $('.mcp-server-icon'));
+		typeIcon.classList.add(...ThemeIcon.asClassNameArray(pluginIcon));
+
 		const details = DOM.append(container, $('.mcp-server-details'));
 		const name = DOM.append(details, $('.mcp-server-name'));
 		const description = DOM.append(details, $('.mcp-server-description'));
 		const status = DOM.append(container, $('.mcp-server-status'));
 
-		return { container, name, description, status, disposables: new DisposableStore() };
+		return { container, typeIcon, name, description, status, disposables: new DisposableStore() };
 	}
 
 	renderElement(element: IPluginInstalledItemEntry, _index: number, templateData: IPluginInstalledItemTemplateData): void {
 		templateData.disposables.clear();
 
-		templateData.name.textContent = element.item.name;
+		templateData.name.textContent = formatDisplayName(element.item.name);
 
 		if (element.item.description) {
-			templateData.description.textContent = element.item.description;
+			templateData.description.textContent = truncateToFirstSentence(element.item.description);
 			templateData.description.style.display = '';
 		} else {
 			templateData.description.style.display = 'none';

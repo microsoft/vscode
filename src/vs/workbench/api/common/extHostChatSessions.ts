@@ -18,7 +18,7 @@ import { SymbolKind, SymbolKinds } from '../../../editor/common/languages.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
-import { IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatNewSessionRequest, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
@@ -773,7 +773,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		await controllerData.controller.refreshHandler(token);
 	}
 
-	async $newChatSessionItem(handle: number, request: IChatAgentRequest, token: CancellationToken): Promise<ReturnType<typeof typeConvert.ChatSessionItem.from> | undefined> {
+	async $newChatSessionItem(handle: number, request: IChatNewSessionRequest, token: CancellationToken): Promise<ReturnType<typeof typeConvert.ChatSessionItem.from> | undefined> {
 		const controllerData = this._chatSessionItemControllers.get(handle);
 		if (!controllerData) {
 			this._logService.warn(`No controller found for handle ${handle}`);
@@ -785,10 +785,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			return undefined;
 		}
 
-		const model = await this.getModelForRequest(request, controllerData.extension);
-		const chatRequest = typeConvert.ChatAgentRequest.to(request, undefined, model, [], new Map(), controllerData.extension, this._logService);
-
-		const item = await handler({ request: chatRequest }, token);
+		const item = await handler({ request: { prompt: request.prompt, command: request.command } }, token);
 		if (!item) {
 			return undefined;
 		}

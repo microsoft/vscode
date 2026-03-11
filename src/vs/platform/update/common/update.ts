@@ -59,6 +59,7 @@ export const enum DisablementReason {
 	NotBuilt,
 	DisabledByEnvironment,
 	ManuallyDisabled,
+	Policy,
 	MissingConfiguration,
 	InvalidConfiguration,
 	RunningAsAdmin,
@@ -66,7 +67,7 @@ export const enum DisablementReason {
 
 export type Uninitialized = { type: StateType.Uninitialized };
 export type Disabled = { type: StateType.Disabled; reason: DisablementReason };
-export type Idle = { type: StateType.Idle; updateType: UpdateType; error?: string };
+export type Idle = { type: StateType.Idle; updateType: UpdateType; error?: string; notAvailable?: boolean };
 export type CheckingForUpdates = { type: StateType.CheckingForUpdates; explicit: boolean };
 export type AvailableForDownload = { type: StateType.AvailableForDownload; update: IUpdate; canInstall?: boolean };
 export type Downloading = { type: StateType.Downloading; update?: IUpdate; explicit: boolean; overwrite: boolean; downloadedBytes?: number; totalBytes?: number; startTime?: number };
@@ -80,7 +81,7 @@ export type State = Uninitialized | Disabled | Idle | CheckingForUpdates | Avail
 export const State = {
 	Uninitialized: upcast<Uninitialized>({ type: StateType.Uninitialized }),
 	Disabled: (reason: DisablementReason): Disabled => ({ type: StateType.Disabled, reason }),
-	Idle: (updateType: UpdateType, error?: string): Idle => ({ type: StateType.Idle, updateType, error }),
+	Idle: (updateType: UpdateType, error?: string, notAvailable?: boolean): Idle => ({ type: StateType.Idle, updateType, error, notAvailable }),
 	CheckingForUpdates: (explicit: boolean): CheckingForUpdates => ({ type: StateType.CheckingForUpdates, explicit }),
 	AvailableForDownload: (update: IUpdate, canInstall?: boolean): AvailableForDownload => ({ type: StateType.AvailableForDownload, update, canInstall }),
 	Downloading: (update: IUpdate | undefined, explicit: boolean, overwrite: boolean, downloadedBytes?: number, totalBytes?: number, startTime?: number): Downloading => ({ type: StateType.Downloading, update, explicit, overwrite, downloadedBytes, totalBytes, startTime }),
