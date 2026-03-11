@@ -371,6 +371,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			}
 		}
 
+		// Set the repo URI from the project picker on the session
+		const project = this._projectPicker.selectedProject;
+		if (project && !session.repoUri) {
+			session.setRepoUri(project.uri);
+		}
+
 		// Set the current model on the session (for local sessions)
 		const currentModel = this._currentLanguageModel.get();
 		if (currentModel) {
