@@ -109,7 +109,7 @@ export function createAskQuestionsToolData(): IToolData {
 			},
 			allowFreeformInput: {
 				type: 'boolean',
-				description: 'Allow freeform text answers in addition to option selection.'
+				description: 'Allow freeform text answers in addition to option selection. Defaults to true; set to false to restrict to predefined options only.'
 			},
 			options: {
 				type: 'array',
@@ -158,7 +158,7 @@ export function createAskQuestionsToolData(): IToolData {
 		icon: ThemeIcon.fromId(Codicon.question.id),
 		displayName: localize('tool.askQuestions.displayName', 'Ask Clarifying Questions'),
 		userDescription: localize('tool.askQuestions.userDescription', 'Ask structured clarifying questions using single select, multi-select, or freeform inputs to collect task requirements before proceeding.'),
-		modelDescription: 'Use this tool to ask the user a small number of clarifying questions before proceeding. Provide the questions array with concise headers and prompts. Use options for fixed choices, set multiSelect when multiple selections are allowed, and set allowFreeformInput to let users supply their own answer.',
+		modelDescription: 'Use this tool to ask the user a small number of clarifying questions before proceeding. Provide the questions array with concise headers and prompts. Use options for fixed choices, set multiSelect when multiple selections are allowed. Users can always provide a freeform text answer alongside options unless you set allowFreeformInput to false.',
 		source: ToolDataSource.Internal,
 		inputSchema
 	};
@@ -333,7 +333,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 				value: opt.label
 			})),
 			defaultValue,
-			allowFreeformInput: question.allowFreeformInput ?? false
+			allowFreeformInput: question.allowFreeformInput ?? true
 		};
 	}
 
