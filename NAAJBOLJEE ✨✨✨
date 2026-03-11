@@ -1,0 +1,37 @@
+const loginForm = document.getElementById("login-form");
+
+loginForm.addEventListener("submit", function (event) {
+
+const email = document.getElementById("email");
+const password = document.getElementById("password");
+
+const emailError = document.getElementById("email-error");
+const passwordError = document.getElementById("password-error");
+
+emailError.textContent = "";
+passwordError.textContent = "";
+
+let valid = true;
+
+if (!email.value) {
+
+emailError.textContent = "Molimo unesite email adresu.";
+email.setAttribute("aria-invalid", "true");
+email.focus();
+
+valid = false;
+}
+
+if (!password.value) {
+
+passwordError.textContent = "Molimo unesite lozinku.";
+password.setAttribute("aria-invalid", "true");
+
+valid = false;
+}
+
+if (!valid) {
+event.preventDefault();
+}
+
+});
