@@ -12,9 +12,21 @@ export interface WebviewResourceProvider {
 }
 
 export function areUrisEqual(uri1: vscode.Uri, uri2: vscode.Uri): boolean {
-	if (uri1.scheme === 'file' && uri2.scheme === 'file') {
-		return uri1.fsPath.toLowerCase() === uri2.fsPath.toLowerCase();
+	if (uri1.scheme !== uri2.scheme) {
+		return false;
 	}
 
-	return uri1.fsPath === uri2.fsPath;
+	if (uri1.authority !== uri2.authority) {
+		return false;
+	}
+
+	if (uri1.scheme === 'file') {
+		if (process.platform === 'win32') {
+			return uri1.fsPath.toLowerCase() === uri2.fsPath.toLowerCase();
+		}
+
+		return uri1.fsPath === uri2.fsPath;
+	}
+
+	return uri1.toString() === uri2.toString();
 }
