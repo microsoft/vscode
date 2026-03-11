@@ -157,7 +157,7 @@ export class ObservableEditorSession {
 		@IInlineChatSessionService inlineChatService: IInlineChatSessionService
 	) {
 
-		const inlineSessionObs = observableFromEvent(this, inlineChatService.onDidChangeSessions, () => inlineChatService.getSession2(uri));
+		const inlineSessionObs = observableFromEvent(this, inlineChatService.onDidChangeSessions, () => inlineChatService.getSessionByTextModel(uri));
 
 		const sessionObs = chatEditingService.editingSessionsObs.map((value, r) => {
 			for (const session of value) {

@@ -1368,6 +1368,11 @@ class InlineCompletionAdapter {
 			&& typeof this._provider.setCurrentModelId === 'function';
 	}
 
+	public get supportsSetProviderOption(): boolean {
+		return isProposedApiEnabled(this._extension, 'inlineCompletionsAdditions')
+			&& typeof this._provider.setProviderOptionValue === 'function';
+	}
+
 	private readonly languageTriggerKindToVSCodeTriggerKind: Record<languages.InlineCompletionTriggerKind, InlineCompletionTriggerKind> = {
 		[languages.InlineCompletionTriggerKind.Automatic]: InlineCompletionTriggerKind.Automatic,
 		[languages.InlineCompletionTriggerKind.Explicit]: InlineCompletionTriggerKind.Invoke,
@@ -1390,6 +1395,25 @@ class InlineCompletionAdapter {
 		this._provider.setCurrentModelId?.(modelId);
 	}
 
+	public get providerOptions(): readonly extHostProtocol.IInlineCompletionProviderOptionDto[] | undefined {
+		if (!this._isAdditionsProposedApiEnabled) {
+			return undefined;
+		}
+		return this._provider.providerOptions?.map(o => ({
+			id: o.id,
+			label: o.label,
+			values: o.values.map(v => ({ id: v.id, label: v.label })),
+			currentValueId: o.currentValueId,
+		}));
+	}
+
+	setProviderOption(optionId: string, valueId: string): void {
+		if (!this._isAdditionsProposedApiEnabled) {
+			return;
+		}
+		this._provider.setProviderOptionValue?.(optionId, valueId);
+	}
+
 	async provideInlineCompletions(resource: URI, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
@@ -1406,6 +1430,7 @@ class InlineCompletionAdapter {
 			requestUuid: context.requestUuid,
 			requestIssuedDateTime: context.requestIssuedDateTime,
 			earliestShownDateTime: context.earliestShownDateTime,
+			changeHint: context.changeHint,
 		}, token);
 
 		if (!result) {
@@ -2619,13 +2644,19 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 
 		const supportsOnDidChange = isProposedApiEnabled(extension, 'inlineCompletionsAdditions') && typeof provider.onDidChange === 'function';
 		if (supportsOnDidChange) {
-			const subscription = provider.onDidChange!(_ => this._proxy.$emitInlineCompletionsChange(handle));
+			const subscription = provider.onDidChange!(e => this._proxy.$emitInlineCompletionsChange(handle, e ? { data: e.data } : undefined));
 			result = Disposable.from(result, subscription);
 		}
 
 		const supportsOnDidChangeModelInfo = isProposedApiEnabled(extension, 'inlineCompletionsAdditions') && typeof provider.onDidChangeModelInfo === 'function';
 		if (supportsOnDidChangeModelInfo) {
 			const subscription = provider.onDidChangeModelInfo!(_ => this._proxy.$emitInlineCompletionModelInfoChange(handle, adapter.modelInfo));
+			result = Disposable.from(result, subscription);
+		}
+
+		const supportsOnDidChangeProviderOptions = isProposedApiEnabled(extension, 'inlineCompletionsAdditions') && typeof provider.onDidChangeProviderOptions === 'function';
+		if (supportsOnDidChangeProviderOptions) {
+			const subscription = provider.onDidChangeProviderOptions!(_ => this._proxy.$emitInlineCompletionProviderOptionsChange(handle, adapter.providerOptions));
 			result = Disposable.from(result, subscription);
 		}
 		this._proxy.$registerInlineCompletionsSupport(
@@ -2643,6 +2674,9 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 			adapter.supportsSetModelId,
 			adapter.modelInfo,
 			supportsOnDidChangeModelInfo,
+			adapter.supportsSetProviderOption,
+			adapter.providerOptions,
+			supportsOnDidChangeProviderOptions,
 		);
 		return result;
 	}
@@ -2687,6 +2721,12 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	$handleInlineCompletionSetCurrentModelId(handle: number, modelId: string): void {
 		this._withAdapter(handle, InlineCompletionAdapter, async adapter => {
 			adapter.setCurrentModelId(modelId);
+		}, undefined, undefined);
+	}
+
+	$handleInlineCompletionSetProviderOption(handle: number, optionId: string, valueId: string): void {
+		this._withAdapter(handle, InlineCompletionAdapter, async adapter => {
+			adapter.setProviderOption(optionId, valueId);
 		}, undefined, undefined);
 	}
 

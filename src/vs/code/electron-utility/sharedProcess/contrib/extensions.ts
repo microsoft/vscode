@@ -10,21 +10,30 @@ import { migrateUnsupportedExtensions } from '../../../../platform/extensionMana
 import { INativeServerExtensionManagementService } from '../../../../platform/extensionManagement/node/extensionManagementService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 export class ExtensionsContributions extends Disposable {
 	constructor(
-		@INativeServerExtensionManagementService extensionManagementService: INativeServerExtensionManagementService,
-		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@IExtensionStorageService extensionStorageService: IExtensionStorageService,
-		@IGlobalExtensionEnablementService extensionEnablementService: IGlobalExtensionEnablementService,
+		@INativeServerExtensionManagementService private readonly extensionManagementService: INativeServerExtensionManagementService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IExtensionStorageService private readonly extensionStorageService: IExtensionStorageService,
+		@IGlobalExtensionEnablementService private readonly extensionEnablementService: IGlobalExtensionEnablementService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IStorageService storageService: IStorageService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
 		extensionManagementService.cleanUp();
-		migrateUnsupportedExtensions(extensionManagementService, extensionGalleryService, extensionStorageService, extensionEnablementService, logService);
+
+		this.migrateUnsupportedExtensions();
 		ExtensionStorageService.removeOutdatedExtensionVersions(extensionManagementService, storageService);
+	}
+
+	private async migrateUnsupportedExtensions(): Promise<void> {
+		for (const profile of this.userDataProfilesService.profiles) {
+			await migrateUnsupportedExtensions(profile, this.extensionManagementService, this.extensionGalleryService, this.extensionStorageService, this.extensionEnablementService, this.logService);
+		}
 	}
 
 }

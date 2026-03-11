@@ -7,7 +7,7 @@ import './accessibility.css';
 import * as nls from '../../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED, IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { accessibilityHelpIsShown } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -16,6 +16,8 @@ import { AccessibilityHelpNLS } from '../../../../../editor/common/standaloneStr
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { CursorColumns } from '../../../../../editor/common/core/cursorColumns.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 
 class ToggleScreenReaderMode extends Action2 {
 
@@ -61,8 +63,9 @@ class AnnounceCursorPosition extends Action2 {
 				description: nls.localize2('announceCursorPosition.description', "Announce the current cursor position (line and column) via screen reader.")
 			},
 			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
-				weight: KeybindingWeight.WorkbenchContrib + 10
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyG,
+				weight: KeybindingWeight.WorkbenchContrib + 10,
+				when: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED)
 			}
 		});
 	}

@@ -5,29 +5,34 @@
 
 import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands.js';
-import { Position } from '../../../../common/core/position.js';
-import { ITextModel } from '../../../../common/model.js';
-import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from '../../../../common/languages.js';
-import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
-import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands.js';
+import { IBulkEditService } from '../../../../browser/services/bulkEditService.js';
+import { IRenameSymbolTrackerService, NullRenameSymbolTrackerService } from '../../../../browser/services/renameSymbolTrackerService.js';
+import { TextEdit } from '../../../../common/core/edits/textEdit.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { PositionOffsetTransformer } from '../../../../common/core/text/positionToOffset.js';
+import { IInlineCompletionChangeHint, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { ITextModel } from '../../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
+import { IModelService } from '../../../../common/services/model.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../common/services/resolverService.js';
 import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { InlineCompletionsController } from '../../browser/controller/inlineCompletionsController.js';
-import { Range } from '../../../../common/core/range.js';
-import { TextEdit } from '../../../../common/core/edits/textEdit.js';
-import { BugIndicatingError } from '../../../../../base/common/errors.js';
-import { PositionOffsetTransformer } from '../../../../common/core/text/positionToOffset.js';
+import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
 import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.js';
-import { IBulkEditService } from '../../../../browser/services/bulkEditService.js';
-import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { Event } from '../../../../../base/common/event.js';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -35,6 +40,9 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 
 	private callHistory = new Array<unknown>();
 	private calledTwiceIn50Ms = false;
+
+	private readonly _onDidChangeEmitter = new Emitter<IInlineCompletionChangeHint | void>();
+	public readonly onDidChangeInlineCompletions: Event<IInlineCompletionChangeHint | void> = this._onDidChangeEmitter.event;
 
 	constructor(
 		public readonly enableForwardStability = false,
@@ -62,6 +70,13 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 		}
 	}
 
+	/**
+	 * Fire an onDidChange event with an optional change hint.
+	 */
+	public fireOnDidChange(changeHint?: IInlineCompletionChangeHint): void {
+		this._onDidChangeEmitter.fire(changeHint);
+	}
+
 	private lastTimeMs: number | undefined = undefined;
 
 	async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletions> {
@@ -74,7 +89,8 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 		this.callHistory.push({
 			position: position.toString(),
 			triggerKind: context.triggerKind,
-			text: model.getValue()
+			text: model.getValue(),
+			...(context.changeHint !== undefined ? { changeHint: context.changeHint } : {}),
 		});
 		const result = new Array<InlineCompletion>();
 		for (const v of this.returnValue) {
@@ -252,12 +268,22 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					setPreviewHandler: () => { throw new Error('IBulkEditService.setPreviewHandler not implemented'); },
 					_serviceBrand: undefined,
 				});
+				options.serviceCollection.set(ITextModelService, new SyncDescriptor(MockTextModelService));
 				options.serviceCollection.set(IDefaultAccountService, {
 					_serviceBrand: undefined,
 					onDidChangeDefaultAccount: Event.None,
+					onDidChangePolicyData: Event.None,
+					policyData: null,
+					copilotTokenInfo: null,
+					onDidChangeCopilotTokenInfo: Event.None,
 					getDefaultAccount: async () => null,
-					setDefaultAccount: () => { },
+					setDefaultAccountProvider: () => { },
+					getDefaultAccountAuthenticationProvider: () => { return { id: 'mockProvider', name: 'Mock Provider', enterprise: false }; },
+					refresh: async () => { return null; },
+					signIn: async () => { return null; },
+					signOut: async () => { },
 				});
+				options.serviceCollection.set(IRenameSymbolTrackerService, new NullRenameSymbolTrackerService());
 
 				const d = languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, options.provider);
 				disposableStore.add(d);
@@ -345,5 +371,42 @@ export class AnnotatedText extends AnnotatedString {
 
 	getMarkerPosition(markerIdx = 0): Position {
 		return this._transformer.getPosition(this.getMarkerOffset(markerIdx));
+	}
+}
+
+class MockTextModelService implements ITextModelService {
+	readonly _serviceBrand: undefined;
+
+	constructor(
+		@IModelService private readonly _modelService: IModelService,
+	) { }
+
+	async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+		const model = this._modelService.getModel(resource);
+		if (!model) {
+			throw new Error(`MockTextModelService: Model not found for ${resource.toString()}`);
+		}
+		return {
+			object: {
+				textEditorModel: model,
+				getLanguageId: () => model.getLanguageId(),
+				isReadonly: () => false,
+				isDisposed: () => model.isDisposed(),
+				isResolved: () => true,
+				onWillDispose: model.onWillDispose,
+				resolve: async () => { },
+				createSnapshot: () => model.createSnapshot(),
+				dispose: () => { },
+			},
+			dispose: () => { },
+		};
+	}
+
+	registerTextModelContentProvider(): never {
+		throw new Error('MockTextModelService.registerTextModelContentProvider not implemented');
+	}
+
+	canHandleResource(): boolean {
+		return false;
 	}
 }

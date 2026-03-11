@@ -48,8 +48,8 @@ const baseEntries: WatermarkEntry[] = [
 
 const emptyWindowEntries: WatermarkEntry[] = coalesce([
 	...baseEntries,
-	...(isMacintosh && !isWeb ? [openFileOrFolder] : [openFile, openFolder]),
 	openRecent,
+	...(isMacintosh && !isWeb ? [openFileOrFolder] : [openFile, openFolder]),
 	isMacintosh && !isWeb ? newUntitledFile : undefined, // fill in one more on macOS to get to 5 entries
 ]);
 

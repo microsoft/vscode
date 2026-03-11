@@ -197,6 +197,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 */
 	activeItem?: Promise<T> | T;
 
+	/**
+	 * an optional anchor for the picker
+	 */
+	anchor?: HTMLElement | { x: number; y: number };
+
 	onKeyMods?: (keyMods: IKeyMods) => void;
 	onDidFocus?: (entry: T) => void;
 	onDidTriggerItemButton?: (context: IQuickPickItemButtonContext<T>) => void;
@@ -352,6 +357,11 @@ export interface IQuickInput extends IDisposable {
 	 * Indicates whether the quick input should be hidden when it loses focus.
 	 */
 	ignoreFocusOut: boolean;
+
+	/**
+	 * An optional anchor for the quick input.
+	 */
+	anchor?: HTMLElement | { x: number; y: number };
 
 	/**
 	 * Shows the quick input.
@@ -1161,6 +1171,12 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	 * Focuses on the tree input.
 	 */
 	focusOnInput(): void;
+
+	/**
+	 * Reveals and focuses a specific item in the tree.
+	 * @param element The item to reveal and focus.
+	 */
+	reveal(element: T): void;
 
 	/**
 	 * Focus a particular item in the list. Used internally for keyboard navigation.

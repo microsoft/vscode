@@ -70,7 +70,7 @@ export class Rulers extends ViewPart {
 			while (addCount > 0) {
 				const node = createFastDomNode(document.createElement('div'));
 				node.setClassName('view-ruler');
-				node.setWidth('1px');
+				node.setWidth('1ch');
 				this.domNode.appendChild(node);
 				this._renderedRulers.push(node);
 				addCount--;

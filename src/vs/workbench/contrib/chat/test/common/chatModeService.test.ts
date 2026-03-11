@@ -21,6 +21,7 @@ import { ChatMode, ChatModeService } from '../../common/chatModes.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from './promptSyntax/service/mockPromptsService.js';
+import { Target } from '../../common/promptSyntax/promptTypes.js';
 
 class TestChatAgentService implements Partial<IChatAgentService> {
 	_serviceBrand: undefined;
@@ -118,7 +119,9 @@ suite('ChatModeService', () => {
 			description: 'A test custom mode',
 			tools: ['tool1', 'tool2'],
 			agentInstructions: { content: 'Custom mode body', toolReferences: [] },
-			source: workspaceSource
+			source: workspaceSource,
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -155,6 +158,8 @@ suite('ChatModeService', () => {
 			tools: [],
 			agentInstructions: { content: 'Custom mode body', toolReferences: [] },
 			source: workspaceSource,
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -173,6 +178,8 @@ suite('ChatModeService', () => {
 			tools: [],
 			agentInstructions: { content: 'Findable mode body', toolReferences: [] },
 			source: workspaceSource,
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -195,8 +202,10 @@ suite('ChatModeService', () => {
 			description: 'Initial description',
 			tools: ['tool1'],
 			agentInstructions: { content: 'Initial body', toolReferences: [] },
-			model: 'gpt-4',
+			model: ['gpt-4'],
 			source: workspaceSource,
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		promptsService.setCustomModes([initialMode]);
@@ -212,7 +221,7 @@ suite('ChatModeService', () => {
 			description: 'Updated description',
 			tools: ['tool1', 'tool2'],
 			agentInstructions: { content: 'Updated body', toolReferences: [] },
-			model: 'Updated model'
+			model: ['Updated model']
 		};
 
 		promptsService.setCustomModes([updatedMode]);
@@ -228,7 +237,7 @@ suite('ChatModeService', () => {
 		assert.strictEqual(updatedCustomMode.description.get(), 'Updated description');
 		assert.deepStrictEqual(updatedCustomMode.customTools?.get(), ['tool1', 'tool2']);
 		assert.deepStrictEqual(updatedCustomMode.modeInstructions?.get(), { content: 'Updated body', toolReferences: [] });
-		assert.strictEqual(updatedCustomMode.model?.get(), 'Updated model');
+		assert.deepStrictEqual(updatedCustomMode.model?.get(), ['Updated model']);
 		assert.deepStrictEqual(updatedCustomMode.source, workspaceSource);
 	});
 
@@ -240,6 +249,8 @@ suite('ChatModeService', () => {
 			tools: [],
 			agentInstructions: { content: 'Mode 1 body', toolReferences: [] },
 			source: workspaceSource,
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		const mode2: ICustomAgent = {
@@ -249,6 +260,8 @@ suite('ChatModeService', () => {
 			tools: [],
 			agentInstructions: { content: 'Mode 2 body', toolReferences: [] },
 			source: workspaceSource,
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		// Add both modes

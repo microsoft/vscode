@@ -155,7 +155,7 @@ export class WalkThroughPart extends EditorPane {
 	}
 
 	private registerClickHandler() {
-		this.content.addEventListener('click', event => {
+		this.disposables.add(this.addEventListener(this.content, 'click', event => {
 			for (let node = event.target as HTMLElement; node; node = node.parentNode as HTMLElement) {
 				if (isHTMLAnchorElement(node) && node.href) {
 					// eslint-disable-next-line no-restricted-syntax
@@ -184,7 +184,7 @@ export class WalkThroughPart extends EditorPane {
 					break;
 				}
 			}
-		});
+		}));
 	}
 
 	private open(uri: URI) {

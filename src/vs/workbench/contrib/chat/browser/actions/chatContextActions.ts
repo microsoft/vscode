@@ -58,6 +58,7 @@ export function registerChatContextActions() {
 	registerAction2(AttachFolderToChatAction);
 	registerAction2(AttachSelectionToChatAction);
 	registerAction2(AttachSearchResultAction);
+	registerAction2(AttachPinnedEditorsToChatAction);
 	registerPromptActions();
 }
 
@@ -128,6 +129,7 @@ class AttachFileToChatAction extends AttachResourceAction {
 			id: AttachFileToChatAction.ID,
 			title: localize2('workbench.action.chat.attachFile.label', "Add File to Chat"),
 			category: CHAT_CATEGORY,
+			icon: Codicon.attach,
 			precondition: ChatContextKeys.enabled,
 			f1: true,
 			menu: [{
@@ -164,6 +166,7 @@ class AttachFileToChatAction extends AttachResourceAction {
 				order: 2,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
+					EditorContextKeys.hasNonEmptySelection.negate(),
 					ContextKeyExpr.or(
 						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
 						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote),
@@ -171,6 +174,16 @@ class AttachFileToChatAction extends AttachResourceAction {
 						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData)
 					)
 				)
+			}, {
+				id: MenuId.InlineChatEditorAffordance,
+				group: '0_chat',
+				order: 3,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection.negate())
+			}, {
+				id: MenuId.ChatEditorInlineMenu,
+				group: '0_chat',
+				order: 3,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection.negate())
 			}]
 		});
 	}
@@ -229,6 +242,52 @@ class AttachFolderToChatAction extends AttachResourceAction {
 	}
 }
 
+class AttachPinnedEditorsToChatAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.attachPinnedEditors';
+
+	constructor() {
+		super({
+			id: AttachPinnedEditorsToChatAction.ID,
+			title: localize2('workbench.action.chat.attachPinnedEditors.label', "Add Pinned Editors to Chat"),
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const instaService = accessor.get(IInstantiationService);
+
+		const widget = await instaService.invokeFunction(withChatView);
+		if (!widget) {
+			return;
+		}
+
+		const files: URI[] = [];
+		for (const group of editorGroupsService.groups) {
+			for (const editor of group.editors) {
+				if (group.isPinned(editor)) {
+					const uri = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+					if (uri && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(uri.scheme)) {
+						files.push(uri);
+					}
+				}
+			}
+		}
+
+		if (!files.length) {
+			return;
+		}
+
+		widget.focusInput();
+		for (const file of files) {
+			widget.attachmentModel.addFile(file);
+		}
+	}
+}
+
 class AttachSelectionToChatAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.attachSelection';
@@ -238,9 +297,10 @@ class AttachSelectionToChatAction extends Action2 {
 			id: AttachSelectionToChatAction.ID,
 			title: localize2('workbench.action.chat.attachSelection.label', "Add Selection to Chat"),
 			category: CHAT_CATEGORY,
+			icon: Codicon.attach,
 			f1: true,
 			precondition: ChatContextKeys.enabled,
-			menu: {
+			menu: [{
 				id: MenuId.EditorContext,
 				group: '1_chat',
 				order: 1,
@@ -254,7 +314,17 @@ class AttachSelectionToChatAction extends Action2 {
 						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData)
 					)
 				)
-			}
+			}, {
+				id: MenuId.InlineChatEditorAffordance,
+				group: '0_chat',
+				order: 2,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection)
+			}, {
+				id: MenuId.ChatEditorInlineMenu,
+				group: '0_chat',
+				order: 2,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection)
+			}]
 		});
 	}
 
@@ -396,28 +466,50 @@ export class AttachContextAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.attachContext',
 			title: localize2('workbench.action.chat.attachContext.label.2', "Add Context..."),
-			icon: Codicon.attach,
+			icon: Codicon.add,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
 				primary: KeyMod.CtrlCmd | KeyCode.Slash,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menu: {
+			menu: [{
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-						ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditorInline), CTX_INLINE_CHAT_V2_ENABLED)
-					),
+					ChatContextKeys.inQuickChat.negate(),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ContextKeyExpr.or(
 						ChatContextKeys.lockedToCodingAgent.negate(),
 						ChatContextKeys.agentSupportsAttachments
 					)
 				),
-				id: MenuId.ChatInputAttachmentToolbar,
+				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 3
-			},
+				order: -1
+			}, {
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inQuickChat.negate(),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditorInline),
+					CTX_INLINE_CHAT_V2_ENABLED,
+					ContextKeyExpr.or(
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ChatContextKeys.agentSupportsAttachments
+					)
+				),
+				id: MenuId.ChatInput,
+				group: 'navigation',
+				order: 2
+			}, {
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inQuickChat,
+					ContextKeyExpr.or(
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ChatContextKeys.agentSupportsAttachments
+					)
+				),
+				id: MenuId.ChatExecute,
+				group: 'navigation',
+				order: -1
+			}],
 
 		});
 	}

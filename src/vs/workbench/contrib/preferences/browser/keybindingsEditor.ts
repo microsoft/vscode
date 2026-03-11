@@ -133,14 +133,14 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super(KeybindingsEditor.ID, group, telemetryService, themeService, storageService);
-		this.delayedFiltering = new Delayer<void>(300);
+		this.delayedFiltering = this._register(new Delayer<void>(300));
 		this._register(keybindingsService.onDidUpdateKeybindings(() => this.render(!!this.keybindingFocusContextKey.get())));
 
 		this.keybindingsEditorContextKey = CONTEXT_KEYBINDINGS_EDITOR.bindTo(this.contextKeyService);
 		this.searchFocusContextKey = CONTEXT_KEYBINDINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.keybindingFocusContextKey = CONTEXT_KEYBINDING_FOCUS.bindTo(this.contextKeyService);
 		this.searchHasValueContextKey = CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE.bindTo(this.contextKeyService);
-		this.searchHistoryDelayer = new Delayer<void>(500);
+		this.searchHistoryDelayer = this._register(new Delayer<void>(500));
 
 		this.recordKeysAction = this._register(new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, localize('recordKeysLabel', "Record Keys"), ThemeIcon.asClassName(keybindingsRecordKeysIcon)));
 		this.recordKeysAction.checked = false;
@@ -886,23 +886,21 @@ class ActionsColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IAct
 	}
 
 	private createEditAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
-		const keybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_DEFINE);
 		return <IAction>{
 			class: ThemeIcon.asClassName(keybindingsEditIcon),
 			enabled: true,
 			id: 'editKeybinding',
-			tooltip: keybinding ? localize('editKeybindingLabelWithKey', "Change Keybinding {0}", `(${keybinding.getLabel()})`) : localize('editKeybindingLabel', "Change Keybinding"),
+			tooltip: this.keybindingsService.appendKeybinding(localize('editKeybindingLabel', "Change Keybinding"), KEYBINDINGS_EDITOR_COMMAND_DEFINE),
 			run: () => this.keybindingsEditor.defineKeybinding(keybindingItemEntry, false)
 		};
 	}
 
 	private createAddAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
-		const keybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_DEFINE);
 		return <IAction>{
 			class: ThemeIcon.asClassName(keybindingsAddIcon),
 			enabled: true,
 			id: 'addKeybinding',
-			tooltip: keybinding ? localize('addKeybindingLabelWithKey', "Add Keybinding {0}", `(${keybinding.getLabel()})`) : localize('addKeybindingLabel', "Add Keybinding"),
+			tooltip: this.keybindingsService.appendKeybinding(localize('addKeybindingLabel', "Add Keybinding"), KEYBINDINGS_EDITOR_COMMAND_DEFINE),
 			run: () => this.keybindingsEditor.defineKeybinding(keybindingItemEntry, false)
 		};
 	}

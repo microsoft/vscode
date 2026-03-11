@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { reverseOrder, compareBy, numberComparator, sumBy } from '../../../../../base/common/arrays.js';
-import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
+import { IntervalTimer } from '../../../../../base/common/async.js';
 import { toDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
 import { mapObservableArrayCached, derived, IObservable, observableSignal, runOnChange, autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -17,6 +17,9 @@ import { DocumentEditSourceTracker, TrackedEdit } from './editTracker.js';
 import { sumByCategory } from '../helpers/utils.js';
 import { ScmAdapter, ScmRepoAdapter } from './scmAdapter.js';
 import { IRandomService } from '../randomService.js';
+
+type EditTelemetryMode = 'longterm' | '10minFocusWindow' | '20minFocusWindow';
+type EditTelemetryTrigger = '10hours' | 'hashChange' | 'branchChange' | 'closed' | 'time';
 
 export class EditSourceTrackingImpl extends Disposable {
 	public readonly docsState;
@@ -63,7 +66,7 @@ class TrackedDocumentInfo extends Disposable {
 
 		const longtermResetSignal = observableSignal('resetSignal');
 
-		let longtermReason: '10hours' | 'hashChange' | 'branchChange' | 'closed' = 'closed';
+		let longtermReason: EditTelemetryTrigger = 'closed';
 		this.longtermTracker = derived((reader) => {
 			if (!this._statsEnabled.read(reader)) { return undefined; }
 			longtermResetSignal.read(reader);
@@ -109,7 +112,7 @@ class TrackedDocumentInfo extends Disposable {
 		this._store.add(this._instantiationService.createInstance(EditTelemetryReportEditArcForChatOrInlineChatSender, _doc.documentWithAnnotations, this._repo));
 		this._store.add(this._instantiationService.createInstance(CreateSuggestionIdForChatOrInlineChatCaller, _doc.documentWithAnnotations));
 
-		// Wall-clock time based 5-minute window tracker
+		// Focus time based 10-minute window tracker
 		const resetSignal = observableSignal('resetSignal');
 
 		this.windowedTracker = derived((reader) => {
@@ -120,24 +123,24 @@ class TrackedDocumentInfo extends Disposable {
 			}
 			resetSignal.read(reader);
 
-			// Reset after 5 minutes of wall-clock time
-			reader.store.add(new TimeoutTimer(() => {
+			// Reset after 10 minutes of accumulated focus time
+			reader.store.add(this._userAttentionService.fireAfterGivenFocusTimePassed(10 * 60 * 1000, () => {
 				resetSignal.trigger(undefined);
-			}, 5 * 60 * 1000));
+			}));
 
 			const t = reader.store.add(new DocumentEditSourceTracker(docWithJustReason, undefined));
 			const startFocusTime = this._userAttentionService.totalFocusTimeMs;
 			const startTime = Date.now();
 			reader.store.add(toDisposable(async () => {
 				// send windowed document telemetry
-				this.sendTelemetry('5minWindow', 'time', t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
+				this.sendTelemetry('10minFocusWindow', 'time', t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
 				t.dispose();
 			}));
 
 			return t;
 		}).recomputeInitiallyAndOnChange(this._store);
 
-		// Focus time based 10-minute window tracker
+		// Focus time based 20-minute window tracker
 		const focusResetSignal = observableSignal('focusResetSignal');
 
 		this.windowedFocusTracker = derived((reader) => {
@@ -148,8 +151,8 @@ class TrackedDocumentInfo extends Disposable {
 			}
 			focusResetSignal.read(reader);
 
-			// Reset after 10 minutes of accumulated focus time
-			reader.store.add(this._userAttentionService.fireAfterGivenFocusTimePassed(10 * 60 * 1000, () => {
+			// Reset after 20 minutes of accumulated focus time
+			reader.store.add(this._userAttentionService.fireAfterGivenFocusTimePassed(20 * 60 * 1000, () => {
 				focusResetSignal.trigger(undefined);
 			}));
 
@@ -158,7 +161,7 @@ class TrackedDocumentInfo extends Disposable {
 			const startTime = Date.now();
 			reader.store.add(toDisposable(async () => {
 				// send focus-windowed document telemetry
-				this.sendTelemetry('10minFocusWindow', 'time', t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
+				this.sendTelemetry('20minFocusWindow', 'time', t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
 				t.dispose();
 			}));
 
@@ -167,7 +170,7 @@ class TrackedDocumentInfo extends Disposable {
 
 	}
 
-	async sendTelemetry(mode: 'longterm' | '5minWindow' | '10minFocusWindow', trigger: string, t: DocumentEditSourceTracker, focusTime: number, actualTime: number) {
+	async sendTelemetry(mode: EditTelemetryMode, trigger: EditTelemetryTrigger, t: DocumentEditSourceTracker, focusTime: number, actualTime: number) {
 		const ranges = t.getTrackedRanges();
 		const keys = t.getAllKeys();
 		if (keys.length === 0) {
@@ -198,7 +201,7 @@ class TrackedDocumentInfo extends Disposable {
 			const deltaModifiedCount = t.getTotalInsertedCharactersCount(key);
 
 			this._telemetryService.publicLog2<{
-				mode: string;
+				mode: EditTelemetryMode;
 				sourceKey: string;
 
 				sourceKeyCleaned: string;
@@ -206,7 +209,7 @@ class TrackedDocumentInfo extends Disposable {
 				extensionVersion: string | undefined;
 				modelId: string | undefined;
 
-				trigger: string;
+				trigger: EditTelemetryTrigger;
 				languageId: string;
 				statsUuid: string;
 				modifiedCount: number;
@@ -214,9 +217,9 @@ class TrackedDocumentInfo extends Disposable {
 				totalModifiedCount: number;
 			}, {
 				owner: 'hediet';
-				comment: 'Provides detailed character count breakdown for individual edit sources (typing, paste, inline completions, NES, etc.) within a session. Reports the top 10-30 sources per session with granular metadata including extension IDs and model IDs for AI edits. Sessions are scoped to either 5-minute wall-clock time windows, 10-minute focus time windows for visible documents, or longer periods ending on branch changes, commits, or 10-hour intervals. Focus time is computed as the accumulated time where VS Code has focus and there was recent user activity (within the last minute). This event complements editSources.stats by providing source-specific details. @sentToGitHub';
+				comment: 'Provides detailed character count breakdown for individual edit sources (typing, paste, inline completions, NES, etc.) within a session. Reports the top 10-30 sources per session with granular metadata including extension IDs and model IDs for AI edits. Sessions are scoped to either 10-minute or 20-minute focus time windows for visible documents, or longer periods ending on branch changes, commits, or 10-hour intervals. Focus time is computed as the accumulated time where VS Code has focus and there was recent user activity (within the last minute). This event complements editSources.stats by providing source-specific details. @sentToGitHub';
 
-				mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Describes the session mode. Is either \'longterm\', \'5minWindow\', or \'10minFocusWindow\'.' };
+				mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Describes the session mode. Is either \'longterm\', \'10minFocusWindow\', or \'20minFocusWindow\'.' };
 				sourceKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A description of the source of the edit.' };
 
 				sourceKeyCleaned: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit with some properties (such as extensionId, extensionVersion and modelId) removed.' };
@@ -254,7 +257,7 @@ class TrackedDocumentInfo extends Disposable {
 
 		const isTrackedByGit = await data.isTrackedByGit;
 		this._telemetryService.publicLog2<{
-			mode: string;
+			mode: EditTelemetryMode;
 			languageId: string;
 			statsUuid: string;
 			nesModifiedCount: number;
@@ -269,12 +272,12 @@ class TrackedDocumentInfo extends Disposable {
 			isTrackedByGit: number;
 			focusTime: number;
 			actualTime: number;
-			trigger: string;
+			trigger: EditTelemetryTrigger;
 		}, {
 			owner: 'hediet';
-			comment: 'Aggregates character counts by edit source category (user typing, AI completions, NES, IDE actions, external changes) for each editing session. Sessions represent units of work and end when documents close, branches change, commits occur, or time limits are reached (5 minutes of wall-clock time, 10 minutes of focus time for visible documents, or 10 hours otherwise). Focus time is computed as accumulated 1-minute blocks where VS Code has focus and there was recent user activity. Tracks both total characters inserted and characters remaining at session end to measure retention. This high-level summary complements editSources.details which provides granular per-source breakdowns. @sentToGitHub';
+			comment: 'Aggregates character counts by edit source category (user typing, AI completions, NES, IDE actions, external changes) for each editing session. Sessions represent units of work and end when documents close, branches change, commits occur, or time limits are reached (10 or 20 minutes of focus time for visible documents, or 10 hours otherwise). Focus time is computed as accumulated 1-minute blocks where VS Code has focus and there was recent user activity. Tracks both total characters inserted and characters remaining at session end to measure retention. This high-level summary complements editSources.details which provides granular per-source breakdowns. @sentToGitHub';
 
-			mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'longterm, 5minWindow, or 10minFocusWindow' };
+			mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'longterm, 10minFocusWindow, or 20minFocusWindow' };
 			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
 			statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier for the telemetry event.' };
 

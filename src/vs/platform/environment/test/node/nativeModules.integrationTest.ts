@@ -50,9 +50,9 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(result, testErrorMessage('native-keymap'));
 	});
 
-	test('native-watchdog', async () => {
-		const watchDog = await import('native-watchdog');
-		assert.ok(typeof watchDog.start === 'function', testErrorMessage('native-watchdog'));
+	test('@vscode/native-watchdog', async () => {
+		const watchDog = await import('@vscode/native-watchdog');
+		assert.ok(typeof watchDog.start === 'function', testErrorMessage('@vscode/native-watchdog'));
 	});
 
 	test('@vscode/sudo-prompt', async () => {
@@ -76,9 +76,9 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof spdlog.version === 'number', testErrorMessage('@vscode/spdlog'));
 	});
 
-	test('@vscode/watcher', async () => {
-		const parcelWatcher = await import('@vscode/watcher');
-		assert.ok(typeof parcelWatcher.subscribe === 'function', testErrorMessage('@vscode/watcher'));
+	test('@parcel/watcher', async () => {
+		const parcelWatcher = await import('@parcel/watcher');
+		assert.ok(typeof parcelWatcher.subscribe === 'function', testErrorMessage('@parcel/watcher'));
 	});
 
 	test('@vscode/deviceid', async () => {

@@ -59,8 +59,8 @@ suite('PathExecutableCache', () => {
 					symlinkDocRaw = resource.documentation;
 				}
 			}
-			const realDoc = typeof realDocRaw === 'string' ? realDocRaw : (realDocRaw && 'value' in realDocRaw ? realDocRaw.value : undefined);
-			const symlinkDoc = typeof symlinkDocRaw === 'string' ? symlinkDocRaw : (symlinkDocRaw && 'value' in symlinkDocRaw ? symlinkDocRaw.value : undefined);
+			const realDoc = typeof realDocRaw === 'string' ? realDocRaw : (realDocRaw && Object.hasOwn(realDocRaw, 'value') ? realDocRaw.value : undefined);
+			const symlinkDoc = typeof symlinkDocRaw === 'string' ? symlinkDocRaw : (symlinkDocRaw && Object.hasOwn(symlinkDocRaw, 'value') ? symlinkDocRaw.value : undefined);
 
 			const realPath = path.join(fixtureDir, 'real-executable.sh');
 			const symlinkPath = path.join(fixtureDir, 'symlink-executable.sh');

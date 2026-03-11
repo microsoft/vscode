@@ -130,8 +130,7 @@ class QuickDiffWidgetEditorAction extends Action {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		const keybinding = keybindingService.lookupKeybinding(action.id);
-		const label = action.label + (keybinding ? ` (${keybinding.getLabel()})` : '');
+		const label = keybindingService.appendKeybinding(action.label, action.id);
 
 		super(action.id, label, cssClass);
 
@@ -955,7 +954,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'togglePeekWidgetFocus',
+	id: 'toggleQuickDiffWidgetFocus',
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.F2),
 	when: isQuickDiffVisible,

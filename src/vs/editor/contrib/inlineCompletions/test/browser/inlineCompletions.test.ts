@@ -761,4 +761,80 @@ suite('Multi Cursor Support', () => {
 			}
 		);
 	});
+
+	test('Change hint is passed from onDidChange to provideInlineCompletions', async function () {
+		const provider = new MockInlineCompletionsProvider();
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider, inlineSuggest: { enabled: true } },
+			async ({ editor, editorViewModel, model, context }) => {
+				context.keyboardType('foo');
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
+				model.triggerExplicitly();
+				await timeout(1000);
+
+				const firstCallHistory = provider.getAndClearCallHistory();
+				assert.strictEqual(firstCallHistory.length, 1);
+				assert.strictEqual((firstCallHistory[0] as { changeHint?: unknown }).changeHint, undefined);
+
+				// Change cursor position to avoid cache hit
+				editor.setPosition({ lineNumber: 1, column: 3 });
+
+
+				const changeHintData = { reason: 'modelUpdated', version: 42 };
+				provider.setReturnValue({ insertText: 'foobaz', range: new Range(1, 1, 1, 4) });
+				provider.fireOnDidChange({ data: changeHintData });
+				await timeout(1000);
+
+				const secondCallHistory = provider.getAndClearCallHistory();
+
+				assert.deepStrictEqual(
+					secondCallHistory,
+					[{
+						changeHint: {
+							data: {
+								reason: 'modelUpdated',
+								version: 42,
+							}
+						},
+						position: '(1,3)',
+						text: 'foo',
+						triggerKind: 0
+					}]
+				);
+			}
+		);
+	});
+
+	test('Change hint is undefined when onDidChange fires without hint', async function () {
+		const provider = new MockInlineCompletionsProvider();
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider, inlineSuggest: { enabled: true } },
+			async ({ editor, editorViewModel, model, context }) => {
+				context.keyboardType('foo');
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
+				model.triggerExplicitly();
+				await timeout(1000);
+
+				provider.getAndClearCallHistory();
+
+				// Change cursor position to avoid cache hit
+				editor.setPosition({ lineNumber: 1, column: 3 });
+
+				provider.setReturnValue({ insertText: 'foobaz', range: new Range(1, 1, 1, 4) });
+				provider.fireOnDidChange();
+				await timeout(1000);
+
+				const callHistory = provider.getAndClearCallHistory();
+
+				assert.deepStrictEqual(
+					callHistory,
+					[{
+						position: '(1,3)',
+						text: 'foo',
+						triggerKind: 0
+					}]
+				);
+			}
+		);
+	});
 });

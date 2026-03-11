@@ -52,6 +52,7 @@ import './services/workspaces/browser/workspacesService.js';
 import './services/workspaces/browser/workspaceEditingService.js';
 import './services/dialogs/browser/fileDialogService.js';
 import './services/host/browser/browserHostService.js';
+import '../platform/meteredConnection/browser/meteredConnectionService.js';
 import './services/lifecycle/browser/lifecycleService.js';
 import './services/clipboard/browser/clipboardService.js';
 import './services/localization/browser/localeService.js';
@@ -70,6 +71,7 @@ import './services/configurationResolver/browser/configurationResolverService.js
 import '../platform/extensionResourceLoader/browser/extensionResourceLoaderService.js';
 import './services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import './services/browserElements/browser/webBrowserElementsService.js';
+import './services/power/browser/powerService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IAccessibilityService } from '../platform/accessibility/common/accessibility.js';

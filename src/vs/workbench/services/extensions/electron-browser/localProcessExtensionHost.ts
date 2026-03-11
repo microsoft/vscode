@@ -249,8 +249,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 
 		// Catch all output coming from the extension host process
 		type Output = { data: string; format: string[] };
-		const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.onStdout);
-		const onStderr = this._handleProcessOutputStream(this._extensionHostProcess.onStderr);
+		const onStdout = this._register(this._handleProcessOutputStream(this._extensionHostProcess.onStdout));
+		const onStderr = this._register(this._handleProcessOutputStream(this._extensionHostProcess.onStderr));
 		const onOutput = Event.any(
 			Event.map(onStdout.event, o => ({ data: `%c${o}`, format: [''] })),
 			Event.map(onStderr.event, o => ({ data: `%c${o}`, format: ['color: red'] }))
@@ -268,7 +268,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 			const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+):(\d+)\/([^\s]+)/);
 			if (inspectorUrlMatch) {
 				const [, host, port, auth] = inspectorUrlMatch;
-				const devtoolsUrl = `devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${host}:${port}/${auth}`;
+				const devtoolsUrl = `devtools://devtools/bundled/js_app.html?v8only=true&ws=${host}:${port}/${auth}`;
 				if (!this._environmentService.isBuilt && !this._isExtensionDevTestFromCli) {
 					console.debug(`%c[Extension Host] %cdebugger inspector at ${devtoolsUrl}`, 'color: blue', 'color:');
 				}
@@ -482,12 +482,14 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
 				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
+				isPortable: this._environmentService.isPortable,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
-				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions
+				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions,
+				isSessionsWindow: this._environmentService.isSessionsWindow
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: workspace.configuration ?? undefined,

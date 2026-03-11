@@ -30,7 +30,7 @@ export function getApprovalMessageFromReason(reason: ConfirmedReason): IMarkdown
 	let md: string;
 	switch (reason.type) {
 		case ToolConfirmKind.Setting:
-			md = localize('chat.autoapprove.setting', 'Auto approved by {0}', createMarkdownCommandLink({ title: '`' + reason.id + '`', id: 'workbench.action.openSettings', arguments: [reason.id] }, false));
+			md = localize('chat.autoapprove.setting', 'Auto approved by {0}', createMarkdownCommandLink({ text: '`' + reason.id + '`', id: 'workbench.action.openSettings', arguments: [reason.id], tooltip: localize('openSettings.tooltip', 'Open settings') }, false));
 			break;
 		case ToolConfirmKind.LmServicePerTool:
 			md = reason.scope === 'session'
@@ -38,7 +38,7 @@ export function getApprovalMessageFromReason(reason: ConfirmedReason): IMarkdown
 				: reason.scope === 'workspace'
 					? localize('chat.autoapprove.lmServicePerTool.workspace', 'Auto approved for this workspace')
 					: localize('chat.autoapprove.lmServicePerTool.profile', 'Auto approved for this profile');
-			md += ' (' + createMarkdownCommandLink({ title: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [reason.scope] }) + ')';
+			md += ' (' + createMarkdownCommandLink({ text: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [reason.scope], tooltip: localize('editToolApproval.tooltip', 'Edit tool approval settings') }) + ')';
 			break;
 		case ToolConfirmKind.ConfirmationNotNeeded:
 			if (reason.reason) {

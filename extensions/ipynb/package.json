@@ -3,7 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "publisher": "vscode",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "license": "MIT",
   "icon": "media/icon.png",
   "engines": {
@@ -158,7 +158,7 @@
   "scripts": {
     "compile": "npx gulp compile-extension:ipynb && npm run build-notebook",
     "watch": "npx gulp watch-extension:ipynb",
-    "build-notebook": "node ./esbuild.mjs"
+    "build-notebook": "node ./esbuild.notebook.mts"
   },
   "dependencies": {
     "@enonic/fnv-plus": "^1.3.0",

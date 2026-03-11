@@ -80,7 +80,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
-				chatSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
@@ -134,6 +134,40 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('error output to /dev/null - allow', () => t('cat missing.txt 2> /dev/null', 'outsideWorkspace', true, 1));
 		});
 
+		suite('sed in-place editing', () => {
+			// Basic -i flag variants (inside workspace)
+			test('sed -i inside workspace - allow', () => t('sed -i \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+			test('sed -I (uppercase) inside workspace - allow', () => t('sed -I \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+			test('sed --in-place inside workspace - allow', () => t('sed --in-place \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+
+			// Backup suffix variants (inside workspace)
+			test('sed -i.bak inside workspace - allow', () => t('sed -i.bak \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+			test('sed --in-place=.bak inside workspace - allow', () => t('sed --in-place=.bak \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+			test('sed -i with empty backup (macOS) inside workspace - allow', () => t('sed -i \'\' \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+
+			// Combined flags (inside workspace)
+			test('sed -ni inside workspace - allow', () => t('sed -ni \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+			test('sed -n -i inside workspace - allow', () => t('sed -n -i \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+
+			// Multiple files (inside workspace)
+			test('sed -i multiple files inside workspace - allow', () => t('sed -i \'s/foo/bar/\' file1.txt file2.txt', 'outsideWorkspace', true, 1));
+
+			// Outside workspace
+			test('sed -i outside workspace - block', () => t('sed -i \'s/foo/bar/\' /tmp/file.txt', 'outsideWorkspace', false, 1));
+			test('sed -i absolute path outside workspace - block', () => t('sed -i \'s/foo/bar/\' /etc/config', 'outsideWorkspace', false, 1));
+			test('sed -i mixed inside/outside - block', () => t('sed -i \'s/foo/bar/\' file.txt /tmp/other.txt', 'outsideWorkspace', false, 1));
+
+			// With blockDetectedFileWrites: all
+			test('sed -i with all setting - block', () => t('sed -i \'s/foo/bar/\' file.txt', 'all', false, 1));
+
+			// With blockDetectedFileWrites: never
+			test('sed -i with never setting - allow', () => t('sed -i \'s/foo/bar/\' file.txt', 'never', true, 1));
+
+			// Without -i flag (should not detect as file write)
+			test('sed without -i - no file write detected', () => t('sed \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 0));
+			test('sed with pipe - no file write detected', () => t('cat file.txt | sed \'s/foo/bar/\'', 'outsideWorkspace', true, 0));
+		});
+
 		suite('no cwd provided', () => {
 			async function tNoCwd(commandLine: string, blockDetectedFileWrites: 'never' | 'outsideWorkspace' | 'all', expectedAutoApprove: boolean, expectedDisclaimers: number = 0) {
 				configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, blockDetectedFileWrites);
@@ -148,7 +182,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 					os: OperatingSystem.Linux,
 					treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 					terminalToolSessionId: 'test',
-					chatSessionId: 'test',
+					chatSessionResource: undefined,
 				};
 
 				const result = await analyzer.analyze(options);
@@ -185,7 +219,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				os: OperatingSystem.Windows,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.PowerShell,
 				terminalToolSessionId: 'test',
-				chatSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
@@ -274,7 +308,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
-				chatSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
@@ -306,7 +340,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
-				chatSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
@@ -335,7 +369,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
-				chatSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
@@ -365,7 +399,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
-				chatSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);
@@ -404,7 +438,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
 				terminalToolSessionId: 'test',
-				chatSessionId: 'test',
+				chatSessionResource: undefined,
 			};
 
 			const result = await analyzer.analyze(options);

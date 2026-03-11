@@ -53,6 +53,7 @@ export interface NativeParsedArgs {
 	goto?: boolean;
 	'new-window'?: boolean;
 	'reuse-window'?: boolean;
+	'sessions'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
 	'prof-startup'?: boolean;
@@ -120,6 +121,7 @@ export interface NativeParsedArgs {
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
 	'enable-smoke-test-driver'?: boolean;
+	'skip-sessions-welcome'?: boolean;
 	'remote'?: string;
 	'force'?: boolean;
 	'do-not-sync'?: boolean;

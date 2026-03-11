@@ -525,7 +525,7 @@ class HelpPanelDescriptor implements IViewDescriptor {
 class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewModel {
 	private helpPanelDescriptor = new HelpPanelDescriptor(this);
 	helpInformation: HelpInformation[] = [];
-	private _onDidChangeHelpInformation = new Emitter<void>();
+	private _onDidChangeHelpInformation = this._register(new Emitter<void>());
 	public onDidChangeHelpInformation: Event<void> = this._onDidChangeHelpInformation.event;
 	private hasRegisteredHelpView: boolean = false;
 	private remoteSwitcher: SwitchRemoteViewItem | undefined;

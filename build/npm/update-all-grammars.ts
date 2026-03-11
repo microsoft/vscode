@@ -33,7 +33,7 @@ async function main() {
 	// run integration tests
 
 	if (process.platform === 'win32') {
-		_spawn('.\\scripts\\test-integration.bat', [], { env: process.env, stdio: 'inherit' });
+		_spawn('.\\scripts\\test-integration.bat', [], { shell: true, env: process.env, stdio: 'inherit' });
 	} else {
 		_spawn('/bin/bash', ['./scripts/test-integration.sh'], { env: process.env, stdio: 'inherit' });
 	}

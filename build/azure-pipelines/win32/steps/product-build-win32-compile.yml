@@ -37,18 +37,6 @@ steps:
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      artifact: Compilation
-      path: $(Build.ArtifactStagingDirectory)
-    displayName: Download compilation output
-
-  - task: ExtractFiles@1
-    displayName: Extract compilation output
-    inputs:
-      archiveFilePatterns: "$(Build.ArtifactStagingDirectory)/compilation.tar.gz"
-      cleanDestinationFolder: false
-
   - powershell: node build/setup-npm-registry.ts $env:NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
@@ -114,10 +102,33 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - pwsh: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Wait for CLI artifact (background)
+
   - powershell: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality
 
   - template: ../../common/install-builtin-extensions.yml@self
+
+  - powershell: npm run gulp core-ci
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Compile
+
+  - script: node build/azure-pipelines/common/extract-telemetry.ts
+    displayName: Generate lists of telemetry events
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { npm run compile --prefix test/smoke }
+        exec { npm run compile --prefix test/integration/browser }
+      displayName: Compile test suites (non-OSS)
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - powershell: |
@@ -181,6 +192,11 @@ steps:
     displayName: Build server (web)
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - pwsh: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Wait for CLI artifact
+
     - task: DownloadPipelineArtifact@2
       inputs:
         artifact: unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli

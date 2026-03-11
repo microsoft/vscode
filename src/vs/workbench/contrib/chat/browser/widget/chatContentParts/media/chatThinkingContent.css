@@ -17,6 +17,81 @@
 		margin: 0px;
 	}
 
+	> .chat-used-context-label .monaco-button.monaco-icon-button {
+		display: flex;
+		align-items: center;
+		line-height: 1.5em;
+		font-size: 13px;
+
+		.monaco-button-mdlabel {
+			font-size: var(--vscode-chat-font-size-body-s);
+		}
+
+		.codicon {
+			font-size: 12px;
+		}
+
+		.rendered-markdown.collapsible-title-content {
+			line-height: unset;
+		}
+
+		.rendered-markdown.chat-thinking-title-detail {
+			display: inline;
+			font-size: inherit;
+			line-height: inherit;
+
+			> p {
+				display: inline;
+				margin: 0;
+			}
+		}
+
+		.chat-thinking-title-detail-text {
+			opacity: 0.7;
+		}
+	}
+
+	&.chat-thinking-active > .chat-used-context-label .monaco-button.monaco-icon-button {
+
+		.codicon.codicon-circle-filled {
+			display: none;
+		}
+
+		.chat-thinking-title-shimmer {
+			background: linear-gradient(90deg,
+					var(--vscode-descriptionForeground) 0%,
+					var(--vscode-descriptionForeground) 30%,
+					var(--vscode-chat-thinkingShimmer) 50%,
+					var(--vscode-descriptionForeground) 70%,
+					var(--vscode-descriptionForeground) 100%);
+			background-size: 400% 100%;
+			background-clip: text;
+			-webkit-background-clip: text;
+			-webkit-text-fill-color: transparent;
+			animation: chat-thinking-shimmer 2s linear infinite;
+		}
+	}
+
+	/* shimmer animation stuffs */
+	.chat-thinking-spinner-item .chat-thinking-spinner-label {
+		background: linear-gradient(90deg,
+				var(--vscode-descriptionForeground) 0%,
+				var(--vscode-descriptionForeground) 30%,
+				var(--vscode-chat-thinkingShimmer) 50%,
+				var(--vscode-descriptionForeground) 70%,
+				var(--vscode-descriptionForeground) 100%);
+		background-size: 400% 100%;
+		background-clip: text;
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		animation: chat-thinking-shimmer 2s linear infinite;
+	}
+
+	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible {
+		overflow: visible;
+		max-height: none;
+	}
+
 	.monaco-button.hidden,
 	.chat-pinned-preview.hidden {
 		display: none;
@@ -24,35 +99,77 @@
 
 	.chat-used-context-list.chat-thinking-collapsible {
 		border: 1px solid var(--vscode-chat-requestBorder);
-		border-radius: 4px;
+		border-radius: var(--vscode-cornerRadius-medium);
 		margin-bottom: 0;
 		position: relative;
 		overflow: hidden;
 
 		.chat-tool-invocation-part {
-			padding: 3px 12px 4px 18px;
+			padding: 4px 12px 4px 18px;
 			position: relative;
+		}
 
+		.chat-thinking-tool-wrapper {
 			.chat-used-context {
 				margin-bottom: 0px;
-				margin-left: 2px;
+				margin-left: 4px;
 				padding-left: 2px;
+
+				.monaco-button.monaco-text-button {
+					color: var(--vscode-descriptionForeground);
+					display: flex;
+					align-items: center;
+
+					:hover {
+						color: var(--vscode-foreground);
+					}
+
+					.monaco-button:hover .chat-collapsible-hover-chevron {
+						opacity: 1;
+					}
+				}
 			}
 
-			.progress-container, .chat-confirmation-widget-container {
+			.chat-used-context:not(.chat-used-context-collapsed) {
+				.monaco-button.monaco-text-button {
+					color: var(--vscode-foreground);
+				}
+			}
+
+			.progress-container,
+			.chat-confirmation-widget-container {
 				margin: 0 0 2px 6px;
 			}
 
-			.codicon:not(.chat-thinking-icon) {
-				display: none;
+			/* todo: ideally not !important, but the competing css has 14 specificity */
+			.codicon.codicon-check,
+			.codicon.codicon-loading {
+				display: none !important;
 			}
+
+			.chat-collapsible-hover-chevron.codicon {
+				display: inline-flex;
+			}
+
+			.show-checkmarks .chat-confirmation-widget-title > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
+				display: inline-block;
+			}
+
+			.show-checkmarks .progress-container > .codicon.codicon-check {
+				display: inline-flex;
+			}
+
+			.chat-used-context.chat-hook-outcome-blocked,
+			.chat-used-context.chat-hook-outcome-warning {
+					padding: 4px 12px 4px 20px;
+					margin-bottom: 0;
+				}
 		}
 
 		.chat-thinking-item.markdown-content {
-			padding: 5px 12px 6px 24px;
+			padding: 6px 12px 6px 24px;
 			position: relative;
 			font-size: var(--vscode-chat-font-size-body-s);
-
 			.progress-container {
 				margin-bottom: 0px;
 				padding-top: 0px;
@@ -68,10 +185,14 @@
 		}
 
 		.chat-thinking-tool-wrapper .chat-markdown-part.rendered-markdown {
-			padding: 5px 12px 4px 20px;
+			padding: 5px 12px 4px 24px;
 
 			.status-icon.codicon-check {
 				display: none;
+			}
+
+			.show-checkmarks .status-icon.codicon-check {
+				display: inline-flex;
 			}
 
 			.code:has(.chat-codeblock-pill-container) {
@@ -83,9 +204,14 @@
 			}
 		}
 
+		.chat-thinking-tool-wrapper .chat-terminal-thinking-content .chat-markdown-part.rendered-markdown {
+			padding: 0;
+		}
+
 		/* chain of thought lines */
 		.chat-thinking-tool-wrapper,
-		.chat-thinking-item.markdown-content {
+		.chat-thinking-item.markdown-content,
+		.chat-thinking-spinner-item {
 			position: relative;
 
 			&::before {
@@ -125,6 +251,20 @@
 				color: var(--vscode-descriptionForeground);
 			}
 
+			/* the default book icon has a pixel of space at the bottom */
+			> .chat-thinking-icon .codicon.codicon-book {
+				top: 10px;
+			}
+
+		}
+
+		.chat-thinking-spinner-item {
+			padding: 6px 12px 6px 24px;
+			font-size: var(--vscode-chat-font-size-body-s);
+
+			.chat-thinking-spinner-label {
+				color: var(--vscode-descriptionForeground);
+			}
 		}
 	}
 
@@ -146,11 +286,53 @@
 
 	.rendered-markdown > p {
 		margin: 0;
+
+		& + p {
+			margin-top: 5px;
+		}
+	}
+}
+
+.interactive-session .interactive-response .value .chat-used-context.chat-terminal-thinking-collapsible {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+
+	.monaco-button.monaco-text-button {
+		display: flex;
+		align-items: center;
+	}
+
+	.chat-used-context-list.chat-terminal-thinking-content {
+		border: none;
+		padding: 0;
+		margin-bottom: 2px;
+		overflow: hidden;
+
+		.codicon:not(.codicon-check, .codicon-loading) {
+			display: inline-flex;
+		}
+
+		.progress-container {
+			margin: 0;
+		}
+	}
+
+	.chat-terminal-thinking-content .rendered-markdown [data-code] {
+		margin-bottom: 0px;
 	}
 }
 
 .interactive-session .interactive-response .value .chat-thinking-fixed-mode {
 	outline: none;
+
+	> .monaco-scrollable-element > .shadow {
+		display: none;
+	}
+
+	&.chat-used-context-collapsed > .monaco-scrollable-element:has(.chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming)) {
+		display: none;
+	}
 
 	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
 		max-height: 200px;
@@ -164,9 +346,22 @@
 		display: block;
 	}
 
+	&:not(.chat-used-context-collapsed) > .monaco-scrollable-element {
+		overflow: visible;
+		height: auto;
+
+		> .scrollbar {
+			display: none;
+		}
+	}
+
 	.chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming) {
 		max-height: none;
 		overflow: visible;
+	}
+
+	.chat-thinking-tool-wrapper .chat-used-context:not(.chat-used-context-collapsed) .chat-used-context-list {
+		display: block;
 	}
 }
 
@@ -177,5 +372,5 @@
 .interactive-session .interactive-response .value .chat-thinking-box .chat-used-context-label code {
 	display: inline;
 	line-height: inherit;
-	padding: 0 4px;
+	padding: 1px 3px;
 }
