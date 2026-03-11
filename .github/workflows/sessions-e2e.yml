@@ -30,7 +30,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: Install build tools
-        run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
+        run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev xvfb
 
       - name: Install dependencies
         run: npm ci
@@ -54,7 +54,7 @@ jobs:
         run: npx playwright install chromium
 
       - name: Run Sessions E2E tests
-        run: npm test
+        run: xvfb-run npm test
         working-directory: src/vs/sessions/test/e2e
 
       - name: Upload failure screenshots
