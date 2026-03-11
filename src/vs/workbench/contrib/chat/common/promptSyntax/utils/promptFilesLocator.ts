@@ -12,7 +12,7 @@ import { getPromptFileLocationsConfigKey, isTildePath, PromptsConfig } from '../
 import { basename, dirname, isEqual, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
+import { AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
 import { PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -25,11 +25,17 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
+import { equalsIgnoreCase } from '../../../../../../base/common/strings.js';
 
 /**
  * Maximum recursion depth when traversing subdirectories for instruction files.
  */
 const MAX_INSTRUCTIONS_RECURSION_DEPTH = 5;
+
+export interface IWorkspaceInstructionFile {
+	readonly fileName: string;
+	readonly type: AgentFileType;
+}
 
 /**
  * Utility class to locate prompt files.
@@ -584,24 +590,6 @@ export class PromptFilesLocator {
 		return [];
 	}
 
-	public async findCopilotInstructionsMDsInWorkspace(token: CancellationToken): Promise<IResolvedAgentFile[]> {
-		const result: IResolvedAgentFile[] = [];
-		const folders = this.getWorkspaceFolders();
-		for (const folder of folders) {
-			const file = joinPath(folder.uri, `.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
-			try {
-				const stat = await this.fileService.stat(file);
-				if (stat.isFile) {
-					const realPath = stat.isSymbolicLink ? await this.fileService.realpath(file) : undefined;
-					result.push({ uri: file, realPath, type: AgentFileType.copilotInstructionsMd });
-				}
-			} catch (error) {
-				this.logService.trace(`[PromptFilesLocator] Skipping copilot-instructions.md at ${file.toString()}: ${error}`);
-			}
-		}
-		return result;
-	}
-
 	/**
 	 * Gets list of `AGENTS.md` files anywhere in the workspace.
 	 */
@@ -683,29 +671,40 @@ export class PromptFilesLocator {
 		return result;
 	}
 
-	/**
-	 * Gets list of files at the root workspace folder(s).
-	 */
-	public async findFilesInWorkspaceRoots(fileName: string, folder: string | undefined, type: AgentFileType, token: CancellationToken, result: IResolvedAgentFile[] = []): Promise<IResolvedAgentFile[]> {
-		const folders = this.getWorkspaceFolders();
-		if (folder) {
-			return this.findFilesInRoots(folders.map(f => joinPath(f.uri, folder)), fileName, type, token, result);
+	public async getWorkspaceFolderRoots(includeParents: boolean): Promise<URI[]> {
+		const workspaceFolders = this.getWorkspaceFolders();
+		if (includeParents) {
+			const folders: URI[] = [];
+			const userHome = await this.pathService.userHome();
+			for (const workspaceFolder of workspaceFolders) {
+				folders.push(workspaceFolder.uri);
+				let parent = dirname(workspaceFolder.uri);
+				while (parent.path !== '/' && !isEqual(userHome, parent) && !folders.some(f => isEqual(f, parent))) {
+					folders.push(parent);
+					parent = dirname(parent);
+				}
+			}
+			return folders;
 		}
-		return this.findFilesInRoots(folders.map(f => f.uri), fileName, type, token, result);
+		return workspaceFolders.map(f => f.uri);
 	}
 
-	public async findFilesInRoots(roots: URI[], fileName: string, type: AgentFileType, token: CancellationToken, result: IResolvedAgentFile[] = []): Promise<IResolvedAgentFile[]> {
-		const fileNameLower = fileName.toLowerCase();
-		const resolvedRoots = await this.fileService.resolveAll(roots.map(uri => ({ resource: uri })));
+	public async findFilesInRoots(roots: URI[], folder: string | undefined, paths: IWorkspaceInstructionFile[], token: CancellationToken, result: IResolvedAgentFile[] = []): Promise<IResolvedAgentFile[]> {
+		const toResolve = roots.map(root => ({ resource: folder !== undefined ? joinPath(root, folder) : root }));
+		const resolvedRoots = await this.fileService.resolveAll(toResolve);
 		if (token.isCancellationRequested) {
 			return result;
 		}
 		for (const root of resolvedRoots) {
 			if (root.success && root.stat?.children) {
-				const file = root.stat.children.find(c => c.isFile && c.name.toLowerCase() === fileNameLower);
-				if (file) {
-					const realPath = file.isSymbolicLink ? await this.fileService.realpath(file.resource) : undefined;
-					result.push({ uri: file.resource, realPath, type });
+				for (const child of root.stat.children) {
+					if (child.isFile) {
+						const matchingPath = paths.find(p => equalsIgnoreCase(p.fileName, child.name));
+						if (matchingPath) {
+							const realPath = child.isSymbolicLink ? await this.fileService.realpath(child.resource) : undefined;
+							result.push({ uri: child.resource, realPath, type: matchingPath.type });
+						}
+					}
 				}
 			}
 		}

@@ -17,6 +17,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerInstallState, IMcpService } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { isContributionDisabled } from '../../common/enablement.js';
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -28,29 +29,21 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { getContextMenuActions } from '../../../../contrib/mcp/browser/mcpServerActions.js';
 import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
-import { workspaceIcon, userIcon, extensionIcon } from './aiCustomizationIcons.js';
+import { workspaceIcon, userIcon, mcpServerIcon, builtinIcon } from './aiCustomizationIcons.js';
+import { formatDisplayName, truncateToFirstSentence } from './aiCustomizationListWidget.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 
 const $ = DOM.$;
 
 const MCP_ITEM_HEIGHT = 36;
-const MCP_GROUP_HEADER_HEIGHT = 36;
-const MCP_GROUP_HEADER_HEIGHT_WITH_SEPARATOR = 40;
 
 /**
  * Represents a collapsible group header in the MCP server list.
  */
-interface IMcpGroupHeaderEntry {
-	readonly type: 'group-header';
-	readonly id: string;
+interface IMcpGroupHeaderEntry extends ICustomizationGroupHeaderEntry {
 	readonly scope: LocalMcpServerScope | 'builtin';
-	readonly label: string;
-	readonly icon: ThemeIcon;
-	readonly count: number;
-	readonly isFirst: boolean;
-	readonly description: string;
-	collapsed: boolean;
 }
 
 /**
@@ -79,7 +72,7 @@ type IMcpListEntry = IMcpGroupHeaderEntry | IMcpServerItemEntry | IMcpBuiltinIte
 class McpServerItemDelegate implements IListVirtualDelegate<IMcpListEntry> {
 	getHeight(element: IMcpListEntry): number {
 		if (element.type === 'group-header') {
-			return element.isFirst ? MCP_GROUP_HEADER_HEIGHT : MCP_GROUP_HEADER_HEIGHT_WITH_SEPARATOR;
+			return element.isFirst ? CUSTOMIZATION_GROUP_HEADER_HEIGHT : CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR;
 		}
 		if (element.type === 'server-item' && element.server.gallery && !element.server.local) {
 			return 62;
@@ -99,75 +92,9 @@ class McpServerItemDelegate implements IListVirtualDelegate<IMcpListEntry> {
 	}
 }
 
-interface IMcpGroupHeaderTemplateData {
-	readonly container: HTMLElement;
-	readonly chevron: HTMLElement;
-	readonly icon: HTMLElement;
-	readonly label: HTMLElement;
-	readonly count: HTMLElement;
-	readonly infoIcon: HTMLElement;
-	readonly disposables: DisposableStore;
-	readonly elementDisposables: DisposableStore;
-}
-
-/**
- * Renderer for collapsible group headers (Workspace, User).
- */
-class McpGroupHeaderRenderer implements IListRenderer<IMcpGroupHeaderEntry, IMcpGroupHeaderTemplateData> {
-	readonly templateId = 'mcpGroupHeader';
-
-	constructor(
-		private readonly hoverService: IHoverService,
-	) { }
-
-	renderTemplate(container: HTMLElement): IMcpGroupHeaderTemplateData {
-		const disposables = new DisposableStore();
-		const elementDisposables = new DisposableStore();
-		container.classList.add('ai-customization-group-header');
-
-		const chevron = DOM.append(container, $('.group-chevron'));
-		const icon = DOM.append(container, $('.group-icon'));
-		const labelGroup = DOM.append(container, $('.group-label-group'));
-		const label = DOM.append(labelGroup, $('.group-label'));
-		const infoIcon = DOM.append(labelGroup, $('.group-info'));
-		infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
-		const count = DOM.append(container, $('.group-count'));
-
-		return { container, chevron, icon, label, count, infoIcon, disposables, elementDisposables };
-	}
-
-	renderElement(element: IMcpGroupHeaderEntry, _index: number, templateData: IMcpGroupHeaderTemplateData): void {
-		templateData.elementDisposables.clear();
-
-		templateData.chevron.className = 'group-chevron';
-		templateData.chevron.classList.add(...ThemeIcon.asClassNameArray(element.collapsed ? Codicon.chevronRight : Codicon.chevronDown));
-
-		templateData.icon.className = 'group-icon';
-		templateData.icon.classList.add(...ThemeIcon.asClassNameArray(element.icon));
-
-		templateData.label.textContent = element.label;
-		templateData.count.textContent = `${element.count}`;
-
-		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.infoIcon, () => ({
-			content: element.description,
-			appearance: {
-				compact: true,
-				skipFadeInAnimation: true,
-			}
-		})));
-
-		templateData.container.classList.toggle('collapsed', element.collapsed);
-		templateData.container.classList.toggle('has-previous-group', !element.isFirst);
-	}
-
-	disposeTemplate(templateData: IMcpGroupHeaderTemplateData): void {
-		templateData.elementDisposables.dispose();
-		templateData.disposables.dispose();
-	}
-}
-
 interface IMcpServerItemTemplateData {
 	readonly container: HTMLElement;
+	readonly typeIcon: HTMLElement;
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
 	readonly status: HTMLElement;
@@ -188,13 +115,16 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 	renderTemplate(container: HTMLElement): IMcpServerItemTemplateData {
 		container.classList.add('mcp-server-item');
 
+		const typeIcon = DOM.append(container, $('.mcp-server-icon'));
+		typeIcon.classList.add(...ThemeIcon.asClassNameArray(mcpServerIcon));
+
 		const details = DOM.append(container, $('.mcp-server-details'));
 		const name = DOM.append(details, $('.mcp-server-name'));
 		const description = DOM.append(details, $('.mcp-server-description'));
 
 		const status = DOM.append(container, $('.mcp-server-status'));
 
-		return { container, name, description, status, disposables: new DisposableStore() };
+		return { container, typeIcon, name, description, status, disposables: new DisposableStore() };
 	}
 
 	renderElement(element: IMcpServerItemEntry | IMcpBuiltinItemEntry, index: number, templateData: IMcpServerItemTemplateData): void {
@@ -202,9 +132,9 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 
 		if (element.type === 'builtin-item') {
 			templateData.container.classList.add('builtin');
-			templateData.name.textContent = element.label;
+			templateData.name.textContent = formatDisplayName(element.label);
 			if (element.description) {
-				templateData.description.textContent = element.description;
+				templateData.description.textContent = truncateToFirstSentence(element.description);
 				templateData.description.style.display = '';
 			} else {
 				templateData.description.style.display = 'none';
@@ -214,9 +144,9 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		}
 
 		templateData.container.classList.remove('builtin');
-		templateData.name.textContent = element.server.label;
+		templateData.name.textContent = formatDisplayName(element.server.label);
 		if (element.server.description) {
-			templateData.description.textContent = element.server.description;
+			templateData.description.textContent = truncateToFirstSentence(element.server.description);
 			templateData.description.style.display = '';
 		} else {
 			templateData.description.style.display = 'none';
@@ -225,12 +155,14 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		// Find the server from IMcpService to get connection state
 		const server = this.mcpService.servers.get().find(s => s.definition.id === element.server.id);
 		templateData.disposables.add(autorun(reader => {
+			const disabled = server ? isContributionDisabled(server.enablement.read(reader)) : false;
 			const connectionState = server?.connectionState.read(reader);
-			this.updateStatus(templateData.status, connectionState?.state);
+			templateData.container.classList.toggle('disabled', disabled);
+			this.updateStatus(templateData.status, disabled ? 'disabled' : connectionState?.state);
 		}));
 	}
 
-	private updateStatus(statusElement: HTMLElement, state: McpConnectionState.Kind | undefined): void {
+	private updateStatus(statusElement: HTMLElement, state: McpConnectionState.Kind | 'disabled' | undefined): void {
 		statusElement.className = 'mcp-server-status';
 
 		if (this.workspaceService.isSessionsWindow) {
@@ -240,6 +172,11 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		}
 
 		statusElement.style.display = '';
+		if (state === 'disabled') {
+			statusElement.textContent = localize('disabled', "Disabled");
+			statusElement.classList.add('disabled');
+			return;
+		}
 		switch (state) {
 			case McpConnectionState.Kind.Running:
 				statusElement.textContent = localize('running', "Running");
@@ -495,7 +432,7 @@ export class McpListWidget extends Disposable {
 
 		// Create list
 		const delegate = new McpServerItemDelegate();
-		const groupHeaderRenderer = new McpGroupHeaderRenderer(this.hoverService);
+		const groupHeaderRenderer = new CustomizationGroupHeaderRenderer<IMcpGroupHeaderEntry>('mcpGroupHeader', this.hoverService);
 		const localRenderer = this.instantiationService.createInstance(McpServerItemRenderer);
 		const galleryRenderer = new McpGalleryItemRenderer(this.mcpWorkbenchService);
 
@@ -742,7 +679,7 @@ export class McpListWidget extends Disposable {
 				id: 'mcp-group-builtin',
 				scope: 'builtin',
 				label: localize('builtInGroup', "Built-in"),
-				icon: extensionIcon,
+				icon: builtinIcon,
 				count: builtinServers.length,
 				isFirst,
 				description: localize('builtInGroupDescription', "MCP servers built into VS Code. These are available automatically."),

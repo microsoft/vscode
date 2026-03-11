@@ -803,51 +803,7 @@ export class BrowserEditor extends EditorPane {
 				throw new Error('Element data not found');
 			}
 
-			const bounds = elementData.bounds;
-			const toAttach: IChatRequestVariableEntry[] = [];
-
-			// Prepare HTML/CSS context
-			const displayName = getDisplayNameFromOuterHTML(elementData.outerHTML);
-			const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
-			const value = this.createElementContextValue(elementData, displayName, attachCss);
-
-			toAttach.push({
-				id: 'element-' + Date.now(),
-				name: displayName,
-				fullName: displayName,
-				value: value,
-				modelDescription: attachCss
-					? 'Structured browser element context with HTML path, attributes, and computed styles.'
-					: 'Structured browser element context with HTML path and attributes.',
-				kind: 'element',
-				icon: ThemeIcon.fromId(Codicon.layout.id),
-				ancestors: elementData.ancestors,
-				attributes: elementData.attributes,
-				computedStyles: attachCss ? elementData.computedStyles : undefined,
-				dimensions: elementData.dimensions,
-				innerText: elementData.innerText,
-			});
-
-			// Attach screenshot if enabled
-			const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
-			if (attachImages && this._model) {
-				const screenshotBuffer = await this._model.captureScreenshot({
-					quality: 90,
-					rect: bounds
-				});
-
-				toAttach.push({
-					id: 'element-screenshot-' + Date.now(),
-					name: 'Element Screenshot',
-					fullName: 'Element Screenshot',
-					kind: 'image',
-					value: screenshotBuffer.buffer
-				});
-			}
-
-			// Attach to chat widget
-			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
-			widget?.attachmentModel?.addContext(...toAttach);
+			const { attachCss, attachImages } = await this.attachElementDataToChat(elementData);
 
 			type IntegratedBrowserAddElementToChatAddedEvent = {
 				attachCss: boolean;
@@ -990,6 +946,53 @@ export class BrowserEditor extends EditorPane {
 		}
 
 		return sections.join('\n\n');
+	}
+
+	private async attachElementDataToChat(elementData: IElementData): Promise<{ attachCss: boolean; attachImages: boolean }> {
+		const bounds = elementData.bounds;
+		const toAttach: IChatRequestVariableEntry[] = [];
+
+		const displayName = getDisplayNameFromOuterHTML(elementData.outerHTML);
+		const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
+		const value = this.createElementContextValue(elementData, displayName, attachCss);
+
+		toAttach.push({
+			id: 'element-' + Date.now(),
+			name: displayName,
+			fullName: displayName,
+			value: value,
+			modelDescription: attachCss
+				? 'Structured browser element context with HTML path, attributes, and computed styles.'
+				: 'Structured browser element context with HTML path and attributes.',
+			kind: 'element',
+			icon: ThemeIcon.fromId(Codicon.layout.id),
+			ancestors: elementData.ancestors,
+			attributes: elementData.attributes,
+			computedStyles: attachCss ? elementData.computedStyles : undefined,
+			dimensions: elementData.dimensions,
+			innerText: elementData.innerText,
+		});
+
+		const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
+		if (attachImages && this._model) {
+			const screenshotBuffer = await this._model.captureScreenshot({
+				quality: 90,
+				rect: bounds
+			});
+
+			toAttach.push({
+				id: 'element-screenshot-' + Date.now(),
+				name: 'Element Screenshot',
+				fullName: 'Element Screenshot',
+				kind: 'image',
+				value: screenshotBuffer.buffer
+			});
+		}
+
+		const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+		widget?.attachmentModel?.addContext(...toAttach);
+
+		return { attachCss, attachImages };
 	}
 
 	private formatElementPath(ancestors: readonly IElementAncestor[] | undefined): string | undefined {
@@ -1149,6 +1152,34 @@ export class BrowserEditor extends EditorPane {
 		this._currentKeyDownEvent = keyEvent;
 
 		try {
+			const isEnterKey =
+				keyEvent.code === 'Enter' ||
+				keyEvent.code === 'NumpadEnter' ||
+				keyEvent.key === 'Enter' ||
+				keyEvent.key === 'Return';
+			if (this._elementSelectionCts && isEnterKey) {
+				const cts = this._elementSelectionCts;
+				const resourceUri = this.input?.resource;
+				if (!resourceUri) {
+					return;
+				}
+
+				const locator: IBrowserTargetLocator = { browserViewId: BrowserViewUri.getId(resourceUri) };
+				const { width, height } = this._browserContainer.getBoundingClientRect();
+				const elementData = await this.browserElementsService.getFocusedElementData({ x: 0, y: 0, width, height }, cts.token, locator);
+				if (!elementData) {
+					return;
+				}
+
+				await this.attachElementDataToChat(elementData);
+				cts.dispose();
+				if (this._elementSelectionCts === cts) {
+					this._elementSelectionCts = undefined;
+					this._elementSelectionActiveContext.set(false);
+				}
+				return;
+			}
+
 			const syntheticEvent = new KeyboardEvent('keydown', keyEvent);
 			const standardEvent = new StandardKeyboardEvent(syntheticEvent);
 

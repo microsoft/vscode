@@ -480,8 +480,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
 		const quality = options?.quality ?? 80;
 		const image = await this._view.webContents.capturePage(options?.rect, {
-			stayHidden: true,
-			stayAwake: true
+			stayHidden: true
 		});
 		const buffer = image.toJPEG(quality);
 		const screenshot = VSBuffer.wrap(buffer);
@@ -645,6 +644,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 		const isArrowKey = keyCode >= KeyCode.LeftArrow && keyCode <= KeyCode.DownArrow;
 		const isNonEditingKey =
+			keyCode === KeyCode.Enter ||
 			keyCode === KeyCode.Escape ||
 			keyCode >= KeyCode.F1 && keyCode <= KeyCode.F24 ||
 			keyCode >= KeyCode.AudioVolumeMute;

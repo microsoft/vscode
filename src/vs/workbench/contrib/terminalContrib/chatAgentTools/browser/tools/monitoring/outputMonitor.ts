@@ -18,7 +18,7 @@ import { ChatElicitationRequestPart } from '../../../../../chat/common/model/cha
 import { ChatModel } from '../../../../../chat/common/model/chatModel.js';
 import { ElicitationState, IChatService } from '../../../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatPermissionLevel } from '../../../../../chat/common/constants.js';
-import { ChatMessageRole, getTextResponseFromStream, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
+import { ChatMessageRole, getTextResponseFromStream, type ILanguageModelChatSelector, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
 import { ILinkLocation } from '../../taskHelpers.js';
@@ -243,11 +243,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		// Check for generic "press any key" prompts from scripts.
 		if ((!isTask || !isTaskInactive) && detectsGenericPressAnyKeyPattern(output)) {
 			this._logService.trace('OutputMonitor: Idle -> generic "press any key" detected');
-			// In autopilot mode, auto-reply to "press any key" prompts
-			if (this._isAutopilotMode()) {
-				this._logService.trace('OutputMonitor: Autopilot mode -> auto-replying to "press any key"');
-				await this._execution.instance.sendText('', true);
-				return { shouldContinuePollling: true };
+			const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts) || this._isAutopilotMode();
+			if (autoReply) {
+				this._logService.trace('OutputMonitor: Auto-reply enabled -> not showing free-form prompt for "press any key", stopping');
+				this._cleanupIdleInputListener();
+				return { shouldContinuePollling: false, output };
 			}
 			this._logService.trace('OutputMonitor: Requesting free-form input for "press any key"');
 			// Register a marker to track this prompt position so we don't re-detect it
@@ -299,16 +299,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				return { shouldContinuePollling: true };
 			}
 			const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts) || this._isAutopilotMode();
-			if (autoReply && !this._isSensitivePrompt(confirmationPrompt.prompt)) {
-				const explicitInput = confirmationPrompt.suggestedInput ?? this._extractExplicitInputFromPrompt(confirmationPrompt.prompt);
-				const normalizedInput = this._normalizeAutoReplyInput(explicitInput);
-				if (normalizedInput !== undefined) {
-					this._logService.trace('OutputMonitor: Auto-replying to free-form prompt');
-					await this._execution.instance.sendText(normalizedInput, true);
-					this._outputMonitorTelemetryCounters.inputToolAutoAcceptCount++;
-					this._outputMonitorTelemetryCounters.inputToolAutoChars += normalizedInput.length;
-					return { shouldContinuePollling: true };
-				}
+			if (autoReply) {
+				this._logService.trace('OutputMonitor: Auto-reply enabled -> not propagating free-form prompt, stopping');
+				this._cleanupIdleInputListener();
+				return { shouldContinuePollling: false, output };
 			}
 			// Clean up the input listener now - the prompt will set up its own
 			this._cleanupIdleInputListener();
@@ -621,37 +615,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return request?.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot;
 	}
 
-	private _normalizeAutoReplyInput(input: string | undefined): string | undefined {
-		if (!input) {
-			return undefined;
-		}
-		const trimmed = input.trim();
-		if (!trimmed) {
-			return undefined;
-		}
-		const lowered = trimmed.toLowerCase();
-		if (lowered === '\\r' || lowered === '\\n' || lowered === 'enter' || lowered === 'return') {
-			return '';
-		}
-		return trimmed;
-	}
-
-	private _extractExplicitInputFromPrompt(prompt: string): string | undefined {
-		const normalizedPrompt = prompt.trim();
-		if (!normalizedPrompt) {
-			return undefined;
-		}
-		const directCommandMatch = normalizedPrompt.match(/\b(?:type|enter|input)\s+["'`]([^"'`]+)["'`]/i);
-		if (directCommandMatch?.[1]) {
-			return directCommandMatch[1];
-		}
-		const bareCommandMatch = normalizedPrompt.match(/\b(?:type|enter|input)\s+([\w.-]+)\b/i);
-		if (bareCommandMatch?.[1]) {
-			return bareCommandMatch[1];
-		}
-		return undefined;
-	}
-
 	private async _selectAndHandleOption(
 		confirmationPrompt: IConfirmationPrompt | undefined,
 		token: CancellationToken,
@@ -662,7 +625,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts) || this._isAutopilotMode();
 		let model = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)[0]?.input.currentLanguageModel;
 		if (model) {
-			const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: model.replaceAll('copilot/', '') });
+			const models = await this._safeSelectLanguageModels({ vendor: 'copilot', family: model.replaceAll('copilot/', '') });
 			model = models[0];
 		}
 		if (!model) {
@@ -964,8 +927,17 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _getLanguageModel(): Promise<string | undefined> {
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
+		const models = await this._safeSelectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
 		return models.length ? models[0] : undefined;
+	}
+
+	private async _safeSelectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]> {
+		try {
+			return await this._languageModelsService.selectLanguageModels(selector);
+		} catch (error) {
+			this._logService.trace('OutputMonitor: selectLanguageModels failed', { selector, error });
+			return [];
+		}
 	}
 }
 

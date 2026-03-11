@@ -274,3 +274,9 @@
 .changes-view-body .chat-editing-session-actions .monaco-button .working-set-lines-removed {
 	color: var(--vscode-chat-linesRemovedForeground);
 }
+
+.changes-view-body .chat-editing-session-actions .monaco-button.code-review-comments,
+.changes-view-body .chat-editing-session-actions .monaco-button.code-review-loading {
+	padding-left: 4px;
+	padding-right: 4px;
+}

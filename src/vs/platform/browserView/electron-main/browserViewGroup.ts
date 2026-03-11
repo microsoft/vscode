@@ -6,10 +6,9 @@
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { BrowserView } from './browserView.js';
-import { ICDPTarget, CDPBrowserVersion, CDPWindowBounds, CDPTargetInfo, ICDPConnection, ICDPBrowserTarget } from '../common/cdp/types.js';
+import { ICDPTarget, CDPBrowserVersion, CDPWindowBounds, CDPTargetInfo, ICDPConnection, ICDPBrowserTarget, CDPRequest, CDPResponse, CDPEvent } from '../common/cdp/types.js';
 import { CDPBrowserProxy } from '../common/cdp/proxy.js';
 import { IBrowserViewGroup, IBrowserViewGroupViewEvent } from '../common/browserViewGroup.js';
-import { IBrowserViewCDPProxyServer } from './browserViewCDPProxyServer.js';
 import { IBrowserViewMainService } from './browserViewMainService.js';
 
 /**
@@ -50,8 +49,7 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 	constructor(
 		readonly id: string,
 		private readonly windowId: number,
-		@IBrowserViewMainService private readonly browserViewMainService: IBrowserViewMainService,
-		@IBrowserViewCDPProxyServer private readonly cdpProxyServer: IBrowserViewCDPProxyServer,
+		@IBrowserViewMainService private readonly browserViewMainService: IBrowserViewMainService
 	) {
 		super();
 	}
@@ -189,19 +187,26 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 
 	// #region CDP endpoint
 
-	/**
-	 * Get a WebSocket endpoint URL for connecting to this group's CDP
-	 * session. The URL contains a short-lived, single-use token.
-	 */
-	async getDebugWebSocketEndpoint(): Promise<string> {
-		return this.cdpProxyServer.getWebSocketEndpointForTarget(this);
+	private _debugger: CDPBrowserProxy | undefined;
+	get debugger(): CDPBrowserProxy {
+		if (!this._debugger) {
+			this._debugger = this._register(new CDPBrowserProxy(this));
+		}
+		return this._debugger;
+	}
+
+	async sendCDPMessage(msg: CDPRequest): Promise<void> {
+		return this.debugger.sendMessage(msg);
+	}
+
+	get onCDPMessage(): Event<CDPResponse | CDPEvent> {
+		return this.debugger.onMessage;
 	}
 
 	// #endregion
 
 	override dispose(): void {
 		this._onDidDestroy.fire();
-		this.cdpProxyServer.removeTarget(this);
 		super.dispose();
 	}
 }

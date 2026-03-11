@@ -950,6 +950,7 @@
 		"--testMessageDecorationFontSize",
 		"--title-border-bottom-color",
 		"--title-wco-width",
+		"--update-progress",
 		"--reveal-button-size",
 		"--part-background",
 		"--part-border-color",
