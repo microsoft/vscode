@@ -49,6 +49,7 @@ interface IStoredProject {
 	readonly uri: string;
 	readonly label: string;
 	readonly repoId?: string;
+	readonly checked?: boolean;
 }
 
 /**
@@ -369,24 +370,28 @@ export class ProjectPicker extends Disposable {
 		const folders = allProjects.filter(p => p.kind === 'folder').sort((a, b) => a.label.localeCompare(b.label));
 		const repos = allProjects.filter(p => p.kind === 'repo').sort((a, b) => a.label.localeCompare(b.label));
 
+		const selectedKey = this._selectedProject ? this._projectKey(this._toStored(this._selectedProject)) : undefined;
+
 		// Folders first
 		for (const project of folders) {
+			const isSelected = selectedKey !== undefined && this._projectKey(project) === selectedKey;
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: project.label,
 				group: { title: '', icon: Codicon.folder },
-				item: project,
+				item: isSelected ? { ...project, checked: true } : project,
 				onRemove: () => this._removeProject(project),
 			});
 		}
 
 		// Then repos
 		for (const project of repos) {
+			const isSelected = selectedKey !== undefined && this._projectKey(project) === selectedKey;
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: project.label,
 				group: { title: '', icon: Codicon.repo },
-				item: project,
+				item: isSelected ? { ...project, checked: true } : project,
 				onRemove: () => this._removeProject(project),
 			});
 		}
