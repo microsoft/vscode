@@ -235,6 +235,7 @@ export interface IElementVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly computedStyles?: Record<string, string>;
 	readonly dimensions?: { readonly top: number; readonly left: number; readonly width: number; readonly height: number };
 	readonly innerText?: string;
+	readonly pageUrl?: string;
 }
 
 export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry {

@@ -28,6 +28,7 @@ interface NodeDataResponse {
 	computedStyles?: Record<string, string>;
 	dimensions?: { top: number; left: number; width: number; height: number };
 	innerText?: string;
+	pageUrl?: string;
 }
 
 const MAX_CONSOLE_LOG_ENTRIES = 1000;
@@ -428,6 +429,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 			computedStyles: nodeData.computedStyles,
 			dimensions: nodeData.dimensions,
 			innerText: nodeData.innerText,
+			pageUrl: nodeData.pageUrl,
 		};
 	}
 
@@ -484,6 +486,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 						let attributes: Record<string, string> | undefined;
 						let computedStyles: Record<string, string> | undefined;
 						let innerText: string | undefined;
+						let pageUrl: string | undefined;
 
 						try {
 							// Build ancestor chain using JavaScript evaluation (more reliable than DOM.describeNode for parent walking)
@@ -540,6 +543,15 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 								}
 							}
 
+							// Get the page URL (origin + pathname only, to avoid leaking sensitive query/fragment data)
+							const { result: pageUrlResult } = await debuggers.sendCommand('Runtime.evaluate', {
+								expression: '(function() { try { return document.location.origin + document.location.pathname; } catch (e) { return undefined; } })()',
+								returnByValue: true,
+							}, sessionId);
+							if (typeof pageUrlResult?.value === 'string') {
+								pageUrl = pageUrlResult.value;
+							}
+
 							// Capture all computed styles for model-facing element context.
 							const { computedStyle: computedStyleArray } = await debuggers.sendCommand('CSS.getComputedStyleForNode', { nodeId }, sessionId);
 							if (computedStyleArray) {
@@ -564,6 +576,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 							computedStyles,
 							dimensions: { top: y, left: x, width, height },
 							innerText,
+							pageUrl,
 						});
 					} catch (err) {
 						debuggers.off('message', onMessage);
