@@ -1081,9 +1081,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private async handleEditorActionButton(): Promise<void> {
-		const shouldPromptToSave = this.currentEditingStorage === BUILTIN_STORAGE &&
-			this.currentEditingPromptType === PromptsType.prompt &&
-			this._editorContentChanged;
+		const hasDirtyChanges = this._editorContentChanged;
+		const shouldPromptToSave = hasDirtyChanges &&
+			this.currentEditingStorage === BUILTIN_STORAGE &&
+			this.currentEditingPromptType === PromptsType.prompt;
+		const shouldSaveAndGoBack = hasDirtyChanges && !shouldPromptToSave;
+
+		if (shouldSaveAndGoBack && this.currentEditingUri) {
+			await this.textFileService.save(this.currentEditingUri);
+		}
 
 		if (shouldPromptToSave) {
 			const selection = await this.pickBuiltinPromptSaveTarget();
@@ -1104,16 +1110,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		const shouldPromptToSave = this.currentEditingStorage === BUILTIN_STORAGE &&
-			this.currentEditingPromptType === PromptsType.prompt &&
-			this._editorContentChanged;
-		this.editorActionButtonIcon.className = `codicon codicon-${shouldPromptToSave ? Codicon.save.id : Codicon.arrowLeft.id} editor-action-button-icon`;
+		const hasDirtyChanges = this._editorContentChanged;
+		const shouldPromptToSave = hasDirtyChanges &&
+			this.currentEditingStorage === BUILTIN_STORAGE &&
+			this.currentEditingPromptType === PromptsType.prompt;
+		this.editorActionButtonIcon.className = `codicon codicon-${hasDirtyChanges ? Codicon.save.id : Codicon.arrowLeft.id} editor-action-button-icon`;
 		this.editorActionButton.disabled = false;
-		this.editorActionButton.setAttribute('aria-label', shouldPromptToSave
-			? localize('savePromptCopyAndChooseLocation', "Save prompt override")
+		this.editorActionButton.setAttribute('aria-label', hasDirtyChanges
+			? shouldPromptToSave
+				? localize('savePromptCopyAndChooseLocation', "Save prompt override")
+				: localize('saveChangesAndGoBack', "Save changes and go back")
 			: localize('backToList', "Back to list"));
-		this.editorActionButton.title = shouldPromptToSave
-			? localize('savePromptCopyAndChooseLocationTooltip', "Save prompt override (choose Workspace, User, or Cancel)")
+		this.editorActionButton.title = hasDirtyChanges
+			? shouldPromptToSave
+				? localize('savePromptCopyAndChooseLocationTooltip', "Save prompt override (choose Workspace, User, or Cancel)")
+				: localize('saveChangesAndGoBackTooltip', "Save changes and go back")
 			: localize('backToList', "Back to list");
 	}
 
