@@ -41,12 +41,15 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
+import { getCustomizationSecondaryText } from './aiCustomizationListWidgetUtils.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
+
+export { truncateToFirstSentence } from './aiCustomizationListWidgetUtils.js';
 
 const $ = DOM.$;
 
@@ -115,6 +118,7 @@ class AICustomizationListDelegate implements IListVirtualDelegate<IListEntry> {
 interface IAICustomizationItemTemplateData {
 	readonly container: HTMLElement;
 	readonly actionsContainer: HTMLElement;
+	readonly typeIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly description: HighlightedLabel;
 	readonly disposables: DisposableStore;
@@ -195,6 +199,33 @@ class GroupHeaderRenderer implements IListRenderer<IGroupHeaderEntry, IGroupHead
 }
 
 /**
+ * Returns the icon for a given prompt type.
+ */
+function promptTypeToIcon(type: PromptsType): ThemeIcon {
+	switch (type) {
+		case PromptsType.agent: return agentIcon;
+		case PromptsType.skill: return skillIcon;
+		case PromptsType.instructions: return instructionsIcon;
+		case PromptsType.prompt: return promptIcon;
+		case PromptsType.hook: return hookIcon;
+		default: return promptIcon;
+	}
+}
+
+/**
+ * Formats a name for display: strips a trailing .md extension, converts dashes/underscores
+ * to spaces and applies title case.
+ * Note: callers that pass IMatch highlight ranges must compute those ranges against the
+ * formatted string (not the raw input), since .md stripping changes string length.
+ */
+export function formatDisplayName(name: string): string {
+	return name
+		.replace(/\.md$/i, '')
+		.replace(/[-_]/g, ' ')
+		.replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/**
  * Renderer for AI customization list items.
  */
 class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICustomizationItemTemplateData> {
@@ -212,6 +243,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		container.classList.add('ai-customization-list-item');
 
 		const leftSection = DOM.append(container, $('.item-left'));
+		const typeIcon = DOM.append(leftSection, $('.item-type-icon'));
 		const textContainer = DOM.append(leftSection, $('.item-text'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-name'))));
 		const description = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-description'))));
@@ -222,6 +254,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		return {
 			container,
 			actionsContainer,
+			typeIcon,
 			nameLabel,
 			description,
 			disposables,
@@ -232,6 +265,10 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	renderElement(entry: IFileItemEntry, index: number, templateData: IAICustomizationItemTemplateData): void {
 		templateData.elementDisposables.clear();
 		const element = entry.item;
+
+		// Type icon based on prompt type
+		templateData.typeIcon.className = 'item-type-icon';
+		templateData.typeIcon.classList.add(...ThemeIcon.asClassNameArray(promptTypeToIcon(element.promptType)));
 
 		// Hover tooltip: name + full path
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.container, () => {
@@ -245,13 +282,34 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			};
 		}));
 
-		// Name with highlights
-		templateData.nameLabel.set(element.name, element.nameMatches);
+		// Name with highlights — nameMatches are pre-computed against the formatted display name
+		const displayName = formatDisplayName(element.name);
+		templateData.nameLabel.set(displayName, element.nameMatches);
 
-		// Description - show either description or filename as secondary text
-		const secondaryText = element.description || element.filename;
+		// Hooks show shell commands here, so keep the full text instead of truncating to the first sentence.
+		const secondaryText = getCustomizationSecondaryText(element.description, element.filename, element.promptType);
+		let secondaryTextMatches: IMatch[] | undefined;
+		if (secondaryText && element.description && element.descriptionMatches) {
+			if (secondaryText === element.description) {
+				// No truncation, matches can be used as-is.
+				secondaryTextMatches = element.descriptionMatches;
+			} else {
+				// Description was truncated for display; clamp matches to the visible range.
+				const maxLength = secondaryText.length;
+				const clampedMatches = element.descriptionMatches.map(match => {
+					// Discard matches that are entirely outside the visible portion.
+					if (match.start >= maxLength || match.end <= 0) {
+						return undefined;
+					}
+					const clampedStart = Math.max(0, match.start);
+					const clampedEnd = Math.min(match.end, maxLength);
+					return clampedEnd > clampedStart ? { start: clampedStart, end: clampedEnd } : undefined;
+				}).filter((match): match is IMatch => !!match);
+				secondaryTextMatches = clampedMatches.length ? clampedMatches : undefined;
+			}
+		}
 		if (secondaryText) {
-			templateData.description.set(secondaryText, element.description ? element.descriptionMatches : undefined);
+			templateData.description.set(secondaryText, secondaryTextMatches);
 			templateData.description.element.style.display = '';
 			// Style differently for filename vs description
 			templateData.description.element.classList.toggle('is-filename', !element.description);
@@ -963,7 +1021,10 @@ export class AICustomizationListWidget extends Disposable {
 			matchedItems = [];
 
 			for (const item of this.allItems) {
-				const nameMatches = matchesContiguousSubString(query, item.name);
+				// Compute matches against the formatted display name so highlight positions
+				// are correct even after .md stripping and title-casing.
+				const displayName = formatDisplayName(item.name);
+				const nameMatches = matchesContiguousSubString(query, displayName);
 				const descriptionMatches = item.description ? matchesContiguousSubString(query, item.description) : null;
 				const filenameMatches = matchesContiguousSubString(query, item.filename);
 

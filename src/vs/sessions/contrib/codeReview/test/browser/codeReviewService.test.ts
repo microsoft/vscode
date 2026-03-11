@@ -6,16 +6,21 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentSession, IAgentSessionsModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { CodeReviewService, CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService } from '../../browser/codeReviewService.js';
+import { IGitHubService } from '../../../github/browser/githubService.js';
+import { IActiveSessionItem, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
 
 suite('CodeReviewService', () => {
 
@@ -162,6 +167,11 @@ suite('CodeReviewService', () => {
 
 		commandService = new MockCommandService();
 		instantiationService.stub(ICommandService, commandService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() { }());
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override readonly activeSession = observableValue<IActiveSessionItem | undefined>('test.activeSession', undefined);
+		}());
 
 		storageService = store.add(new InMemoryStorageService());
 		instantiationService.stub(IStorageService, storageService);

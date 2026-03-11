@@ -60,8 +60,10 @@ import { IExtensionService } from '../../../../workbench/services/extensions/com
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
-import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
+import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
+import { IGitHubService } from '../../github/browser/githubService.js';
+import { CIStatusWidget } from './ciStatusWidget.js';
 
 const $ = dom.$;
 
@@ -88,8 +90,8 @@ const enum ChangesVersionMode {
 	Uncommitted = 'uncommitted'
 }
 
-const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('changesVersionMode', ChangesVersionMode.AllChanges);
-const hasUncommittedChangesContextKey = new RawContextKey<boolean>('hasUncommittedChanges', false);
+const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('sessions.changesVersionMode', ChangesVersionMode.AllChanges);
+const hasUncommittedChangesContextKey = new RawContextKey<boolean>('sessions.hasUncommittedChanges', false);
 
 // --- List Item
 
@@ -222,6 +224,7 @@ export class ChangesViewPane extends ViewPane {
 	private actionsContainer: HTMLElement | undefined;
 
 	private tree: WorkbenchCompressibleObjectTree<ChangesTreeElement> | undefined;
+	private ciStatusWidget: CIStatusWidget | undefined;
 
 	private readonly renderDisposables = this._register(new DisposableStore());
 
@@ -289,6 +292,7 @@ export class ChangesViewPane extends ViewPane {
 		@IStorageService private readonly storageService: IStorageService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
 		@IGitService private readonly gitService: IGitService,
+		@IGitHubService private readonly gitHubService: IGitHubService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -456,6 +460,9 @@ export class ChangesViewPane extends ViewPane {
 		// List container
 		this.listContainer = dom.append(this.contentContainer, $('.chat-editing-session-list'));
 
+		// CI Status widget beneath the card
+		this.ciStatusWidget = this._register(this.instantiationService.createInstance(CIStatusWidget, this.bodyContainer));
+
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
 				this.onVisible();
@@ -547,8 +554,21 @@ export class ChangesViewPane extends ViewPane {
 			const sessionResource = activeSessionResource.read(reader);
 			const sessionChanges = [...sessionFileChangesObs.read(reader)];
 
-			if (!sessionResource || sessionChanges.length === 0) {
+			if (!sessionResource) {
 				return new Map<string, number>();
+			}
+
+			const result = new Map<string, number>();
+			const prReviewState = this.codeReviewService.getPRReviewState(sessionResource).read(reader);
+			if (prReviewState.kind === PRReviewStateKind.Loaded) {
+				for (const comment of prReviewState.comments) {
+					const uriKey = comment.uri.fsPath;
+					result.set(uriKey, (result.get(uriKey) ?? 0) + 1);
+				}
+			}
+
+			if (sessionChanges.length === 0) {
+				return result;
 			}
 
 			const reviewFiles = getCodeReviewFilesFromSessionChanges(sessionChanges as readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[]);
@@ -556,12 +576,11 @@ export class ChangesViewPane extends ViewPane {
 			const reviewState = this.codeReviewService.getReviewState(sessionResource).read(reader);
 
 			if (reviewState.kind !== CodeReviewStateKind.Result || reviewState.version !== reviewVersion) {
-				return new Map<string, number>();
+				return result;
 			}
 
-			const result = new Map<string, number>();
 			for (const comment of reviewState.comments) {
-				const uriKey = comment.uri.toString();
+				const uriKey = comment.uri.fsPath;
 				result.set(uriKey, (result.get(uriKey) ?? 0) + 1);
 			}
 
@@ -587,7 +606,7 @@ export class ChangesViewPane extends ViewPane {
 					changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
 					linesAdded: entry.insertions,
 					linesRemoved: entry.deletions,
-					reviewCommentCount: reviewCommentCountByFile.get(uri.toString()) ?? 0,
+					reviewCommentCount: reviewCommentCountByFile.get(uri.fsPath) ?? 0,
 				};
 			});
 		});
@@ -730,6 +749,14 @@ export class ChangesViewPane extends ViewPane {
 				return (repositoryFiles?.length ?? 0) > 0;
 			}));
 
+			// Set context key for merge base branch protection
+			const isMergeBaseBranchProtectedContextKey = scopedContextKeyService.createKey<boolean>('sessions.isMergeBaseBranchProtected', false);
+			this.renderDisposables.add(autorun(reader => {
+				const repository = this.activeSessionRepositoryObs.read(reader)?.read(reader).value;
+				const state = repository?.state.read(reader);
+				isMergeBaseBranchProtectedContextKey.set(state?.HEAD?.base?.isProtected === true);
+			}));
+
 			// Set context key for PR state from session metadata
 			const hasOpenPullRequestKey = scopedContextKeyService.createKey<boolean>('sessions.hasOpenPullRequest', false);
 			this.renderDisposables.add(autorun(reader => {
@@ -750,9 +777,11 @@ export class ChangesViewPane extends ViewPane {
 				const menuId = isSessionMenu ? MenuId.ChatEditingSessionChangesToolbar : MenuId.ChatEditingWidgetToolbar;
 
 				// Read code review state to update the button label dynamically
-				let codeReviewCommentCount: number | undefined;
+				let reviewCommentCount: number | undefined;
 				let codeReviewLoading = false;
 				if (sessionResource) {
+					const prReviewState = this.codeReviewService.getPRReviewState(sessionResource).read(reader);
+					const prReviewCommentCount = prReviewState.kind === PRReviewStateKind.Loaded ? prReviewState.comments.length : 0;
 					const sessionChanges = this.agentSessionsService.getSession(sessionResource)?.changes;
 					if (sessionChanges instanceof Array && sessionChanges.length > 0) {
 						const reviewFiles = getCodeReviewFilesFromSessionChanges(sessionChanges as readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[]);
@@ -760,9 +789,15 @@ export class ChangesViewPane extends ViewPane {
 						const reviewState = this.codeReviewService.getReviewState(sessionResource).read(reader);
 						if (reviewState.kind === CodeReviewStateKind.Loading && reviewState.version === reviewVersion) {
 							codeReviewLoading = true;
-						} else if (reviewState.kind === CodeReviewStateKind.Result && reviewState.version === reviewVersion && reviewState.comments.length > 0) {
-							codeReviewCommentCount = reviewState.comments.length;
+						} else {
+							const codeReviewCommentCount = reviewState.kind === CodeReviewStateKind.Result && reviewState.version === reviewVersion ? reviewState.comments.length : 0;
+							const totalReviewCommentCount = codeReviewCommentCount + prReviewCommentCount;
+							if (totalReviewCommentCount > 0) {
+								reviewCommentCount = totalReviewCommentCount;
+							}
 						}
+					} else if (prReviewCommentCount > 0) {
+						reviewCommentCount = prReviewCommentCount;
 					}
 				}
 
@@ -788,13 +823,22 @@ export class ChangesViewPane extends ViewPane {
 								if (codeReviewLoading) {
 									return { showIcon: true, showLabel: true, isSecondary: true, customLabel: '$(loading~spin)', customClass: 'code-review-loading' };
 								}
-								if (codeReviewCommentCount !== undefined) {
-									return { showIcon: true, showLabel: true, isSecondary: true, customLabel: String(codeReviewCommentCount), customClass: 'code-review-comments' };
+								if (reviewCommentCount !== undefined) {
+									return { showIcon: true, showLabel: true, isSecondary: true, customLabel: String(reviewCommentCount), customClass: 'code-review-comments' };
 								}
 								return { showIcon: true, showLabel: false, isSecondary: true };
 							}
 							if (action.id === 'chatEditing.synchronizeChanges') {
 								return { showIcon: true, showLabel: true, isSecondary: true };
+							}
+							if (action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR') {
+								return { showIcon: true, showLabel: true, isSecondary: false };
+							}
+							if (action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR') {
+								return { showIcon: true, showLabel: false, isSecondary: true };
+							}
+							if (action.id === 'github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge') {
+								return { showIcon: true, showLabel: true, isSecondary: false };
 							}
 							return undefined;
 						}
@@ -943,6 +987,33 @@ export class ChangesViewPane extends ViewPane {
 			}));
 		}
 
+		// Bind CI status widget to active session's PR CI model
+		if (this.ciStatusWidget) {
+			const activeSessionResourceObs = derived(this, reader => this.sessionManagementService.activeSession.read(reader)?.resource);
+			const ciModelObs = derived(this, reader => {
+				const session = this.sessionManagementService.activeSession.read(reader);
+				if (!session) {
+					return undefined;
+				}
+				const context = this.sessionManagementService.getGitHubContextForSession(session.resource);
+				if (!context || context.prNumber === undefined) {
+					return undefined;
+				}
+				// Use the PR's headRef from the PR model to get CI checks
+				const prModel = this.gitHubService.getPullRequest(context.owner, context.repo, context.prNumber);
+				const pr = prModel.pullRequest.read(reader);
+				if (!pr) {
+					// Trigger a refresh if PR data isn't loaded yet
+					prModel.refresh();
+					return undefined;
+				}
+				const ciModel = this.gitHubService.getPullRequestCI(context.owner, context.repo, pr.headRef);
+				ciModel.refresh();
+				return ciModel;
+			});
+			this.renderDisposables.add(this.ciStatusWidget.bind(ciModelObs, activeSessionResourceObs));
+		}
+
 		// Update tree data with combined entries
 		this.renderDisposables.add(autorun(reader => {
 			const entries = combinedEntriesObs.read(reader);
@@ -990,8 +1061,10 @@ export class ChangesViewPane extends ViewPane {
 		const overviewHeight = this.overviewContainer?.offsetHeight ?? 0;
 		const containerPadding = 8; // 4px top + 4px bottom from .chat-editing-session-container
 		const containerBorder = 2; // 1px top + 1px bottom border
+		const ciWidgetHeight = this.ciStatusWidget?.element.offsetHeight ?? 0;
+		const ciWidgetMargin = ciWidgetHeight > 0 ? 8 : 0; // margin-top on CI widget
 
-		const usedHeight = bodyPadding + actionsHeight + actionsMargin + overviewHeight + containerPadding + containerBorder;
+		const usedHeight = bodyPadding + actionsHeight + actionsMargin + overviewHeight + containerPadding + containerBorder + ciWidgetHeight + ciWidgetMargin;
 		const availableHeight = Math.max(0, bodyHeight - usedHeight);
 
 		// Limit height to the content so the tree doesn't exceed its items

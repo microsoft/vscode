@@ -46,7 +46,8 @@ import { IRequestService } from '../../platform/request/common/request.js';
 import { IUserDataInitializationService, IUserDataInitializer, UserDataInitializationService } from '../services/userData/browser/userDataInit.js';
 import { UserDataSyncStoreManagementService } from '../../platform/userDataSync/common/userDataSyncStoreService.js';
 import { IUserDataSyncStoreManagementService } from '../../platform/userDataSync/common/userDataSync.js';
-import { ILifecycleService } from '../services/lifecycle/common/lifecycle.js';
+import { ILifecycleService, WillShutdownEvent } from '../services/lifecycle/common/lifecycle.js';
+import { Event } from '../../base/common/event.js';
 import { Action2, MenuId, registerAction2 } from '../../platform/actions/common/actions.js';
 import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { localize, localize2 } from '../../nls.js';
@@ -99,6 +100,12 @@ import { IDefaultAccountService } from '../../platform/defaultAccount/common/def
 import { DefaultAccountService } from '../services/accounts/browser/defaultAccount.js';
 import { AccountPolicyService } from '../services/policies/common/accountPolicyService.js';
 
+export interface IBrowserMainWorkbench {
+	startup(): IInstantiationService;
+	readonly onWillShutdown: Event<WillShutdownEvent>;
+	readonly onDidShutdown: Event<void>;
+}
+
 export class BrowserMain extends Disposable {
 
 	private readonly onWillShutdownDisposables = this._register(new DisposableStore());
@@ -125,7 +132,7 @@ export class BrowserMain extends Disposable {
 		const [services] = await Promise.all([this.initServices(), domContentLoaded(getWindow(this.domElement))]);
 
 		// Create Workbench
-		const workbench = new Workbench(this.domElement, undefined, services.serviceCollection, services.logService);
+		const workbench = this.createWorkbench(this.domElement, services.serviceCollection, services.logService);
 
 		// Listeners
 		this.registerListeners(workbench);
@@ -247,7 +254,11 @@ export class BrowserMain extends Disposable {
 		});
 	}
 
-	private registerListeners(workbench: Workbench): void {
+	protected createWorkbench(domElement: HTMLElement, serviceCollection: ServiceCollection, logService: ILogService): IBrowserMainWorkbench {
+		return new Workbench(domElement, undefined, serviceCollection, logService);
+	}
+
+	private registerListeners(workbench: IBrowserMainWorkbench): void {
 
 		// Workbench Lifecycle
 		this._register(workbench.onWillShutdown(() => this.onWillShutdownDisposables.clear()));
