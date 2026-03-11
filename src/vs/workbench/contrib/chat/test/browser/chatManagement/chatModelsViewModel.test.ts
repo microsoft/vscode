@@ -123,6 +123,10 @@ class MockLanguageModelsService implements ILanguageModelsService {
 		throw new Error('Method not implemented.');
 	}
 
+	getModelConfiguration(_modelId: string): IStringDictionary<unknown> | undefined {
+		return undefined;
+	}
+
 	async configureLanguageModelsProviderGroup(vendorId: string, name?: string): Promise<void> {
 	}
 

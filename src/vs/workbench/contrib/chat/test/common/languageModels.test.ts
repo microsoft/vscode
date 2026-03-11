@@ -993,3 +993,143 @@ suite('LanguageModels - Vendor Change Events', function () {
 		assert.strictEqual(eventFired, false, 'Should not fire event when vendor list is unchanged');
 	});
 });
+
+suite('LanguageModels - Per-Model Configuration', function () {
+
+	let languageModelsService: LanguageModelsService;
+	const disposables = new DisposableStore();
+	let receivedOptions: { [name: string]: unknown } | undefined;
+
+	setup(async function () {
+		receivedOptions = undefined;
+
+		languageModelsService = new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() {
+					return Promise.resolve();
+				}
+			},
+			new NullLogService(),
+			new TestStorageService(),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() {
+					return [{
+						vendor: 'config-vendor',
+						name: 'default',
+						models: {
+							'model-a': { temperature: 0.7, reasoningEffort: 'high' },
+							'model-b': { temperature: 0.2 }
+						}
+					}];
+				}
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+		);
+
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'config-vendor', displayName: 'Config Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		disposables.add(languageModelsService.registerLanguageModelProvider('config-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async (options) => {
+				if (options.group) {
+					return [{
+						metadata: {
+							extension: nullExtensionDescription.identifier,
+							name: 'Model A',
+							vendor: 'config-vendor',
+							family: 'family-a',
+							version: '1.0',
+							id: 'model-a',
+							maxInputTokens: 100,
+							maxOutputTokens: 100,
+							modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
+							isDefaultForLocation: {}
+						} satisfies ILanguageModelChatMetadata,
+						identifier: 'config-vendor/default/model-a'
+					}, {
+						metadata: {
+							extension: nullExtensionDescription.identifier,
+							name: 'Model B',
+							vendor: 'config-vendor',
+							family: 'family-b',
+							version: '1.0',
+							id: 'model-b',
+							maxInputTokens: 100,
+							maxOutputTokens: 100,
+							modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
+							isDefaultForLocation: {}
+						} satisfies ILanguageModelChatMetadata,
+						identifier: 'config-vendor/default/model-b'
+					}];
+				}
+				return [];
+			},
+			sendChatRequest: async (_modelId, _messages, _from, options) => {
+				receivedOptions = options;
+				const defer = new DeferredPromise();
+				const stream = new AsyncIterableSource<IChatResponsePart>();
+				stream.resolve();
+				defer.complete(undefined);
+				return { stream: stream.asyncIterable, result: defer.p };
+			},
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		await languageModelsService.selectLanguageModels({});
+	});
+
+	teardown(function () {
+		languageModelsService.dispose();
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('getModelConfiguration returns per-model config from group', function () {
+		const configA = languageModelsService.getModelConfiguration('config-vendor/default/model-a');
+		assert.deepStrictEqual(configA, { temperature: 0.7, reasoningEffort: 'high' });
+
+		const configB = languageModelsService.getModelConfiguration('config-vendor/default/model-b');
+		assert.deepStrictEqual(configB, { temperature: 0.2 });
+	});
+
+	test('getModelConfiguration returns undefined for unknown model', function () {
+		const config = languageModelsService.getModelConfiguration('config-vendor/default/model-c');
+		assert.strictEqual(config, undefined);
+	});
+
+	test('sendChatRequest merges per-model config into options', async function () {
+		const cts = disposables.add(new CancellationTokenSource());
+		const request = await languageModelsService.sendChatRequest(
+			'config-vendor/default/model-a',
+			nullExtensionDescription.identifier,
+			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hello' }] }],
+			{},
+			cts.token
+		);
+		await request.result;
+
+		assert.deepStrictEqual(receivedOptions, { temperature: 0.7, reasoningEffort: 'high' });
+	});
+
+	test('caller-provided options override per-model config', async function () {
+		const cts = disposables.add(new CancellationTokenSource());
+		const request = await languageModelsService.sendChatRequest(
+			'config-vendor/default/model-a',
+			nullExtensionDescription.identifier,
+			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hello' }] }],
+			{ temperature: 1.0 },
+			cts.token
+		);
+		await request.result;
+
+		assert.deepStrictEqual(receivedOptions, { temperature: 1.0, reasoningEffort: 'high' });
+	});
+});
