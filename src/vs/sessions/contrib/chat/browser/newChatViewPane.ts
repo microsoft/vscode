@@ -627,11 +627,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._localModelPickerContainer = dom.append(toolbar, dom.$('.sessions-chat-model-picker'));
 		this._createLocalModelPicker(this._localModelPickerContainer);
 
+		// Extension toolbar pickers (agent picker for remote sessions)
+		this._toolbarPickersContainer = dom.append(toolbar, dom.$('.sessions-chat-toolbar-pickers'));
+
 		// Remote model picker (action list dropdown)
 		this._cloudModelPicker.render(toolbar);
 		this._cloudModelPicker.setVisible(false);
-
-		this._toolbarPickersContainer = dom.append(toolbar, dom.$('.sessions-chat-toolbar-pickers'));
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
 
