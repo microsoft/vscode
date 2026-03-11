@@ -26,7 +26,7 @@ export default new class TranslationRemind implements eslint.Rule.RuleModule {
 
 	private _checkImport(context: eslint.Rule.RuleContext, node: TSESTree.Node, path: string) {
 
-		if (path !== TranslationRemind.NLS_MODULE) {
+		if (path !== TranslationRemind.NLS_MODULE && !path.endsWith('/nls.js')) {
 			return;
 		}
 
