@@ -132,11 +132,10 @@ export class ToggleAgentStatusAction extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		const configService = accessor.get(IConfigurationService);
-		const rawValue = configService.getValue(ChatConfiguration.AgentStatusEnabled);
-		const mode = getAgentControlMode(rawValue);
+		const mode = getAgentControlMode(configService.getValue(ChatConfiguration.AgentStatusEnabled));
 		if (mode === 'hidden') {
-			// Restore to previous non-hidden mode; if the raw value was 'badge', restore 'badge', otherwise use 'compact'
-			configService.updateValue(ChatConfiguration.AgentStatusEnabled, rawValue === 'badge' ? 'badge' : 'compact');
+			// When currently hidden, restore to compact mode
+			configService.updateValue(ChatConfiguration.AgentStatusEnabled, 'compact');
 		} else {
 			configService.updateValue(ChatConfiguration.AgentStatusEnabled, 'hidden');
 		}

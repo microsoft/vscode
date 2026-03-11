@@ -16,7 +16,7 @@ registerThemingParticipant((theme, collector) => {
 
 	// Background (helps for subpixel-antialiasing on Windows)
 	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
-	collector.scraddRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
+	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
 
 	// Selection (do NOT remove - https://github.com/microsoft/vscode/issues/169662)
 	const windowSelectionBackground = theme.getColor(selectionBackground);

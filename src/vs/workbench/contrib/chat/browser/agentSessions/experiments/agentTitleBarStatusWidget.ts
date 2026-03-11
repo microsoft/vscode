@@ -225,6 +225,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		this._container = container;
 		container.classList.add('agent-status-container');
 		container.setAttribute('role', 'toolbar');
+		container.setAttribute('aria-label', localize('agentStatusToolbarLabel', "Agent Status"));
 		// Container should not be focusable - inner elements handle focus
 		container.tabIndex = -1;
 
@@ -348,7 +349,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 	/**
 	 * Setup roving tabindex for arrow key navigation between interactive elements.
-	 * Auto-discovers elements with role="button" in DOM order.
+	 * Uses the elements registered in `this._rovingElements` in their existing order.
 	 */
 	private _setupRovingTabIndex(disposables: DisposableStore): void {
 		if (!this._container || this._rovingElements.length === 0) {
