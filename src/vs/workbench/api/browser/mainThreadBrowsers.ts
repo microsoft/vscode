@@ -7,11 +7,7 @@ import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { BrowserTabDto, ExtHostBrowsersShape, ExtHostContext, MainContext, MainThreadBrowsersShape } from '../common/extHost.protocol.js';
-import { IBrowserViewWorkbenchService, IBrowserViewModel } from '../../contrib/browserView/common/browserView.js';
-import { IBrowserViewGroupService, ipcBrowserViewGroupChannelName } from '../../../platform/browserView/common/browserViewGroup.js';
-import { IMainProcessService } from '../../../platform/ipc/common/mainProcessService.js';
-import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { INativeHostService } from '../../../platform/native/common/native.js';
+import { IBrowserViewWorkbenchService, IBrowserViewCDPService, IBrowserViewModel } from '../../contrib/browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../platform/browserView/common/browserViewUri.js';
 import { EditorGroupColumn, columnToEditorGroup } from '../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
@@ -25,10 +21,8 @@ const BROWSER_EDITOR_INPUT_ID = 'workbench.editorinputs.browser';
 export class MainThreadBrowsers extends Disposable implements MainThreadBrowsersShape {
 
 	private readonly _proxy: ExtHostBrowsersShape;
-	private readonly _groupService: IBrowserViewGroupService;
-	private readonly _windowId: number;
 
-	/** Maps CDP session IDs to the browser view group ID and disposables. */
+	/** Maps CDP session IDs to disposables. */
 	private readonly _sessions = this._register(new DisposableMap<string, DisposableStore>());
 	/** Maps CDP session ID to group ID for message routing. */
 	private readonly _sessionGroupIds = new Map<string, string>();
@@ -43,17 +37,12 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		extHostContext: IExtHostContext,
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
-		@IMainProcessService mainProcessService: IMainProcessService,
-		@INativeHostService nativeHostService: INativeHostService,
+		@IBrowserViewCDPService private readonly cdpService: IBrowserViewCDPService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostBrowsers);
-		this._windowId = nativeHostService.windowId;
-
-		const channel = mainProcessService.getChannel(ipcBrowserViewGroupChannelName);
-		this._groupService = ProxyChannel.toService<IBrowserViewGroupService>(channel);
 
 		// Track open browser editors
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this._syncOpenBrowserTabs()));
@@ -190,25 +179,22 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 	// #region CDP session management
 
 	async $startCDPSession(sessionId: string, browserId: string): Promise<void> {
-		const groupId = await this._groupService.createGroup(this._windowId);
+		const groupId = await this.cdpService.createSessionGroup(browserId);
 		const disposables = new DisposableStore();
 		this._sessionGroupIds.set(sessionId, groupId);
 
-		// Add the browser to the group
-		await this._groupService.addViewToGroup(groupId, browserId);
-
-		// Destroy the main-process group when this session is disposed
+		// Destroy the CDP group when this session is disposed
 		disposables.add(toDisposable(() => {
 			this._sessionGroupIds.delete(sessionId);
-			this._groupService.destroyGroup(groupId).catch(() => { });
+			this.cdpService.destroySessionGroup(groupId).catch(() => { });
 		}));
 
 		// Wire CDP messages from main process back to ext host
-		disposables.add(this._groupService.onDynamicCDPMessage(groupId)(message => {
+		disposables.add(this.cdpService.onCDPMessage(groupId)(message => {
 			this._proxy.$onCDPSessionMessage(sessionId, message);
 		}));
 
-		disposables.add(this._groupService.onDynamicDidDestroy(groupId)(() => {
+		disposables.add(this.cdpService.onDidDestroy(groupId)(() => {
 			this._proxy.$onCDPSessionClosed(sessionId);
 			this._sessions.deleteAndDispose(sessionId);
 		}));
@@ -223,7 +209,7 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 	async $sendCDPMessage(sessionId: string, message: CDPRequest): Promise<void> {
 		const groupId = this._sessionGroupIds.get(sessionId);
 		if (groupId) {
-			await this._groupService.sendCDPMessage(groupId, message);
+			await this.cdpService.sendCDPMessage(groupId, message);
 		}
 	}
 
