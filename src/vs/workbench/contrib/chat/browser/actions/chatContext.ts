@@ -50,16 +50,16 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 
 		// Bind at the global context key service level so the tools service can evaluate it.
 		// Widget-scoped keys are not reliably visible to singleton services during async request processing.
-		const hasAttachedDebugDataKey = ChatContextKeys.chatSessionHasAttachedDebugData.bindTo(contextKeyService);
+		const hasDebugToolsKey = ChatContextKeys.chatSessionHasDebugTools.bindTo(contextKeyService);
 		this._store.add(chatWidgetService.onDidChangeFocusedSession(() => {
 			const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
-			hasAttachedDebugDataKey.set(!!sessionResource && chatDebugService.hasAttachedDebugData(sessionResource));
+			hasDebugToolsKey.set(!!sessionResource && chatDebugService.hasAttachedDebugData(sessionResource));
 			languageModelToolsService.flushToolUpdates();
 		}));
 		this._store.add(chatDebugService.onDidAttachDebugData(sessionResource => {
 			const focusedSession = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
 			if (focusedSession && focusedSession.toString() === sessionResource.toString()) {
-				hasAttachedDebugDataKey.set(true);
+				hasDebugToolsKey.set(true);
 				languageModelToolsService.flushToolUpdates();
 			}
 		}));

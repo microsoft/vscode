@@ -16,7 +16,7 @@ export const ListDebugEventsToolData: IToolData = {
 	id: ListDebugEventsToolId,
 	toolReferenceName: 'listDebugEvents',
 	displayName: localize('listDebugEvents.displayName', "List Debug Events"),
-	when: ChatContextKeys.chatSessionHasAttachedDebugData,
+	when: ChatContextKeys.chatSessionHasDebugTools,
 	canBeReferencedInPrompt: false,
 	modelDescription: 'Lists debug event summaries for the current chat session. Returns a compact log of events including timestamps, event IDs, and brief descriptions. Use this tool FIRST to get an overview of what happened, then call resolveDebugEventDetails on specific event IDs to get full details.\n\n'
 		+ 'Supports filtering:\n'
