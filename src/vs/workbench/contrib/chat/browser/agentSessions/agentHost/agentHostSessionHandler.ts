@@ -245,6 +245,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			displayName: a.displayName,
 		}));
 
+		// If the user selected a different model since the session was created
+		// (or since the last turn), dispatch a model change action first so the
+		// agent backend picks up the new model before processing the turn.
+		const rawModelId = this._extractRawModelId(request.userSelectedModelId);
+		if (rawModelId) {
+			const currentModel = this._clientState.getSessionState(session)?.summary.model;
+			if (currentModel !== rawModelId) {
+				const modelAction = {
+					type: 'session/modelChanged' as const,
+					session,
+					model: rawModelId,
+				};
+				const modelSeq = this._clientState.applyOptimistic(modelAction);
+				this._agentHostService.dispatchAction(modelAction, this._clientState.clientId, modelSeq);
+			}
+		}
+
 		// Dispatch session/turnStarted — the server will call sendMessage on
 		// the provider as a side effect.
 		const turnAction = {

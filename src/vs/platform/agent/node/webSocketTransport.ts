@@ -11,7 +11,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IClientMessage, IServerMessage } from '../common/state/sessionProtocol.js';
+import type { IProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 
 // ---- JSON serialization helpers ---------------------------------------------
@@ -47,7 +47,7 @@ function uriReviver(_key: string, value: unknown): unknown {
  */
 export class WebSocketProtocolTransport extends Disposable implements IProtocolTransport {
 
-	private readonly _onMessage = this._register(new Emitter<IClientMessage | IServerMessage>());
+	private readonly _onMessage = this._register(new Emitter<IProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 
 	private readonly _onClose = this._register(new Emitter<void>());
@@ -59,7 +59,7 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 		this._ws.on('message', (data: Buffer | string) => {
 			try {
 				const text = typeof data === 'string' ? data : data.toString('utf-8');
-				const message = JSON.parse(text, uriReviver) as IClientMessage | IServerMessage;
+				const message = JSON.parse(text, uriReviver) as IProtocolMessage;
 				this._onMessage.fire(message);
 			} catch {
 				// Malformed message — drop. No logger available at transport level.
@@ -76,7 +76,7 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 		});
 	}
 
-	send(message: IClientMessage | IServerMessage): void {
+	send(message: IProtocolMessage): void {
 		if (this._ws.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify(message, uriReplacer));
 		}

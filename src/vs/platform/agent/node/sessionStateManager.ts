@@ -68,7 +68,6 @@ export class SessionStateManager extends Disposable {
 
 		if (key === ROOT_STATE_URI.toString()) {
 			return {
-				type: 'stateSnapshot',
 				resource,
 				state: this._rootState,
 				fromSeq: this._serverSeq,
@@ -81,7 +80,6 @@ export class SessionStateManager extends Disposable {
 		}
 
 		return {
-			type: 'stateSnapshot',
 			resource,
 			state: sessionState,
 			fromSeq: this._serverSeq,
@@ -166,16 +164,18 @@ export class SessionStateManager extends Disposable {
 	 * The action is applied to state and emitted with the client's origin
 	 * so the originating client can reconcile.
 	 */
-	dispatchClientAction(action: ISessionAction, origin: IActionOrigin): void {
-		this._applyAndEmit(action, origin);
+	dispatchClientAction(action: ISessionAction, origin: IActionOrigin): unknown {
+		return this._applyAndEmit(action, origin);
 	}
 
 	// ---- Internal -----------------------------------------------------------
 
-	private _applyAndEmit(action: IStateAction, origin: IActionOrigin | undefined): void {
+	private _applyAndEmit(action: IStateAction, origin: IActionOrigin | undefined): unknown {
+		let resultingState: unknown = undefined;
 		// Apply to state
 		if (isRootAction(action)) {
 			this._rootState = rootReducer(this._rootState, action as IRootAction);
+			resultingState = this._rootState;
 		}
 
 		if (isSessionAction(action)) {
@@ -196,6 +196,8 @@ export class SessionStateManager extends Disposable {
 				) {
 					this._activeTurnToSession.delete(sessionAction.turnId);
 				}
+
+				resultingState = newState;
 			} else {
 				this._logService.warn(`[SessionStateManager] Action for unknown session: ${key}, type=${action.type}`);
 			}
@@ -210,5 +212,7 @@ export class SessionStateManager extends Disposable {
 
 		this._logService.trace(`[SessionStateManager] Emitting envelope: seq=${envelope.serverSeq}, type=${action.type}${origin ? `, origin=${origin.clientId}:${origin.clientSeq}` : ''}`);
 		this._onDidEmitEnvelope.fire(envelope);
+
+		return resultingState;
 	}
 }

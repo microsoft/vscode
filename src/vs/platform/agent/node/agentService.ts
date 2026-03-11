@@ -191,10 +191,11 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
-		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`);
+		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
 
 		const origin = { clientId, clientSeq };
-		this._stateManager.dispatchClientAction(action, origin);
+		const state = this._stateManager.dispatchClientAction(action, origin);
+		this._logService.trace(`[AgentService] resulting state:`, state);
 
 		// Trigger side effects based on the action type
 		switch (action.type) {

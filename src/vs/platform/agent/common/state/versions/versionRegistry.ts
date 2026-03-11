@@ -9,6 +9,7 @@
 import type {
 	IAgentsChangedAction,
 	IDeltaAction,
+	IModelChangedAction,
 	INotification,
 	IPermissionRequestAction,
 	IPermissionResolvedAction,
@@ -57,6 +58,7 @@ import type {
 	IV1_ErrorInfo,
 	IV1_MarkdownResponsePart,
 	IV1_MessageAttachment,
+	IV1_ModelChangedAction,
 	IV1_PermissionRequest,
 	IV1_PermissionRequestAction,
 	IV1_PermissionResolvedAction,
@@ -148,6 +150,7 @@ type _v1_SessionError = AssertCompatible<IV1_SessionErrorAction, ISessionErrorAc
 type _v1_TitleChanged = AssertCompatible<IV1_TitleChangedAction, ITitleChangedAction>;
 type _v1_Usage = AssertCompatible<IV1_UsageAction, IUsageAction>;
 type _v1_Reasoning = AssertCompatible<IV1_ReasoningAction, IReasoningAction>;
+type _v1_ModelChanged = AssertCompatible<IV1_ModelChangedAction, IModelChangedAction>;
 
 // Suppress unused-variable warnings for compile-time-only checks.
 void (0 as unknown as
@@ -160,7 +163,7 @@ void (0 as unknown as
 	_v1_TurnStarted & _v1_Delta & _v1_ResponsePart & _v1_ToolStart &
 	_v1_ToolComplete & _v1_PermissionRequestAction & _v1_PermissionResolved &
 	_v1_TurnComplete & _v1_TurnCancelled & _v1_SessionError & _v1_TitleChanged &
-	_v1_Usage & _v1_Reasoning
+	_v1_Usage & _v1_Reasoning & _v1_ModelChanged
 );
 
 // ---- Runtime action → version map -------------------------------------------
@@ -197,6 +200,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: numbe
 	'session/titleChanged': 1,
 	'session/usage': 1,
 	'session/reasoning': 1,
+	'session/modelChanged': 1,
 };
 
 /** Maps every notification type string to the protocol version that introduced it. */
@@ -235,7 +239,8 @@ type ISessionAction_v1 = IV1_SessionReadyAction | IV1_SessionCreationFailedActio
 	| IV1_ToolStartAction | IV1_ToolCompleteAction
 	| IV1_PermissionRequestAction | IV1_PermissionResolvedAction
 	| IV1_TurnCompleteAction | IV1_TurnCancelledAction | IV1_SessionErrorAction
-	| IV1_TitleChangedAction | IV1_UsageAction | IV1_ReasoningAction;
+	| IV1_TitleChangedAction | IV1_UsageAction | IV1_ReasoningAction
+	| IV1_ModelChangedAction;
 
 /**
  * Maps protocol versions to their cumulative action type unions.

@@ -186,13 +186,26 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 		case 'session/titleChanged': {
 			return {
 				...state,
-				summary: { ...state.summary, title: action.title },
+				summary: { ...state.summary, title: action.title, modifiedAt: Date.now() },
+			};
+		}
+		case 'session/modelChanged': {
+			return {
+				...state,
+				summary: { ...state.summary, model: action.model, modifiedAt: Date.now() },
 			};
 		}
 		case 'session/usage': {
-			// Usage is informational; stored on the active turn for now,
-			// then captured on the finalized Turn.
-			return state;
+			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
+				return state;
+			}
+			return {
+				...state,
+				activeTurn: {
+					...state.activeTurn,
+					usage: action.usage,
+				},
+			};
 		}
 		case 'session/reasoning': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
@@ -243,7 +256,7 @@ function finalizeTurn(state: ISessionState, turnId: string, turnState: TurnState
 		responseText: active.streamingText,
 		responseParts: active.responseParts,
 		toolCalls: completedToolCalls,
-		usage: undefined,
+		usage: active.usage,
 		state: turnState,
 		error,
 	};
@@ -252,6 +265,6 @@ function finalizeTurn(state: ISessionState, turnId: string, turnState: TurnState
 		...state,
 		turns: [...state.turns, finalizedTurn],
 		activeTurn: undefined,
-		summary: { ...state.summary, status: SessionStatus.Idle },
+		summary: { ...state.summary, status: SessionStatus.Idle, modifiedAt: Date.now() },
 	};
 }

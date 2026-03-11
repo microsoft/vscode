@@ -37,6 +37,7 @@ export interface ISessionSummary {
 	readonly status: SessionStatus;
 	readonly createdAt: number;
 	readonly modifiedAt: number;
+	readonly model?: string;
 }
 
 // ---- Model info -------------------------------------------------------------
@@ -139,6 +140,7 @@ export interface IActiveTurn {
 	readonly toolCalls: ReadonlyMap<string, IToolCallState>;
 	readonly pendingPermissions: ReadonlyMap<string, IPermissionRequest>;
 	readonly reasoning: string;
+	readonly usage: IUsageInfo | undefined;
 }
 
 // ---- Response parts ---------------------------------------------------------
@@ -280,5 +282,6 @@ export function createActiveTurn(id: string, userMessage: IUserMessage): IActive
 		toolCalls: new Map(),
 		pendingPermissions: new Map(),
 		reasoning: '',
+		usage: undefined,
 	};
 }

@@ -189,6 +189,12 @@ export interface IReasoningAction extends ISessionActionBase {
 	readonly content: string;
 }
 
+/** Server-only. Dispatched when the session's model is changed. */
+export interface IModelChangedAction extends ISessionActionBase {
+	readonly type: 'session/modelChanged';
+	readonly model: string;
+}
+
 export type ISessionAction =
 	| ISessionReadyAction
 	| ISessionCreationFailedAction
@@ -204,7 +210,8 @@ export type ISessionAction =
 	| ISessionErrorAction
 	| ITitleChangedAction
 	| IUsageAction
-	| IReasoningAction;
+	| IReasoningAction
+	| IModelChangedAction;
 
 // ---- Combined state action type ---------------------------------------------
 

@@ -32,7 +32,7 @@ import {
 	SessionStatus, type ISessionSummary
 } from '../common/state/sessionState.js';
 import type { ISessionAction } from '../common/state/sessionActions.js';
-import type { ICreateSessionCommand } from '../common/state/sessionProtocol.js';
+import type { ICreateSessionParams } from '../common/state/sessionProtocol.js';
 
 // ---- Options ----------------------------------------------------------------
 
@@ -196,9 +196,16 @@ function main(): void {
 					agent?.abortSession(action.session).catch(() => { });
 					break;
 				}
+				case 'session/modelChanged': {
+					const agent = getAgent(action.session);
+					agent?.changeModel?.(action.session, action.model).catch(err => {
+						logService.error('[AgentHostServer] changeModel failed', err);
+					});
+					break;
+				}
 			}
 		},
-		async handleCreateSession(command: ICreateSessionCommand): Promise<void> {
+		async handleCreateSession(command: ICreateSessionParams): Promise<void> {
 			const provider = (command.provider ?? agents.keys().next().value) as AgentProvider;
 			const agent = agents.get(provider);
 			if (!agent) {

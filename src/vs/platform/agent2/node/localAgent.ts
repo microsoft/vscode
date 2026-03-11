@@ -228,6 +228,14 @@ export class LocalAgent extends Disposable implements IAgent {
 		}
 	}
 
+	async changeModel(sessionUri: URI, model: string): Promise<void> {
+		const session = this._sessionState.get(sessionUri.toString());
+		if (session) {
+			session.model = model;
+			this._logService.info(`[LocalAgent] Changed model for ${AgentSession.id(sessionUri)} to ${model}`);
+		}
+	}
+
 	respondToPermissionRequest(_requestId: string, _approved: boolean): void {
 		// Permission system not yet implemented
 	}

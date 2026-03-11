@@ -12,7 +12,7 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import type { IClientMessage, IServerMessage } from './sessionProtocol.js';
+import type { IProtocolMessage } from './sessionProtocol.js';
 
 /**
  * A bidirectional transport for protocol messages. Implementations handle
@@ -20,13 +20,13 @@ import type { IClientMessage, IServerMessage } from './sessionProtocol.js';
  */
 export interface IProtocolTransport extends IDisposable {
 	/** Fires when a message is received from the remote end. */
-	readonly onMessage: Event<IClientMessage | IServerMessage>;
+	readonly onMessage: Event<IProtocolMessage>;
 
 	/** Fires when the transport connection closes. */
 	readonly onClose: Event<void>;
 
 	/** Send a message to the remote end. */
-	send(message: IClientMessage | IServerMessage): void;
+	send(message: IProtocolMessage): void;
 }
 
 /**

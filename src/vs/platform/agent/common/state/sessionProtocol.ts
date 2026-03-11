@@ -3,199 +3,178 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Protocol messages for the sessions process client-server communication.
-// See protocol.md -> Client-server protocol for the full design.
+// Protocol messages using JSON-RPC 2.0 framing for the sessions process.
+// See protocol.md for the full design.
 //
-// These types define the wire format for handshake, URI-based subscription,
-// commands, notifications, and reconnection. They are transport-agnostic —
-// the actual transport (MessagePort, WebSocket, stdio) is plugged in separately.
+// Client → Server messages are either:
+//   - Notifications (fire-and-forget): initialize, reconnect, unsubscribe, dispatchAction
+//   - Requests (expect a correlated response): subscribe, createSession, disposeSession,
+//     listSessions, fetchTurns, fetchContent
+//
+// Server → Client messages are either:
+//   - Notifications (pushed to clients): serverHello, reconnectResponse, action, notification
+//   - Responses (correlated to a client request by id)
 
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IActionEnvelope, INotification, ISessionAction, IStateAction } from './sessionActions.js';
 import type { IRootState, ISessionState, ISessionSummary } from './sessionState.js';
 
-// ---- Client → Server messages -----------------------------------------------
+// ---- JSON-RPC 2.0 base types -----------------------------------------------
 
-export interface IClientHello {
-	readonly type: 'clientHello';
-	readonly protocolVersion: number;
-	readonly clientId: string;
-	/** Subscribe to these URIs as part of the handshake (saves a round-trip). */
-	readonly initialSubscriptions?: readonly URI[];
+/** A JSON-RPC notification: has `method` but no `id`. */
+export interface IProtocolNotification {
+	readonly jsonrpc: '2.0';
+	readonly method: string;
+	readonly params?: unknown;
 }
 
-export interface IClientReconnect {
-	readonly type: 'clientReconnect';
-	readonly clientId: string;
-	readonly lastSeenServerSeq: number;
-	/** URIs the client was subscribed to before disconnection. */
-	readonly subscriptions: readonly URI[];
+/** A JSON-RPC request: has both `method` and `id`. */
+export interface IProtocolRequest {
+	readonly jsonrpc: '2.0';
+	readonly id: number;
+	readonly method: string;
+	readonly params?: unknown;
 }
 
-export interface ISubscribe {
-	readonly type: 'subscribe';
-	/** URI to subscribe to (e.g. `agenthost:root` or `copilot:/<uuid>`). */
-	readonly resource: URI;
+/** A JSON-RPC success response. */
+export interface IJsonRpcSuccessResponse {
+	readonly jsonrpc: '2.0';
+	readonly id: number;
+	readonly result: unknown;
 }
 
-export interface IUnsubscribe {
-	readonly type: 'unsubscribe';
-	readonly resource: URI;
+/** A JSON-RPC error response. */
+export interface IJsonRpcErrorResponse {
+	readonly jsonrpc: '2.0';
+	readonly id: number;
+	readonly error: {
+		readonly code: number;
+		readonly message: string;
+		readonly data?: unknown;
+	};
 }
 
-/**
- * A client-dispatched action. The server applies it to state and
- * reacts with side effects (e.g., starting agent processing).
- * Used for write-ahead actions like turnStarted, turnCancelled,
- * permissionResolved.
- */
-export interface IClientAction {
-	readonly type: 'action';
-	readonly clientSeq: number;
-	readonly action: ISessionAction;
+export type IJsonRpcResponse = IJsonRpcSuccessResponse | IJsonRpcErrorResponse;
+
+/** Any message that flows over the protocol transport. */
+export type IProtocolMessage = IProtocolNotification | IProtocolRequest | IJsonRpcResponse;
+
+// ---- Type guards -----------------------------------------------------------
+
+export function isJsonRpcRequest(msg: IProtocolMessage): msg is IProtocolRequest {
+	return hasKey(msg, { id: true, method: true });
 }
 
-/**
- * A command from the client requesting an imperative operation
- * that doesn't map directly to a single state action.
- */
-export interface IClientCommand {
-	readonly type: 'command';
-	readonly command: ISessionCommand;
+export function isJsonRpcNotification(msg: IProtocolMessage): msg is IProtocolNotification {
+	return hasKey(msg, { method: true }) && !hasKey(msg, { id: true });
 }
 
-export type IClientMessage =
-	| IClientHello
-	| IClientReconnect
-	| ISubscribe
-	| IUnsubscribe
-	| IClientAction
-	| IClientCommand;
-
-// ---- Commands (embedded in IClientCommand) ----------------------------------
-
-export interface ICreateSessionCommand {
-	readonly type: 'createSession';
-	/** URI the client has chosen for this session (client picks the ID). */
-	readonly session: URI;
-	readonly provider?: string;
-	readonly model?: string;
-	readonly workingDirectory?: string;
+export function isJsonRpcResponse(msg: IProtocolMessage): msg is IJsonRpcResponse {
+	return hasKey(msg, { id: true }) && !hasKey(msg, { method: true });
 }
 
-export interface IDisposeSessionCommand {
-	readonly type: 'disposeSession';
-	readonly session: URI;
-}
+// ---- JSON-RPC error codes ---------------------------------------------------
 
-export interface IFetchContentCommand {
-	readonly type: 'fetchContent';
-	readonly uri: URI;
-}
+export const JSON_RPC_INTERNAL_ERROR = -32603;
 
-export interface IFetchTurnsCommand {
-	readonly type: 'fetchTurns';
-	readonly session: URI;
-	readonly startTurn: number;
-	readonly count: number;
-}
+// ---- Shared data types ------------------------------------------------------
 
-export interface IListSessionsCommand {
-	readonly type: 'listSessions';
-}
-
-export type ISessionCommand =
-	| ICreateSessionCommand
-	| IDisposeSessionCommand
-	| IFetchContentCommand
-	| IFetchTurnsCommand
-	| IListSessionsCommand;
-
-// ---- Server → Client messages -----------------------------------------------
-
-export interface IServerHello {
-	readonly type: 'serverHello';
-	readonly protocolVersion: number;
-	readonly serverSeq: number;
-	/** Snapshots for each URI in the client's `initialSubscriptions`. */
-	readonly snapshots: readonly IStateSnapshot[];
-}
-
-/**
- * Response to a subscribe request. Contains the state snapshot and
- * the server sequence at snapshot time. The client processes subsequent
- * actions with serverSeq > fromSeq.
- */
+/** State snapshot returned by subscribe and included in handshake/reconnect. */
 export interface IStateSnapshot {
-	readonly type: 'stateSnapshot';
 	readonly resource: URI;
 	readonly state: IRootState | ISessionState;
 	readonly fromSeq: number;
 }
 
-/**
- * A state-changing action broadcast to subscribed clients.
- */
-export interface IActionMessage {
-	readonly type: 'action';
-	readonly envelope: IActionEnvelope<IStateAction>;
+// ---- Client → Server: Notification params -----------------------------------
+
+export interface IInitializeParams {
+	readonly protocolVersion: number;
+	readonly clientId: string;
+	readonly initialSubscriptions?: readonly URI[];
 }
 
-/**
- * An ephemeral notification broadcast to all connected clients.
- * Not stored in state, not replayed on reconnect.
- */
-export interface INotificationMessage {
-	readonly type: 'notification';
-	readonly notification: INotification;
+export interface IReconnectParams {
+	readonly clientId: string;
+	readonly lastSeenServerSeq: number;
+	readonly subscriptions: readonly URI[];
 }
 
-/**
- * Response to a fetchContent command.
- */
-export interface IContentResponse {
-	readonly type: 'contentResponse';
-	readonly uri: URI;
-	readonly data: string; // base64-encoded for binary safety over JSON
-	readonly mimeType?: string;
+export interface IUnsubscribeParams {
+	readonly resource: URI;
 }
 
-/**
- * Response to a fetchTurns command.
- */
-export interface ITurnsResponse {
-	readonly type: 'turnsResponse';
+export interface IDispatchActionParams {
+	readonly clientSeq: number;
+	readonly action: ISessionAction;
+}
+
+// ---- Client → Server: Request params and results ----------------------------
+
+export interface ISubscribeParams {
+	readonly resource: URI;
+}
+// Result: IStateSnapshot
+
+export interface ICreateSessionParams {
+	readonly session: URI;
+	readonly provider?: string;
+	readonly model?: string;
+	readonly workingDirectory?: string;
+}
+// Result: void (null)
+
+export interface IDisposeSessionParams {
+	readonly session: URI;
+}
+// Result: void (null)
+
+// listSessions: no params
+export interface IListSessionsResult {
+	readonly sessions: readonly ISessionSummary[];
+}
+
+export interface IFetchTurnsParams {
+	readonly session: URI;
+	readonly startTurn: number;
+	readonly count: number;
+}
+
+export interface IFetchTurnsResult {
 	readonly session: URI;
 	readonly startTurn: number;
 	readonly turns: ISessionState['turns'];
 	readonly totalTurns: number;
 }
 
-/**
- * Response to a listSessions command.
- */
-export interface IListSessionsResponse {
-	readonly type: 'listSessionsResponse';
-	readonly sessions: readonly ISessionSummary[];
+export interface IFetchContentParams {
+	readonly uri: URI;
 }
 
-/**
- * Sent on reconnection. Contains fresh snapshots for all previously
- * subscribed URIs. Notifications are NOT replayed — the client should
- * re-fetch the session list.
- */
-export interface IReconnectResponse {
-	readonly type: 'reconnectResponse';
+export interface IFetchContentResult {
+	readonly uri: URI;
+	readonly data: string; // base64-encoded for binary safety
+	readonly mimeType?: string;
+}
+
+// ---- Server → Client: Notification params -----------------------------------
+
+export interface IServerHelloParams {
+	readonly protocolVersion: number;
 	readonly serverSeq: number;
 	readonly snapshots: readonly IStateSnapshot[];
 }
 
-export type IServerMessage =
-	| IServerHello
-	| IStateSnapshot
-	| IActionMessage
-	| INotificationMessage
-	| IContentResponse
-	| ITurnsResponse
-	| IListSessionsResponse
-	| IReconnectResponse;
+export interface IReconnectResponseParams {
+	readonly serverSeq: number;
+	readonly snapshots: readonly IStateSnapshot[];
+}
+
+export interface IActionBroadcastParams {
+	readonly envelope: IActionEnvelope<IStateAction>;
+}
+
+export interface INotificationBroadcastParams {
+	readonly notification: INotification;
+}

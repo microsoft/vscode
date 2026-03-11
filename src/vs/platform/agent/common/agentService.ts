@@ -303,6 +303,9 @@ export interface IAgent {
 	/** Abort the current turn, stopping any in-flight processing. */
 	abortSession(session: URI): Promise<void>;
 
+	/** Change the model for an existing session. */
+	changeModel?(session: URI, model: string): Promise<void>;
+
 	/** Respond to a pending permission request from the SDK. */
 	respondToPermissionRequest(requestId: string, approved: boolean): void;
 

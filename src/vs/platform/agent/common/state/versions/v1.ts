@@ -42,6 +42,7 @@ export interface IV1_SessionSummary {
 	readonly status: 'idle' | 'in-progress' | 'error';
 	readonly createdAt: number;
 	readonly modifiedAt: number;
+	readonly model?: string;
 }
 
 export interface IV1_SessionState {
@@ -82,6 +83,7 @@ export interface IV1_ActiveTurn {
 	readonly toolCalls: ReadonlyMap<string, IV1_ToolCallState>;
 	readonly pendingPermissions: ReadonlyMap<string, IV1_PermissionRequest>;
 	readonly reasoning: string;
+	readonly usage: IV1_UsageInfo | undefined;
 }
 
 export interface IV1_MarkdownResponsePart {
@@ -259,6 +261,11 @@ export interface IV1_ReasoningAction extends IV1_SessionActionBase {
 	readonly content: string;
 }
 
+export interface IV1_ModelChangedAction extends IV1_SessionActionBase {
+	readonly type: 'session/modelChanged';
+	readonly model: string;
+}
+
 export type IV1_RootAction =
 	| IV1_AgentsChangedAction;
 
@@ -277,7 +284,8 @@ export type IV1_SessionAction =
 	| IV1_SessionErrorAction
 	| IV1_TitleChangedAction
 	| IV1_UsageAction
-	| IV1_ReasoningAction;
+	| IV1_ReasoningAction
+	| IV1_ModelChangedAction;
 
 export type IV1_StateAction = IV1_RootAction | IV1_SessionAction;
 

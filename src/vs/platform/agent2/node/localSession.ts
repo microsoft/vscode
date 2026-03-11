@@ -47,7 +47,7 @@ export class LocalSession extends Disposable {
 	readonly registerDisposable = (disposable: IDisposable) => this._register(disposable);
 
 	readonly uri: URI;
-	readonly model: string;
+	model: string;
 	readonly workingDirectory: string;
 	readonly startTime: number;
 

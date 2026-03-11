@@ -18,6 +18,8 @@ export class ScriptedMockAgent implements IAgent {
 
 	// Track pending permission requests
 	private readonly _pendingPermissions = new Map<string, (approved: boolean) => void>();
+	// Track pending abort callbacks for slow responses
+	private readonly _pendingAborts = new Map<string, () => void>();
 
 	getDescriptor(): IAgentDescriptor {
 		return { provider: 'mock', displayName: 'Mock Agent', description: 'Scripted test agent', requiresAuth: false };
@@ -85,6 +87,26 @@ export class ScriptedMockAgent implements IAgent {
 				break;
 			}
 
+			case 'with-usage':
+				this._fireSequence(session, [
+					{ type: 'delta', session, messageId: 'msg-1', content: 'Usage response.' },
+					{ type: 'usage', session, inputTokens: 100, outputTokens: 50, model: 'mock-model' },
+					{ type: 'idle', session },
+				]);
+				break;
+
+			case 'slow': {
+				// Slow response for cancel testing — fires delta after a long delay
+				const timer = setTimeout(() => {
+					this._fireSequence(session, [
+						{ type: 'delta', session, messageId: 'msg-1', content: 'Slow response.' },
+						{ type: 'idle', session },
+					]);
+				}, 5000);
+				this._pendingAborts.set(session.toString(), () => clearTimeout(timer));
+				break;
+			}
+
 			default:
 				this._fireSequence(session, [
 					{ type: 'delta', session, messageId: 'msg-1', content: 'Unknown prompt: ' + prompt },
@@ -102,7 +124,17 @@ export class ScriptedMockAgent implements IAgent {
 		this._sessions.delete(AgentSession.id(session));
 	}
 
-	async abortSession(_session: URI): Promise<void> { }
+	async abortSession(session: URI): Promise<void> {
+		const callback = this._pendingAborts.get(session.toString());
+		if (callback) {
+			this._pendingAborts.delete(session.toString());
+			callback();
+		}
+	}
+
+	async changeModel(_session: URI, _model: string): Promise<void> {
+		// Mock agent doesn't track model state
+	}
 
 	respondToPermissionRequest(requestId: string, approved: boolean): void {
 		const callback = this._pendingPermissions.get(requestId);

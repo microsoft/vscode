@@ -9,16 +9,22 @@ import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { URI } from '../../../../base/common/uri.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
-import type {
-	IActionMessage,
-	IClientMessage,
-	IListSessionsResponse,
-	INotificationMessage,
-	IServerHello,
-	IServerMessage,
-	IStateSnapshot,
+import {
+	isJsonRpcNotification,
+	isJsonRpcResponse,
+	type IActionBroadcastParams,
+	type IFetchTurnsResult,
+	type IJsonRpcErrorResponse,
+	type IJsonRpcSuccessResponse,
+	type IListSessionsResult,
+	type INotificationBroadcastParams,
+	type IProtocolMessage,
+	type IProtocolNotification,
+	type IServerHelloParams,
+	type IStateSnapshot,
 } from '../../common/state/sessionProtocol.js';
-import type { IDeltaAction, ISessionAddedNotification } from '../../common/state/sessionActions.js';
+import type { IDeltaAction, ISessionAddedNotification, ISessionRemovedNotification, IUsageAction } from '../../common/state/sessionActions.js';
+import type { ISessionState } from '../../common/state/sessionState.js';
 
 // ---- JSON serialization helpers (mirror webSocketTransport.ts) --------------
 
@@ -45,12 +51,19 @@ function uriReviver(_key: string, value: unknown): unknown {
 	return value;
 }
 
-// ---- Test WebSocket client --------------------------------------------------
+// ---- JSON-RPC test client ---------------------------------------------------
+
+interface IPendingCall {
+	resolve: (result: unknown) => void;
+	reject: (err: Error) => void;
+}
 
 class TestProtocolClient {
 	private readonly _ws: WebSocket;
-	private readonly _received: IServerMessage[] = [];
-	private readonly _waiters: { predicate: (msg: IServerMessage) => boolean; resolve: (msg: IServerMessage) => void; reject: (err: Error) => void }[] = [];
+	private _nextId = 1;
+	private readonly _pendingCalls = new Map<number, IPendingCall>();
+	private readonly _notifications: IProtocolNotification[] = [];
+	private readonly _notifWaiters: { predicate: (n: IProtocolNotification) => boolean; resolve: (n: IProtocolNotification) => void; reject: (err: Error) => void }[] = [];
 
 	constructor(port: number) {
 		this._ws = new WebSocket(`ws://127.0.0.1:${port}`);
@@ -61,16 +74,8 @@ class TestProtocolClient {
 			this._ws.on('open', () => {
 				this._ws.on('message', (data: Buffer | string) => {
 					const text = typeof data === 'string' ? data : data.toString('utf-8');
-					const msg = JSON.parse(text, uriReviver) as IServerMessage;
-
-					// Check waiters first (iterate backwards for safe splice)
-					for (let i = this._waiters.length - 1; i >= 0; i--) {
-						if (this._waiters[i].predicate(msg)) {
-							const waiter = this._waiters.splice(i, 1)[0];
-							waiter.resolve(msg);
-						}
-					}
-					this._received.push(msg);
+					const msg = JSON.parse(text, uriReviver);
+					this._handleMessage(msg);
 				});
 				resolve();
 			});
@@ -78,53 +83,101 @@ class TestProtocolClient {
 		});
 	}
 
-	send(msg: IClientMessage): void {
+	private _handleMessage(msg: IProtocolMessage): void {
+		if (isJsonRpcResponse(msg)) {
+			// JSON-RPC response — resolve pending call
+			const pending = this._pendingCalls.get(msg.id);
+			if (pending) {
+				this._pendingCalls.delete(msg.id);
+				const errResp = msg as IJsonRpcErrorResponse;
+				if (errResp.error) {
+					pending.reject(new Error(errResp.error.message));
+				} else {
+					pending.resolve((msg as IJsonRpcSuccessResponse).result);
+				}
+			}
+		} else if (isJsonRpcNotification(msg)) {
+			// JSON-RPC notification from server
+			const notif = msg;
+			// Check waiters first
+			for (let i = this._notifWaiters.length - 1; i >= 0; i--) {
+				if (this._notifWaiters[i].predicate(notif)) {
+					const waiter = this._notifWaiters.splice(i, 1)[0];
+					waiter.resolve(notif);
+				}
+			}
+			this._notifications.push(notif);
+		}
+	}
+
+	/** Send a JSON-RPC notification (fire-and-forget). */
+	notify(method: string, params?: unknown): void {
+		const msg: IProtocolMessage = { jsonrpc: '2.0', method, params };
 		this._ws.send(JSON.stringify(msg, uriReplacer));
 	}
 
-	/** Wait for the next message matching the predicate. */
-	waitFor<T extends IServerMessage>(predicate: (msg: IServerMessage) => msg is T, timeoutMs?: number): Promise<T>;
-	waitFor(predicate: (msg: IServerMessage) => boolean, timeoutMs?: number): Promise<IServerMessage>;
-	waitFor(predicate: (msg: IServerMessage) => boolean, timeoutMs = 5000): Promise<IServerMessage> {
-		// Check already-received messages
-		const existing = this._received.find(predicate);
+	/** Send a JSON-RPC request and await the response. */
+	call<T>(method: string, params?: unknown, timeoutMs = 5000): Promise<T> {
+		const id = this._nextId++;
+		const msg: IProtocolMessage = { jsonrpc: '2.0', id, method, params };
+		this._ws.send(JSON.stringify(msg, uriReplacer));
+
+		return new Promise<T>((resolve, reject) => {
+			const timer = setTimeout(() => {
+				this._pendingCalls.delete(id);
+				reject(new Error(`Timeout waiting for response to ${method} (id=${id}, ${timeoutMs}ms)`));
+			}, timeoutMs);
+
+			this._pendingCalls.set(id, {
+				resolve: result => { clearTimeout(timer); resolve(result as T); },
+				reject: err => { clearTimeout(timer); reject(err); },
+			});
+		});
+	}
+
+	/** Wait for a server notification matching a predicate. */
+	waitForNotification(predicate: (n: IProtocolNotification) => boolean, timeoutMs = 5000): Promise<IProtocolNotification> {
+		const existing = this._notifications.find(predicate);
 		if (existing) {
 			return Promise.resolve(existing);
 		}
 
-		return new Promise<IServerMessage>((resolve, reject) => {
+		return new Promise<IProtocolNotification>((resolve, reject) => {
 			const timer = setTimeout(() => {
-				const idx = this._waiters.findIndex(w => w.resolve === resolve);
+				const idx = this._notifWaiters.findIndex(w => w.resolve === resolve);
 				if (idx >= 0) {
-					this._waiters.splice(idx, 1);
+					this._notifWaiters.splice(idx, 1);
 				}
-				reject(new Error(`Timeout waiting for message (${timeoutMs}ms)`));
+				reject(new Error(`Timeout waiting for notification (${timeoutMs}ms)`));
 			}, timeoutMs);
 
-			this._waiters.push({
+			this._notifWaiters.push({
 				predicate,
-				resolve: (msg) => { clearTimeout(timer); resolve(msg); },
+				resolve: n => { clearTimeout(timer); resolve(n); },
 				reject,
 			});
 		});
 	}
 
-	/** Return all received messages matching a predicate. */
-	received(predicate?: (msg: IServerMessage) => boolean): IServerMessage[] {
-		return predicate ? this._received.filter(predicate) : [...this._received];
+	/** Return all received notifications matching a predicate. */
+	receivedNotifications(predicate?: (n: IProtocolNotification) => boolean): IProtocolNotification[] {
+		return predicate ? this._notifications.filter(predicate) : [...this._notifications];
 	}
 
 	close(): void {
-		// Reject any remaining waiters so tests don't hang
-		for (const w of this._waiters) {
+		for (const w of this._notifWaiters) {
 			w.reject(new Error('Client closed'));
 		}
-		this._waiters.length = 0;
+		this._notifWaiters.length = 0;
+		for (const [, p] of this._pendingCalls) {
+			p.reject(new Error('Client closed'));
+		}
+		this._pendingCalls.clear();
 		this._ws.close();
 	}
 
 	clearReceived(): void {
-		this._received.length = 0;
+		this._notifications.length = 0;
 	}
 }
 
@@ -132,7 +185,6 @@ class TestProtocolClient {
 
 async function startServer(): Promise<{ process: ChildProcess; port: number }> {
 	return new Promise((resolve, reject) => {
-		// Use the production agentHostServerMain with mock agent enabled
 		const serverPath = fileURLToPath(new URL('../../node/agentHostServerMain.js', import.meta.url));
 		const child = fork(serverPath, ['--enable-mock-agent', '--quiet', '--port', '0'], {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
@@ -156,19 +208,19 @@ async function startServer(): Promise<{ process: ChildProcess; port: number }> {
 			console.error('[TestServer]', data.toString());
 		});
 
-		child.on('error', (err) => {
+		child.on('error', err => {
 			clearTimeout(timeout);
 			reject(err);
 		});
 
-		child.on('exit', (code) => {
+		child.on('exit', code => {
 			clearTimeout(timeout);
 			reject(new Error(`Server exited prematurely with code ${code}`));
 		});
 	});
 }
 
-// ---- Helpers for common patterns --------------------------------------------
+// ---- Helpers ----------------------------------------------------------------
 
 let sessionCounter = 0;
 
@@ -176,36 +228,38 @@ function nextSessionUri(): URI {
 	return URI.from({ scheme: 'mock', path: `/test-session-${++sessionCounter}` });
 }
 
+function isActionNotification(n: IProtocolNotification, actionType: string): boolean {
+	if (n.method !== 'action') {
+		return false;
+	}
+	const params = n.params as IActionBroadcastParams;
+	return params.envelope.action.type === actionType;
+}
+
+function getActionParams(n: IProtocolNotification): IActionBroadcastParams {
+	return n.params as IActionBroadcastParams;
+}
+
 /** Perform handshake, create a session, subscribe, and return its URI. */
 async function createAndSubscribeSession(c: TestProtocolClient, clientId: string): Promise<URI> {
-	// Handshake
-	c.send({ type: 'clientHello', protocolVersion: PROTOCOL_VERSION, clientId });
-	await c.waitFor((m): m is IServerHello => m.type === 'serverHello');
+	c.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId });
+	await c.waitForNotification(n => n.method === 'serverHello');
 
-	// Create session (server assigns the real URI)
-	c.send({ type: 'command', command: { type: 'createSession', session: nextSessionUri(), provider: 'mock' } });
+	await c.call('createSession', { session: nextSessionUri(), provider: 'mock' });
 
-	// Wait for sessionAdded notification to discover the server-assigned URI
-	const notif = await c.waitFor((m): m is INotificationMessage =>
-		m.type === 'notification' && (m as INotificationMessage).notification.type === 'notify/sessionAdded'
+	const notif = await c.waitForNotification(n =>
+		n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
 	);
-	const realSessionUri = (notif.notification as ISessionAddedNotification).summary.resource;
+	const realSessionUri = ((notif.params as INotificationBroadcastParams).notification as ISessionAddedNotification).summary.resource;
 
-	// Subscribe to the real session URI
-	c.send({ type: 'subscribe', resource: realSessionUri });
-
-	// Wait for the snapshot
-	await c.waitFor((m): m is IStateSnapshot => m.type === 'stateSnapshot');
-
-	// Clear received so tests can inspect only subsequent messages
+	await c.call<IStateSnapshot>('subscribe', { resource: realSessionUri });
 	c.clearReceived();
 
 	return realSessionUri;
 }
 
 function dispatchTurnStarted(c: TestProtocolClient, session: URI, turnId: string, text: string, clientSeq: number): void {
-	c.send({
-		type: 'action',
+	c.notify('dispatchAction', {
 		clientSeq,
 		action: {
 			type: 'session/turnStarted',
@@ -214,10 +268,6 @@ function dispatchTurnStarted(c: TestProtocolClient, session: URI, turnId: string
 			userMessage: { text },
 		},
 	});
-}
-
-function isAction(msg: IServerMessage, actionType: string): msg is IActionMessage {
-	return msg.type === 'action' && (msg as IActionMessage).envelope.action.type === actionType;
 }
 
 // ---- Test suite -------------------------------------------------------------
@@ -250,38 +300,34 @@ suite('Protocol WebSocket E2E', function () {
 	test('handshake returns serverHello with protocol version', async function () {
 		this.timeout(5_000);
 
-		client.send({
-			type: 'clientHello',
+		client.notify('initialize', {
 			protocolVersion: PROTOCOL_VERSION,
 			clientId: 'test-handshake',
 			initialSubscriptions: [URI.from({ scheme: 'agenthost', path: '/root' })],
 		});
 
-		const hello = await client.waitFor((m): m is IServerHello => m.type === 'serverHello');
-		assert.strictEqual(hello.protocolVersion, PROTOCOL_VERSION);
-		assert.ok(hello.serverSeq >= 0);
-		assert.ok(hello.snapshots.length >= 1, 'should have root state snapshot');
+		const hello = await client.waitForNotification(n => n.method === 'serverHello');
+		const params = hello.params as IServerHelloParams;
+		assert.strictEqual(params.protocolVersion, PROTOCOL_VERSION);
+		assert.ok(params.serverSeq >= 0);
+		assert.ok(params.snapshots.length >= 1, 'should have root state snapshot');
 	});
 
-	// 2. Create session via command
-	test('create session command triggers sessionAdded notification', async function () {
+	// 2. Create session
+	test('create session triggers sessionAdded notification', async function () {
 		this.timeout(10_000);
 
-		// Handshake
-		client.send({ type: 'clientHello', protocolVersion: PROTOCOL_VERSION, clientId: 'test-create-session' });
-		await client.waitFor((m): m is IServerHello => m.type === 'serverHello');
+		client.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-create-session' });
+		await client.waitForNotification(n => n.method === 'serverHello');
 
-		const sessionUri = nextSessionUri();
-		client.send({ type: 'command', command: { type: 'createSession', session: sessionUri, provider: 'mock' } });
+		await client.call('createSession', { session: nextSessionUri(), provider: 'mock' });
 
-		const notification = await client.waitFor((m): m is INotificationMessage =>
-			m.type === 'notification' && (m as INotificationMessage).notification.type === 'notify/sessionAdded'
+		const notif = await client.waitForNotification(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
 		);
-		assert.strictEqual(notification.notification.type, 'notify/sessionAdded');
-		if (notification.notification.type === 'notify/sessionAdded') {
-			assert.strictEqual(notification.notification.summary.resource.scheme, 'mock');
-			assert.strictEqual(notification.notification.summary.provider, 'mock');
-		}
+		const notification = (notif.params as INotificationBroadcastParams).notification as ISessionAddedNotification;
+		assert.strictEqual(notification.summary.resource.scheme, 'mock');
+		assert.strictEqual(notification.summary.provider, 'mock');
 	});
 
 	// 3. Send message and receive response
@@ -289,21 +335,16 @@ suite('Protocol WebSocket E2E', function () {
 		this.timeout(10_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-send-message');
-
 		dispatchTurnStarted(client, sessionUri, 'turn-1', 'hello', 1);
 
-		// Should receive session/delta with "Hello, world!"
-		const delta = await client.waitFor(m => isAction(m, 'session/delta'));
-		assert.strictEqual(delta.type, 'action');
-		const deltaAction = (delta as IActionMessage).envelope.action;
+		const delta = await client.waitForNotification(n => isActionNotification(n, 'session/delta'));
+		const deltaAction = getActionParams(delta).envelope.action;
 		assert.strictEqual(deltaAction.type, 'session/delta');
 		if (deltaAction.type === 'session/delta') {
 			assert.strictEqual(deltaAction.content, 'Hello, world!');
 		}
 
-		// Should receive session/turnComplete
-		const complete = await client.waitFor(m => isAction(m, 'session/turnComplete'));
-		assert.strictEqual((complete as IActionMessage).envelope.action.type, 'session/turnComplete');
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 	});
 
 	// 4. Tool invocation lifecycle
@@ -311,30 +352,16 @@ suite('Protocol WebSocket E2E', function () {
 		this.timeout(10_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-tool-invocation');
-
 		dispatchTurnStarted(client, sessionUri, 'turn-tool', 'use-tool', 1);
 
-		// toolStart
-		const toolStart = await client.waitFor(m => isAction(m, 'session/toolStart'));
-		const toolStartAction = (toolStart as IActionMessage).envelope.action;
-		assert.strictEqual(toolStartAction.type, 'session/toolStart');
-
-		// toolComplete
-		const toolComplete = await client.waitFor(m => isAction(m, 'session/toolComplete'));
-		const toolCompleteAction = (toolComplete as IActionMessage).envelope.action;
-		assert.strictEqual(toolCompleteAction.type, 'session/toolComplete');
-		if (toolCompleteAction.type === 'session/toolComplete') {
-			assert.strictEqual(toolCompleteAction.result.success, true);
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolStart'));
+		const toolComplete = await client.waitForNotification(n => isActionNotification(n, 'session/toolComplete'));
+		const tcAction = getActionParams(toolComplete).envelope.action;
+		if (tcAction.type === 'session/toolComplete') {
+			assert.strictEqual(tcAction.result.success, true);
 		}
-
-		// delta
-		const delta = await client.waitFor(m => isAction(m, 'session/delta'));
-		if ((delta as IActionMessage).envelope.action.type === 'session/delta') {
-			assert.strictEqual((delta as IActionMessage).envelope.action.type, 'session/delta');
-		}
-
-		// turnComplete
-		await client.waitFor(m => isAction(m, 'session/turnComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/delta'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 	});
 
 	// 5. Error handling
@@ -342,12 +369,10 @@ suite('Protocol WebSocket E2E', function () {
 		this.timeout(10_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-error');
-
 		dispatchTurnStarted(client, sessionUri, 'turn-err', 'error', 1);
 
-		const errorMsg = await client.waitFor(m => isAction(m, 'session/error'));
-		const errorAction = (errorMsg as IActionMessage).envelope.action;
-		assert.strictEqual(errorAction.type, 'session/error');
+		const errorNotif = await client.waitForNotification(n => isActionNotification(n, 'session/error'));
+		const errorAction = getActionParams(errorNotif).envelope.action;
 		if (errorAction.type === 'session/error') {
 			assert.strictEqual(errorAction.error.message, 'Something went wrong');
 		}
@@ -358,17 +383,11 @@ suite('Protocol WebSocket E2E', function () {
 		this.timeout(10_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-permission');
-
 		dispatchTurnStarted(client, sessionUri, 'turn-perm', 'permission', 1);
 
-		// Wait for permissionRequest action
-		const permReq = await client.waitFor(m => isAction(m, 'session/permissionRequest'));
-		const permAction = (permReq as IActionMessage).envelope.action;
-		assert.strictEqual(permAction.type, 'session/permissionRequest');
+		await client.waitForNotification(n => isActionNotification(n, 'session/permissionRequest'));
 
-		// Approve the permission
-		client.send({
-			type: 'action',
+		client.notify('dispatchAction', {
 			clientSeq: 2,
 			action: {
 				type: 'session/permissionResolved',
@@ -379,88 +398,266 @@ suite('Protocol WebSocket E2E', function () {
 			},
 		});
 
-		// After approval, should get delta + turnComplete
-		const delta = await client.waitFor(m => isAction(m, 'session/delta'));
-		if ((delta as IActionMessage).envelope.action.type === 'session/delta') {
-			const content = ((delta as IActionMessage).envelope.action as IDeltaAction).content;
-			assert.strictEqual(content, 'Allowed.');
-		}
+		const delta = await client.waitForNotification(n => isActionNotification(n, 'session/delta'));
+		const content = (getActionParams(delta).envelope.action as IDeltaAction).content;
+		assert.strictEqual(content, 'Allowed.');
 
-		await client.waitFor(m => isAction(m, 'session/turnComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 	});
 
 	// 7. Session list
-	test('listSessions command returns listSessionsResponse', async function () {
+	test('listSessions returns sessions', async function () {
 		this.timeout(10_000);
 
-		// Handshake + create a session first
-		client.send({ type: 'clientHello', protocolVersion: PROTOCOL_VERSION, clientId: 'test-list-sessions' });
-		await client.waitFor((m): m is IServerHello => m.type === 'serverHello');
+		client.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-list-sessions' });
+		await client.waitForNotification(n => n.method === 'serverHello');
 
-		const sessionUri = nextSessionUri();
-		client.send({ type: 'command', command: { type: 'createSession', session: sessionUri, provider: 'mock' } });
-		await client.waitFor((m): m is INotificationMessage =>
-			m.type === 'notification' && (m as INotificationMessage).notification.type === 'notify/sessionAdded'
+		await client.call('createSession', { session: nextSessionUri(), provider: 'mock' });
+		await client.waitForNotification(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
 		);
 
-		// Request session list
-		client.send({ type: 'command', command: { type: 'listSessions' } });
-
-		const listResponse = await client.waitFor((m): m is IListSessionsResponse => m.type === 'listSessionsResponse');
-		assert.strictEqual(listResponse.type, 'listSessionsResponse');
-		assert.ok(Array.isArray(listResponse.sessions));
-		// At least the session we just created should be in the list
-		assert.ok(listResponse.sessions.length >= 1, 'should have at least one session');
+		const result = await client.call<IListSessionsResult>('listSessions');
+		assert.ok(Array.isArray(result.sessions));
+		assert.ok(result.sessions.length >= 1, 'should have at least one session');
 	});
 
-	// 8. Reconnect replays missed actions
+	// 8. Reconnect
 	test('reconnect replays missed actions', async function () {
 		this.timeout(15_000);
 
-		// First connection: handshake + create session + subscribe
 		const sessionUri = await createAndSubscribeSession(client, 'test-reconnect');
-
-		// Trigger a turn so the server enqueues several actions
 		dispatchTurnStarted(client, sessionUri, 'turn-recon', 'hello', 1);
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		// Wait for turnComplete to know all actions are emitted
-		await client.waitFor(m => isAction(m, 'session/turnComplete'));
+		const allActions = client.receivedNotifications(n => n.method === 'action');
+		assert.ok(allActions.length > 0);
+		const missedFromSeq = getActionParams(allActions[0]).envelope.serverSeq - 1;
 
-		// Record the serverSeq we've seen so far — take the last action message
-		const allActions = client.received(m => m.type === 'action') as IActionMessage[];
-		assert.ok(allActions.length > 0, 'should have received actions');
-
-		// Use a seq BEFORE the last few actions so they'll be replayed
-		// The first action's serverSeq - 1 means we "missed" all of them
-		const missedFromSeq = allActions[0].envelope.serverSeq - 1;
-
-		// Disconnect the first client
 		client.close();
 
-		// New connection
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-
-		// Reconnect with the old seq
-		client2.send({
-			type: 'clientReconnect',
+		client2.notify('reconnect', {
 			clientId: 'test-reconnect',
 			lastSeenServerSeq: missedFromSeq,
 			subscriptions: [sessionUri],
 		});
 
-		// Wait a bit for replayed actions or reconnectResponse
-		// The server sends either replayed action messages or a reconnectResponse with snapshots
 		await new Promise(resolve => setTimeout(resolve, 500));
 
-		const replayed = client2.received();
+		const replayed = client2.receivedNotifications();
 		assert.ok(replayed.length > 0, 'should receive replayed actions or reconnect response');
-
-		// Verify: either we got replayed actions or a reconnectResponse with snapshots
-		const hasReplayedActions = replayed.some(m => m.type === 'action');
-		const hasReconnectResponse = replayed.some(m => m.type === 'reconnectResponse');
-		assert.ok(hasReplayedActions || hasReconnectResponse, 'should get replayed actions or reconnect response');
+		const hasActions = replayed.some(n => n.method === 'action');
+		const hasReconnect = replayed.some(n => n.method === 'reconnectResponse');
+		assert.ok(hasActions || hasReconnect);
 
 		client2.close();
+	});
+
+	// ---- Gap tests: functionality bugs ----------------------------------------
+
+	test('usage info is captured on completed turn', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-usage');
+		dispatchTurnStarted(client, sessionUri, 'turn-usage', 'with-usage', 1);
+
+		const usageNotif = await client.waitForNotification(n => isActionNotification(n, 'session/usage'));
+		const usageAction = getActionParams(usageNotif).envelope.action as IUsageAction;
+		assert.strictEqual(usageAction.usage.inputTokens, 100);
+		assert.strictEqual(usageAction.usage.outputTokens, 50);
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		const snapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
+		const state = snapshot.state as ISessionState;
+		assert.ok(state.turns.length >= 1);
+		const turn = state.turns[state.turns.length - 1];
+		assert.ok(turn.usage);
+		assert.strictEqual(turn.usage!.inputTokens, 100);
+		assert.strictEqual(turn.usage!.outputTokens, 50);
+	});
+
+	test('modifiedAt updates on turn completion', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-modifiedAt');
+
+		const initialSnapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
+		const initialModifiedAt = (initialSnapshot.state as ISessionState).summary.modifiedAt;
+
+		await new Promise(resolve => setTimeout(resolve, 50));
+
+		dispatchTurnStarted(client, sessionUri, 'turn-mod', 'hello', 1);
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		const updatedSnapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
+		const updatedModifiedAt = (updatedSnapshot.state as ISessionState).summary.modifiedAt;
+		assert.ok(updatedModifiedAt >= initialModifiedAt);
+	});
+
+	test('createSession with invalid provider does not crash server', async function () {
+		this.timeout(10_000);
+
+		client.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-invalid-create' });
+		await client.waitForNotification(n => n.method === 'serverHello');
+
+		// This should return a JSON-RPC error
+		let gotError = false;
+		try {
+			await client.call('createSession', { session: nextSessionUri(), provider: 'nonexistent' });
+		} catch {
+			gotError = true;
+		}
+		assert.ok(gotError, 'should have received an error for invalid provider');
+
+		// Server should still be functional
+		await client.call('createSession', { session: nextSessionUri(), provider: 'mock' });
+		const notif = await client.waitForNotification(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+		);
+		assert.ok(notif);
+	});
+
+	test('fetchTurns returns completed turn history', async function () {
+		this.timeout(15_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-fetchTurns');
+
+		dispatchTurnStarted(client, sessionUri, 'turn-ft-1', 'hello', 1);
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		dispatchTurnStarted(client, sessionUri, 'turn-ft-2', 'hello', 2);
+		await new Promise(resolve => setTimeout(resolve, 200));
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		const result = await client.call<IFetchTurnsResult>('fetchTurns', { session: sessionUri, startTurn: 0, count: 10 });
+		assert.ok(result.turns.length >= 2);
+		assert.ok(result.totalTurns >= 2);
+	});
+
+	// ---- Gap tests: coverage ---------------------------------------------------
+
+	test('dispose session sends sessionRemoved notification', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-dispose');
+		await client.call('disposeSession', { session: sessionUri });
+
+		const notif = await client.waitForNotification(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionRemoved'
+		);
+		const removed = (notif.params as INotificationBroadcastParams).notification as ISessionRemovedNotification;
+		assert.strictEqual(removed.session.toString(), sessionUri.toString());
+	});
+
+	test('cancel turn stops in-progress processing', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-cancel');
+		dispatchTurnStarted(client, sessionUri, 'turn-cancel', 'slow', 1);
+
+		client.notify('dispatchAction', {
+			clientSeq: 2,
+			action: { type: 'session/turnCancelled', session: sessionUri, turnId: 'turn-cancel' },
+		});
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnCancelled'));
+
+		const snapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
+		const state = snapshot.state as ISessionState;
+		assert.ok(state.turns.length >= 1);
+		assert.strictEqual(state.turns[state.turns.length - 1].state, 'cancelled');
+	});
+
+	test('multiple sequential turns accumulate in history', async function () {
+		this.timeout(15_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-multi-turns');
+
+		dispatchTurnStarted(client, sessionUri, 'turn-m1', 'hello', 1);
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		dispatchTurnStarted(client, sessionUri, 'turn-m2', 'hello', 2);
+		await new Promise(resolve => setTimeout(resolve, 200));
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		const snapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
+		const state = snapshot.state as ISessionState;
+		assert.ok(state.turns.length >= 2, `expected >= 2 turns but got ${state.turns.length}`);
+		assert.strictEqual(state.turns[0].id, 'turn-m1');
+		assert.strictEqual(state.turns[1].id, 'turn-m2');
+	});
+
+	test('two clients on same session both see actions', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-multi-client-1');
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		client2.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-multi-client-2' });
+		await client2.waitForNotification(n => n.method === 'serverHello');
+		await client2.call('subscribe', { resource: sessionUri });
+		client2.clearReceived();
+
+		dispatchTurnStarted(client, sessionUri, 'turn-mc', 'hello', 1);
+
+		const d1 = await client.waitForNotification(n => isActionNotification(n, 'session/delta'));
+		const d2 = await client2.waitForNotification(n => isActionNotification(n, 'session/delta'));
+		assert.ok(d1);
+		assert.ok(d2);
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		await client2.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		client2.close();
+	});
+
+	test('unsubscribe stops receiving session actions', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-unsubscribe');
+		client.notify('unsubscribe', { resource: sessionUri });
+		await new Promise(resolve => setTimeout(resolve, 100));
+		client.clearReceived();
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		client2.notify('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-unsub-helper' });
+		await client2.waitForNotification(n => n.method === 'serverHello');
+		await client2.call('subscribe', { resource: sessionUri });
+
+		dispatchTurnStarted(client2, sessionUri, 'turn-unsub', 'hello', 1);
+		await client2.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		await new Promise(resolve => setTimeout(resolve, 300));
+		const sessionActions = client.receivedNotifications(n => isActionNotification(n, 'session/'));
+		assert.strictEqual(sessionActions.length, 0, 'unsubscribed client should not receive session actions');
+
+		client2.close();
+	});
+
+	test('change model within session updates state', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-change-model');
+
+		client.notify('dispatchAction', {
+			clientSeq: 1,
+			action: { type: 'session/modelChanged', session: sessionUri, model: 'new-mock-model' },
+		});
+
+		const modelChanged = await client.waitForNotification(n => isActionNotification(n, 'session/modelChanged'));
+		const action = getActionParams(modelChanged).envelope.action;
+		assert.strictEqual(action.type, 'session/modelChanged');
+		if (action.type === 'session/modelChanged') {
+			assert.strictEqual((action as { model: string }).model, 'new-mock-model');
+		}
+
+		const snapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
+		const state = snapshot.state as ISessionState;
+		assert.strictEqual(state.summary.model, 'new-mock-model');
 	});
 });

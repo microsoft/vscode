@@ -8,7 +8,21 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IActionEnvelope, INotification, isSessionAction } from '../common/state/sessionActions.js';
 import { isActionKnownToVersion, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
-import type { IClientMessage, IServerMessage, IStateSnapshot } from '../common/state/sessionProtocol.js';
+import {
+	isJsonRpcRequest,
+	isJsonRpcNotification,
+	JSON_RPC_INTERNAL_ERROR,
+	type ICreateSessionParams,
+	type IDispatchActionParams,
+	type IDisposeSessionParams,
+	type IFetchTurnsParams,
+	type IInitializeParams,
+	type IProtocolMessage,
+	type IReconnectParams,
+	type IStateSnapshot,
+	type ISubscribeParams,
+	type IUnsubscribeParams,
+} from '../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { SessionStateManager } from './sessionStateManager.js';
@@ -28,12 +42,9 @@ interface IConnectedClient {
 }
 
 /**
- * Server-side handler that manages protocol connections, routes client
+ * Server-side handler that manages protocol connections, routes JSON-RPC
  * messages to the state manager, and broadcasts actions/notifications
  * to subscribed clients.
- *
- * This replaces the ProxyChannel-based approach for transport-agnostic
- * protocol communication.
  */
 export class ProtocolServerHandler extends Disposable {
 
@@ -48,12 +59,10 @@ export class ProtocolServerHandler extends Disposable {
 	) {
 		super();
 
-		// Accept new connections
 		this._register(this._server.onConnection(transport => {
 			this._handleNewConnection(transport);
 		}));
 
-		// Forward action envelopes to subscribed clients
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			this._replayBuffer.push(envelope);
 			if (this._replayBuffer.length > REPLAY_BUFFER_CAPACITY) {
@@ -62,48 +71,49 @@ export class ProtocolServerHandler extends Disposable {
 			this._broadcastAction(envelope);
 		}));
 
-		// Forward notifications to all connected clients
 		this._register(this._stateManager.onDidEmitNotification(notification => {
 			this._broadcastNotification(notification);
 		}));
 	}
+
+	// ---- Connection handling -------------------------------------------------
 
 	private _handleNewConnection(transport: IProtocolTransport): void {
 		const disposables = new DisposableStore();
 		let client: IConnectedClient | undefined;
 
 		disposables.add(transport.onMessage(msg => {
-			const message = msg as IClientMessage;
-			switch (message.type) {
-				case 'clientHello':
-					client = this._handleClientHello(message, transport, disposables);
-					break;
-				case 'clientReconnect':
-					client = this._handleClientReconnect(message, transport, disposables);
-					break;
-				case 'subscribe':
-					if (client) {
-						this._handleSubscribe(client, message.resource);
-					}
-					break;
-				case 'unsubscribe':
-					if (client) {
-						client.subscriptions.delete(message.resource.toString());
-					}
-					break;
-				case 'action':
-					if (client) {
-						const origin = { clientId: client.clientId, clientSeq: message.clientSeq };
-						this._stateManager.dispatchClientAction(message.action, origin);
-						this._sideEffectHandler.handleAction(message.action);
-					}
-					break;
-				case 'command':
-					if (client) {
-						this._handleCommand(client, message.command);
-					}
-					break;
+			if (isJsonRpcRequest(msg)) {
+				// Request — expects a correlated response
+				if (!client) {
+					return;
+				}
+				this._handleRequest(client, msg.method, msg.params, msg.id);
+			} else if (isJsonRpcNotification(msg)) {
+				// Notification — fire-and-forget
+				switch (msg.method) {
+					case 'initialize':
+						client = this._handleInitialize(msg.params as IInitializeParams, transport, disposables);
+						break;
+					case 'reconnect':
+						client = this._handleReconnect(msg.params as IReconnectParams, transport, disposables);
+						break;
+					case 'unsubscribe':
+						if (client) {
+							client.subscriptions.delete((msg.params as IUnsubscribeParams).resource.toString());
+						}
+						break;
+					case 'dispatchAction':
+						if (client) {
+							const params = msg.params as IDispatchActionParams;
+							const origin = { clientId: client.clientId, clientSeq: params.clientSeq };
+							this._stateManager.dispatchClientAction(params.action, origin);
+							this._sideEffectHandler.handleAction(params.action);
+						}
+						break;
+				}
 			}
+			// Responses from the client (if any) are ignored on the server side.
 		}));
 
 		disposables.add(transport.onClose(() => {
@@ -117,26 +127,27 @@ export class ProtocolServerHandler extends Disposable {
 		disposables.add(transport);
 	}
 
-	private _handleClientHello(
-		message: Extract<IClientMessage, { type: 'clientHello' }>,
+	// ---- Notifications (fire-and-forget) ------------------------------------
+
+	private _handleInitialize(
+		params: IInitializeParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
 	): IConnectedClient {
-		this._logService.info(`[ProtocolServer] ClientHello: clientId=${message.clientId}, version=${message.protocolVersion}`);
+		this._logService.info(`[ProtocolServer] Initialize: clientId=${params.clientId}, version=${params.protocolVersion}`);
 
 		const client: IConnectedClient = {
-			clientId: message.clientId,
-			protocolVersion: message.protocolVersion,
+			clientId: params.clientId,
+			protocolVersion: params.protocolVersion,
 			transport,
 			subscriptions: new Set(),
 			disposables,
 		};
-		this._clients.set(message.clientId, client);
+		this._clients.set(params.clientId, client);
 
-		// Build snapshots for initial subscriptions
 		const snapshots: IStateSnapshot[] = [];
-		if (message.initialSubscriptions) {
-			for (const uri of message.initialSubscriptions) {
+		if (params.initialSubscriptions) {
+			for (const uri of params.initialSubscriptions) {
 				const snapshot = this._stateManager.getSnapshot(uri);
 				if (snapshot) {
 					snapshots.push(snapshot);
@@ -145,127 +156,156 @@ export class ProtocolServerHandler extends Disposable {
 			}
 		}
 
-		const hello: IServerMessage = {
-			type: 'serverHello',
+		this._sendNotification(transport, 'serverHello', {
 			protocolVersion: PROTOCOL_VERSION,
 			serverSeq: this._stateManager.serverSeq,
 			snapshots,
-		};
-		transport.send(hello);
+		});
 
 		return client;
 	}
 
-	private _handleClientReconnect(
-		message: Extract<IClientMessage, { type: 'clientReconnect' }>,
+	private _handleReconnect(
+		params: IReconnectParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
 	): IConnectedClient {
-		this._logService.info(`[ProtocolServer] ClientReconnect: clientId=${message.clientId}, lastSeenSeq=${message.lastSeenServerSeq}`);
+		this._logService.info(`[ProtocolServer] Reconnect: clientId=${params.clientId}, lastSeenSeq=${params.lastSeenServerSeq}`);
 
 		const client: IConnectedClient = {
-			clientId: message.clientId,
-			protocolVersion: PROTOCOL_VERSION, // Reconnecting clients use current version
+			clientId: params.clientId,
+			protocolVersion: PROTOCOL_VERSION,
 			transport,
 			subscriptions: new Set(),
 			disposables,
 		};
-		this._clients.set(message.clientId, client);
+		this._clients.set(params.clientId, client);
 
-		// Check if we can replay from the buffer
 		const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
-		const canReplay = message.lastSeenServerSeq >= oldestBuffered;
+		const canReplay = params.lastSeenServerSeq >= oldestBuffered;
 
 		if (canReplay) {
-			// Replay missed actions
-			for (const sub of message.subscriptions) {
+			for (const sub of params.subscriptions) {
 				client.subscriptions.add(sub.toString());
 			}
 			for (const envelope of this._replayBuffer) {
-				if (envelope.serverSeq > message.lastSeenServerSeq) {
+				if (envelope.serverSeq > params.lastSeenServerSeq) {
 					if (this._isRelevantToClient(client, envelope)) {
-						transport.send({ type: 'action', envelope });
+						this._sendNotification(transport, 'action', { envelope });
 					}
 				}
 			}
 		} else {
-			// Gap too large — send fresh snapshots
 			const snapshots: IStateSnapshot[] = [];
-			for (const sub of message.subscriptions) {
+			for (const sub of params.subscriptions) {
 				const snapshot = this._stateManager.getSnapshot(sub);
 				if (snapshot) {
 					snapshots.push(snapshot);
 					client.subscriptions.add(sub.toString());
 				}
 			}
-			const response: IServerMessage = {
-				type: 'reconnectResponse',
+			this._sendNotification(transport, 'reconnectResponse', {
 				serverSeq: this._stateManager.serverSeq,
 				snapshots,
-			};
-			transport.send(response);
+			});
 		}
 
 		return client;
 	}
 
-	private _handleSubscribe(client: IConnectedClient, resource: URI): void {
-		const snapshot = this._stateManager.getSnapshot(resource);
-		if (snapshot) {
-			client.subscriptions.add(resource.toString());
-			client.transport.send(snapshot);
+	// ---- Requests (expect a response) ---------------------------------------
+
+	private _handleRequest(client: IConnectedClient, method: string, params: unknown, id: number): void {
+		this._handleRequestAsync(client, method, params).then(result => {
+			client.transport.send({ jsonrpc: '2.0', id, result: result ?? null });
+		}).catch(err => {
+			this._logService.error(`[ProtocolServer] Request '${method}' failed`, err);
+			client.transport.send({
+				jsonrpc: '2.0',
+				id,
+				error: { code: JSON_RPC_INTERNAL_ERROR, message: String(err?.message ?? err) },
+			});
+		});
+	}
+
+	private async _handleRequestAsync(client: IConnectedClient, method: string, params: unknown): Promise<unknown> {
+		switch (method) {
+			case 'subscribe': {
+				const p = params as ISubscribeParams;
+				const snapshot = this._stateManager.getSnapshot(p.resource);
+				if (snapshot) {
+					client.subscriptions.add(p.resource.toString());
+				}
+				return snapshot ?? null;
+			}
+			case 'createSession': {
+				await this._sideEffectHandler.handleCreateSession(params as ICreateSessionParams);
+				return null;
+			}
+			case 'disposeSession': {
+				this._sideEffectHandler.handleDisposeSession((params as IDisposeSessionParams).session);
+				return null;
+			}
+			case 'listSessions': {
+				const sessions = await this._sideEffectHandler.handleListSessions();
+				return { sessions };
+			}
+			case 'fetchTurns': {
+				const p = params as IFetchTurnsParams;
+				const state = this._stateManager.getSessionState(p.session);
+				if (state) {
+					const turns = state.turns;
+					const start = Math.max(0, p.startTurn);
+					const end = Math.min(turns.length, start + p.count);
+					return {
+						session: p.session,
+						startTurn: start,
+						turns: turns.slice(start, end),
+						totalTurns: turns.length,
+					};
+				}
+				return {
+					session: p.session,
+					startTurn: p.startTurn,
+					turns: [],
+					totalTurns: 0,
+				};
+			}
+			default:
+				throw new Error(`Unknown method: ${method}`);
 		}
 	}
 
-	private _handleCommand(
-		client: IConnectedClient,
-		command: Extract<IClientMessage, { type: 'command' }>['command'],
-	): void {
-		switch (command.type) {
-			case 'listSessions':
-				this._sideEffectHandler.handleListSessions().then(sessions => {
-					client.transport.send({ type: 'listSessionsResponse', sessions });
-				}).catch(err => {
-					this._logService.error('[ProtocolServer] handleListSessions failed', err);
-				});
-				break;
-			case 'createSession':
-				this._sideEffectHandler.handleCreateSession(command);
-				break;
-			case 'disposeSession':
-				this._sideEffectHandler.handleDisposeSession(command.session);
-				break;
-			// fetchContent and fetchTurns left for future implementation
-		}
+	// ---- Broadcasting -------------------------------------------------------
+
+	private _sendNotification(transport: IProtocolTransport, method: string, params: unknown): void {
+		transport.send({ jsonrpc: '2.0', method, params });
 	}
 
 	private _broadcastAction(envelope: IActionEnvelope): void {
-		const actionMsg: IServerMessage = { type: 'action', envelope };
+		const msg: IProtocolMessage = { jsonrpc: '2.0', method: 'action', params: { envelope } };
 		for (const client of this._clients.values()) {
 			if (this._isRelevantToClient(client, envelope)) {
-				client.transport.send(actionMsg);
+				client.transport.send(msg);
 			}
 		}
 	}
 
 	private _broadcastNotification(notification: INotification): void {
-		const notifMsg: IServerMessage = { type: 'notification', notification };
+		const msg: IProtocolMessage = { jsonrpc: '2.0', method: 'notification', params: { notification } };
 		for (const client of this._clients.values()) {
-			client.transport.send(notifMsg);
+			client.transport.send(msg);
 		}
 	}
 
 	private _isRelevantToClient(client: IConnectedClient, envelope: IActionEnvelope): boolean {
 		const action = envelope.action;
-		// Version-based filtering: don't send actions the client doesn't understand
 		if (!isActionKnownToVersion(action, client.protocolVersion)) {
 			return false;
 		}
-		// Root actions go to clients subscribed to root
 		if (action.type.startsWith('root/')) {
 			return client.subscriptions.has(ROOT_STATE_URI.toString());
 		}
-		// Session actions go to clients subscribed to that session
 		if (isSessionAction(action)) {
 			return client.subscriptions.has(action.session.toString());
 		}
@@ -288,7 +328,7 @@ export class ProtocolServerHandler extends Disposable {
  */
 export interface IProtocolSideEffectHandler {
 	handleAction(action: import('../common/state/sessionActions.js').ISessionAction): void;
-	handleCreateSession(command: import('../common/state/sessionProtocol.js').ICreateSessionCommand): void;
+	handleCreateSession(command: import('../common/state/sessionProtocol.js').ICreateSessionParams): Promise<void>;
 	handleDisposeSession(session: URI): void;
 	handleListSessions(): Promise<import('../common/state/sessionState.js').ISessionSummary[]>;
 }
