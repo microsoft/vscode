@@ -8,6 +8,7 @@ import { BaseLanguageClient, LanguageClientOptions, NotebookDocumentSyncRegistra
 import { IMdParser } from '../markdownEngine';
 import { IDisposable } from '../util/dispose';
 import { looksLikeMarkdownPath, markdownFileExtensions, markdownLanguageIds } from '../util/file';
+import { rawHttpUriFromHref } from '../util/url';
 import { FileWatcherManager } from './fileWatchingManager';
 import { InMemoryDocument } from './inMemoryDocument';
 import * as proto from './protocol';
@@ -78,7 +79,42 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 		},
 		markdown: {
 			supportHtml: true,
-		}
+		},
+		middleware: {
+			provideDocumentLinks: async (document, token, next) => {
+				const links = await next(document, token);
+				if (!links) {
+					return links;
+				}
+				// The language server may have decoded percent-encoded characters in
+				// external URLs (e.g. %2F in paths or %2D in text fragments).  Recover
+				// the original URL by reading it back from the document source so that
+				// the browser receives the URL exactly as the author wrote it.
+				return links.map(link => {
+					if (!link.target) {
+						return link;
+					}
+					const { scheme } = link.target;
+					if (scheme !== 'http' && scheme !== 'https') {
+						return link;
+					}
+					// Read the href text from the document source.  For markdown inline
+					// links like [text](URL) the range covers only the URL itself; the
+					// same is true for reference link definitions and angle-bracket links.
+					const hrefText = document.getText(link.range);
+					// Only apply the fix for URLs that have not been HTML-entity-encoded
+					// (e.g. &amp;) - those require HTML decoding first and are handled
+					// separately.
+					if (
+						(hrefText.startsWith('http://') || hrefText.startsWith('https://')) &&
+						!hrefText.includes('&amp;')
+					) {
+						link.target = rawHttpUriFromHref(hrefText);
+					}
+					return link;
+				});
+			},
+		},
 	};
 
 	const client = factory('markdown', vscode.l10n.t("Markdown Language Server"), clientOptions);
