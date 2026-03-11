@@ -655,4 +655,68 @@ suite('buildModelPickerItems', () => {
 		gptItem.item.run();
 		assert.strictEqual(selectedModel?.identifier, modelA.identifier);
 	});
+
+	test('showFeatured=false omits featured models from promoted section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const items = callBuild([auto, modelA, modelB], {
+			controlModels: {
+				'gpt-4o': { label: 'GPT-4o', featured: true, exists: true },
+			},
+			showFeatured: false,
+		});
+		const actions = getActionItems(items);
+		// Auto first, then Other Models toggle, then models in other section
+		assert.strictEqual(actions[0].label, 'Auto');
+		// GPT-4o should NOT be promoted — it should be in Other Models
+		const promotedLabels = actions.filter(a => !a.isSectionToggle && a.section !== 'other' && a.item?.id !== 'manageModels').map(a => a.label);
+		assert.ok(!promotedLabels.includes('GPT-4o'), 'GPT-4o should not be in promoted section when showFeatured=false');
+	});
+
+	test('showUnavailableFeatured=false omits unavailable featured models from promoted section', () => {
+		const auto = createAutoModel();
+		const items = callBuild([auto], {
+			controlModels: {
+				'premium-model': { label: 'Premium Model', featured: true, exists: false },
+			},
+			entitlement: ChatEntitlement.Free,
+			showUnavailableFeatured: false,
+		});
+		const actions = getActionItems(items);
+		// Premium Model should not appear at all
+		const premiumItem = actions.find(a => a.label === 'Premium Model');
+		assert.strictEqual(premiumItem, undefined, 'Unavailable featured model should not appear when showUnavailableFeatured=false');
+	});
+
+	test('showUnavailableFeatured=false still shows available featured models', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA], {
+			controlModels: {
+				'gpt-4o': { label: 'GPT-4o', featured: true, exists: true },
+			},
+			showUnavailableFeatured: false,
+		});
+		const actions = getActionItems(items);
+		// GPT-4o is available and featured, so it should still appear in promoted
+		const gptItem = actions.find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem, 'Available featured model should appear even when showUnavailableFeatured=false');
+	});
+
+	test('showUnavailableFeatured=false with version-gated model does not place it in promoted', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA], {
+			controlModels: {
+				'gpt-4o': { label: 'GPT-4o', featured: true, minVSCodeVersion: '2.0.0', exists: true },
+			},
+			showUnavailableFeatured: false,
+		});
+		const actions = getActionItems(items);
+		// Version-gated model should not be in promoted section as unavailable
+		const promotedLabels = actions.filter(a => !a.isSectionToggle && a.section !== 'other' && a.item?.id !== 'manageModels').map(a => a.label);
+		assert.ok(!promotedLabels.includes('GPT-4o') || !actions.find(a => a.label === 'GPT-4o')?.disabled,
+			'Version-gated featured model should not appear as unavailable in promoted when showUnavailableFeatured=false');
+	});
 });
