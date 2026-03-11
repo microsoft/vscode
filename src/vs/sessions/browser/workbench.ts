@@ -771,12 +771,13 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	 * Creates the grid descriptor for the Agent Sessions layout.
 	 * Editor is NOT included - it's rendered as a modal overlay.
 	 *
-	 * Structure (horizontal orientation):
-	 * - Sidebar (left, spans full height from top to bottom)
-	 * - Right section (vertical):
-	 *   - Titlebar (top of right section)
-	 *   - Top right (horizontal): Chat Bar | Auxiliary Bar
-	 *   - Panel (below chat and auxiliary bar only)
+	 * Structure (vertical orientation):
+	 * - Titlebar (full width, top)
+	 * - Content section (horizontal):
+	 *   - Sidebar (left)
+	 *   - Right section (vertical):
+	 *     - Top right (horizontal): Chat Bar | Auxiliary Bar
+	 *     - Panel (below chat and auxiliary bar only)
 	 */
 	private createGridDescriptor(): ISerializedGrid {
 		const { width, height } = this._mainContainerDimension;
@@ -787,11 +788,13 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		const panelSize = 300;
 		const titleBarHeight = this.titleBarPartView?.minimumHeight ?? 30;
 
+		// Calculate content area below titlebar
+		const contentHeight = height - titleBarHeight;
+
 		// Calculate right section width and chat bar width
 		const rightSectionWidth = Math.max(0, width - sideBarSize);
 		const chatBarWidth = Math.max(0, rightSectionWidth - auxiliaryBarSize);
 
-		const contentHeight = height - titleBarHeight;
 		const topRightHeight = contentHeight - panelSize;
 
 		const titleBarNode: ISerializedLeafNode = {
@@ -836,23 +839,30 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			size: topRightHeight
 		};
 
-		// Right section: Titlebar | Top Right | Panel (vertical)
+		// Right section: Top Right | Panel (vertical)
 		const rightSection: ISerializedNode = {
 			type: 'branch',
-			data: [titleBarNode, topRightSection, panelNode],
+			data: [topRightSection, panelNode],
 			size: rightSectionWidth
+		};
+
+		// Content section: Sidebar | Right section (horizontal)
+		const contentSection: ISerializedNode = {
+			type: 'branch',
+			data: [sideBarNode, rightSection],
+			size: contentHeight
 		};
 
 		const result: ISerializedGrid = {
 			root: {
 				type: 'branch',
-				size: height,
+				size: width,
 				data: [
-					sideBarNode,
-					rightSection
+					titleBarNode,
+					contentSection
 				]
 			},
-			orientation: Orientation.HORIZONTAL,
+			orientation: Orientation.VERTICAL,
 			width,
 			height
 		};

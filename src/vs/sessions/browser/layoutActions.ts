@@ -55,7 +55,7 @@ class ToggleSidebarVisibilityAction extends Action2 {
 					id: Menus.TitleBarLeftLayout,
 					group: 'navigation',
 					order: 0,
-					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
+					when: IsAuxiliaryWindowContext.toNegated()
 				},
 				{
 					id: Menus.TitleBarContext,
