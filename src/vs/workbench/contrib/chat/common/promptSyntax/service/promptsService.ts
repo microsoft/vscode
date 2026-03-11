@@ -256,6 +256,7 @@ export interface IChatPromptSlashCommand {
 	readonly argumentHint: string | undefined;
 	readonly promptPath: IPromptPath;
 	readonly parsedPromptFile: ParsedPromptFile;
+	readonly when: ContextKeyExpression | undefined;
 }
 
 export interface IAgentSkill {

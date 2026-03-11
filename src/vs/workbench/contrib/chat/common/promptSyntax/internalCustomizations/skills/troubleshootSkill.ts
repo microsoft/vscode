@@ -6,7 +6,7 @@
 import { InternalSkill } from '../internalSkill.js';
 import { ChatContextKeys } from '../../../actions/chatContextKeys.js';
 
-const DESCRIPTION = 'Investigate and explain unexpected chat agent behavior. Use when the user asks why something happened, why something was slow, why a skill or instruction was not loaded, or why the agent did not follow instructions.';
+const DESCRIPTION = 'Investigate unexpected chat agent behavior. Use when the user asks why something happened, why something was slow, why a skill or instruction was not loaded, or why the agent did not follow instructions.';
 
 const CONTENT = `---
 name: troubleshoot
@@ -17,7 +17,7 @@ description: '${DESCRIPTION}'
 
 ## Purpose
 
-This skill investigates and explains unexpected behavior in the chat agent.
+This skill investigates and helps explain unexpected behavior in the chat agent.
 
 Use this skill when users ask **why something happened**, **why something was slow**, or **why something did not occur as expected**.
 

@@ -315,7 +315,7 @@ export class ChatDebugLogsView extends Disposable {
 	}
 
 	refreshList(): void {
-		let filtered = this.events;
+		let filtered: readonly IChatDebugEvent[] = this.events;
 
 		// Filter by kind toggles (pass category for generic events so only
 		// discovery-category events are affected by the Prompt Discovery toggle)
@@ -418,12 +418,12 @@ export class ChatDebugLogsView extends Disposable {
 		});
 	}
 
-	private refreshTree(filtered: IChatDebugEvent[]): void {
+	private refreshTree(filtered: readonly IChatDebugEvent[]): void {
 		const treeElements = this.buildTreeHierarchy(filtered);
 		this.tree.setChildren(null, treeElements);
 	}
 
-	private buildTreeHierarchy(events: IChatDebugEvent[]): IObjectTreeElement<IChatDebugEvent>[] {
+	private buildTreeHierarchy(events: readonly IChatDebugEvent[]): IObjectTreeElement<IChatDebugEvent>[] {
 		const idToEvent = new Map<string, IChatDebugEvent>();
 		const idToChildren = new Map<string, IChatDebugEvent[]>();
 		const roots: IChatDebugEvent[] = [];
