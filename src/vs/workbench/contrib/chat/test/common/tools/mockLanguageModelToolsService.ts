@@ -27,6 +27,10 @@ export class MockLanguageModelToolsService extends Disposable implements ILangua
 
 	private readonly _onDidInvokeTool = this._register(new Emitter<IToolInvokedEvent>());
 
+	private readonly _registeredToolIds = new Set<string>();
+	private readonly _registeredToolSetNames = new Set<string>();
+	private readonly _toolSetTools = new Map<string, IToolData[]>();
+
 	constructor() {
 		super();
 	}
@@ -88,7 +92,14 @@ export class MockLanguageModelToolsService extends Disposable implements ILangua
 		return [];
 	}
 
+	addRegisteredToolId(id: string): void {
+		this._registeredToolIds.add(id);
+	}
+
 	getTool(id: string): IToolData | undefined {
+		if (this._registeredToolIds.has(id)) {
+			return { id, source: ToolDataSource.Internal, displayName: id, modelDescription: id };
+		}
 		return undefined;
 	}
 
@@ -125,7 +136,18 @@ export class MockLanguageModelToolsService extends Disposable implements ILangua
 		return [];
 	}
 
+	addRegisteredToolSetName(name: string, tools?: IToolData[]): void {
+		this._registeredToolSetNames.add(name);
+		if (tools) {
+			this._toolSetTools.set(name, tools);
+		}
+	}
+
 	getToolSetByName(name: string): IToolSet | undefined {
+		if (this._registeredToolSetNames.has(name)) {
+			const tools = this._toolSetTools.get(name) ?? [];
+			return { id: name, referenceName: name, icon: ThemeIcon.fromId(Codicon.tools.id), source: ToolDataSource.Internal, getTools: () => tools };
+		}
 		return undefined;
 	}
 

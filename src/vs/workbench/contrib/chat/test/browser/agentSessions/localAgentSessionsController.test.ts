@@ -6,21 +6,21 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { LocalAgentsSessionsController } from '../../../browser/agentSessions/localAgentSessionsController.js';
+import { IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { ChatRequestQueueKind, IChatDetail, IChatService, IChatSessionStartOptions, ResponseModelState } from '../../../common/chatService/chatService.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation } from '../../../common/constants.js';
+import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 
 function createTestTiming(options?: {
@@ -34,181 +34,6 @@ function createTestTiming(options?: {
 		lastRequestStarted: options?.lastRequestStarted,
 		lastRequestEnded: options?.lastRequestEnded,
 	};
-}
-
-class MockChatService implements IChatService {
-	private readonly _chatModels: ISettableObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
-	readonly chatModels = this._chatModels;
-	requestInProgressObs = observableValue('name', false);
-	edits2Enabled: boolean = false;
-	_serviceBrand: undefined;
-	editingSessions = [];
-	transferredSessionResource = undefined;
-	readonly onDidSubmitRequest = Event.None;
-	readonly onDidCreateModel = Event.None;
-
-	private sessions = new Map<string, IChatModel>();
-	private liveSessionItems: IChatDetail[] = [];
-	private historySessionItems: IChatDetail[] = [];
-
-	private readonly _onDidDisposeSession = new Emitter<{ sessionResource: URI[]; reason: 'cleared' }>();
-	readonly onDidDisposeSession = this._onDidDisposeSession.event;
-
-	fireDidDisposeSession(sessionResource: URI[]): void {
-		this._onDidDisposeSession.fire({ sessionResource, reason: 'cleared' });
-	}
-
-	setSaveModelsEnabled(enabled: boolean): void {
-
-	}
-
-	processPendingRequests(sessionResource: URI): void {
-
-	}
-
-	setLiveSessionItems(items: IChatDetail[]): void {
-		this.liveSessionItems = items;
-	}
-
-	setHistorySessionItems(items: IChatDetail[]): void {
-		this.historySessionItems = items;
-	}
-
-	addSession(sessionResource: URI, session: IChatModel): void {
-		this.sessions.set(sessionResource.toString(), session);
-		// Update the chatModels observable
-		this._chatModels.set([...this.sessions.values()], undefined);
-	}
-
-	removeSession(sessionResource: URI): void {
-		this.sessions.delete(sessionResource.toString());
-		// Update the chatModels observable
-		this._chatModels.set([...this.sessions.values()], undefined);
-	}
-
-	isEnabled(_location: ChatAgentLocation): boolean {
-		return true;
-	}
-
-	hasSessions(): boolean {
-		return this.sessions.size > 0;
-	}
-
-	getProviderInfos() {
-		return [];
-	}
-
-	startSession(_location: ChatAgentLocation, _options?: IChatSessionStartOptions): any {
-		throw new Error('Method not implemented.');
-	}
-
-	getSession(sessionResource: URI): IChatModel | undefined {
-		return this.sessions.get(sessionResource.toString());
-	}
-
-	getOrRestoreSession(_sessionResource: URI): Promise<any> {
-		throw new Error('Method not implemented.');
-	}
-
-	getSessionTitle(_sessionResource: URI): string | undefined {
-		return undefined;
-	}
-
-	loadSessionFromContent(_data: any): any {
-		throw new Error('Method not implemented.');
-	}
-
-	loadSessionForResource(_resource: URI, _position: ChatAgentLocation, _token: CancellationToken): Promise<any> {
-		throw new Error('Method not implemented.');
-	}
-
-	getActiveSessionReference(_sessionResource: URI): any {
-		return undefined;
-	}
-
-	setTitle(_sessionResource: URI, _title: string): void { }
-
-	appendProgress(_request: IChatRequestModel, _progress: any): void { }
-
-	sendRequest(_sessionResource: URI, _message: string): Promise<any> {
-		throw new Error('Method not implemented.');
-	}
-
-	resendRequest(_request: IChatRequestModel, _options?: any): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-
-	adoptRequest(_sessionResource: URI, _request: IChatRequestModel): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-
-	removeRequest(_sessionResource: URI, _requestId: string): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-
-	cancelCurrentRequestForSession(_sessionResource: URI): void { }
-
-	setYieldRequested(_sessionResource: URI): void { }
-
-	removePendingRequest(_sessionResource: URI, _requestId: string): void { }
-
-	setPendingRequests(_sessionResource: URI, _requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void { }
-
-	addCompleteRequest(): void { }
-
-	async getLocalSessionHistory(): Promise<IChatDetail[]> {
-		return this.historySessionItems;
-	}
-
-	async clearAllHistoryEntries(): Promise<void> { }
-
-	async removeHistoryEntry(_resource: URI): Promise<void> { }
-
-	readonly onDidPerformUserAction = Event.None;
-
-	notifyUserAction(_event: any): void { }
-
-	readonly onDidReceiveQuestionCarouselAnswer = Event.None;
-
-	notifyQuestionCarouselAnswer(_requestId: string, _resolveId: string, _answers: Record<string, unknown> | undefined): void { }
-
-	async transferChatSession(): Promise<void> { }
-
-	setChatSessionTitle(): void { }
-
-	isEditingLocation(_location: ChatAgentLocation): boolean {
-		return false;
-	}
-
-	getChatStorageFolder(): URI {
-		return URI.file('/tmp');
-	}
-
-	logChatIndex(): void { }
-
-	activateDefaultAgent(_location: ChatAgentLocation): Promise<void> {
-		return Promise.resolve();
-	}
-
-	getChatSessionFromInternalUri(_sessionResource: URI): any {
-		return undefined;
-	}
-
-	async getLiveSessionItems(): Promise<IChatDetail[]> {
-		return this.liveSessionItems;
-	}
-
-	async getHistorySessionItems(): Promise<IChatDetail[]> {
-		return this.historySessionItems;
-	}
-
-	waitForModelDisposals(): Promise<void> {
-		return Promise.resolve();
-	}
-
-	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
-		throw new Error('Method not implemented.');
-	}
 }
 
 function createMockChatModel(options: {
@@ -312,7 +137,10 @@ suite('LocalAgentsSessionsController', () => {
 	test('should register itself with chat sessions service', async () => {
 		const controller = createController();
 
-		const controllerResults = await mockChatSessionsService.getChatSessionItems(undefined, CancellationToken.None);
+		const controllerResults: { readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }[] = [];
+		for await (const result of mockChatSessionsService.getChatSessionItems(undefined, CancellationToken.None)) {
+			controllerResults.push(result);
+		}
 		assert.strictEqual(controllerResults.length, 1);
 		assert.strictEqual(controllerResults[0].chatSessionType, controller.chatSessionType);
 	});
@@ -341,7 +169,7 @@ suite('LocalAgentsSessionsController', () => {
 				timestamp: Date.now()
 			});
 
-			mockChatService.addSession(sessionResource, mockModel);
+			mockChatService.addSession(mockModel);
 			mockChatService.setLiveSessionItems([{
 				sessionResource,
 				title: 'Test Session',
@@ -392,7 +220,7 @@ suite('LocalAgentsSessionsController', () => {
 				hasRequests: true
 			});
 
-			mockChatService.addSession(sessionResource, mockModel);
+			mockChatService.addSession(mockModel);
 			mockChatService.setLiveSessionItems([{
 				sessionResource,
 				title: 'Live Session',
@@ -429,7 +257,7 @@ suite('LocalAgentsSessionsController', () => {
 					requestInProgress: true
 				});
 
-				mockChatService.addSession(sessionResource, mockModel);
+				mockChatService.addSession(mockModel);
 				mockChatService.setLiveSessionItems([{
 					sessionResource,
 					title: 'In Progress Session',
@@ -460,7 +288,7 @@ suite('LocalAgentsSessionsController', () => {
 					lastResponseHasError: false
 				});
 
-				mockChatService.addSession(sessionResource, mockModel);
+				mockChatService.addSession(mockModel);
 				mockChatService.setLiveSessionItems([{
 					sessionResource,
 					title: 'Completed Session',
@@ -490,7 +318,7 @@ suite('LocalAgentsSessionsController', () => {
 					lastResponseCanceled: true
 				});
 
-				mockChatService.addSession(sessionResource, mockModel);
+				mockChatService.addSession(mockModel);
 				mockChatService.setLiveSessionItems([{
 					sessionResource,
 					title: 'Canceled Session',
@@ -520,7 +348,7 @@ suite('LocalAgentsSessionsController', () => {
 					lastResponseHasError: true
 				});
 
-				mockChatService.addSession(sessionResource, mockModel);
+				mockChatService.addSession(mockModel);
 				mockChatService.setLiveSessionItems([{
 					sessionResource,
 					title: 'Error Session',
@@ -565,7 +393,7 @@ suite('LocalAgentsSessionsController', () => {
 					}
 				});
 
-				mockChatService.addSession(sessionResource, mockModel);
+				mockChatService.addSession(mockModel);
 				mockChatService.setLiveSessionItems([{
 					sessionResource,
 					title: 'Stats Session',
@@ -611,7 +439,7 @@ suite('LocalAgentsSessionsController', () => {
 					}
 				});
 
-				mockChatService.addSession(sessionResource, mockModel);
+				mockChatService.addSession(mockModel);
 				mockChatService.setLiveSessionItems([{
 					sessionResource,
 					title: 'No Stats Session',
@@ -642,7 +470,7 @@ suite('LocalAgentsSessionsController', () => {
 					timestamp: modelTimestamp
 				});
 
-				mockChatService.addSession(sessionResource, mockModel);
+				mockChatService.addSession(mockModel);
 				mockChatService.setLiveSessionItems([{
 					sessionResource,
 					title: 'Timing Session',
@@ -696,7 +524,7 @@ suite('LocalAgentsSessionsController', () => {
 					lastResponseCompletedAt: completedAt
 				});
 
-				mockChatService.addSession(sessionResource, mockModel);
+				mockChatService.addSession(mockModel);
 				mockChatService.setLiveSessionItems([{
 					sessionResource,
 					title: 'EndTime Session',
@@ -725,7 +553,7 @@ suite('LocalAgentsSessionsController', () => {
 					hasRequests: true
 				});
 
-				mockChatService.addSession(sessionResource, mockModel);
+				mockChatService.addSession(mockModel);
 				mockChatService.setLiveSessionItems([{
 					sessionResource,
 					title: 'Icon Session',
@@ -756,7 +584,7 @@ suite('LocalAgentsSessionsController', () => {
 				});
 
 				// Add the session first
-				mockChatService.addSession(sessionResource, mockModel);
+				mockChatService.addSession(mockModel);
 
 				let changeEventCount = 0;
 				disposables.add(controller.onDidChangeChatSessionItems(() => {
@@ -764,7 +592,7 @@ suite('LocalAgentsSessionsController', () => {
 				}));
 
 				// Simulate progress change by triggering the progress listener
-				mockChatSessionsService.triggerProgressEvent();
+				mockChatService.triggerProgressEvent();
 
 				assert.strictEqual(changeEventCount, 1);
 			});
@@ -782,7 +610,7 @@ suite('LocalAgentsSessionsController', () => {
 				});
 
 				// Add the session first
-				mockChatService.addSession(sessionResource, mockModel);
+				mockChatService.addSession(mockModel);
 
 				let changeEventCount = 0;
 				disposables.add(controller.onDidChangeChatSessionItems(() => {
@@ -790,7 +618,7 @@ suite('LocalAgentsSessionsController', () => {
 				}));
 
 				// Simulate progress change by triggering the progress listener
-				mockChatSessionsService.triggerProgressEvent();
+				mockChatService.triggerProgressEvent();
 
 				assert.strictEqual(changeEventCount, 1);
 			});
@@ -807,7 +635,7 @@ suite('LocalAgentsSessionsController', () => {
 				});
 
 				// Add the session first
-				mockChatService.addSession(sessionResource, mockModel);
+				mockChatService.addSession(mockModel);
 
 				// Now remove the session - the observable should trigger cleanup
 				mockChatService.removeSession(sessionResource);

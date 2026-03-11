@@ -108,7 +108,17 @@ export namespace PromptsConfig {
 	/**
 	 * Configuration key for chat hooks usage.
 	 */
-	export const USE_CHAT_HOOKS = 'chat.useChatHooks';
+	export const USE_CHAT_HOOKS = 'chat.useHooks';
+
+	/**
+	 * Configuration key for enabling Claude hooks.
+	 */
+	export const USE_CLAUDE_HOOKS = 'chat.useClaudeHooks';
+
+	/**
+	 * Configuration key for enabling hooks defined in custom agent frontmatter.
+	 */
+	export const USE_CUSTOM_AGENT_HOOKS = 'chat.useCustomAgentHooks';
 
 	/**
 	 * Configuration key for enabling stronger skill adherence prompt (experimental).
@@ -124,6 +134,11 @@ export namespace PromptsConfig {
 	 * Configuration key for including referenced instructions.
 	 */
 	export const INCLUDE_REFERENCED_INSTRUCTIONS = 'chat.includeReferencedInstructions';
+
+	/**
+	 * Search for configuration files in parent folders of the workspace folder
+	 */
+	export const SEARCH_ROOT_REPO_CUSTOMIZATIONS = 'chat.searchRootRepositoryCustomizations';
 
 	/**
 	 * Get value of the `reusable prompt locations` configuration setting.

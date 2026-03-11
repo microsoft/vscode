@@ -21,7 +21,7 @@ import npxCompletionSpec from './completions/npx';
 import pnpmCompletionSpec from './completions/pnpm';
 import setLocationSpec from './completions/set-location';
 import yarnCompletionSpec from './completions/yarn';
-import { upstreamSpecs } from './constants';
+import * as upstreamSpecs from './upstreamSpecs';
 import { ITerminalEnvironment, PathExecutableCache } from './env/pathExecutableCache';
 import { executeCommand, executeCommandTimeout, IFigExecuteExternals } from './fig/execute';
 import { getFigSuggestions } from './fig/figInterface';
@@ -77,10 +77,8 @@ export const availableSpecs: Fig.Spec[] = [
 	pnpmCompletionSpec,
 	setLocationSpec,
 	yarnCompletionSpec,
+	...Object.values(upstreamSpecs)
 ];
-for (const spec of upstreamSpecs) {
-	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
-}
 
 const getShellSpecificGlobals: Map<TerminalShellType, (options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>) => Promise<(string | ICompletionResource)[]>> = new Map([
 	[TerminalShellType.Bash, getBashGlobals],

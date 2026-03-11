@@ -29,7 +29,7 @@ export class UpdateChannel implements IServerChannel {
 			case '_getInitialState': return Promise.resolve(this.service.state);
 			case 'isLatestVersion': return this.service.isLatestVersion();
 			case '_applySpecificUpdate': return this.service._applySpecificUpdate(arg);
-			case 'disableProgressiveReleases': return this.service.disableProgressiveReleases();
+			case 'setInternalOrg': return this.service.setInternalOrg(arg);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -41,7 +41,7 @@ export class UpdateChannelClient implements IUpdateService {
 	declare readonly _serviceBrand: undefined;
 	private readonly disposables = new DisposableStore();
 
-	private readonly _onStateChange = new Emitter<State>();
+	private readonly _onStateChange = this.disposables.add(new Emitter<State>());
 	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	private _state: State = State.Uninitialized;
@@ -80,8 +80,8 @@ export class UpdateChannelClient implements IUpdateService {
 		return this.channel.call('_applySpecificUpdate', packagePath);
 	}
 
-	disableProgressiveReleases(): Promise<void> {
-		return this.channel.call('disableProgressiveReleases');
+	setInternalOrg(internalOrg: string | undefined): Promise<void> {
+		return this.channel.call('setInternalOrg', internalOrg);
 	}
 
 	dispose(): void {

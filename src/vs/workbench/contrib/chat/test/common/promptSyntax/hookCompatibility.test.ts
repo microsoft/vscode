@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { HookType } from '../../../common/promptSyntax/hookSchema.js';
+import { HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { parseCopilotHooks, parseHooksFromFile, HookSourceFormat } from '../../../common/promptSyntax/hookCompatibility.js';
 import { URI } from '../../../../../../base/common/uri.js';
 
@@ -50,6 +50,94 @@ suite('HookCompatibility', () => {
 			test('returns empty result for missing hooks property', () => {
 				const result = parseCopilotHooks({}, workspaceRoot, userHome);
 				assert.strictEqual(result.size, 0);
+			});
+		});
+
+		suite('Claude-style matcher compatibility', () => {
+			test('parses Claude-style nested matcher structure', () => {
+				// When Claude format is pasted into Copilot hooks file
+				const json = {
+					hooks: {
+						PreToolUse: [
+							{
+								matcher: 'Bash',
+								hooks: [
+									{ type: 'command', command: 'echo "from matcher"' }
+								]
+							}
+						]
+					}
+				};
+
+				const result = parseCopilotHooks(json, workspaceRoot, userHome);
+
+				assert.strictEqual(result.size, 1);
+				const entry = result.get(HookType.PreToolUse)!;
+				assert.strictEqual(entry.hooks.length, 1);
+				assert.strictEqual(entry.hooks[0].command, 'echo "from matcher"');
+			});
+
+			test('parses Claude-style nested matcher with multiple hooks', () => {
+				const json = {
+					hooks: {
+						PostToolUse: [
+							{
+								matcher: 'Write',
+								hooks: [
+									{ type: 'command', command: 'echo "first"' },
+									{ type: 'command', command: 'echo "second"' }
+								]
+							}
+						]
+					}
+				};
+
+				const result = parseCopilotHooks(json, workspaceRoot, userHome);
+
+				const entry = result.get(HookType.PostToolUse)!;
+				assert.strictEqual(entry.hooks.length, 2);
+				assert.strictEqual(entry.hooks[0].command, 'echo "first"');
+				assert.strictEqual(entry.hooks[1].command, 'echo "second"');
+			});
+
+			test('handles mixed direct and nested matcher entries', () => {
+				const json = {
+					hooks: {
+						PreToolUse: [
+							{ type: 'command', command: 'echo "direct"' },
+							{
+								matcher: 'Bash',
+								hooks: [
+									{ type: 'command', command: 'echo "nested"' }
+								]
+							}
+						]
+					}
+				};
+
+				const result = parseCopilotHooks(json, workspaceRoot, userHome);
+
+				const entry = result.get(HookType.PreToolUse)!;
+				assert.strictEqual(entry.hooks.length, 2);
+				assert.strictEqual(entry.hooks[0].command, 'echo "direct"');
+				assert.strictEqual(entry.hooks[1].command, 'echo "nested"');
+			});
+
+			test('handles Claude-style hook without type field', () => {
+				// Claude allows omitting the type field
+				const json = {
+					hooks: {
+						SessionStart: [
+							{ command: 'echo "no type"' }
+						]
+					}
+				};
+
+				const result = parseCopilotHooks(json, workspaceRoot, userHome);
+
+				const entry = result.get(HookType.SessionStart)!;
+				assert.strictEqual(entry.hooks.length, 1);
+				assert.strictEqual(entry.hooks[0].command, 'echo "no type"');
 			});
 		});
 	});

@@ -11,6 +11,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IBrowserViewModel } from '../common/browserView.js';
+import { BrowserViewCommandId } from '../../../../platform/browserView/common/browserView.js';
 import { localize } from '../../../../nls.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
@@ -45,9 +46,9 @@ export class BrowserFindWidget extends SimpleFindWidget {
 			showResultCount: true,
 			enableSash: true,
 			initialWidth: 350,
-			previousMatchActionId: 'workbench.action.browser.findPrevious',
-			nextMatchActionId: 'workbench.action.browser.findNext',
-			closeWidgetActionId: 'workbench.action.browser.hideFind'
+			previousMatchActionId: BrowserViewCommandId.FindPrevious,
+			nextMatchActionId: BrowserViewCommandId.FindNext,
+			closeWidgetActionId: BrowserViewCommandId.HideFind
 		}, contextViewService, contextKeyService, hoverService, keybindingService, configurationService, accessibilityService);
 
 		this._findWidgetVisible = CONTEXT_BROWSER_FIND_WIDGET_VISIBLE.bindTo(contextKeyService);
@@ -105,6 +106,7 @@ export class BrowserFindWidget extends SimpleFindWidget {
 
 		// Stop find and clear highlights in the browser view
 		this._model?.stopFindInPage(true);
+		this._model?.focus();
 		this._lastFindResult = undefined;
 		this._hasFoundMatch = false;
 	}

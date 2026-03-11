@@ -31,6 +31,7 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { DiffEditorOptions } from '../../diffEditorOptions.js';
 import { Range } from '../../../../../common/core/range.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
+import { ILineBreaksComputerContext } from '../../../../../common/modelLineProjectionData.js';
 
 /**
  * Ensures both editors have the same height by aligning unchanged lines.
@@ -163,8 +164,15 @@ export class DiffEditorViewZones extends Disposable {
 			}
 
 			const renderSideBySide = this._options.renderSideBySide.read(reader);
-
-			const deletedCodeLineBreaksComputer = !renderSideBySide ? this._editors.modified._getViewModel()?.createLineBreaksComputer() : undefined;
+			const context: ILineBreaksComputerContext = {
+				getLineContent: (lineNumber: number): string => {
+					return this._editors.original.getModel()!.getLineContent(lineNumber);
+				},
+				getLineInjectedText: (lineNumber: number) => {
+					return null;
+				}
+			};
+			const deletedCodeLineBreaksComputer = !renderSideBySide ? this._editors.modified._getViewModel()?.createLineBreaksComputer(context) : undefined;
 			if (deletedCodeLineBreaksComputer) {
 				const originalModel = this._editors.original.getModel()!;
 				for (const a of alignmentsVal) {

@@ -15,7 +15,7 @@ import { CursorChangeReason } from './cursorEvents.js';
 import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
 import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, TextDirection } from './model.js';
-import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
+import { ILineBreaksComputer, ILineBreaksComputerContext, InjectedText } from './modelLineProjectionData.js';
 import { InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelFontChangedEvent } from './textModelEvents.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
@@ -92,7 +92,7 @@ export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 	onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void;
 	emitContentChangeEvent(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void;
 
-	createLineBreaksComputer(): ILineBreaksComputer;
+	createLineBreaksComputer(context?: ILineBreaksComputerContext): ILineBreaksComputer;
 
 	//#region cursor
 	getPrimaryCursorState(): CursorState;
@@ -281,7 +281,7 @@ export class ViewLineData {
 	/**
 	 * Additional inline decorations for this line.
 	*/
-	public readonly inlineDecorations: readonly InlineDecoration[];
+	public readonly inlineDecorations: readonly InlineDecoration[] | null;
 
 	constructor(
 		content: string,
@@ -290,7 +290,7 @@ export class ViewLineData {
 		maxColumn: number,
 		startVisibleColumn: number,
 		tokens: IViewLineTokens,
-		inlineDecorations: readonly InlineDecoration[]
+		inlineDecorations: readonly InlineDecoration[] | null
 	) {
 		this.content = content;
 		this.continuesWithWrappedLine = continuesWithWrappedLine;

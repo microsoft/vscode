@@ -8,28 +8,10 @@ import { Range } from '../core/range.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { ITextModel } from '../model.js';
 import { IViewModelLines } from './viewModelLines.js';
-import { InlineDecoration, IDecorationsViewportData, IInlineDecorationsComputerContext, InlineDecorationsComputer } from './inlineDecorations.js';
-import { filterFontDecorations, filterValidationDecorations } from '../config/editorOptions.js';
 import { ViewModelDecoration } from './viewModelDecoration.js';
+import { IViewDecorationsCollection, IInlineModelDecorationsComputerContext, InlineModelDecorationsComputer } from './inlineDecorations.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
-
-/**
- * A collection of decorations in a range of lines.
- */
-export interface IViewDecorationsCollection {
-	/**
-	 * decorations in the range of lines (ungrouped).
-	 */
-	readonly decorations: ViewModelDecoration[];
-	/**
-	 * inline decorations (grouped by each line in the range of lines).
-	 */
-	readonly inlineDecorations: InlineDecoration[][];
-	/**
-	 * Whether the decorations affect the fonts.
-	 */
-	readonly hasVariableFonts: boolean[];
-}
+import { filterFontDecorations, filterValidationDecorations } from '../config/editorOptions.js';
 
 export class ViewModelDecorations implements IDisposable {
 
@@ -37,7 +19,7 @@ export class ViewModelDecorations implements IDisposable {
 	private readonly configuration: IEditorConfiguration;
 	private readonly _linesCollection: IViewModelLines;
 
-	private readonly _inlineDecorationsComputer: InlineDecorationsComputer;
+	private readonly _inlineDecorationsComputer: InlineModelDecorationsComputer;
 
 	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
@@ -46,10 +28,10 @@ export class ViewModelDecorations implements IDisposable {
 		this.editorId = editorId;
 		this.configuration = configuration;
 		this._linesCollection = linesCollection;
-		const context: IInlineDecorationsComputerContext = {
-			getModelDecorations: (range: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean) => this._linesCollection.getDecorationsInRange(range, this.editorId, filterValidationDecorations(this.configuration.options), filterFontDecorations(this.configuration.options), onlyMinimapDecorations, onlyMarginDecorations)
+		const context: IInlineModelDecorationsComputerContext = {
+			getModelDecorations: (viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean) => this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(this.configuration.options), filterFontDecorations(this.configuration.options), onlyMinimapDecorations, onlyMarginDecorations)
 		};
-		this._inlineDecorationsComputer = new InlineDecorationsComputer(context, model, coordinatesConverter);
+		this._inlineDecorationsComputer = new InlineModelDecorationsComputer(context, model, coordinatesConverter);
 		this._cachedModelDecorationsResolver = null;
 		this._cachedModelDecorationsResolverViewRange = null;
 	}

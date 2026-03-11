@@ -4,39 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, spawn } from 'child_process';
+import { app } from 'electron';
 import { existsSync, unlinkSync } from 'fs';
 import { mkdir, readFile, unlink } from 'fs/promises';
-import { tmpdir } from 'os';
-import { app } from 'electron';
-import { Delayer, timeout } from '../../../base/common/async.js';
+import { release, tmpdir } from 'os';
+import { Delayer, ProcessTimeRunOnceScheduler, timeout } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { memoize } from '../../../base/common/decorators.js';
 import { hash } from '../../../base/common/hash.js';
 import * as path from '../../../base/common/path.js';
+import { basename } from '../../../base/common/path.js';
 import { transform } from '../../../base/common/stream.js';
 import { URI } from '../../../base/common/uri.js';
 import { checksum } from '../../../base/node/crypto.js';
 import * as pfs from '../../../base/node/pfs.js';
 import { killTree } from '../../../base/node/processes.js';
+import { getWindowsRelease } from '../../../base/node/windowsVersion.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
-import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
-
-async function pollUntil(fn: () => boolean, millis = 1000): Promise<void> {
-	while (!fn()) {
-		await timeout(millis);
-	}
-}
+import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
+import { INodeProcess } from '../../../base/common/platform.js';
 
 interface IAvailableUpdate {
 	packagePath: string;
@@ -61,6 +58,7 @@ function getUpdateType(): UpdateType {
 export class Win32UpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
 	private availableUpdate: IAvailableUpdate | undefined;
+	private updateCancellationTokenSource: CancellationTokenSource | undefined;
 
 	@memoize
 	get cachePath(): Promise<string> {
@@ -101,13 +99,34 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected override async initialize(): Promise<void> {
+		// In the embedded app, skip win32-specific setup (cache paths, telemetry)
+		// but still run the base initialization to detect available updates.
+		if ((process as INodeProcess).isEmbeddedApp) {
+			this.logService.info('update#ctor - embedded app: checking for updates without auto-download');
+			await super.initialize();
+			return;
+		}
+
 		if (this.productService.win32VersionedUpdate) {
 			const cachePath = await this.cachePath;
 			app.setPath('appUpdate', cachePath);
-			try {
-				await unlink(path.join(cachePath, 'session-ending.flag'));
-			} catch { }
+			await this.unlink(path.join(cachePath, 'session-ending.flag'));
 		}
+
+		// Send telemetry
+		type WindowsUpdateInitEvent = {
+			osRelease: string;
+			osNodeRelease: string;
+		};
+		type WindowsUpdateInitClassification = {
+			osRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Windows OS release version from registry.' };
+			osNodeRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Windows OS release version from os.release().' };
+			owner: 'dmitriv';
+			comment: 'Tracks Windows OS release information during update initialization.';
+		};
+		const osRelease = await getWindowsRelease();
+		const osNodeRelease = release();
+		this.telemetryService.publicLog2<WindowsUpdateInitEvent, WindowsUpdateInitClassification>('windowsUpdateInit', { osRelease, osNodeRelease });
 
 		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
 			this.setState(State.Disabled(DisablementReason.RunningAsAdmin));
@@ -178,15 +197,17 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			return;
 		}
 
-		const background = !explicit && !this.shouldDisableProgressiveReleases();
-		const url = this.buildUpdateFeedUrl(this.quality, pendingCommit ?? this.productService.commit!, { background });
+		const internalOrg = this.getInternalOrg();
+		const background = !explicit && !internalOrg;
+		const url = this.buildUpdateFeedUrl(this.quality, pendingCommit ?? this.productService.commit!, { background, internalOrg });
 
 		// Only set CheckingForUpdates if we're not already in Overwriting state
 		if (this.state.type !== StateType.Overwriting) {
 			this.setState(State.CheckingForUpdates(explicit));
 		}
 
-		this.requestService.request({ url }, CancellationToken.None)
+		const headers = getUpdateRequestHeaders(this.productService.version);
+		this.requestService.request({ url, headers }, CancellationToken.None)
 			.then<IUpdate | null>(asJson)
 			.then(update => {
 				const updateType = getUpdateType();
@@ -198,13 +219,20 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 						this._overwrite = false;
 						this.setState(State.Ready(this.state.update, this.state.explicit, false));
 					} else {
-						this.setState(State.Idle(updateType));
+						this.setState(State.Idle(updateType, undefined, explicit || undefined));
 					}
 					return Promise.resolve(null);
 				}
 
 				if (updateType === UpdateType.Archive) {
 					this.setState(State.AvailableForDownload(update));
+					return Promise.resolve(null);
+				}
+
+				// In the embedded app, signal that an update exists but can't be installed here.
+				if ((process as INodeProcess).isEmbeddedApp) {
+					this.logService.info('update#doCheckForUpdates - embedded app: update available, skipping download');
+					this.setState(State.AvailableForDownload(update, /* canInstall */ false));
 					return Promise.resolve(null);
 				}
 
@@ -309,14 +337,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const cachePath = await this.cachePath;
 		const versions = await pfs.Promises.readdir(cachePath);
 
-		const promises = versions.filter(filter).map(async one => {
-			try {
-				await unlink(path.join(cachePath, one));
-			} catch (err) {
-				// ignore
-			}
-		});
-
+		const promises = versions.filter(filter).map(one => this.unlink(path.join(cachePath, one)));
 		await Promise.all(promises);
 	}
 
@@ -336,11 +357,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const cachePath = await this.cachePath;
 		const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
 		const cancelFilePath = path.join(cachePath, `cancel.flag`);
-		try {
-			await unlink(cancelFilePath);
-		} catch {
-			// ignore
-		}
+		await this.unlink(cancelFilePath);
+
+		const progressFilePath = path.join(cachePath, `update-progress`);
+		await this.unlink(progressFilePath);
 
 		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
 		this.availableUpdate.cancelFilePath = cancelFilePath;
@@ -351,6 +371,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				'/verysilent',
 				'/log',
 				`/update="${this.availableUpdate.updateFilePath}"`,
+				`/progress="${progressFilePath}"`,
 				`/sessionend="${sessionEndFlagPath}"`,
 				`/cancel="${cancelFilePath}"`,
 				'/nocloseapplications',
@@ -359,7 +380,8 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			{
 				detached: true,
 				stdio: ['ignore', 'ignore', 'ignore'],
-				windowsVerbatimArguments: true
+				windowsVerbatimArguments: true,
+				env: { ...process.env, __COMPAT_LAYER: 'RunAsInvoker' }
 			}
 		);
 
@@ -374,15 +396,61 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const readyMutexName = `${this.productService.win32MutexName}-ready`;
 		const mutex = await import('@vscode/windows-mutex');
 
-		// poll for mutex-ready
-		pollUntil(() => mutex.isActive(readyMutexName))
-			.then(() => this.setState(State.Ready(update, explicit, this._overwrite)));
+		this.updateCancellationTokenSource?.dispose(true);
+		const cts = this.updateCancellationTokenSource = new CancellationTokenSource();
+		const token = cts.token;
+
+		const poll = async () => {
+			while (this.state.type === StateType.Updating && !token.isCancellationRequested) {
+				if (mutex.isActive(readyMutexName)) {
+					this.setState(State.Ready(update, explicit, this._overwrite));
+					return;
+				}
+
+				try {
+					const progressContent = await readFile(progressFilePath, 'utf8');
+					if (!token.isCancellationRequested) {
+						const [currentStr, maxStr] = progressContent.split(',');
+						const currentProgress = parseInt(currentStr, 10);
+						const maxProgress = parseInt(maxStr, 10);
+						if (!isNaN(currentProgress) && !isNaN(maxProgress) && this.state.type === StateType.Updating) {
+							if (this.state.currentProgress !== currentProgress || this.state.maxProgress !== maxProgress) {
+								this.setState(State.Updating(update, currentProgress, maxProgress));
+							}
+						}
+					}
+				} catch {
+					// Progress file may not exist yet or be locked, ignore
+				}
+
+				await timeout(500);
+			}
+		};
+
+		const cancelTimeout = new ProcessTimeRunOnceScheduler(() => {
+			this.logService.warn('update#doApplyUpdate: polling timed out waiting for update to be ready');
+			this.setState(State.Idle(getUpdateType(), 'Update did not complete within expected time'));
+		}, 60 * 60 * 1000);
+
+		// Poll for progress and ready mutex for 1 hour.
+		cancelTimeout.schedule();
+		poll().finally(() => {
+			cancelTimeout.dispose();
+			if (this.updateCancellationTokenSource === cts) {
+				this.updateCancellationTokenSource = undefined;
+			}
+			cts.dispose();
+		});
 	}
 
 	protected override async cancelPendingUpdate(): Promise<void> {
 		if (!this.availableUpdate) {
 			return;
 		}
+
+		// Cancel the polling loop
+		this.updateCancellationTokenSource?.dispose(true);
+		this.updateCancellationTokenSource = undefined;
 
 		this.logService.trace('update#cancelPendingUpdate: cancelling pending update');
 		const { updateProcess, updateFilePath, cancelFilePath } = this.availableUpdate;
@@ -411,22 +479,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		}
 
 		// Clean up the flag file
-		if (updateFilePath) {
-			try {
-				await unlink(updateFilePath);
-			} catch (err) {
-				// ignore
-			}
-		}
+		await this.unlink(updateFilePath);
 
 		// Clean up the cancel file
-		if (cancelFilePath) {
-			try {
-				await unlink(cancelFilePath);
-			} catch (err) {
-				// ignore
-			}
-		}
+		await this.unlink(cancelFilePath);
 
 		this.availableUpdate = undefined;
 	}
@@ -439,11 +495,16 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
 		if (this.availableUpdate.updateFilePath) {
-			unlinkSync(this.availableUpdate.updateFilePath);
+			try {
+				unlinkSync(this.availableUpdate.updateFilePath);
+			} catch {
+				// ignore
+			}
 		} else {
 			spawn(this.availableUpdate.packagePath, ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 				detached: true,
-				stdio: ['ignore', 'ignore', 'ignore']
+				stdio: ['ignore', 'ignore', 'ignore'],
+				env: { ...process.env, __COMPAT_LAYER: 'RunAsInvoker' }
 			});
 		}
 	}
@@ -492,6 +553,21 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			this.doApplyUpdate();
 		} else {
 			this.setState(State.Ready(update, true, false));
+		}
+	}
+
+	private async unlink(path: string | undefined): Promise<void> {
+		if (path) {
+			try {
+				await unlink(path);
+			} catch (err) {
+				const error = err as NodeJS.ErrnoException;
+				if (error && error.code === 'ENOENT') {
+					return;
+				} else {
+					this.logService.warn(`update#unlink: failed to unlink ${basename(path)}`, err);
+				}
+			}
 		}
 	}
 }

@@ -7,6 +7,29 @@ import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { URI } from '../../../base/common/uri.js';
 
+const commandPrefix = 'workbench.action.browser';
+export enum BrowserViewCommandId {
+	Open = `${commandPrefix}.open`,
+	NewTab = `${commandPrefix}.newTab`,
+	GoBack = `${commandPrefix}.goBack`,
+	GoForward = `${commandPrefix}.goForward`,
+	Reload = `${commandPrefix}.reload`,
+	HardReload = `${commandPrefix}.hardReload`,
+	FocusUrlInput = `${commandPrefix}.focusUrlInput`,
+	AddElementToChat = `${commandPrefix}.addElementToChat`,
+	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
+	ToggleDevTools = `${commandPrefix}.toggleDevTools`,
+	OpenExternal = `${commandPrefix}.openExternal`,
+	ClearGlobalStorage = `${commandPrefix}.clearGlobalStorage`,
+	ClearWorkspaceStorage = `${commandPrefix}.clearWorkspaceStorage`,
+	ClearEphemeralStorage = `${commandPrefix}.clearEphemeralStorage`,
+	OpenSettings = `${commandPrefix}.openSettings`,
+	ShowFind = `${commandPrefix}.showFind`,
+	HideFind = `${commandPrefix}.hideFind`,
+	FindNext = `${commandPrefix}.findNext`,
+	FindPrevious = `${commandPrefix}.findPrevious`,
+}
+
 export interface IBrowserViewBounds {
 	windowId: number;
 	x: number;
@@ -14,6 +37,7 @@ export interface IBrowserViewBounds {
 	width: number;
 	height: number;
 	zoomFactor: number;
+	cornerRadius: number;
 }
 
 export interface IBrowserViewCaptureScreenshotOptions {
@@ -34,10 +58,12 @@ export interface IBrowserViewState {
 	lastFavicon: string | undefined;
 	lastError: IBrowserViewLoadError | undefined;
 	storageScope: BrowserViewStorageScope;
+	zoomFactor: number;
 }
 
 export interface IBrowserViewNavigationEvent {
 	url: string;
+	title: string;
 	canGoBack: boolean;
 	canGoForward: boolean;
 }
@@ -81,7 +107,7 @@ export interface IBrowserViewTitleChangeEvent {
 }
 
 export interface IBrowserViewFaviconChangeEvent {
-	favicon: string;
+	favicon: string | undefined;
 }
 
 export enum BrowserNewPageLocation {
@@ -153,6 +179,14 @@ export interface IBrowserViewService {
 	destroyBrowserView(id: string): Promise<void>;
 
 	/**
+	 * Get the state of an existing browser view by ID, or throw if it doesn't exist
+	 * @param id The browser view identifier
+	 * @return The state of the browser view for the given ID
+	 * @throws If no browser view exists for the given ID
+	 */
+	getState(id: string): Promise<IBrowserViewState>;
+
+	/**
 	 * Update the bounds of a browser view
 	 * @param id The browser view identifier
 	 * @param bounds The new bounds for the view
@@ -194,8 +228,9 @@ export interface IBrowserViewService {
 	/**
 	 * Reload the current page
 	 * @param id The browser view identifier
+	 * @param hard Whether to do a hard reload (bypassing cache)
 	 */
-	reload(id: string): Promise<void>;
+	reload(id: string, hard?: boolean): Promise<void>;
 
 	/**
 	 * Toggle developer tools for the browser view.
@@ -275,4 +310,10 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	clearStorage(id: string): Promise<void>;
+
+	/**
+	 * Update the keybinding accelerators used in browser view context menus.
+	 * @param keybindings A map of command ID to accelerator label
+	 */
+	updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void>;
 }

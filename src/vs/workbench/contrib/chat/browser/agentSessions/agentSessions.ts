@@ -7,9 +7,8 @@ import { localize } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+
 import { IChatSessionTiming } from '../../common/chatService/chatService.js';
-import { IChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 
@@ -37,25 +36,18 @@ export function getAgentSessionProvider(sessionResource: URI | string): AgentSes
 		case AgentSessionProviders.Cloud:
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
-		case AgentSessionProviders.Growth:
 			return type;
 		default:
 			return undefined;
 	}
 }
 
-/**
- * Observable holding the display name for the background agent session provider.
- * Updated via experiment treatment to allow A/B testing of the display name.
- */
-export const backgroundAgentDisplayName = observableValue<string>('backgroundAgentDisplayName', localize('chat.session.providerLabel.background', "Background"));
-
 export function getAgentSessionProviderName(provider: AgentSessionProviders): string {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 			return localize('chat.session.providerLabel.local', "Local");
 		case AgentSessionProviders.Background:
-			return backgroundAgentDisplayName.get();
+			return localize('chat.session.providerLabel.background', "Copilot CLI");
 		case AgentSessionProviders.Cloud:
 			return localize('chat.session.providerLabel.cloud', "Cloud");
 		case AgentSessionProviders.Claude:
@@ -97,11 +89,7 @@ export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders
 	}
 }
 
-export function getAgentCanContinueIn(provider: AgentSessionProviders, contribution?: IChatSessionsExtensionPoint): boolean {
-	// Read-only sessions (e.g., Growth) are passive/informational and cannot be delegation targets
-	if (contribution?.isReadOnly) {
-		return false;
-	}
+export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
@@ -127,7 +115,7 @@ export function getAgentSessionProviderDescription(provider: AgentSessionProvide
 		case AgentSessionProviders.Codex:
 			return localize('chat.session.providerDescription.codex', "Opens a new Codex session in the editor. Codex sessions can be managed from the chat sessions view.");
 		case AgentSessionProviders.Growth:
-			return localize('chat.session.providerDescription.growth', "Educational messages to help you learn Copilot features.");
+			return localize('chat.session.providerDescription.growth', "Learn about Copilot features.");
 	}
 }
 
@@ -176,5 +164,5 @@ export const AGENT_SESSION_RENAME_ACTION_ID = 'agentSession.rename';
 export const AGENT_SESSION_DELETE_ACTION_ID = 'agentSession.delete';
 
 export function getAgentSessionTime(timing: IChatSessionTiming): number {
-	return timing.lastRequestEnded ?? timing.lastRequestStarted ?? timing.created;
+	return timing.lastRequestStarted ?? timing.created;
 }

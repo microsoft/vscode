@@ -58,6 +58,7 @@ tar = "0.4.38"
 [build-dependencies]
 serde = { version="1.0.163", features = ["derive"] }
 serde_json = "1.0.96"
+winresource = "0.1"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.50.0"
@@ -76,7 +77,7 @@ russh-keys = { git = "https://github.com/microsoft/vscode-russh", branch = "main
 
 [profile.release]
 strip = true
-lto = true
+lto = "thin"
 
 [features]
 default = []

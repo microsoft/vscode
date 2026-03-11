@@ -310,15 +310,20 @@ export class ModelRawLineChanged {
 	/**
 	 * The line that has changed.
 	 */
-	public readonly oldLineNumber: number;
+	public readonly lineNumber: number;
 	/**
-	 * The new line number the old one is mapped to
+	 * The new value of the line.
 	 */
-	public readonly newLineNumber: number;
+	public readonly detail: string;
+	/**
+	 * The injected text on the line.
+	 */
+	public readonly injectedText: LineInjectedText[] | null;
 
-	constructor(lineNumber: number, newLineNumber: number) {
-		this.oldLineNumber = lineNumber;
-		this.newLineNumber = newLineNumber;
+	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null) {
+		this.lineNumber = lineNumber;
+		this.detail = detail;
+		this.injectedText = injectedText;
 	}
 }
 
@@ -387,10 +392,15 @@ export class ModelRawLinesDeleted {
 	 * At what line the deletion stopped (inclusive).
 	 */
 	public readonly toLineNumber: number;
+	/**
+	 * The last unmodified line in the updated buffer after the deletion is made.
+	 */
+	public readonly lastUntouchedLinePostEdit: number;
 
-	constructor(fromLineNumber: number, toLineNumber: number) {
+	constructor(fromLineNumber: number, toLineNumber: number, lastUntouchedLinePostEdit: number) {
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
+		this.lastUntouchedLinePostEdit = lastUntouchedLinePostEdit;
 	}
 }
 
@@ -403,25 +413,32 @@ export class ModelRawLinesInserted {
 	/**
 	 * Before what line did the insertion begin
 	 */
-	public readonly oldFromLineNumber: number;
+	public readonly fromLineNumber: number;
+	/**
+	 * The actual start line number in the updated buffer where the newly inserted content can be found.
+	 */
+	public readonly fromLineNumberPostEdit: number;
+	/**
+	 * The count of inserted lines.
+	*/
+	public readonly count: number;
 	/**
 	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
 	 */
-	public readonly oldToLineNumber: number;
+	public get toLineNumber(): number {
+		return this.fromLineNumber + this.count - 1;
+	}
 	/**
-	 * The new from line number of the inserted lines.
+	 * The actual end line number of the insertion in the updated buffer.
 	 */
-	public readonly newFromLineNumber: number;
-	/**
-	 * The new to line number of the inserted lines.
-	 */
-	public readonly newToLineNumber: number;
+	public get toLineNumberPostEdit(): number {
+		return this.fromLineNumberPostEdit + this.count - 1;
+	}
 
-	constructor(oldFromLineNumber: number, oldToLineNumber: number, newFromLineNumber: number, newToLineNumber: number) {
-		this.oldFromLineNumber = oldFromLineNumber;
-		this.oldToLineNumber = oldToLineNumber;
-		this.newFromLineNumber = newFromLineNumber;
-		this.newToLineNumber = newToLineNumber;
+	constructor(fromLineNumber: number, fromLineNumberPostEdit: number, count: number) {
+		this.fromLineNumber = fromLineNumber;
+		this.fromLineNumberPostEdit = fromLineNumberPostEdit;
+		this.count = count;
 	}
 }
 

@@ -17,7 +17,7 @@ import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
 import { ViewLineData } from '../viewModel.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { ICoordinatesConverter, IdentityCoordinatesConverter } from '../coordinatesConverter.js';
-import { IdentityInlineDecorationsComputer, InlineDecoration } from './inlineDecorations.js';
+import { InlineDecoration } from './inlineDecorations.js';
 import { LineTokens } from '../tokens/lineTokens.js';
 import { LineInjectedText } from '../textModelEvents.js';
 
@@ -29,7 +29,7 @@ export interface IViewModelLines extends IDisposable {
 	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: readonly Range[]): boolean;
 
-	createLineBreaksComputer(): ILineBreaksComputer;
+	createLineBreaksComputer(context?: ILineBreaksComputerContext): ILineBreaksComputer;
 	onModelFlushed(): void;
 	onModelLinesDeleted(versionId: number | null, fromLineNumber: number, toLineNumber: number): viewEvents.ViewLinesDeletedEvent | null;
 	onModelLinesInserted(versionId: number | null, fromLineNumber: number, toLineNumber: number, lineBreaks: (ModelLineProjectionData | null)[]): viewEvents.ViewLinesInsertedEvent | null;
@@ -146,6 +146,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this._validModelVersionId = this.model.getVersionId();
 
 		this.projectedModelLineLineCounts = new ConstantTimePrefixSumComputer(values);
+
+		this._ensureAtLeastOneVisibleLine();
 	}
 
 	public getHiddenAreas(): Range[] {
@@ -283,7 +285,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return true;
 	}
 
-	public createLineBreaksComputer(): ILineBreaksComputer {
+	public createLineBreaksComputer(_context?: ILineBreaksComputerContext): ILineBreaksComputer {
 		const inlineDecorationsComputer = new IdentityInlineDecorationsComputer(this._editorId, this.model, this.config.options);
 		const context: ILineBreaksComputerContext = {
 			getLineMaxColumn: (lineNumber: number): number => {
@@ -305,7 +307,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				return inlineDecorationsComputer.hasVariableFonts(lineNumber);
 			}
 		};
-		return this._lineBreaksComputerFactory.createLineBreaksComputer(context, this.config, this.tabSize);
+		return this._lineBreaksComputerFactory.createLineBreaksComputer(context, context, this.config, this.tabSize);
 	}
 
 	public onModelFlushed(): void {
@@ -445,9 +447,13 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	public acceptVersionId(versionId: number): void {
 		this._validModelVersionId = versionId;
-		if (this.modelLineProjections.length === 1 && !this.modelLineProjections[0].isVisible()) {
-			// At least one line must be visible => reset hidden areas
-			this.setHiddenAreas([]);
+		this._ensureAtLeastOneVisibleLine();
+	}
+
+	private _ensureAtLeastOneVisibleLine(): void {
+		if (this.getViewLineCount() === 0 && this.modelLineProjections.length > 0) {
+			this.modelLineProjections[0] = this.modelLineProjections[0].setVisible(true);
+			this.projectedModelLineLineCounts.setValue(0, this.modelLineProjections[0].getViewLineCount());
 		}
 	}
 
@@ -768,7 +774,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	public getViewLineData(viewLineNumber: number): ViewLineData {
 		const info = this.getViewLineInfo(viewLineNumber);
-		return this.modelLineProjections[info.modelLineNumber - 1].getViewLineData(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
+		const baseViewLineNumber = this.projectedModelLineLineCounts.getPrefixSum(info.modelLineNumber - 1) + 1;
+		return this.modelLineProjections[info.modelLineNumber - 1].getViewLineData(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx, baseViewLineNumber);
 	}
 
 	public getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): ViewLineData[] {
@@ -795,8 +802,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				lastLine = true;
 				remainingViewLineCount = viewEndLineNumber - viewLineNumber + 1;
 			}
-
-			line.getViewLinesData(this.model, modelLineIndex + 1, fromViewLineIndex, remainingViewLineCount, viewLineNumber - viewStartLineNumber, needed, result);
+			const baseViewLineNumber = this.projectedModelLineLineCounts.getPrefixSum(modelLineIndex) + 1;
+			line.getViewLinesData(this.model, modelLineIndex + 1, fromViewLineIndex, remainingViewLineCount, baseViewLineNumber, viewLineNumber - viewStartLineNumber, needed, result);
 
 			viewLineNumber += remainingViewLineCount;
 

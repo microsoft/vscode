@@ -258,7 +258,8 @@ export async function collectTerminalResults(
 			}
 		}
 
-		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, taskProblemPollFn, invocationContext, token, task._label));
+		const hasProblemMatchers = terminalTask.configurationProperties.problemMatchers && terminalTask.configurationProperties.problemMatchers.length > 0;
+		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, hasProblemMatchers ? taskProblemPollFn : undefined, invocationContext, token, task._label));
 		await Promise.race([
 			Event.toPromise(outputMonitor.onDidFinishCommand),
 			Event.toPromise(token.onCancellationRequested as Event<unknown>)

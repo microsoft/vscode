@@ -1562,7 +1562,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				if (editingLinesCnt < deletingLinesCnt) {
 					// Must delete some lines
 					const spliceStartLineNumber = startLineNumber + editingLinesCnt;
-					rawContentChanges.push(new ModelRawLinesDeleted(spliceStartLineNumber + 1, endLineNumber));
+					const cnt = insertingLinesCnt - deletingLinesCnt;
+					const lastUntouchedLinePostEdit = newLineCount - lineCount - cnt + spliceStartLineNumber;
+					rawContentChanges.push(new ModelRawLinesDeleted(spliceStartLineNumber + 1, endLineNumber, lastUntouchedLinePostEdit));
 				}
 
 				if (editingLinesCnt < insertingLinesCnt) {
@@ -1573,9 +1575,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					rawContentChanges.push(
 						new ModelRawLinesInserted(
 							spliceLineNumber + 1,
-							startLineNumber + insertingLinesCnt,
 							fromLineNumber,
-							fromLineNumber + cnt - 1
+							cnt
 						)
 					);
 				}
@@ -1666,10 +1667,18 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private _onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
 		for (const viewModel of this._viewModels) {
-			viewModel.onDidChangeContentOrInjectedText(e);
+			try {
+				viewModel.onDidChangeContentOrInjectedText(e);
+			} catch (error) {
+				onUnexpectedError(error);
+			}
 		}
 		for (const viewModel of this._viewModels) {
-			viewModel.emitContentChangeEvent(e);
+			try {
+				viewModel.emitContentChangeEvent(e);
+			} catch (error) {
+				onUnexpectedError(error);
+			}
 		}
 	}
 
@@ -1853,11 +1862,17 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return decs;
 	}
 
-	public getLineInjectedText(lineNumber: number): LineInjectedText[] {
+	public getCustomLineHeightsDecorationsInRange(range: Range, ownerId: number = 0): model.IModelDecoration[] {
+		const decs = this._decorationsTree.getCustomLineHeightsInInterval(this, this.getOffsetAt(range.getStartPosition()), this.getOffsetAt(range.getEndPosition()), ownerId);
+		pushMany(decs, this._fontTokenDecorationsProvider.getDecorationsInRange(range, ownerId));
+		return decs;
+	}
+
+	public getLineInjectedText(lineNumber: number, ownerId: number = 0): LineInjectedText[] {
 		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
 		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
 
-		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, 0);
+		const result = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, ownerId);
 		return LineInjectedText.fromDecorations(result).filter(t => t.lineNumber === lineNumber);
 	}
 
@@ -2135,11 +2150,12 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 export function getLineTokensWithInjections(tokens: LineTokens, injectionOptions: model.InjectedTextOptions[] | null, injectionOffsets: number[] | null): LineTokens {
 	let lineTokens: LineTokens;
-	if (injectionOptions && injectionOffsets) {
+	if (injectionOffsets) {
 		const tokensToInsert: { offset: number; text: string; tokenMetadata: number }[] = [];
+
 		for (let idx = 0; idx < injectionOffsets.length; idx++) {
 			const offset = injectionOffsets[idx];
-			const tokens = injectionOptions[idx].tokens;
+			const tokens = injectionOptions![idx].tokens;
 			if (tokens) {
 				tokens.forEach((range, info) => {
 					tokensToInsert.push({
@@ -2264,6 +2280,12 @@ class DecorationsTrees {
 	public getAllCustomLineHeights(host: IDecorationsTreesHost, filterOwnerId: number): model.IModelDecoration[] {
 		const versionId = host.getVersionId();
 		const result = this._search(filterOwnerId, false, false, false, versionId, false);
+		return this._ensureNodesHaveRanges(host, result).filter((i) => typeof i.options.lineHeight === 'number');
+	}
+
+	public getCustomLineHeightsInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): model.IModelDecoration[] {
+		const versionId = host.getVersionId();
+		const result = this._intervalSearch(start, end, filterOwnerId, false, false, versionId, false);
 		return this._ensureNodesHaveRanges(host, result).filter((i) => typeof i.options.lineHeight === 'number');
 	}
 

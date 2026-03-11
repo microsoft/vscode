@@ -27,8 +27,8 @@ export interface IModelLineProjection {
 	getViewLineLength(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
 	getViewLineMinColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
 	getViewLineMaxColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
-	getViewLineData(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): ViewLineData;
-	getViewLinesData(model: ISimpleModel, modelLineNumber: number, outputLineIdx: number, lineCount: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void;
+	getViewLineData(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, baseViewLineNumber: number): ViewLineData;
+	getViewLinesData(model: ISimpleModel, modelLineNumber: number, outputLineIdx: number, lineCount: number, baseViewLineNumber: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void;
 
 	getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number;
 	getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number, affinity?: PositionAffinity): Position;
@@ -151,13 +151,13 @@ class ModelLineProjection implements IModelLineProjection {
 	/**
 	 * Try using {@link getViewLinesData} instead.
 	*/
-	public getViewLineData(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): ViewLineData {
+	public getViewLineData(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, baseViewLineNumber: number): ViewLineData {
 		const arr = new Array<ViewLineData>();
-		this.getViewLinesData(model, modelLineNumber, outputLineIndex, 1, 0, [true], arr);
+		this.getViewLinesData(model, modelLineNumber, outputLineIndex, 1, baseViewLineNumber, 0, [true], arr);
 		return arr[0];
 	}
 
-	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, outputLineIdx: number, lineCount: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void {
+	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, outputLineIdx: number, lineCount: number, baseViewLineNumber: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void {
 		this._assertVisible();
 
 		const lineBreakData = this._projectionData;
@@ -169,10 +169,11 @@ class ModelLineProjection implements IModelLineProjection {
 			getInjectionOptions: () => injectionOptions,
 			getInjectionOffsets: () => injectionOffsets,
 			getBreakOffsets: () => lineBreakData.breakOffsets,
-			getWrappedTextIndentLength: () => lineBreakData.wrappedTextIndentLength
+			getWrappedTextIndentLength: () => lineBreakData.wrappedTextIndentLength,
+			getBaseViewLineNumber: () => baseViewLineNumber
 		};
 		const computer = new InjectedTextInlineDecorationsComputer(context);
-		const lineInlineDecorations = computer.getInlineDecorations(modelLineNumber)?.decorations;
+		const lineInlineDecorations = computer.getInlineDecorations(modelLineNumber);
 		const lineTokens = model.tokenization.getLineTokens(modelLineNumber);
 		const lineWithInjections = getLineTokensWithInjections(lineTokens, injectionOptions, injectionOffsets);
 
@@ -182,11 +183,11 @@ class ModelLineProjection implements IModelLineProjection {
 				result[globalIndex] = null;
 				continue;
 			}
-			result[globalIndex] = this._getViewLineData(lineWithInjections, lineInlineDecorations ? lineInlineDecorations[outputLineIndex] : [], outputLineIndex);
+			result[globalIndex] = this._getViewLineData(lineWithInjections, lineInlineDecorations ? lineInlineDecorations[outputLineIndex] : null, outputLineIndex);
 		}
 	}
 
-	private _getViewLineData(lineWithInjections: LineTokens, inlineDecorations: InlineDecoration[], outputLineIndex: number): ViewLineData {
+	private _getViewLineData(lineWithInjections: LineTokens, inlineDecorations: null | InlineDecoration[], outputLineIndex: number): ViewLineData {
 		this._assertVisible();
 		const lineBreakData = this._projectionData;
 		const deltaStartIndex = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
@@ -294,7 +295,7 @@ class IdentityModelLineProjection implements IModelLineProjection {
 		return model.getLineMaxColumn(modelLineNumber);
 	}
 
-	public getViewLineData(model: ISimpleModel, modelLineNumber: number, _outputLineIndex: number): ViewLineData {
+	public getViewLineData(model: ISimpleModel, modelLineNumber: number, _outputLineIndex: number, _baseViewLineNumber: number): ViewLineData {
 		const lineTokens = model.tokenization.getLineTokens(modelLineNumber);
 		const lineContent = lineTokens.getLineContent();
 		return new ViewLineData(
@@ -308,12 +309,12 @@ class IdentityModelLineProjection implements IModelLineProjection {
 		);
 	}
 
-	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, _fromOuputLineIndex: number, _toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void {
+	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, _fromOuputLineIndex: number, _toOutputLineIndex: number, _baseViewLineNumber: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void {
 		if (!needed[globalStartIndex]) {
 			result[globalStartIndex] = null;
 			return;
 		}
-		result[globalStartIndex] = this.getViewLineData(model, modelLineNumber, 0);
+		result[globalStartIndex] = this.getViewLineData(model, modelLineNumber, 0, _baseViewLineNumber);
 	}
 
 	public getModelColumnOfViewPosition(_outputLineIndex: number, outputColumn: number): number {
@@ -380,11 +381,11 @@ class HiddenModelLineProjection implements IModelLineProjection {
 		throw new Error('Not supported');
 	}
 
-	public getViewLineData(_model: ISimpleModel, _modelLineNumber: number, _outputLineIndex: number): ViewLineData {
+	public getViewLineData(_model: ISimpleModel, _modelLineNumber: number, _outputLineIndex: number, _baseViewLineNumber: number): ViewLineData {
 		throw new Error('Not supported');
 	}
 
-	public getViewLinesData(_model: ISimpleModel, _modelLineNumber: number, _fromOuputLineIndex: number, _toOutputLineIndex: number, _globalStartIndex: number, _needed: boolean[], _result: ViewLineData[]): void {
+	public getViewLinesData(_model: ISimpleModel, _modelLineNumber: number, _fromOuputLineIndex: number, _toOutputLineIndex: number, _baseViewLineNumber: number, _globalStartIndex: number, _needed: boolean[], _result: ViewLineData[]): void {
 		throw new Error('Not supported');
 	}
 

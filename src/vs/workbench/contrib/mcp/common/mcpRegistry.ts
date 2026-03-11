@@ -26,12 +26,14 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression, IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { IMcpDevModeDebugging } from './mcpDevMode.js';
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
+import { IMcpSandboxService } from './mcpSandboxService.js';
 import { McpServerConnection } from './mcpServerConnection.js';
 import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpServerTrust, McpStartServerInteraction, UserInteractionRequiredError } from './mcpTypes.js';
 
@@ -85,6 +87,9 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@ILogService private readonly _logService: ILogService,
+		@IMcpSandboxService private readonly _mcpSandboxService: IMcpSandboxService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 		this._mcpAccessValue = observableConfigValue(mcpAccessConfig, McpAccessValue.All, configurationService);
@@ -213,6 +218,14 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		autoTrustChanges = false,
 		errorOnUserInteraction = false,
 	}: IMcpResolveConnectionOptions) {
+		if (collection.scope === StorageScope.WORKSPACE && !this._workspaceTrustManagementService.isWorkspaceTrusted()) {
+			if (errorOnUserInteraction) {
+				throw new UserInteractionRequiredError('workspaceTrust');
+			} else if (!await this._workspaceTrustRequestService.requestWorkspaceTrust({ message: localize('runTrust', "This MCP server definition is defined in your workspace files.") })) {
+				return false;
+			}
+		}
+
 		if (collection.trustBehavior === McpServerTrust.Kind.Trusted) {
 			this._logService.trace(`MCP server ${definition.id} is trusted, no trust prompt needed`);
 			return true;
@@ -509,6 +522,8 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			if (definition.devMode && debug) {
 				launch = await this._instantiationService.invokeFunction(accessor => accessor.get(IMcpDevModeDebugging).transform(definition, launch!));
 			}
+			// If sandbox is enabled for this server, attempt to launch in sandbox
+			launch = await this._mcpSandboxService.launchInSandboxIfEnabled(definition, launch, collection.remoteAuthority ?? undefined, collection.configTarget);
 		} catch (e) {
 			if (e instanceof UserInteractionRequiredError) {
 				throw e;

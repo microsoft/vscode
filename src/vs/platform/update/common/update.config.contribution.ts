@@ -67,8 +67,8 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			title: localize('enableWindowsBackgroundUpdatesTitle', "Enable Background Updates on Windows"),
-			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new VS Code versions in the background on Windows."),
+			title: localize('enableWindowsBackgroundUpdatesTitle', "Enable Background Updates"),
+			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new VS Code versions in the background."),
 			included: isWindows && !isWeb
 		},
 		'update.showReleaseNotes': {
@@ -88,6 +88,20 @@ configurationRegistry.registerConfiguration({
 				localize('hidden', "The status bar entry is never shown."),
 				localize('actionable', "The status bar entry is shown when an action is required (e.g., download, install, or restart)."),
 				localize('detailed', "The status bar entry is shown for all update states including progress.")
+			]
+		},
+		'update.titleBar': {
+			type: 'string',
+			enum: ['none', 'actionable', 'detailed'],
+			default: 'none',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+			description: localize('titleBar', "Controls the experimental update title bar entry."),
+			enumDescriptions: [
+				localize('titleBarNone', "The title bar entry is never shown."),
+				localize('titleBarActionable', "The title bar entry is shown when an action is required (e.g., download, install, or restart)."),
+				localize('titleBarDetailed', "The title bar entry is shown for all update states including progress.")
 			]
 		}
 	}

@@ -298,6 +298,11 @@ class SimpleBrowserOverlayWidget {
 			value: value,
 			kind: 'element',
 			icon: ThemeIcon.fromId(Codicon.layout.id),
+			ancestors: elementData.ancestors,
+			attributes: elementData.attributes,
+			computedStyles: attachCss ? elementData.computedStyles : undefined,
+			dimensions: elementData.dimensions,
+			innerText: elementData.innerText,
 		});
 
 		if (this.configurationService.getValue('chat.sendElementsToChat.attachImages')) {
