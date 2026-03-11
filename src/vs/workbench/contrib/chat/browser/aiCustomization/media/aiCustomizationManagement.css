@@ -896,13 +896,23 @@
 	transition: background-color 0.1s ease, opacity 0.1s ease;
 }
 
-.ai-customization-management-editor .editor-back-button:hover {
+.ai-customization-management-editor .editor-back-button:hover:not(:disabled) {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	opacity: 1;
 }
 
-.ai-customization-management-editor .editor-back-button:active {
+.ai-customization-management-editor .editor-back-button:active:not(:disabled) {
 	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+.ai-customization-management-editor .editor-back-button:disabled {
+	cursor: default;
+	opacity: 0.45;
+}
+
+.ai-customization-management-editor .editor-action-button-icon {
+	font-size: 14px;
+	line-height: 14px;
 }
 
 .ai-customization-management-editor .editor-item-info {
