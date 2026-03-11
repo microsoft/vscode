@@ -1511,6 +1511,8 @@ export interface MainThreadChatDebugShape extends IDisposable {
 	$registerChatDebugLogProvider(handle: number): void;
 	$unregisterChatDebugLogProvider(handle: number): void;
 	$acceptChatDebugEvent(handle: number, event: IChatDebugEventDto): void;
+	$subscribeToCoreDebugEvents(): void;
+	$unsubscribeFromCoreDebugEvents(): void;
 }
 
 export interface MainThreadEmbeddingsShape extends IDisposable {

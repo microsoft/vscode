@@ -60,11 +60,12 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 				const loaded = info.files.filter(f => f.status === 'loaded').map(f => f.name ?? f.uri.path.split('/').pop() ?? f.uri.toString());
 				const skipped = info.files.filter(f => f.status === 'skipped').map(f => f.name ?? f.uri.path.split('/').pop() ?? f.uri.toString());
 				const folders = info.sourceFolders?.map(sf => sf.uri.path) ?? [];
-				const parts = [details];
-				if (loaded.length > 0) { parts.push(`loaded: [${loaded.join(', ')}]`); }
-				if (skipped.length > 0) { parts.push(`skipped: [${skipped.join(', ')}]`); }
-				if (folders.length > 0) { parts.push(`folders: [${folders.join(', ')}]`); }
-				details = parts.join(' | ');
+				const parts: string[] = [];
+				if (details) { parts.push(details); }
+				if (loaded.length > 0) { parts.push(`loaded: [${truncateList(loaded)}]`); }
+				if (skipped.length > 0) { parts.push(`skipped: [${truncateList(skipped)}]`); }
+				if (folders.length > 0) { parts.push(`folders: [${truncateList(folders)}]`); }
+				details = parts.join(' | ') || undefined;
 			}
 
 			chatDebugService.log(
@@ -111,4 +112,17 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 			})),
 		};
 	}
+}
+
+const MAX_LIST_ITEMS = 20;
+
+/**
+ * Join a list of strings, truncating after {@link MAX_LIST_ITEMS} entries.
+ * Full details are available via {@link IChatDebugService.resolveEvent}.
+ */
+function truncateList(items: string[]): string {
+	if (items.length <= MAX_LIST_ITEMS) {
+		return items.join(', ');
+	}
+	return items.slice(0, MAX_LIST_ITEMS).join(', ') + ` (+${items.length - MAX_LIST_ITEMS} more)`;
 }
