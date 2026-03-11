@@ -380,7 +380,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 				localize('tip.troubleshoot', "Something unexpected happened? Use /troubleshoot followed by your question to analyze internal debug events and find root causes.")
 			);
 		},
-		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
 		excludeWhenToolsInvoked: ['listDebugEvents'],
 	},
 ];

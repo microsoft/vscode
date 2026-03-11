@@ -5,6 +5,7 @@
 
 import { InternalSkill } from '../internalSkill.js';
 import { ChatContextKeys } from '../../../actions/chatContextKeys.js';
+import { localChatSessionType } from '../../../chatSessionsService.js';
 
 const DESCRIPTION = 'Investigate unexpected chat agent behavior. Use when the user asks why something happened, why something was slow, why a skill or instruction was not loaded, or why the agent did not follow instructions.';
 
@@ -170,5 +171,5 @@ When your investigation yields no clear root cause or you have no specific remed
 `;
 
 export const troubleshootSkill = new InternalSkill('troubleshoot', DESCRIPTION, CONTENT, {
-	when: ChatContextKeys.chatSessionHasDebugData,
+	when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
 });
