@@ -562,5 +562,67 @@
 			"name": "vs/workbench/contrib/list",
 			"project": "vscode-workbench"
 		}
+	],
+	"sessions": [
+		{
+			"name": "vs/sessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/accountMenu",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/agentFeedback",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/aiCustomizationTreeView",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/applyCommitsToParentRepo",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/changes",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/chat",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/codeReview",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/fileTreeView",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/files",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/git",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/logs",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/sessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/terminal",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/welcome",
+			"project": "vscode-sessions"
+		}
 	]
 }
