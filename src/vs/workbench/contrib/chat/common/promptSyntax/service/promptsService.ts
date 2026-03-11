@@ -524,5 +524,4 @@ export interface IPromptsService extends IDisposable {
 	 * Listeners (such as a debug bridge) can forward these to IChatDebugService.
 	 */
 	readonly onDidLogDiscovery: Event<IPromptDiscoveryLogEntry>;
-
 }

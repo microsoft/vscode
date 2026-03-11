@@ -39,7 +39,7 @@ export class ChatDebugFilterState extends Disposable {
 	// Text filter
 	textFilter: string = '';
 
-	// Parsed timestamp filters (epoch ms) — derived from textFilter
+	// Parsed timestamp filters (epoch ms)
 	beforeTimestamp: number | undefined;
 	afterTimestamp: number | undefined;
 

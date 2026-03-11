@@ -208,3 +208,31 @@ export function filterDebugEventsByText(events: readonly IChatDebugEvent[], filt
  * Description of the text filter syntax for tool schemas and documentation.
  */
 export const debugEventFilterDescription = 'Comma-separated text search terms. Prefix a term with ! to exclude it. Matches against event kind, tool names, model names, agent names, categories, event names, and message content. Also supports before:YYYY[-MM[-DD[THH[:MM[:SS]]]]] and after:YYYY[-MM[-DD[THH[:MM[:SS]]]]] to filter by timestamp.';
+
+export interface DebugEventFilterOptions {
+	readonly kind?: string;
+	readonly filter?: string;
+	readonly limit?: number;
+}
+
+/**
+ * Applies kind, text, and limit filters to debug events.
+ * Used by the listDebugEvents tool to consolidate all filtering in one place.
+ */
+export function filterDebugEvents(events: readonly IChatDebugEvent[], options: DebugEventFilterOptions): readonly IChatDebugEvent[] {
+	let result = events;
+
+	if (options.kind) {
+		result = result.filter(e => e.kind === options.kind);
+	}
+
+	if (options.filter) {
+		result = filterDebugEventsByText(result, options.filter);
+	}
+
+	if (options.limit !== undefined && options.limit > 0 && result.length > options.limit) {
+		result = result.slice(result.length - options.limit);
+	}
+
+	return result;
+}

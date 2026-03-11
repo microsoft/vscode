@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { localize } from '../../../../../../nls.js';
 import { ChatContextKeys } from '../../actions/chatContextKeys.js';
 import { IChatDebugEvent, IChatDebugService } from '../../chatDebugService.js';
-import { formatDebugEventsForContext, debugEventKindDescriptions, filterDebugEventsByText, debugEventFilterDescription } from '../../chatDebugEvents.js';
+import { formatDebugEventsForContext, debugEventKindDescriptions, filterDebugEvents, debugEventFilterDescription } from '../../chatDebugEvents.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../languageModelToolsService.js';
 
 export const ListDebugEventsToolId = 'vscode_listDebugEvents_internal';
@@ -19,10 +19,6 @@ export const ListDebugEventsToolData: IToolData = {
 	when: ChatContextKeys.chatSessionHasDebugTools,
 	canBeReferencedInPrompt: false,
 	modelDescription: 'Lists debug event summaries for the current chat session. Returns a compact log of events including timestamps, event IDs, and brief descriptions. Use this tool FIRST to get an overview of what happened, then call resolveDebugEventDetails on specific event IDs to get full details.\n\n'
-		+ 'Supports filtering:\n'
-		+ '- kind: filter by event type (toolCall, modelTurn, generic, subagentInvocation, userMessage, agentResponse)\n'
-		+ '- filter: ' + debugEventFilterDescription + '\n'
-		+ '- limit: return only the N most recent matching events (default: all)\n\n'
 		+ 'Event types:\n'
 		+ Object.values(debugEventKindDescriptions).join('\n'),
 	source: ToolDataSource.Internal,
@@ -31,7 +27,7 @@ export const ListDebugEventsToolData: IToolData = {
 		properties: {
 			kind: {
 				type: 'string',
-				description: 'Filter by event kind: toolCall, modelTurn, generic, subagentInvocation, userMessage, agentResponse.',
+				description: 'Filter by event kind: ' + Object.keys(debugEventKindDescriptions).join(', ') + '.',
 			},
 			filter: {
 				type: 'string',
@@ -77,23 +73,11 @@ export class ListDebugEventsTool implements IToolImpl {
 			};
 		}
 
-		// Filter by kind
-		const kindFilter = typeof invocation.parameters['kind'] === 'string' ? invocation.parameters['kind'] : undefined;
-		if (kindFilter) {
-			events = events.filter(e => e.kind === kindFilter);
-		}
-
-		// Filter by text search (comma-separated, ! prefix to exclude)
-		const textFilter = typeof invocation.parameters['filter'] === 'string' ? invocation.parameters['filter'].toLowerCase() : undefined;
-		if (textFilter) {
-			events = filterDebugEventsByText(events, textFilter);
-		}
-
-		// Limit to N most recent
-		const limit = typeof invocation.parameters['limit'] === 'number' ? invocation.parameters['limit'] : undefined;
-		if (limit !== undefined && limit > 0 && events.length > limit) {
-			events = events.slice(events.length - limit);
-		}
+		events = filterDebugEvents(events, {
+			kind: typeof invocation.parameters['kind'] === 'string' ? invocation.parameters['kind'] : undefined,
+			filter: typeof invocation.parameters['filter'] === 'string' ? invocation.parameters['filter'].toLowerCase() : undefined,
+			limit: typeof invocation.parameters['limit'] === 'number' ? invocation.parameters['limit'] : undefined,
+		});
 
 		if (events.length === 0) {
 			return {
