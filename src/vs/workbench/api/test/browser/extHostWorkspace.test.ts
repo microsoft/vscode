@@ -883,7 +883,74 @@ suite('ExtHostWorkspace', function () {
 			});
 		});
 
-		// todo: add tests with multiple filePatterns and excludes
+		test('multiple filePatterns trigger multiple searches', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let searchCallCount = 0;
+			const requestedPatterns: (string | undefined)[] = [];
+
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					searchCallCount++;
+					requestedPatterns.push(options.filePattern);
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+
+			return ws.findFiles2(['**/*.ts', '**/*.js'], {}, new ExtensionIdentifier('test')).then(() => {
+				assert.strictEqual(searchCallCount, 2);
+				assert.deepStrictEqual(requestedPatterns, ['**/*.ts', '**/*.js']);
+			});
+		});
+
+		test('multiple filePatterns and multiple excludes', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let searchCallCount = 0;
+
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					searchCallCount++;
+					assert.strictEqual(options.excludePattern?.length, 2);
+					assert.strictEqual(options.excludePattern[0].pattern, '*.txt');
+					assert.strictEqual(options.excludePattern[1].pattern, '*.md');
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+
+			return ws.findFiles2(['**/*.ts', '**/*.js'], { exclude: ['*.txt', '*.md'] }, new ExtensionIdentifier('test')).then(() => {
+				assert.strictEqual(searchCallCount, 2);
+			});
+		});
+
+		test('multiple filePatterns combined with useIgnoreFiles', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let searchCallCount = 0;
+
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					searchCallCount++;
+					assert.strictEqual(options.disregardIgnoreFiles, false);
+					assert.strictEqual(options.disregardGlobalIgnoreFiles, false);
+					assert.strictEqual(options.disregardParentIgnoreFiles, false);
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+
+			return ws.findFiles2(['**/*.ts', '**/*.js'], { useIgnoreFiles: { local: true, parent: true, global: true } }, new ExtensionIdentifier('test')).then(() => {
+				assert.strictEqual(searchCallCount, 2);
+			});
+		});
 
 	});
 
