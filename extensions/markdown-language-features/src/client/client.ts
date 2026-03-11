@@ -102,9 +102,13 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 					// links like [text](URL) the range covers only the URL itself; the
 					// same is true for reference link definitions and angle-bracket links.
 					const hrefText = document.getText(link.range);
-					// Only apply the fix for URLs that have not been HTML-entity-encoded
-					// (e.g. &amp;) - those require HTML decoding first and are handled
-					// separately.
+					// Only apply the fix for plain markdown URLs.  HTML links in
+					// markdown (e.g. <a href="...&amp;...">) have their '&' HTML-entity-
+					// encoded as '&amp;' in the source; the language server already
+					// HTML-decodes those hrefs before building the target URI, so the
+					// source text cannot be used directly without first decoding the
+					// HTML entities.  Skipping them avoids introducing a regression
+					// while still fixing the common case of markdown inline links.
 					if (
 						(hrefText.startsWith('http://') || hrefText.startsWith('https://')) &&
 						!hrefText.includes('&amp;')

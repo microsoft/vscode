@@ -38,6 +38,9 @@ export function rawHttpUriFromHref(href: string): vscode.Uri {
 	try {
 		parsedUrl = new URL(href);
 	} catch {
+		// The WHATWG URL parser only accepts absolute URLs with a recognised
+		// scheme.  For anything it rejects (e.g. a bare path or an unknown
+		// scheme) fall back to the normal VS Code URI parser.
 		return vscode.Uri.parse(href);
 	}
 
