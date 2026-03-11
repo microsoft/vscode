@@ -8,7 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
@@ -66,8 +66,6 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../../edit
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
-import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
-import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -173,7 +171,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private editorItemPathElement!: HTMLElement;
 	private editorSaveIndicator!: HTMLElement;
 	private readonly editorModelChangeDisposables = this._register(new DisposableStore());
-	private readonly currentAutoSaveDisabled = this._register(new MutableDisposable<IDisposable>());
 	private readonly builtinEditingSessions = new Map<string, { model: ITextModel; originalContent: string }>();
 	private currentEditingUri: URI | undefined;
 	private currentEditingProjectRoot: URI | undefined;
@@ -221,14 +218,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IModelService private readonly modelService: IModelService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -877,7 +872,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private async showEmbeddedEditor(uri: URI, displayName: string, promptType: PromptsType, storage: PromptsStorage, isWorkspaceFile = false, isReadOnly = false): Promise<void> {
 		this.currentModelRef?.dispose();
 		this.currentModelRef = undefined;
-		this.currentAutoSaveDisabled.clear();
 		this.editorModelChangeDisposables.clear();
 		this.currentEditingUri = uri;
 		this.currentEditingProjectRoot = isWorkspaceFile ? this.workspaceService.getActiveProjectRoot() : undefined;
@@ -927,7 +921,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.currentModelRef = ref;
 			this.embeddedEditor!.setModel(ref.object.textEditorModel);
 			this.embeddedEditor!.updateOptions({ readOnly: isReadOnly });
-			this.currentAutoSaveDisabled.value = this.filesConfigurationService.disableAutoSave(uri);
 
 			if (this.dimension) {
 				this.layout(this.dimension);
@@ -935,17 +928,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.embeddedEditor!.focus();
 
 			this._editorContentChanged = this.workingCopyService.isDirty(uri);
-			this.updateEditorActionButton();
 			this.editorModelChangeDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => {
 				this._editorContentChanged = true;
-				this.updateEditorActionButton();
 				this.resetEditorSaveIndicator();
-			}));
-			this.editorModelChangeDisposables.add(this.workingCopyService.onDidChangeDirty(workingCopy => {
-				if (isEqual(workingCopy.resource, uri)) {
-					this._editorContentChanged = workingCopy.isDirty();
-					this.updateEditorActionButton();
-				}
 			}));
 			this.editorModelChangeDisposables.add(this.workingCopyService.onDidSave(e => {
 				if (isEqual(e.workingCopy.resource, uri)) {
@@ -953,7 +938,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 					this.editorSaveIndicator.className = 'editor-save-indicator visible saved';
 					this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
 					this.editorSaveIndicator.title = localize('saved', "Saved");
-					this.updateEditorActionButton();
 				}
 			}));
 		} catch (error) {
@@ -974,7 +958,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (fileUri && this.currentEditingStorage === BUILTIN_STORAGE) {
 			this.disposeBuiltinEditingSession(fileUri);
 		}
-		this.currentAutoSaveDisabled.clear();
 
 		this.currentModelRef?.dispose();
 		this.currentModelRef = undefined;
@@ -982,6 +965,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.currentEditingProjectRoot = undefined;
 		this.currentEditingStorage = undefined;
 		this.currentEditingPromptType = undefined;
+		this._editorContentChanged = false;
 		this.editorModelChangeDisposables.clear();
 		this.resetEditorSaveIndicator();
 		this.updateEditorActionButton();
@@ -1088,21 +1072,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private async handleEditorActionButton(): Promise<void> {
-		const hasDirtyChanges = this._editorContentChanged;
-		const shouldPromptToSave = hasDirtyChanges &&
-			this.currentEditingStorage === BUILTIN_STORAGE &&
-			this.currentEditingPromptType === PromptsType.prompt;
-		const shouldSaveAndGoBack = hasDirtyChanges && !shouldPromptToSave;
-
-		if (shouldSaveAndGoBack && this.currentEditingUri) {
-			await this.textFileService.save(this.currentEditingUri);
-			if (this.currentEditingProjectRoot) {
-				await this.workspaceService.commitFiles(this.currentEditingProjectRoot, [this.currentEditingUri]);
-			}
-			this._editorContentChanged = false;
-		}
-
-		if (shouldPromptToSave) {
+		if (this.shouldShowBuiltinSaveAction()) {
 			const selection = await this.pickBuiltinPromptSaveTarget();
 			if (!selection) {
 				return;
@@ -1121,22 +1091,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		const hasDirtyChanges = this._editorContentChanged;
-		const shouldPromptToSave = hasDirtyChanges &&
-			this.currentEditingStorage === BUILTIN_STORAGE &&
-			this.currentEditingPromptType === PromptsType.prompt;
-		this.editorActionButtonIcon.className = `codicon codicon-${hasDirtyChanges ? Codicon.save.id : Codicon.arrowLeft.id} editor-action-button-icon`;
+		const shouldShowBuiltinSaveAction = this.shouldShowBuiltinSaveAction();
+		this.editorActionButtonIcon.className = `codicon codicon-${shouldShowBuiltinSaveAction ? Codicon.save.id : Codicon.arrowLeft.id} editor-action-button-icon`;
 		this.editorActionButton.disabled = false;
-		this.editorActionButton.setAttribute('aria-label', hasDirtyChanges
-			? shouldPromptToSave
-				? localize('savePromptCopyAndChooseLocation', "Save prompt override")
-				: localize('saveChangesAndGoBack', "Save changes and go back")
+		this.editorActionButton.setAttribute('aria-label', shouldShowBuiltinSaveAction
+			? localize('savePromptCopyAndChooseLocation', "Save prompt override")
 			: localize('backToList', "Back to list"));
-		this.editorActionButton.title = hasDirtyChanges
-			? shouldPromptToSave
-				? localize('savePromptCopyAndChooseLocationTooltip', "Save prompt override (choose Workspace, User, or Cancel)")
-				: localize('saveChangesAndGoBackTooltip', "Save changes and go back")
+		this.editorActionButton.title = shouldShowBuiltinSaveAction
+			? localize('savePromptCopyAndChooseLocationTooltip', "Save prompt override (choose Workspace, User, or Cancel)")
 			: localize('backToList', "Back to list");
+	}
+
+	private shouldShowBuiltinSaveAction(): boolean {
+		return this._editorContentChanged
+			&& this.currentEditingStorage === BUILTIN_STORAGE
+			&& this.currentEditingPromptType === PromptsType.prompt;
 	}
 
 	private resetEditorSaveIndicator(): void {
