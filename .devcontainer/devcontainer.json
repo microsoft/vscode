@@ -2,7 +2,10 @@
 	"name": "Code - OSS",
 	"build": {
 		"dockerfile": "Dockerfile"
-	},
+	},Request Id: 3ef3cd66-f80e-44a3-9036-07dfbc572a00
+Correlation Id: bef1d65b-4aa8-47cd-a50d-5d6dfe2a8a8a
+Timestamp: 2026-03-11T16:23:11Z
+Message: AADSTS500200: User account 'hrvamrva33@gmail.com' is a personal Microsoft account. Personal Microsoft accounts are not supported for this application unless explicitly invited to an organization. Try signing out and signing back in with an organizational account.
 	"features": {
 		"ghcr.io/devcontainers/features/desktop-lite:": {},
 		"ghcr.io/devcontainers/features/rust:": {}
