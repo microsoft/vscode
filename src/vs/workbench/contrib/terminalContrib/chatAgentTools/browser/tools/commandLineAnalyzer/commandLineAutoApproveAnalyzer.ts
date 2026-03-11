@@ -86,7 +86,7 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		];
 
 		let isDenied = false;
-		let autoApproveReason: 'subCommand' | 'commandLine' | undefined;
+		let autoApproveReason: 'subCommand' | 'commandLine' | 'session' | undefined;
 		let autoApproveDefault: boolean | undefined;
 		let denialDetails: ICommandLineAnalyzerResult['denialDetails'];
 
@@ -123,7 +123,7 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 			} else if (hasSessionAutoApproval) {
 				this._log('Session auto approval - approving non-denied command');
 				isAutoApproved = true;
-				autoApproveReason = 'subCommand';
+				autoApproveReason = 'session';
 			} else {
 				this._log('All sub-commands NOT auto-approved');
 				if (commandLineResult.result === 'approved') {
@@ -217,7 +217,7 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 	private _createAutoApproveInfo(
 		isAutoApproved: boolean,
 		isDenied: boolean,
-		autoApproveReason: 'subCommand' | 'commandLine' | undefined,
+		autoApproveReason: 'subCommand' | 'commandLine' | 'session' | undefined,
 		subCommandResults: ICommandApprovalResultWithReason[],
 		commandLineResult: ICommandApprovalResultWithReason,
 	): IMarkdownString | undefined {
