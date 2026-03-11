@@ -935,6 +935,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const saveDelayer = this.editorModelChangeDisposables.add(new Delayer<void>(500));
 			this.editorModelChangeDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => {
 				this._editorContentChanged = true;
+				this.updateEditorActionButton();
 				this.editorSaveIndicator.className = 'editor-save-indicator visible';
 				this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
 				this.editorSaveIndicator.title = localize('saving', "Saving...");
@@ -954,6 +955,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					this.editorSaveIndicator.className = 'editor-save-indicator visible saved';
 					this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
 					this.editorSaveIndicator.title = localize('saved', "Saved");
+					this.updateEditorActionButton();
 				}
 			}));
 		} catch (error) {
