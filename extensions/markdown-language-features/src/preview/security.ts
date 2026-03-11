@@ -27,31 +27,37 @@ export interface ContentSecurityPolicyArbiter {
 }
 
 export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPolicyArbiter {
-	private readonly _old_trusted_workspace_key = 'trusted_preview_workspace:';
-	private readonly _security_level_key = 'preview_security_level:';
-	private readonly _should_disable_security_warning_key = 'preview_should_show_security_warning:';
+	readonly #old_trusted_workspace_key = 'trusted_preview_workspace:';
+	readonly #security_level_key = 'preview_security_level:';
+	readonly #should_disable_security_warning_key = 'preview_should_show_security_warning:';
+
+	readonly #globalState: vscode.Memento;
+	readonly #workspaceState: vscode.Memento;
 
 	constructor(
-		private readonly _globalState: vscode.Memento,
-		private readonly _workspaceState: vscode.Memento
-	) { }
+		globalState: vscode.Memento,
+		workspaceState: vscode.Memento
+	) {
+		this.#globalState = globalState;
+		this.#workspaceState = workspaceState;
+	}
 
 	public getSecurityLevelForResource(resource: vscode.Uri): MarkdownPreviewSecurityLevel {
 		// Use new security level setting first
-		const level = this._globalState.get<MarkdownPreviewSecurityLevel | undefined>(this._security_level_key + this._getRoot(resource), undefined);
+		const level = this.#globalState.get<MarkdownPreviewSecurityLevel | undefined>(this.#security_level_key + this.#getRoot(resource), undefined);
 		if (typeof level !== 'undefined') {
 			return level;
 		}
 
 		// Fallback to old trusted workspace setting
-		if (this._globalState.get<boolean>(this._old_trusted_workspace_key + this._getRoot(resource), false)) {
+		if (this.#globalState.get<boolean>(this.#old_trusted_workspace_key + this.#getRoot(resource), false)) {
 			return MarkdownPreviewSecurityLevel.AllowScriptsAndAllContent;
 		}
 		return MarkdownPreviewSecurityLevel.Strict;
 	}
 
 	public setSecurityLevelForResource(resource: vscode.Uri, level: MarkdownPreviewSecurityLevel): Thenable<void> {
-		return this._globalState.update(this._security_level_key + this._getRoot(resource), level);
+		return this.#globalState.update(this.#security_level_key + this.#getRoot(resource), level);
 	}
 
 	public shouldAllowSvgsForResource(resource: vscode.Uri) {
@@ -60,14 +66,14 @@ export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPol
 	}
 
 	public shouldDisableSecurityWarnings(): boolean {
-		return this._workspaceState.get<boolean>(this._should_disable_security_warning_key, false);
+		return this.#workspaceState.get<boolean>(this.#should_disable_security_warning_key, false);
 	}
 
 	public setShouldDisableSecurityWarning(disabled: boolean): Thenable<void> {
-		return this._workspaceState.update(this._should_disable_security_warning_key, disabled);
+		return this.#workspaceState.update(this.#should_disable_security_warning_key, disabled);
 	}
 
-	private _getRoot(resource: vscode.Uri): vscode.Uri {
+	#getRoot(resource: vscode.Uri): vscode.Uri {
 		if (vscode.workspace.workspaceFolders) {
 			const folderForResource = vscode.workspace.getWorkspaceFolder(resource);
 			if (folderForResource) {
@@ -85,10 +91,16 @@ export class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPol
 
 export class PreviewSecuritySelector {
 
+	readonly #cspArbiter: ContentSecurityPolicyArbiter;
+	readonly #webviewManager: MarkdownPreviewManager;
+
 	public constructor(
-		private readonly _cspArbiter: ContentSecurityPolicyArbiter,
-		private readonly _webviewManager: MarkdownPreviewManager
-	) { }
+		cspArbiter: ContentSecurityPolicyArbiter,
+		webviewManager: MarkdownPreviewManager
+	) {
+		this.#cspArbiter = cspArbiter;
+		this.#webviewManager = webviewManager;
+	}
 
 	public async showSecuritySelectorForResource(resource: vscode.Uri): Promise<void> {
 		interface PreviewSecurityPickItem extends vscode.QuickPickItem {
@@ -99,7 +111,7 @@ export class PreviewSecuritySelector {
 			return when ? '• ' : '';
 		}
 
-		const currentSecurityLevel = this._cspArbiter.getSecurityLevelForResource(resource);
+		const currentSecurityLevel = this.#cspArbiter.getSecurityLevelForResource(resource);
 		const selection = await vscode.window.showQuickPick<PreviewSecurityPickItem>(
 			[
 				{
@@ -124,7 +136,7 @@ export class PreviewSecuritySelector {
 					description: ''
 				}, {
 					type: 'toggle',
-					label: this._cspArbiter.shouldDisableSecurityWarnings()
+					label: this.#cspArbiter.shouldDisableSecurityWarnings()
 						? vscode.l10n.t("Enable preview security warnings in this workspace")
 						: vscode.l10n.t("Disable preview security warning in this workspace"),
 					description: vscode.l10n.t("Does not affect the content security level")
@@ -142,12 +154,12 @@ export class PreviewSecuritySelector {
 		}
 
 		if (selection.type === 'toggle') {
-			this._cspArbiter.setShouldDisableSecurityWarning(!this._cspArbiter.shouldDisableSecurityWarnings());
-			this._webviewManager.refresh();
+			this.#cspArbiter.setShouldDisableSecurityWarning(!this.#cspArbiter.shouldDisableSecurityWarnings());
+			this.#webviewManager.refresh();
 			return;
 		} else {
-			await this._cspArbiter.setSecurityLevelForResource(resource, selection.type);
+			await this.#cspArbiter.setSecurityLevelForResource(resource, selection.type);
 		}
-		this._webviewManager.refresh();
+		this.#webviewManager.refresh();
 	}
 }

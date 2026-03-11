@@ -631,7 +631,7 @@
 		"addLabel": "capi",
 		"removeLabel": "~capi",
 		"assign": [
-			"samvantran",
+			"rheapatel",
 			"sharonlo"
 		],
 		"comment": "Thank you for creating this issue! Please provide one or more `requestIds` to help the platform team investigate. You can follow instructions [found here](https://github.com/microsoft/vscode/wiki/Copilot-Issues#language-model-requests-and-responses) to locate the `requestId` value.\n\nHappy Coding!"
