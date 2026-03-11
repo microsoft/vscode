@@ -69,19 +69,18 @@ src/vs/sessions/
 │   ├── menus.ts                            # Agent sessions menu IDs (Menus export)
 │   ├── layoutActions.ts                    # Layout toggle actions (sidebar, panel, auxiliary bar)
 │   ├── paneCompositePartService.ts         # AgenticPaneCompositePartService
-│   ├── widget/                             # Architecture notes for the chat surface
-│   │   └── AGENTS_CHAT_WIDGET.md           # New-session chat surface architecture
+│   ├── widget/                             # Agent sessions chat widget
+│   │   └── AGENTS_CHAT_WIDGET.md           # Chat widget architecture doc
 │   ├── parts/                              # Workbench part implementations
 │   │   ├── parts.ts                        # AgenticParts enum
 │   │   ├── titlebarPart.ts                 # Titlebar (3-section toolbar layout)
 │   │   ├── sidebarPart.ts                  # Sidebar (with footer for account widget)
-│   │   ├── chatBarPart.ts                  # Chat Bar container part
+│   │   ├── chatBarPart.ts                  # Chat Bar (primary chat surface)
 │   │   ├── auxiliaryBarPart.ts             # Auxiliary Bar
 │   │   ├── panelPart.ts                    # Panel (terminal, output, etc.)
 │   │   ├── projectBarPart.ts               # Project bar (folder entries)
 │   │   └── media/                          # Part CSS files
-│   └── media/
-│       └── style.css                       # Layout-specific styles
+│   └── media/                              # Layout-specific styles
 ├── electron-browser/                       # Desktop-specific entry points
 │   ├── sessions.main.ts                    # Desktop main bootstrap
 │   ├── sessions.ts                         # Electron process entry
@@ -100,17 +99,15 @@ src/vs/sessions/
     ├── accountMenu/browser/                # Account widget for sidebar footer
     ├── agentFeedback/browser/              # Agent feedback attachments, overlays, hover
     ├── aiCustomizationTreeView/browser/    # AI customization tree view sidebar
-    ├── applyCommitsToParentRepo/browser/   # Apply changes to parent repo
-    ├── changes/browser/                    # File changes view
-    ├── chat/browser/                       # Chat pane registration, new-session UI, prompts
-    ├── codeReview/browser/                 # Code review contributions
+    ├── applyToParentRepo/browser/          # Apply changes to parent repo
+    ├── changesView/browser/                # File changes view
+    ├── chat/browser/                       # Chat actions (run script, branch, prompts)
     ├── configuration/browser/              # Configuration overrides
     ├── files/browser/                      # File-related contributions
     ├── fileTreeView/browser/               # File tree view (filesystem provider)
-    ├── git/browser/                        # Git contributions
-    ├── github/browser/                     # GitHub-specific services and contributions
+    ├── gitSync/browser/                    # Git sync contributions
     ├── logs/browser/                       # Log contributions
-    ├── sessions/browser/                   # Sessions view, title bar widget, sessions management
+    ├── sessions/browser/                   # Sessions view, title bar widget, active session service
     ├── terminal/browser/                   # Terminal contributions
     ├── welcome/browser/                    # Welcome view contribution
     └── workspace/browser/                  # Workspace contributions
@@ -155,27 +152,23 @@ Use the `agent-sessions-layout` skill for detailed guidance on the layout. Key p
 
 The main editor part is hidden (`display:none`). All editors open via `MODAL_GROUP` into the standard `ModalEditorPart` overlay (created on-demand by `EditorParts.createModalEditorPart`). The sessions configuration sets `workbench.editor.useModal` to `'all'`, which causes `findGroup()` to redirect all editor opens to the modal. Click backdrop or press Escape to dismiss.
 
-## 5. Chat Surface
+## 5. Chat Widget
 
-The Chat Bar switches between two panes in the same container:
+The Agent Sessions chat experience is built around `AgentSessionsChatWidget` — a wrapper around the core `ChatWidget` that adds:
 
-- **`NewChatViewPane`** (`contrib/chat/browser/newChatViewPane.ts`) renders the empty/new-session experience
-- **`ChatViewPane`** (from `vs/workbench`) renders an active session after the first request is sent
+- **Deferred session creation** — the UI is interactive before any session resource exists; sessions are created on first message send
+- **Target configuration** — observable state tracking which agent provider (Local, Cloud) is selected
+- **Welcome view** — branded empty state with mascot, target buttons, option pickers, and input slot
+- **Initial session options** — option selections travel atomically with the first request
+- **Configurable picker placement** — pickers can appear in welcome view, input toolbar, or both
 
-The new-session UI is self-contained and provides:
-
-- **Deferred session creation** — the UI is interactive before any chat session exists
-- **Welcome-state controls** — mascot, target buttons, option pickers, attachments, model picker, and send button
-- **Atomic initial options** — repository/branch/mode/model selections flow through `INewSession` and travel with the first request
-
-Read `browser/widget/AGENTS_CHAT_WIDGET.md` for the full architecture of the current new-session flow.
+Read `browser/widget/AGENTS_CHAT_WIDGET.md` for the full architecture.
 
 ### Key classes:
-- `NewChatViewPane` (`contrib/chat/browser/newChatViewPane.ts`) — ViewPane wrapper for the new-session surface
-- `NewChatWidget` (`contrib/chat/browser/newChatViewPane.ts`) — welcome/editor/send UI used before a real session exists
-- `SessionTargetPicker` and `IsolationModePicker` (`contrib/chat/browser/sessionTargetPicker.ts`) — provider and isolation controls
-- `LocalNewSession` and `RemoteNewSession` (`contrib/chat/browser/newSession.ts`) — deferred session state and initial option gathering
-- `ISessionsManagementService` / `SessionsManagementService` (`contrib/sessions/browser/sessionsManagementService.ts`) — active session state, pending session creation, and first-request handoff
+- `AgentSessionsChatWidget` (`browser/widget/agentSessionsChatWidget.ts`) — main wrapper
+- `AgentSessionsChatTargetConfig` (`browser/widget/agentSessionsChatTargetConfig.ts`) — reactive target state
+- `AgentSessionsChatWelcomePart` (`browser/parts/agentSessionsChatWelcomePart.ts`) — welcome view
+- `AgentSessionsChatInputPart` (`browser/parts/agentSessionsChatInputPart.ts`) — standalone input adapter
 
 ## 6. Menus
 
@@ -221,13 +214,13 @@ Feature contributions live under `contrib/<featureName>/browser/` and are regist
 | **Title Bar Widget** | `contrib/sessions/browser/sessionsTitleBarWidget.ts` | Session picker in titlebar center |
 | **Account Widget** | `contrib/accountMenu/browser/` | Account button in sidebar footer |
 | **Chat Actions** | `contrib/chat/browser/` | Chat actions (run script, branch, prompts, customizations debug log) |
-| **Changes View** | `contrib/changes/browser/` | File changes in auxiliary bar |
+| **Changes View** | `contrib/changesView/browser/` | File changes in auxiliary bar |
 | **Agent Feedback** | `contrib/agentFeedback/browser/` | Agent feedback attachments, editor overlays, hover |
 | **AI Customization Tree** | `contrib/aiCustomizationTreeView/browser/` | Sidebar tree for AI customizations |
-| **Apply to Parent Repo** | `contrib/applyCommitsToParentRepo/browser/` | Apply changes to parent repo |
+| **Apply to Parent Repo** | `contrib/applyToParentRepo/browser/` | Apply changes to parent repo |
 | **Files** | `contrib/files/browser/` | File-related contributions |
 | **File Tree View** | `contrib/fileTreeView/browser/` | File tree view (filesystem provider) |
-| **Git** | `contrib/git/browser/` | Git contributions |
+| **Git Sync** | `contrib/gitSync/browser/` | Git sync contributions |
 | **Logs** | `contrib/logs/browser/` | Log contributions |
 | **Terminal** | `contrib/terminal/browser/` | Terminal contributions |
 | **Welcome** | `contrib/welcome/browser/` | Welcome view contribution |
@@ -240,7 +233,7 @@ The agent sessions window registers its own implementations for:
 
 - `IPaneCompositePartService` → `AgenticPaneCompositePartService` (creates agent-specific parts)
 - `IPromptsService` → `AgenticPromptsService` (scopes prompt discovery to active session worktree)
-- `ISessionsManagementService` → `SessionsManagementService` (tracks active and pending sessions)
+- `IActiveSessionService` → `ActiveSessionService` (tracks active session)
 - `IAICustomizationWorkspaceService` → `SessionsAICustomizationWorkspaceService` (scopes customization behavior to the active session root)
 
 Service overrides also live under `services/`:
@@ -293,14 +286,13 @@ Views and contributions that should only appear in the agent sessions window (no
 5. Preserve no-op methods for unsupported features (zen mode, centered layout, etc.)
 6. Handle pane composite lifecycle when hiding/showing parts
 
-### 10.3 Chat Surface Changes
+### 10.3 Chat Widget Changes
 
 1. **Read `browser/widget/AGENTS_CHAT_WIDGET.md` first**
-2. Start in `contrib/chat/browser/chat.contribution.ts` to understand which pane is active
-3. Extend `NewChatViewPane` / `NewChatWidget` and the picker helper files instead of creating another parallel chat surface
-4. Keep deferred session creation in `INewSession` + `ISessionsManagementService`
-5. Ensure `initialSessionOptions` travel atomically with the first request
-6. Test both first-load (extension not yet activated) and new-session flows
+2. Prefer composition over modifying core `ChatWidget` — add behavior in the wrapper
+3. Use `IAgentChatTargetConfig` observable for target state, not direct session creation
+4. Ensure `initialSessionOptions` travel atomically with the first request
+5. Test both first-load (extension not yet activated) and new-session flows
 
 ### 10.4 AI Customization Changes
 
