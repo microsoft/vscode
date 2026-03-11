@@ -80,7 +80,7 @@ function callBuild(
 		updateStateType?: StateType;
 		manageSettingsUrl?: string;
 		anonymous?: boolean;
-		showRecentlyUsed?: boolean;
+		showUnavailableFeatured?: boolean;
 		showFeatured?: boolean;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
@@ -101,7 +101,7 @@ function callBuild(
 		true,
 		stubManageModelsAction,
 		entitlementService,
-		opts.showRecentlyUsed ?? true,
+		opts.showUnavailableFeatured ?? true,
 		opts.showFeatured ?? true,
 	);
 }
