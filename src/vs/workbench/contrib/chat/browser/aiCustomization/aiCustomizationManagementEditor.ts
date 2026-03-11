@@ -9,7 +9,6 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { Delayer } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
@@ -930,28 +929,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			this.embeddedEditor!.focus();
 
-			this._editorContentChanged = false;
+			this._editorContentChanged = this.workingCopyService.isDirty(uri);
 			this.updateEditorActionButton();
-			const saveDelayer = this.editorModelChangeDisposables.add(new Delayer<void>(500));
 			this.editorModelChangeDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => {
-				this._editorContentChanged = true;
+				this._editorContentChanged = this.workingCopyService.isDirty(uri);
 				this.updateEditorActionButton();
-				this.editorSaveIndicator.className = 'editor-save-indicator visible';
-				this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
-				this.editorSaveIndicator.title = localize('saving', "Saving...");
-				saveDelayer.trigger(async () => {
-					try {
-						await this.textFileService.save(uri);
-					} catch (error) {
-						console.error('Failed to save AI customization file:', error);
-						this.editorSaveIndicator.className = 'editor-save-indicator visible error';
-						this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.error));
-						this.editorSaveIndicator.title = localize('saveFailed', "Save Failed");
-					}
-				});
+				this.resetEditorSaveIndicator();
 			}));
 			this.editorModelChangeDisposables.add(this.workingCopyService.onDidSave(e => {
 				if (isEqual(e.workingCopy.resource, uri)) {
+					this._editorContentChanged = this.workingCopyService.isDirty(uri);
 					this.editorSaveIndicator.className = 'editor-save-indicator visible saved';
 					this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
 					this.editorSaveIndicator.title = localize('saved', "Saved");
