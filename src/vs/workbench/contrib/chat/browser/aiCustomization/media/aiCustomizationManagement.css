@@ -306,8 +306,8 @@
 	flex-shrink: 0;
 	font-size: 10px;
 	font-weight: 500;
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 	padding: 0 5px;
 	border-radius: 8px;
 	min-width: 14px;
@@ -395,6 +395,17 @@
 .ai-customization-list-item .git-status-badge.committed {
 	color: var(--vscode-charts-green, #89d185);
 	opacity: 0.6;
+}
+
+.ai-customization-list-item .item-type-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.8;
+	font-size: 14px;
 }
 
 .ai-customization-list-item .item-text {
@@ -543,12 +554,11 @@
 .ai-customization-overview .overview-section .section-count {
 	flex-shrink: 0;
 	font-size: 9px;
-	font-weight: 600;
+	font-weight: 500;
 	padding: 1px 5px;
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 	border-radius: 8px;
-	border: 1px solid transparent;
 	min-width: 14px;
 	text-align: center;
 }
@@ -703,7 +713,7 @@
 .mcp-server-item {
 	display: flex;
 	align-items: center;
-	padding: 6px 8px 6px 24px;
+	padding: 6px 8px;
 	cursor: pointer;
 	border-radius: 4px;
 	margin: 2px 0;
