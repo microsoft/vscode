@@ -928,6 +928,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _getLanguageModel(): Promise<string | undefined> {
+		const fastModels = await this._safeSelectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
+		if (fastModels.length) {
+			return fastModels[0];
+		}
+
 		const widget = this._chatWidgetService.lastFocusedWidget ?? this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)[0];
 		const currentModel = widget?.input.currentLanguageModel;
 		if (currentModel) {
@@ -935,11 +940,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			if (currentFamilyModels.length) {
 				return currentFamilyModels[0];
 			}
-		}
-
-		const fastModels = await this._safeSelectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
-		if (fastModels.length) {
-			return fastModels[0];
 		}
 
 		const copilotModels = await this._safeSelectLanguageModels({ vendor: 'copilot' });
