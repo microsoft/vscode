@@ -251,10 +251,21 @@ export class ModifiedFilesConfirmationTool implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
+		// If a custom button was selected, return the button label
+		if (invocation.selectedCustomButton) {
+			return {
+				content: [{
+					kind: 'text',
+					value: invocation.selectedCustomButton
+				}]
+			};
+		}
+
+		// Default: return 'yes' for standard Allow confirmation
 		return {
 			content: [{
 				kind: 'text',
-				value: invocation.selectedCustomButton || 'The user chose to skip the tool call, they want to proceed without running it'
+				value: 'yes' // Consumers should check for this label to know whether the tool was confirmed or skipped
 			}]
 		};
 	}
