@@ -108,23 +108,16 @@ Navigation End -->
 suite('isInsidersReleaseNotes', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('returns true when front-matter has ProductEdition: Insiders', () => {
-		const text = '---\nProductEdition: Insiders\nOrder: 1\n---\n\n# February 2026 (version 1.110)\n\nsome content';
-		assert.strictEqual(isInsidersReleaseNotes(text), true);
+	test('returns true for Insiders heading', () => {
+		assert.strictEqual(isInsidersReleaseNotes('# February 2026 Insiders (version 1.110)\n\nsome content'), true);
 	});
 
-	test('returns false when front-matter has ProductEdition: Stable', () => {
-		const text = '---\nProductEdition: Stable\nOrder: 1\n---\n\n# January 2026 (version 1.97)\n\nsome content';
-		assert.strictEqual(isInsidersReleaseNotes(text), false);
+	test('returns false for stable heading', () => {
+		assert.strictEqual(isInsidersReleaseNotes('# January 2025 (version 1.97)\n\nsome content'), false);
 	});
 
-	test('returns false when front-matter lacks ProductEdition field', () => {
-		const text = '---\nOrder: 1\n---\n\n# January 2026 (version 1.97)\n\nsome content';
-		assert.strictEqual(isInsidersReleaseNotes(text), false);
-	});
-
-	test('returns false when no front-matter even if heading contains Insiders', () => {
-		assert.strictEqual(isInsidersReleaseNotes('# February 2026 Insiders (version 1.110)\n\nsome content'), false);
+	test('returns false when Insiders appears only in body, not heading', () => {
+		assert.strictEqual(isInsidersReleaseNotes('# January 2025 (version 1.97)\n\nDownload the Insiders build here.'), false);
 	});
 
 	test('returns false for empty string', () => {
