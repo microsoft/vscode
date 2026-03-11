@@ -350,30 +350,42 @@ export class ProjectPicker extends Disposable {
 		const seen = new Set<string>();
 		const items: IActionListItem<IStoredProject>[] = [];
 
-		// Current selection first
+		// Collect all projects (current + recents), deduped
+		const allProjects: IStoredProject[] = [];
 		if (this._selectedProject) {
 			const stored = this._toStored(this._selectedProject);
-			const key = this._projectKey(stored);
-			seen.add(key);
-			items.push({
-				kind: ActionListItemKind.Action,
-				label: stored.label,
-				group: { title: '', icon: stored.kind === 'folder' ? Codicon.folder : Codicon.repo },
-				item: stored,
-			});
+			seen.add(this._projectKey(stored));
+			allProjects.push(stored);
 		}
-
-		// Recently picked projects (deduped, preserving order)
 		for (const project of this._recentProjects) {
 			const key = this._projectKey(project);
-			if (seen.has(key)) {
-				continue;
+			if (!seen.has(key)) {
+				seen.add(key);
+				allProjects.push(project);
 			}
-			seen.add(key);
+		}
+
+		// Split into folders and repos, sort each group alphabetically
+		const folders = allProjects.filter(p => p.kind === 'folder').sort((a, b) => a.label.localeCompare(b.label));
+		const repos = allProjects.filter(p => p.kind === 'repo').sort((a, b) => a.label.localeCompare(b.label));
+
+		// Folders first
+		for (const project of folders) {
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: project.label,
-				group: { title: '', icon: project.kind === 'folder' ? Codicon.folder : Codicon.repo },
+				group: { title: '', icon: Codicon.folder },
+				item: project,
+				onRemove: () => this._removeProject(project),
+			});
+		}
+
+		// Then repos
+		for (const project of repos) {
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: project.label,
+				group: { title: '', icon: Codicon.repo },
 				item: project,
 				onRemove: () => this._removeProject(project),
 			});
