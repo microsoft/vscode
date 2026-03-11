@@ -15,6 +15,12 @@ import { VsCodeMdWorkspace } from './workspace';
 
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => BaseLanguageClient;
 
+export interface DocumentDiagnosticReport {
+	kind: 'full' | 'unchanged';
+	items?: { range: any; severity?: number; code?: number | string; source?: string; message: string; tags?: number[]; relatedInformation?: any[]; data?: any }[];
+	resultId?: string;
+}
+
 export class MdLanguageClient implements IDisposable {
 
 	constructor(
@@ -25,6 +31,16 @@ export class MdLanguageClient implements IDisposable {
 	dispose(): void {
 		this._client.stop();
 		this._workspace.dispose();
+	}
+
+	async computeDiagnostics(uri: vscode.Uri, token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
+		const result = await this._client.sendRequest<DocumentDiagnosticReport>('textDocument/diagnostic', {
+			textDocument: { uri: uri.toString() }
+		}, token);
+		if (result.kind === 'full' && result.items) {
+			return this._client.protocol2CodeConverter.asDiagnostics(result.items as any);
+		}
+		return [];
 	}
 
 	resolveLinkTarget(linkText: string, uri: vscode.Uri): Promise<proto.ResolvedDocumentLinkTarget> {

@@ -56,6 +56,7 @@
 	"configuration.pasteUrlAsFormattedLink.smartWithSelection": "Smartly create Markdown links by default when you have selected text and are not pasting into a code block or other special element. Use the paste widget to switch between pasting as plain text or as Markdown links.",
 	"configuration.pasteUrlAsFormattedLink.never": "Never create Markdown links.",
 	"configuration.markdown.validate.enabled.description": "Enable all error reporting in Markdown files.",
+	"configuration.markdown.validate.workspaceEnabled.description": "Enable validating all Markdown files in the workspace, not just currently opened files. Requires `#markdown.validate.enabled#` to be enabled.",
 	"configuration.markdown.validate.referenceLinks.enabled.description": "Validate reference links in Markdown files, for example: `[link][ref]`. Requires enabling `#markdown.validate.enabled#`.",
 	"configuration.markdown.validate.fragmentLinks.enabled.description": "Validate fragment links to headers in the current Markdown file, for example: `[link](#header)`. Requires enabling `#markdown.validate.enabled#`.",
 	"configuration.markdown.validate.fileLinks.enabled.description": "Validate links to other files in Markdown files, for example `[link](/path/to/file.md)`. This checks that the target files exists. Requires enabling `#markdown.validate.enabled#`.",

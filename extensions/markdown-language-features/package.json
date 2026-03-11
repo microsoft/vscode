@@ -568,6 +568,12 @@
           "description": "%configuration.markdown.validate.enabled.description%",
           "default": false
         },
+        "markdown.validate.workspaceEnabled": {
+          "type": "boolean",
+          "scope": "window",
+          "markdownDescription": "%configuration.markdown.validate.workspaceEnabled.description%",
+          "default": false
+        },
         "markdown.validate.referenceLinks.enabled": {
           "type": "string",
           "scope": "resource",
