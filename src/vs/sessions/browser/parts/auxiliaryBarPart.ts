@@ -82,7 +82,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			return undefined;
 		}
 
-		return Math.max(width, 300);
+		return Math.max(width, 320);
 	}
 
 	readonly priority = LayoutPriority.Low;
