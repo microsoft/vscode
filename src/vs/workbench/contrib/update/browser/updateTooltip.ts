@@ -6,17 +6,21 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { toAction } from '../../../../base/common/actions.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService, nativeHoverDelegate } from '../../../../platform/hover/browser/hover.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { asTextOrError, IRequestService } from '../../../../platform/request/common/request.js';
 import { AvailableForDownload, Disabled, DisablementReason, Downloaded, Downloading, Idle, IUpdate, IUpdateService, Overwriting, Ready, State, StateType, Updating } from '../../../../platform/update/common/update.js';
-import { computeDownloadSpeed, computeDownloadTimeRemaining, computeProgressPercent, formatBytes, formatDate, formatTimeRemaining, tryParseDate } from '../common/updateUtils.js';
+import { computeDownloadSpeed, computeDownloadTimeRemaining, computeProgressPercent, formatBytes, formatDate, formatTimeRemaining, isMajorMinorVersionChange, tryParseDate, tryParseVersion } from '../common/updateUtils.js';
 import './media/updateTooltip.css';
 
 /**
@@ -46,6 +50,10 @@ export class UpdateTooltip extends Disposable {
 	private readonly timeRemainingNode: HTMLElement;
 	private readonly speedInfoNode: HTMLElement;
 
+	// Update markdown section
+	private readonly markdownContainer: HTMLElement;
+	private readonly markdown = this._register(new MutableDisposable());
+
 	// State-specific message
 	private readonly messageNode: HTMLElement;
 
@@ -55,8 +63,10 @@ export class UpdateTooltip extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IMeteredConnectionService private readonly meteredConnectionService: IMeteredConnectionService,
 		@IProductService private readonly productService: IProductService,
+		@IRequestService private readonly requestService: IRequestService,
 		@IUpdateService updateService: IUpdateService,
 	) {
 		super();
@@ -115,6 +125,9 @@ export class UpdateTooltip extends Disposable {
 		this.timeRemainingNode = dom.append(this.downloadStatsContainer, dom.$('.time-remaining'));
 		this.speedInfoNode = dom.append(this.downloadStatsContainer, dom.$('.speed-info'));
 
+		// Update markdown section
+		this.markdownContainer = dom.append(this.domNode, dom.$('.update-markdown'));
+
 		// State-specific message
 		this.messageNode = dom.append(this.domNode, dom.$('.state-message'));
 
@@ -144,6 +157,8 @@ export class UpdateTooltip extends Disposable {
 		this.speedInfoNode.textContent = '';
 		this.timeRemainingNode.textContent = '';
 		this.messageNode.style.display = 'none';
+		this.markdownContainer.style.display = 'none';
+		this.markdown.clear();
 
 		switch (state.type) {
 			case StateType.Uninitialized:
@@ -231,7 +246,7 @@ export class UpdateTooltip extends Disposable {
 		}
 	}
 
-	private renderIdle({ error, notAvailable }: Idle) {
+	private renderIdle({ error, notAvailable, lastKnownVersion }: Idle) {
 		if (error) {
 			this.renderTitleAndInfo(localize('updateTooltip.updateErrorTitle', "Update Error"));
 			this.showMessage(error, Codicon.error);
@@ -241,6 +256,11 @@ export class UpdateTooltip extends Disposable {
 		if (notAvailable) {
 			this.renderTitleAndInfo(localize('updateTooltip.noUpdateAvailableTitle', "No Update Available"));
 			this.showMessage(localize('updateTooltip.noUpdateAvailableMessage', "There are no updates currently available."), Codicon.info);
+			return;
+		}
+
+		if (isMajorMinorVersionChange(lastKnownVersion, this.productService.version)) {
+			void this.renderUpdateInfo();
 			return;
 		}
 
@@ -374,5 +394,36 @@ export class UpdateTooltip extends Disposable {
 	private runCommandAndClose(command: string, ...args: unknown[]) {
 		this.commandService.executeCommand(command, ...args);
 		this.hoverService.hideHover(true);
+	}
+
+	private async renderUpdateInfo() {
+		const text = await this.fetchUpdateMarkdown();
+		if (!text) {
+			this.renderTitleAndInfo(localize('updateTooltip.upToDateTitle', "Up to Date"));
+			return;
+		}
+
+		this.titleNode.textContent = localize('updateTooltip.newInUpdate', "New in {0}", this.productService.version);
+
+		const rendered = this.markdownRendererService.render(new MarkdownString(text, { supportHtml: true }));
+		dom.clearNode(this.markdownContainer);
+		this.markdownContainer.appendChild(rendered.element);
+		this.markdownContainer.style.display = '';
+		this.markdown.value = rendered;
+	}
+
+	private async fetchUpdateMarkdown(): Promise<string | undefined> {
+		const parsed = tryParseVersion(this.productService.version);
+		if (!parsed) {
+			return undefined;
+		}
+
+		try {
+			const url = `https://code.visualstudio.com/raw/v${parsed.major}_${parsed.minor}_update.md`;
+			const context = await this.requestService.request({ url }, CancellationToken.None);
+			return await asTextOrError(context) ?? undefined;
+		} catch {
+			return undefined;
+		}
 	}
 }

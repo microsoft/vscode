@@ -18,16 +18,14 @@ import { IContextKeyService, RawContextKey } from '../../../../platform/contextk
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { DisablementReason, IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { computeProgressPercent, tryParseVersion } from '../common/updateUtils.js';
+import { computeProgressPercent, isMajorMinorVersionChange } from '../common/updateUtils.js';
 import './media/updateTitleBarEntry.css';
 import { UpdateTooltip } from './updateTooltip.js';
 
 const UPDATE_TITLE_BAR_ACTION_ID = 'workbench.actions.updateIndicator';
 const UPDATE_TITLE_BAR_CONTEXT = new RawContextKey<boolean>('updateTitleBar', false);
-const LAST_KNOWN_VERSION_KEY = 'updateTitleBar/lastKnownVersion';
 const ACTIONABLE_STATES: readonly StateType[] = [StateType.AvailableForDownload, StateType.Downloaded, StateType.Ready];
 
 registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
@@ -57,7 +55,6 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IUpdateService updateService: IUpdateService,
 	) {
 		super();
@@ -116,7 +113,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			case StateType.Disabled:
 				return state.reason === DisablementReason.InvalidConfiguration || state.reason === DisablementReason.RunningAsAdmin;
 			case StateType.Idle:
-				return !!state.error || state.notAvailable || this.isMajorMinorVersionChange();
+				return !!state.error || state.notAvailable || isMajorMinorVersionChange(state.lastKnownVersion, this.productService.version);
 			case StateType.AvailableForDownload:
 			case StateType.Downloaded:
 			case StateType.Ready:
@@ -124,23 +121,6 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			default:
 				return false;
 		}
-	}
-
-	private isMajorMinorVersionChange(): boolean {
-		const currentVersion = this.productService.version;
-		const lastKnownVersion = this.storageService.get(LAST_KNOWN_VERSION_KEY, StorageScope.APPLICATION);
-		this.storageService.store(LAST_KNOWN_VERSION_KEY, currentVersion, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		if (!lastKnownVersion) {
-			return false;
-		}
-
-		const current = tryParseVersion(currentVersion);
-		const last = tryParseVersion(lastKnownVersion);
-		if (!current || !last) {
-			return false;
-		}
-
-		return current.major !== last.major || current.minor !== last.minor;
 	}
 }
 
