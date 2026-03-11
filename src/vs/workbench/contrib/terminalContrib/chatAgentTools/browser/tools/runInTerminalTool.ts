@@ -659,28 +659,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (isSessionAutoApproved && deniedAnalyzerResult?.denialDetails && context.forceConfirmationReason === undefined) {
 			const denial = deniedAnalyzerResult.denialDetails;
 			const deniedRule = denial.ruleSourceText
-				? localize('runInTerminal.policyDeniedRule', ' Rule: `{0}`.', denial.ruleSourceText)
+				? ` Rule: \`${denial.ruleSourceText}\`.`
 				: '';
 			const deniedAttempts = this._recordDeniedCommandAttempt(chatSessionResource!, denial);
 			const shouldCircuitBreak = deniedAttempts >= deniedCommandCircuitBreakerThreshold;
 			toolSpecificData.alternativeRecommendation = shouldCircuitBreak
-				? localize(
-					'runInTerminal.policyDeniedCircuitBreaker',
-					'POLICY_DENIED_CIRCUIT_BREAKER: Command was blocked {0} times in this session and will not be retried. Scope: {1}. Command: `{2}`. Reason: {3}.{4}',
-					deniedAttempts,
-					denial.scope,
-					denial.deniedCommand,
-					denial.reason,
-					deniedRule
-				)
-				: localize(
-					'runInTerminal.policyDeniedSessionAutoApprove',
-					'POLICY_DENIED: Command was not executed in auto-approval session mode. Scope: {0}. Command: `{1}`. Reason: {2}.{3}',
-					denial.scope,
-					denial.deniedCommand,
-					denial.reason,
-					deniedRule
-				);
+				? `POLICY_DENIED_CIRCUIT_BREAKER: Command was blocked ${deniedAttempts} times in this session and will not be retried. Scope: ${denial.scope}. Command: \`${denial.deniedCommand}\`. Reason: ${denial.reason}.${deniedRule}`
+				: `POLICY_DENIED: Command was not executed in auto-approval session mode. Scope: ${denial.scope}. Command: \`${denial.deniedCommand}\`. Reason: ${denial.reason}.${deniedRule}`;
 			return {
 				confirmationMessages: undefined,
 				toolSpecificData,
