@@ -743,9 +743,8 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 		if (EXTERNAL_EXTENSIONS.find(e => e === resource)) {
 			project = extensionsProject;
 		}
-		// TODO(tyleonha): Support localization for the Sessions app (https://github.com/microsoft/vscode-internalbacklog/issues/7045)
 		// vscode-setup has its own import path via prepareIslFiles
-		if (project === sessionsProject || project === setupProject) {
+		if (project === setupProject) {
 			return;
 		}
 		const contents = xlf.contents!.toString();
