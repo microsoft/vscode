@@ -111,13 +111,13 @@ class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
 	}
 }
 
-const collapsedTodoTitleFlipDuration = 720;
+const collapsedTodoTitleFlipDuration = 450;
 const collapsedTodoIconCompleteDuration = 350;
+const collapsedTodoIconHoldDuration = 100;
 
 interface ICollapsedTodoTitleContent {
 	readonly key: string;
 	readonly content: HTMLElement;
-	readonly iconElement?: HTMLElement;
 }
 
 export class ChatTodoListWidget extends Disposable {
@@ -134,7 +134,6 @@ export class ChatTodoListWidget extends Disposable {
 	private _currentSessionResource: URI | undefined;
 	private _todoList: WorkbenchList<IChatTodo> | undefined;
 	private _collapsedTitleKey: string | undefined;
-	private _collapsedTitleIconElement: HTMLElement | undefined;
 	private readonly _collapsedTitleAnimation = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly _inChatTodoListContextKey: IContextKey<boolean>;
@@ -317,8 +316,6 @@ export class ChatTodoListWidget extends Disposable {
 	}
 
 	private renderTodoList(todoList: IChatTodo[]): void {
-		this.updateTitleElement(this.titleElement, todoList);
-
 		const allIncomplete = todoList.every(todo => todo.status === 'not-started');
 		if (allIncomplete) {
 			this._userManuallyExpanded = false;
@@ -363,8 +360,13 @@ export class ChatTodoListWidget extends Disposable {
 		// Only auto-collapse if there are in-progress or completed tasks AND user hasn't manually expanded
 		if ((hasInProgressTask || hasCompletedTask) && this._isExpanded && !this._userManuallyExpanded) {
 			this.setExpanded(false);
-			this.updateTitleElement(this.titleElement, todoList);
+			// Clear the key so the first collapsed title renders without animation.
+			// The expanded title content in the DOM would cause a broken flip animation.
+			this._collapsedTitleKey = undefined;
+			this._collapsedTitleAnimation.clear();
 		}
+
+		this.updateTitleElement(this.titleElement, todoList);
 	}
 
 	private toggleExpanded(): void {
@@ -424,7 +426,6 @@ export class ChatTodoListWidget extends Disposable {
 		if (this._isExpanded) {
 			this._collapsedTitleAnimation.clear();
 			this._collapsedTitleKey = undefined;
-			this._collapsedTitleIconElement = undefined;
 
 			const { content: titleText } = this.createTitleContent(totalCount > 0 ?
 				localize('chat.todoList.titleWithCount', 'Todos ({0}/{1})', currentTaskNumber, totalCount) :
@@ -436,7 +437,7 @@ export class ChatTodoListWidget extends Disposable {
 			// Show first in-progress todo, or if none, the first not-started todo
 			const todoToShow = firstInProgressTodo || firstNotStartedTodo;
 			if (todoToShow) {
-				const { content, iconElement } = this.createTitleContent(
+				const { content } = this.createTitleContent(
 					localize('chat.todoList.currentTask', '{0} ({1}/{2})', todoToShow.title, currentTaskNumber, totalCount),
 					todoToShow === firstInProgressTodo
 						? { codicon: 'codicon-record', color: 'var(--vscode-charts-blue)' }
@@ -444,8 +445,7 @@ export class ChatTodoListWidget extends Disposable {
 				);
 				collapsedTitleContent = {
 					key: `${todoToShow.status}:${todoToShow.title}:${currentTaskNumber}:${totalCount}`,
-					content,
-					iconElement
+					content
 				};
 			}
 			// Show "Done" when all tasks are completed
@@ -460,7 +460,6 @@ export class ChatTodoListWidget extends Disposable {
 			if (!collapsedTitleContent) {
 				this._collapsedTitleAnimation.clear();
 				this._collapsedTitleKey = undefined;
-				this._collapsedTitleIconElement = undefined;
 				dom.clearNode(titleElement);
 				return;
 			}
@@ -471,7 +470,6 @@ export class ChatTodoListWidget extends Disposable {
 			} else {
 				this._collapsedTitleAnimation.clear();
 				this._collapsedTitleKey = collapsedTitleContent.key;
-				this._collapsedTitleIconElement = collapsedTitleContent.iconElement;
 				this.renderTitleContent(collapsedTitleContent.content);
 			}
 		}
@@ -489,7 +487,6 @@ export class ChatTodoListWidget extends Disposable {
 		const previousContent = this.settleCollapsedTitleContent();
 		if (!previousContent) {
 			this._collapsedTitleKey = nextContent.key;
-			this._collapsedTitleIconElement = nextContent.iconElement;
 			this.renderTitleContent(nextContent.content);
 			return;
 		}
@@ -505,29 +502,34 @@ export class ChatTodoListWidget extends Disposable {
 			this._collapsedTitleAnimation.value = disposableTimeout(() => {
 				previousContent.remove();
 				nextContent.content.classList.remove('animating-in');
-				this._collapsedTitleIconElement = nextContent.iconElement;
 			}, collapsedTodoTitleFlipDuration);
 		};
 
-		// If the outgoing content has an in-progress icon, briefly show it
-		// turning into a completed check before starting the flip
-		const iconElement = this._collapsedTitleIconElement;
-		if (iconElement?.classList.contains('codicon-record')) {
-			iconElement.classList.remove('codicon-record');
-			iconElement.classList.add('codicon-pass', 'completing');
+		// If the outgoing content was an in-progress task, briefly show the
+		// icon turning into a completed check before starting the flip
+		const wasInProgress = this._collapsedTitleKey?.startsWith('in-progress:');
+		const iconElement = previousContent.firstElementChild as HTMLElement | null;
+		if (wasInProgress && iconElement) {
+			iconElement.className = 'todo-list-title-content-icon codicon codicon-pass completing';
 			iconElement.style.color = 'var(--vscode-charts-green)';
 
+			// Show the checkmark animation, hold briefly so it's visible, then flip
 			this._collapsedTitleAnimation.value = disposableTimeout(() => {
 				startFlip();
-			}, collapsedTodoIconCompleteDuration);
+			}, collapsedTodoIconCompleteDuration + collapsedTodoIconHoldDuration);
 		} else {
 			startFlip();
 		}
 	}
 
 	private settleCollapsedTitleContent(): HTMLElement | undefined {
+		// Only settle content that was rendered by the collapsed path
+		if (this._isExpanded || !this._collapsedTitleKey) {
+			return undefined;
+		}
+
 		const latestContent = this.titleElement.lastElementChild as HTMLElement | null;
-		if (!latestContent) {
+		if (!latestContent || !latestContent.classList.contains('todo-list-title-content')) {
 			return undefined;
 		}
 
@@ -542,19 +544,18 @@ export class ChatTodoListWidget extends Disposable {
 		titleAppend(this.titleElement, content);
 	}
 
-	private createTitleContent(text: string, icon?: { codicon: string; color: string }): { content: HTMLElement; iconElement?: HTMLElement } {
+	private createTitleContent(text: string, icon?: { codicon: string; color: string }): { content: HTMLElement } {
 		const content = dom.$('.todo-list-title-content');
-		let iconElement: HTMLElement | undefined;
 
 		if (icon) {
-			iconElement = dom.append(content, dom.$(`.todo-list-title-content-icon.codicon.${icon.codicon}`));
+			const iconElement = dom.append(content, dom.$(`.todo-list-title-content-icon.codicon.${icon.codicon}`));
 			iconElement.style.color = icon.color;
 			iconElement.setAttribute('aria-hidden', 'true');
 		}
 
 		const titleText = dom.append(content, dom.$('span.todo-list-title-content-text'));
 		titleText.textContent = text;
-		return { content, iconElement };
+		return { content };
 	}
 
 	private getStatusText(status: string): string {

@@ -9,7 +9,8 @@
 	max-width: 950px;
 	height: 100%;
 	margin: auto;
-	position: relative; /* Enable absolute positioning for child elements */
+	position: relative;
+	/* Enable absolute positioning for child elements */
 
 	/* 11px when base font is 13px */
 	--vscode-chat-font-size-body-xs: 0.846em;
@@ -130,15 +131,25 @@
 	}
 }
 
-@keyframes chat-edit-request-slide-in {
-	0% {
-		opacity: 0;
-		transform: translateX(44px);
+@keyframes chat-edit-request-expand {
+	from {
+		width: var(--chat-edit-start-pct, 50%);
+		margin-left: calc(100% - var(--chat-edit-start-pct, 50%));
 	}
 
-	100% {
+	to {
+		width: 100%;
+		margin-left: 0;
+	}
+}
+
+@keyframes chat-edit-toolbar-fade-in {
+	from {
+		opacity: 0;
+	}
+
+	to {
 		opacity: 1;
-		transform: translateX(0);
 	}
 }
 
@@ -1296,7 +1307,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	40% {
-		transform: scale(1.5);
+		transform: scale(1.25);
 	}
 
 	100% {
@@ -1319,11 +1330,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-title .todo-list-title-content.animating-out {
-	animation: 720ms chat-todo-collapsed-title-flip-out cubic-bezier(0.2, 0, 0, 1) both;
+	animation: 450ms chat-todo-collapsed-title-flip-out cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-title .todo-list-title-content.animating-in {
-	animation: 720ms chat-todo-collapsed-title-flip-in cubic-bezier(0.2, 0, 0, 1) both;
+	animation: 450ms chat-todo-collapsed-title-flip-in cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 @keyframes chat-todo-collapsed-title-flip-out {
@@ -3284,11 +3295,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .chat-edit-input-container {
 	width: 100%;
+	animation: 280ms chat-edit-request-expand cubic-bezier(0.2, 0, 0, 1);
 }
 
-.interactive-item-container.interactive-request.editing .chat-edit-input-container {
-	transform-origin: right center;
-	animation: 280ms chat-edit-request-slide-in cubic-bezier(0.2, 0, 0, 1);
+.interactive-item-container .chat-edit-input-container .chat-secondary-toolbar {
+	animation: 150ms chat-edit-toolbar-fade-in ease-out 280ms both;
 }
 
 .chat-row-disabled-overlay,
@@ -3317,7 +3328,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.interactive-item-container.interactive-request.editing .chat-edit-input-container {
+
+	.interactive-item-container .chat-edit-input-container,
+	.interactive-item-container .chat-edit-input-container .chat-secondary-toolbar {
 		animation: none;
 	}
 }
@@ -3359,7 +3372,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	justify-content: center;
 	height: 100%;
-	margin: -1px -8px -1px 0; /* Extend to button edge, accounting for button padding */
+	margin: -1px -8px -1px 0;
+	/* Extend to button edge, accounting for button padding */
 	padding: 0 4px 0 2px;
 	gap: 4px;
 	cursor: pointer;
@@ -3444,7 +3458,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	opacity: 0;
 	transition: opacity 0.15s;
 	color: var(--vscode-descriptionForeground);
-	margin-top: -4px; /* visually center with overlaid top controls */
+	margin-top: -4px;
+	/* visually center with overlaid top controls */
 }
 
 .interactive-item-container.pending-request:hover .chat-pending-drag-handle {
