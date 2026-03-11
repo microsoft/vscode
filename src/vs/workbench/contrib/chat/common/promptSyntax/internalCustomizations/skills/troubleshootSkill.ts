@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InternalSkill } from '../internalSkill.js';
+import { ChatContextKeys } from '../../../actions/chatContextKeys.js';
 
 const DESCRIPTION = 'Investigate and explain unexpected chat agent behavior. Use when the user asks why something happened, why something was slow, why a skill or instruction was not loaded, or why the agent did not follow instructions.';
 
@@ -35,9 +36,11 @@ Do not guess. Always base conclusions on diagnostic events.
 
 ## Available Tools
 
-You have access to the **resolveDebugEventDetails** tool. This tool resolves the full details of a debug event by its event ID.
+You have the following tools for investigating issues:
 
-The debug events snapshot attached to this conversation contains summary log lines. These summaries do NOT contain the actual data (file paths, prompt content, tool I/O, etc.). The real information is only available by resolving events with resolveDebugEventDetails.
+1. **listDebugEvents** — Call this FIRST to get a summary log of all debug events in the current session. Returns compact one-line summaries with event IDs.
+2. **resolveDebugEventDetails** — Call this on specific event IDs from the summary to get full details (file paths, prompt content, tool I/O, etc.).
+3. **fetch_webpage** — Use this as a LAST RESORT to fetch https://github.com/microsoft/vscode/wiki/Copilot-Issues and suggest troubleshooting steps from the wiki (see Last Resort section below).
 
 ---
 
@@ -45,9 +48,9 @@ The debug events snapshot attached to this conversation contains summary log lin
 
 Always follow this investigation order:
 
-### Step 1 — Scan the debug events snapshot
+### Step 1 — List debug events
 
-Review the debug events summary attached to this conversation. Look for:
+Call the **listDebugEvents** tool to get the event summary log. Scan the results for:
 * Errors (ERROR level events)
 * Slow operations (large duration values)
 * Failed file loads
@@ -55,7 +58,7 @@ Review the debug events summary attached to this conversation. Look for:
 
 ### Step 2 — Resolve relevant events
 
-Call resolveDebugEventDetails on all events that could be relevant to the user's question. Call it in parallel on multiple events. When in doubt, resolve more events rather than fewer.
+Call **resolveDebugEventDetails** on all events that could be relevant to the user's question. Call it in parallel on multiple events. When in doubt, resolve more events rather than fewer.
 
 Event types and what resolving them returns:
 - **generic** (category: "discovery"): File discovery for instructions, skills, agents, hooks. Returns a fileList with full file paths, load status, skip reasons, and source folders. Always resolve these for questions about customization files.
@@ -86,13 +89,13 @@ If possible, offer actions such as:
 
 ### Message Took Long to Send
 
-1. Look for slow events in the pre-send / discovery phase
+1. List events and look for slow pre-send / discovery phase events
 2. Resolve the slowest events
 3. Common causes: extension instruction loading, configuration loading, workspace scanning, extension hooks
 
 ### Agent Took Too Long to Respond
 
-1. Look for slow model turns, tool calls, or network events
+1. List events and look for slow model turns, tool calls, or network events
 2. Resolve relevant events
 3. Common causes: network latency, external service degradation, slow tool execution, repeated tool retries
 
@@ -132,10 +135,40 @@ IMPORTANT: Do NOT mention event IDs, tool resolution steps, or internal debug me
 ## Important Rules
 
 * Never assume causes without evidence.
-* Always resolve diagnostic events before answering.
+* Always call listDebugEvents first, then resolve relevant events before answering.
 * Prefer structured event data over speculation.
-* If no clear issue is found, say: "The diagnostics logs do not show a clear cause for this behavior."
+* If no clear issue is found, or you have no specific remediation suggestions, follow the Last Resort procedure below before responding.
 * Remain concise and actionable.
+
+---
+
+## Customization Documentation Reference
+
+When investigating issues related to a specific type of customization file (instructions, prompt files, agents, etc.) and you need more details about the expected format or behavior, load the relevant documentation page:
+
+- Custom instructions: \`https://code.visualstudio.com/docs/copilot/customization/custom-instructions\`
+- Prompt files: \`https://code.visualstudio.com/docs/copilot/customization/prompt-files\`
+- Custom agents: \`https://code.visualstudio.com/docs/copilot/customization/custom-agents\`
+- Language models: \`https://code.visualstudio.com/docs/copilot/customization/language-models\`
+- MCP servers: \`https://code.visualstudio.com/docs/copilot/customization/mcp-servers\`
+- Hooks: \`https://code.visualstudio.com/docs/copilot/customization/hooks\`
+- Agent plugins: \`https://code.visualstudio.com/docs/copilot/customization/agent-plugins\`
+
+Use these when you need to verify file format expectations, confirm supported fields, or help the user fix a customization file.
+
+---
+
+## Last Resort — Copilot Issues Wiki
+
+When your investigation yields no clear root cause or you have no specific remediation suggestions:
+
+1. Load the Copilot Issues wiki page: \`https://github.com/microsoft/vscode/wiki/Copilot-Issues\`.
+2. Search the returned wiki content for sections relevant to the user's problem.
+3. Summarize the applicable troubleshooting steps from the wiki in your response.
+4. If the wiki contains relevant guidance, present those steps as concrete suggestions the user can try.
+5. If even the wiki has no relevant information, tell the user: "The diagnostics logs do not show a clear cause for this behavior, and the known issues wiki does not cover this scenario. Consider filing an issue at https://github.com/microsoft/vscode/issues."
 `;
 
-export const troubleshootSkill = new InternalSkill('troubleshoot', DESCRIPTION, CONTENT);
+export const troubleshootSkill = new InternalSkill('troubleshoot', DESCRIPTION, CONTENT, {
+	when: ChatContextKeys.chatSessionHasDebugData,
+});

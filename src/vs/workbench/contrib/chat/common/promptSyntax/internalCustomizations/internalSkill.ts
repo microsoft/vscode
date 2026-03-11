@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { ContextKeyExpression } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IAgentSkill, PromptsStorage } from '../service/promptsService.js';
 import { CHAT_INTERNAL_SCHEME } from './internalPromptFileSystem.js';
 
@@ -25,6 +26,12 @@ export class InternalSkill extends Disposable {
 	/** The skill metadata exposed to the skills list and system prompt. */
 	readonly skill: IAgentSkill;
 
+	/**
+	 * Optional context key expression. When set, the skill is only included
+	 * in the system prompt when this expression evaluates to true.
+	 */
+	readonly when: ContextKeyExpression | undefined;
+
 	private readonly _onDidRead = this._register(new Emitter<void>());
 
 	/**
@@ -41,6 +48,7 @@ export class InternalSkill extends Disposable {
 		options?: {
 			disableModelInvocation?: boolean;
 			userInvocable?: boolean;
+			when?: ContextKeyExpression;
 		},
 	) {
 		super();
@@ -56,6 +64,7 @@ export class InternalSkill extends Disposable {
 			disableModelInvocation: options?.disableModelInvocation ?? false,
 			userInvocable: options?.userInvocable ?? true,
 		};
+		this.when = options?.when;
 	}
 
 	/** @internal Called by {@link registerInternalCustomizations} when the FS fires a read for this skill's URI. */

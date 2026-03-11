@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IAgentSkill, IInternalPromptPath, PromptsStorage } from '../service/promptsService.js';
 import { PromptsType } from '../promptTypes.js';
@@ -54,6 +55,23 @@ export class ChatInternalCustomizations extends Disposable {
 	 */
 	getSkills(): readonly IAgentSkill[] {
 		return this.skills.map(s => s.skill);
+	}
+
+	/**
+	 * Looks up the {@link InternalSkill} instance for a given URI,
+	 * e.g. to check its {@link InternalSkill.when} clause.
+	 */
+	getInternalSkillByUri(uri: URI): InternalSkill | undefined {
+		return this.skillsByUri.get(uri.toString());
+	}
+
+	/**
+	 * Notify that an internal skill was used in a request.
+	 * Fires the skill's {@link InternalSkill.onDidRead} event regardless of
+	 * filesystem caching, so that side-effects (like tool enablement) always run.
+	 */
+	notifySkillUsed(uri: URI): void {
+		this.skillsByUri.get(uri.toString())?._fireRead();
 	}
 
 	/**

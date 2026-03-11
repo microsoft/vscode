@@ -803,6 +803,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return new PromptFileParser().parse(uri, fileContent.value.toString());
 	}
 
+	public notifyInternalSkillUsed(uri: URI): void {
+		this.internalCustomizations.notifySkillUsed(uri);
+	}
+
 	public registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name?: string, description?: string, when?: string) {
 		const bucket = this.contributedFiles[type];
 		if (bucket.has(uri)) {
@@ -1116,13 +1120,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 		for (const file of files) {
 			if (file.status === 'loaded' && file.name) {
 				const sanitizedDescription = this.truncateAgentSkillDescription(file.description, file.uri);
+				const internalSkill = this.internalCustomizations.getInternalSkillByUri(file.uri);
 				result.push({
 					uri: file.uri,
 					storage: file.storage,
 					name: file.name,
 					description: sanitizedDescription,
 					disableModelInvocation: file.disableModelInvocation ?? false,
-					userInvocable: file.userInvocable ?? true
+					userInvocable: file.userInvocable ?? true,
+					when: internalSkill?.when,
 				});
 			}
 		}
@@ -1399,11 +1405,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 			fileUri: p.uri,
 			storage: p.storage,
 			source: PromptFileSource.Plugin,
-		})), ...this.internalCustomizations.getSkills().map(s => ({
-			fileUri: s.uri,
-			storage: s.storage,
-			source: PromptFileSource.Internal,
-		})));
+		})), ...this.internalCustomizations.getSkills()
+			.map(s => ({
+				fileUri: s.uri,
+				storage: s.storage,
+				source: PromptFileSource.Internal,
+			})));
 
 		const getPriority = (skill: IResolvedPromptFile | IExtensionPromptPath): number => {
 			if (skill.storage === PromptsStorage.local) {

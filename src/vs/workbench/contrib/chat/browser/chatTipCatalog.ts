@@ -372,4 +372,15 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		excludeWhenSettingsChanged: [ChatConfiguration.ThinkingPhrases],
 		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
+	{
+		id: 'tip.troubleshoot',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize('tip.troubleshoot', "Something unexpected happen? Use /troubleshoot followed by your question to analyze debug events and find root causes.")
+			);
+		},
+		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+		excludeWhenToolsInvoked: ['listDebugEvents'],
+	},
 ];

@@ -8,6 +8,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
+import { ContextKeyExpression } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
@@ -272,6 +273,11 @@ export interface IAgentSkill {
 	 * Use for background knowledge users shouldn't invoke directly.
 	 */
 	readonly userInvocable: boolean;
+	/**
+	 * Optional context key expression. When set, the skill is only available
+	 * when this expression evaluates to true against a scoped context.
+	 */
+	readonly when?: ContextKeyExpression;
 }
 
 /**
@@ -518,4 +524,11 @@ export interface IPromptsService extends IDisposable {
 	 * Listeners (such as a debug bridge) can forward these to IChatDebugService.
 	 */
 	readonly onDidLogDiscovery: Event<IPromptDiscoveryLogEntry>;
+
+	/**
+	 * Notify that an internal skill was used in a request.
+	 * Ensures the skill's side-effects (e.g. tool enablement) fire even when
+	 * the skill file content is served from cache.
+	 */
+	notifyInternalSkillUsed(uri: URI): void;
 }
