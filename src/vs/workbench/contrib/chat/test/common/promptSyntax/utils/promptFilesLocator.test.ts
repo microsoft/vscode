@@ -101,6 +101,7 @@ suite('PromptFilesLocator', () => {
 			'explorer.excludeGitIgnore': false,
 			'files.exclude': {},
 			'search.exclude': {},
+			[PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS]: false,
 			[PromptsConfig.PROMPT_LOCATIONS_KEY]: configValue,
 			[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: configValue,
 			[PromptsConfig.MODE_LOCATION_KEY]: configValue,

@@ -31,7 +31,10 @@ import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
 import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, getCleanPromptName, GITHUB_CONFIG_FOLDER, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, Target, getPromptsTypeForLanguageId } from '../promptTypes.js';
-import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
+import {
+	IWorkspaceInstructionFile,
+	PromptFilesLocator
+} from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryLogEntry } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
@@ -870,10 +873,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const resolvedAgentFiles: IResolvedAgentFile[] = [];
 		const promises: Promise<IResolvedAgentFile[]>[] = [];
 
-		const includeParents = this.configurationService.getValue(PromptsConfig.INCLUDE_WORKSPACE_FOLDER_PARENTS) === true;
+		const includeParents = this.configurationService.getValue(PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS) === true;
 		const rootFolders = await this.fileLocator.getWorkspaceFolderRoots(includeParents);
 
-		const rootFiles = [];
+		const rootFiles: IWorkspaceInstructionFile[] = [];
 		const useAgentMD = this.configurationService.getValue(PromptsConfig.USE_AGENT_MD);
 		if (!useAgentMD) {
 			logger?.logInfo('Agent MD files are disabled via configuration.');
@@ -927,7 +930,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				seenFileURI.add(symlink.realPath);
 			}
 		}
-		return result;
+		return result.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
 	}
 
 	public getAgentFileURIFromModeFile(oldURI: URI): URI | undefined {

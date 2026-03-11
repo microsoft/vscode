@@ -136,9 +136,9 @@ export namespace PromptsConfig {
 	export const INCLUDE_REFERENCED_INSTRUCTIONS = 'chat.includeReferencedInstructions';
 
 	/**
-	 * Search for configuration files in parent folders of the workspace folder. This allows users to keep their prompt files in a common parent folder, e.g. in a monorepo setup.
+	 * Search for configuration files in parent folders of the workspace folder
 	 */
-	export const INCLUDE_WORKSPACE_FOLDER_PARENTS = 'chat.includeWorkspaceFolderParents';
+	export const SEARCH_ROOT_REPO_CUSTOMIZATIONS = 'chat.searchRootRepositoryCustomizations';
 
 	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
