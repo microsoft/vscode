@@ -114,7 +114,7 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 	}
 }
 
-const MAX_LIST_ITEMS = 20;
+const MAX_LIST_ITEMS = 100;
 
 /**
  * Join a list of strings, truncating after {@link MAX_LIST_ITEMS} entries.
