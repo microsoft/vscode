@@ -101,17 +101,16 @@ export class MockChatSessionsService implements IChatSessionsService {
 		// Noop, nothing to activate
 	}
 
-	getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }>> {
-		return Promise.all(
-			Array.from(this.sessionItemControllers.entries())
-				.filter(([chatSessionType]) => !providerTypeFilter || providerTypeFilter.includes(chatSessionType))
-				.map(async ([chatSessionType, controllerEntry]) => {
-					await controllerEntry.initialRefresh; // ensure initial refresh is done
-					return ({
-						chatSessionType: chatSessionType,
-						items: controllerEntry.controller.items
-					});
-				}));
+	async *getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): AsyncIterable<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }> {
+		for (const [chatSessionType, controllerEntry] of this.sessionItemControllers.entries()) {
+			if (!providerTypeFilter || providerTypeFilter.includes(chatSessionType)) {
+				await controllerEntry.initialRefresh; // ensure initial refresh is done
+				yield {
+					chatSessionType: chatSessionType,
+					items: controllerEntry.controller.items
+				};
+			}
+		}
 	}
 
 	async refreshChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): Promise<void> {
