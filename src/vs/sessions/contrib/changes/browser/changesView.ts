@@ -643,16 +643,17 @@ export class ChangesViewPane extends ViewPane {
 		// Combine both entry sources for display
 		const combinedEntriesObs = derived(reader => {
 			const headCommit = headCommitObs.read(reader);
+			const versionMode = this.versionModeObs.read(reader);
 			const editEntries = editSessionEntriesObs.read(reader);
 			const sessionFiles = sessionFilesObs.read(reader);
 			const repositoryFiles = this.activeSessionRepositoryChangesObs.read(reader) ?? [];
-			const versionMode = this.versionModeObs.read(reader);
+			const lastTurnDiffChanges = lastTurnChangesObs.read(reader).read(reader);
 
 			let sourceEntries: IChangesFileItem[];
 			if (versionMode === ChangesVersionMode.Uncommitted) {
 				sourceEntries = repositoryFiles;
 			} else if (versionMode === ChangesVersionMode.LastTurn) {
-				const diffChanges = lastTurnChangesObs.read(reader).read(reader) ?? [];
+				const diffChanges = lastTurnDiffChanges ?? [];
 				const parentRef = headCommit ? `${headCommit}^` : '';
 				sourceEntries = diffChanges.map(change => {
 					const isDeletion = change.modifiedUri === undefined;
