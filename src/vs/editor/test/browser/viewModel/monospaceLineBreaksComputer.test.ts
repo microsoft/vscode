@@ -78,6 +78,12 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 	options._write(EditorOption.wordWrapColumn, breakAfter);
 	options._write(EditorOption.wordBreak, wordBreak);
 	options._write(EditorOption.wrapOnEscapedLineFeeds, wrapOnEscapedLineFeeds);
+	options._write(EditorOption.wrappingInfo, {
+		isDominatedByLongLines: false,
+		isWordWrapMinified: false,
+		isViewportWrapping: false,
+		wrappingColumn: breakAfter,
+	});
 	const lineBreaksComputer = factory.createLineBreaksComputer(context, options, tabSize);
 	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
 	lineBreaksComputer.addRequest(1, previousLineBreakDataClone);
