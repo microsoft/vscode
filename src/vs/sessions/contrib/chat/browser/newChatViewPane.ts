@@ -132,7 +132,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	// Send button
 	private _sendButton: Button | undefined;
 	private _sending = false;
-	private _altKeyDown = false;
 
 	// Repository loading
 	private readonly _openRepositoryCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -562,7 +561,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			if (e.keyCode === KeyCode.Enter && !e.shiftKey && !e.ctrlKey && e.altKey) {
 				e.preventDefault();
 				e.stopPropagation();
-				this._send({ openNewAfterSend: true });
+				this._send();
 			}
 		}));
 
@@ -683,19 +682,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			ariaLabel: localize('send', "Send"),
 		}));
 		sendButton.icon = Codicon.send;
-		this._register(sendButton.onDidClick(() => this._send({ openNewAfterSend: this._altKeyDown })));
-		this._register(dom.addDisposableListener(dom.getWindow(container), dom.EventType.KEY_DOWN, e => {
-			if (e.key === 'Alt') {
-				this._altKeyDown = true;
-				sendButton.icon = Codicon.runAbove;
-			}
-		}));
-		this._register(dom.addDisposableListener(dom.getWindow(container), dom.EventType.KEY_UP, e => {
-			if (e.key === 'Alt') {
-				this._altKeyDown = false;
-				sendButton.icon = Codicon.send;
-			}
-		}));
+		this._register(sendButton.onDidClick(() => this._send()));
 		this._updateSendButtonState();
 	}
 
@@ -1008,7 +995,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._sendButton.enabled = !this._sending && hasText && !(this._newSession.value?.disabled ?? true);
 	}
 
-	private async _send(options?: { openNewAfterSend?: boolean }): Promise<void> {
+	private async _send(): Promise<void> {
 		let query = this._editor.getModel()?.getValue().trim();
 		const session = this._newSession.value;
 		if (!query || !session || this._sending) {
@@ -1055,7 +1042,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			await this.sessionsManagementService.sendRequestForNewSession(
 				session.resource,
 				{
-					...options?.openNewAfterSend ? { openNewSessionView: true } : {},
 					permissionLevel: this._permissionPicker.permissionLevel,
 				}
 			);
