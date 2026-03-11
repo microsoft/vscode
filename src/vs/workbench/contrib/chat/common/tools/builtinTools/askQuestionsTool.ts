@@ -14,7 +14,8 @@ import { localize } from '../../../../../../nls.js';
 import { IChatQuestion, IChatQuestionAnswers, IChatQuestionAnswerValue, IChatMultiSelectAnswer, IChatService, IChatSingleSelectAnswer } from '../../chatService/chatService.js';
 import { ChatQuestionCarouselData } from '../../model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatRequestModel } from '../../model/chatModel.js';
-import { ChatPermissionLevel } from '../../constants.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../constants.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -172,6 +173,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		@IChatService private readonly chatService: IChatService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
 		super();
 	}
@@ -195,10 +197,12 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 			return this.createSkippedResult(questions);
 		}
 
-		// In autopilot mode, the user is not available — auto-respond instead of blocking.
-		// Still append a completed carousel so the user can see the auto-selected answers.
-		if (request.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot) {
-			this.logService.info('[AskQuestionsTool] Autopilot mode: auto-responding to questions');
+		// In autopilot mode or when auto-reply is enabled, the user is not available —
+		// auto-respond instead of blocking. Still append a completed carousel so the
+		// user can see what was skipped.
+		if (request.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot || this.configService.getValue<boolean>(ChatConfiguration.AutoReply)) {
+			const reason = request.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot ? 'Autopilot mode' : 'Auto-reply enabled';
+			this.logService.info(`[AskQuestionsTool] ${reason}: auto-responding to questions`);
 			const { carousel, idToHeaderMap } = this.toQuestionCarousel(questions);
 			carousel.data = this.buildAutopilotCarouselAnswers(questions, carousel, idToHeaderMap);
 			carousel.isUsed = true;

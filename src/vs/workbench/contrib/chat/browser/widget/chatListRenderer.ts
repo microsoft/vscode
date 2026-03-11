@@ -23,7 +23,6 @@ import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable, dispose, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
@@ -64,7 +63,7 @@ import { IChatRequestVariableEntry } from '../../common/attachments/chatVariable
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { MarkHelpfulActionId, MarkUnhelpfulActionId } from '../actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
@@ -108,7 +107,6 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { ChatHookContentPart } from './chatContentParts/chatHookContentPart.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
-import { ChatQuestionCarouselAutoReply } from './chatQuestionCarouselAutoReply.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 
@@ -196,9 +194,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	/** Track pending question carousels by session resource for auto-skip on chat submission */
 	private readonly pendingQuestionCarousels = new ResourceMap<Set<ChatQuestionCarouselPart>>();
-	private readonly _autoRepliedQuestionCarousels = new Set<string>();
-	private readonly _autoReply: ChatQuestionCarouselAutoReply;
-
 	private readonly _notifiedQuestionCarousels = new Set<string>();
 
 	private readonly chatContentMarkdownRenderer: IMarkdownRenderer;
@@ -285,8 +280,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._register(this.instantiationService.createInstance(ChatCodeBlockContentProvider));
 		this._inlineTextModels = this._register(this.instantiationService.createInstance(InlineTextModelCollection));
 		this._toolInvocationCodeBlockCollection = this._register(this.instantiationService.createInstance(CodeBlockModelCollection, 'tools'));
-		this._autoReply = this._register(this.instantiationService.createInstance(ChatQuestionCarouselAutoReply));
-
 		// Auto-skip pending question carousels when user submits a new chat message
 		this._register(this.chatService.onDidSubmitRequest(e => {
 			const carousels = this.pendingQuestionCarousels.get(e.chatSessionResource);
@@ -379,7 +372,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	updateViewModel(viewModel: IChatViewModel | undefined): void {
 		this.viewModel = viewModel;
 		this._announcedToolProgressKeys.clear();
-		this._autoRepliedQuestionCarousels.clear();
 		this._notifiedQuestionCarousels.clear();
 		this.codeBlocksByEditorUri.clear();
 		this.codeBlocksByResponseId.clear();
@@ -2160,9 +2152,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource) : undefined;
 		const shouldAutoFocus = widget ? widget.getInput() === '' : true;
-		const modelName = widget?.input.currentLanguageModel;
 		const responseId = isResponseVM(context.element) ? context.element.requestId : undefined;
-		const requestMessageText = isResponseVM(context.element) ? this.getRequestMessageText(context.element) : undefined;
 
 		const handleSubmit = async (answers: Map<string, IChatQuestionAnswerValue> | undefined, part: ChatQuestionCarouselPart) => {
 			// Mark the carousel as used and store the answers
@@ -2231,11 +2221,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				shouldAutoFocus,
 				onSubmit: async (answers) => handleSubmit(answers, fallbackPart)
 			});
-			this.maybeAutoReplyToQuestionCarousel(context, carousel, fallbackPart, answers => handleSubmit(answers, fallbackPart), modelName, requestMessageText);
 			return fallbackPart;
 		}
-
-		this.maybeAutoReplyToQuestionCarousel(context, carousel, part, answers => handleSubmit(answers, part), modelName, requestMessageText);
 
 		// Track the carousel for auto-skip when user submits a new message
 		// Only add tracking if not already tracked (prevents duplicate tracking on re-render)
@@ -2313,80 +2300,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// OS toast notification is handled by ChatWindowNotifier
 	}
-
-	private maybeAutoReplyToQuestionCarousel(
-		context: IChatContentPartRenderContext,
-		carousel: IChatQuestionCarousel,
-		part: ChatQuestionCarouselPart,
-		submit: (answers: Map<string, IChatQuestionAnswerValue> | undefined) => Promise<void>,
-		modelName: string | undefined,
-		requestMessageText: string | undefined,
-	): void {
-		if (carousel.isUsed) {
-			return;
-		}
-
-		// Use a stable key based on requestId + resolveId to prevent duplicate
-		// auto-replies across re-renders of the same logical carousel.
-		const stableKey = this._getCarouselStableKey(context, carousel);
-		if (stableKey) {
-			if (this._autoRepliedQuestionCarousels.has(stableKey)) {
-				return;
-			}
-			// Mark as in-progress before the async opt-in check to prevent
-			// duplicate prompts/requests from concurrent re-renders.
-			this._autoRepliedQuestionCarousels.add(stableKey);
-		}
-
-		void this._autoReply.shouldAutoReply().then(shouldAutoReply => {
-			// always autoreply in autopilot mode.
-			const isAutopilot = this._isAutopilotForContext(context);
-			if (!shouldAutoReply && !isAutopilot) {
-				// Roll back the in-progress mark if auto-reply is not enabled.
-				if (stableKey) {
-					this._autoRepliedQuestionCarousels.delete(stableKey);
-				}
-				return;
-			}
-
-			const cts = new CancellationTokenSource();
-			part.addDisposable(toDisposable(() => {
-				cts.cancel();
-				cts.dispose();
-			}));
-
-			this._autoReply.autoReply(carousel, submit, modelName, requestMessageText, cts.token).catch(err => {
-				this.logService.debug('#ChatQuestionCarousel: Auto reply failed', toErrorMessage(err));
-			});
-		});
-	}
-
-
-	private getRequestMessageText(response: IChatResponseViewModel): string | undefined {
-		const requestId = response.requestId;
-		const items = response.session.getItems();
-		const request = items.find(item => isRequestVM(item) && item.id === requestId) as IChatRequestViewModel | undefined;
-		return request?.messageText;
-	}
-
-	// session scoped picker
-	private _isAutopilotForContext(context: IChatContentPartRenderContext): boolean {
-		// Check request-stamped level
-		if (isResponseVM(context.element) && context.element.model.request?.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot) {
-			return true;
-		}
-		// Check live widget picker level (handles mid-session switches)
-		if (isResponseVM(context.element)) {
-			const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)
-				?? this.chatWidgetService.lastFocusedWidget;
-			if (widget?.input.currentModeInfo.permissionLevel === ChatPermissionLevel.Autopilot) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-
 
 	private removeCarouselFromTracking(context: IChatContentPartRenderContext, part: ChatQuestionCarouselPart): void {
 		if (isResponseVM(context.element)) {
