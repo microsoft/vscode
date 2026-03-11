@@ -307,7 +307,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				return inlineDecorationsComputer.hasVariableFonts(lineNumber);
 			}
 		};
-		return this._lineBreaksComputerFactory.createLineBreaksComputer(context, context, this.config, this.tabSize);
+		return this._lineBreaksComputerFactory.createLineBreaksComputer(context, this.config, this.tabSize);
 	}
 
 	public onModelFlushed(): void {
@@ -1257,7 +1257,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 			lineContent.length + 1,
 			0,
 			lineTokens.inflate(),
-			[]
+			null
 		);
 	}
 

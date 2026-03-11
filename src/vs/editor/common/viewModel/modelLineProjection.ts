@@ -305,7 +305,7 @@ class IdentityModelLineProjection implements IModelLineProjection {
 			lineContent.length + 1,
 			0,
 			lineTokens.inflate(),
-			[]
+			null
 		);
 	}
 

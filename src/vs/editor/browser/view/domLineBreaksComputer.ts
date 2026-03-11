@@ -11,12 +11,11 @@ import { applyFontInfo } from '../config/domFontInfo.js';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions, WrappingIndent } from '../../common/config/editorOptions.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
 import { InjectedTextOptions, TextDirection } from '../../common/model.js';
-import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
-import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
+import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
 import { CharacterMapping, DomPosition, RenderLineInput, RenderLineOutput, renderViewLine } from '../../common/viewLayout/viewLineRenderer.js';
 import { LineDecoration } from '../../common/viewLayout/lineDecorations.js';
 import { LineInjectedText } from '../../common/textModelEvents.js';
-import { FontInfo } from '../../common/config/fontInfo.js';
+import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
 
@@ -32,20 +31,20 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 	constructor(private targetWindow: WeakRef<Window>) {
 	}
 
-	public createLineBreaksComputer(context: ILineBreaksComputerContext, fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ILineBreaksComputer {
+	public createLineBreaksComputer(context: ILineBreaksComputerContext, config: IEditorConfiguration, tabSize: number): ILineBreaksComputer {
 		const lineNumbers: number[] = [];
 		return {
 			addRequest: (lineNumber: number, previousLineBreakData: ModelLineProjectionData | null) => {
 				lineNumbers.push(lineNumber);
 			},
 			finalize: () => {
-				return createLineBreaks(assertReturnsDefined(this.targetWindow.deref()), context, lineNumbers, fontInfo, tabSize, wrappingColumn, wrappingIndent, wordBreak);
+				return createLineBreaks(assertReturnsDefined(this.targetWindow.deref()), context, lineNumbers, config, tabSize);
 			}
 		};
 	}
 }
 
-function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerContext, lineNumbers: number[], fontInfo: FontInfo, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): (ModelLineProjectionData | null)[] {
+function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerContext, lineNumbers: number[], config: IEditorConfiguration, tabSize: number): (ModelLineProjectionData | null)[] {
 	function createEmptyLineBreakWithPossiblyInjectedText(lineNumber: number): ModelLineProjectionData | null {
 		const injectedTexts = context.getLineInjectedText(lineNumber);
 		if (injectedTexts) {
@@ -88,8 +87,7 @@ function createLineBreaks(targetWindow: Window, context: ILineBreaksComputerCont
 	const sb = new StringBuilder(10000);
 	const wrappedTextIndentLengths: number[] = [];
 	const renderLineContents: string[] = [];
-	const allCharOffsets: number[][] = [];
-	const allVisibleColumns: number[][] = [];
+	const characterMappings: CharacterMapping[] = [];
 	for (let i = 0; i < lineNumbers.length; i++) {
 		const lineNumber = lineNumbers[i];
 		const lineContent = LineInjectedText.applyInjectedText(context.getLineContent(lineNumber), context.getLineInjectedText(lineNumber));

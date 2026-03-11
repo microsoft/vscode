@@ -152,7 +152,6 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this._updateConfigurationViewLineCountNow();
 		this.model.registerViewModel(this);
-		this.model.registerViewModel(this);
 	}
 
 	public override dispose(): void {
@@ -327,6 +326,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	onDidChangeContentOrInjectedText(e: textModelEvents.InternalModelContentChangeEvent | textModelEvents.ModelInjectedTextChangedEvent): void {
+
 		try {
 			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 
@@ -394,7 +394,7 @@ export class ViewModel extends Disposable implements IViewModel {
 					case textModelEvents.RawContentChangedType.LineChanged: {
 						const changedLineBreakData = lineBreakQueue.dequeue()!;
 						const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] =
-							this._lines.onModelLineChanged(versionId, change.newLineNumber, changedLineBreakData);
+							this._lines.onModelLineChanged(versionId, change.lineNumber, changedLineBreakData);
 						hadModelLineChangeThatChangedLineMapping = lineMappingChanged;
 						if (linesChangedEvent) {
 							eventsCollector.emitViewEvent(linesChangedEvent);

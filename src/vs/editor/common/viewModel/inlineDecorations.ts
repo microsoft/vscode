@@ -5,9 +5,9 @@
 
 import { IModelDecoration, InjectedTextOptions, ITextModel, PositionAffinity } from '../model.js';
 import { Range } from '../core/range.js';
+import { Position } from '../core/position.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
 import { isModelDecorationVisible, ViewModelDecoration } from './viewModelDecoration.js';
-import { Position } from '../core/position.js';
 
 export const enum InlineDecorationType {
 	Regular = 0,

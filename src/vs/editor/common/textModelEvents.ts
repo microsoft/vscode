@@ -308,22 +308,17 @@ export class LineInjectedText {
 export class ModelRawLineChanged {
 	public readonly changeType = RawContentChangedType.LineChanged;
 	/**
-	 * The line that has changed.
+	 * The line number that has changed (before the change was applied).
 	 */
 	public readonly lineNumber: number;
 	/**
-	 * The new value of the line.
+	 * The new line number the old one is mapped to (after the change was applied).
 	 */
-	public readonly detail: string;
-	/**
-	 * The injected text on the line.
-	 */
-	public readonly injectedText: LineInjectedText[] | null;
+	public readonly lineNumberPostEdit: number;
 
-	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null) {
+	constructor(lineNumber: number, lineNumberPostEdit: number) {
 		this.lineNumber = lineNumber;
-		this.detail = detail;
-		this.injectedText = injectedText;
+		this.lineNumberPostEdit = lineNumberPostEdit;
 	}
 }
 

@@ -21,7 +21,7 @@ export class ViewModelDecorations implements IDisposable {
 
 	private readonly _inlineDecorationsComputer: InlineModelDecorationsComputer;
 
-	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
+	private _cachedModelDecorationsResolver: IViewDecorationsCollection | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
 
 	constructor(editorId: number, model: ITextModel, configuration: IEditorConfiguration, linesCollection: IViewModelLines, coordinatesConverter: ICoordinatesConverter) {
@@ -66,7 +66,7 @@ export class ViewModelDecorations implements IDisposable {
 		return this._inlineDecorationsComputer.getDecorations(range, true, false).decorations;
 	}
 
-	public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {
+	public getDecorationsViewportData(viewRange: Range): IViewDecorationsCollection {
 		let cacheIsValid = (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
 		if (!cacheIsValid) {
@@ -76,7 +76,7 @@ export class ViewModelDecorations implements IDisposable {
 		return this._cachedModelDecorationsResolver!;
 	}
 
-	public getDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): IDecorationsViewportData {
+	public getDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): IViewDecorationsCollection {
 		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
 		return this._inlineDecorationsComputer.getDecorations(range, onlyMinimapDecorations, onlyMarginDecorations);
 	}
