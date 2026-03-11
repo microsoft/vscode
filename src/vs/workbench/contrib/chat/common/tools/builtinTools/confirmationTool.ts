@@ -251,14 +251,10 @@ export class ModifiedFilesConfirmationTool implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		if (!invocation.selectedCustomButton) {
-			throw new Error('ModifiedFilesConfirmationTool requires a selected option');
-		}
-
 		return {
 			content: [{
 				kind: 'text',
-				value: invocation.selectedCustomButton
+				value: invocation.selectedCustomButton || 'The user chose to skip the tool call, they want to proceed without running it'
 			}]
 		};
 	}
