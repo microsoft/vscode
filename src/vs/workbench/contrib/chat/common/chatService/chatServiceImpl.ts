@@ -10,7 +10,7 @@ import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, autorunIterableDelta, derived, IObservable, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -123,6 +123,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResource: URI[]; reason: 'cleared' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
+	private readonly _onDidChangeSessionBasedChatModel = this._register(new Emitter<IChatModel>());
+	public readonly onDidChangeSessionBasedChatModel = this._onDidChangeSessionBasedChatModel.event;
+
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
@@ -211,6 +214,33 @@ export class ChatService extends Disposable implements IChatService {
 			const models = this._sessionModels.observable.read(reader).values();
 			return Iterable.some(models, model => model.requestInProgress.read(reader));
 		});
+
+		// Fire onDidChangeChatModel whenever any session model's content or request state changes
+		const modelListeners = new ResourceMap<IDisposable>();
+		this._register(autorunIterableDelta(
+			reader => this._sessionModels.observable.read(reader).values(),
+			({ addedValues, removedValues }) => {
+				for (const removed of removedValues) {
+					const listener = modelListeners.get(removed.sessionResource);
+					if (listener) {
+						modelListeners.delete(removed.sessionResource);
+						listener.dispose();
+					}
+				}
+				for (const added of addedValues) {
+					const requestChangeListener = added.lastRequestObs.map(last => last?.response && observableSignalFromEvent('chatModel.requestChange', last.response.onDidChange));
+					const modelChangeListener = observableSignalFromEvent('chatModel.modelChange', added.onDidChange);
+					modelListeners.set(added.sessionResource, autorun(reader => {
+						requestChangeListener.read(reader)?.read(reader);
+						modelChangeListener.read(reader);
+						this._onDidChangeSessionBasedChatModel.fire(added);
+					}));
+				}
+			}
+		));
+		this._register(toDisposable(() => {
+			dispose(modelListeners.values());
+		}));
 	}
 
 	public get editingSessions() {
@@ -1613,40 +1643,5 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Invalid local chat session resource: ${sessionResource}`);
 		}
 		return localSessionId;
-	}
-
-	public registerChatModelChangeListeners(chatSessionType: string, onChange: () => void): IDisposable {
-		const disposableStore = new DisposableStore();
-		const chatModelsICareAbout = this.chatModels.map(models =>
-			Array.from(models).filter((model: IChatModel) => model.sessionResource.scheme === chatSessionType)
-		);
-
-		const listeners = new ResourceMap<IDisposable>();
-		const autoRunDisposable = autorunIterableDelta(
-			reader => chatModelsICareAbout.read(reader),
-			({ addedValues, removedValues }) => {
-				removedValues.forEach((removed) => {
-					const listener = listeners.get(removed.sessionResource);
-					if (listener) {
-						listeners.delete(removed.sessionResource);
-						listener.dispose();
-					}
-				});
-				addedValues.forEach((added) => {
-					const requestChangeListener = added.lastRequestObs.map(last => last?.response && observableSignalFromEvent('chatSessions.modelRequestChangeListener', last.response.onDidChange));
-					const modelChangeListener = observableSignalFromEvent('chatSessions.modelChangeListener', added.onDidChange);
-					listeners.set(added.sessionResource, autorun(reader => {
-						requestChangeListener.read(reader)?.read(reader);
-						modelChangeListener.read(reader);
-						onChange();
-					}));
-				});
-			}
-		);
-		disposableStore.add(toDisposable(() => {
-			for (const listener of listeners.values()) { listener.dispose(); }
-		}));
-		disposableStore.add(autoRunDisposable);
-		return disposableStore;
 	}
 }

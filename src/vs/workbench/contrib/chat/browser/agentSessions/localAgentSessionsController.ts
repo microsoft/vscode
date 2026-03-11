@@ -57,7 +57,11 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 			this._onDidChangeChatSessionItems.fire();
 		};
 
-		this._register(this.chatService.registerChatModelChangeListeners(Schemas.vscodeLocalChatSession, refreshItems));
+		this._register(this.chatService.onDidChangeSessionBasedChatModel(model => {
+			if (model.sessionResource.scheme === Schemas.vscodeLocalChatSession) {
+				refreshItems();
+			}
+		}));
 
 		this._register(this.chatService.onDidDisposeSession(e => {
 			const session = e.sessionResource.filter(resource => getChatSessionType(resource) === this.chatSessionType);
