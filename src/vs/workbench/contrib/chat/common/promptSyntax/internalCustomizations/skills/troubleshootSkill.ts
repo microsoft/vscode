@@ -41,7 +41,7 @@ You have the following tools for investigating issues:
 
 1. **listDebugEvents** — Call this FIRST to get a summary log of all debug events in the current session. Returns compact one-line summaries with event IDs.
 2. **resolveDebugEventDetails** — Call this on specific event IDs from the summary to get full details (file paths, prompt content, tool I/O, etc.).
-3. **fetch_webpage** — Use this as a LAST RESORT to fetch https://github.com/microsoft/vscode/wiki/Copilot-Issues and suggest troubleshooting steps from the wiki (see Last Resort section below).
+3. **fetch** — Use this as a LAST RESORT to fetch https://github.com/microsoft/vscode/wiki/Copilot-Issues and suggest troubleshooting steps from the wiki (see Last Resort section below).
 
 ---
 
