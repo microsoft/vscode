@@ -10,7 +10,7 @@ import { parse as parseJSONC } from '../../../../../../base/common/json.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IReader } from '../../../../../../base/common/observable.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { basename, dirname, isEqual, joinPath } from '../../../../../../base/common/resources.js';
+import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { type ITextModel } from '../../../../../../editor/common/model.js';
@@ -29,9 +29,12 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
-import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, getCleanPromptName, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
+import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, getCleanPromptName, GITHUB_CONFIG_FOLDER, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, Target, getPromptsTypeForLanguageId } from '../promptTypes.js';
-import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
+import {
+	IWorkspaceInstructionFile,
+	PromptFilesLocator
+} from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryLogEntry } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
@@ -899,49 +902,42 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return [];
 	}
 
-	public async listAgentMDs(token: CancellationToken, logger: Logger | undefined): Promise<IResolvedAgentFile[]> {
+	public async listAgentInstructions(token: CancellationToken, logger: Logger | undefined): Promise<IResolvedAgentFile[]> {
+		const resolvedAgentFiles: IResolvedAgentFile[] = [];
+		const promises: Promise<IResolvedAgentFile[]>[] = [];
+
+		const includeParents = this.configurationService.getValue(PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS) === true;
+		const rootFolders = await this.fileLocator.getWorkspaceFolderRoots(includeParents);
+
+		const rootFiles: IWorkspaceInstructionFile[] = [];
 		const useAgentMD = this.configurationService.getValue(PromptsConfig.USE_AGENT_MD);
 		if (!useAgentMD) {
 			logger?.logInfo('Agent MD files are disabled via configuration.');
-			return [];
+		} else {
+			rootFiles.push({ fileName: AGENT_MD_FILENAME, type: AgentFileType.agentsMd });
 		}
-		return await this.fileLocator.findFilesInWorkspaceRoots(AGENT_MD_FILENAME, undefined, AgentFileType.agentsMd, token);
-	}
-
-	public async listClaudeMDs(token: CancellationToken, logger: Logger | undefined): Promise<IResolvedAgentFile[]> {
-		// see https://code.claude.com/docs/en/memory
 		const useClaudeMD = this.configurationService.getValue(PromptsConfig.USE_CLAUDE_MD);
 		if (!useClaudeMD) {
 			logger?.logInfo('Claude MD files are disabled via configuration.');
-			return [];
-		}
-		const results: IResolvedAgentFile[] = [];
-		const userHome = await this.pathService.userHome();
-		const userClaudeFolder = joinPath(userHome, CLAUDE_CONFIG_FOLDER);
-		await Promise.all([
-			this.fileLocator.findFilesInWorkspaceRoots(CLAUDE_MD_FILENAME, undefined, AgentFileType.claudeMd, token, results), // in workspace roots
-			this.fileLocator.findFilesInWorkspaceRoots(CLAUDE_LOCAL_MD_FILENAME, undefined, AgentFileType.claudeMd, token, results), // CLAUDE.local in workspace roots
-			this.fileLocator.findFilesInWorkspaceRoots(CLAUDE_MD_FILENAME, CLAUDE_CONFIG_FOLDER, AgentFileType.claudeMd, token, results), // in workspace/.claude folders
-			this.fileLocator.findFilesInRoots([userClaudeFolder], CLAUDE_MD_FILENAME, AgentFileType.claudeMd, token, results) // in ~/.claude folder
-		]);
-		return results.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
-	}
+		} else {
+			const claudeMdFile = { fileName: CLAUDE_MD_FILENAME, type: AgentFileType.claudeMd };
+			rootFiles.push(claudeMdFile); // CLAUDE.md in workspace root
+			rootFiles.push({ fileName: CLAUDE_LOCAL_MD_FILENAME, type: AgentFileType.claudeMd }); // CLAUDE.local.md in workspace root
 
-	public async listCopilotInstructionsMDs(token: CancellationToken, logger: Logger | undefined): Promise<IResolvedAgentFile[]> {
+			promises.push(this.fileLocator.findFilesInRoots(rootFolders, CLAUDE_CONFIG_FOLDER, [claudeMdFile], token, resolvedAgentFiles)); // CLAUDE.md in .claude folder under workspace root
+			promises.push(this.fileLocator.findFilesInRoots([await this.pathService.userHome()], CLAUDE_CONFIG_FOLDER, [claudeMdFile], token, resolvedAgentFiles)); // CLAUDE.md in in ~/.claude folder
+		}
 		const useCopilotInstructionsFiles = this.configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
 		if (!useCopilotInstructionsFiles) {
 			logger?.logInfo('Copilot instructions files are disabled via configuration.');
-			return [];
+		} else {
+			const githubConfigFiles = [{ fileName: COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, type: AgentFileType.copilotInstructionsMd }];
+			promises.push(this.fileLocator.findFilesInRoots(rootFolders, GITHUB_CONFIG_FOLDER, githubConfigFiles, token, resolvedAgentFiles));
 		}
-		return await this.fileLocator.findCopilotInstructionsMDsInWorkspace(token);
-	}
 
-	public async listAgentInstructions(token: CancellationToken, logger: Logger | undefined): Promise<IResolvedAgentFile[]> {
-		const [agentMDs, claudeMDs, copilotInstructionsMDs] = await Promise.all([
-			this.listAgentMDs(token, logger),
-			this.listClaudeMDs(token, logger),
-			this.listCopilotInstructionsMDs(token, logger)
-		]);
+		promises.push(this.fileLocator.findFilesInRoots(rootFolders, undefined, rootFiles, token, resolvedAgentFiles));
+
+		await Promise.all(promises);
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -958,9 +954,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 			return true;
 		};
-		agentMDs.forEach(add);
-		claudeMDs.forEach(add);
-		copilotInstructionsMDs.forEach(add);
+		resolvedAgentFiles.forEach(add);
 		for (const symlink of symlinks) {
 			if (seenFileURI.has(symlink.realPath)) {
 				logger?.logInfo(`Skipping symlinked agent instructions file ${symlink.uri} as target already included: ${symlink.realPath}`);
@@ -969,7 +963,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				seenFileURI.add(symlink.realPath);
 			}
 		}
-		return result;
+		return result.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
 	}
 
 	public getAgentFileURIFromModeFile(oldURI: URI): URI | undefined {

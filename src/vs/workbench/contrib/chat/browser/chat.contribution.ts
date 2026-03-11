@@ -995,6 +995,15 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions']
 		},
+		[PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS]: {
+			type: 'boolean',
+			title: nls.localize('chat.searchRootRepositoryCustomizations.title', "Search Root Repository Customizations",),
+			markdownDescription: nls.localize('chat.searchRootRepositoryCustomizations.description', "Controls whether configuration files should be searched in parent folders of the workspace folder if the parent folder are repositories.",),
+			default: false,
+			restricted: true,
+			disallowConfigurationDefault: true,
+			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions']
+		},
 		[PromptsConfig.SKILLS_LOCATION_KEY]: {
 			type: 'object',
 			title: nls.localize('chat.agentSkillsLocations.title', "Agent Skills Locations",),

@@ -60,6 +60,10 @@ export const CLAUDE_CONFIG_FOLDER = '.claude';
  */
 export const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
 
+/**
+ * GitHub configuration folder name.
+ */
+export const GITHUB_CONFIG_FOLDER = '.github';
 
 /**
  * Default reusable prompt files source folder.
