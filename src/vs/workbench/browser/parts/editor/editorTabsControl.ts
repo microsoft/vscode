@@ -451,7 +451,38 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected getHoverTitle(editor: EditorInput): string | IManagedHoverTooltipMarkdownString {
-		const title = editor.getTitle(Verbosity.LONG);
+		const { tabHoverVerbosity } = this.groupsView.partOptions;
+
+		let title: string;
+		switch (tabHoverVerbosity) {
+			case 'short':
+				title = editor.getName();
+				break;
+			case 'detailed':
+			case 'default':
+			default:
+				title = editor.getTitle(Verbosity.LONG);
+				break;
+		}
+
+		if (tabHoverVerbosity === 'detailed') {
+			const name = editor.getName();
+			const description = editor.getDescription(Verbosity.LONG);
+			const markdown = new MarkdownString('', { supportThemeIcons: true, isTrusted: true });
+			markdown.appendMarkdown(`**${name}**`);
+			if (description) {
+				markdown.appendText('\n');
+				markdown.appendText(description);
+			}
+			if (!this.tabsModel.isPinned(editor)) {
+				markdown.appendMarkdown(' (_preview_ [$(gear)](command:workbench.action.openSettings?%5B%22workbench.editor.enablePreview%22%5D "Configure Preview Mode"))');
+			}
+			return {
+				markdown,
+				markdownNotSupportedFallback: description ? `${name}\n${description}` : name
+			};
+		}
+
 		if (!this.tabsModel.isPinned(editor)) {
 			return {
 				markdown: new MarkdownString('', { supportThemeIcons: true, isTrusted: true }).
@@ -460,6 +491,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 				markdownNotSupportedFallback: title + ' (preview)'
 			};
 		}
+
 		return title;
 	}
 
