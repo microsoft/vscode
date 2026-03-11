@@ -386,7 +386,7 @@
 		{
 			"label": "Launch Component Explorer",
 			"type": "shell",
-			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv",
+			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
 			"isBackground": true,
 			"problemMatcher": {
 				"owner": "component-explorer",
