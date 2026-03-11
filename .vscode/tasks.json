@@ -403,6 +403,18 @@
 					"endsPattern": "Redirection server listening on.*"
 				}
 			}
+		},
+		{
+			"label": "Install & Compile",
+			"type": "shell",
+			"command": "npm install && npm run compile",
+			"windows": {
+				"command": "cmd /d /c \"npm install && npm run compile\""
+			},
+			"inSessions": true,
+			"runOptions": {
+				"runOn": "worktreeCreated"
+			}
 		}
 	]
 }
