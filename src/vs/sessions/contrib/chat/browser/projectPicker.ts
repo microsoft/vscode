@@ -23,6 +23,12 @@ const STORAGE_KEY_RECENT_PROJECTS = 'agentSessions.recentlyPickedProjects';
 const MAX_RECENT_PROJECTS = 10;
 const FILTER_THRESHOLD = 10;
 
+// Legacy storage keys from the old separate folder/repo pickers
+const LEGACY_STORAGE_KEY_LAST_FOLDER = 'agentSessions.lastPickedFolder';
+const LEGACY_STORAGE_KEY_RECENT_FOLDERS = 'agentSessions.recentlyPickedFolders';
+const LEGACY_STORAGE_KEY_LAST_REPO = 'agentSessions.lastPickedRepo';
+const LEGACY_STORAGE_KEY_RECENT_REPOS = 'agentSessions.recentlyPickedRepos';
+
 export type ProjectSelectionKind = 'folder' | 'repo';
 
 export interface IProjectSelection {
@@ -77,20 +83,88 @@ export class ProjectPicker extends Disposable {
 	) {
 		super();
 
-		// Restore last picked project
+		// Restore recently picked projects (or migrate from legacy storage)
+		try {
+			const stored = this.storageService.get(STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
+			if (stored) {
+				this._recentProjects = JSON.parse(stored);
+			} else {
+				// Migrate from legacy separate folder/repo storage
+				this._migrateFromLegacyStorage();
+			}
+		} catch { /* ignore */ }
+
+		// Restore last picked project (or migrate from legacy)
 		try {
 			const last = this.storageService.get(STORAGE_KEY_LAST_PROJECT, StorageScope.PROFILE);
 			if (last) {
 				const stored: IStoredProject = JSON.parse(last);
 				this._selectedProject = this._fromStored(stored);
+			} else {
+				// Try migrating last picked from legacy keys
+				this._migrateLastPickedFromLegacy();
+			}
+		} catch { /* ignore */ }
+	}
+
+	/**
+	 * Migrates recently picked folders and repos from the old separate storage
+	 * keys into the unified project list.
+	 */
+	private _migrateFromLegacyStorage(): void {
+		const migrated: IStoredProject[] = [];
+
+		// Migrate recent folders
+		try {
+			const storedFolders = this.storageService.get(LEGACY_STORAGE_KEY_RECENT_FOLDERS, StorageScope.PROFILE);
+			if (storedFolders) {
+				const folderUris: string[] = JSON.parse(storedFolders);
+				for (const uriStr of folderUris) {
+					const uri = URI.parse(uriStr);
+					migrated.push({ kind: 'folder', uri: uriStr, label: basename(uri) });
+				}
 			}
 		} catch { /* ignore */ }
 
-		// Restore recently picked projects
+		// Migrate recent repos
 		try {
-			const stored = this.storageService.get(STORAGE_KEY_RECENT_PROJECTS, StorageScope.PROFILE);
-			if (stored) {
-				this._recentProjects = JSON.parse(stored);
+			const storedRepos = this.storageService.get(LEGACY_STORAGE_KEY_RECENT_REPOS, StorageScope.PROFILE);
+			if (storedRepos) {
+				const repos: { id: string; name: string }[] = JSON.parse(storedRepos);
+				for (const repo of repos) {
+					const uri = URI.from({ scheme: 'github-remote-file', authority: 'github', path: `/${repo.id}/HEAD` });
+					migrated.push({ kind: 'repo', uri: uri.toString(), label: repo.name, repoId: repo.id });
+				}
+			}
+		} catch { /* ignore */ }
+
+		if (migrated.length > 0) {
+			this._recentProjects = migrated.slice(0, MAX_RECENT_PROJECTS);
+			this._persistRecents();
+		}
+	}
+
+	/**
+	 * Migrates the last picked folder or repo from the old storage keys.
+	 */
+	private _migrateLastPickedFromLegacy(): void {
+		// Try last folder first
+		try {
+			const lastFolder = this.storageService.get(LEGACY_STORAGE_KEY_LAST_FOLDER, StorageScope.PROFILE);
+			if (lastFolder) {
+				const uri = URI.parse(lastFolder);
+				this._selectedProject = { kind: 'folder', uri, label: basename(uri) };
+				return;
+			}
+		} catch { /* ignore */ }
+
+		// Try last repo
+		try {
+			const lastRepo = this.storageService.get(LEGACY_STORAGE_KEY_LAST_REPO, StorageScope.PROFILE);
+			if (lastRepo) {
+				const repo: { id: string; name: string } = JSON.parse(lastRepo);
+				const uri = URI.from({ scheme: 'github-remote-file', authority: 'github', path: `/${repo.id}/HEAD` });
+				this._selectedProject = { kind: 'repo', uri, label: repo.name, repoId: repo.id };
 			}
 		} catch { /* ignore */ }
 	}
@@ -102,12 +176,8 @@ export class ProjectPicker extends Disposable {
 	render(container: HTMLElement): HTMLElement {
 		this._renderDisposables.clear();
 
-		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-project-picker'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
-
-		// Label
-		const label = dom.append(slot, dom.$('span.sessions-chat-picker-label'));
-		label.textContent = localize('pickProject.label', "Pick a Project");
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;

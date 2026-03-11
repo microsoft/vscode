@@ -165,6 +165,7 @@
 	flex-direction: row;
 	flex-wrap: nowrap;
 	align-items: center;
+	justify-content: center;
 	width: 100%;
 	box-sizing: border-box;
 	padding: 0;
@@ -174,25 +175,7 @@
 	display: none;
 }
 
-/* Left half: target switcher, right-justified */
-.sessions-chat-pickers-left-half {
-	flex: 1;
-	display: flex;
-	justify-content: flex-end;
-	align-items: center;
-	min-width: 0;
-}
-
-/* Right half: pickers, left-justified */
-.sessions-chat-pickers-right-half {
-	flex: 1;
-	display: flex;
-	justify-content: flex-start;
-	align-items: center;
-	min-width: 0;
-}
-
-/* Separator between switcher and folder picker */
+/* Separator between project picker and extension pickers */
 .sessions-chat-pickers-left-separator {
 	width: 1px;
 	height: 22px;
@@ -202,33 +185,28 @@
 	display: none;
 }
 
-/* Target switcher radio buttons - bigger and fancier */
-.sessions-chat-dropdown-wrapper .monaco-custom-radio > .monaco-button {
-	font-size: 13px;
-	line-height: 1.4em;
-	padding: 4px 14px;
+/* Prominent project picker button */
+.sessions-chat-project-picker .action-label {
+	height: auto !important;
+	padding: 6px 14px !important;
+	font-size: 14px !important;
+	border: 1px solid var(--vscode-button-secondaryBorder, var(--vscode-contrastBorder, transparent)) !important;
+	background-color: var(--vscode-button-secondaryBackground) !important;
+	color: var(--vscode-button-secondaryForeground) !important;
+	border-radius: 6px !important;
 }
 
-.sessions-chat-dropdown-wrapper .monaco-custom-radio > .monaco-button:first-child {
-	border-top-left-radius: 6px;
-	border-bottom-left-radius: 6px;
+.sessions-chat-project-picker .action-label:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground) !important;
 }
 
-.sessions-chat-dropdown-wrapper .monaco-custom-radio > .monaco-button:last-child {
-	border-top-right-radius: 6px;
-	border-bottom-right-radius: 6px;
+.sessions-chat-project-picker .action-label .codicon {
+	font-size: 16px !important;
+	margin-right: 4px;
 }
 
-.sessions-chat-dropdown-wrapper .monaco-custom-radio > .monaco-button:focus {
-	outline: none;
-}
-
-/* Folder label next to the picker */
-.sessions-chat-folder-label {
-	font-size: 13px;
-	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
-	margin-right: 6px;
+.sessions-chat-project-picker .action-label .sessions-chat-dropdown-label {
+	font-size: 14px;
 }
 
 /* Target dropdown button */
