@@ -137,7 +137,6 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		const fauxIndentLength = lineData.minColumn - 1;
 		const onlyBoundary = (this._options.renderWhitespace === 'boundary');
 		const onlyTrailing = (this._options.renderWhitespace === 'trailing');
-		const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
 		const middotWidth = this._options.middotWidth;
 		const wsmiddotWidth = this._options.wsmiddotWidth;
 		const spaceWidth = this._options.spaceWidth;
@@ -210,8 +209,9 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 			if (!visibleRange) {
 				continue;
 			}
+			const baseFontInfo = this._context.configuration.options.get(EditorOption.fontInfo);
 			const fontInfo = this._context.viewModel.getFontAtPosition(new Position(lineNumber, charIndex + 1));
-			const cy = lineHeight - fontInfo.fontHeight / 2;
+			const cy = fontInfo.equals(baseFontInfo) ? fontInfo.lineHeight / 2 : fontInfo.lineHeight - fontInfo.fontHeight / 2;
 
 			if (USE_SVG) {
 				maxLeft = Math.max(maxLeft, visibleRange.left);
@@ -231,6 +231,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 
 		if (USE_SVG) {
 			maxLeft = Math.round(maxLeft + spaceWidth);
+			const lineHeight = ctx.getLineHeightForLineNumber(lineNumber);
 			return (
 				`<svg style="bottom:0;position:absolute;width:${maxLeft}px;height:${lineHeight}px" viewBox="0 0 ${maxLeft} ${lineHeight}" xmlns="http://www.w3.org/2000/svg" fill="${color}">`
 				+ result
