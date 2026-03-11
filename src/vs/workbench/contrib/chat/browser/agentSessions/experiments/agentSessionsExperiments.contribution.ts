@@ -252,7 +252,6 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	when: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, 'hidden'),
-		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`), // backward compat: false → hidden
 	),
 	order: 10002 // to the right of the chat button
 });
@@ -270,7 +269,6 @@ MenuRegistry.appendMenuItem(MenuId.TitleBar, {
 			ChatContextKeys.Setup.disabled.negate()
 		),
 		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, 'hidden'),
-		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`), // backward compat: false → hidden
 		ContextKeyExpr.has('config.window.commandCenter').negate(),
 	),
 	order: 1

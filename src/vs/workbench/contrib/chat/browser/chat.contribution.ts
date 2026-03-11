@@ -232,16 +232,14 @@ configurationRegistry.registerConfiguration({
 			default: 0
 		},
 		[ChatConfiguration.AgentStatusEnabled]: {
-			type: ['string', 'boolean'],
-			enum: ['hidden', 'badge', 'compact', true, false],
+			type: 'string',
+			enum: ['hidden', 'badge', 'compact'],
 			enumDescriptions: [
 				nls.localize('chat.agentsControl.hidden', "The agent status indicator is hidden from the title bar."),
 				nls.localize('chat.agentsControl.badge', "Shows the agent status as a badge next to the command center."),
 				nls.localize('chat.agentsControl.compact', "Replaces the command center search box with a compact agent status indicator and unified chat widget."),
-				nls.localize('chat.agentsControl.trueDeprecated', "Deprecated: treated as 'badge'. Use 'badge' or 'compact' instead."),
-				nls.localize('chat.agentsControl.falseDeprecated', "Deprecated: treated as 'hidden'. Use 'hidden' instead."),
 			],
-			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls how the 'Agent Status' indicator appears in the title bar command center. When set to `hidden`, the indicator is not shown. Other values show the indicator and automatically enable {0}. The unread and in-progress session indicators require {1} to be enabled. Boolean values are deprecated in favor of the string values.", '`#window.commandCenter#`', '`#chat.viewSessions.enabled#`'),
+			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls how the 'Agent Status' indicator appears in the title bar command center. When set to `hidden`, the indicator is not shown. Other values show the indicator and automatically enable {0}. The unread and in-progress session indicators require {1} to be enabled.", '`#window.commandCenter#`', '`#chat.viewSessions.enabled#`'),
 			default: 'compact',
 			tags: ['experimental']
 		},

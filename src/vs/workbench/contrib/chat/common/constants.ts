@@ -19,13 +19,11 @@ export function getAgentControlMode(value: unknown): AgentControlMode {
 		return 'hidden';
 	}
 	if (value === true || value === 'badge') {
-		// true = old boolean default, preserve badge-only behavior
 		return 'badge';
 	}
 	if (value === 'compact') {
 		return 'compact';
 	}
-	// Fallback to the configuration schema default 'compact' for any other or missing value
 	return 'compact';
 }
 

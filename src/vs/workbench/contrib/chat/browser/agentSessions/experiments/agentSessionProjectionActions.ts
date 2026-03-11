@@ -99,10 +99,7 @@ export class ToggleAgentStatusAction extends Action2 {
 			id: `toggle.${ChatConfiguration.AgentStatusEnabled}`,
 			title: localize('toggle.agentStatus', 'Agent Status'),
 			metadata: { description: localize('toggle.agentStatusDescription', "Toggle visibility of the Agent Status in title bar") },
-			toggled: ContextKeyExpr.and(
-				ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, 'hidden'),
-				ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`), // backward compat: false → hidden
-			),
+			toggled: ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, 'hidden'),
 			menu: [
 				{
 					id: MenuId.TitleBarContext,
