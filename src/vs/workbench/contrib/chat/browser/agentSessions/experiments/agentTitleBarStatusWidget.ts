@@ -62,7 +62,7 @@ type AgentStatusClickAction =
 	| 'exitProjection';
 
 type AgentStatusClickEvent = {
-	source: 'pill' | 'sparkle' | 'unread' | 'inProgress';
+	source: 'pill' | 'sparkle' | 'unread' | 'inProgress' | 'needsInput';
 	action: AgentStatusClickAction;
 };
 
@@ -110,12 +110,13 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	/** Guard to prevent re-entrant rendering */
 	private _isRendering = false;
 
-	/** First focusable element for keyboard navigation */
-	private _firstFocusableElement: HTMLElement | undefined;
+	/** Roving tabindex elements for keyboard navigation */
+	private _rovingElements: HTMLElement[] = [];
+	private _rovingIndex: number = 0;
 
 	/** Tracks if this window applied a badge filter (unread/inProgress), so we only auto-clear our own filters */
 	// TODO: This is imperfect. Targetted fix for vscode#290863. We should revisit storing filter state per-window to avoid this
-	private _badgeFilterAppliedByThisWindow: 'unread' | 'inProgress' | null = null;
+	private _badgeFilterAppliedByThisWindow: 'unread' | 'inProgress' | 'needsInput' | null = null;
 
 	/** Reusable menu for CommandCenterCenter items (e.g., debug toolbar) */
 	private readonly _commandCenterMenu;
@@ -223,6 +224,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		super.render(container);
 		this._container = container;
 		container.classList.add('agent-status-container');
+		container.setAttribute('role', 'toolbar');
 		// Container should not be focusable - inner elements handle focus
 		container.tabIndex = -1;
 
@@ -237,8 +239,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	}
 
 	override focus(): void {
-		// Focus the first focusable child instead
-		this._firstFocusableElement?.focus();
+		this._rovingElements[this._rovingIndex]?.focus();
 	}
 
 	override blur(): void {
@@ -285,7 +286,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			const label = this._getLabel();
 
 			// Get current filter state for state key
-			const { isFilteredToUnread, isFilteredToInProgress } = this._getCurrentFilterState();
+			const { isFilteredToUnread, isFilteredToInProgress, isFilteredToNeedsInput } = this._getCurrentFilterState();
 
 			// Check which settings are enabled
 			const agentControlMode = getAgentControlMode(this.configurationService.getValue(ChatConfiguration.AgentStatusEnabled));
@@ -304,6 +305,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				label,
 				isFilteredToUnread,
 				isFilteredToInProgress,
+				isFilteredToNeedsInput,
 				unifiedAgentsBarEnabled,
 				agentStatusEnabled,
 				viewSessionsEnabled,
@@ -318,9 +320,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			// Clear existing content
 			reset(this._container);
 
-			// Clear previous disposables and focusable element for dynamic content
+			// Clear previous disposables and roving elements for dynamic content
 			this._dynamicDisposables.clear();
-			this._firstFocusableElement = undefined;
+			this._rovingElements = [];
 
 			if (this.agentTitleBarStatusService.mode === AgentStatusMode.Session) {
 				// Agent Session Projection mode - show session title + close button
@@ -336,9 +338,53 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				this._renderBadgeOnlyMode(this._dynamicDisposables);
 			}
 			// If neither setting is enabled, nothing is rendered (container is already cleared)
+
+			// Setup roving tabindex for keyboard navigation
+			this._setupRovingTabIndex(this._dynamicDisposables);
 		} finally {
 			this._isRendering = false;
 		}
+	}
+
+	/**
+	 * Setup roving tabindex for arrow key navigation between interactive elements.
+	 * Auto-discovers elements with role="button" in DOM order.
+	 */
+	private _setupRovingTabIndex(disposables: DisposableStore): void {
+		if (!this._container || this._rovingElements.length === 0) {
+			return;
+		}
+
+		if (this._rovingIndex >= this._rovingElements.length) {
+			this._rovingIndex = 0;
+		}
+		for (let i = 0; i < this._rovingElements.length; i++) {
+			this._rovingElements[i].tabIndex = i === this._rovingIndex ? 0 : -1;
+		}
+
+		disposables.add(addDisposableListener(this._container, EventType.KEY_DOWN, (e) => {
+			const index = this._rovingElements.findIndex(el => el === e.target || el.contains(e.target as Node));
+			if (index === -1) {
+				return;
+			}
+
+			let nextIndex: number | undefined;
+			switch (e.key) {
+				case 'ArrowRight': nextIndex = (index + 1) % this._rovingElements.length; break;
+				case 'ArrowLeft': nextIndex = (index - 1 + this._rovingElements.length) % this._rovingElements.length; break;
+				case 'Home': nextIndex = 0; break;
+				case 'End': nextIndex = this._rovingElements.length - 1; break;
+			}
+
+			if (nextIndex !== undefined && nextIndex !== index) {
+				e.preventDefault();
+				e.stopPropagation();
+				this._rovingElements[index].tabIndex = -1;
+				this._rovingElements[nextIndex].tabIndex = 0;
+				this._rovingElements[nextIndex].focus();
+				this._rovingIndex = nextIndex;
+			}
+		}));
 	}
 
 	// #region Session Statistics
@@ -398,10 +444,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		if (hasAttentionNeeded) {
 			pill.classList.add('needs-attention');
 		}
-		pill.setAttribute('role', 'button');
-		pill.setAttribute('aria-label', localize('openQuickAccess', "Open Quick Access"));
-		pill.tabIndex = 0;
-		this._firstFocusableElement = pill;
 		this._container.appendChild(pill);
 
 		// Render command center items (like debug toolbar) inside the pill
@@ -429,6 +471,10 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Input area wrapper - hover only activates here, not on badge sections
 		const inputArea = $('div.agent-status-input-area');
+		inputArea.setAttribute('role', 'button');
+		inputArea.setAttribute('aria-label', localize('openQuickAccess', "Open Quick Access"));
+		inputArea.tabIndex = 0;
+		this._rovingElements.push(inputArea);
 		pill.appendChild(inputArea);
 
 		// Label - always shows workspace name in compact mode
@@ -496,14 +542,14 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		}));
 
 		// Click handler - open displayed session if showing progress, otherwise open unified quick access
-		disposables.add(addDisposableListener(pill, EventType.CLICK, (e) => {
+		disposables.add(addDisposableListener(inputArea, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
 			this._handlePillClick();
 		}));
 
 		// Keyboard handler
-		disposables.add(addDisposableListener(pill, EventType.KEY_DOWN, (e) => {
+		disposables.add(addDisposableListener(inputArea, EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				e.stopPropagation();
@@ -709,9 +755,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		searchButton.setAttribute('role', 'button');
 		searchButton.setAttribute('aria-label', localize('openQuickOpen', "Open Quick Open"));
 		searchButton.tabIndex = 0;
-		if (!this._firstFocusableElement) {
-			this._firstFocusableElement = searchButton;
-		}
+		this._rovingElements.push(searchButton);
 		container.appendChild(searchButton);
 
 		// Setup hover
@@ -754,7 +798,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const hasAttentionNeeded = attentionNeededSessions.length > 0;
 
 		// Auto-clear filter if the filtered category becomes empty if this window applied it
-		this._clearFilterIfCategoryEmpty(hasUnreadSessions, hasActiveSessions);
+		this._clearFilterIfCategoryEmpty(hasUnreadSessions, hasActiveSessions, hasAttentionNeeded);
 
 		// When inlineContainer is provided, render sections directly into it (compact mode)
 		// Otherwise, create a separate badge container
@@ -769,9 +813,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Sparkle dropdown button section (always visible on left) - proper button with dropdown menu
 		const sparkleContainer = $('span.agent-status-badge-section.sparkle');
 		sparkleContainer.tabIndex = 0;
-		if (!this._firstFocusableElement) {
-			this._firstFocusableElement = sparkleContainer;
-		}
 
 		// Get menu actions for dropdown with proper group separators
 		const menuActions: IAction[] = Separator.join(...this._chatTitleBarMenu.getActions({ shouldForwardArgs: true }).map(([, actions]) => actions));
@@ -902,9 +943,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Needs-input section - shows sessions requiring user attention (approval/confirmation/input)
 		if (viewSessionsEnabled && hasAttentionNeeded) {
-			const { isFilteredToInProgress } = this._getCurrentFilterState();
+			const { isFilteredToNeedsInput } = this._getCurrentFilterState();
 			needsInputSection = $('span.agent-status-badge-section.active.needs-input');
-			if (isFilteredToInProgress) {
+			if (isFilteredToNeedsInput) {
 				needsInputSection.classList.add('filtered');
 			}
 			needsInputSection.setAttribute('role', 'button');
@@ -919,13 +960,13 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			disposables.add(addDisposableListener(needsInputSection, EventType.CLICK, (e) => {
 				e.preventDefault();
 				e.stopPropagation();
-				this._openSessionsWithFilter('inProgress');
+				this._openSessionsWithFilter('needsInput');
 			}));
 			disposables.add(addDisposableListener(needsInputSection, EventType.KEY_DOWN, (e) => {
 				if (e.key === 'Enter' || e.key === ' ') {
 					e.preventDefault();
 					e.stopPropagation();
-					this._openSessionsWithFilter('inProgress');
+					this._openSessionsWithFilter('needsInput');
 				}
 			}));
 
@@ -971,18 +1012,20 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			disposables.add(this.hoverService.setupManagedHover(hoverDelegate, activeSection, activeTooltip));
 		}
 
-		// Append status sections in the correct order
+		// Append status sections in the correct order and register for roving tabindex
 		if (reverseOrder) {
 			// [needs-input, active, unread, sparkle] — populates inward
-			if (needsInputSection) { badge.appendChild(needsInputSection); }
-			if (activeSection) { badge.appendChild(activeSection); }
-			if (unreadSection) { badge.appendChild(unreadSection); }
+			if (needsInputSection) { badge.appendChild(needsInputSection); this._rovingElements.push(needsInputSection); }
+			if (activeSection) { badge.appendChild(activeSection); this._rovingElements.push(activeSection); }
+			if (unreadSection) { badge.appendChild(unreadSection); this._rovingElements.push(unreadSection); }
 			badge.appendChild(sparkleContainer);
+			this._rovingElements.push(sparkleContainer);
 		} else {
 			// Original: [sparkle (already appended), unread, active, needs-input]
-			if (unreadSection) { badge.appendChild(unreadSection); }
-			if (activeSection) { badge.appendChild(activeSection); }
-			if (needsInputSection) { badge.appendChild(needsInputSection); }
+			this._rovingElements.push(sparkleContainer);
+			if (unreadSection) { badge.appendChild(unreadSection); this._rovingElements.push(unreadSection); }
+			if (activeSection) { badge.appendChild(activeSection); this._rovingElements.push(activeSection); }
+			if (needsInputSection) { badge.appendChild(needsInputSection); this._rovingElements.push(needsInputSection); }
 		}
 
 	}
@@ -992,12 +1035,14 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	 * For example, if filtered to "unread" but no unread sessions exist, restore user's previous filter.
 	 * Only auto-clears if THIS window applied the badge filter to avoid cross-window interference.
 	 */
-	private _clearFilterIfCategoryEmpty(hasUnreadSessions: boolean, hasActiveSessions: boolean): void {
+	private _clearFilterIfCategoryEmpty(hasUnreadSessions: boolean, hasActiveSessions: boolean, hasAttentionNeeded: boolean): void {
 		// Only auto-clear if this window applied the badge filter
 		// This prevents Window B from clearing filters that Window A set
 		if (this._badgeFilterAppliedByThisWindow === 'unread' && !hasUnreadSessions) {
 			this._restoreUserFilter();
 		} else if (this._badgeFilterAppliedByThisWindow === 'inProgress' && !hasActiveSessions) {
+			this._restoreUserFilter();
+		} else if (this._badgeFilterAppliedByThisWindow === 'needsInput' && !hasAttentionNeeded) {
 			this._restoreUserFilter();
 		}
 	}
@@ -1005,18 +1050,20 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	/**
 	 * Get the current filter state from storage.
 	 */
-	private _getCurrentFilterState(): { isFilteredToUnread: boolean; isFilteredToInProgress: boolean } {
+	private _getCurrentFilterState(): { isFilteredToUnread: boolean; isFilteredToInProgress: boolean; isFilteredToNeedsInput: boolean } {
 		const filter = this._getStoredFilter();
 		if (!filter) {
-			return { isFilteredToUnread: false, isFilteredToInProgress: false };
+			return { isFilteredToUnread: false, isFilteredToInProgress: false, isFilteredToNeedsInput: false };
 		}
 
 		// Detect if filtered to unread (read=true excludes read sessions, leaving only unread)
 		const isFilteredToUnread = filter.read === true && filter.states.length === 0;
-		// Detect if filtered to in-progress (2 excluded states = Completed + Failed)
-		const isFilteredToInProgress = filter.states?.length === 2 && filter.read === false;
+		// Detect if filtered to in-progress only (3 excluded states including NeedsInput)
+		const isFilteredToInProgress = filter.states?.length === 3 && filter.states.includes(AgentSessionStatus.NeedsInput) && filter.read === false;
+		// Detect if filtered to needs-input only (3 excluded states including InProgress)
+		const isFilteredToNeedsInput = filter.states?.length === 3 && filter.states.includes(AgentSessionStatus.InProgress) && filter.read === false;
 
-		return { isFilteredToUnread, isFilteredToInProgress };
+		return { isFilteredToUnread, isFilteredToInProgress, isFilteredToNeedsInput };
 	}
 
 	/**
@@ -1059,11 +1106,11 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	 * This preserves the original user filter when switching between badge filters.
 	 */
 	private _saveUserFilter(): void {
-		const { isFilteredToUnread, isFilteredToInProgress } = this._getCurrentFilterState();
+		const { isFilteredToUnread, isFilteredToInProgress, isFilteredToNeedsInput } = this._getCurrentFilterState();
 
 		// Don't overwrite the saved filter if we're already in a badge-filtered state
 		// The previous user filter should already be saved
-		if (isFilteredToUnread || isFilteredToInProgress) {
+		if (isFilteredToUnread || isFilteredToInProgress || isFilteredToNeedsInput) {
 			return;
 		}
 
@@ -1099,56 +1146,54 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	/**
 	 * Opens the agent sessions view with a specific filter applied, or restores previous filter if already applied.
 	 * Preserves session type (provider) filters while toggling only status filters.
-	 * @param filterType 'unread' to show only unread sessions, 'inProgress' to show only in-progress sessions
 	 */
-	private _openSessionsWithFilter(filterType: 'unread' | 'inProgress'): void {
-		const { isFilteredToUnread, isFilteredToInProgress } = this._getCurrentFilterState();
+	private _openSessionsWithFilter(filterType: 'unread' | 'inProgress' | 'needsInput'): void {
+		const { isFilteredToUnread, isFilteredToInProgress, isFilteredToNeedsInput } = this._getCurrentFilterState();
 		const currentFilter = this._getStoredFilter();
 		// Preserve existing provider filters (session type filters like Local, Background, etc.)
 		const preservedProviders = currentFilter?.providers ?? [];
 
 		// Log telemetry for filter button clicks
-		const isToggleOff = (filterType === 'unread' && isFilteredToUnread) || (filterType === 'inProgress' && isFilteredToInProgress);
+		const isToggleOff = (filterType === 'unread' && isFilteredToUnread)
+			|| (filterType === 'inProgress' && isFilteredToInProgress)
+			|| (filterType === 'needsInput' && isFilteredToNeedsInput);
 		this.telemetryService.publicLog2<AgentStatusClickEvent, AgentStatusClickClassification>('agentStatusWidget.click', {
 			source: filterType,
 			action: isToggleOff ? 'clearFilter' : 'applyFilter',
 		});
 
-		// Toggle filter based on current state
-		if (filterType === 'unread') {
-			if (isFilteredToUnread) {
-				// Already filtered to unread - restore user's previous filter
-				this._restoreUserFilter();
-			} else {
-				// Save current filter before applying our own
-				this._saveUserFilter();
-				// Exclude read sessions to show only unread, preserving provider filters
+		// Check if already filtered to this type — toggle off
+		if (isToggleOff) {
+			this._restoreUserFilter();
+		} else {
+			// Save current filter before applying our own
+			this._saveUserFilter();
+
+			if (filterType === 'unread') {
 				this._storeFilter({
 					providers: preservedProviders,
 					states: [],
 					archived: true,
 					read: true
 				});
-				// Track that this window applied the badge filter
-				this._badgeFilterAppliedByThisWindow = 'unread';
-			}
-		} else {
-			if (isFilteredToInProgress) {
-				// Already filtered to in-progress - restore user's previous filter
-				this._restoreUserFilter();
-			} else {
-				// Save current filter before applying our own
-				this._saveUserFilter();
-				// Exclude Completed and Failed to show InProgress and NeedsInput, preserving provider filters
+			} else if (filterType === 'inProgress') {
+				// Exclude Completed, Failed, and NeedsInput — show only InProgress
 				this._storeFilter({
 					providers: preservedProviders,
-					states: [AgentSessionStatus.Completed, AgentSessionStatus.Failed],
+					states: [AgentSessionStatus.Completed, AgentSessionStatus.Failed, AgentSessionStatus.NeedsInput],
 					archived: true,
 					read: false
 				});
-				// Track that this window applied the badge filter
-				this._badgeFilterAppliedByThisWindow = 'inProgress';
+			} else {
+				// Exclude Completed, Failed, and InProgress — show only NeedsInput
+				this._storeFilter({
+					providers: preservedProviders,
+					states: [AgentSessionStatus.Completed, AgentSessionStatus.Failed, AgentSessionStatus.InProgress],
+					archived: true,
+					read: false
+				});
 			}
+			this._badgeFilterAppliedByThisWindow = filterType;
 		}
 
 		// Open the sessions view
@@ -1164,6 +1209,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		escButton.setAttribute('role', 'button');
 		escButton.setAttribute('aria-label', localize('exitAgentSessionProjection', "Exit Agent Session Projection"));
 		escButton.tabIndex = 0;
+		this._rovingElements.push(escButton);
 		parent.appendChild(escButton);
 
 		// Setup hover
@@ -1204,9 +1250,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		enterButton.setAttribute('role', 'button');
 		enterButton.setAttribute('aria-label', localize('enterAgentSessionProjection', "Enter Agent Session Projection"));
 		enterButton.tabIndex = 0;
-		if (!this._firstFocusableElement) {
-			this._firstFocusableElement = enterButton;
-		}
+		this._rovingElements.push(enterButton);
 		parent.appendChild(enterButton);
 
 		// Setup hover

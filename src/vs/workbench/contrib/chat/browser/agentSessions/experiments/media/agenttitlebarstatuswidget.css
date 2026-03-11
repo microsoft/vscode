@@ -81,11 +81,6 @@
 	cursor: pointer;
 }
 
-.agent-status-pill.chat-input-mode:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
 .agent-status-pill.session-mode,
 .agent-status-pill.session-ready-mode {
 	padding: 0 12px;
@@ -149,6 +144,11 @@
 
 .agent-status-pill .agent-status-input-area:hover {
 	background-color: var(--vscode-commandCenter-activeBackground);
+}
+
+.agent-status-pill .agent-status-input-area:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .agent-status-label.has-progress {
@@ -379,13 +379,14 @@
 }
 
 .agent-status-badge-section.sparkle .action-container {
-	padding: 0 4px;
+	padding: 0 5px;
 	border-radius: 5px 0 0 5px;
 }
 
 /* In compact mode, no left radius on sparkle - it sits flush next to other sections */
 .agent-status-pill.compact-mode .agent-status-badge-section.sparkle .action-container {
 	border-radius: 0;
+	padding: 0 5px 0 6px;
 }
 
 .agent-status-badge-section.sparkle .dropdown-action-container {
