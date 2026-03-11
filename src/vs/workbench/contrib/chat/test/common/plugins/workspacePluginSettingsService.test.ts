@@ -8,6 +8,8 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { waitForState } from '../../../../../../base/common/observable.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -58,7 +60,7 @@ suite('WorkspacePluginSettingsService', () => {
 
 	// --- enabledPlugins parsing ---
 
-	test('parses enabledPlugins from Claude settings', async () => {
+	test('parses enabledPlugins from Claude settings', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
 			enabledPlugins: {
 				'my-plugin@my-marketplace': true,
@@ -67,17 +69,15 @@ suite('WorkspacePluginSettingsService', () => {
 		}));
 
 		const service = createService();
-
-		// Allow async read to settle.
-		await new Promise(r => setTimeout(r, 50));
+		await waitForState(service.enabledPlugins, v => v.size > 0);
 
 		const enabled = service.enabledPlugins.get();
 		assert.strictEqual(enabled.get('my-plugin@my-marketplace'), true);
 		assert.strictEqual(enabled.get('disabled-plugin@my-marketplace'), false);
 		assert.strictEqual(enabled.size, 2);
-	});
+	}));
 
-	test('settings.local.json overrides settings.json for enabledPlugins', async () => {
+	test('settings.local.json overrides settings.json for enabledPlugins', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
 			enabledPlugins: {
 				'my-plugin@mp': true,
@@ -91,14 +91,14 @@ suite('WorkspacePluginSettingsService', () => {
 		}));
 
 		const service = createService();
-		await new Promise(r => setTimeout(r, 50));
+		await waitForState(service.enabledPlugins, v => v.size > 0);
 
 		const enabled = service.enabledPlugins.get();
 		assert.strictEqual(enabled.get('my-plugin@mp'), false, 'local should override shared');
 		assert.strictEqual(enabled.get('other-plugin@mp'), true, 'non-overridden key preserved');
-	});
+	}));
 
-	test('merges enabledPlugins from Claude and Copilot settings', async () => {
+	test('merges enabledPlugins from Claude and Copilot settings', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
 			enabledPlugins: { 'from-claude@mp': true }
 		}));
@@ -107,14 +107,14 @@ suite('WorkspacePluginSettingsService', () => {
 		}));
 
 		const service = createService();
-		await new Promise(r => setTimeout(r, 50));
+		await waitForState(service.enabledPlugins, v => v.size >= 2);
 
 		const enabled = service.enabledPlugins.get();
 		assert.strictEqual(enabled.get('from-claude@mp'), true);
 		assert.strictEqual(enabled.get('from-copilot@mp'), true);
-	});
+	}));
 
-	test('Claude enabledPlugins take precedence over Copilot for same key', async () => {
+	test('Claude enabledPlugins take precedence over Copilot for same key', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
 			enabledPlugins: { 'shared-plugin@mp': false }
 		}));
@@ -123,15 +123,15 @@ suite('WorkspacePluginSettingsService', () => {
 		}));
 
 		const service = createService();
-		await new Promise(r => setTimeout(r, 50));
+		await waitForState(service.enabledPlugins, v => v.size > 0);
 
 		const enabled = service.enabledPlugins.get();
 		assert.strictEqual(enabled.get('shared-plugin@mp'), false, 'Claude should win');
-	});
+	}));
 
 	// --- extraKnownMarketplaces parsing ---
 
-	test('parses GitHub shorthand from extraKnownMarketplaces', async () => {
+	test('parses GitHub shorthand from extraKnownMarketplaces', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
 			extraKnownMarketplaces: {
 				'my-marketplace': {
@@ -142,16 +142,16 @@ suite('WorkspacePluginSettingsService', () => {
 		}));
 
 		const service = createService();
-		await new Promise(r => setTimeout(r, 50));
+		await waitForState(service.extraMarketplaces, v => v.length > 0);
 
 		const marketplaces = service.extraMarketplaces.get();
 		assert.strictEqual(marketplaces.length, 1);
 		assert.strictEqual(marketplaces[0].name, 'my-marketplace');
 		assert.strictEqual(marketplaces[0].reference.displayLabel, 'my-marketplace');
 		assert.strictEqual(marketplaces[0].reference.githubRepo, 'owner/repo');
-	});
+	}));
 
-	test('parses nested source object from extraKnownMarketplaces', async () => {
+	test('parses nested source object from extraKnownMarketplaces', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
 			extraKnownMarketplaces: {
 				'nested-mp': {
@@ -164,15 +164,15 @@ suite('WorkspacePluginSettingsService', () => {
 		}));
 
 		const service = createService();
-		await new Promise(r => setTimeout(r, 50));
+		await waitForState(service.extraMarketplaces, v => v.length > 0);
 
 		const marketplaces = service.extraMarketplaces.get();
 		assert.strictEqual(marketplaces.length, 1);
 		assert.strictEqual(marketplaces[0].reference.githubRepo, 'nested-owner/nested-repo');
 		assert.strictEqual(marketplaces[0].reference.displayLabel, 'nested-mp');
-	});
+	}));
 
-	test('deduplicates marketplaces across Claude and Copilot by canonical ID', async () => {
+	test('deduplicates marketplaces across Claude and Copilot by canonical ID', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
 			extraKnownMarketplaces: {
 				'claude-name': { source: 'github', repo: 'owner/repo' }
@@ -185,27 +185,28 @@ suite('WorkspacePluginSettingsService', () => {
 		}));
 
 		const service = createService();
-		await new Promise(r => setTimeout(r, 50));
+		await waitForState(service.extraMarketplaces, v => v.length > 0);
 
 		const marketplaces = service.extraMarketplaces.get();
 		assert.strictEqual(marketplaces.length, 1, 'should deduplicate by canonical ID');
 		assert.strictEqual(marketplaces[0].name, 'claude-name', 'Claude entry should win');
-	});
+	}));
 
 	// --- Invalid input handling ---
 
-	test('ignores invalid enabledPlugins shapes', async () => {
+	test('ignores invalid enabledPlugins shapes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
 			enabledPlugins: 'not-an-object'
 		}));
 
 		const service = createService();
-		await new Promise(r => setTimeout(r, 50));
+		// Give the async read a chance to complete with faked timers.
+		await new Promise<void>(r => queueMicrotask(r));
 
 		assert.strictEqual(service.enabledPlugins.get().size, 0);
-	});
+	}));
 
-	test('ignores non-boolean values in enabledPlugins', async () => {
+	test('ignores non-boolean values in enabledPlugins', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
 			enabledPlugins: {
 				'valid@mp': true,
@@ -215,14 +216,14 @@ suite('WorkspacePluginSettingsService', () => {
 		}));
 
 		const service = createService();
-		await new Promise(r => setTimeout(r, 50));
+		await waitForState(service.enabledPlugins, v => v.size > 0);
 
 		const enabled = service.enabledPlugins.get();
 		assert.strictEqual(enabled.size, 1);
 		assert.strictEqual(enabled.get('valid@mp'), true);
-	});
+	}));
 
-	test('ignores non-object marketplace entries', async () => {
+	test('ignores non-object marketplace entries', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
 			extraKnownMarketplaces: {
 				'valid': { source: 'github', repo: 'owner/repo' },
@@ -232,18 +233,18 @@ suite('WorkspacePluginSettingsService', () => {
 		}));
 
 		const service = createService();
-		await new Promise(r => setTimeout(r, 50));
+		await waitForState(service.extraMarketplaces, v => v.length > 0);
 
 		const marketplaces = service.extraMarketplaces.get();
 		assert.strictEqual(marketplaces.length, 1);
 		assert.strictEqual(marketplaces[0].name, 'valid');
-	});
+	}));
 
-	test('returns empty observables when no settings files exist', async () => {
+	test('returns empty observables when no settings files exist', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const service = createService();
-		await new Promise(r => setTimeout(r, 50));
+		await new Promise<void>(r => queueMicrotask(r));
 
 		assert.strictEqual(service.enabledPlugins.get().size, 0);
 		assert.strictEqual(service.extraMarketplaces.get().length, 0);
-	});
+	}));
 });
