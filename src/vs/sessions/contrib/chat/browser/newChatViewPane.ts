@@ -439,7 +439,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._targetPicker.setRepository(repository);
 			this._updateTargetPickerState();
 			this._branchPicker.setRepository(repository);
+			this._branchPicker.setVisible(!!repository && this._targetPicker.isolationMode === 'worktree');
 			this._syncIndicator.setRepository(repository);
+			this._syncIndicator.setVisible(!!repository && this._targetPicker.isolationMode === 'worktree');
 			this._modePicker.setRepository(repository);
 		}).catch(e => {
 			if (cts.token.isCancellationRequested) {
@@ -451,7 +453,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._targetPicker.setRepository(undefined);
 			this._updateTargetPickerState();
 			this._branchPicker.setRepository(undefined);
+			this._branchPicker.setVisible(false);
 			this._syncIndicator.setRepository(undefined);
+			this._syncIndicator.setVisible(false);
 			this._modePicker.setRepository(undefined);
 		});
 	}
