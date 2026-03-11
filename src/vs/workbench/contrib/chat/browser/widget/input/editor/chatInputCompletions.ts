@@ -263,7 +263,8 @@ class SlashCommandCompletions extends Disposable {
 						}
 						return true;
 					})
-					.filter(c => c.parsedPromptFile?.header?.userInvocable !== false);
+					.filter(c => c.parsedPromptFile?.header?.userInvocable !== false)
+					.filter(c => !c.when || widget.scopedContextKeyService.contextMatchesRules(c.when));
 				if (userInvocableCommands.length === 0) {
 					return null;
 				}

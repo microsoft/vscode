@@ -1974,6 +1974,74 @@ export default tseslint.config(
 					]
 				},
 				{
+					'target': 'src/vs/sessions/sessions.web.main.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/*/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/editor/editor.all.js',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/api/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/sessions.common.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/sessions.web.main.internal.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/sessions.web.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/test/sessions.web.test.internal.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/test/**',
+						'vs/sessions/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/sessions.web.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/test/{web.test.ts,web.test.factory.ts}',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/test/**',
+						'vs/sessions/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~'
+					]
+				},
+				{
 					'target': 'src/vs/sessions/~',
 					'restrictions': [
 						'vs/base/~',
@@ -2203,21 +2271,13 @@ export default tseslint.config(
 			'@typescript-eslint': tseslint.plugin,
 		},
 		rules: {
-			'@typescript-eslint/naming-convention': [
+			'no-restricted-syntax': [
 				'warn',
 				{
-					'selector': 'default',
-					'modifiers': ['private'],
-					'format': null,
-					'leadingUnderscore': 'require'
+					selector: ':matches(PropertyDefinition, TSParameterProperty, MethodDefinition[key.name!="constructor"])[accessibility="private"]',
+					message: 'Use #private instead',
 				},
-				{
-					'selector': 'default',
-					'modifiers': ['public'],
-					'format': null,
-					'leadingUnderscore': 'forbid'
-				}
-			]
+			],
 		}
 	},
 	// Additional extension strictness rules
@@ -2283,5 +2343,4 @@ export default tseslint.config(
 				},
 			],
 		}
-	},
-);
+	});

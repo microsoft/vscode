@@ -59,7 +59,7 @@ import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common
 import { IChatContextItem } from '../../contrib/chat/common/contextContrib/chatContext.js';
 import { IChatProgressHistoryResponseContent, IChatRequestVariableData } from '../../contrib/chat/common/model/chatModel.js';
 import { ChatResponseClearToPreviousToolInvocationReason, IChatContentInlineReference, IChatExternalEditsDto, IChatFollowup, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService/chatService.js';
-import { IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatNewSessionRequest, IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableValue } from '../../contrib/chat/common/attachments/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatSelector } from '../../contrib/chat/common/languageModels.js';
@@ -1504,12 +1504,15 @@ export interface ExtHostChatDebugShape {
 	$resolveChatDebugLogEvent(handle: number, eventId: string, token: CancellationToken): Promise<IChatDebugResolvedEventContentDto | undefined>;
 	$exportChatDebugLog(handle: number, sessionResource: UriComponents, coreEvents: IChatDebugEventDto[], sessionTitle: string | undefined, token: CancellationToken): Promise<VSBuffer | undefined>;
 	$importChatDebugLog(handle: number, data: VSBuffer, token: CancellationToken): Promise<{ uri: UriComponents; sessionTitle?: string } | undefined>;
+	$onCoreDebugEvent(event: IChatDebugEventDto): void;
 }
 
 export interface MainThreadChatDebugShape extends IDisposable {
 	$registerChatDebugLogProvider(handle: number): void;
 	$unregisterChatDebugLogProvider(handle: number): void;
 	$acceptChatDebugEvent(handle: number, event: IChatDebugEventDto): void;
+	$subscribeToCoreDebugEvents(): void;
+	$unsubscribeFromCoreDebugEvents(): void;
 }
 
 export interface MainThreadEmbeddingsShape extends IDisposable {
@@ -3599,7 +3602,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 export interface ExtHostChatSessionsShape {
 	$refreshChatSessionItems(providerHandle: number, token: CancellationToken): Promise<void>;
 	$onDidChangeChatSessionItemState(providerHandle: number, sessionResource: UriComponents, archived: boolean): void;
-	$newChatSessionItem(controllerHandle: number, request: Dto<IChatAgentRequest>, token: CancellationToken): Promise<Dto<IChatSessionItem> | undefined>;
+	$newChatSessionItem(controllerHandle: number, request: IChatNewSessionRequest, token: CancellationToken): Promise<Dto<IChatSessionItem> | undefined>;
 
 	$provideChatSessionContent(providerHandle: number, sessionResource: UriComponents, token: CancellationToken): Promise<ChatSessionDto>;
 	$interruptChatSessionActiveResponse(providerHandle: number, sessionResource: UriComponents, requestId: string): Promise<void>;

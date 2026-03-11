@@ -24,7 +24,7 @@ import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/c
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { awaitStatsForSession } from '../../contrib/chat/common/chat.js';
 import { IChatContentInlineReference, IChatProgress, IChatService, ResponseModelState } from '../../contrib/chat/common/chatService/chatService.js';
-import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
@@ -350,9 +350,7 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 		return this._proxy.$refreshChatSessionItems(this._handle, token);
 	}
 
-	async newChatSessionItem(request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {
-		warnOnUntitledSessionResource(request.sessionResource);
-
+	async newChatSessionItem(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {
 		const dto = await raceCancellationError(this._proxy.$newChatSessionItem(this._handle, request, token), token);
 		if (!dto) {
 			return undefined;
