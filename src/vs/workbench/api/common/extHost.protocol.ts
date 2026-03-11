@@ -1504,6 +1504,7 @@ export interface ExtHostChatDebugShape {
 	$resolveChatDebugLogEvent(handle: number, eventId: string, token: CancellationToken): Promise<IChatDebugResolvedEventContentDto | undefined>;
 	$exportChatDebugLog(handle: number, sessionResource: UriComponents, coreEvents: IChatDebugEventDto[], sessionTitle: string | undefined, token: CancellationToken): Promise<VSBuffer | undefined>;
 	$importChatDebugLog(handle: number, data: VSBuffer, token: CancellationToken): Promise<{ uri: UriComponents; sessionTitle?: string } | undefined>;
+	$onCoreDebugEvent(event: IChatDebugEventDto): void;
 }
 
 export interface MainThreadChatDebugShape extends IDisposable {

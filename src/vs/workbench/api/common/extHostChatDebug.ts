@@ -22,6 +22,9 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 	/** Progress pipelines keyed by `${handle}:${sessionResource}` so multiple sessions can stream concurrently. */
 	private readonly _activeProgress = new Map<string, DisposableStore>();
 
+	private readonly _onDidAddCoreEvent = this._register(new Emitter<vscode.ChatDebugEvent>());
+	readonly onDidAddCoreEvent = this._onDidAddCoreEvent.event;
+
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 	) {
@@ -364,6 +367,13 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 			}
 			default:
 				return undefined;
+		}
+	}
+
+	$onCoreDebugEvent(dto: IChatDebugEventDto): void {
+		const event = this._deserializeEvent(dto);
+		if (event) {
+			this._onDidAddCoreEvent.fire(event);
 		}
 	}
 

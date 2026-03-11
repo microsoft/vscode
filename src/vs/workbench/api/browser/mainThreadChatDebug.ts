@@ -25,6 +25,13 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatDebug);
+
+		// Forward core-originated events to the extension host in real-time
+		this._register(this._chatDebugService.onDidAddEvent(event => {
+			if (this._chatDebugService.isCoreEvent(event)) {
+				this._proxy.$onCoreDebugEvent(this._serializeEvent(event));
+			}
+		}));
 	}
 
 	$registerChatDebugLogProvider(handle: number): void {

@@ -51,10 +51,26 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 				}
 			}
 
+			// Enrich details with file paths so they appear in the event
+			// payload (e.g. forwarded via onDidReceiveChatDebugEvent to the
+			// extension's JSONL file logger).
+			let details = entry.details;
+			if (entry.discoveryInfo) {
+				const info = entry.discoveryInfo;
+				const loaded = info.files.filter(f => f.status === 'loaded').map(f => f.name ?? f.uri.path.split('/').pop() ?? f.uri.toString());
+				const skipped = info.files.filter(f => f.status === 'skipped').map(f => f.name ?? f.uri.path.split('/').pop() ?? f.uri.toString());
+				const folders = info.sourceFolders?.map(sf => sf.uri.path) ?? [];
+				const parts = [details];
+				if (loaded.length > 0) { parts.push(`loaded: [${loaded.join(', ')}]`); }
+				if (skipped.length > 0) { parts.push(`skipped: [${skipped.join(', ')}]`); }
+				if (folders.length > 0) { parts.push(`folders: [${folders.join(', ')}]`); }
+				details = parts.join(' | ');
+			}
+
 			chatDebugService.log(
 				entry.sessionResource,
 				entry.name,
-				entry.details,
+				details,
 				undefined,
 				{ id: eventId, category: entry.category },
 			);
