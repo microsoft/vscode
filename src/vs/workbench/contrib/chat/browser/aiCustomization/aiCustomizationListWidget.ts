@@ -288,7 +288,29 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 		// Hooks show shell commands here, so keep the full text instead of truncating to the first sentence.
 		const secondaryText = getCustomizationSecondaryText(element.description, element.filename, element.promptType);
-		const secondaryTextMatches = element.description && secondaryText === element.description ? element.descriptionMatches : undefined;
+		let secondaryTextMatches: IMatch[] | undefined;
+		if (secondaryText && element.description && element.descriptionMatches) {
+			if (secondaryText === element.description) {
+				// No truncation, matches can be used as-is.
+				secondaryTextMatches = element.descriptionMatches;
+			} else {
+				// Description was truncated for display; clamp matches to the visible range.
+				const maxLength = secondaryText.length;
+				const clampedMatches = element.descriptionMatches.map(match => {
+					const start = match.start;
+					const end = match.start + match.length;
+					// Discard matches that are entirely outside the visible portion.
+					if (start >= maxLength || end <= 0) {
+						return undefined;
+					}
+					const clampedStart = Math.max(0, start);
+					const clampedEnd = Math.min(end, maxLength);
+					const length = clampedEnd - clampedStart;
+					return length > 0 ? { start: clampedStart, length } : undefined;
+				}).filter((match): match is IMatch => !!match);
+				secondaryTextMatches = clampedMatches.length ? clampedMatches : undefined;
+			}
+		}
 		if (secondaryText) {
 			templateData.description.set(secondaryText, secondaryTextMatches);
 			templateData.description.element.style.display = '';
