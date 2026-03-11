@@ -11,7 +11,7 @@ import { EmbeddedDiffEditorWidget } from '../../../../editor/browser/widget/diff
 import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { InlineChatController, InlineChatRunOptions } from './inlineChatController.js';
-import { ACTION_ACCEPT_CHANGES, ACTION_ASK_IN_CHAT, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_POSSIBLE, ACTION_START, CTX_INLINE_CHAT_V2_ENABLED, CTX_INLINE_CHAT_V1_ENABLED, CTX_HOVER_MODE, CTX_INLINE_CHAT_INPUT_HAS_TEXT, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED, CTX_INLINE_CHAT_PENDING_CONFIRMATION, InlineChatConfigKeys, CTX_FIX_DIAGNOSTICS_ENABLED, CTX_INLINE_CHAT_AFFORDANCE_VISIBLE } from '../common/inlineChat.js';
+import { ACTION_ACCEPT_CHANGES, ACTION_ASK_IN_CHAT, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_POSSIBLE, ACTION_START, CTX_INLINE_CHAT_V2_ENABLED, CTX_INLINE_CHAT_V1_ENABLED, CTX_HOVER_MODE, CTX_INLINE_CHAT_INPUT_HAS_TEXT, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED, CTX_INLINE_CHAT_PENDING_CONFIRMATION, CTX_INLINE_CHAT_TERMINATED, InlineChatConfigKeys, CTX_FIX_DIAGNOSTICS_ENABLED, CTX_INLINE_CHAT_AFFORDANCE_VISIBLE } from '../common/inlineChat.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress } from '../../chat/browser/chatEditing/chatEditingEditorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IAction2Options, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
@@ -397,6 +397,49 @@ export class CancelSessionAction extends KeepOrUndoSessionAction {
 				when: ContextKeyExpr.and(CTX_HOVER_MODE, ctxHasRequestInProgress)
 			}]
 		});
+	}
+}
+
+export class ContinueInlineChatInChatViewAction extends AbstractInlineChatAction {
+
+	constructor() {
+		super({
+			id: 'inlineChat2.continueInChat',
+			title: localize2('continueInChat', "Ask in Chat"),
+			icon: Codicon.chatSparkle,
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_HOVER_MODE, CTX_INLINE_CHAT_TERMINATED),
+			menu: [{
+				id: MenuId.ChatEditorInlineExecute,
+				group: 'navigation',
+				order: 2,
+				when: ContextKeyExpr.and(CTX_HOVER_MODE, CTX_INLINE_CHAT_TERMINATED)
+			}]
+		});
+	}
+
+	override async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor): Promise<void> {
+		await ctrl.continueSessionInChat();
+	}
+}
+
+export class RephraseInlineChatSessionAction extends AbstractInlineChatAction {
+
+	constructor() {
+		super({
+			id: 'inlineChat2.rephrase',
+			title: localize2('rephrase', "Rephrase"),
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_HOVER_MODE, CTX_INLINE_CHAT_TERMINATED),
+			menu: [{
+				id: MenuId.ChatEditorInlineExecute,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(CTX_HOVER_MODE, CTX_INLINE_CHAT_TERMINATED)
+			}]
+		});
+	}
+
+	override async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor): Promise<void> {
+		await ctrl.rephraseSession();
 	}
 }
 
