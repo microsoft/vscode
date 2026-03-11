@@ -12,7 +12,7 @@ This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Stu
 <p align="center">
   <img alt="VS Code in action" src="https://user-images.githubusercontent.com/35271042/118224532-3842c400-b438-11eb-923d-a5f66fa6785a.png">
 </p>
-
+ 
 [Visual Studio Code](https://code.visualstudio.com) is a distribution of the `Code - OSS` repository with Microsoft-specific customizations released under a traditional [Microsoft product license](https://code.visualstudio.com/License/).
 
 [Visual Studio Code](https://code.visualstudio.com) combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. It provides comprehensive code editing, navigation, and understanding support along with lightweight debugging, a rich extensibility model, and lightweight integration with existing tools.
@@ -76,3 +76,41 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 Copyright (c) Microsoft Corporation. All rights reserved.
 
 Licensed under the [MIT](LICENSE.txt) license.
+
+const loginForm = document.getElementById("login-form");
+
+loginForm.addEventListener("submit", function (event) {
+
+const email = document.getElementById("email");
+const password = document.getElementById("password");
+
+const emailError = document.getElementById("email-error");
+const passwordError = document.getElementById("password-error");
+
+emailError.textContent = "";
+passwordError.textContent = "";
+
+let valid = true;
+
+if (!email.value) {
+
+emailError.textContent = "Molimo unesite email adresu.";
+email.setAttribute("aria-invalid", "true");
+email.focus();
+
+valid = false;
+}
+
+if (!password.value) {
+
+passwordError.textContent = "Molimo unesite lozinku.";
+password.setAttribute("aria-invalid", "true");
+
+valid = false;
+}
+
+if (!valid) {
+event.preventDefault();
+}
+
+});
