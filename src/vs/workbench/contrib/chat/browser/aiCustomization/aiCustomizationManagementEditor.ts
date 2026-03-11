@@ -40,6 +40,7 @@ import {
 	AI_CUSTOMIZATION_MANAGEMENT_SIDEBAR_WIDTH_KEY,
 	AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY,
 	AICustomizationManagementSection,
+	AICustomizationPromptsStorage,
 	BUILTIN_STORAGE,
 	CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR,
 	CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION,
@@ -103,6 +104,12 @@ interface IBuiltinPromptSaveRequest {
 	readonly target: 'workspace' | 'user';
 	readonly folder: URI;
 	readonly sourceUri: URI;
+	readonly content: string;
+	readonly projectRoot?: URI;
+}
+
+interface IExistingCustomizationSaveRequest {
+	readonly fileUri: URI;
 	readonly content: string;
 	readonly projectRoot?: URI;
 }
@@ -174,6 +181,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private embeddedEditor: CodeEditorWidget | undefined;
 	private editorActionButton!: HTMLButtonElement;
 	private editorActionButtonIcon!: HTMLElement;
+	private editorActionButtonInProgress = false;
 	private editorItemNameElement!: HTMLElement;
 	private editorItemPathElement!: HTMLElement;
 	private editorSaveIndicator!: HTMLElement;
@@ -181,7 +189,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private readonly builtinEditingSessions = new Map<string, { model: ITextModel; originalContent: string }>();
 	private currentEditingUri: URI | undefined;
 	private currentEditingProjectRoot: URI | undefined;
-	private currentEditingStorage: PromptsStorage | undefined;
+	private currentEditingStorage: AICustomizationPromptsStorage | undefined;
 	private currentEditingPromptType: PromptsType | undefined;
 	private currentModelRef: IReference<IResolvedTextEditorModel> | undefined;
 	private viewMode: 'list' | 'editor' | 'mcpDetail' | 'pluginDetail' = 'list';
@@ -876,7 +884,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		));
 	}
 
-	private async showEmbeddedEditor(uri: URI, displayName: string, promptType: PromptsType, storage: PromptsStorage, isWorkspaceFile = false, isReadOnly = false): Promise<void> {
+	private async showEmbeddedEditor(uri: URI, displayName: string, promptType: PromptsType, storage: AICustomizationPromptsStorage, isWorkspaceFile = false, isReadOnly = false): Promise<void> {
 		this.currentModelRef?.dispose();
 		this.currentModelRef = undefined;
 		this.editorModelChangeDisposables.clear();
@@ -956,12 +964,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private goBackToList(): void {
-		// Auto-commit workspace files when leaving the embedded editor (only if modified)
 		const fileUri = this.currentEditingUri;
-		const projectRoot = this.currentEditingProjectRoot;
-		if (fileUri && projectRoot && this._editorContentChanged) {
-			this.workspaceService.commitFiles(projectRoot, [fileUri]);
-		}
+		const backgroundSaveRequest = this.createExistingCustomizationSaveRequest();
 		if (fileUri && this.currentEditingStorage === BUILTIN_STORAGE) {
 			this.disposeBuiltinEditingSession(fileUri);
 		}
@@ -987,6 +991,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.layout(this.dimension);
 		}
 		this.listWidget?.focusSearch();
+
+		if (backgroundSaveRequest) {
+			const saveRequest = backgroundSaveRequest;
+			void this.saveExistingCustomization(saveRequest).catch(error => {
+				console.error('Failed to save customization changes on exit:', error);
+				this.notificationService.warn(localize('saveCustomizationOnExitFailed', "Could not save changes to {0}.", basename(saveRequest.fileUri)));
+			});
+		}
 	}
 
 	//#endregion
@@ -1037,12 +1049,36 @@ export class AICustomizationManagementEditor extends EditorPane {
 		};
 	}
 
+	private createExistingCustomizationSaveRequest(): IExistingCustomizationSaveRequest | undefined {
+		if (!this._editorContentChanged || this.currentEditingStorage === BUILTIN_STORAGE || !this.currentEditingUri) {
+			return undefined;
+		}
+
+		const model = this.currentModelRef?.object.textEditorModel;
+		if (!model) {
+			return undefined;
+		}
+
+		return {
+			fileUri: this.currentEditingUri,
+			content: model.getValue(),
+			projectRoot: this.currentEditingProjectRoot,
+		};
+	}
+
 	private async saveBuiltinPromptCopy(request: IBuiltinPromptSaveRequest): Promise<void> {
 		const targetUri = URI.joinPath(request.folder, basename(request.sourceUri));
 		await this.fileService.createFolder(request.folder);
 		await this.fileService.writeFile(targetUri, VSBuffer.fromString(request.content));
 		if (request.target === 'workspace' && request.projectRoot) {
 			await this.workspaceService.commitFiles(request.projectRoot, [targetUri]);
+		}
+	}
+
+	private async saveExistingCustomization(request: IExistingCustomizationSaveRequest): Promise<void> {
+		await this.fileService.writeFile(request.fileUri, VSBuffer.fromString(request.content));
+		if (request.projectRoot) {
+			await this.workspaceService.commitFiles(request.projectRoot, [request.fileUri]);
 		}
 	}
 
@@ -1082,29 +1118,39 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private async handleEditorActionButton(): Promise<void> {
-		let backgroundSaveRequest: IBuiltinPromptSaveRequest | undefined;
-		if (this.shouldShowBuiltinSaveAction()) {
-			const selection = await this.pickBuiltinPromptSaveTarget();
-			if (!selection) {
-				return;
-			}
-
-			if (selection.target !== 'cancel') {
-				backgroundSaveRequest = this.createBuiltinPromptSaveRequest(selection);
-			}
+		if (this.editorActionButtonInProgress) {
+			return;
 		}
 
-		this.goBackToList();
-		if (backgroundSaveRequest) {
-			const saveRequest = backgroundSaveRequest;
-			void this.saveBuiltinPromptCopy(saveRequest).then(() => {
-				void this.listWidget?.refresh();
-			}, error => {
-				console.error('Failed to save built-in prompt override:', error);
-				this.notificationService.warn(saveRequest.target === 'workspace'
-					? localize('saveBuiltinPromptCopyFailedWorkspace', "Could not save the prompt override to the workspace prompts.")
-					: localize('saveBuiltinPromptCopyFailedUser', "Could not save the prompt override to your user prompts."));
-			});
+		this.editorActionButtonInProgress = true;
+		this.updateEditorActionButton();
+
+		let backgroundSaveRequest: IBuiltinPromptSaveRequest | undefined;
+		try {
+			if (this.shouldShowBuiltinSaveAction()) {
+				const selection = await this.pickBuiltinPromptSaveTarget();
+				if (!selection || selection.target === 'cancel') {
+					return;
+				}
+
+				backgroundSaveRequest = this.createBuiltinPromptSaveRequest(selection);
+			}
+
+			this.goBackToList();
+			if (backgroundSaveRequest) {
+				const saveRequest = backgroundSaveRequest;
+				void this.saveBuiltinPromptCopy(saveRequest).then(() => {
+					void this.listWidget?.refresh();
+				}, error => {
+					console.error('Failed to save built-in prompt override:', error);
+					this.notificationService.warn(saveRequest.target === 'workspace'
+						? localize('saveBuiltinPromptCopyFailedWorkspace', "Could not save the prompt override to the workspace prompts.")
+						: localize('saveBuiltinPromptCopyFailedUser', "Could not save the prompt override to your user prompts."));
+				});
+			}
+		} finally {
+			this.editorActionButtonInProgress = false;
+			this.updateEditorActionButton();
 		}
 	}
 
@@ -1115,7 +1161,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const shouldShowBuiltinSaveAction = this.shouldShowBuiltinSaveAction();
 		this.editorActionButtonIcon.className = `codicon codicon-${shouldShowBuiltinSaveAction ? Codicon.save.id : Codicon.arrowLeft.id} editor-action-button-icon`;
-		this.editorActionButton.disabled = false;
+		this.editorActionButton.disabled = this.editorActionButtonInProgress;
 		this.editorActionButton.setAttribute('aria-label', shouldShowBuiltinSaveAction
 			? localize('savePromptCopyAndChooseLocation', "Save prompt override")
 			: localize('backToList', "Back to list"));
