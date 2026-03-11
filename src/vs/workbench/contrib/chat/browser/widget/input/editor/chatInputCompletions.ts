@@ -30,7 +30,6 @@ import { localize } from '../../../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { FileKind, IFileService } from '../../../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
@@ -87,7 +86,6 @@ class SlashCommandCompletions extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService chatService: IChatService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IMcpService mcpService: IMcpService,
@@ -266,7 +264,7 @@ class SlashCommandCompletions extends Disposable {
 						return true;
 					})
 					.filter(c => c.parsedPromptFile?.header?.userInvocable !== false)
-					.filter(c => !c.when || this.contextKeyService.contextMatchesRules(c.when));
+					.filter(c => !c.when || widget.scopedContextKeyService.contextMatchesRules(c.when));
 				if (userInvocableCommands.length === 0) {
 					return null;
 				}
