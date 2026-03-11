@@ -14,7 +14,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { CLAUDE_CONFIG_FOLDER } from '../promptSyntax/config/promptFileLocations.js';
-import { IMarketplaceReference, parseMarketplaceReference } from './pluginMarketplaceService.js';
+import { IMarketplaceReference, parseMarketplaceReference } from './marketplaceReference.js';
 
 const SETTINGS_FILENAME = 'settings.json';
 const SETTINGS_LOCAL_FILENAME = 'settings.local.json';

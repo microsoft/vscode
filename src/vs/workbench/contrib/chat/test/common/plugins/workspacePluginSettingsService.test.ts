@@ -15,10 +15,6 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
-// Import the marketplace module first to avoid circular initialization issues
-// (workspacePluginSettingsService imports from pluginMarketplaceService which
-// imports back from workspacePluginSettingsService).
-import '../../../common/plugins/pluginMarketplaceService.js';
 import { WorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 
 suite('WorkspacePluginSettingsService', () => {
