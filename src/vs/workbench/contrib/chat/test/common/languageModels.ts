@@ -8,6 +8,7 @@ import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IChatMessage, IModelsControlManifest, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelProviderDescriptor, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel } from '../../common/languageModels.js';
 import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
@@ -77,6 +78,13 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 
 	getModelConfiguration(_modelId: string): IStringDictionary<unknown> | undefined {
 		return undefined;
+	}
+
+	async setModelConfiguration(_modelId: string, _values: IStringDictionary<unknown>): Promise<void> {
+	}
+
+	getModelConfigurationActions(_modelId: string): IAction[] {
+		return [];
 	}
 
 	async configureLanguageModelsProviderGroup(vendorId: string, name?: string): Promise<void> {

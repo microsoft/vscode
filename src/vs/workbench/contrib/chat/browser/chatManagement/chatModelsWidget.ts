@@ -792,15 +792,21 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IActionsColumnTemplateData): void {
-		if (entry.model.metadata.configurationSchema) {
-			const secondaryActions: IAction[] = [];
-			secondaryActions.push(toAction({
-				id: 'configureModel',
-				label: localize('models.configureModel', 'Configure...'),
-				run: () => this.languageModelsService.configureModel(entry.model.identifier)
-			}));
-			templateData.actionBar.setActions([], secondaryActions);
+		const configActions = this.languageModelsService.getModelConfigurationActions(entry.model.identifier);
+		if (configActions.length === 0 && !entry.model.metadata.configurationSchema) {
+			return;
 		}
+
+		const secondaryActions: IAction[] = [...configActions];
+
+		// Always add "Configure..." as fallback for complex properties
+		secondaryActions.push(toAction({
+			id: 'configureModel',
+			label: localize('models.configureModel', 'Configure...'),
+			run: () => this.languageModelsService.configureModel(entry.model.identifier)
+		}));
+
+		templateData.actionBar.setActions([], secondaryActions);
 	}
 }
 
