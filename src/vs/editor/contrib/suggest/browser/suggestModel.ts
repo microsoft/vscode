@@ -366,6 +366,10 @@ export class SuggestModel implements IDisposable {
 			if (prevSelection.containsRange(this._currentSelection) || prevSelection.getEndPosition().isBeforeOrEqual(this._currentSelection.getPosition())) {
 				// cursor did move RIGHT due to typing -> trigger quick suggest
 				this._doTriggerQuickSuggest();
+			} else if (e.source === 'deleteLeft') {
+				// cursor moved LEFT due to backspace -> trigger quick suggest
+				// so that deleting a wrong character re-opens suggestions
+				this._doTriggerQuickSuggest();
 			}
 
 		} else if (this._triggerState !== undefined && e.reason === CursorChangeReason.Explicit) {
