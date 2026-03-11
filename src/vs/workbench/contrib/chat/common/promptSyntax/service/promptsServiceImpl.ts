@@ -907,7 +907,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const promises: Promise<IResolvedAgentFile[]>[] = [];
 
 		const includeParents = this.configurationService.getValue(PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS) === true;
-		const rootFolders = await this.fileLocator.getWorkspaceFolderRoots(includeParents);
+		const rootFolders = await this.fileLocator.getWorkspaceFolderRoots(includeParents, logger);
 
 		const rootFiles: IWorkspaceInstructionFile[] = [];
 		const useAgentMD = this.configurationService.getValue(PromptsConfig.USE_AGENT_MD);

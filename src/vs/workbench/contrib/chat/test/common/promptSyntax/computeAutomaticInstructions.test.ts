@@ -60,6 +60,7 @@ suite('ComputeAutomaticInstructions', () => {
 	let fileService: IFileService;
 	let toolsService: ILanguageModelToolsService;
 	let fileSystemProvider: TestInMemoryFileSystemProviderWithRealPath;
+	let workspaceTrustService: TestWorkspaceTrustManagementService;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
@@ -91,6 +92,9 @@ suite('ComputeAutomaticInstructions', () => {
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
 			activateByEvent: () => Promise.resolve()
 		});
+
+		workspaceTrustService = disposables.add(new TestWorkspaceTrustManagementService());
+		instaService.stub(IWorkspaceTrustManagementService, workspaceTrustService);
 
 		fileService = disposables.add(instaService.createInstance(FileService));
 		instaService.stub(IFileService, fileService);
@@ -182,8 +186,6 @@ suite('ComputeAutomaticInstructions', () => {
 		});
 
 		instaService.stub(IContextKeyService, new MockContextKeyService());
-
-		instaService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 
 		instaService.stub(IAgentPluginService, {
 			plugins: observableValue('testPlugins', []),
@@ -1639,6 +1641,10 @@ suite('ComputeAutomaticInstructions', () => {
 
 		await mockFiles(fileService, [
 			{
+				path: `${parentFolder}/.git/HEAD`,
+				contents: ['ref: refs/heads/main'],
+			},
+			{
 				path: `${parentFolder}/CLAUDE.md`,
 				contents: ['Parent Claude guidelines'],
 			},
@@ -1654,6 +1660,8 @@ suite('ComputeAutomaticInstructions', () => {
 
 		testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_MD, true);
 		testConfigService.setUserConfiguration(PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS, false);
+
+		await workspaceTrustService.setTrustedUris([URI.file(parentFolder)]);
 
 		const disabledParentContextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined);
 		const disabledParentVariables = new ChatRequestVariableSet();
@@ -1693,6 +1701,10 @@ suite('ComputeAutomaticInstructions', () => {
 
 		await mockFiles(fileService, [
 			{
+				path: `${parentFolder}/.git/HEAD`,
+				contents: ['ref: refs/heads/main'],
+			},
+			{
 				path: `${parentFolder}/.github/copilot-instructions.md`,
 				contents: ['Parent copilot instructions'],
 			},
@@ -1709,6 +1721,8 @@ suite('ComputeAutomaticInstructions', () => {
 		testConfigService.setUserConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES, true);
 		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_MD, true);
 		testConfigService.setUserConfiguration(PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS, false);
+
+		await workspaceTrustService.setTrustedUris([URI.file(parentFolder)]);
 
 		const disabledParentContextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined);
 		const disabledParentVariables = new ChatRequestVariableSet();
