@@ -1050,7 +1050,15 @@ suite('LanguageModels - Per-Model Configuration', function () {
 							maxInputTokens: 100,
 							maxOutputTokens: 100,
 							modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
-							isDefaultForLocation: {}
+							isDefaultForLocation: {},
+							configurationSchema: {
+								type: 'object',
+								properties: {
+									temperature: { type: 'number', default: 0.5 },
+									reasoningEffort: { type: 'string', default: 'medium' },
+									maxTokens: { type: 'number', default: 4096 }
+								}
+							}
 						} satisfies ILanguageModelChatMetadata,
 						identifier: 'config-vendor/default/model-a'
 					}, {
@@ -1105,7 +1113,7 @@ suite('LanguageModels - Per-Model Configuration', function () {
 		assert.strictEqual(config, undefined);
 	});
 
-	test('sendChatRequest passes per-model config as configuration', async function () {
+	test('sendChatRequest merges schema defaults with user config', async function () {
 		const cts = disposables.add(new CancellationTokenSource());
 		const request = await languageModelsService.sendChatRequest(
 			'config-vendor/default/model-a',
@@ -1116,12 +1124,12 @@ suite('LanguageModels - Per-Model Configuration', function () {
 		);
 		await request.result;
 
-		assert.deepStrictEqual(receivedOptions, { configuration: { temperature: 0.7, reasoningEffort: 'high' } });
+		// User config overrides defaults: temperature=0.7 (not 0.5), reasoningEffort='high' (not 'medium')
+		// Schema default maxTokens=4096 is included since user didn't override it
+		assert.deepStrictEqual(receivedOptions, { configuration: { temperature: 0.7, reasoningEffort: 'high', maxTokens: 4096 } });
 	});
 
-	test('sendChatRequest does not add configuration when no per-model config exists', async function () {
-		// model-c has no per-model config
-		// Register a model-c via a different group or verify model without config
+	test('sendChatRequest passes user config when model has no schema', async function () {
 		const cts = disposables.add(new CancellationTokenSource());
 		const request = await languageModelsService.sendChatRequest(
 			'config-vendor/default/model-b',
