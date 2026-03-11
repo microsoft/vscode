@@ -22,7 +22,7 @@ import { OvertypingCapturer } from '../../suggest/browser/suggestOvertypingCaptu
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { Choice, Marker, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser.js';
-import { ClipboardBasedVariableResolver, CommentBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, RandomBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables.js';
+import { ClipboardBasedVariableResolver, CommentBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, RandomBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, UserBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables.js';
 import { EditSources, TextModelEditSource } from '../../../common/textModelEditSource.js';
 
 export class OneSnippet {
@@ -529,6 +529,7 @@ export class SnippetSession {
 				new TimeBasedVariableResolver,
 				new WorkspaceBasedVariableResolver(workspaceService),
 				new RandomBasedVariableResolver,
+				new UserBasedVariableResolver,
 			]));
 
 			// store snippets with the index of their originating selection.
@@ -564,6 +565,7 @@ export class SnippetSession {
 			new TimeBasedVariableResolver,
 			new WorkspaceBasedVariableResolver(editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService))),
 			new RandomBasedVariableResolver,
+			new UserBasedVariableResolver,
 		]);
 
 		//
