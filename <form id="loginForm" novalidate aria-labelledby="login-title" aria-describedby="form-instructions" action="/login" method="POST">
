@@ -1,0 +1,87 @@
+import express from "express";
+import bodyParser from "body-parser";
+
+const app = express();
+const PORT = 3000;
+
+// statički serviraj HTML/CSS/JS
+app.use(express.static("public"));
+app.use(bodyParser.urlencoded({ extended: false }));
+
+// helper validacija
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+app.post("/login", (req, res) => {
+  const { email, password } = req.body;
+  const errors = {};
+
+  if (!email || !email.trim()) {
+    errors.email = "Email je obavezan.";
+  } else if (!isValidEmail(email)) {
+    errors.email = "Unesite ispravnu email adresu.";
+  }
+
+  if (!password || !password.trim()) {
+    errors.password = "Lozinka je obavezna.";
+  } else if (password.length < 6) {
+    errors.password = "Lozinka mora imati najmanje 6 znakova.";
+  }
+
+  if (Object.keys(errors).length > 0) {
+    // ovdje možeš vratiti HTML ili JSON – primjer s JSON-om:
+    return res.status(400).json({ success: false, errors });
+  }
+
+  // ovdje bi inače provjeravao korisnika u bazi
+  // simulacija uspješne prijave:
+  return res.json({ success: true, message: "Prijava uspješna!" });
+});
+
+app.listen(PORT, () => {
+  console.log(`Server radi na http://localhost:${PORT}`);
+});
+
+form.addEventListener("submit", async function (e) {
+  e.preventDefault();
+  errorList.innerHTML = "";
+  errorSummary.style.display = "none";
+  successMessage.textContent = "";
+
+  const formData = new FormData(form);
+
+  try {
+    const response = await fetch("/login", {
+      method: "POST",
+      body: formData
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      const { errors } = data;
+
+      if (errors.email) {
+        emailError.textContent = errors.email;
+        email.setAttribute("aria-invalid", "true");
+        errorList.innerHTML += `<li>Email: ${errors.email}</li>`;
+      }
+
+      if (errors.password) {
+        passwordError.textContent = errors.password;
+        password.setAttribute("aria-invalid", "true");
+        errorList.innerHTML += `<li>Lozinka: ${errors.password}</li>`;
+      }
+
+      errorSummary.style.display = "block";
+      errorSummary.focus();
+      return;
+    }
+
+    const data = await response.json();
+    successMessage.textContent = data.message || "Prijava uspješna!";
+  } catch (err) {
+    successMessage.textContent = "Došlo je do greške na serveru.";
+  }
+});
+ 
