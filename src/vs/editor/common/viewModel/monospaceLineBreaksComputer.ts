@@ -548,23 +548,19 @@ function adjustFontSizeRangesForInjectedText(fontSizeRanges: readonly LineFontSi
 		return fontSizeRanges;
 	}
 
-	// Build sorted injection points with their content lengths
-	const injections: { offset: number; length: number }[] = [];
-	for (const t of injectedTexts) {
-		injections.push({ offset: t.column - 1, length: t.options.content.length });
-	}
-	injections.sort((a, b) => a.offset - b.offset);
-
+	// Injected texts are already sorted by (lineNumber, column, order) from fromDecorations()
 	const result: LineFontSizeRange[] = [];
 	for (const range of fontSizeRanges) {
 		let startShift = 0;
 		let endShift = 0;
-		for (const inj of injections) {
-			if (inj.offset <= range.startOffset) {
-				startShift += inj.length;
-				endShift += inj.length;
-			} else if (inj.offset < range.endOffset) {
-				endShift += inj.length;
+		for (const inj of injectedTexts) {
+			const injOffset = inj.column - 1;
+			const injLength = inj.options.content.length;
+			if (injOffset <= range.startOffset) {
+				startShift += injLength;
+				endShift += injLength;
+			} else if (injOffset < range.endOffset) {
+				endShift += injLength;
 			}
 		}
 		result.push({

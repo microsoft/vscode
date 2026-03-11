@@ -48,6 +48,10 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 		this._annotations = annotations;
 	}
 
+	public get annotationCount(): number {
+		return this._annotations.length;
+	}
+
 	/**
 	 * Set annotations for a specific range.
 	 * Annotations should be sorted and non-overlapping.

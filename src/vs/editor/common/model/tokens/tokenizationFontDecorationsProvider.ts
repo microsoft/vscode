@@ -13,7 +13,7 @@ import { IFontTokenOption, IModelContentChangedEvent } from '../../textModelEven
 import { classNameForFontTokenDecorations } from '../../languages/supports/tokenization.js';
 import { LineFontSizeRange } from '../../modelLineProjectionData.js';
 import { Position } from '../../core/position.js';
-import { AnnotatedString, AnnotationsUpdate, IAnnotatedString, IAnnotationUpdate } from './annotations.js';
+import { AnnotatedString, AnnotationsUpdate, IAnnotationUpdate } from './annotations.js';
 import { OffsetRange } from '../../core/ranges/offsetRange.js';
 import { offsetEditFromContentChanges } from '../textModelStringEdit.js';
 
@@ -32,7 +32,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	private readonly _onDidChangeFont = this._register(new Emitter<Set<LineFontChangingDecoration>>());
 	public readonly onDidChangeFont = this._onDidChangeFont.event;
 
-	private _fontAnnotatedString: IAnnotatedString<IFontTokenAnnotation> = new AnnotatedString<IFontTokenAnnotation>();
+	private _fontAnnotatedString = new AnnotatedString<IFontTokenAnnotation>();
 
 	constructor(
 		private readonly textModel: ITextModel,
@@ -157,6 +157,9 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	 * Only returns ranges with a fontSizeMultiplier != 1.
 	 */
 	public getLineFontSizeRanges(lineNumber: number): readonly LineFontSizeRange[] | null {
+		if (this._fontAnnotatedString.annotationCount === 0) {
+			return null;
+		}
 		const lineStartOffset = this.textModel.getOffsetAt(new Position(lineNumber, 1));
 		const lineEndOffset = this.textModel.getOffsetAt(new Position(lineNumber, this.textModel.getLineMaxColumn(lineNumber)));
 		const annotations = this._fontAnnotatedString.getAnnotationsIntersecting(new OffsetRange(lineStartOffset, lineEndOffset));

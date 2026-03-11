@@ -542,6 +542,7 @@ export class ViewModel extends Disposable implements IViewModel {
 					accessor.insertOrChangeCustomLineHeight(data.decorationId, data.startLineNumber, data.endLineNumber, data.lineHeight);
 				}
 			});
+			this.viewLayout.onHeightMaybeChanged();
 		}
 	}
 
