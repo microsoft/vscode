@@ -704,7 +704,7 @@ suite('buildModelPickerItems', () => {
 		assert.ok(gptItem, 'Available featured model should appear even when showUnavailableFeatured=false');
 	});
 
-	test('showUnavailableFeatured=false with version-gated model does not place it in promoted', () => {
+	test('showUnavailableFeatured=false with version-gated model allows it in Other Models', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
 		const items = callBuild([auto, modelA], {
@@ -715,8 +715,10 @@ suite('buildModelPickerItems', () => {
 		});
 		const actions = getActionItems(items);
 		// Version-gated model should not be in promoted section as unavailable
-		const promotedLabels = actions.filter(a => !a.isSectionToggle && a.section !== 'other' && a.item?.id !== 'manageModels').map(a => a.label);
-		assert.ok(!promotedLabels.includes('GPT-4o') || !actions.find(a => a.label === 'GPT-4o')?.disabled,
-			'Version-gated featured model should not appear as unavailable in promoted when showUnavailableFeatured=false');
+		const promotedGpt = actions.find(a => a.label === 'GPT-4o' && a.section !== 'other');
+		assert.strictEqual(promotedGpt?.disabled, undefined, 'Version-gated featured model should not appear as unavailable in promoted when showUnavailableFeatured=false');
+		// It should still appear in Other Models since it was not placed
+		const otherGpt = actions.find(a => a.label === 'GPT-4o' && a.section === 'other');
+		assert.ok(otherGpt, 'Version-gated featured model should appear in Other Models when showUnavailableFeatured=false');
 	});
 });

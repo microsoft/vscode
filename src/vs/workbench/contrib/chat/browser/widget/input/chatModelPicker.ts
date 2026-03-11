@@ -264,12 +264,13 @@ export function buildModelPickerItems(
 					}
 					const model = resolveModel(entryId);
 					if (model && !placed.has(model.identifier)) {
-						markPlaced(model.identifier, model.metadata.id);
 						if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 							if (showUnavailableFeatured) {
+								markPlaced(model.identifier, model.metadata.id);
 								promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
 							}
 						} else {
+							markPlaced(model.identifier, model.metadata.id);
 							promotedItems.push({ kind: 'available', model });
 						}
 					} else if (!model && !entry.exists) {
