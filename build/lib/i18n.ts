@@ -391,7 +391,8 @@ const editorProject: string = 'vscode-editor',
 	workbenchProject: string = 'vscode-workbench',
 	extensionsProject: string = 'vscode-extensions',
 	setupProject: string = 'vscode-setup',
-	serverProject: string = 'vscode-server';
+	serverProject: string = 'vscode-server',
+	sessionsProject: string = 'vscode-sessions';
 
 export function getResource(sourceFile: string): Resource {
 	let resource: string;
@@ -416,6 +417,11 @@ export function getResource(sourceFile: string): Resource {
 		return { name: resource, project: workbenchProject };
 	} else if (/^vs\/workbench/.test(sourceFile)) {
 		return { name: 'vs/workbench', project: workbenchProject };
+	} else if (/^vs\/sessions\/contrib/.test(sourceFile)) {
+		resource = sourceFile.split('/', 4).join('/');
+		return { name: resource, project: sessionsProject };
+	} else if (/^vs\/sessions/.test(sourceFile)) {
+		return { name: 'vs/sessions', project: sessionsProject };
 	}
 
 	throw new Error(`Could not identify the XLF bundle for ${sourceFile}`);
@@ -736,6 +742,11 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 		const resource = path.basename(path.basename(xlf.relative, '.xlf'), '-new');
 		if (EXTERNAL_EXTENSIONS.find(e => e === resource)) {
 			project = extensionsProject;
+		}
+		// TODO(tyleonha): Support localization for the Sessions app (https://github.com/microsoft/vscode-internalbacklog/issues/7045)
+		// vscode-setup has its own import path via prepareIslFiles
+		if (project === sessionsProject || project === setupProject) {
+			return;
 		}
 		const contents = xlf.contents!.toString();
 		log(`Found ${project}: ${resource}`);

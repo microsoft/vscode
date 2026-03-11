@@ -136,13 +136,11 @@ export class ChatContextUsageDetails extends Disposable {
 			this.outputBufferLegend.style.display = 'none';
 		}
 
-		// Color classes based on total spoken-for percentage
-		// (actual usage + remaining reserve)
-		const effectivePercentage = percentage + (outputBufferPercentage ?? 0);
+		// Color classes based on actual usage percentage
 		this.quotaItem.classList.remove('warning', 'error');
-		if (effectivePercentage >= 90) {
+		if (percentage >= 90) {
 			this.quotaItem.classList.add('error');
-		} else if (effectivePercentage >= 75) {
+		} else if (percentage >= 75) {
 			this.quotaItem.classList.add('warning');
 		}
 
