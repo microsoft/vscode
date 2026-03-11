@@ -1275,6 +1275,12 @@ export enum TaskScope {
 	Workspace = 2
 }
 
+export enum TaskRunOn {
+	Default = 1,
+	FolderOpen = 2,
+	WorktreeCreated = 3,
+}
+
 export class CustomExecution implements vscode.CustomExecution {
 	private _callback: (resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
 	constructor(callback: (resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {

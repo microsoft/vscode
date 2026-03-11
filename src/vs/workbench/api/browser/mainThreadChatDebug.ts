@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../contrib/chat/common/chatDebugService.js';
+import { IChatService } from '../../contrib/chat/common/chatService/chatService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostChatDebugShape, ExtHostContext, IChatDebugEventDto, MainContext, MainThreadChatDebugShape } from '../common/extHost.protocol.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
@@ -15,13 +17,27 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 	private readonly _proxy: Proxied<ExtHostChatDebugShape>;
 	private readonly _providerDisposables = new Map<number, DisposableStore>();
 	private readonly _activeSessionResources = new Map<number, URI>();
+	private readonly _coreEventForwarder = this._register(new MutableDisposable());
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatDebug);
+	}
+
+	$subscribeToCoreDebugEvents(): void {
+		this._coreEventForwarder.value = this._chatDebugService.onDidAddEvent(event => {
+			if (this._chatDebugService.isCoreEvent(event)) {
+				this._proxy.$onCoreDebugEvent(this._serializeEvent(event));
+			}
+		});
+	}
+
+	$unsubscribeFromCoreDebugEvents(): void {
+		this._coreEventForwarder.clear();
 	}
 
 	$registerChatDebugLogProvider(handle: number): void {
@@ -36,6 +52,26 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 			},
 			resolveChatDebugLogEvent: async (eventId, token) => {
 				return this._proxy.$resolveChatDebugLogEvent(handle, eventId, token);
+			},
+			provideChatDebugLogExport: async (sessionResource, token) => {
+				// Gather core events and session title to pass to the extension.
+				const coreEventDtos = this._chatDebugService.getEvents(sessionResource)
+					.filter(e => this._chatDebugService.isCoreEvent(e))
+					.map(e => this._serializeEvent(e));
+				const sessionTitle = this._chatService.getSessionTitle(sessionResource);
+				const result = await this._proxy.$exportChatDebugLog(handle, sessionResource, coreEventDtos, sessionTitle, token);
+				return result?.buffer;
+			},
+			resolveChatDebugLogImport: async (data, token) => {
+				const result = await this._proxy.$importChatDebugLog(handle, VSBuffer.wrap(data), token);
+				if (!result) {
+					return undefined;
+				}
+				const uri = URI.revive(result.uri);
+				if (result.sessionTitle) {
+					this._chatDebugService.setImportedSessionTitle(uri, result.sessionTitle);
+				}
+				return uri;
 			}
 		}));
 	}
@@ -56,6 +92,30 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 		}
 		const revived = this._reviveEvent(dto, sessionResource);
 		this._chatDebugService.addProviderEvent(revived);
+	}
+
+	private _serializeEvent(event: IChatDebugEvent): IChatDebugEventDto {
+		const base = {
+			id: event.id,
+			sessionResource: event.sessionResource,
+			created: event.created.getTime(),
+			parentEventId: event.parentEventId,
+		};
+
+		switch (event.kind) {
+			case 'toolCall':
+				return { ...base, kind: 'toolCall', toolName: event.toolName, toolCallId: event.toolCallId, input: event.input, output: event.output, result: event.result, durationInMillis: event.durationInMillis };
+			case 'modelTurn':
+				return { ...base, kind: 'modelTurn', model: event.model, requestName: event.requestName, inputTokens: event.inputTokens, outputTokens: event.outputTokens, totalTokens: event.totalTokens, durationInMillis: event.durationInMillis };
+			case 'generic':
+				return { ...base, kind: 'generic', name: event.name, details: event.details, level: event.level, category: event.category };
+			case 'subagentInvocation':
+				return { ...base, kind: 'subagentInvocation', agentName: event.agentName, description: event.description, status: event.status, durationInMillis: event.durationInMillis, toolCallCount: event.toolCallCount, modelTurnCount: event.modelTurnCount };
+			case 'userMessage':
+				return { ...base, kind: 'userMessage', message: event.message, sections: event.sections.map(s => ({ name: s.name, content: s.content })) };
+			case 'agentResponse':
+				return { ...base, kind: 'agentResponse', message: event.message, sections: event.sections.map(s => ({ name: s.name, content: s.content })) };
+		}
 	}
 
 	private _reviveEvent(dto: IChatDebugEventDto, sessionResource: URI): IChatDebugEvent {

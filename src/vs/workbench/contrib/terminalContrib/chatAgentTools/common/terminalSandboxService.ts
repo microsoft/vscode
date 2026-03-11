@@ -165,8 +165,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				: {};
 			const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
 			const defaultAllowWrite = [...this._defaultWritePaths];
-			const linuxAllowWrite = [...new Set([...defaultAllowWrite, ...(linuxFileSystemSetting.allowWrite ?? [])])];
-			const macAllowWrite = [...new Set([...defaultAllowWrite, ...(macFileSystemSetting.allowWrite ?? [])])];
+			const linuxAllowWrite = [...new Set([...(linuxFileSystemSetting.allowWrite ?? []), ...defaultAllowWrite])];
+			const macAllowWrite = [...new Set([...(macFileSystemSetting.allowWrite ?? []), ...defaultAllowWrite])];
 
 			let allowedDomains = networkSetting.allowedDomains ?? [];
 			if (networkSetting.allowTrustedDomains) {

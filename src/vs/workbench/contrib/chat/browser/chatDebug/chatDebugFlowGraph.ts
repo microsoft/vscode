@@ -179,13 +179,18 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 
 		// For subagent invocations, enrich with description from the
 		// filtered-out completion sibling, or fall back to the event's own field.
-		let sublabel = getEventSublabel(event, effectiveKind);
+		let label = getEventLabel(event, effectiveKind);
+		const sublabel = getEventSublabel(event, effectiveKind);
 		let tooltip = getEventTooltip(event);
 		let description: string | undefined;
 		if (effectiveKind === 'subagentInvocation') {
 			description = getSubagentDescription(event);
+			// Show "Subagent: <description>" as the label so users can identify
+			// these nodes and see what task they perform.
+			label = description
+				? localize('subagentWithDesc', "Subagent: {0}", truncateLabel(description, 30))
+				: localize('subagentLabel', "Subagent");
 			if (description) {
-				sublabel = truncateLabel(description, 30) + (sublabel ? ` \u00b7 ${sublabel}` : '');
 				// Ensure description appears in tooltip if not already present
 				if (tooltip && !tooltip.includes(description)) {
 					const lines = tooltip.split('\n');
@@ -199,7 +204,7 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 			id: event.id ?? `event-${events.indexOf(event)}`,
 			kind: effectiveKind,
 			category: event.kind === 'generic' ? event.category : undefined,
-			label: getEventLabel(event, effectiveKind),
+			label,
 			sublabel,
 			description,
 			tooltip,
@@ -524,29 +529,17 @@ function getEventLabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEvent['
 	const kind = effectiveKind ?? event.kind;
 	switch (kind) {
 		case 'userMessage':
-			return localize('userLabel', "User");
+			return localize('userLabel', "User Message");
 		case 'modelTurn':
 			return event.kind === 'modelTurn' ? (event.model ?? localize('modelTurnLabel', "Model Turn")) : localize('modelTurnLabel', "Model Turn");
 		case 'toolCall':
-			return event.kind === 'toolCall' ? event.toolName : event.kind === 'generic' ? event.name : '';
+			return event.kind === 'toolCall' ? event.toolName : event.kind === 'generic' ? event.name : localize('toolCallLabel', "Tool Call");
 		case 'subagentInvocation':
-			return event.kind === 'subagentInvocation' ? event.agentName : '';
-		case 'agentResponse': {
-			if (event.kind === 'agentResponse') {
-				return event.message || localize('responseLabel', "Response");
-			}
-			// Remapped generic event — extract model name from parenthesized suffix
-			// e.g. "Agent response (claude-opus-4.5)" → "claude-opus-4.5"
-			if (event.kind === 'generic') {
-				const match = /\(([^)]+)\)\s*$/.exec(event.name);
-				if (match) {
-					return match[1];
-				}
-			}
-			return localize('responseLabel', "Response");
-		}
+			return event.kind === 'subagentInvocation' ? event.agentName : localize('subagentFallback', "Subagent");
+		case 'agentResponse':
+			return localize('agentResponseLabel', "Agent Response");
 		case 'generic':
-			return event.kind === 'generic' ? event.name : '';
+			return event.kind === 'generic' ? event.name : localize('genericLabel', "Event");
 	}
 }
 
@@ -588,29 +581,31 @@ function getEventSublabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEven
 		}
 		case 'userMessage':
 		case 'agentResponse': {
-			// For proper typed events, prefer the first section's content
-			// (which has the actual message text) over the `message` field
-			// (which is a short summary/name). Fall back to `message` when
-			// no sections are available. For remapped generic events, use
-			// the details property.
+			// Use the message summary as the sublabel. For remapped generic
+			// events, use the details property.
 			let text: string | undefined;
 			if (event.kind === 'userMessage' || event.kind === 'agentResponse') {
-				text = event.sections[0]?.content || event.message;
+				text = event.message;
 			} else if (event.kind === 'generic') {
 				text = event.details;
 			}
 			if (!text) {
 				return undefined;
 			}
-			// Find the first non-empty line (content may start with newlines)
+			// Find the first meaningful line, skipping trivial lines like
+			// lone brackets/braces that appear when the message is JSON.
 			const lines = text.split('\n');
 			let firstLine = '';
 			for (const line of lines) {
 				const trimmed = line.trim();
-				if (trimmed) {
+				if (trimmed && trimmed.length > 2) {
 					firstLine = trimmed;
 					break;
 				}
+			}
+			if (!firstLine) {
+				// Fall back to the full text collapsed to a single line
+				firstLine = text.replace(/\s+/g, ' ').trim();
 			}
 			if (!firstLine) {
 				return undefined;

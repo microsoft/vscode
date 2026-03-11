@@ -8,10 +8,11 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { ILanguageModelToolsService } from '../languageModelToolsService.js';
 import { AskQuestionsTool, AskQuestionsToolData } from './askQuestionsTool.js';
-import { ConfirmationTool, ConfirmationToolData, ConfirmationToolWithOptionsData } from './confirmationTool.js';
+import { ConfirmationTool, ConfirmationToolData, ConfirmationToolWithOptionsData, ModifiedFilesConfirmationTool, ModifiedFilesConfirmationToolData } from './confirmationTool.js';
 import { EditTool, EditToolData } from './editFileTool.js';
 import { createManageTodoListToolData, ManageTodoListTool } from './manageTodoListTool.js';
 import { ResolveDebugEventDetailsTool, ResolveDebugEventDetailsToolData } from './resolveDebugEventDetailsTool.js';
+import { ListDebugEventsTool, ListDebugEventsToolData } from './listDebugEventsTool.js';
 import { RunSubagentTool } from './runSubagentTool.js';
 import { TaskCompleteTool, TaskCompleteToolData } from './taskCompleteTool.js';
 
@@ -40,6 +41,9 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		this._register(toolsService.registerTool(ConfirmationToolData, confirmationTool));
 		this._register(toolsService.registerTool(ConfirmationToolWithOptionsData, confirmationTool));
 
+		const modifiedFilesConfirmationTool = instantiationService.createInstance(ModifiedFilesConfirmationTool);
+		this._register(toolsService.registerTool(ModifiedFilesConfirmationToolData, modifiedFilesConfirmationTool));
+
 
 		const taskCompleteTool = instantiationService.createInstance(TaskCompleteTool);
 		this._register(toolsService.registerTool(TaskCompleteToolData, taskCompleteTool));
@@ -47,6 +51,10 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		const resolveDebugEventDetailsTool = instantiationService.createInstance(ResolveDebugEventDetailsTool);
 		this._register(toolsService.registerTool(ResolveDebugEventDetailsToolData, resolveDebugEventDetailsTool));
 		this._register(toolsService.readToolSet.addTool(ResolveDebugEventDetailsToolData));
+
+		const listDebugEventsTool = instantiationService.createInstance(ListDebugEventsTool);
+		this._register(toolsService.registerTool(ListDebugEventsToolData, listDebugEventsTool));
+		this._register(toolsService.readToolSet.addTool(ListDebugEventsToolData));
 
 
 		const runSubagentTool = this._register(instantiationService.createInstance(RunSubagentTool));

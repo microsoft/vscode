@@ -14,7 +14,6 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
-import { INewSession } from './newSession.js';
 
 // #region --- Session Target Picker ---
 
@@ -138,8 +137,8 @@ export class IsolationModePicker extends Disposable {
 
 	private _isolationMode: IsolationMode = 'worktree';
 	private _preferredIsolationMode: IsolationMode | undefined;
-	private _newSession: INewSession | undefined;
 	private _repository: IGitRepository | undefined;
+	private _enabled: boolean = true;
 
 	private readonly _onDidChange = this._register(new Emitter<IsolationMode>());
 	readonly onDidChange: Event<IsolationMode> = this._onDidChange.event;
@@ -159,13 +158,6 @@ export class IsolationModePicker extends Disposable {
 	}
 
 	/**
-	 * Sets the pending session that this picker writes to.
-	 */
-	setNewSession(session: INewSession | undefined): void {
-		this._newSession = session;
-	}
-
-	/**
 	 * Sets the git repository. When undefined, worktree option is hidden
 	 * and isolation mode falls back to 'workspace'.
 	 */
@@ -174,8 +166,9 @@ export class IsolationModePicker extends Disposable {
 		if (repository) {
 			const preferred = this._preferredIsolationMode;
 			this._preferredIsolationMode = undefined;
-			this._setMode(preferred ?? 'worktree');
+			this._setMode(preferred ?? this._isolationMode);
 		} else if (this._isolationMode === 'worktree') {
+			this._preferredIsolationMode ??= this._isolationMode;
 			this._setMode('workspace');
 		}
 		this._updateTriggerLabel();
@@ -233,23 +226,32 @@ export class IsolationModePicker extends Disposable {
 		}
 	}
 
+	/**
+	 * Enables or disables the picker. When disabled, the picker is shown
+	 * but cannot be interacted with.
+	 */
+	setEnabled(enabled: boolean): void {
+		this._enabled = enabled;
+		this._updateTriggerLabel();
+	}
+
 	private _showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible || !this._repository) {
+		if (!this._triggerElement || this.actionWidgetService.isVisible || !this._repository || !this._enabled) {
 			return;
 		}
 
 		const items: IActionListItem<IsolationMode>[] = [
 			{
 				kind: ActionListItemKind.Action,
-				label: localize('isolationMode.folder', "Folder"),
-				group: { title: '', icon: Codicon.folder },
-				item: 'workspace',
-			},
-			{
-				kind: ActionListItemKind.Action,
 				label: localize('isolationMode.worktree', "Worktree"),
 				group: { title: '', icon: Codicon.worktree },
 				item: 'worktree',
+			},
+			{
+				kind: ActionListItemKind.Action,
+				label: localize('isolationMode.folder', "Folder"),
+				group: { title: '', icon: Codicon.folder },
+				item: 'workspace',
 			},
 		];
 
@@ -280,7 +282,6 @@ export class IsolationModePicker extends Disposable {
 	private _setMode(mode: IsolationMode): void {
 		if (this._isolationMode !== mode) {
 			this._isolationMode = mode;
-			this._newSession?.setIsolationMode(mode);
 			this._onDidChange.fire(mode);
 			this._updateTriggerLabel();
 		}
@@ -303,7 +304,11 @@ export class IsolationModePicker extends Disposable {
 		labelSpan.textContent = modeLabel;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
-		this._slotElement?.classList.toggle('disabled', isDisabled);
+		this._slotElement?.classList.toggle('disabled', isDisabled || !this._enabled);
+		if (this._triggerElement) {
+			this._triggerElement.tabIndex = (!isDisabled && this._enabled) ? 0 : -1;
+			this._triggerElement.setAttribute('aria-disabled', String(isDisabled || !this._enabled));
+		}
 	}
 }
 

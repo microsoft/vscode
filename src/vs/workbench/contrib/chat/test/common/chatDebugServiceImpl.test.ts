@@ -214,6 +214,44 @@ suite('ChatDebugServiceImpl', () => {
 		});
 	});
 
+	suite('markDebugDataAttached', () => {
+		test('should track attached debug data per session', () => {
+			assert.strictEqual(service.hasAttachedDebugData(sessionGeneric), false);
+
+			const fired: URI[] = [];
+			disposables.add(service.onDidAttachDebugData(uri => fired.push(uri)));
+
+			service.markDebugDataAttached(sessionGeneric);
+			assert.strictEqual(service.hasAttachedDebugData(sessionGeneric), true);
+			assert.strictEqual(fired.length, 1);
+			assert.strictEqual(fired[0].toString(), sessionGeneric.toString());
+
+			// Idempotent — second call should not fire again
+			service.markDebugDataAttached(sessionGeneric);
+			assert.strictEqual(fired.length, 1);
+
+			// Other sessions remain unaffected
+			assert.strictEqual(service.hasAttachedDebugData(sessionA), false);
+		});
+
+		test('should clear attached debug data on endSession', () => {
+			service.markDebugDataAttached(sessionGeneric);
+			assert.strictEqual(service.hasAttachedDebugData(sessionGeneric), true);
+
+			service.endSession(sessionGeneric);
+			assert.strictEqual(service.hasAttachedDebugData(sessionGeneric), false);
+		});
+
+		test('should clear attached debug data on clear', () => {
+			service.markDebugDataAttached(sessionA);
+			service.markDebugDataAttached(sessionB);
+
+			service.clear();
+			assert.strictEqual(service.hasAttachedDebugData(sessionA), false);
+			assert.strictEqual(service.hasAttachedDebugData(sessionB), false);
+		});
+	});
+
 	suite('registerProvider', () => {
 		test('should register and unregister a provider', async () => {
 			const extSession = URI.parse('vscode-chat-session://local/ext-session');
@@ -310,6 +348,32 @@ suite('ChatDebugServiceImpl', () => {
 			// Second invocation for same session should cancel the first
 			await service.invokeProviders(sessionGeneric);
 			assert.strictEqual(firstToken.isCancellationRequested, true);
+		});
+
+		test('should fire onDidClearProviderEvents when clearing provider events', async () => {
+			const clearedSessions: URI[] = [];
+			disposables.add(service.onDidClearProviderEvents(sessionResource => clearedSessions.push(sessionResource)));
+
+			const provider: IChatDebugLogProvider = {
+				provideChatDebugLog: async (sessionResource) => [{
+					kind: 'generic',
+					sessionResource,
+					created: new Date(),
+					name: 'provider-event',
+					level: ChatDebugLogLevel.Info,
+				}],
+			};
+
+			disposables.add(service.registerProvider(provider));
+
+			// First invocation clears empty set and fires clear event
+			await service.invokeProviders(sessionGeneric);
+			assert.strictEqual(clearedSessions.length, 1, 'Clear event should fire on first invocation');
+
+			// Second invocation clears provider events from first invocation
+			await service.invokeProviders(sessionGeneric);
+			assert.strictEqual(clearedSessions.length, 2, 'Clear event should fire on second invocation');
+			assert.strictEqual(clearedSessions[1].toString(), sessionGeneric.toString());
 		});
 
 		test('should not cancel invocations for different sessions', async () => {

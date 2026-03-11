@@ -11,10 +11,10 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
+import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_CAN_ZOOM_IN, CONTEXT_BROWSER_CAN_ZOOM_OUT, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
-import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewCommandId, BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -26,8 +26,9 @@ const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEdito
 
 const BrowserCategory = localize2('browserCategory', "Browser");
 const ActionGroupTabs = '1_tabs';
-const ActionGroupPage = '2_page';
-const ActionGroupSettings = '3_settings';
+const ActionGroupZoom = '2_zoom';
+const ActionGroupPage = '3_page';
+const ActionGroupSettings = '4_settings';
 
 interface IOpenBrowserOptions {
 	url?: string;
@@ -37,7 +38,7 @@ interface IOpenBrowserOptions {
 class OpenIntegratedBrowserAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.browser.open',
+			id: BrowserViewCommandId.Open,
 			title: localize2('browser.openAction', "Open Integrated Browser"),
 			category: BrowserCategory,
 			f1: true
@@ -67,7 +68,7 @@ class OpenIntegratedBrowserAction extends Action2 {
 class NewTabAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.browser.newTab',
+			id: BrowserViewCommandId.NewTab,
 			title: localize2('browser.newTabAction', "New Tab"),
 			category: BrowserCategory,
 			f1: true,
@@ -97,7 +98,7 @@ class NewTabAction extends Action2 {
 }
 
 class GoBackAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.goBack';
+	static readonly ID = BrowserViewCommandId.GoBack;
 
 	constructor() {
 		super({
@@ -129,7 +130,7 @@ class GoBackAction extends Action2 {
 }
 
 class GoForwardAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.goForward';
+	static readonly ID = BrowserViewCommandId.GoForward;
 
 	constructor() {
 		super({
@@ -161,7 +162,7 @@ class GoForwardAction extends Action2 {
 }
 
 class ReloadAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.reload';
+	static readonly ID = BrowserViewCommandId.Reload;
 
 	constructor() {
 		super({
@@ -199,7 +200,7 @@ class ReloadAction extends Action2 {
 }
 
 class HardReloadAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.hardReload';
+	static readonly ID = BrowserViewCommandId.HardReload;
 
 	constructor() {
 		super({
@@ -227,7 +228,7 @@ class HardReloadAction extends Action2 {
 }
 
 class FocusUrlInputAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.focusUrlInput';
+	static readonly ID = BrowserViewCommandId.FocusUrlInput;
 
 	constructor() {
 		super({
@@ -251,7 +252,7 @@ class FocusUrlInputAction extends Action2 {
 }
 
 class AddElementToChatAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.addElementToChat';
+	static readonly ID = BrowserViewCommandId.AddElementToChat;
 
 	constructor() {
 		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true));
@@ -288,7 +289,7 @@ class AddElementToChatAction extends Action2 {
 }
 
 class AddConsoleLogsToChatAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.addConsoleLogsToChat';
+	static readonly ID = BrowserViewCommandId.AddConsoleLogsToChat;
 
 	constructor() {
 		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true));
@@ -316,7 +317,7 @@ class AddConsoleLogsToChatAction extends Action2 {
 }
 
 class ToggleDevToolsAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.toggleDevTools';
+	static readonly ID = BrowserViewCommandId.ToggleDevTools;
 
 	constructor() {
 		super({
@@ -347,7 +348,7 @@ class ToggleDevToolsAction extends Action2 {
 }
 
 class OpenInExternalBrowserAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.openExternal';
+	static readonly ID = BrowserViewCommandId.OpenExternal;
 
 	constructor() {
 		super({
@@ -383,7 +384,7 @@ class OpenInExternalBrowserAction extends Action2 {
 }
 
 class ClearGlobalBrowserStorageAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.clearGlobalStorage';
+	static readonly ID = BrowserViewCommandId.ClearGlobalStorage;
 
 	constructor() {
 		super({
@@ -408,7 +409,7 @@ class ClearGlobalBrowserStorageAction extends Action2 {
 }
 
 class ClearWorkspaceBrowserStorageAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.clearWorkspaceStorage';
+	static readonly ID = BrowserViewCommandId.ClearWorkspaceStorage;
 
 	constructor() {
 		super({
@@ -433,7 +434,7 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 }
 
 class ClearEphemeralBrowserStorageAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.clearEphemeralStorage';
+	static readonly ID = BrowserViewCommandId.ClearEphemeralStorage;
 
 	constructor() {
 		super({
@@ -445,7 +446,7 @@ class ClearEphemeralBrowserStorageAction extends Action2 {
 			precondition: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '3_settings',
+				group: ActionGroupSettings,
 				order: 1,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral)
 			}
@@ -460,7 +461,7 @@ class ClearEphemeralBrowserStorageAction extends Action2 {
 }
 
 class OpenBrowserSettingsAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.openSettings';
+	static readonly ID = BrowserViewCommandId.OpenSettings;
 
 	constructor() {
 		super({
@@ -483,10 +484,110 @@ class OpenBrowserSettingsAction extends Action2 {
 	}
 }
 
+// Zoom actions
+
+class ZoomInAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.zoomIn';
+
+	constructor() {
+		super({
+			id: ZoomInAction.ID,
+			title: localize2('browser.zoomInAction', 'Zoom In'),
+			category: BrowserCategory,
+			icon: Codicon.zoomIn,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: ActionGroupZoom,
+				order: 1,
+				when: CONTEXT_BROWSER_CAN_ZOOM_IN,
+			},
+			keybinding: {
+				when: CONTEXT_BROWSER_FOCUSED,
+				weight: KeybindingWeight.WorkbenchContrib + 75,
+				primary: KeyMod.CtrlCmd | KeyCode.Equal,
+				secondary: [KeyMod.CtrlCmd | KeyCode.NumpadAdd],
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.zoomIn();
+		}
+	}
+}
+
+class ZoomOutAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.zoomOut';
+
+	constructor() {
+		super({
+			id: ZoomOutAction.ID,
+			title: localize2('browser.zoomOutAction', 'Zoom Out'),
+			category: BrowserCategory,
+			icon: Codicon.zoomOut,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: ActionGroupZoom,
+				order: 2,
+				when: CONTEXT_BROWSER_CAN_ZOOM_OUT,
+			},
+			keybinding: {
+				when: CONTEXT_BROWSER_FOCUSED,
+				weight: KeybindingWeight.WorkbenchContrib + 75,
+				primary: KeyMod.CtrlCmd | KeyCode.Minus,
+				secondary: [KeyMod.CtrlCmd | KeyCode.NumpadSubtract],
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.zoomOut();
+		}
+	}
+}
+
+class ResetZoomAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.resetZoom';
+
+	constructor() {
+		super({
+			id: ResetZoomAction.ID,
+			title: localize2('browser.resetZoomAction', 'Reset Zoom'),
+			category: BrowserCategory,
+			icon: Codicon.screenNormal,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: ActionGroupZoom,
+				order: 3,
+			},
+			keybinding: {
+				when: CONTEXT_BROWSER_FOCUSED,
+				weight: KeybindingWeight.WorkbenchContrib + 75,
+				// We use Numpad0 and not Digit0 here to match the workbench zoom reset keybinding, and to avoid conflicts with keybinding to focus sidebar.
+				primary: KeyMod.CtrlCmd | KeyCode.Numpad0,
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.resetZoom();
+		}
+	}
+}
+
 // Find actions
 
 class ShowBrowserFindAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.showFind';
+	static readonly ID = BrowserViewCommandId.ShowFind;
 
 	constructor() {
 		super({
@@ -515,7 +616,7 @@ class ShowBrowserFindAction extends Action2 {
 }
 
 class HideBrowserFindAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.hideFind';
+	static readonly ID = BrowserViewCommandId.HideFind;
 
 	constructor() {
 		super({
@@ -540,7 +641,7 @@ class HideBrowserFindAction extends Action2 {
 }
 
 class BrowserFindNextAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.findNext';
+	static readonly ID = BrowserViewCommandId.FindNext;
 
 	constructor() {
 		super({
@@ -571,7 +672,7 @@ class BrowserFindNextAction extends Action2 {
 }
 
 class BrowserFindPreviousAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.findPrevious';
+	static readonly ID = BrowserViewCommandId.FindPrevious;
 
 	constructor() {
 		super({
@@ -617,6 +718,9 @@ registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
 registerAction2(ClearEphemeralBrowserStorageAction);
 registerAction2(OpenBrowserSettingsAction);
+registerAction2(ZoomInAction);
+registerAction2(ZoomOutAction);
+registerAction2(ResetZoomAction);
 registerAction2(ShowBrowserFindAction);
 registerAction2(HideBrowserFindAction);
 registerAction2(BrowserFindNextAction);

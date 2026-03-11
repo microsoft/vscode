@@ -49,6 +49,7 @@ import { logBrowserOpen } from '../../../../platform/browserView/common/browserV
 import { URI } from '../../../../base/common/uri.js';
 import { ChatConfiguration } from '../../chat/common/constants.js';
 import { Event } from '../../../../base/common/event.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -58,6 +59,8 @@ export const CONTEXT_BROWSER_HAS_URL = new RawContextKey<boolean>('browserHasUrl
 export const CONTEXT_BROWSER_HAS_ERROR = new RawContextKey<boolean>('browserHasError', false, localize('browser.hasError', "Whether the browser has a load error"));
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
 export const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
+export const CONTEXT_BROWSER_CAN_ZOOM_IN = new RawContextKey<boolean>('browserCanZoomIn', true, localize('browser.canZoomIn', "Whether the browser can zoom in further"));
+export const CONTEXT_BROWSER_CAN_ZOOM_OUT = new RawContextKey<boolean>('browserCanZoomOut', true, localize('browser.canZoomOut', "Whether the browser can zoom out further"));
 
 // Re-export find widget context keys for use in actions
 export { CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE };
@@ -253,6 +256,8 @@ export class BrowserEditor extends EditorPane {
 	private _hasErrorContext!: IContextKey<boolean>;
 	private _devToolsOpenContext!: IContextKey<boolean>;
 	private _elementSelectionActiveContext!: IContextKey<boolean>;
+	private _canZoomInContext!: IContextKey<boolean>;
+	private _canZoomOutContext!: IContextKey<boolean>;
 
 	private _model: IBrowserViewModel | undefined;
 	private readonly _inputDisposables = this._register(new DisposableStore());
@@ -273,7 +278,8 @@ export class BrowserEditor extends EditorPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserElementsService private readonly browserElementsService: IBrowserElementsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILayoutService private readonly layoutService: ILayoutService
 	) {
 		super(BrowserEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -293,6 +299,8 @@ export class BrowserEditor extends EditorPane {
 		this._hasErrorContext = CONTEXT_BROWSER_HAS_ERROR.bindTo(contextKeyService);
 		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
 		this._elementSelectionActiveContext = CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE.bindTo(contextKeyService);
+		this._canZoomInContext = CONTEXT_BROWSER_CAN_ZOOM_IN.bindTo(contextKeyService);
+		this._canZoomOutContext = CONTEXT_BROWSER_CAN_ZOOM_OUT.bindTo(contextKeyService);
 
 		// Currently this is always true since it is scoped to the editor container
 		CONTEXT_BROWSER_FOCUSED.bindTo(contextKeyService);
@@ -378,12 +386,6 @@ export class BrowserEditor extends EditorPane {
 			hasFocus: this._model?.focused ?? false,
 			window: this._model?.focused ? this.window : undefined
 		})));
-
-		// Automatically call layoutBrowserContainer() when the browser container changes size.
-		// Be careful to use `ResizeObserver` from the target window to avoid cross-window issues.
-		const resizeObserver = new this.window.ResizeObserver(() => this.layoutBrowserContainer());
-		resizeObserver.observe(this._browserContainer);
-		this._register(toDisposable(() => resizeObserver.disconnect()));
 	}
 
 	override async setInput(input: BrowserEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -403,6 +405,7 @@ export class BrowserEditor extends EditorPane {
 
 		this._storageScopeContext.set(this._model.storageScope);
 		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
+		this.updateZoomContext();
 		this._updateSharingState(true);
 
 		// Update find widget with new model
@@ -419,6 +422,10 @@ export class BrowserEditor extends EditorPane {
 		}));
 		this._inputDisposables.add(watchForAgentSharingContextChanges(this.contextKeyService)(() => {
 			this._updateSharingState(false);
+		}));
+
+		this._inputDisposables.add(this._model.onDidChangeZoom(() => {
+			this.updateZoomContext();
 		}));
 
 		// Initialize UI state and context keys from model
@@ -509,17 +516,16 @@ export class BrowserEditor extends EditorPane {
 			this.checkOverlays();
 		}));
 
-		// Listen for zoom level changes and update browser view zoom factor
+		// Listen for workbench zoom level changes and update browser view placeholder screenshot's zoom factor
 		this._inputDisposables.add(onDidChangeZoomLevel(targetWindowId => {
 			if (targetWindowId === this.window.vscodeWindowId) {
 				// Update CSS variable for size calculations
 				this._browserContainerWrapper.style.setProperty('--zoom-factor', String(getZoomFactor(this.window)));
-				this.layoutBrowserContainer();
 			}
 		}));
 
 		this.updateErrorDisplay();
-		this.layoutBrowserContainer();
+		this.layout();
 		this.updateVisibility();
 		this.doScreenshot();
 
@@ -722,6 +728,25 @@ export class BrowserEditor extends EditorPane {
 		return this._model?.clearStorage();
 	}
 
+	async zoomIn(): Promise<void> {
+		await this._model?.zoomIn();
+	}
+
+	async zoomOut(): Promise<void> {
+		await this._model?.zoomOut();
+	}
+
+	async resetZoom(): Promise<void> {
+		await this._model?.resetZoom();
+	}
+
+	private updateZoomContext(): void {
+		if (this._model) {
+			this._canZoomInContext.set(this._model.canZoomIn);
+			this._canZoomOutContext.set(this._model.canZoomOut);
+		}
+	}
+
 	/**
 	 * Show the find widget, optionally pre-populated with selected text from the browser view
 	 */
@@ -808,51 +833,7 @@ export class BrowserEditor extends EditorPane {
 				throw new Error('Element data not found');
 			}
 
-			const bounds = elementData.bounds;
-			const toAttach: IChatRequestVariableEntry[] = [];
-
-			// Prepare HTML/CSS context
-			const displayName = getDisplayNameFromOuterHTML(elementData.outerHTML);
-			const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
-			const value = this.createElementContextValue(elementData, displayName, attachCss);
-
-			toAttach.push({
-				id: 'element-' + Date.now(),
-				name: displayName,
-				fullName: displayName,
-				value: value,
-				modelDescription: attachCss
-					? 'Structured browser element context with HTML path, attributes, and computed styles.'
-					: 'Structured browser element context with HTML path and attributes.',
-				kind: 'element',
-				icon: ThemeIcon.fromId(Codicon.layout.id),
-				ancestors: elementData.ancestors,
-				attributes: elementData.attributes,
-				computedStyles: attachCss ? elementData.computedStyles : undefined,
-				dimensions: elementData.dimensions,
-				innerText: elementData.innerText,
-			});
-
-			// Attach screenshot if enabled
-			const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
-			if (attachImages && this._model) {
-				const screenshotBuffer = await this._model.captureScreenshot({
-					quality: 90,
-					rect: bounds
-				});
-
-				toAttach.push({
-					id: 'element-screenshot-' + Date.now(),
-					name: 'Element Screenshot',
-					fullName: 'Element Screenshot',
-					kind: 'image',
-					value: screenshotBuffer.buffer
-				});
-			}
-
-			// Attach to chat widget
-			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
-			widget?.attachmentModel?.addContext(...toAttach);
+			const { attachCss, attachImages } = await this.attachElementDataToChat(elementData);
 
 			type IntegratedBrowserAddElementToChatAddedEvent = {
 				attachCss: boolean;
@@ -995,6 +976,53 @@ export class BrowserEditor extends EditorPane {
 		}
 
 		return sections.join('\n\n');
+	}
+
+	private async attachElementDataToChat(elementData: IElementData): Promise<{ attachCss: boolean; attachImages: boolean }> {
+		const bounds = elementData.bounds;
+		const toAttach: IChatRequestVariableEntry[] = [];
+
+		const displayName = getDisplayNameFromOuterHTML(elementData.outerHTML);
+		const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
+		const value = this.createElementContextValue(elementData, displayName, attachCss);
+
+		toAttach.push({
+			id: 'element-' + Date.now(),
+			name: displayName,
+			fullName: displayName,
+			value: value,
+			modelDescription: attachCss
+				? 'Structured browser element context with HTML path, attributes, and computed styles.'
+				: 'Structured browser element context with HTML path and attributes.',
+			kind: 'element',
+			icon: ThemeIcon.fromId(Codicon.layout.id),
+			ancestors: elementData.ancestors,
+			attributes: elementData.attributes,
+			computedStyles: attachCss ? elementData.computedStyles : undefined,
+			dimensions: elementData.dimensions,
+			innerText: elementData.innerText,
+		});
+
+		const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
+		if (attachImages && this._model) {
+			const screenshotBuffer = await this._model.captureScreenshot({
+				quality: 90,
+				rect: bounds
+			});
+
+			toAttach.push({
+				id: 'element-screenshot-' + Date.now(),
+				name: 'Element Screenshot',
+				fullName: 'Element Screenshot',
+				kind: 'image',
+				value: screenshotBuffer.buffer
+			});
+		}
+
+		const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+		widget?.attachmentModel?.addContext(...toAttach);
+
+		return { attachCss, attachImages };
 	}
 
 	private formatElementPath(ancestors: readonly IElementAncestor[] | undefined): string | undefined {
@@ -1154,6 +1182,34 @@ export class BrowserEditor extends EditorPane {
 		this._currentKeyDownEvent = keyEvent;
 
 		try {
+			const isEnterKey =
+				keyEvent.code === 'Enter' ||
+				keyEvent.code === 'NumpadEnter' ||
+				keyEvent.key === 'Enter' ||
+				keyEvent.key === 'Return';
+			if (this._elementSelectionCts && isEnterKey) {
+				const cts = this._elementSelectionCts;
+				const resourceUri = this.input?.resource;
+				if (!resourceUri) {
+					return;
+				}
+
+				const locator: IBrowserTargetLocator = { browserViewId: BrowserViewUri.getId(resourceUri) };
+				const { width, height } = this._browserContainer.getBoundingClientRect();
+				const elementData = await this.browserElementsService.getFocusedElementData({ x: 0, y: 0, width, height }, cts.token, locator);
+				if (!elementData) {
+					return;
+				}
+
+				await this.attachElementDataToChat(elementData);
+				cts.dispose();
+				if (this._elementSelectionCts === cts) {
+					this._elementSelectionCts = undefined;
+					this._elementSelectionActiveContext.set(false);
+				}
+				return;
+			}
+
 			const syntheticEvent = new KeyboardEvent('keydown', keyEvent);
 			const standardEvent = new StandardKeyboardEvent(syntheticEvent);
 
@@ -1168,21 +1224,28 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	override layout(dimension: Dimension, _position?: IDomPosition): void {
+	override layout(dimension?: Dimension, _position?: IDomPosition): void {
 		// Layout find widget if it exists
-		this._findWidget.rawValue?.layout(dimension.width);
+		if (dimension && this._findWidget.rawValue) {
+			this._findWidget.rawValue.layout(dimension.width);
+		}
+
+		const whenContainerStylesLoaded = this.layoutService.whenContainerStylesLoaded(this.window);
+		if (whenContainerStylesLoaded) {
+			// In floating windows, we need to ensure that the
+			// container is ready for us to compute certain
+			// layout related properties.
+			whenContainerStylesLoaded.then(() => this.layoutBrowserContainer());
+		} else {
+			this.layoutBrowserContainer();
+		}
 	}
 
 	/**
-	 * This should be called whenever .browser-container changes in size, or when
-	 * there could be any elements, such as the command palette, overlapping with it.
-	 *
-	 * Note that we don't call layoutBrowserContainer() from layout() but instead rely on using a ResizeObserver and on
-	 * making direct calls to it. This is because we have seen cases where the getBoundingClientRect() values of
-	 * the .browser-container element are not correct during layout() calls, especially during "Move into New Window"
-	 * and "Copy into New Window" operations into a different monitor.
+	 * Recompute the layout of the browser container and update the model with the new bounds.
+	 * This should generally only be called via layout() to ensure that the container is ready and all necessary styles are loaded.
 	 */
-	layoutBrowserContainer(): void {
+	private layoutBrowserContainer(): void {
 		if (this._model) {
 			this.checkOverlays();
 
@@ -1230,6 +1293,8 @@ export class BrowserEditor extends EditorPane {
 		this._storageScopeContext.reset();
 		this._devToolsOpenContext.reset();
 		this._elementSelectionActiveContext.reset();
+		this._canZoomInContext.reset();
+		this._canZoomOutContext.reset();
 
 		this._navigationBar.clear();
 		this.setBackgroundImage(undefined);
