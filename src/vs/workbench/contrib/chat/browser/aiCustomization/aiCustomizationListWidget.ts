@@ -49,6 +49,8 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 
+export { truncateToFirstSentence } from './aiCustomizationListWidgetUtils.js';
+
 const $ = DOM.$;
 
 const ITEM_HEIGHT = 44;
