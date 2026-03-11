@@ -109,6 +109,7 @@
 	display: none;
 	flex-direction: row;
 	align-items: center;
+	gap: 4px;
 	min-height: 28px;
 }
 
