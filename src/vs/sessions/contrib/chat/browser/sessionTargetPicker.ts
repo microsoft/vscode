@@ -136,8 +136,8 @@ export type TargetMode = 'worktree' | 'workspace' | 'cloud';
  * A self-contained widget for selecting the session target mode.
  *
  * Options:
- * - **Copilot CLI** (`worktree`) — always shown
- * - **Local** (`workspace`) — shown only when isolation option is enabled
+ * - **Worktree** (`worktree`) — always shown
+ * - **Folder** (`workspace`) — shown only when isolation option is enabled
  * - **Cloud** (`cloud`) — shown and auto-selected when a repository is picked; disabled
  *
  * Emits `onDidChange` with the underlying `IsolationMode` (`'worktree' | 'workspace'`)
@@ -270,7 +270,7 @@ export class TargetPicker extends Disposable {
 		const items: IActionListItem<TargetMode>[] = [
 			{
 				kind: ActionListItemKind.Action,
-				label: localize('targetMode.copilotCli', "Copilot CLI"),
+				label: localize('targetMode.worktree', "Worktree"),
 				group: { title: '', icon: Codicon.worktree },
 				item: 'worktree',
 			},
@@ -279,7 +279,7 @@ export class TargetPicker extends Disposable {
 		if (this._isolationOptionEnabled) {
 			items.push({
 				kind: ActionListItemKind.Action,
-				label: localize('targetMode.local', "Local"),
+				label: localize('targetMode.folder', "Folder"),
 				group: { title: '', icon: Codicon.folder },
 				item: 'workspace',
 			});
@@ -338,13 +338,13 @@ export class TargetPicker extends Disposable {
 				break;
 			case 'workspace':
 				modeIcon = Codicon.folder;
-				modeLabel = localize('targetMode.local', "Local");
+				modeLabel = localize('targetMode.folder', "Folder");
 				isDisabled = !this._repository;
 				break;
 			case 'worktree':
 			default:
 				modeIcon = Codicon.worktree;
-				modeLabel = localize('targetMode.copilotCli', "Copilot CLI");
+				modeLabel = localize('targetMode.worktree', "Worktree");
 				isDisabled = !this._repository;
 				break;
 		}
