@@ -5,7 +5,6 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -98,6 +97,14 @@ interface ISectionItem {
 interface ISaveTargetQuickPickItem extends IQuickPickItem {
 	readonly target: 'workspace' | 'user' | 'cancel';
 	readonly folder?: URI;
+}
+
+interface IBuiltinPromptSaveRequest {
+	readonly target: 'workspace' | 'user';
+	readonly folder: URI;
+	readonly sourceUri: URI;
+	readonly content: string;
+	readonly projectRoot?: URI;
 }
 
 class SectionItemDelegate implements IListVirtualDelegate<ISectionItem> {
@@ -1009,10 +1016,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private async saveBuiltinPromptCopy(target: ISaveTargetQuickPickItem): Promise<void> {
+	private createBuiltinPromptSaveRequest(target: ISaveTargetQuickPickItem): IBuiltinPromptSaveRequest | undefined {
 		const sourceUri = this.currentEditingUri;
 		const promptType = this.currentEditingPromptType;
-		if (!sourceUri || this.currentEditingStorage !== BUILTIN_STORAGE || promptType !== PromptsType.prompt || !target.folder) {
+		if (!sourceUri || this.currentEditingStorage !== BUILTIN_STORAGE || promptType !== PromptsType.prompt || !target.folder || target.target === 'cancel') {
 			return;
 		}
 
@@ -1021,19 +1028,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		const targetUri = URI.joinPath(target.folder, basename(sourceUri));
-		await this.fileService.createFolder(target.folder);
-		await this.fileService.writeFile(targetUri, VSBuffer.fromString(session.model.getValue()));
-		if (target.target === 'workspace') {
-			const projectRoot = this.workspaceService.getActiveProjectRoot();
-			if (projectRoot) {
-				await this.workspaceService.commitFiles(projectRoot, [targetUri]);
-			}
-		}
+		return {
+			target: target.target,
+			folder: target.folder,
+			sourceUri,
+			content: session.model.getValue(),
+			projectRoot: target.target === 'workspace' ? this.workspaceService.getActiveProjectRoot() : undefined,
+		};
+	}
 
-		status(target.target === 'workspace'
-			? localize('saveBuiltinPromptCopySuccessWorkspace', "Saved the prompt override to the workspace prompts.")
-			: localize('saveBuiltinPromptCopySuccessUser', "Saved the prompt override to your user prompts."));
+	private async saveBuiltinPromptCopy(request: IBuiltinPromptSaveRequest): Promise<void> {
+		const targetUri = URI.joinPath(request.folder, basename(request.sourceUri));
+		await this.fileService.createFolder(request.folder);
+		await this.fileService.writeFile(targetUri, VSBuffer.fromString(request.content));
+		if (request.target === 'workspace' && request.projectRoot) {
+			await this.workspaceService.commitFiles(request.projectRoot, [targetUri]);
+		}
 	}
 
 	private async pickBuiltinPromptSaveTarget(): Promise<ISaveTargetQuickPickItem | undefined> {
@@ -1072,6 +1082,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private async handleEditorActionButton(): Promise<void> {
+		let backgroundSaveRequest: IBuiltinPromptSaveRequest | undefined;
 		if (this.shouldShowBuiltinSaveAction()) {
 			const selection = await this.pickBuiltinPromptSaveTarget();
 			if (!selection) {
@@ -1079,11 +1090,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 
 			if (selection.target !== 'cancel') {
-				await this.saveBuiltinPromptCopy(selection);
+				backgroundSaveRequest = this.createBuiltinPromptSaveRequest(selection);
 			}
 		}
 
 		this.goBackToList();
+		if (backgroundSaveRequest) {
+			const saveRequest = backgroundSaveRequest;
+			void this.saveBuiltinPromptCopy(saveRequest).then(() => {
+				void this.listWidget?.refresh();
+			}, error => {
+				console.error('Failed to save built-in prompt override:', error);
+				this.notificationService.warn(saveRequest.target === 'workspace'
+					? localize('saveBuiltinPromptCopyFailedWorkspace', "Could not save the prompt override to the workspace prompts.")
+					: localize('saveBuiltinPromptCopyFailedUser', "Could not save the prompt override to your user prompts."));
+			});
+		}
 	}
 
 	private updateEditorActionButton(): void {
