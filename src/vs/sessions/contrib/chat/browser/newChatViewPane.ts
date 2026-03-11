@@ -735,12 +735,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._cloudModelPicker.setSession(session);
 		this._cloudModelPicker.setVisible(true);
 
-		// Show separator for extension pickers
-		if (this._extensionPickersLeftContainer) {
-			this._extensionPickersLeftContainer.style.display = 'block';
-		}
-
-		// Render toolbar pickers (other groups)
+		// Render toolbar pickers (other groups) — separator visibility is managed inside
 		this._renderToolbarPickers(session, force);
 	}
 
@@ -759,6 +754,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		if (visibleGroups.length === 0) {
 			this._clearToolbarPickers();
+			if (this._extensionPickersLeftContainer) {
+				this._extensionPickersLeftContainer.style.display = 'none';
+			}
 			return;
 		}
 
@@ -770,6 +768,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}
 
 		this._clearToolbarPickers();
+
+		// Show separator only when there are toolbar pickers
+		if (this._extensionPickersLeftContainer) {
+			this._extensionPickersLeftContainer.style.display = 'block';
+		}
 
 		for (const option of visibleGroups) {
 			this._renderToolbarPickerWidget(option, session);
