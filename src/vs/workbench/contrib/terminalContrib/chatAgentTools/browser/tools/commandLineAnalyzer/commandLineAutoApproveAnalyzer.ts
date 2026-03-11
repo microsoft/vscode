@@ -51,20 +51,9 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 	}
 
 	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
-		if (options.chatSessionResource && this._terminalChatService.hasChatSessionAutoApproval(options.chatSessionResource)) {
-			this._log('Session has auto approval enabled, auto approving command');
-			const disableUri = createCommandUri(TerminalChatCommandId.DisableSessionAutoApproval, options.chatSessionResource);
-			const mdTrustSettings = {
-				isTrusted: {
-					enabledCommands: [TerminalChatCommandId.DisableSessionAutoApproval]
-				}
-			};
-			return {
-				isAutoApproved: true,
-				isAutoApproveAllowed: true,
-				disclaimers: [],
-				autoApproveInfo: new MarkdownString(`${localize('autoApprove.session', 'Auto approved for this session')} ([${localize('autoApprove.session.disable', 'Disable')}](${disableUri.toString()}))`, mdTrustSettings),
-			};
+		const hasSessionAutoApproval = options.chatSessionResource && this._terminalChatService.hasChatSessionAutoApproval(options.chatSessionResource);
+		if (hasSessionAutoApproval) {
+			this._log('Session has auto approval enabled');
 		}
 
 		const trimmedCommandLine = options.commandLine.trimStart();
@@ -131,6 +120,10 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 				isAutoApproved = true;
 				autoApproveReason = 'subCommand';
 				autoApproveDefault = subCommandResults.every(e => isAutoApproveRule(e.rule) && e.rule.isDefaultRule);
+			} else if (hasSessionAutoApproval) {
+				this._log('Session auto approval - approving non-denied command');
+				isAutoApproved = true;
+				autoApproveReason = 'subCommand';
 			} else {
 				this._log('All sub-commands NOT auto-approved');
 				if (commandLineResult.result === 'approved') {
@@ -152,7 +145,15 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		// Apply auto approval or force it off depending on enablement/opt-in state
 		const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
 		const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
-		if (isAutoApproveEnabled && isAutoApproved) {
+		if (hasSessionAutoApproval && isAutoApproved) {
+			const disableUri = createCommandUri(TerminalChatCommandId.DisableSessionAutoApproval, options.chatSessionResource!);
+			const mdTrustSettings = {
+				isTrusted: {
+					enabledCommands: [TerminalChatCommandId.DisableSessionAutoApproval]
+				}
+			};
+			autoApproveInfo = new MarkdownString(`${localize('autoApprove.session', 'Auto approved for this session')} ([${localize('autoApprove.session.disable', 'Disable')}](${disableUri.toString()}))`, mdTrustSettings);
+		} else if (isAutoApproveEnabled && isAutoApproved) {
 			autoApproveInfo = this._createAutoApproveInfo(
 				isAutoApproved,
 				isDenied,

@@ -1416,6 +1416,10 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('session auto approval', () => {
+		setup(() => {
+			setAutoApprove({ rm: false });
+		});
+
 		test('should return policy denial details for denied commands when session has auto approval enabled', async () => {
 			const sessionId = 'test-session-123';
 			const sessionResource = LocalChatSessionUri.forSession(sessionId);
