@@ -6,7 +6,7 @@
 import { equals } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
@@ -18,9 +18,10 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { SessionsCategories } from '../../../common/categories.js';
 import { IActiveSessionItem, IsActiveSessionBackgroundProviderContext, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { Menus } from '../../../browser/menus.js';
-import { ISessionsConfigurationService, ITaskEntry, TaskStorageTarget } from './sessionsConfigurationService.js';
+import { INonSessionTaskEntry, ISessionsConfigurationService, ITaskEntry, TaskStorageTarget } from './sessionsConfigurationService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
 
 
 
@@ -31,7 +32,6 @@ export const RunScriptDropdownMenuId = MenuId.for('AgentSessionsRunScriptDropdow
 const RUN_SCRIPT_ACTION_ID = 'workbench.action.agentSessions.runScript';
 const RUN_SCRIPT_ACTION_PRIMARY_ID = 'workbench.action.agentSessions.runScriptPrimary';
 const CONFIGURE_DEFAULT_RUN_ACTION_ID = 'workbench.action.agentSessions.configureDefaultRunAction';
-
 function getTaskDisplayLabel(task: ITaskEntry): string {
 	if (task.label && task.label.length > 0) {
 		return task.label;
@@ -46,6 +46,19 @@ function getTaskDisplayLabel(task: ITaskEntry): string {
 		return task.task.toString();
 	}
 	return '';
+}
+
+function getTaskCommandPreview(task: ITaskEntry): string {
+	if (task.command && task.command.length > 0) {
+		return task.command;
+	}
+	if (task.script && task.script.length > 0) {
+		return localize('npmTaskCommandPreview', "npm run {0}", task.script);
+	}
+	if (task.task && task.task.toString().length > 0) {
+		return task.task.toString();
+	}
+	return getTaskDisplayLabel(task);
 }
 
 interface IRunScriptActionContext {
@@ -103,7 +116,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			constructor() {
 				super({
 					id: RUN_SCRIPT_ACTION_PRIMARY_ID,
-					title: { value: localize('runPrimaryScript', 'Run Primary Script'), original: 'Run Primary Script' },
+					title: { value: localize('runPrimaryTask', 'Run Primary Task'), original: 'Run Primary Task' },
 					icon: Codicon.play,
 					category: SessionsCategories.Sessions,
 					f1: true,
@@ -182,7 +195,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				constructor() {
 					super({
 						id: CONFIGURE_DEFAULT_RUN_ACTION_ID,
-						title: localize2('configureDefaultRunAction', "Add Run Action..."),
+						title: localize2('configureDefaultRunAction', "Add Action..."),
 						category: SessionsCategories.Sessions,
 						icon: Codicon.play,
 						precondition: configureScriptPrecondition,
@@ -226,12 +239,12 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 		if (nonSessionTasks.length > 0) {
 			items.push({ type: 'separator', label: localize('existingTasks', "Existing Tasks") });
-			for (const task of nonSessionTasks) {
+			for (const { task, target } of nonSessionTasks) {
 				items.push({
 					label: getTaskDisplayLabel(task),
 					description: task.command,
 					task,
-					source: 'workspace',
+					source: target,
 				});
 			}
 		}
@@ -246,81 +259,86 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 		const pickedItem = picked as ITaskPickItem;
 		if (pickedItem.task) {
-			// Existing task — set inSessions: true
-			await this._sessionsConfigService.addTaskToSessions(pickedItem.task, session, pickedItem.source ?? 'workspace');
-			return pickedItem.task;
+			return this._showCustomCommandInput(session, { task: pickedItem.task, target: pickedItem.source ?? 'workspace' });
 		} else {
 			// Custom command path
 			return this._showCustomCommandInput(session);
 		}
 	}
 
-	private async _showCustomCommandInput(session: IActiveSessionItem): Promise<ITaskEntry | undefined> {
-		const command = await this._quickInputService.input({
-			placeHolder: localize('enterCommandPlaceholder', "Enter command (e.g., npm run dev)"),
-			prompt: localize('enterCommandPrompt', "This command will be run as a task in the integrated terminal")
-		});
-
-		if (!command) {
+	private async _showCustomCommandInput(session: IActiveSessionItem, existingTask?: INonSessionTaskEntry): Promise<ITaskEntry | undefined> {
+		const taskConfiguration = await this._showCustomCommandWidget(session, existingTask);
+		if (!taskConfiguration) {
 			return undefined;
 		}
 
-		const target = await this._pickStorageTarget(session);
-		if (!target) {
-			return undefined;
+		if (existingTask) {
+			await this._sessionsConfigService.addTaskToSessions(existingTask.task, session, existingTask.target, { runOn: taskConfiguration.runOn ?? 'default' });
+			return {
+				...existingTask.task,
+				inSessions: true,
+				...(taskConfiguration.runOn ? { runOptions: { runOn: taskConfiguration.runOn } } : {}),
+			};
 		}
 
-		return this._sessionsConfigService.createAndAddTask(command, session, target);
+		return this._sessionsConfigService.createAndAddTask(
+			taskConfiguration.label,
+			taskConfiguration.command,
+			session,
+			taskConfiguration.target,
+			taskConfiguration.runOn ? { runOn: taskConfiguration.runOn } : undefined
+		);
 	}
 
-	private async _pickStorageTarget(session: IActiveSessionItem): Promise<TaskStorageTarget | undefined> {
-		const hasWorktree = !!session.worktree;
-		const hasRepository = !!session.repository;
+	private _showCustomCommandWidget(session: IActiveSessionItem, existingTask?: INonSessionTaskEntry): Promise<IRunScriptCustomTaskWidgetResult | undefined> {
+		const workspaceTargetDisabledReason = !(session.worktree ?? session.repository)
+			? localize('workspaceStorageUnavailableTooltip', "Workspace storage is unavailable for this session")
+			: undefined;
 
-		interface IStorageTargetItem extends IQuickPickItem {
-			target: TaskStorageTarget;
-		}
+		return new Promise<IRunScriptCustomTaskWidgetResult | undefined>(resolve => {
+			const disposables = new DisposableStore();
+			let settled = false;
 
-		const items: IStorageTargetItem[] = [
-			{
-				target: 'user',
-				label: localize('storeInUserSettings', "User Settings"),
-				description: localize('storeInUserSettingsDesc', "Available in all sessions"),
-			},
-			hasWorktree ? {
-				target: 'workspace',
-				label: localize('storeInWorkspaceWorktreeSettings', "Workspace (Worktree)"),
-				description: localize('storeInWorkspaceWorktreeSettingsDesc', "Stored in session worktree"),
-			} : hasRepository ? {
-				target: 'workspace',
-				label: localize('storeInWorkspaceSettings', "Workspace"),
-				description: localize('storeInWorkspace', "Stored in the workspace"),
-			} : {
-				target: 'workspace',
-				label: localize('storeInWorkspaceSettingsDisable', "Workspace Unavailable"),
-				description: localize('storeInWorkspaceDisabled', "Stored in the workspace Unavailable"),
-				disabled: true,
-				italic: true,
-			}
-		];
+			const quickWidget = disposables.add(this._quickInputService.createQuickWidget());
+			quickWidget.title = existingTask
+				? localize('addExistingActionWidgetTitle', "Add Existing Action...")
+				: localize('addActionWidgetTitle', "Add Action...");
+			quickWidget.description = existingTask
+				? localize('addExistingActionWidgetDescription', "Enable an existing task for sessions and configure when it should run")
+				: localize('addActionWidgetDescription', "Create a shell task and configure how it should be saved and run");
+			quickWidget.ignoreFocusOut = true;
+			const widget = disposables.add(new RunScriptCustomTaskWidget({
+				label: existingTask?.task.label,
+				labelDisabledReason: existingTask ? localize('existingTaskLabelLocked', "This name comes from an existing task and cannot be changed here.") : undefined,
+				command: existingTask ? getTaskCommandPreview(existingTask.task) : undefined,
+				commandDisabledReason: existingTask ? localize('existingTaskCommandLocked', "This command comes from an existing task and cannot be changed here.") : undefined,
+				target: existingTask?.target,
+				targetDisabledReason: existingTask ? localize('existingTaskTargetLocked', "This existing task cannot be moved between workspace and user storage.") : workspaceTargetDisabledReason,
+				runOn: existingTask?.task.runOptions?.runOn === 'worktreeCreated' ? 'worktreeCreated' : undefined,
+			}));
+			quickWidget.widget = widget.domNode;
 
-		return new Promise<TaskStorageTarget | undefined>(resolve => {
-			const picker = this._quickInputService.createQuickPick<IStorageTargetItem>({ useSeparators: true });
-			picker.placeholder = localize('pickStorageTarget', "Where should this action be saved?");
-			picker.items = items;
-
-			picker.onDidAccept(() => {
-				const selected = picker.activeItems[0];
-				if (selected && (selected.target !== 'workspace' || hasWorktree)) {
-					resolve(selected.target);
-					picker.dispose();
+			const complete = (result: IRunScriptCustomTaskWidgetResult | undefined) => {
+				if (settled) {
+					return;
 				}
-			});
-			picker.onDidHide(() => {
-				resolve(undefined);
-				picker.dispose();
-			});
-			picker.show();
+				settled = true;
+				resolve(result);
+				quickWidget.hide();
+			};
+
+			disposables.add(widget.onDidSubmit(result => complete(result)));
+			disposables.add(widget.onDidCancel(() => complete(undefined)));
+			disposables.add(quickWidget.onDidHide(() => {
+				if (!settled) {
+					settled = true;
+					resolve(undefined);
+				}
+				disposables.dispose();
+			}));
+
+			quickWidget.show();
+			widget.focus();
 		});
 	}
 }

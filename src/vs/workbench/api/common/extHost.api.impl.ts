@@ -1945,6 +1945,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TaskGroup: extHostTypes.TaskGroup,
 			TaskPanelKind: extHostTypes.TaskPanelKind,
 			TaskRevealKind: extHostTypes.TaskRevealKind,
+			TaskRunOn: extHostTypes.TaskRunOn,
 			TaskScope: extHostTypes.TaskScope,
 			TerminalLink: extHostTypes.TerminalLink,
 			TerminalQuickFixTerminalCommand: extHostTypes.TerminalQuickFixCommand,
