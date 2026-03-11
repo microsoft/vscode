@@ -251,14 +251,21 @@ export class ModifiedFilesConfirmationTool implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		if (!invocation.selectedCustomButton) {
-			throw new Error('ModifiedFilesConfirmationTool requires a selected option');
+		// If a custom button was selected, return the button label
+		if (invocation.selectedCustomButton) {
+			return {
+				content: [{
+					kind: 'text',
+					value: invocation.selectedCustomButton
+				}]
+			};
 		}
 
+		// Default: return 'yes' for standard Allow confirmation
 		return {
 			content: [{
 				kind: 'text',
-				value: invocation.selectedCustomButton
+				value: 'yes' // Consumers should check for this label to know whether the tool was confirmed or skipped
 			}]
 		};
 	}

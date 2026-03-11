@@ -23,6 +23,7 @@ import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list
 import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { FilterWidget } from '../../../../browser/parts/views/viewFilter.js';
 import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
+import { filterDebugEventsByText } from '../../common/chatDebugEvents.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatDebugEventRenderer, ChatDebugEventDelegate, ChatDebugEventTreeRenderer } from './chatDebugEventList.js';
@@ -314,7 +315,7 @@ export class ChatDebugLogsView extends Disposable {
 	}
 
 	refreshList(): void {
-		let filtered = this.events;
+		let filtered: readonly IChatDebugEvent[] = this.events;
 
 		// Filter by kind toggles (pass category for generic events so only
 		// discovery-category events are affected by the Prompt Discovery toggle)
@@ -323,54 +324,11 @@ export class ChatDebugLogsView extends Disposable {
 			return this.filterState.isKindVisible(e.kind, category);
 		});
 
-		// Filter by timestamp (before:/after: syntax)
-		filtered = filtered.filter(e => this.filterState.isTimestampVisible(e.created));
-
-		// Filter by text search (excluding before:/after: tokens)
-		const filterText = this.filterState.textFilterWithoutTimestamps;
+		// Filter by text search and timestamp (before:/after: syntax is handled
+		// inside filterDebugEventsByText)
+		const filterText = this.filterState.textFilter;
 		if (filterText) {
-			const terms = filterText.split(/\s*,\s*/).filter(t => t.length > 0);
-			const includeTerms = terms.filter(t => !t.startsWith('!')).map(t => t.trim());
-			const excludeTerms = terms.filter(t => t.startsWith('!')).map(t => t.slice(1).trim()).filter(t => t.length > 0);
-
-			filtered = filtered.filter(e => {
-				const matchesText = (term: string): boolean => {
-					if (e.kind.toLowerCase().includes(term)) {
-						return true;
-					}
-					switch (e.kind) {
-						case 'toolCall':
-							return e.toolName.toLowerCase().includes(term) ||
-								(e.input?.toLowerCase().includes(term) ?? false) ||
-								(e.output?.toLowerCase().includes(term) ?? false);
-						case 'modelTurn':
-							return (e.model?.toLowerCase().includes(term) ?? false);
-						case 'generic':
-							return e.name.toLowerCase().includes(term) ||
-								(e.details?.toLowerCase().includes(term) ?? false) ||
-								(e.category?.toLowerCase().includes(term) ?? false);
-						case 'subagentInvocation':
-							return e.agentName.toLowerCase().includes(term) ||
-								(e.description?.toLowerCase().includes(term) ?? false);
-						case 'userMessage':
-							return e.message.toLowerCase().includes(term) ||
-								e.sections.some(s => s.name.toLowerCase().includes(term) || s.content.toLowerCase().includes(term));
-						case 'agentResponse':
-							return e.message.toLowerCase().includes(term) ||
-								e.sections.some(s => s.name.toLowerCase().includes(term) || s.content.toLowerCase().includes(term));
-					}
-				};
-
-				// Exclude terms: if any exclude term matches, filter out the event
-				if (excludeTerms.some(term => matchesText(term))) {
-					return false;
-				}
-				// Include terms: if present, at least one must match
-				if (includeTerms.length > 0) {
-					return includeTerms.some(term => matchesText(term));
-				}
-				return true;
-			});
+			filtered = filterDebugEventsByText(filtered, filterText);
 		}
 
 		if (this.logsViewMode === LogsViewMode.List) {
@@ -460,12 +418,12 @@ export class ChatDebugLogsView extends Disposable {
 		});
 	}
 
-	private refreshTree(filtered: IChatDebugEvent[]): void {
+	private refreshTree(filtered: readonly IChatDebugEvent[]): void {
 		const treeElements = this.buildTreeHierarchy(filtered);
 		this.tree.setChildren(null, treeElements);
 	}
 
-	private buildTreeHierarchy(events: IChatDebugEvent[]): IObjectTreeElement<IChatDebugEvent>[] {
+	private buildTreeHierarchy(events: readonly IChatDebugEvent[]): IObjectTreeElement<IChatDebugEvent>[] {
 		const idToEvent = new Map<string, IChatDebugEvent>();
 		const idToChildren = new Map<string, IChatDebugEvent[]>();
 		const roots: IChatDebugEvent[] = [];

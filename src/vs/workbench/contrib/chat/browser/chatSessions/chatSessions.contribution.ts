@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { sep } from '../../../../../base/common/path.js';
-import { raceCancellationError } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer, raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { AsyncEmitter, Emitter, Event } from '../../../../../base/common/event.js';
@@ -29,9 +29,9 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
-import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentRequest, IChatAgentService } from '../../common/participants/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemController, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemController, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
@@ -391,8 +391,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
 		try {
-			const results = await this.getChatSessionItems([chatSessionType], CancellationToken.None);
-			const items = results.flatMap(r => r.items);
+			const items: IChatSessionItem[] = [];
+			for await (const result of this.getChatSessionItems([chatSessionType], CancellationToken.None)) {
+				items.push(...result.items);
+			}
 			const inProgress = items.filter(item => item.status && isSessionInProgressStatus(item.status));
 			this.reportInProgress(chatSessionType, inProgress.length);
 		} catch (error) {
@@ -828,33 +830,32 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}));
 	}
 
-	public async getChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }>> {
-		// First, make sure contributed controller are active
-		await this.tryActivateControllers(providersToResolve);
+	public getChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): AsyncIterable<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }> {
+		return new AsyncIterableProducer(async writer => {
+			// First, make sure contributed controller are active
+			await raceCancellationError(this.tryActivateControllers(providersToResolve), token);
 
-		// Then actually resolve items for all active controllers
-		const results: Array<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }> = [];
-		await Promise.all(Array.from(this._itemControllers).map(async ([chatSessionType, controllerEntry]) => {
-			const resolvedType = this._resolveToPrimaryType(chatSessionType) ?? chatSessionType;
-			if (providersToResolve && !providersToResolve.includes(resolvedType)) {
-				return; // skip: not considered for resolving
-			}
-
-			try {
-				await controllerEntry.initialRefresh; // Ensure initial refresh is complete before accessing items
-
-				const providerSessions = controllerEntry.controller.items;
-				this._logService.trace(`[ChatSessionsService] Resolved ${providerSessions.length} sessions for provider ${resolvedType}`);
-				results.push({ chatSessionType: resolvedType, items: providerSessions });
-			} catch (err) {
-				if (!isCancellationError(err)) {
-					// Log error but continue with other providers
-					this._logService.error(`[ChatSessionsService] Failed to resolve sessions for provider ${resolvedType}`, err);
+			// Then actually resolve items for all active controllers
+			await Promise.all(Array.from(this._itemControllers, async ([chatSessionType, controllerEntry]) => {
+				const resolvedType = this._resolveToPrimaryType(chatSessionType) ?? chatSessionType;
+				if (providersToResolve && !providersToResolve.includes(resolvedType)) {
+					return; // skip: not considered for resolving
 				}
-			}
-		}));
 
-		return results;
+				try {
+					await raceCancellationError(controllerEntry.initialRefresh, token); // Ensure initial refresh is complete before accessing items
+
+					const providerSessions = controllerEntry.controller.items;
+					this._logService.trace(`[ChatSessionsService] Resolved ${providerSessions.length} sessions for provider ${resolvedType}`);
+					writer.emitOne({ chatSessionType: resolvedType, items: providerSessions });
+				} catch (err) {
+					if (!isCancellationError(err)) {
+						// Log error but continue with other providers
+						this._logService.error(`[ChatSessionsService] Failed to resolve sessions for provider ${resolvedType}`, err);
+					}
+				}
+			}));
+		});
 	}
 
 	public async refreshChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): Promise<void> {
@@ -982,7 +983,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return description ? renderAsPlaintext(description, { useLinkFormatter: true }) : '';
 	}
 
-	async createNewChatSessionItem(chatSessionType: string, request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {
+	async createNewChatSessionItem(chatSessionType: string, request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {
 		const controllerData = this._itemControllers.get(chatSessionType);
 		if (!controllerData) {
 			return undefined;

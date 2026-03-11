@@ -193,6 +193,11 @@ export interface IChatSessionContentProvider {
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 }
 
+export interface IChatNewSessionRequest {
+	readonly prompt: string;
+	readonly command?: string;
+}
+
 export interface IChatSessionItemController {
 
 	readonly onDidChangeChatSessionItems: Event<void>;
@@ -201,7 +206,7 @@ export interface IChatSessionItemController {
 
 	refresh(token: CancellationToken): Promise<void>;
 
-	newChatSessionItem?(request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 }
 
 /**
@@ -243,9 +248,12 @@ export interface IChatSessionsService {
 
 	/**
 	 * Get the list of current chat session items grouped by session type.
+	 *
 	 * @param providerTypeFilter If specified, only returns items from the given providers. If undefined, returns items from all providers.
+	 *
+	 * @returns An async iterable that produces the list of session items for each provider. The order is not guaranteed. Some provider may take a long time to resolve.
 	 */
-	getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }>>;
+	getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): AsyncIterable<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }>;
 
 	/**
 	 * Forces the controllers to refresh their session items, optionally filtered by provider type.
@@ -311,7 +319,7 @@ export interface IChatSessionsService {
 	 * Creates a new chat session item using the controller's newChatSessionItemHandler.
 	 * Returns undefined if the controller doesn't have a handler or if no controller is registered.
 	 */
-	createNewChatSessionItem(chatSessionType: string, request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+	createNewChatSessionItem(chatSessionType: string, request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 
 	/**
 	 * Registers an alias so that session-option lookups by the real resource

@@ -33,7 +33,14 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 
+/**
+ * Command ID that extensions can call to enable debug tools for the current
+ * chat session. Sets the context key and immediately flushes tool updates so
+ * that newly-enabled tools are visible on the next `vscode.lm.tools` read.
+ */
+export const EnableChatDebugToolsCommandId = 'chat.enableDebugTools';
 
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
 
@@ -51,18 +58,26 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 
 		// Bind at the global context key service level so the tools service can evaluate it.
 		// Widget-scoped keys are not reliably visible to singleton services during async request processing.
-		const hasAttachedDebugDataKey = ChatContextKeys.chatSessionHasAttachedDebugData.bindTo(contextKeyService);
+		const hasDebugToolsKey = ChatContextKeys.chatSessionHasDebugTools.bindTo(contextKeyService);
 		this._store.add(chatWidgetService.onDidChangeFocusedSession(() => {
 			const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
-			hasAttachedDebugDataKey.set(!!sessionResource && chatDebugService.hasAttachedDebugData(sessionResource));
+			hasDebugToolsKey.set(!!sessionResource && chatDebugService.hasAttachedDebugData(sessionResource));
 			languageModelToolsService.flushToolUpdates();
 		}));
 		this._store.add(chatDebugService.onDidAttachDebugData(sessionResource => {
 			const focusedSession = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
 			if (focusedSession && focusedSession.toString() === sessionResource.toString()) {
-				hasAttachedDebugDataKey.set(true);
+				hasDebugToolsKey.set(true);
 				languageModelToolsService.flushToolUpdates();
 			}
+		}));
+
+		// Register a command that extensions can call to enable debug tools
+		// for the current session. This sets the context key AND flushes the
+		// tools service synchronously so the change is visible immediately.
+		this._store.add(CommandsRegistry.registerCommand(EnableChatDebugToolsCommandId, () => {
+			hasDebugToolsKey.set(true);
+			languageModelToolsService.flushToolUpdates();
 		}));
 
 		// ###############################################################################################

@@ -119,6 +119,8 @@ async function renderPromptFilePickerFixture({ container, disposableStore, theme
 					return promptsState.extensionPromptFiles.filter(file => file.type === type);
 				case PromptsStorage.plugin:
 					return [];
+				default:
+					return [];
 			}
 		}
 

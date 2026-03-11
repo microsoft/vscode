@@ -29,6 +29,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IChatEditingService } from '../../chat/common/editing/chatEditingService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatRequestQueueKind } from '../../chat/common/chatService/chatService.js';
+import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
 
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
@@ -130,7 +131,7 @@ export class StartSessionAction extends Action2 {
 MenuRegistry.appendMenuItem(MenuId.InlineChatEditorAffordance, {
 	group: '0_chat',
 	order: 1,
-	when: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasNonEmptySelection, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.negate()),
+	when: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasNonEmptySelection, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.negate(), ChatEntitlementContextKeys.Setup.hidden.negate()),
 	command: {
 		id: ACTION_START,
 		title: localize('editCode', "Ask for Edits"),

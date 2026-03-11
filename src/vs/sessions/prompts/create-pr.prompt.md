@@ -1,7 +1,7 @@
 ---
 description: Create a pull request for the current session
 ---
-<!-- Tip: Create a workspace or user prompt named 'create-pr' to override this built-in prompt -->
+<!-- Customize this prompt and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 
 Use the GitHub MCP server to create a pull request — do NOT use the `gh` CLI.
 

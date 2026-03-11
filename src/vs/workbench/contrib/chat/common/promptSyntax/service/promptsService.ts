@@ -8,6 +8,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
+import { ContextKeyExpression } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
@@ -74,6 +75,7 @@ export enum PromptsStorage {
 	user = 'user',
 	extension = 'extension',
 	plugin = 'plugin',
+	internal = 'internal',
 }
 
 /**
@@ -88,7 +90,7 @@ export enum ExtensionAgentSourceType {
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
-export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath | IPluginPromptPath;
+export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath | IPluginPromptPath | IInternalPromptPath;
 
 
 export interface IPromptPathBase {
@@ -137,6 +139,10 @@ export interface IPluginPromptPath extends IPromptPathBase {
 	readonly pluginUri: URI;
 }
 
+export interface IInternalPromptPath extends IPromptPathBase {
+	readonly storage: PromptsStorage.internal;
+}
+
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
@@ -146,6 +152,8 @@ export type IAgentSource = {
 } | {
 	readonly storage: PromptsStorage.plugin;
 	readonly pluginUri: URI;
+} | {
+	readonly storage: PromptsStorage.internal;
 };
 
 /**
@@ -248,6 +256,7 @@ export interface IChatPromptSlashCommand {
 	readonly argumentHint: string | undefined;
 	readonly promptPath: IPromptPath;
 	readonly parsedPromptFile: ParsedPromptFile;
+	readonly when: ContextKeyExpression | undefined;
 }
 
 export interface IAgentSkill {
@@ -265,6 +274,11 @@ export interface IAgentSkill {
 	 * Use for background knowledge users shouldn't invoke directly.
 	 */
 	readonly userInvocable: boolean;
+	/**
+	 * Optional context key expression. When set, the skill is only available
+	 * when this expression evaluates to true against a scoped context.
+	 */
+	readonly when?: ContextKeyExpression;
 }
 
 /**
