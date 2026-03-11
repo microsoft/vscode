@@ -119,6 +119,13 @@ export class IgnoreFile {
 			if (isDir && isDirIgnored(path) && !isDirIncluded(path)) { return true; }
 			if (isFileIgnored(path) && !isFileIncluded(path)) { return true; }
 
+			// If this file explicitly un-ignores a path via a negation pattern
+			// (e.g., `!.myconfig/`), do not delegate to the parent. In git, a
+			// negation in a child .gitignore overrides a positive pattern in a
+			// parent or global .gitignore.
+			if (isDir && isDirIncluded(path)) { return false; }
+			if (isFileIncluded(path)) { return false; }
+
 			if (parent) { return parent.isPathIgnored(path, isDir); }
 
 			return false;
