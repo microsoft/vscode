@@ -193,16 +193,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		for (const disposable of this._capabilityDisposables.values()) {
 			dispose(disposable);
 		}
-		// During terminal disposal, only clean up VS Code-side resources. Avoid
-		// disposing xterm IDecoration objects as that fires
-		// DecorationService.onDecorationRemoved events, causing the
-		// OverviewRulerRenderer to schedule requestAnimationFrame callbacks that
-		// access RenderService.dimensions after the renderer is already disposed.
-		// xterm handles its own decoration cleanup during terminal disposal.
-		for (const value of this._decorations.values()) {
-			dispose(value.disposables);
-		}
-		this._decorations.clear();
+		this.clearDecorations();
 	}
 
 	private _clearPlaceholder(): void {
