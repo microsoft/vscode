@@ -644,6 +644,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 		const isArrowKey = keyCode >= KeyCode.LeftArrow && keyCode <= KeyCode.DownArrow;
 		const isNonEditingKey =
+			keyCode === KeyCode.Enter ||
 			keyCode === KeyCode.Escape ||
 			keyCode >= KeyCode.F1 && keyCode <= KeyCode.F24 ||
 			keyCode >= KeyCode.AudioVolumeMute;
