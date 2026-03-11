@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual } from 'assert';
+import { deepStrictEqual, ok } from 'assert';
 import { tmpdir } from 'os';
 import * as path from '../../../../base/common/path.js';
 import * as fs from 'fs';
@@ -27,16 +27,35 @@ const processOptions: ITerminalProcessOptions = {
  * The command writes numbered lines to a temp file so we can verify
  * the entire payload was received intact by the shell.
  */
-function buildMultilineCommand(lineCount: number, outputFile: string): { command: string; expectedLines: string[] } {
+function buildMultilineCommand(lines: string[], outputFile: string): { command: string; expectedLines: string[] } {
+	// Use cat heredoc to write content to a file - this exercises multiline PTY input
+	const command = `cat > ${outputFile} << 'TESTEOF'\n${lines.join('\n')}\nTESTEOF\n`;
+	return { command, expectedLines: lines };
+}
+
+function buildAsciiMultilineCommand(lineCount: number, outputFile: string): { command: string; expectedLines: string[] } {
 	const lines: string[] = [];
 	for (let i = 1; i <= lineCount; i++) {
 		// Pad line number, add filler to make each line ~55 chars
 		const line = `L${String(i).padStart(2, '0')} ${'a'.repeat(51)}`;
 		lines.push(line);
 	}
-	// Use cat heredoc to write content to a file — this exercises multiline PTY input
-	const command = `cat > ${outputFile} << 'TESTEOF'\n${lines.join('\n')}\nTESTEOF\n`;
-	return { command, expectedLines: lines };
+	return buildMultilineCommand(lines, outputFile);
+
+}
+
+function buildMultibyteMultilineCommand(lineCount: number, outputFile: string): { command: string; expectedLines: string[] } {
+	const lines: string[] = [];
+	for (let i = 1; i <= lineCount; i++) {
+		lines.push(`L${String(i).padStart(2, '0')} ${'中'.repeat(40)}`);
+	}
+	return buildMultilineCommand(lines, outputFile);
+}
+
+interface IRunMultilineTestOptions {
+	outputFile: string;
+	buildCommand: (outputFile: string) => { command: string; expectedLines: string[] };
+	maxWait?: number;
 }
 
 // These tests spawn real PTY processes and are macOS/Linux only
@@ -52,9 +71,9 @@ function buildMultilineCommand(lineCount: number, outputFile: string): { command
 		fs.rmSync(outputDir, { recursive: true, force: true });
 	});
 
-	async function runMultilineTest(lineCount: number): Promise<void> {
-		const outputFile = path.join(outputDir, `output-${lineCount}.txt`);
-		const { command, expectedLines } = buildMultilineCommand(lineCount, outputFile);
+	async function runMultilineTest(options: IRunMultilineTestOptions): Promise<void> {
+		const { outputFile, buildCommand, maxWait = 3000 } = options;
+		const { command, expectedLines } = buildCommand(outputFile);
 
 		const terminalProcess = store.add(new TerminalProcess(
 			{ executable: '/bin/bash', args: ['--norc', '--noprofile', '-i'] },
@@ -92,7 +111,6 @@ function buildMultilineCommand(lineCount: number, outputFile: string): { command
 		terminalProcess.input(ptyData);
 
 		// Wait for the command to execute and write the file
-		const maxWait = 10000;
 		const start = Date.now();
 		while (Date.now() - start < maxWait) {
 			await new Promise(resolve => setTimeout(resolve, 200));
@@ -122,18 +140,47 @@ function buildMultilineCommand(lineCount: number, outputFile: string): { command
 		deepStrictEqual(actualLines, expectedLines);
 	}
 
+	async function runAsciiMultilineTest(lineCount: number): Promise<void> {
+		await runMultilineTest({
+			outputFile: path.join(outputDir, `output-${lineCount}.txt`),
+			buildCommand: outputFile => buildAsciiMultilineCommand(lineCount, outputFile)
+		});
+	}
+
 	test('small multiline command (10 lines, ~700 bytes)', async function () {
 		this.timeout(15000);
-		await runMultilineTest(10);
+		await runAsciiMultilineTest(10);
 	});
 
 	test('medium multiline command (20 lines, ~1300 bytes)', async function () {
 		this.timeout(15000);
-		await runMultilineTest(20);
+		await runAsciiMultilineTest(20);
 	});
 
 	test.skip('large multiline command (500 lines, ~32KB)', async function () {
 		this.timeout(30000);
-		await runMultilineTest(500);
+		await runAsciiMultilineTest(500);
 	});
+
+	test('multibyte multiline command can exceed the UTF-8 threshold while staying under the current UTF-16 gate', async function () {
+		const outputFile = '/tmp/vscode-pty-u8.txt';
+		fs.rmSync(outputFile, { force: true });
+		const { command } = buildMultibyteMultilineCommand(10, outputFile);
+		const utf16Length = command.length;
+		const utf8Length = Buffer.byteLength(command, 'utf8');
+
+		// This payload documents the predicate mismatch directly: the current
+		// macOS chunking gate uses JS string length, but the PTY buffer limit is
+		// relevant in UTF-8 bytes.
+		ok(utf16Length <= 512, `Expected payload to stay under the current UTF-16 chunking gate, got ${utf16Length}`);
+		ok(utf8Length > 1024, `Expected payload to exceed the macOS canonical-mode buffer in UTF-8 bytes, got ${utf8Length}`);
+
+		this.timeout(15000);
+		await runMultilineTest({
+			outputFile,
+			buildCommand: currentOutputFile => buildMultibyteMultilineCommand(10, currentOutputFile)
+		});
+		fs.rmSync(outputFile, { force: true });
+	});
+
 });
