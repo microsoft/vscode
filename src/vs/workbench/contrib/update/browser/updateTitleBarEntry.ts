@@ -88,7 +88,8 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		));
 
 		const onStateChange = () => {
-			if (this.shouldShowTooltip(updateService.state)) {
+			const mode = configurationService.getValue<string>('update.titleBar');
+			if (mode !== 'none' && this.shouldShowTooltip(updateService.state)) {
 				if (context.get()) {
 					entry?.showTooltip();
 				} else {
