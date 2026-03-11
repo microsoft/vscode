@@ -6,8 +6,10 @@
 import { IModelDecoration, InjectedTextOptions, ITextModel, PositionAffinity } from '../model.js';
 import { Range } from '../core/range.js';
 import { Position } from '../core/position.js';
-import { ICoordinatesConverter } from '../coordinatesConverter.js';
+import { ICoordinatesConverter, IdentityCoordinatesConverter } from '../coordinatesConverter.js';
 import { isModelDecorationVisible, ViewModelDecoration } from './viewModelDecoration.js';
+import { filterFontDecorations, filterValidationDecorations, IComputedEditorOptions } from '../config/editorOptions.js';
+import { LineInjectedText } from '../textModelEvents.js';
 
 export const enum InlineDecorationType {
 	Regular = 0,
@@ -265,5 +267,46 @@ export class InjectedTextInlineDecorationsComputer implements IInlineDecorations
 			}
 		}
 		return lineInlineDecorations;
+	}
+}
+
+export class IdentityInlineDecorationsComputer {
+
+	private readonly _inlineDecorationsComputer: IInlineDecorationsComputer;
+	private readonly _injectedTextInlineDecorationsComputer: InjectedTextInlineDecorationsComputer;
+
+	constructor(
+		private readonly editorId: number,
+		private readonly model: ITextModel,
+		private readonly options: IComputedEditorOptions
+	) {
+		const coordinatesConverter = new IdentityCoordinatesConverter(this.model);
+		const context: IInlineModelDecorationsComputerContext = {
+			getModelDecorations: (range: Range) => this.model.getDecorationsInRange(range, this.editorId, filterValidationDecorations(this.options), filterFontDecorations(this.options), false, false),
+		};
+		const injectedContext: IInjectedTextInlineDecorationsComputerContext = {
+			getInjectionOptions: (lineNumber: number) => this._getLineInjectedText(lineNumber).map(t => t.options),
+			getInjectionOffsets: (lineNumber: number) => this._getLineInjectedText(lineNumber).map(text => text.column - 1),
+			getBreakOffsets: () => [],
+			getWrappedTextIndentLength: () => 0,
+			getBaseViewLineNumber: (lineNumber: number) => lineNumber
+		};
+		this._inlineDecorationsComputer = new InlineModelDecorationsComputer(context, this.model, coordinatesConverter);
+		this._injectedTextInlineDecorationsComputer = new InjectedTextInlineDecorationsComputer(injectedContext);
+	}
+
+	public getLineInlineDecorations(lineNumber: number): InlineDecoration[] {
+		const inlineDecorations = this._inlineDecorationsComputer.getInlineDecorations(lineNumber);
+		const injectedTextInlineDecorations = this._injectedTextInlineDecorationsComputer.getInlineDecorations(lineNumber);
+		const mergedInlineDecorations = [...inlineDecorations[0], ...injectedTextInlineDecorations[0]];
+		return mergedInlineDecorations;
+	}
+
+	public hasVariableFonts(lineNumber: number): boolean {
+		return false;
+	}
+
+	private _getLineInjectedText(lineNumber: number): LineInjectedText[] {
+		return this.model.getLineInjectedText(lineNumber);
 	}
 }

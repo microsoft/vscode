@@ -17,7 +17,7 @@ import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
 import { ViewLineData } from '../viewModel.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { ICoordinatesConverter, IdentityCoordinatesConverter } from '../coordinatesConverter.js';
-import { InlineDecoration } from './inlineDecorations.js';
+import { IdentityInlineDecorationsComputer, InlineDecoration } from './inlineDecorations.js';
 import { LineTokens } from '../tokens/lineTokens.js';
 import { LineInjectedText } from '../textModelEvents.js';
 
