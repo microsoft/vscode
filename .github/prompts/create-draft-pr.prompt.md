@@ -9,4 +9,4 @@ Use the GitHub MCP server to create a draft pull request — do NOT use the `gh`
 2. Write a clear, concise PR title with a short area prefix (e.g. "sessions: …", "editor: …")
 3. Write a description covering what changed, why, and anything reviewers should know
 4. Create the draft pull request
-dsfsd
+aaaaa
