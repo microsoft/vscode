@@ -43,10 +43,6 @@ export class ChatInternalCustomizations extends Disposable {
 			this._register(skill);
 		}
 
-		// Dispatch FS read events to the matching skill's onDidRead
-		this._register(provider.onDidReadFile(uri => {
-			this.skillsByUri.get(uri.toString())?._fireRead();
-		}));
 	}
 
 	/**
@@ -63,15 +59,6 @@ export class ChatInternalCustomizations extends Disposable {
 	 */
 	getInternalSkillByUri(uri: URI): InternalSkill | undefined {
 		return this.skillsByUri.get(uri.toString());
-	}
-
-	/**
-	 * Notify that an internal skill was used in a request.
-	 * Fires the skill's {@link InternalSkill.onDidRead} event regardless of
-	 * filesystem caching, so that side-effects (like tool enablement) always run.
-	 */
-	notifySkillUsed(uri: URI): void {
-		this.skillsByUri.get(uri.toString())?._fireRead();
 	}
 
 	/**

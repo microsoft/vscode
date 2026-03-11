@@ -803,10 +803,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return new PromptFileParser().parse(uri, fileContent.value.toString());
 	}
 
-	public notifyInternalSkillUsed(uri: URI): void {
-		this.internalCustomizations.notifySkillUsed(uri);
-	}
-
 	public registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name?: string, description?: string, when?: string) {
 		const bucket = this.contributedFiles[type];
 		if (bucket.has(uri)) {

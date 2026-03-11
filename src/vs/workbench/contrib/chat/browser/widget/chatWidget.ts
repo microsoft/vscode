@@ -69,7 +69,6 @@ import { ILanguageModelToolsService, isToolSet } from '../../common/tools/langua
 import { ComputeAutomaticInstructions } from '../../common/promptSyntax/computeAutomaticInstructions.js';
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { CHAT_INTERNAL_SCHEME } from '../../common/promptSyntax/internalCustomizations/internalPromptFileSystem.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
@@ -2183,11 +2182,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 		const parseResult = slashCommand.parsedPromptFile;
-		// Notify internal skills so side-effects (e.g. tool enablement) fire
-		// even when the skill file content is served from cache.
-		if (parseResult.uri.scheme === CHAT_INTERNAL_SCHEME) {
-			this.promptsService.notifyInternalSkillUsed(parseResult.uri);
-		}
 		// add the prompt file to the context
 		const refs = parseResult.body?.variableReferences.map(({ name, offset }) => ({ name, range: new OffsetRange(offset, offset + name.length + 1) })) ?? [];
 		const toolReferences = this.toolsService.toToolReferences(refs);

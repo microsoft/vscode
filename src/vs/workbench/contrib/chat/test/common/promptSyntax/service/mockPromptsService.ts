@@ -69,7 +69,6 @@ export class MockPromptsService implements IPromptsService {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	getHooks(_token: CancellationToken, _sessionResource?: URI): Promise<any> { throw new Error('Method not implemented.'); }
 	getInstructionFiles(_token: CancellationToken, _sessionResource?: URI): Promise<readonly IPromptPath[]> { throw new Error('Method not implemented.'); }
-	notifyInternalSkillUsed(_uri: URI): void { }
 	dispose(): void { }
 	onDidChangeInstructions: Event<void> = Event.None;
 	onDidChangePromptFiles: Event<void> = Event.None;

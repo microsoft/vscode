@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ContextKeyExpression } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -12,7 +11,6 @@ import { CHAT_INTERNAL_SCHEME } from './internalPromptFileSystem.js';
 
 /**
  * A built-in skill backed by the internal readonly virtual filesystem.
- * Extends {@link Disposable} so it can own an {@link onDidRead} event emitter.
  *
  * To add a new internal skill, create an instance documenting the skill
  * name, description and SKILL.md content, then add it to the
@@ -31,15 +29,6 @@ export class InternalSkill extends Disposable {
 	 * in the system prompt when this expression evaluates to true.
 	 */
 	readonly when: ContextKeyExpression | undefined;
-
-	private readonly _onDidRead = this._register(new Emitter<void>());
-
-	/**
-	 * Fired when the model reads this skill's SKILL.md from the
-	 * internal virtual filesystem. Consumers can listen to perform
-	 * side-effects such as enabling related tools.
-	 */
-	readonly onDidRead: Event<void> = this._onDidRead.event;
 
 	constructor(
 		readonly name: string,
@@ -65,10 +54,5 @@ export class InternalSkill extends Disposable {
 			userInvocable: options?.userInvocable ?? true,
 		};
 		this.when = options?.when;
-	}
-
-	/** @internal Called by {@link registerInternalCustomizations} when the FS fires a read for this skill's URI. */
-	_fireRead(): void {
-		this._onDidRead.fire();
 	}
 }

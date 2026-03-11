@@ -525,10 +525,4 @@ export interface IPromptsService extends IDisposable {
 	 */
 	readonly onDidLogDiscovery: Event<IPromptDiscoveryLogEntry>;
 
-	/**
-	 * Notify that an internal skill was used in a request.
-	 * Ensures the skill's side-effects (e.g. tool enablement) fire even when
-	 * the skill file content is served from cache.
-	 */
-	notifyInternalSkillUsed(uri: URI): void;
 }

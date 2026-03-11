@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileService, IFileSystemProviderWithFileReadWriteCapability, IFileWriteOptions, IStat } from '../../../../../../platform/files/common/files.js';
@@ -19,21 +19,11 @@ export const CHAT_INTERNAL_SCHEME = 'vscode-chat-internal';
  * A readonly virtual filesystem provider for internal chat prompt files.
  *
  * Files are registered at startup via {@link registerFile} and cannot be
- * modified or deleted afterwards. The provider fires a {@link onDidReadFile}
- * event every time a file is read, which consumers can use to detect when
- * a built-in skill or instruction has been loaded by the model.
+ * modified or deleted afterwards.
  */
 export class ChatInternalFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 
 	private readonly files = new Map<string, Uint8Array>();
-
-	private readonly _onDidReadFile = this._register(new Emitter<URI>());
-
-	/**
-	 * Fired when a file is read from this filesystem.
-	 * Consumers can listen to this event to detect skill invocations.
-	 */
-	readonly onDidReadFile: Event<URI> = this._onDidReadFile.event;
 
 	readonly onDidChangeCapabilities = Event.None;
 	readonly onDidChangeFile = Event.None;
@@ -108,7 +98,6 @@ export class ChatInternalFileSystemProvider extends Disposable implements IFileS
 	async readFile(resource: URI): Promise<Uint8Array> {
 		const data = this.files.get(resource.toString());
 		if (data) {
-			this._onDidReadFile.fire(resource);
 			return data;
 		}
 		throw createFileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
