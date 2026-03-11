@@ -32,20 +32,24 @@ const shellMatrix: IShellLaunchConfig[] = [
 	{ executable: '/bin/tcsh', args: ['-i'] },
 ];
 
-const lineCount = 20;
+const lineCounts = [10, 20];
 const waitDuration = 4000;
 
 function shellExists(executable: string): boolean {
 	return fs.existsSync(executable);
 }
 
-function buildMultilineCommand(outputFile: string): { command: string; expectedLines: string[] } {
+function escapeForDoubleQuotedShellString(value: string): string {
+	return `"${value.replace(/[\\"$`]/g, '\\$&')}"`;
+}
+
+function buildMultilineCommand(outputFile: string, lineCount: number): { command: string; expectedLines: string[] } {
 	const expectedLines: string[] = [];
 	for (let i = 1; i <= lineCount; i++) {
 		expectedLines.push(`L${String(i).padStart(2, '0')} ${'a'.repeat(51)}`);
 	}
-	const escapedOutputFile = `'${outputFile.replace(/'/g, `'\\''`)}'`;
-	const command = [`: > ${escapedOutputFile}`, ...expectedLines.map(line => `echo '${line}' >> ${escapedOutputFile}`)].join('\n') + '\n';
+	const escapedOutputFile = escapeForDoubleQuotedShellString(outputFile);
+	const command = `printf "%s\\n" \\\n${expectedLines.map(line => escapeForDoubleQuotedShellString(line)).join(' \\\n')} > ${escapedOutputFile}\n`;
 	return { command, expectedLines };
 }
 
@@ -62,10 +66,10 @@ function buildMultilineCommand(outputFile: string): { command: string; expectedL
 		fs.rmSync(outputDir, { recursive: true, force: true });
 	});
 
-	async function runShellMultilineTest(shellLaunchConfig: IShellLaunchConfig): Promise<void> {
+	async function runShellMultilineTest(shellLaunchConfig: IShellLaunchConfig, lineCount: number): Promise<void> {
 		const shellName = path.posix.basename(shellLaunchConfig.executable!);
-		const outputFile = path.join(outputDir, `output-${shellName}.txt`);
-		const { command, expectedLines } = buildMultilineCommand(outputFile);
+		const outputFile = path.join(outputDir, `output-${shellName}-${lineCount}.txt`);
+		const { command, expectedLines } = buildMultilineCommand(outputFile, lineCount);
 		const terminalProcess = store.add(new TerminalProcess(
 			shellLaunchConfig,
 			outputDir,
@@ -124,15 +128,18 @@ function buildMultilineCommand(outputFile: string): { command: string; expectedL
 		deepStrictEqual(actualLines, expectedLines);
 	}
 
-	for (const shell of shellMatrix) {
-		const shellName = path.posix.basename(shell.executable!);
-		test(`${shellName} medium multiline write`, async function () {
-			if (!shellExists(shell.executable!)) {
-				this.skip();
-			}
+	for (const lineCount of lineCounts) {
+		const sizeName = lineCount === 10 ? 'small' : lineCount === 20 ? 'medium' : 'large';
+		for (const shell of shellMatrix) {
+			const shellName = path.posix.basename(shell.executable!);
+			test(`${shellName} ${sizeName} multiline write`, async function () {
+				if (!shellExists(shell.executable!)) {
+					this.skip();
+				}
 
-			this.timeout(10000);
-			await runShellMultilineTest(shell);
-		});
+				this.timeout(10000);
+				await runShellMultilineTest(shell, lineCount);
+			});
+		}
 	}
 });
