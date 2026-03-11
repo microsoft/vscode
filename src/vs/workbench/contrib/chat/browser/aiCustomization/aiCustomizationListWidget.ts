@@ -297,16 +297,13 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 				// Description was truncated for display; clamp matches to the visible range.
 				const maxLength = secondaryText.length;
 				const clampedMatches = element.descriptionMatches.map(match => {
-					const start = match.start;
-					const end = match.start + match.length;
 					// Discard matches that are entirely outside the visible portion.
-					if (start >= maxLength || end <= 0) {
+					if (match.start >= maxLength || match.end <= 0) {
 						return undefined;
 					}
-					const clampedStart = Math.max(0, start);
-					const clampedEnd = Math.min(end, maxLength);
-					const length = clampedEnd - clampedStart;
-					return length > 0 ? { start: clampedStart, length } : undefined;
+					const clampedStart = Math.max(0, match.start);
+					const clampedEnd = Math.min(match.end, maxLength);
+					return clampedEnd > clampedStart ? { start: clampedStart, end: clampedEnd } : undefined;
 				}).filter((match): match is IMatch => !!match);
 				secondaryTextMatches = clampedMatches.length ? clampedMatches : undefined;
 			}
