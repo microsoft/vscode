@@ -9,7 +9,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugLogProvider, IChatDebugResolvedEventContent, IChatDebugService } from './chatDebugService.js';
+import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugLogProvider, IChatDebugResolvedEventContent, IChatDebugService, IChatDebugSessionSummary } from './chatDebugService.js';
 import { LocalChatSessionUri } from './model/chatUri.js';
 
 export class ChatDebugServiceImpl extends Disposable implements IChatDebugService {
@@ -45,6 +45,9 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	/** Human-readable titles for imported sessions. */
 	private readonly _importedSessionTitles = new ResourceMap<string>();
 
+	/** Pre-computed session summary metrics for large imports. */
+	private readonly _sessionSummaries = new ResourceMap<IChatDebugSessionSummary>();
+
 	activeSessionResource: URI | undefined;
 
 	log(sessionResource: URI, name: string, details?: string, level: ChatDebugLogLevel = ChatDebugLogLevel.Info, options?: { id?: string; category?: string; parentEventId?: string }): void {
@@ -76,6 +79,21 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	}
 
 	addProviderEvent(event: IChatDebugEvent): void {
+		// Intercept import-summary events and store as session metadata
+		// instead of consuming a ring buffer slot.
+		if (event.kind === 'generic' && event.category === 'import-summary' && event.details) {
+			try {
+				const parsed = JSON.parse(event.details);
+				this._sessionSummaries.set(event.sessionResource, {
+					modelTurns: parsed.modelTurns ?? 0,
+					toolCalls: parsed.toolCalls ?? 0,
+					errors: parsed.errors ?? 0,
+					totalTokens: parsed.totalTokens ?? 0,
+					totalEvents: parsed.totalSpans ?? 0,
+				});
+			} catch { /* ignore malformed summary */ }
+			return;
+		}
 		this._providerEvents.add(event);
 		this.addEvent(event);
 	}
@@ -255,6 +273,14 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 
 	isCoreEvent(event: IChatDebugEvent): boolean {
 		return !this._providerEvents.has(event);
+	}
+
+	setSessionSummary(sessionResource: URI, summary: IChatDebugSessionSummary): void {
+		this._sessionSummaries.set(sessionResource, summary);
+	}
+
+	getSessionSummary(sessionResource: URI): IChatDebugSessionSummary | undefined {
+		return this._sessionSummaries.get(sessionResource);
 	}
 
 	setImportedSessionTitle(sessionResource: URI, title: string): void {

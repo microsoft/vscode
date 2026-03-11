@@ -215,6 +215,17 @@ export interface IChatDebugService extends IDisposable {
 	isCoreEvent(event: IChatDebugEvent): boolean;
 
 	/**
+	 * Store pre-computed session summary metrics (e.g. from an import
+	 * where the total span count exceeds the circular buffer cap).
+	 */
+	setSessionSummary(sessionResource: URI, summary: IChatDebugSessionSummary): void;
+
+	/**
+	 * Get pre-computed session summary metrics, if available.
+	 */
+	getSessionSummary(sessionResource: URI): IChatDebugSessionSummary | undefined;
+
+	/**
 	 * Store a human-readable title for an imported session.
 	 */
 	setImportedSessionTitle(sessionResource: URI, title: string): void;
@@ -238,6 +249,18 @@ export interface IChatDebugService extends IDisposable {
 	 * Check whether a session has had debug data attached.
 	 */
 	hasAttachedDebugData(sessionResource: URI): boolean;
+}
+
+/**
+ * Pre-computed session summary metrics, used when the total event count
+ * exceeds the circular buffer cap (e.g. large imports).
+ */
+export interface IChatDebugSessionSummary {
+	readonly modelTurns: number;
+	readonly toolCalls: number;
+	readonly errors: number;
+	readonly totalTokens: number;
+	readonly totalEvents: number;
 }
 
 /**

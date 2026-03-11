@@ -260,22 +260,45 @@ export class ChatDebugOverviewView extends Disposable {
 	}
 
 	private renderMetricsContent(container: HTMLElement, events: readonly IChatDebugEvent[]): void {
-		const modelTurns = events.filter(e => e.kind === 'modelTurn');
-		const toolCalls = events.filter(e => e.kind === 'toolCall');
-		const errors = events.filter(e =>
-			(e.kind === 'generic' && e.level === ChatDebugLogLevel.Error) ||
-			(e.kind === 'toolCall' && e.result === 'error')
-		);
+		// Use pre-computed summary from large imports when available,
+		// otherwise compute from the (potentially capped) event buffer.
+		const summary = this.currentSessionResource
+			? this.chatDebugService.getSessionSummary(this.currentSessionResource)
+			: undefined;
 
-		const totalTokens = modelTurns.reduce((sum, e) => sum + (e.totalTokens ?? 0), 0);
+		let modelTurnCount: number;
+		let toolCallCount: number;
+		let errorCount: number;
+		let totalTokens: number;
+		let totalEventCount: number;
+
+		if (summary) {
+			modelTurnCount = summary.modelTurns;
+			toolCallCount = summary.toolCalls;
+			errorCount = summary.errors;
+			totalTokens = summary.totalTokens;
+			totalEventCount = summary.totalEvents;
+		} else {
+			const modelTurns = events.filter(e => e.kind === 'modelTurn');
+			const toolCalls = events.filter(e => e.kind === 'toolCall');
+			const errors = events.filter(e =>
+				(e.kind === 'generic' && e.level === ChatDebugLogLevel.Error) ||
+				(e.kind === 'toolCall' && e.result === 'error')
+			);
+			modelTurnCount = modelTurns.length;
+			toolCallCount = toolCalls.length;
+			errorCount = errors.length;
+			totalTokens = modelTurns.reduce((sum, e) => sum + (e.totalTokens ?? 0), 0);
+			totalEventCount = events.length;
+		}
 
 		interface OverviewMetric { label: string; value: string }
 		const metrics: OverviewMetric[] = [
-			{ label: localize('chatDebug.metric.modelTurns', "Model Turns"), value: String(modelTurns.length) },
-			{ label: localize('chatDebug.metric.toolCalls', "Tool Calls"), value: String(toolCalls.length) },
+			{ label: localize('chatDebug.metric.modelTurns', "Model Turns"), value: String(modelTurnCount) },
+			{ label: localize('chatDebug.metric.toolCalls', "Tool Calls"), value: String(toolCallCount) },
 			{ label: localize('chatDebug.metric.totalTokens', "Total Tokens"), value: totalTokens.toLocaleString() },
-			{ label: localize('chatDebug.metric.errors', "Errors"), value: String(errors.length) },
-			{ label: localize('chatDebug.metric.totalEvents', "Total Events"), value: String(events.length) },
+			{ label: localize('chatDebug.metric.errors', "Errors"), value: String(errorCount) },
+			{ label: localize('chatDebug.metric.totalEvents', "Total Events"), value: String(totalEventCount) },
 		];
 
 		for (const metric of metrics) {
