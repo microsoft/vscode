@@ -158,7 +158,7 @@ export class ChatQuestionCarouselAutoReply extends Disposable {
 			title: question.title,
 			message: typeof question.message === 'string' ? question.message : question.message?.value,
 			options: question.options?.map(option => ({ id: option.id, label: option.label })) ?? [],
-			allowFreeformInput: true
+			allowFreeformInput: question.allowFreeformInput !== false
 		}));
 
 		const contextLines: string[] = [];
