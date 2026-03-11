@@ -292,7 +292,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const isLocal = this._targetPicker.selectedTarget === AgentSessionProviders.Background;
 		const enabled = this._isIsolationOptionEnabled;
 		if (!enabled) {
-			this._isolationModePicker.setIsolationMode('worktree');
+			this._isolationModePicker.setPreferredIsolationMode('worktree');
 		}
 		this._isolationModePicker.setVisible(isLocal);
 		this._isolationModePicker.setEnabled(enabled);
