@@ -688,7 +688,7 @@ declare module 'vscode' {
 		/**
 		 * Fired when a core-originated debug event is received (e.g., prompt discovery,
 		 * skill loading). Extensions can use this to capture events that originate
-		 * inside Code rather than from the extension's own telemetry pipeline.
+		 * inside Core.
 		 */
 		export const onDidReceiveChatDebugEvent: Event<ChatDebugEvent>;
 	}
