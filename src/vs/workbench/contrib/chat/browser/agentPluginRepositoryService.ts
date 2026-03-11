@@ -107,38 +107,47 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		return repoDir;
 	}
 
-	async pullRepository(marketplace: IMarketplaceReference, options?: IPullRepositoryOptions): Promise<void> {
+	async pullRepository(marketplace: IMarketplaceReference, options?: IPullRepositoryOptions): Promise<boolean> {
 		const repoDir = this.getRepositoryUri(marketplace, options?.marketplaceType);
 		const repoExists = await this._fileService.exists(repoDir);
 		if (!repoExists) {
 			this._logService.warn(`[AgentPluginRepositoryService] Cannot update plugin '${options?.pluginName ?? marketplace.displayLabel}': repository not cloned`);
-			return;
+			return false;
 		}
 
 		const updateLabel = options?.pluginName ?? marketplace.displayLabel;
 
 		try {
-			await this._progressService.withProgress(
+			const doPull = async () => {
+				return !!(await this._commandService.executeCommand<boolean>('_git.pull', repoDir.fsPath));
+			};
+
+			if (options?.silent) {
+				return await doPull();
+			}
+
+			return await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
 					title: localize('updatingPlugin', "Updating plugin '{0}'...", updateLabel),
 					cancellable: false,
 				},
-				async () => {
-					await this._commandService.executeCommand('_git.pull', repoDir.fsPath);
-				}
+				doPull,
 			);
 		} catch (err) {
 			this._logService.error(`[AgentPluginRepositoryService] Failed to update ${marketplace.displayLabel}:`, err);
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: localize('pullFailed', "Failed to update plugin '{0}': {1}", options?.failureLabel ?? updateLabel, err?.message ?? String(err)),
-				actions: {
-					primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
-						this._commandService.executeCommand('git.showOutput');
-					})],
-				},
-			});
+			if (!options?.silent) {
+				this._notificationService.notify({
+					severity: Severity.Error,
+					message: localize('pullFailed', "Failed to update plugin '{0}': {1}", options?.failureLabel ?? updateLabel, err?.message ?? String(err)),
+					actions: {
+						primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
+							this._commandService.executeCommand('git.showOutput');
+						})],
+					},
+				});
+			}
+			throw err;
 		}
 	}
 
@@ -248,12 +257,29 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		return repo.ensure(this._cacheRoot, plugin, options);
 	}
 
-	async updatePluginSource(plugin: IMarketplacePlugin, options?: IPullRepositoryOptions): Promise<void> {
+	async updatePluginSource(plugin: IMarketplacePlugin, options?: IPullRepositoryOptions): Promise<boolean> {
 		const repo = this.getPluginSource(plugin.sourceDescriptor.kind);
 		if (plugin.sourceDescriptor.kind === PluginSourceKind.RelativePath) {
 			return this.pullRepository(plugin.marketplaceReference, options);
 		}
 		return repo.update(this._cacheRoot, plugin, options);
+	}
+
+	async fetchRepository(marketplace: IMarketplaceReference): Promise<boolean> {
+		const repoDir = this.getRepositoryUri(marketplace);
+		const repoExists = await this._fileService.exists(repoDir);
+		if (!repoExists) {
+			return false;
+		}
+
+		try {
+			await this._commandService.executeCommand('_git.fetchRepository', repoDir.fsPath);
+			const behindCount = await this._commandService.executeCommand<number>('_git.revListCount', repoDir.fsPath, 'HEAD', '@{u}') ?? 0;
+			return behindCount > 0;
+		} catch (err) {
+			this._logService.debug(`[AgentPluginRepositoryService] Silent fetch failed for ${marketplace.displayLabel}:`, err);
+			return false;
+		}
 	}
 
 	async cleanupPluginSource(plugin: IMarketplacePlugin): Promise<void> {

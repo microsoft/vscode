@@ -9,8 +9,8 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "@vscode/component-explorer": "^0.1.1-20",
-    "@vscode/component-explorer-vite-plugin": "^0.1.1-19",
+    "@vscode/component-explorer": "^0.1.1-23",
+    "@vscode/component-explorer-vite-plugin": "^0.1.1-23",
     "@vscode/rollup-plugin-esm-url": "^1.0.1-1",
     "rollup": "*",
     "vite": "npm:rolldown-vite@latest"

@@ -93,7 +93,12 @@ declare module 'vscode' {
 	export type ChatSessionItemControllerRefreshHandler = (token: CancellationToken) => Thenable<void>;
 
 	export interface ChatSessionItemControllerNewItemHandlerContext {
-		readonly request: ChatRequest;
+		// TODO: Use a better type but for now decrease this down to just the prompt and command since that's all we currently need.
+		// The problem with ChatRequest is that it has a resourceUri which is not good for this code path.
+		readonly request: {
+			readonly prompt: string;
+			readonly command?: string;
+		};
 	}
 
 	/**

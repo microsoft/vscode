@@ -12,6 +12,7 @@ import { ConfirmationTool, ConfirmationToolData, ConfirmationToolWithOptionsData
 import { EditTool, EditToolData } from './editFileTool.js';
 import { createManageTodoListToolData, ManageTodoListTool } from './manageTodoListTool.js';
 import { ResolveDebugEventDetailsTool, ResolveDebugEventDetailsToolData } from './resolveDebugEventDetailsTool.js';
+import { ListDebugEventsTool, ListDebugEventsToolData } from './listDebugEventsTool.js';
 import { RunSubagentTool } from './runSubagentTool.js';
 import { TaskCompleteTool, TaskCompleteToolData } from './taskCompleteTool.js';
 
@@ -50,6 +51,10 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		const resolveDebugEventDetailsTool = instantiationService.createInstance(ResolveDebugEventDetailsTool);
 		this._register(toolsService.registerTool(ResolveDebugEventDetailsToolData, resolveDebugEventDetailsTool));
 		this._register(toolsService.readToolSet.addTool(ResolveDebugEventDetailsToolData));
+
+		const listDebugEventsTool = instantiationService.createInstance(ListDebugEventsTool);
+		this._register(toolsService.registerTool(ListDebugEventsToolData, listDebugEventsTool));
+		this._register(toolsService.readToolSet.addTool(ListDebugEventsToolData));
 
 
 		const runSubagentTool = this._register(instantiationService.createInstance(RunSubagentTool));

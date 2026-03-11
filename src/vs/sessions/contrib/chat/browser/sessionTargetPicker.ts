@@ -138,6 +138,7 @@ export class IsolationModePicker extends Disposable {
 	private _isolationMode: IsolationMode = 'worktree';
 	private _preferredIsolationMode: IsolationMode | undefined;
 	private _repository: IGitRepository | undefined;
+	private _enabled: boolean = true;
 
 	private readonly _onDidChange = this._register(new Emitter<IsolationMode>());
 	readonly onDidChange: Event<IsolationMode> = this._onDidChange.event;
@@ -225,23 +226,32 @@ export class IsolationModePicker extends Disposable {
 		}
 	}
 
+	/**
+	 * Enables or disables the picker. When disabled, the picker is shown
+	 * but cannot be interacted with.
+	 */
+	setEnabled(enabled: boolean): void {
+		this._enabled = enabled;
+		this._updateTriggerLabel();
+	}
+
 	private _showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible || !this._repository) {
+		if (!this._triggerElement || this.actionWidgetService.isVisible || !this._repository || !this._enabled) {
 			return;
 		}
 
 		const items: IActionListItem<IsolationMode>[] = [
 			{
 				kind: ActionListItemKind.Action,
-				label: localize('isolationMode.folder', "Folder"),
-				group: { title: '', icon: Codicon.folder },
-				item: 'workspace',
+				label: localize('isolationMode.worktree', "Copilot CLI"),
+				group: { title: '', icon: Codicon.worktree },
+				item: 'worktree',
 			},
 			{
 				kind: ActionListItemKind.Action,
-				label: localize('isolationMode.worktree', "Worktree"),
-				group: { title: '', icon: Codicon.worktree },
-				item: 'worktree',
+				label: localize('isolationMode.folder', "Local"),
+				group: { title: '', icon: Codicon.folder },
+				item: 'workspace',
 			},
 		];
 
@@ -286,15 +296,19 @@ export class IsolationModePicker extends Disposable {
 		const isDisabled = !this._repository;
 		const modeIcon = this._isolationMode === 'worktree' ? Codicon.worktree : Codicon.folder;
 		const modeLabel = this._isolationMode === 'worktree'
-			? localize('isolationMode.worktree', "Worktree")
-			: localize('isolationMode.folder', "Folder");
+			? localize('isolationMode.worktree', "Copilot CLI")
+			: localize('isolationMode.folder', "Local");
 
 		dom.append(this._triggerElement, renderIcon(modeIcon));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = modeLabel;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
-		this._slotElement?.classList.toggle('disabled', isDisabled);
+		this._slotElement?.classList.toggle('disabled', isDisabled || !this._enabled);
+		if (this._triggerElement) {
+			this._triggerElement.tabIndex = (!isDisabled && this._enabled) ? 0 : -1;
+			this._triggerElement.setAttribute('aria-disabled', String(isDisabled || !this._enabled));
+		}
 	}
 }
 
