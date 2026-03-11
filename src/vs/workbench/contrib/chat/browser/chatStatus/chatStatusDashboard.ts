@@ -671,10 +671,10 @@ export class ChatStatusDashboard extends DomWidget {
 
 			const timeLeftMs = this.inlineCompletionsService.snoozeTimeLeft;
 			if (!isEnabled || timeLeftMs <= 0) {
-				timerDisplay.textContent = localize('completions.snoozeTitle', "Hide suggestions temporarily");
+				timerDisplay.textContent = localize('completions.snooze5minutesTitle', "Hide suggestions for 5 min");
 				timerDisplay.title = '';
 				button.label = label;
-				button.setTitle(localize('completions.snooze', "Hide inline suggestions"));
+				button.setTitle(localize('completions.snooze5minutes', "Hide inline suggestions for 5 min"));
 				return true;
 			}
 
