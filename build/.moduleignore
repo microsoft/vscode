@@ -199,3 +199,12 @@ zone.js/dist/**
 @github/copilot/clipboard/node_modules/@teddyzhu/clipboard-win32-x64-msvc/**
 @github/copilot/clipboard/node_modules/@teddyzhu/clipboard-win32-arm64-msvc/**
 
+# @github/copilot-sdk - strip the nested @github/copilot CLI runtime
+# The SDK only needs its own dist/ files; the CLI is resolved via cliPath at runtime
+@github/copilot-sdk/node_modules/@github/copilot/**
+@github/copilot-sdk/node_modules/@github/copilot-darwin-arm64/**
+@github/copilot-sdk/node_modules/@github/copilot-darwin-x64/**
+@github/copilot-sdk/node_modules/@github/copilot-linux-arm64/**
+@github/copilot-sdk/node_modules/@github/copilot-linux-x64/**
+@github/copilot-sdk/node_modules/@github/copilot-win32-arm64/**
+@github/copilot-sdk/node_modules/@github/copilot-win32-x64/**

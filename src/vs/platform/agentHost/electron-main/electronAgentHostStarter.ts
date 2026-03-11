@@ -72,6 +72,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 
 		const store = new DisposableStore();
 		store.add(client);
+		store.add(this.utilityProcess.onStderr(data => this._logService.error(`[AgentHost:stderr] ${data}`)));
 		store.add(toDisposable(() => {
 			this.utilityProcess?.kill();
 			this.utilityProcess?.dispose();
