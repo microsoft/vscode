@@ -16,7 +16,7 @@ tools:
 
 # Issue Migration Prompt
 
-Use this prompt when migrating issues from one GitHub repository to another (e.g., from `microsoft/vscode-cdddopilot` to `microsoft/vscode`).
+Use this prompt when migrating issues from one GitHub repository to another (e.g., from `microsoft/vscode-copilot` to `microsoft/vscode`).
 
 ## Input Methods
 
