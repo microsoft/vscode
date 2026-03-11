@@ -1,0 +1,66 @@
+name: Sessions E2E Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'release/*'
+    paths:
+      - 'src/vs/sessions/**'
+      - 'scripts/code-sessions-web.*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sessions-e2e-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  sessions-e2e:
+    name: Sessions E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install build tools
+        run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev xvfb
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install build dependencies
+        run: npm ci
+        working-directory: build
+
+      - name: Transpile sources
+        run: npm run transpile-client
+
+      - name: Install E2E test dependencies
+        run: npm ci
+        working-directory: src/vs/sessions/test/e2e
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
+
+      - name: Run Sessions E2E tests
+        run: xvfb-run npm test
+        working-directory: src/vs/sessions/test/e2e
+
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sessions-e2e-failures
+          path: src/vs/sessions/test/e2e/out/failure-*.png
+          retention-days: 7
