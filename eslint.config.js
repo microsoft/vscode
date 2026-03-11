@@ -1974,6 +1974,25 @@ export default tseslint.config(
 					]
 				},
 				{
+					'target': 'src/vs/sessions/sessions.web.main.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/*/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/editor/editor.all.js',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/api/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/sessions.common.main.js'
+					]
+				},
+				{
 					'target': 'src/vs/sessions/sessions.web.main.internal.ts',
 					'layer': 'browser',
 					'restrictions': [
