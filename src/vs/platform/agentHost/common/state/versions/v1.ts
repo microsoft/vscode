@@ -17,19 +17,22 @@ import type { AgentProvider } from '../../agentService.js';
 
 export interface IV1_RootState {
 	readonly agents: readonly IV1_AgentInfo[];
-	readonly models: readonly IV1_SessionModelInfo[];
 }
 
 export interface IV1_AgentInfo {
 	readonly provider: AgentProvider;
 	readonly displayName: string;
 	readonly description: string;
+	readonly models: readonly IV1_SessionModelInfo[];
 }
 
 export interface IV1_SessionModelInfo {
 	readonly id: string;
 	readonly provider: AgentProvider;
 	readonly name: string;
+	readonly maxContextWindow?: number;
+	readonly supportsVision?: boolean;
+	readonly policyState?: 'enabled' | 'disabled' | 'unconfigured';
 }
 
 export interface IV1_SessionSummary {
@@ -39,6 +42,7 @@ export interface IV1_SessionSummary {
 	readonly status: 'idle' | 'in-progress' | 'error';
 	readonly createdAt: number;
 	readonly modifiedAt: number;
+	readonly model?: string;
 }
 
 export interface IV1_SessionState {
@@ -63,10 +67,12 @@ export interface IV1_MessageAttachment {
 export interface IV1_Turn {
 	readonly id: string;
 	readonly userMessage: IV1_UserMessage;
+	readonly responseText: string;
 	readonly responseParts: readonly IV1_ResponsePart[];
 	readonly toolCalls: readonly IV1_CompletedToolCall[];
 	readonly usage: IV1_UsageInfo | undefined;
 	readonly state: 'complete' | 'cancelled' | 'error';
+	readonly error?: IV1_ErrorInfo;
 }
 
 export interface IV1_ActiveTurn {
@@ -77,6 +83,7 @@ export interface IV1_ActiveTurn {
 	readonly toolCalls: ReadonlyMap<string, IV1_ToolCallState>;
 	readonly pendingPermissions: ReadonlyMap<string, IV1_PermissionRequest>;
 	readonly reasoning: string;
+	readonly usage: IV1_UsageInfo | undefined;
 }
 
 export interface IV1_MarkdownResponsePart {
@@ -101,16 +108,28 @@ export interface IV1_ToolCallState {
 	readonly toolInput?: string;
 	readonly toolKind?: 'terminal';
 	readonly language?: string;
-	readonly status: 'running' | 'pending-permission' | 'completed' | 'failed';
+	readonly toolArguments?: string;
+	readonly status: 'running' | 'pending-permission' | 'completed' | 'failed' | 'cancelled';
+	readonly parameters?: unknown;
+	readonly confirmed?: 'not-needed' | 'user-action' | 'setting' | 'denied' | 'skipped';
+	readonly pastTenseMessage?: string;
+	readonly toolOutput?: string;
+	readonly error?: { readonly message: string; readonly code?: string };
+	readonly cancellationReason?: 'denied' | 'skipped';
 }
 
 export interface IV1_CompletedToolCall {
 	readonly toolCallId: string;
 	readonly toolName: string;
 	readonly displayName: string;
+	readonly invocationMessage: string;
 	readonly success: boolean;
 	readonly pastTenseMessage: string;
+	readonly toolInput?: string;
+	readonly toolKind?: 'terminal';
+	readonly language?: string;
 	readonly toolOutput?: string;
+	readonly error?: { readonly message: string; readonly code?: string };
 }
 
 export interface IV1_PermissionRequest {
@@ -120,6 +139,9 @@ export interface IV1_PermissionRequest {
 	readonly path?: string;
 	readonly fullCommandText?: string;
 	readonly intention?: string;
+	readonly serverName?: string;
+	readonly toolName?: string;
+	readonly rawRequest?: string;
 }
 
 export interface IV1_UsageInfo {
@@ -139,11 +161,6 @@ export interface IV1_ErrorInfo {
 
 interface IV1_SessionActionBase {
 	readonly session: URI;
-}
-
-export interface IV1_ModelsChangedAction {
-	readonly type: 'root/modelsChanged';
-	readonly models: readonly IV1_SessionModelInfo[];
 }
 
 export interface IV1_AgentsChangedAction {
@@ -188,7 +205,14 @@ export interface IV1_ToolCompleteAction extends IV1_SessionActionBase {
 	readonly type: 'session/toolComplete';
 	readonly turnId: string;
 	readonly toolCallId: string;
-	readonly result: Omit<IV1_CompletedToolCall, 'toolCallId' | 'toolName' | 'displayName'>;
+	readonly result: IV1_ToolCompleteResult;
+}
+
+export interface IV1_ToolCompleteResult {
+	readonly success: boolean;
+	readonly pastTenseMessage: string;
+	readonly toolOutput?: string;
+	readonly error?: { readonly message: string; readonly code?: string };
 }
 
 export interface IV1_PermissionRequestAction extends IV1_SessionActionBase {
@@ -237,8 +261,12 @@ export interface IV1_ReasoningAction extends IV1_SessionActionBase {
 	readonly content: string;
 }
 
+export interface IV1_ModelChangedAction extends IV1_SessionActionBase {
+	readonly type: 'session/modelChanged';
+	readonly model: string;
+}
+
 export type IV1_RootAction =
-	| IV1_ModelsChangedAction
 	| IV1_AgentsChangedAction;
 
 export type IV1_SessionAction =
@@ -256,7 +284,8 @@ export type IV1_SessionAction =
 	| IV1_SessionErrorAction
 	| IV1_TitleChangedAction
 	| IV1_UsageAction
-	| IV1_ReasoningAction;
+	| IV1_ReasoningAction
+	| IV1_ModelChangedAction;
 
 export type IV1_StateAction = IV1_RootAction | IV1_SessionAction;
 

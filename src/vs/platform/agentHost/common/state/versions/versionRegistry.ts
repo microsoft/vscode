@@ -9,7 +9,7 @@
 import type {
 	IAgentsChangedAction,
 	IDeltaAction,
-	IModelsChangedAction,
+	IModelChangedAction,
 	INotification,
 	IPermissionRequestAction,
 	IPermissionResolvedAction,
@@ -58,7 +58,7 @@ import type {
 	IV1_ErrorInfo,
 	IV1_MarkdownResponsePart,
 	IV1_MessageAttachment,
-	IV1_ModelsChangedAction,
+	IV1_ModelChangedAction,
 	IV1_PermissionRequest,
 	IV1_PermissionRequestAction,
 	IV1_PermissionResolvedAction,
@@ -134,7 +134,6 @@ type _v1_ErrorInfo = AssertCompatible<IV1_ErrorInfo, IErrorInfo>;
 
 // -- v1 action compatibility --
 
-type _v1_ModelsChanged = AssertCompatible<IV1_ModelsChangedAction, IModelsChangedAction>;
 type _v1_AgentsChanged = AssertCompatible<IV1_AgentsChangedAction, IAgentsChangedAction>;
 type _v1_SessionReady = AssertCompatible<IV1_SessionReadyAction, ISessionReadyAction>;
 type _v1_CreationFailed = AssertCompatible<IV1_SessionCreationFailedAction, ISessionCreationFailedAction>;
@@ -151,6 +150,7 @@ type _v1_SessionError = AssertCompatible<IV1_SessionErrorAction, ISessionErrorAc
 type _v1_TitleChanged = AssertCompatible<IV1_TitleChangedAction, ITitleChangedAction>;
 type _v1_Usage = AssertCompatible<IV1_UsageAction, IUsageAction>;
 type _v1_Reasoning = AssertCompatible<IV1_ReasoningAction, IReasoningAction>;
+type _v1_ModelChanged = AssertCompatible<IV1_ModelChangedAction, IModelChangedAction>;
 
 // Suppress unused-variable warnings for compile-time-only checks.
 void (0 as unknown as
@@ -159,11 +159,11 @@ void (0 as unknown as
 	_v1_ActiveTurn & _v1_MarkdownResponsePart & _v1_ContentRef &
 	_v1_ToolCallState & _v1_CompletedToolCall & _v1_PermissionRequest &
 	_v1_UsageInfo & _v1_ErrorInfo &
-	_v1_ModelsChanged & _v1_AgentsChanged & _v1_SessionReady & _v1_CreationFailed &
+	_v1_AgentsChanged & _v1_SessionReady & _v1_CreationFailed &
 	_v1_TurnStarted & _v1_Delta & _v1_ResponsePart & _v1_ToolStart &
 	_v1_ToolComplete & _v1_PermissionRequestAction & _v1_PermissionResolved &
 	_v1_TurnComplete & _v1_TurnCancelled & _v1_SessionError & _v1_TitleChanged &
-	_v1_Usage & _v1_Reasoning
+	_v1_Usage & _v1_Reasoning & _v1_ModelChanged
 );
 
 // ---- Runtime action → version map -------------------------------------------
@@ -178,7 +178,6 @@ void (0 as unknown as
 /** Maps every action type string to the protocol version that introduced it. */
 export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: number } = {
 	// Root actions (v1)
-	'root/modelsChanged': 1,
 	'root/agentsChanged': 1,
 	// Session lifecycle (v1)
 	'session/ready': 1,
@@ -201,6 +200,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: numbe
 	'session/titleChanged': 1,
 	'session/usage': 1,
 	'session/reasoning': 1,
+	'session/modelChanged': 1,
 };
 
 /** Maps every notification type string to the protocol version that introduced it. */
@@ -233,13 +233,14 @@ export function isNotificationKnownToVersion(notification: INotification, client
 // When you add a new protocol version, define its additions and extend the map.
 
 /** Action types introduced in v1. */
-type IRootAction_v1 = IV1_ModelsChangedAction | IV1_AgentsChangedAction;
+type IRootAction_v1 = IV1_AgentsChangedAction;
 type ISessionAction_v1 = IV1_SessionReadyAction | IV1_SessionCreationFailedAction
 	| IV1_TurnStartedAction | IV1_DeltaAction | IV1_ResponsePartAction
 	| IV1_ToolStartAction | IV1_ToolCompleteAction
 	| IV1_PermissionRequestAction | IV1_PermissionResolvedAction
 	| IV1_TurnCompleteAction | IV1_TurnCancelledAction | IV1_SessionErrorAction
-	| IV1_TitleChangedAction | IV1_UsageAction | IV1_ReasoningAction;
+	| IV1_TitleChangedAction | IV1_UsageAction | IV1_ReasoningAction
+	| IV1_ModelChangedAction;
 
 /**
  * Maps protocol versions to their cumulative action type unions.

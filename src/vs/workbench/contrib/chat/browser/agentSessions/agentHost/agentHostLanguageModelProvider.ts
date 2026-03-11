@@ -7,63 +7,60 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ISessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILanguageModelChatProvider, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 
 /**
  * Exposes models available from the agent host process as selectable
- * language models in the chat model picker.
+ * language models in the chat model picker. Models are provided from
+ * root state (via {@link IAgentInfo.models}) rather than via RPC.
  */
 export class AgentHostLanguageModelProvider extends Disposable implements ILanguageModelChatProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
+	private _models: readonly ISessionModelInfo[] = [];
+
 	constructor(
 		private readonly _sessionType: string,
 		private readonly _vendor: string,
-		private readonly _provider: string,
-		@IAgentHostService private readonly _agentHostService: IAgentHostService,
-		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
 
-	refresh(): void {
+	/**
+	 * Called by {@link AgentHostContribution} when models change in root state.
+	 */
+	updateModels(models: readonly ISessionModelInfo[]): void {
+		this._models = models;
 		this._onDidChange.fire();
 	}
 
 	async provideLanguageModelChatInfo(_options: unknown, _token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
-		try {
-			const models = await this._agentHostService.listModels();
-			return models
-				.filter(m => m.provider === this._provider && m.policyState !== 'disabled')
-				.map(m => ({
-					identifier: `${this._vendor}:${m.id}`,
-					metadata: {
-						extension: new ExtensionIdentifier('vscode.agent-host'),
-						name: m.name,
-						id: m.id,
-						vendor: this._vendor,
-						version: '1.0',
-						family: m.id,
-						maxInputTokens: m.maxContextWindow,
-						maxOutputTokens: 0,
-						isDefaultForLocation: {},
-						isUserSelectable: true,
-						modelPickerCategory: undefined,
-						targetChatSessionType: this._sessionType,
-						capabilities: {
-							vision: m.supportsVision,
-							toolCalling: true,
-							agentMode: true,
-						},
+		return this._models
+			.filter(m => m.policyState !== 'disabled')
+			.map(m => ({
+				identifier: `${this._vendor}:${m.id}`,
+				metadata: {
+					extension: new ExtensionIdentifier('vscode.agent-host'),
+					name: m.name,
+					id: m.id,
+					vendor: this._vendor,
+					version: '1.0',
+					family: m.id,
+					maxInputTokens: m.maxContextWindow ?? 0,
+					maxOutputTokens: 0,
+					isDefaultForLocation: {},
+					isUserSelectable: true,
+					modelPickerCategory: undefined,
+					targetChatSessionType: this._sessionType,
+					capabilities: {
+						vision: m.supportsVision ?? false,
+						toolCalling: true,
+						agentMode: true,
 					},
-				}));
-		} catch (err) {
-			this._logService.trace('[AgentHost] Models not available yet, will retry on next refresh');
-			return [];
-		}
+				},
+			}));
 	}
 
 	async sendChatRequest(): Promise<never> {

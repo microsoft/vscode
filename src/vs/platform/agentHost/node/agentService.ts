@@ -7,7 +7,15 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, IAgentAttachment, IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentService, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession, IAgentDescriptor } from '../common/agentService.js';
+import { AgentProvider, IAgentAttachment, IAgentCreateSessionConfig, IAgent, IAgentService, IAgentSessionMetadata, AgentSession, IAgentDescriptor } from '../common/agentService.js';
+import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
+import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
+import {
+	ISessionModelInfo,
+	SessionStatus, type ISessionSummary
+} from '../common/state/sessionState.js';
+import { mapProgressEventToAction } from './agentEventMapper.js';
+import { SessionStateManager } from './sessionStateManager.js';
 
 /**
  * The agent service implementation that runs inside the agent-host utility
@@ -17,8 +25,16 @@ import { AgentProvider, IAgentAttachment, IAgentCreateSessionConfig, IAgentModel
 export class AgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidSessionProgress = this._register(new Emitter<IAgentProgressEvent>());
-	readonly onDidSessionProgress = this._onDidSessionProgress.event;
+	/** Protocol: fires when state is mutated by an action. */
+	private readonly _onDidAction = this._register(new Emitter<IActionEnvelope>());
+	readonly onDidAction = this._onDidAction.event;
+
+	/** Protocol: fires for ephemeral notifications (sessionAdded/Removed). */
+	private readonly _onDidNotification = this._register(new Emitter<INotification>());
+	readonly onDidNotification = this._onDidNotification.event;
+
+	/** Authoritative state manager for the sessions process protocol. */
+	private readonly _stateManager: SessionStateManager;
 
 	/** Registered providers keyed by their {@link AgentProvider} id. */
 	private readonly _providers = new Map<AgentProvider, IAgent>();
@@ -36,6 +52,9 @@ export class AgentService extends Disposable implements IAgentService {
 	) {
 		super();
 		this._logService.info('AgentService initialized');
+		this._stateManager = this._register(new SessionStateManager(_logService));
+		this._register(this._stateManager.onDidEmitEnvelope(e => this._onDidAction.fire(e)));
+		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -48,16 +67,27 @@ export class AgentService extends Disposable implements IAgentService {
 		this._providers.set(provider.id, provider);
 		this._providerSubscriptions.add(
 			provider.onDidSessionProgress(e => {
-				// Track permission requests so respondToPermissionRequest can route
+				// Track permission requests so dispatchAction can route
 				if (e.type === 'permission_request') {
 					this._pendingPermissions.set(e.requestId, provider.id);
 				}
-				this._onDidSessionProgress.fire(e);
+
+				// Map to protocol action and dispatch through state manager
+				const turnId = this._stateManager.getActiveTurnId(e.session);
+				if (turnId) {
+					const action = mapProgressEventToAction(e, e.session, turnId);
+					if (action) {
+						this._stateManager.dispatchServerAction(action);
+					}
+				}
 			})
 		);
 		if (!this._defaultProvider) {
 			this._defaultProvider = provider.id;
 		}
+
+		// Update root state with current agents list
+		this._publishAgentsToRootState();
 	}
 
 	// ---- auth ---------------------------------------------------------------
@@ -87,14 +117,13 @@ export class AgentService extends Disposable implements IAgentService {
 		return flat;
 	}
 
-	async listModels(): Promise<IAgentModelInfo[]> {
-		this._logService.trace('[AgentService] listModels called');
-		const results = await Promise.all(
-			[...this._providers.values()].map(p => p.listModels())
-		);
-		const flat = results.flat();
-		this._logService.trace(`[AgentService] listModels returned ${flat.length} models`);
-		return flat;
+	/**
+	 * Refreshes the model list from all providers and publishes the updated
+	 * agents (with their models) to root state via `root/agentsChanged`.
+	 */
+	async refreshModels(): Promise<void> {
+		this._logService.trace('[AgentService] refreshModels called');
+		await this._publishAgentsToRootState();
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
@@ -107,26 +136,20 @@ export class AgentService extends Disposable implements IAgentService {
 		const session = await provider.createSession(config);
 		this._sessionToProvider.set(session.toString(), provider.id);
 		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
+
+		// Create state in the state manager
+		const summary: ISessionSummary = {
+			resource: session,
+			provider: provider.id,
+			title: 'New Session',
+			status: SessionStatus.Idle,
+			createdAt: Date.now(),
+			modifiedAt: Date.now(),
+		};
+		this._stateManager.createSession(summary);
+		this._stateManager.dispatchServerAction({ type: 'session/ready', session });
+
 		return session;
-	}
-
-	async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void> {
-		this._logService.trace(`[AgentService] sendMessage: session=${session.toString()}, prompt=${prompt.length} chars, attachments=${attachments?.length ?? 0}`);
-		const provider = this._getProviderForSession(session);
-		await provider.sendMessage(session, prompt, attachments);
-		this._logService.trace(`[AgentService] sendMessage returned for ${session.toString()}`);
-	}
-
-	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
-		this._logService.trace(`[AgentService] getSessionMessages: ${session.toString()}`);
-		const provider = this._findProviderForSession(session);
-		if (!provider) {
-			this._logService.trace(`[AgentService] getSessionMessages: no provider found, returning empty`);
-			return [];
-		}
-		const messages = await provider.getSessionMessages(session);
-		this._logService.trace(`[AgentService] getSessionMessages returned ${messages.length} events`);
-		return messages;
 	}
 
 	async disposeSession(session: URI): Promise<void> {
@@ -136,26 +159,76 @@ export class AgentService extends Disposable implements IAgentService {
 			await provider.disposeSession(session);
 			this._sessionToProvider.delete(session.toString());
 		}
+		this._stateManager.removeSession(session);
 	}
 
-	async abortSession(session: URI): Promise<void> {
-		this._logService.trace(`[AgentService] abortSession: ${session.toString()}`);
-		const provider = this._findProviderForSession(session);
-		if (provider) {
-			await provider.abortSession(session);
+	// ---- Protocol methods ---------------------------------------------------
+
+	async subscribe(resource: URI): Promise<IStateSnapshot> {
+		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
+		const snapshot = this._stateManager.getSnapshot(resource);
+		if (!snapshot) {
+			throw new Error(`Cannot subscribe to unknown resource: ${resource.toString()}`);
 		}
+		return snapshot;
 	}
 
-	respondToPermissionRequest(requestId: string, approved: boolean): void {
-		this._logService.trace(`[AgentService] respondToPermissionRequest: ${requestId} approved=${approved}`);
-		const providerId = this._pendingPermissions.get(requestId);
-		if (!providerId) {
-			this._logService.warn(`[AgentService] No pending permission request for: ${requestId}`);
-			return;
+	unsubscribe(resource: URI): void {
+		this._logService.trace(`[AgentService] unsubscribe: ${resource.toString()}`);
+		// Server-side tracking of per-client subscriptions will be added
+		// in Phase 4 (multi-client). For now this is a no-op.
+	}
+
+	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
+		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
+
+		const origin = { clientId, clientSeq };
+		const state = this._stateManager.dispatchClientAction(action, origin);
+		this._logService.trace(`[AgentService] resulting state:`, state);
+
+		// Trigger side effects based on the action type
+		switch (action.type) {
+			case 'session/turnStarted': {
+				const provider = this._findProviderForSession(action.session);
+				if (provider) {
+					const attachments = action.userMessage.attachments?.map(a => ({
+						type: a.type,
+						path: a.path,
+						displayName: a.displayName,
+					}) satisfies IAgentAttachment);
+					provider.sendMessage(action.session, action.userMessage.text, attachments).catch(err => {
+						this._logService.error(`[AgentService] sendMessage failed for session/turnStarted`, err);
+						this._stateManager.dispatchServerAction({
+							type: 'session/error',
+							session: action.session,
+							turnId: action.turnId,
+							error: { errorType: 'sendFailed', message: String(err) },
+						});
+					});
+				}
+				break;
+			}
+			case 'session/permissionResolved': {
+				const providerId = this._pendingPermissions.get(action.requestId);
+				if (providerId) {
+					this._pendingPermissions.delete(action.requestId);
+					const permProvider = this._providers.get(providerId);
+					permProvider?.respondToPermissionRequest(action.requestId, action.approved);
+				} else {
+					this._logService.warn(`[AgentService] No pending permission request for: ${action.requestId}`);
+				}
+				break;
+			}
+			case 'session/turnCancelled': {
+				const provider = this._findProviderForSession(action.session);
+				if (provider) {
+					provider.abortSession(action.session).catch(err => {
+						this._logService.error(`[AgentService] abortSession failed for session/turnCancelled`, err);
+					});
+				}
+				break;
+			}
 		}
-		this._pendingPermissions.delete(requestId);
-		const provider = this._providers.get(providerId);
-		provider?.respondToPermissionRequest(requestId, approved);
 	}
 
 	async shutdown(): Promise<void> {
@@ -170,12 +243,27 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- helpers ------------------------------------------------------------
 
-	private _getProviderForSession(session: URI): IAgent {
-		const provider = this._findProviderForSession(session);
-		if (!provider) {
-			throw new Error(`No provider found for session: ${session.toString()}`);
-		}
-		return provider;
+	/**
+	 * Fetches models from all providers and dispatches `root/agentsChanged`
+	 * with the merged agent + model data.
+	 */
+	private async _publishAgentsToRootState(): Promise<void> {
+		const agents = await Promise.all([...this._providers.values()].map(async p => {
+			const d = p.getDescriptor();
+			let models: ISessionModelInfo[];
+			try {
+				const rawModels = await p.listModels();
+				models = rawModels.map(m => ({
+					id: m.id, provider: m.provider, name: m.name,
+					maxContextWindow: m.maxContextWindow, supportsVision: m.supportsVision,
+					policyState: m.policyState,
+				}));
+			} catch {
+				models = [];
+			}
+			return { provider: d.provider, displayName: d.displayName, description: d.description, models };
+		}));
+		this._stateManager.dispatchServerAction({ type: 'root/agentsChanged', agents });
 	}
 
 	private _findProviderForSession(session: URI): IAgent | undefined {

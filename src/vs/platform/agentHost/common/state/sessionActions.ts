@@ -16,11 +16,9 @@
 import { URI } from '../../../../base/common/uri.js';
 import type {
 	IAgentInfo,
-	ICompletedToolCall,
 	IErrorInfo,
 	IPermissionRequest,
 	IResponsePart,
-	ISessionModelInfo,
 	ISessionSummary,
 	IToolCallState,
 	IUsageInfo,
@@ -59,18 +57,12 @@ export interface IActionOrigin {
 
 // ---- Root actions (server-only, mutate RootState) ---------------------------
 
-export interface IModelsChangedAction {
-	readonly type: 'root/modelsChanged';
-	readonly models: readonly ISessionModelInfo[];
-}
-
 export interface IAgentsChangedAction {
 	readonly type: 'root/agentsChanged';
 	readonly agents: readonly IAgentInfo[];
 }
 
 export type IRootAction =
-	| IModelsChangedAction
 	| IAgentsChangedAction;
 
 // ---- Session actions (mutate SessionState, scoped to a session URI) ---------
@@ -126,7 +118,15 @@ export interface IToolCompleteAction extends ISessionActionBase {
 	readonly type: 'session/toolComplete';
 	readonly turnId: string;
 	readonly toolCallId: string;
-	readonly result: Omit<ICompletedToolCall, 'toolCallId' | 'toolName' | 'displayName'>;
+	readonly result: IToolCompleteResult;
+}
+
+/** The data delivered with a tool completion event. */
+export interface IToolCompleteResult {
+	readonly success: boolean;
+	readonly pastTenseMessage: string;
+	readonly toolOutput?: string;
+	readonly error?: { readonly message: string; readonly code?: string };
 }
 
 // -- Permissions --
@@ -189,6 +189,12 @@ export interface IReasoningAction extends ISessionActionBase {
 	readonly content: string;
 }
 
+/** Server-only. Dispatched when the session's model is changed. */
+export interface IModelChangedAction extends ISessionActionBase {
+	readonly type: 'session/modelChanged';
+	readonly model: string;
+}
+
 export type ISessionAction =
 	| ISessionReadyAction
 	| ISessionCreationFailedAction
@@ -204,7 +210,8 @@ export type ISessionAction =
 	| ISessionErrorAction
 	| ITitleChangedAction
 	| IUsageAction
-	| IReasoningAction;
+	| IReasoningAction
+	| IModelChangedAction;
 
 // ---- Combined state action type ---------------------------------------------
 

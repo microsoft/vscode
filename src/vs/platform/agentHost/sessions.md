@@ -19,7 +19,6 @@ On the VS Code side:
   - **`IChatSessionContentProvider`** -- Provides session content (history + request handler) when you open a specific session
 
 - agentSessions.ts -- The `AgentSessionProviders` enum maps well-known types to their string identifiers:
-  - `Local` = `'local'`
   - `Background` = `'copilotcli'`
   - `Cloud` = `'copilot-cloud-agent'`
   - `Claude` = `'claude-code'`
