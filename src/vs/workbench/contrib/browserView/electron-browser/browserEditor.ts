@@ -59,6 +59,8 @@ export const CONTEXT_BROWSER_HAS_URL = new RawContextKey<boolean>('browserHasUrl
 export const CONTEXT_BROWSER_HAS_ERROR = new RawContextKey<boolean>('browserHasError', false, localize('browser.hasError', "Whether the browser has a load error"));
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
 export const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
+export const CONTEXT_BROWSER_CAN_ZOOM_IN = new RawContextKey<boolean>('browserCanZoomIn', true, localize('browser.canZoomIn', "Whether the browser can zoom in further"));
+export const CONTEXT_BROWSER_CAN_ZOOM_OUT = new RawContextKey<boolean>('browserCanZoomOut', true, localize('browser.canZoomOut', "Whether the browser can zoom out further"));
 
 // Re-export find widget context keys for use in actions
 export { CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE };
@@ -254,6 +256,8 @@ export class BrowserEditor extends EditorPane {
 	private _hasErrorContext!: IContextKey<boolean>;
 	private _devToolsOpenContext!: IContextKey<boolean>;
 	private _elementSelectionActiveContext!: IContextKey<boolean>;
+	private _canZoomInContext!: IContextKey<boolean>;
+	private _canZoomOutContext!: IContextKey<boolean>;
 
 	private _model: IBrowserViewModel | undefined;
 	private readonly _inputDisposables = this._register(new DisposableStore());
@@ -295,6 +299,8 @@ export class BrowserEditor extends EditorPane {
 		this._hasErrorContext = CONTEXT_BROWSER_HAS_ERROR.bindTo(contextKeyService);
 		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
 		this._elementSelectionActiveContext = CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE.bindTo(contextKeyService);
+		this._canZoomInContext = CONTEXT_BROWSER_CAN_ZOOM_IN.bindTo(contextKeyService);
+		this._canZoomOutContext = CONTEXT_BROWSER_CAN_ZOOM_OUT.bindTo(contextKeyService);
 
 		// Currently this is always true since it is scoped to the editor container
 		CONTEXT_BROWSER_FOCUSED.bindTo(contextKeyService);
@@ -399,6 +405,7 @@ export class BrowserEditor extends EditorPane {
 
 		this._storageScopeContext.set(this._model.storageScope);
 		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
+		this.updateZoomContext();
 		this._updateSharingState(true);
 
 		// Update find widget with new model
@@ -415,6 +422,10 @@ export class BrowserEditor extends EditorPane {
 		}));
 		this._inputDisposables.add(watchForAgentSharingContextChanges(this.contextKeyService)(() => {
 			this._updateSharingState(false);
+		}));
+
+		this._inputDisposables.add(this._model.onDidChangeZoom(() => {
+			this.updateZoomContext();
 		}));
 
 		// Initialize UI state and context keys from model
@@ -505,7 +516,7 @@ export class BrowserEditor extends EditorPane {
 			this.checkOverlays();
 		}));
 
-		// Listen for zoom level changes and update browser view zoom factor
+		// Listen for workbench zoom level changes and update browser view placeholder screenshot's zoom factor
 		this._inputDisposables.add(onDidChangeZoomLevel(targetWindowId => {
 			if (targetWindowId === this.window.vscodeWindowId) {
 				// Update CSS variable for size calculations
@@ -715,6 +726,25 @@ export class BrowserEditor extends EditorPane {
 
 	async clearStorage(): Promise<void> {
 		return this._model?.clearStorage();
+	}
+
+	async zoomIn(): Promise<void> {
+		await this._model?.zoomIn();
+	}
+
+	async zoomOut(): Promise<void> {
+		await this._model?.zoomOut();
+	}
+
+	async resetZoom(): Promise<void> {
+		await this._model?.resetZoom();
+	}
+
+	private updateZoomContext(): void {
+		if (this._model) {
+			this._canZoomInContext.set(this._model.canZoomIn);
+			this._canZoomOutContext.set(this._model.canZoomOut);
+		}
 	}
 
 	/**
@@ -1263,6 +1293,8 @@ export class BrowserEditor extends EditorPane {
 		this._storageScopeContext.reset();
 		this._devToolsOpenContext.reset();
 		this._elementSelectionActiveContext.reset();
+		this._canZoomInContext.reset();
+		this._canZoomOutContext.reset();
 
 		this._navigationBar.clear();
 		this.setBackgroundImage(undefined);
