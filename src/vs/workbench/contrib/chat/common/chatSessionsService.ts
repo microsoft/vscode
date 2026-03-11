@@ -198,9 +198,14 @@ export interface IChatNewSessionRequest {
 	readonly command?: string;
 }
 
+export interface IChatSessionItemsDelta {
+	readonly addedOrUpdated?: readonly IChatSessionItem[];
+	readonly removed?: readonly URI[];
+}
+
 export interface IChatSessionItemController {
 
-	readonly onDidChangeChatSessionItems: Event<void>;
+	readonly onDidChangeChatSessionItems: Event<IChatSessionItemsDelta>;
 
 	get items(): readonly IChatSessionItem[];
 
@@ -229,7 +234,7 @@ export interface IChatSessionsService {
 
 	// #region Chat session item provider support
 	readonly onDidChangeItemsProviders: Event<{ readonly chatSessionType: string }>;
-	readonly onDidChangeSessionItems: Event<{ readonly chatSessionType: string }>;
+	readonly onDidChangeSessionItems: Event<IChatSessionItemsDelta>;
 
 	readonly onDidChangeAvailability: Event<void>;
 	readonly onDidChangeInProgress: Event<void>;

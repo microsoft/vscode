@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { AsyncEmitter, Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import * as resources from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -31,7 +31,7 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemController, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
@@ -47,7 +47,10 @@ import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { BugIndicatingError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
+import {
+	getChatSessionType,
+	isUntitledChatSession, LocalChatSessionUri
+} from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
@@ -276,7 +279,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _onDidChangeItemsProviders = this._register(new Emitter<{ readonly chatSessionType: string }>());
 	readonly onDidChangeItemsProviders = this._onDidChangeItemsProviders.event;
 
-	private readonly _onDidChangeSessionItems = this._register(new Emitter<{ readonly chatSessionType: string }>());
+	private readonly _onDidChangeSessionItems = this._register(new Emitter<IChatSessionItemsDelta>());
 	readonly onDidChangeSessionItems = this._onDidChangeSessionItems.event;
 
 	private readonly _onDidChangeAvailability = this._register(new Emitter<void>());
@@ -350,10 +353,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}));
 
-		this._register(this.onDidChangeSessionItems(({ chatSessionType }) => {
-			this.updateInProgressStatus(chatSessionType).catch(error => {
-				this._logService.warn(`Failed to update progress status for '${chatSessionType}':`, error);
-			});
+		this._register(this.onDidChangeSessionItems((delta) => {
+			const changedChatSessionTypes = new Set<string>();
+			for (const resource of delta.addedOrUpdated ?? []) {
+				changedChatSessionTypes.add(getChatSessionType(resource.resource));
+			}
+
+			for (const chatSessionType of changedChatSessionTypes) {
+				this.updateInProgressStatus(chatSessionType).catch(error => {
+					this._logService.warn(`Failed to update progress status for '${chatSessionType}':`, error);
+				});
+			}
 		}));
 
 		this._register(this._labelService.registerFormatter({
@@ -597,7 +607,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private _evaluateAvailability(): void {
-		let hasChanges = false;
+		const newlyEnabledChatSessionTypes = new Set<string>();
+		const newlyDisabledChatSessionTypes = new Set<string>();
+
+		const disposedChatSessions = new ResourceSet();
+
 		for (const { contribution, extension } of this._contributions.values()) {
 			const isCurrentlyRegistered = this._contributionDisposables.has(contribution.type);
 			const shouldBeRegistered = this._isContributionAvailable(contribution);
@@ -607,21 +621,25 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._contributionDisposables.deleteAndDispose(contribution.type);
 
 				// Also dispose any cached sessions for this contribution
-				this._disposeSessionsForContribution(contribution.type);
-				hasChanges = true;
+				for (const sessionResource of this._disposeSessionsForContribution(contribution.type)) {
+					disposedChatSessions.add(sessionResource);
+				}
+
+				newlyDisabledChatSessionTypes.add(contribution.type);
 			} else if (!isCurrentlyRegistered && shouldBeRegistered) {
 				// Enable the contribution by registering it
 				this._enableContribution(contribution, extension);
-				hasChanges = true;
+				newlyEnabledChatSessionTypes.add(contribution.type);
 			}
 		}
-		if (hasChanges) {
+		if (newlyEnabledChatSessionTypes.size > 0 || newlyDisabledChatSessionTypes.size > 0) {
 			this._onDidChangeAvailability.fire();
-			for (const chatSessionType of this._itemControllers.keys()) {
+			for (const chatSessionType of [...newlyEnabledChatSessionTypes, ...newlyDisabledChatSessionTypes]) {
 				this._onDidChangeItemsProviders.fire({ chatSessionType });
 			}
-			for (const { contribution } of this._contributions.values()) {
-				this._onDidChangeSessionItems.fire({ chatSessionType: contribution.type });
+
+			if (disposedChatSessions.size > 0) {
+				this._onDidChangeSessionItems.fire({ removed: Array.from(disposedChatSessions) });
 			}
 		}
 		this._updateHasCanDelegateProvidersContextKey();
@@ -638,7 +656,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		disposableStore.add(this._registerMenuItems(contribution, ext));
 	}
 
-	private _disposeSessionsForContribution(contributionId: string): void {
+	/**
+	 * Disposes of all sessions that belong to a contribution
+	 *
+	 * @returns List of session resources that were disposed.
+	 */
+	private _disposeSessionsForContribution(contributionId: string): URI[] {
 		// Find and dispose all sessions that belong to this contribution
 		const sessionsToDispose: URI[] = [];
 		for (const [sessionResource, sessionData] of this._sessions) {
@@ -657,6 +680,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				sessionData.dispose(); // This will call _onWillDisposeSession and clean up
 			}
 		}
+		return sessionsToDispose;
 	}
 
 	private _registerAgent(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): IDisposable {
@@ -866,8 +890,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._itemControllers.set(chatSessionType, { controller, initialRefresh: controller.refresh(initialRefreshCts.token) });
 		this._onDidChangeItemsProviders.fire({ chatSessionType });
 
-		disposables.add(controller.onDidChangeChatSessionItems(() => {
-			this._onDidChangeSessionItems.fire({ chatSessionType });
+		disposables.add(controller.onDidChangeChatSessionItems(e => {
+			this._onDidChangeSessionItems.fire(e);
 		}));
 
 		this.updateInProgressStatus(chatSessionType).catch(error => {

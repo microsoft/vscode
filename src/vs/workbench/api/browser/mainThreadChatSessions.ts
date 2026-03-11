@@ -15,6 +15,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { hasValidDiff, IAgentSession } from '../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -24,7 +25,7 @@ import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/c
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { awaitStatsForSession } from '../../contrib/chat/common/chat.js';
 import { IChatContentInlineReference, IChatProgress, IChatService, ResponseModelState } from '../../contrib/chat/common/chatService/chatService.js';
-import { ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
@@ -329,16 +330,25 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 	private readonly _proxy: ExtHostChatSessionsShape;
 	private readonly _handle: number;
 
-	private readonly _onDidChangeChatSessionItems = this._register(new Emitter<void>());
+	private readonly _onDidChangeChatSessionItems = this._register(new Emitter<IChatSessionItemsDelta>());
 	public readonly onDidChangeChatSessionItems = this._onDidChangeChatSessionItems.event;
 
 	constructor(
 		proxy: ExtHostChatSessionsShape,
-		handle: number
+		chatSessionType: string,
+		handle: number,
+		@IChatService chatService: IChatService,
 	) {
 		super();
 		this._proxy = proxy;
 		this._handle = handle;
+
+		this._register(chatService.registerChatModelChangeListeners(chatSessionType, (sessionResource) => {
+			const item = this._items.get(sessionResource);
+			if (item) {
+				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [item] });
+			}
+		}));
 	}
 
 	private readonly _items = new ResourceMap<IChatSessionItem>();
@@ -361,7 +371,9 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 			changes: revive(dto.changes),
 		};
 		this._items.set(item.resource, item);
-		this._onDidChangeChatSessionItems.fire();
+		this._onDidChangeChatSessionItems.fire({
+			addedOrUpdated: [item],
+		});
 		return item;
 	}
 
@@ -373,17 +385,18 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 		for (const uri of change.removed) {
 			this._items.delete(uri);
 		}
-		this._onDidChangeChatSessionItems.fire();
+		this._onDidChangeChatSessionItems.fire({
+			addedOrUpdated: change.addedOrUpdated,
+			removed: change.removed,
+		});
 	}
 
 	addOrUpdateItem(item: IChatSessionItem): void {
 		warnOnUntitledSessionResource(item.resource);
 		this._items.set(item.resource, item);
-		this._onDidChangeChatSessionItems.fire();
-	}
-
-	fireOnDidChangeChatSessionItems(): void {
-		this._onDidChangeChatSessionItems.fire();
+		this._onDidChangeChatSessionItems.fire({
+			addedOrUpdated: [item],
+		});
 	}
 }
 
@@ -413,6 +426,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -446,7 +460,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	$registerChatSessionItemController(handle: number, chatSessionType: string): void {
 		const disposables = new DisposableStore();
 
-		const controller = disposables.add(new MainThreadChatSessionItemController(this._proxy, handle));
+		const controller = disposables.add(this._instantiationService.createInstance(MainThreadChatSessionItemController, this._proxy, chatSessionType, handle));
 		disposables.add(this._chatSessionsService.registerChatSessionItemController(chatSessionType, controller));
 
 		this._itemControllerRegistrations.set(handle, {
@@ -454,11 +468,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			controller,
 			dispose: () => disposables.dispose(),
 		});
-
-		disposables.add(this._chatService.registerChatModelChangeListeners(
-			chatSessionType,
-			() => controller.fireOnDidChangeChatSessionItems()
-		));
 	}
 
 	private getController(handle: number): MainThreadChatSessionItemController {
@@ -467,11 +476,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			throw new Error(`No chat session controller registered for handle ${handle}`);
 		}
 		return registration.controller;
-	}
-
-	$onDidChangeChatSessionItems(handle: number): void {
-		const controller = this.getController(handle);
-		controller.fireOnDidChangeChatSessionItems();
 	}
 
 	private async _resolveSessionItem(item: Dto<IChatSessionItem>): Promise<IChatSessionItem> {
