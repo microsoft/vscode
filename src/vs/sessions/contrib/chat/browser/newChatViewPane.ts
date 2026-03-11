@@ -141,7 +141,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	// Welcome part
 	private _pickersContainer: HTMLElement | undefined;
-	private _extensionPickersLeftContainer: HTMLElement | undefined;
 	private _toolbarPickersContainer: HTMLElement | undefined;
 	private _localModelPickerContainer: HTMLElement | undefined;
 	private _inputSlot: HTMLElement | undefined;
@@ -703,19 +702,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Project picker (unified folder + repo picker)
 		this._projectPicker.render(pickersRow);
-
-		// Separator between project picker and extension pickers
-		this._extensionPickersLeftContainer = dom.append(pickersRow, dom.$('.sessions-chat-pickers-left-separator'));
-		this._extensionPickersLeftContainer.style.display = 'none';
 	}
 
 	// --- Local session pickers ---
 
 	private _renderLocalSessionPickers(): void {
 		this._clearAllPickers();
-		if (this._extensionPickersLeftContainer) {
-			this._extensionPickersLeftContainer.style.display = 'none';
-		}
 		// Show local model and mode pickers, hide remote
 		if (this._localModelPickerContainer) {
 			this._localModelPickerContainer.style.display = '';
@@ -754,9 +746,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		if (visibleGroups.length === 0) {
 			this._clearToolbarPickers();
-			if (this._extensionPickersLeftContainer) {
-				this._extensionPickersLeftContainer.style.display = 'none';
-			}
 			return;
 		}
 
@@ -768,11 +757,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}
 
 		this._clearToolbarPickers();
-
-		// Show separator only when there are toolbar pickers
-		if (this._extensionPickersLeftContainer) {
-			this._extensionPickersLeftContainer.style.display = 'block';
-		}
 
 		for (const option of visibleGroups) {
 			this._renderToolbarPickerWidget(option, session);
@@ -851,9 +835,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private _clearAllPickers(): void {
 		this._clearToolbarPickers();
-		if (this._extensionPickersLeftContainer) {
-			this._extensionPickersLeftContainer.style.display = 'none';
-		}
 	}
 
 	// --- Input History (IHistoryNavigationWidget) ---

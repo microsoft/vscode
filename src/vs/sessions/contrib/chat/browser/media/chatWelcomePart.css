@@ -175,16 +175,6 @@
 	display: none;
 }
 
-/* Separator between project picker and extension pickers */
-.sessions-chat-pickers-left-separator {
-	width: 1px;
-	height: 22px;
-	background-color: var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
-	margin: 0 12px;
-	flex-shrink: 0;
-	display: none;
-}
-
 /* Prominent project picker button */
 .sessions-chat-project-picker .action-label {
 	height: auto !important;
