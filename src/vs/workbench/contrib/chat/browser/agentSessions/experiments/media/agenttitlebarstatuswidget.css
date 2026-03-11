@@ -77,7 +77,11 @@
 	border-color: var(--vscode-commandCenter-border, transparent);
 }
 
-.agent-status-pill.chat-input-mode {
+.agent-status-pill.chat-input-mode:not(.compact-mode) {
+	cursor: pointer;
+}
+
+.agent-status-pill.chat-input-mode .agent-status-input-area {
 	cursor: pointer;
 }
 

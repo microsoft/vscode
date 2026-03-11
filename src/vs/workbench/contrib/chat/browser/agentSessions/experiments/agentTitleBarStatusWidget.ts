@@ -225,6 +225,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		this._container = container;
 		container.classList.add('agent-status-container');
 		container.setAttribute('role', 'toolbar');
+		container.setAttribute('aria-label', localize('agentStatusToolbarLabel', "Agent Status"));
 		// Container should not be focusable - inner elements handle focus
 		container.tabIndex = -1;
 
@@ -348,7 +349,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 	/**
 	 * Setup roving tabindex for arrow key navigation between interactive elements.
-	 * Auto-discovers elements with role="button" in DOM order.
+	 * Uses the elements registered in `this._rovingElements` in their existing order.
 	 */
 	private _setupRovingTabIndex(disposables: DisposableStore): void {
 		if (!this._container || this._rovingElements.length === 0) {
@@ -368,23 +369,37 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				return;
 			}
 
-			let nextIndex: number | undefined;
-			switch (e.key) {
-				case 'ArrowRight': nextIndex = (index + 1) % this._rovingElements.length; break;
-				case 'ArrowLeft': nextIndex = (index - 1 + this._rovingElements.length) % this._rovingElements.length; break;
-				case 'Home': nextIndex = 0; break;
-				case 'End': nextIndex = this._rovingElements.length - 1; break;
-			}
-
+			const nextIndex = this._getNextRovingIndex(index, e.key);
 			if (nextIndex !== undefined && nextIndex !== index) {
 				e.preventDefault();
 				e.stopPropagation();
-				this._rovingElements[index].tabIndex = -1;
-				this._rovingElements[nextIndex].tabIndex = 0;
-				this._rovingElements[nextIndex].focus();
-				this._rovingIndex = nextIndex;
+				this._moveRovingFocus(index, nextIndex);
 			}
 		}));
+	}
+
+	/**
+	 * Moves roving focus from `currentIndex` to `nextIndex`, updating tabIndex and focusing the element.
+	 */
+	private _moveRovingFocus(currentIndex: number, nextIndex: number): void {
+		this._rovingElements[currentIndex].tabIndex = -1;
+		this._rovingElements[nextIndex].tabIndex = 0;
+		this._rovingElements[nextIndex].focus();
+		this._rovingIndex = nextIndex;
+	}
+
+	/**
+	 * Returns the next roving index for the given key, or `undefined` if no navigation should occur.
+	 */
+	private _getNextRovingIndex(currentIndex: number, key: string): number | undefined {
+		const len = this._rovingElements.length;
+		switch (key) {
+			case 'ArrowRight': return (currentIndex + 1) % len;
+			case 'ArrowLeft': return (currentIndex - 1 + len) % len;
+			case 'Home': return 0;
+			case 'End': return len - 1;
+			default: return undefined;
+		}
 	}
 
 	// #region Session Statistics
@@ -867,6 +882,23 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		);
 		sparkleDropdown.render(sparkleContainer);
 		disposables.add(sparkleDropdown);
+
+		// Capture-phase listener for ArrowLeft/ArrowRight/Home/End to prevent DropdownWithPrimaryActionViewItem
+		// from consuming these keys internally. This ensures the outer roving tabindex handles navigation.
+		disposables.add(addDisposableListener(sparkleContainer, EventType.KEY_DOWN, (e) => {
+			if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') {
+				const idx = this._rovingElements.indexOf(sparkleContainer);
+				if (idx === -1) {
+					return;
+				}
+				const nextIndex = this._getNextRovingIndex(idx, e.key);
+				if (nextIndex !== undefined && nextIndex !== idx) {
+					e.preventDefault();
+					e.stopImmediatePropagation();
+					this._moveRovingFocus(idx, nextIndex);
+				}
+			}
+		}, true /* useCapture */));
 
 		// Add keyboard handler for Enter/Space on the sparkle container
 		disposables.add(addDisposableListener(sparkleContainer, EventType.KEY_DOWN, (e) => {
