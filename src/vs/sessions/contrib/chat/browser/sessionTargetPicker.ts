@@ -232,13 +232,7 @@ export class IsolationModePicker extends Disposable {
 	 */
 	setEnabled(enabled: boolean): void {
 		this._enabled = enabled;
-		if (this._slotElement) {
-			this._slotElement.classList.toggle('disabled', !enabled);
-		}
-		if (this._triggerElement) {
-			this._triggerElement.tabIndex = enabled ? 0 : -1;
-			this._triggerElement.setAttribute('aria-disabled', String(!enabled));
-		}
+		this._updateTriggerLabel();
 	}
 
 	private _showPicker(): void {
