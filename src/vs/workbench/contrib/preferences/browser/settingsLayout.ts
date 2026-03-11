@@ -261,7 +261,6 @@ export const tocData: ITOCEntry<string> = {
 						'chat.useHooks',
 						'chat.includeApplyingInstructions',
 						'chat.includeReferencedInstructions',
-						'chat.sendElementsToChat.*',
 						'chat.useClaudeMdFile'
 					]
 				},
