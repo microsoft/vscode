@@ -15,7 +15,9 @@ import { IChatAgentService } from '../../../../common/participants/chatAgents.js
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { ICustomAgent, PromptsStorage, Target } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IProductService } from '../../../../../../../platform/product/common/productService.js';
+import { ICustomAgent, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { MockPromptsService } from '../../promptSyntax/service/mockPromptsService.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 
@@ -70,6 +72,7 @@ suite('RunSubagentTool', () => {
 				configService,
 				promptsService,
 				{} as IInstantiationService,
+				{} as IProductService,
 			));
 
 			const result = await tool.prepareToolInvocation(
@@ -113,6 +116,7 @@ suite('RunSubagentTool', () => {
 				configService,
 				promptsService,
 				{} as IInstantiationService,
+				{} as IProductService,
 			));
 
 			const toolData = tool.getToolData();
@@ -141,6 +145,7 @@ suite('RunSubagentTool', () => {
 				configService,
 				promptsService,
 				{} as IInstantiationService,
+				{} as IProductService,
 			));
 
 			const toolData = tool.getToolData();
@@ -261,6 +266,7 @@ suite('RunSubagentTool', () => {
 				configService,
 				promptsService,
 				{} as IInstantiationService,
+				{} as IProductService,
 			));
 
 			return tool;

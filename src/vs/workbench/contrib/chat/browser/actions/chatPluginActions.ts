@@ -10,7 +10,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 
-class ManagePluginsAction extends Action2 {
+export class ManagePluginsAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.managePlugins';
 
 	constructor() {

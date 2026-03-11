@@ -1098,15 +1098,15 @@ export class IntervalTimer implements IDisposable {
 	}
 }
 
-export class RunOnceScheduler implements IDisposable {
+export class RunOnceScheduler<Runner extends (...args: any[]) => any = () => any> implements IDisposable {
 
-	protected runner: ((...args: unknown[]) => void) | null;
+	protected runner: Runner | null;
 
 	private timeoutToken: Timeout | undefined;
 	private timeout: number;
 	private timeoutHandler: () => void;
 
-	constructor(runner: (...args: any[]) => void, delay: number) {
+	constructor(runner: Runner, delay: number) {
 		this.timeoutToken = undefined;
 		this.runner = runner;
 		this.timeout = delay;
@@ -1246,7 +1246,7 @@ export class ProcessTimeRunOnceScheduler {
 	}
 }
 
-export class RunOnceWorker<T> extends RunOnceScheduler {
+export class RunOnceWorker<T> extends RunOnceScheduler<(units: T[]) => void> {
 
 	private units: T[] = [];
 
