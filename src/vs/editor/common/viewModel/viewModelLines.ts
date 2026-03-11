@@ -13,7 +13,7 @@ import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide, IndentGuideHo
 import { ModelDecorationOptions } from '../model/textModel.js';
 import * as viewEvents from '../viewEvents.js';
 import { createModelLineProjection, IModelLineProjection } from './modelLineProjection.js';
-import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory, ILineBreaksComputerContext } from '../modelLineProjectionData.js';
+import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory, ILineBreaksComputerContext, LineFontSizeRange } from '../modelLineProjectionData.js';
 import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
 import { ViewLineData } from '../viewModel.js';
 import { ICoordinatesConverter, IdentityCoordinatesConverter } from '../coordinatesConverter.js';
@@ -131,7 +131,9 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const lineBreaksComputer = this.createLineBreaksComputer();
 
 		for (let i = 0; i < lineCount; i++) {
-			lineBreaksComputer.addRequest(i + 1, previousLineBreaks ? previousLineBreaks[i] : null);
+			const lineNumber = i + 1;
+			const fontSizeRanges = this.model.getLineFontSizeRanges(lineNumber);
+			lineBreaksComputer.addRequest(lineNumber, previousLineBreaks ? previousLineBreaks[i] : null, fontSizeRanges);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
 
@@ -1157,7 +1159,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 	public createLineBreaksComputer(): ILineBreaksComputer {
 		const result: null[] = [];
 		return {
-			addRequest: (lineNumber: number, previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (lineNumber: number, previousLineBreakData: ModelLineProjectionData | null, _fontSizeRanges?: readonly LineFontSizeRange[] | null) => {
 				result.push(null);
 			},
 			finalize: () => {

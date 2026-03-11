@@ -10,7 +10,7 @@ import { CharacterClassifier } from '../core/characterClassifier.js';
 import { FontInfo } from '../config/fontInfo.js';
 import { LineInjectedText } from '../textModelEvents.js';
 import { InjectedTextOptions } from '../model.js';
-import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData, ILineBreaksComputerContext } from '../modelLineProjectionData.js';
+import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData, ILineBreaksComputerContext, LineFontSizeRange } from '../modelLineProjectionData.js';
 
 export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFactory {
 	public static create(options: IComputedEditorOptions): MonospaceLineBreaksComputerFactory {
@@ -29,10 +29,12 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 	public createLineBreaksComputer(context: ILineBreaksComputerContext, fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ILineBreaksComputer {
 		const lineNumbers: number[] = [];
 		const previousBreakingData: (ModelLineProjectionData | null)[] = [];
+		const fontSizeRangesPerLine: (readonly LineFontSizeRange[] | null)[] = [];
 		return {
-			addRequest: (lineNumber: number, previousLineBreakData: ModelLineProjectionData | null) => {
+			addRequest: (lineNumber: number, previousLineBreakData: ModelLineProjectionData | null, fontSizeRanges?: readonly LineFontSizeRange[] | null) => {
 				lineNumbers.push(lineNumber);
 				previousBreakingData.push(previousLineBreakData);
+				fontSizeRangesPerLine.push(fontSizeRanges ?? null);
 			},
 			finalize: () => {
 				const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth;
@@ -42,11 +44,12 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 					const injectedText = context.getLineInjectedText(lineNumber);
 					const lineText = context.getLineContent(lineNumber);
 					const previousLineBreakData = previousBreakingData[i];
+					const fontSizeRanges = fontSizeRangesPerLine[i];
 					const isLineFeedWrappingEnabled = wrapOnEscapedLineFeeds && lineText.includes('"') && lineText.includes('\\n');
-					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText && !isLineFeedWrappingEnabled) {
+					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText && !isLineFeedWrappingEnabled && !fontSizeRanges?.length) {
 						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, lineText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					} else {
-						result[i] = createLineBreaks(this.classifier, lineText, injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak, isLineFeedWrappingEnabled);
+						result[i] = createLineBreaks(this.classifier, lineText, injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak, isLineFeedWrappingEnabled, fontSizeRanges);
 					}
 				}
 				arrPool1.length = 0;
@@ -356,8 +359,11 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 	return previousBreakingData;
 }
 
-function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: string, injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ModelLineProjectionData | null {
+function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: string, injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, fontSizeRanges?: readonly LineFontSizeRange[] | null): ModelLineProjectionData | null {
 	const lineText = LineInjectedText.applyInjectedText(_lineText, injectedTexts);
+
+	// Adjust font size ranges for injected text offsets
+	const adjustedFontSizeRanges = adjustFontSizeRangesForInjectedText(fontSizeRanges, injectedTexts);
 
 	let injectionOptions: InjectedTextOptions[] | null;
 	let injectionOffsets: number[] | null;
@@ -399,14 +405,16 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 	let breakOffsetVisibleColumn = 0;
 
 	let breakingColumn = firstLineBreakColumn;
+	const fontRangeIdx = { value: 0 };
 	let prevCharCode = lineText.charCodeAt(0);
 	let prevCharCodeClass = classifier.get(prevCharCode);
-	let visibleColumn = computeCharWidth(prevCharCode, 0, tabSize, columnsForFullWidthChar);
+	let fontMultiplier = getFontSizeMultiplier(adjustedFontSizeRanges, 0, fontRangeIdx);
+	let visibleColumn = computeCharWidth(prevCharCode, 0, tabSize, columnsForFullWidthChar) * fontMultiplier;
 
 	let startOffset = 1;
 	if (strings.isHighSurrogate(prevCharCode)) {
 		// A surrogate pair must always be considered as a single unit, so it is never to be broken
-		visibleColumn += 1;
+		visibleColumn += 1 * fontMultiplier;
 		prevCharCode = lineText.charCodeAt(1);
 		prevCharCodeClass = classifier.get(prevCharCode);
 		startOffset++;
@@ -419,14 +427,16 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 		let charWidth: number;
 		let wrapEscapedLineFeed = false;
 
+		fontMultiplier = getFontSizeMultiplier(adjustedFontSizeRanges, charStartOffset, fontRangeIdx);
+
 		if (strings.isHighSurrogate(charCode)) {
 			// A surrogate pair must always be considered as a single unit, so it is never to be broken
 			i++;
 			charCodeClass = CharacterClass.NONE;
-			charWidth = 2;
+			charWidth = 2 * fontMultiplier;
 		} else {
 			charCodeClass = classifier.get(charCode);
-			charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar);
+			charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar) * fontMultiplier;
 		}
 
 		// literal \n shall trigger a softwrap
@@ -524,6 +534,64 @@ function canBreak(prevCharCode: number, prevCharCodeClass: CharacterClass, charC
 			|| (!isKeepAll && charCodeClass === CharacterClass.BREAK_IDEOGRAPHIC && prevCharCodeClass !== CharacterClass.BREAK_BEFORE)
 		)
 	);
+}
+
+/**
+ * Adjusts font size ranges from original model line offsets to post-injection offsets.
+ * Returns null if there are no font size ranges.
+ */
+function adjustFontSizeRangesForInjectedText(fontSizeRanges: readonly LineFontSizeRange[] | null | undefined, injectedTexts: LineInjectedText[] | null): readonly LineFontSizeRange[] | null {
+	if (!fontSizeRanges || fontSizeRanges.length === 0) {
+		return null;
+	}
+	if (!injectedTexts || injectedTexts.length === 0) {
+		return fontSizeRanges;
+	}
+
+	// Build sorted injection points with their content lengths
+	const injections: { offset: number; length: number }[] = [];
+	for (const t of injectedTexts) {
+		injections.push({ offset: t.column - 1, length: t.options.content.length });
+	}
+	injections.sort((a, b) => a.offset - b.offset);
+
+	const result: LineFontSizeRange[] = [];
+	for (const range of fontSizeRanges) {
+		let startShift = 0;
+		let endShift = 0;
+		for (const inj of injections) {
+			if (inj.offset <= range.startOffset) {
+				startShift += inj.length;
+				endShift += inj.length;
+			} else if (inj.offset < range.endOffset) {
+				endShift += inj.length;
+			}
+		}
+		result.push({
+			startOffset: range.startOffset + startShift,
+			endOffset: range.endOffset + endShift,
+			fontSizeMultiplier: range.fontSizeMultiplier
+		});
+	}
+	return result;
+}
+
+/**
+ * Returns the font size multiplier for a character at the given offset.
+ * Uses a running index to efficiently scan through sorted font size ranges.
+ */
+function getFontSizeMultiplier(fontSizeRanges: readonly LineFontSizeRange[] | null, offset: number, fontRangeIdx: { value: number }): number {
+	if (!fontSizeRanges) {
+		return 1;
+	}
+	// Advance past ranges that end before or at the current offset
+	while (fontRangeIdx.value < fontSizeRanges.length && fontSizeRanges[fontRangeIdx.value].endOffset <= offset) {
+		fontRangeIdx.value++;
+	}
+	if (fontRangeIdx.value < fontSizeRanges.length && fontSizeRanges[fontRangeIdx.value].startOffset <= offset) {
+		return fontSizeRanges[fontRangeIdx.value].fontSizeMultiplier;
+	}
+	return 1;
 }
 
 function computeWrappedTextIndentLength(lineText: string, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): number {

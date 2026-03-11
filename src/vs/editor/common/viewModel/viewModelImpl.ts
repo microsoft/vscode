@@ -329,16 +329,20 @@ export class ViewModel extends Disposable implements IViewModel {
 
 			// Do a first pass to compute line mappings, and a second pass to actually interpret them
 			const lineBreaksComputer = this._lines.createLineBreaksComputer();
+			const modelLineCount = this.model.getLineCount();
 			for (const change of changes) {
 				switch (change.changeType) {
 					case textModelEvents.RawContentChangedType.LinesInserted: {
 						for (let i = 0; i < change.count; i++) {
-							lineBreaksComputer.addRequest(change.fromLineNumberPostEdit + i, null);
+							const lineNumber = change.fromLineNumberPostEdit + i;
+							const fontSizeRanges = lineNumber >= 1 && lineNumber <= modelLineCount ? this.model.getLineFontSizeRanges(lineNumber) : null;
+							lineBreaksComputer.addRequest(lineNumber, null, fontSizeRanges);
 						}
 						break;
 					}
 					case textModelEvents.RawContentChangedType.LineChanged: {
-						lineBreaksComputer.addRequest(change.lineNumberPostEdit, null);
+						const fontSizeRanges = change.lineNumberPostEdit >= 1 && change.lineNumberPostEdit <= modelLineCount ? this.model.getLineFontSizeRanges(change.lineNumberPostEdit) : null;
+						lineBreaksComputer.addRequest(change.lineNumberPostEdit, null, fontSizeRanges);
 						break;
 					}
 				}
@@ -468,6 +472,79 @@ export class ViewModel extends Disposable implements IViewModel {
 		});
 	}
 
+	private _recomputeLineBreaksForFontChanges(e: textModelEvents.ModelFontChangedEvent): void {
+		// Collect unique line numbers affected by font changes
+		const affectedLineNumbers = new Set<number>();
+		for (const change of e.changes) {
+			if (change.ownerId === this._editorId || change.ownerId === 0) {
+				if (change.lineNumber >= 1 && change.lineNumber <= this.model.getLineCount()) {
+					affectedLineNumbers.add(change.lineNumber);
+				}
+			}
+		}
+		if (affectedLineNumbers.size === 0) {
+			return;
+		}
+
+		const sortedLineNumbers = Array.from(affectedLineNumbers).sort((a, b) => a - b);
+
+		// Compute new line breaks for each affected line
+		const lineBreaksComputer = this._lines.createLineBreaksComputer();
+		for (const lineNumber of sortedLineNumbers) {
+			const fontSizeRanges = this.model.getLineFontSizeRanges(lineNumber);
+			lineBreaksComputer.addRequest(lineNumber, null, fontSizeRanges);
+		}
+		const lineBreaks = lineBreaksComputer.finalize();
+
+		// Apply the new line breaks
+		let hadLineMappingChange = false;
+		try {
+			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
+
+			for (let i = 0; i < sortedLineNumbers.length; i++) {
+				const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] =
+					this._lines.onModelLineChanged(null, sortedLineNumbers[i], lineBreaks[i]);
+				if (lineMappingChanged) {
+					hadLineMappingChange = true;
+				}
+				if (linesChangedEvent) {
+					eventsCollector.emitViewEvent(linesChangedEvent);
+				}
+				if (linesInsertedEvent) {
+					eventsCollector.emitViewEvent(linesInsertedEvent);
+					this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
+				}
+				if (linesDeletedEvent) {
+					eventsCollector.emitViewEvent(linesDeletedEvent);
+					this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
+				}
+			}
+
+			if (hadLineMappingChange) {
+				eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
+				eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
+				this._cursor.onLineMappingChanged(eventsCollector);
+				this._decorations.onLineMappingChanged();
+			}
+		} finally {
+			this._eventDispatcher.endEmitViewEvents();
+		}
+
+		// After line breaks changed, the view line numbers have shifted.
+		// Re-apply custom line heights using the updated view line mapping,
+		// since onDidChangeLineHeight fired before the line breaks were recomputed.
+		if (hadLineMappingChange) {
+			const minLine = sortedLineNumbers[0];
+			const maxLine = sortedLineNumbers[sortedLineNumbers.length - 1];
+			const customLineHeights = this._getCustomLineHeightsForLines(minLine, maxLine);
+			this.viewLayout.changeSpecialLineHeights((accessor) => {
+				for (const data of customLineHeights) {
+					accessor.insertOrChangeCustomLineHeight(data.decorationId, data.startLineNumber, data.endLineNumber, data.lineHeight);
+				}
+			});
+		}
+	}
+
 	private _registerModelEvents(): void {
 
 		const allowVariableLineHeights = this._configuration.options.get(EditorOption.allowVariableLineHeights);
@@ -504,6 +581,10 @@ export class ViewModel extends Disposable implements IViewModel {
 					const filteredEvent = new textModelEvents.ModelFontChangedEvent(filteredChanges);
 					this._eventDispatcher.emitOutgoingEvent(new ModelFontChangedEvent(filteredEvent));
 				}
+
+				// Recompute line breaks for affected lines since font size changes
+				// affect the visual width of characters used in word wrap computation
+				this._recomputeLineBreaksForFontChanges(e);
 			}));
 		}
 

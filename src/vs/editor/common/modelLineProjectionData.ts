@@ -328,6 +328,19 @@ export class OutputPosition {
 	}
 }
 
+/**
+ * Describes a range within a line that has a different font size multiplier.
+ * Used to account for variable font sizes during word wrap computation.
+ */
+export interface LineFontSizeRange {
+	/** 0-based start offset within the original line text (before injected text) */
+	readonly startOffset: number;
+	/** 0-based end offset (exclusive) within the original line text (before injected text) */
+	readonly endOffset: number;
+	/** Font size multiplier relative to the base font size (e.g., 3 means 3x the base size) */
+	readonly fontSizeMultiplier: number;
+}
+
 export interface ILineBreaksComputerContext {
 	getLineContent(lineNumber: number): string;
 	getLineInjectedText(lineNumber: number): LineInjectedText[] | null;
@@ -341,6 +354,6 @@ export interface ILineBreaksComputer {
 	/**
 	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
 	 */
-	addRequest(lineNumber: number, previousLineBreakData: ModelLineProjectionData | null): void;
+	addRequest(lineNumber: number, previousLineBreakData: ModelLineProjectionData | null, fontSizeRanges?: readonly LineFontSizeRange[] | null): void;
 	finalize(): (ModelLineProjectionData | null)[];
 }

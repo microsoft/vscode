@@ -12,6 +12,8 @@ import { URI } from '../../base/common/uri.js';
 import { ISingleEditOperation } from './core/editOperation.js';
 import { IPosition, Position } from './core/position.js';
 import { IRange, Range } from './core/range.js';
+import type { LineFontSizeRange } from './modelLineProjectionData.js';
+export type { LineFontSizeRange };
 import { Selection } from './core/selection.js';
 import { TextChange } from './core/textChange.js';
 import { WordCharacterClassifier } from './core/wordCharacterClassifier.js';
@@ -1129,6 +1131,13 @@ export interface ITextModel {
 	 * @internal
 	 */
 	getFontDecorationsInRange(range: IRange, ownerId?: number): IModelDecoration[];
+
+	/**
+	 * Returns font size multiplier ranges for a given line from tokenization font decorations.
+	 * Used by the line breaks computer to account for variable font sizes during word wrap.
+	 * @internal
+	 */
+	getLineFontSizeRanges(lineNumber: number): readonly LineFontSizeRange[] | null;
 
 	/**
 	 * Gets all the decorations for the lines between `startLineNumber` and `endLineNumber` as an array.

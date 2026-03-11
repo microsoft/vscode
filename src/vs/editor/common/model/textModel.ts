@@ -1866,6 +1866,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._decorationsTree.getFontDecorationsInInterval(this, startOffset, endOffset, ownerId);
 	}
 
+	public getLineFontSizeRanges(lineNumber: number): readonly model.LineFontSizeRange[] | null {
+		return this._fontTokenDecorationsProvider.getLineFontSizeRanges(lineNumber);
+	}
+
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false, filterFontDecorations: boolean = false): model.IModelDecoration[] {
 		let result = this._decorationsTree.getAll(this, ownerId, filterOutValidation, filterFontDecorations, false, false);
 		result = result.concat(this._decorationProvider.getAllDecorations(ownerId, filterOutValidation));

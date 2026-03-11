@@ -6,7 +6,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { EditorOptions, WrappingIndent } from '../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../common/config/fontInfo.js';
-import { ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
+import { ILineBreaksComputerContext, type LineFontSizeRange, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
@@ -324,6 +324,63 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 	test('Word break work well with Chinese/Japanese/Korean (CJK) text when setting keepAll', () => {
 		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
 		assertLineBreaks(factory, 4, 8, '你好1111', WrappingIndent.Same, 'keepAll');
+	});
+
+	test('issue #288873: Line breaks incorrectly when variable font size', () => {
+		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
+
+		function getLineBreakDataWithFontSizes(text: string, breakAfter: number, fontSizeRanges: readonly LineFontSizeRange[] | null): ModelLineProjectionData | null {
+			const fontInfo = new FontInfo({
+				pixelRatio: 1,
+				fontFamily: 'testFontFamily',
+				fontWeight: 'normal',
+				fontSize: 14,
+				fontFeatureSettings: '',
+				fontVariationSettings: '',
+				lineHeight: 19,
+				letterSpacing: 0,
+				isMonospace: true,
+				typicalHalfwidthCharacterWidth: 7,
+				typicalFullwidthCharacterWidth: 14,
+				canUseHalfwidthRightwardsArrow: true,
+				spaceWidth: 7,
+				middotWidth: 7,
+				wsmiddotWidth: 7,
+				maxDigitWidth: 7
+			}, false);
+			const context: ILineBreaksComputerContext = {
+				getLineContent(lineNumber: number) {
+					return text;
+				},
+				getLineInjectedText(lineNumber) {
+					return null;
+				}
+			};
+			const lineBreaksComputer = factory.createLineBreaksComputer(context, fontInfo, 4, breakAfter, WrappingIndent.None, 'normal', false);
+			lineBreaksComputer.addRequest(1, null, fontSizeRanges);
+			return lineBreaksComputer.finalize()[0];
+		}
+
+		// Without font size ranges, "class DebugProgressContribution" (30 chars) fits in 80 columns
+		const text = 'class DebugProgressContribution {';
+		const noFontSizeBreaks = getLineBreakDataWithFontSizes(text, 80, null);
+		assert.strictEqual(noFontSizeBreaks, null, 'Without font size ranges, the line should not wrap at 80 columns');
+
+		// With font size 3x on "DebugProgressContribution" (offset 6 to 31), each char takes 3 columns
+		// 6 chars at 1x = 6, then 25 chars at 3x = 75, then 2 chars at 1x = 2. Total = 83 > 80
+		const fontSizeRanges: LineFontSizeRange[] = [
+			{ startOffset: 6, endOffset: 31, fontSizeMultiplier: 3 }
+		];
+		const withFontSizeBreaks = getLineBreakDataWithFontSizes(text, 80, fontSizeRanges);
+		assert.ok(withFontSizeBreaks !== null, 'With 3x font size, the line should wrap before 80 columns');
+		assert.ok(withFontSizeBreaks!.breakOffsets[0] < text.length, 'Should break before end of line');
+
+		// With font size 2x, total = 6 + 25*2 + 2 = 58 <= 80, should not wrap
+		const fontSizeRanges2x: LineFontSizeRange[] = [
+			{ startOffset: 6, endOffset: 31, fontSizeMultiplier: 2 }
+		];
+		const with2xBreaks = getLineBreakDataWithFontSizes(text, 80, fontSizeRanges2x);
+		assert.strictEqual(with2xBreaks, null, 'With 2x font size, total width 58 should not wrap at 80 columns');
 	});
 
 	test('issue #258022: wrapOnEscapedLineFeeds: should work correctly after editor resize', () => {

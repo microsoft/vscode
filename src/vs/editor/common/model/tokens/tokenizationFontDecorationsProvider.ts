@@ -11,6 +11,7 @@ import { DecorationProvider, LineFontChangingDecoration, LineHeightChangingDecor
 import { Emitter } from '../../../../base/common/event.js';
 import { IFontTokenOption, IModelContentChangedEvent } from '../../textModelEvents.js';
 import { classNameForFontTokenDecorations } from '../../languages/supports/tokenization.js';
+import { LineFontSizeRange } from '../../modelLineProjectionData.js';
 import { Position } from '../../core/position.js';
 import { AnnotatedString, AnnotationsUpdate, IAnnotatedString, IAnnotationUpdate } from './annotations.js';
 import { OffsetRange } from '../../core/ranges/offsetRange.js';
@@ -148,6 +149,33 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			}
 		}
 		return decorations;
+	}
+
+	/**
+	 * Returns font size multiplier ranges for a given line.
+	 * Ranges are expressed as 0-based character offsets within the line.
+	 * Only returns ranges with a fontSizeMultiplier != 1.
+	 */
+	public getLineFontSizeRanges(lineNumber: number): readonly LineFontSizeRange[] | null {
+		const lineStartOffset = this.textModel.getOffsetAt(new Position(lineNumber, 1));
+		const lineEndOffset = this.textModel.getOffsetAt(new Position(lineNumber, this.textModel.getLineMaxColumn(lineNumber)));
+		const annotations = this._fontAnnotatedString.getAnnotationsIntersecting(new OffsetRange(lineStartOffset, lineEndOffset));
+
+		if (annotations.length === 0) {
+			return null;
+		}
+
+		const result: LineFontSizeRange[] = [];
+		for (const annotation of annotations) {
+			const multiplier = annotation.annotation.fontToken.fontSizeMultiplier;
+			if (multiplier && multiplier !== 1) {
+				// Clamp to the line boundaries and convert to 0-based line offsets
+				const startOffset = Math.max(0, annotation.range.start - lineStartOffset);
+				const endOffset = Math.min(lineEndOffset - lineStartOffset, annotation.range.endExclusive - lineStartOffset);
+				result.push({ startOffset, endOffset, fontSizeMultiplier: multiplier });
+			}
+		}
+		return result.length > 0 ? result : null;
 	}
 
 	public getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
