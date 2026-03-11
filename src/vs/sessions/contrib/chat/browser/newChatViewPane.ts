@@ -132,7 +132,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	// Send button
 	private _sendButton: Button | undefined;
 	private _sending = false;
-	private _altKeyDown = false;
 
 	// Repository loading
 	private readonly _openRepositoryCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -707,19 +706,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			ariaLabel: localize('send', "Send"),
 		}));
 		sendButton.icon = Codicon.send;
-		this._register(sendButton.onDidClick(() => this._send({ openNewAfterSend: this._altKeyDown })));
-		this._register(dom.addDisposableListener(dom.getWindow(container), dom.EventType.KEY_DOWN, e => {
-			if (e.key === 'Alt') {
-				this._altKeyDown = true;
-				sendButton.icon = Codicon.runAbove;
-			}
-		}));
-		this._register(dom.addDisposableListener(dom.getWindow(container), dom.EventType.KEY_UP, e => {
-			if (e.key === 'Alt') {
-				this._altKeyDown = false;
-				sendButton.icon = Codicon.send;
-			}
-		}));
+		this._register(sendButton.onDidClick(() => this._send()));
 		this._updateSendButtonState();
 	}
 
