@@ -14,6 +14,7 @@ import { createManageTodoListToolData, ManageTodoListTool } from './manageTodoLi
 import { ResolveDebugEventDetailsTool, ResolveDebugEventDetailsToolData } from './resolveDebugEventDetailsTool.js';
 import { ListDebugEventsTool, ListDebugEventsToolData } from './listDebugEventsTool.js';
 import { RunSubagentTool } from './runSubagentTool.js';
+import { SetArtifactsTool, SetArtifactsToolData } from './setArtifactsTool.js';
 import { TaskCompleteTool, TaskCompleteToolData } from './taskCompleteTool.js';
 
 export class BuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
@@ -47,6 +48,9 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 
 		const taskCompleteTool = instantiationService.createInstance(TaskCompleteTool);
 		this._register(toolsService.registerTool(TaskCompleteToolData, taskCompleteTool));
+
+		const setArtifactsTool = instantiationService.createInstance(SetArtifactsTool);
+		this._register(toolsService.registerTool(SetArtifactsToolData, setArtifactsTool));
 
 		const resolveDebugEventDetailsTool = instantiationService.createInstance(ResolveDebugEventDetailsTool);
 		this._register(toolsService.registerTool(ResolveDebugEventDetailsToolData, resolveDebugEventDetailsTool));

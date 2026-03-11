@@ -23,7 +23,7 @@ import { AccountWidget } from '../../browser/account.contribution.js';
 import '../../../../common/theme.js';
 import '../../../../../platform/theme/common/colors/inputColors.js';
 
-// Import the CSS
+// CSS for the components rendered in this fixture
 import '../../../../browser/media/sidebarActionButton.css';
 import '../../browser/media/accountWidget.css';
 

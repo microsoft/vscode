@@ -146,19 +146,7 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 			this._statusBarItem.hide();
 		} else {
 			this._statusBarItem.text = '$(warning) node_modules is stale - run npm i';
-			const tooltip = new vscode.MarkdownString();
-			tooltip.isTrusted = true;
-			tooltip.supportHtml = true;
-			tooltip.appendMarkdown('**Dependencies are out of date.** Click to run npm install.\n\nChanged files:\n\n');
-			for (const entry of changedFiles) {
-				if (entry.isFile) {
-					const args = encodeURIComponent(JSON.stringify(entry.label));
-					tooltip.appendMarkdown(`- [${entry.label}](command:vscode-extras.showDependencyDiff?${args})\n`);
-				} else {
-					tooltip.appendMarkdown(`- ${entry.label}\n`);
-				}
-			}
-			this._statusBarItem.tooltip = tooltip;
+			this._statusBarItem.tooltip = this._buildTooltip(changedFiles);
 			this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
 			this._statusBarItem.show();
 		}
@@ -178,6 +166,22 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 		});
 
 		vscode.commands.executeCommand('vscode.diff', savedUri, currentUri, `${file} (last install ↔ current)`);
+	}
+
+	private _buildTooltip(changedFiles: { readonly label: string; readonly isFile: boolean }[]): vscode.MarkdownString {
+		const tooltip = new vscode.MarkdownString();
+		tooltip.isTrusted = true;
+		tooltip.supportHtml = true;
+		tooltip.appendMarkdown('**Dependencies are out of date.** Click to run npm install.\n\nChanged files:\n\n');
+		for (const entry of changedFiles) {
+			if (entry.isFile) {
+				const args = encodeURIComponent(JSON.stringify(entry.label));
+				tooltip.appendMarkdown(`- [${entry.label}](command:vscode-extras.showDependencyDiff?${args})\n`);
+			} else {
+				tooltip.appendMarkdown(`- ${entry.label}\n`);
+			}
+		}
+		return tooltip;
 	}
 
 	private _readSavedContent(file: string): string {
@@ -208,6 +212,25 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 		}
 	}
 
+	private _isLockFile(filePath: string): boolean {
+		const base = path.basename(filePath);
+		return base === 'package-lock.json' || base === 'yarn.lock' || base === 'pnpm-lock.yaml' || base === 'npm-shrinkwrap.json';
+	}
+
+	// TODO(https://github.com/microsoft/vscode/issues/299850): re-enable diff previews in tooltip
+	// using tooltip2 (proposed statusBarItemTooltip API) for lazy computation on hover.
+	//
+	// The diff preview worked as follows:
+	// - For each changed non-lock file, compute a unified diff between saved and current content.
+	// - Saved content: read from the stateContentsFile JSON (keyed by relative path).
+	// - Current content: run `installStateHash.ts --normalize-file <absolutePath>` to get the
+	//   normalized file content (same normalization used for hashing).
+	// - Write both to temp files, run `git diff --no-index --no-color -U2 -- tmpSaved tmpCurrent`,
+	//   extract lines starting from the first @@ hunk header.
+	// - If the diff was ≤15 lines, inline it as a ```diff``` fenced code block in the tooltip markdown.
+	// - Use tooltip2 (function form) so this computation only runs on hover, not on every state check.
+	//   The plain tooltip string serves as a fallback for the non-hover case.
+
 	private _getChangedFiles(state: InstallState): { readonly label: string; readonly isFile: boolean }[] {
 		if (!state.saved) {
 			return [{ label: '(no postinstall state found)', isFile: false }];
@@ -222,6 +245,17 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 				changed.push({ label: key, isFile: true });
 			}
 		}
+		changed.sort((a, b) => {
+			if (!a.isFile || !b.isFile) {
+				return 0;
+			}
+			const aIsLock = this._isLockFile(a.label);
+			const bIsLock = this._isLockFile(b.label);
+			if (aIsLock !== bIsLock) {
+				return aIsLock ? 1 : -1;
+			}
+			return 0;
+		});
 		return changed;
 	}
 

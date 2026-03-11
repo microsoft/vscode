@@ -6,6 +6,12 @@
 			"name": "current"
 		}
 	],
+	"worktree": {
+		"maxSlots": 1,
+		"setup": {
+			"command": "echo 'test'"
+		}
+	},
 	"redirection": {
 		"port": 5337
 	},

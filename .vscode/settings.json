@@ -59,21 +59,19 @@
 		"*.tst": "typescript"
 	},
 	"files.readonlyInclude": {
-		"**/node_modules/**/*.*": true,
-		"**/yarn.lock": true,
-		"**/package-lock.json": true,
 		"**/Cargo.lock": true,
-		"out/**": true,
-		"out-build/**": true,
-		"out-vscode/**": true,
-		"out-vscode-reh/**": true,
+		"**/node_modules/**/*.*": true,
+		"**/package-lock.json": true,
+		"**/yarn.lock": true,
 		"extensions/**/dist/**": true,
 		"extensions/**/out/**": true,
 		"extensions/terminal-suggest/src/completions/upstream/**": true,
-		"test/smoke/out/**": true,
+		"out-build/**": true,
+		"out-vscode-reh/**": true,
+		"out-vscode/**": true,
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true,
-		// "src/vs/sessions/**": true
+		"test/smoke/out/**": true
 	},
 	// --- Search ---
 	"search.exclude": {

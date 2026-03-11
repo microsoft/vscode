@@ -386,7 +386,7 @@
 		{
 			"label": "Launch Component Explorer",
 			"type": "shell",
-			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv",
+			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
 			"isBackground": true,
 			"problemMatcher": {
 				"owner": "component-explorer",
@@ -401,6 +401,29 @@
 					"activeOnStart": true,
 					"beginsPattern": ".*Setting up sessions.*",
 					"endsPattern": "Redirection server listening on.*"
+				}
+			}
+		},
+		{
+			"label": "Serve Out (rspack)",
+			"type": "npm",
+			"script": "serve-out-rspack",
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "rspack",
+				"fileLocation": "absolute",
+				"pattern": {
+					"regexp": "^(.+?):(\\d+):(\\d+):\\s+(error|warning)\\s+(.*)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"severity": 4,
+					"message": 5
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*compiling.*",
+					"endsPattern": ".*compiled.*successfully.*"
 				}
 			}
 		}
