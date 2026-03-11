@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, posix, win32 } from '../../../../../../base/common/path.js';
@@ -659,13 +659,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (isSessionAutoApproved && deniedAnalyzerResult?.denialDetails && context.forceConfirmationReason === undefined) {
 			const denial = deniedAnalyzerResult.denialDetails;
 			const deniedRule = denial.ruleSourceText
-				? ` Rule: \`${denial.ruleSourceText}\`.`
+				? ` Rule: \`${escapeMarkdownSyntaxTokens(denial.ruleSourceText)}\`.`
 				: '';
 			const deniedAttempts = this._recordDeniedCommandAttempt(chatSessionResource!, denial);
 			const shouldCircuitBreak = deniedAttempts >= deniedCommandCircuitBreakerThreshold;
 			toolSpecificData.alternativeRecommendation = shouldCircuitBreak
-				? `POLICY_DENIED_CIRCUIT_BREAKER: Command was blocked ${deniedAttempts} times in this session and will not be retried. Scope: ${denial.scope}. Command: \`${denial.deniedCommand}\`. Reason: ${denial.reason}.${deniedRule}`
-				: `POLICY_DENIED: Command was not executed in auto-approval session mode. Scope: ${denial.scope}. Command: \`${denial.deniedCommand}\`. Reason: ${denial.reason}.${deniedRule}`;
+				? `POLICY_DENIED_CIRCUIT_BREAKER: Command was blocked ${deniedAttempts} times in this session and will not be retried. Scope: ${denial.scope}. Command: \`${escapeMarkdownSyntaxTokens(denial.deniedCommand)}\`. Reason: ${denial.reason}.${deniedRule}`
+				: `POLICY_DENIED: Command was not executed in auto-approval session mode. Scope: ${denial.scope}. Command: \`${escapeMarkdownSyntaxTokens(denial.deniedCommand)}\`. Reason: ${denial.reason}.${deniedRule}`;
 			return {
 				confirmationMessages: undefined,
 				toolSpecificData,
