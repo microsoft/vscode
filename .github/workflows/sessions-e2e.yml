@@ -29,12 +29,19 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Install build tools
+        run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
+
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install build dependencies
+        run: npm ci
+        working-directory: build
 
       - name: Transpile sources
         run: npm run transpile-client
