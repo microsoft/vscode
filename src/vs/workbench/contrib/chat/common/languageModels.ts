@@ -1180,6 +1180,85 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return actions;
 	}
 
+	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
+		const metadata = this._modelCache.get(modelId);
+		if (!metadata) {
+			return;
+		}
+
+		// Find the group that contains this model
+		const vendorGroups = this._modelsGroups.get(metadata.vendor);
+		let group: ILanguageModelsProviderGroup | undefined;
+		if (vendorGroups) {
+			for (const vg of vendorGroups) {
+				if (vg.modelIdentifiers.includes(modelId) && vg.group) {
+					group = vg.group;
+					break;
+				}
+			}
+		}
+
+		// Merge new values into existing config
+		const existingConfig = this._modelConfigurations.get(modelId) ?? {};
+		const updatedConfig = { ...existingConfig, ...values };
+
+		if (group) {
+			// Update the existing group with the new model config
+			const existingModels = (group.models as IStringDictionary<IStringDictionary<unknown>> | undefined) ?? {};
+			const updatedGroup: ILanguageModelsProviderGroup = {
+				...group,
+				models: { ...existingModels, [metadata.id]: updatedConfig }
+			};
+			await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(group, updatedGroup);
+		} else {
+			// Create a new group with the model config
+			const vendor = this.getVendors().find(v => v.vendor === metadata.vendor);
+			if (!vendor) {
+				return;
+			}
+			const newGroup: ILanguageModelsProviderGroup = {
+				name: vendor.displayName,
+				vendor: metadata.vendor,
+				models: { [metadata.id]: updatedConfig }
+			};
+			await this._languageModelsConfigurationService.addLanguageModelsProviderGroup(newGroup);
+		}
+
+		// Update the in-memory cache
+		this._modelConfigurations.set(modelId, updatedConfig);
+	}
+
+	getModelConfigurationActions(modelId: string): IAction[] {
+		const metadata = this._modelCache.get(modelId);
+		const schema = metadata?.configurationSchema;
+		if (!schema?.properties) {
+			return [];
+		}
+
+		const actions: IAction[] = [];
+		const currentConfig = this._modelConfigurations.get(modelId) ?? {};
+
+		for (const [key, propSchema] of Object.entries(schema.properties)) {
+			if (typeof propSchema === 'boolean' || !propSchema.enum || !Array.isArray(propSchema.enum)) {
+				continue;
+			}
+			const currentValue = currentConfig[key] ?? propSchema.default;
+			const label = propSchema.description ?? key;
+			const enumActions: IAction[] = propSchema.enum.map((value: unknown) => ({
+				id: `configureModel.${key}.${value}`,
+				label: String(value),
+				class: undefined,
+				enabled: true,
+				tooltip: '',
+				checked: currentValue === value,
+				run: () => this.setModelConfiguration(modelId, { [key]: value })
+			}));
+			actions.push(new SubmenuAction(`configureModel.${key}`, label, enumActions));
+		}
+
+		return actions;
+	}
+
 	async configureLanguageModelsProviderGroup(vendorId: string, providerGroupName?: string): Promise<void> {
 
 		const vendor = this.getVendors().find(({ vendor }) => vendor === vendorId);
