@@ -132,7 +132,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	// Send button
 	private _sendButton: Button | undefined;
 	private _sending = false;
-	private _altKeyDown = false;
 
 	// Repository loading
 	private readonly _openRepositoryCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -317,8 +316,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Isolation mode and branch pickers (below the input, shown when Local target is selected)
 		const isolationContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-local-mode'));
 		this._isolationModePicker.render(isolationContainer);
-		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
 		this._permissionPicker.render(isolationContainer);
+		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
 		const branchContainer = dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-right'));
 		this._branchPicker.render(branchContainer);
 		this._syncIndicator.render(branchContainer);
@@ -562,7 +561,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			if (e.keyCode === KeyCode.Enter && !e.shiftKey && !e.ctrlKey && e.altKey) {
 				e.preventDefault();
 				e.stopPropagation();
-				this._send({ openNewAfterSend: true });
+				this._send();
 			}
 		}));
 
@@ -609,10 +608,15 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private _createAttachButton(container: HTMLElement): void {
 		const attachButton = dom.append(container, dom.$('.sessions-chat-attach-button'));
+		const attachButtonLabel = localize('addContext', "Add Context...");
 		attachButton.tabIndex = 0;
 		attachButton.role = 'button';
-		attachButton.title = localize('addContext', "Add Context...");
-		attachButton.ariaLabel = localize('addContext', "Add Context...");
+		attachButton.ariaLabel = attachButtonLabel;
+		this._register(this.hoverService.setupDelayedHover(attachButton, {
+			content: attachButtonLabel,
+			position: { hoverPosition: HoverPosition.BELOW },
+			appearance: { showPointer: true }
+		}));
 		dom.append(attachButton, renderIcon(Codicon.add));
 		this._register(dom.addDisposableListener(attachButton, dom.EventType.CLICK, () => {
 			this._contextAttachments.showPicker(this._getContextFolderUri());
@@ -652,13 +656,13 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		this._createAttachButton(toolbar);
 
+		// Mode picker (before model pickers)
+		this._modePicker.render(toolbar);
+		this._modePicker.setVisible(false);
+
 		// Local model picker (EnhancedModelPickerActionItem)
 		this._localModelPickerContainer = dom.append(toolbar, dom.$('.sessions-chat-model-picker'));
 		this._createLocalModelPicker(this._localModelPickerContainer);
-
-		// Local mode picker
-		this._modePicker.render(toolbar);
-		this._modePicker.setVisible(false);
 
 		// Remote model picker (action list dropdown)
 		this._cloudModelPicker.render(toolbar);
@@ -678,19 +682,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			ariaLabel: localize('send', "Send"),
 		}));
 		sendButton.icon = Codicon.send;
-		this._register(sendButton.onDidClick(() => this._send({ openNewAfterSend: this._altKeyDown })));
-		this._register(dom.addDisposableListener(dom.getWindow(container), dom.EventType.KEY_DOWN, e => {
-			if (e.key === 'Alt') {
-				this._altKeyDown = true;
-				sendButton.icon = Codicon.runAbove;
-			}
-		}));
-		this._register(dom.addDisposableListener(dom.getWindow(container), dom.EventType.KEY_UP, e => {
-			if (e.key === 'Alt') {
-				this._altKeyDown = false;
-				sendButton.icon = Codicon.send;
-			}
-		}));
+		this._register(sendButton.onDidClick(() => this._send()));
 		this._updateSendButtonState();
 	}
 
@@ -1003,7 +995,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._sendButton.enabled = !this._sending && hasText && !(this._newSession.value?.disabled ?? true);
 	}
 
-	private async _send(options?: { openNewAfterSend?: boolean }): Promise<void> {
+	private async _send(): Promise<void> {
 		let query = this._editor.getModel()?.getValue().trim();
 		const session = this._newSession.value;
 		if (!query || !session || this._sending) {
@@ -1050,7 +1042,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			await this.sessionsManagementService.sendRequestForNewSession(
 				session.resource,
 				{
-					...options?.openNewAfterSend ? { openNewSessionView: true } : {},
 					permissionLevel: this._permissionPicker.permissionLevel,
 				}
 			);

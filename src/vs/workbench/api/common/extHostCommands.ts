@@ -425,11 +425,11 @@ export class CommandsConverter implements extHostTypeConverter.Command.ICommands
 	}
 
 
-	getActualCommand(...args: any[]): vscode.Command | undefined {
-		return this._cache.get(args[0]);
+	getActualCommand(...args: unknown[]): vscode.Command | undefined {
+		return this._cache.get(args[0] as string);
 	}
 
-	private _executeConvertedCommand<R>(...args: any[]): Promise<R> {
+	private _executeConvertedCommand<R>(...args: unknown[]): Promise<R> {
 		const actualCmd = this.getActualCommand(...args);
 		this._logService.trace('CommandsConverter#EXECUTE', args[0], actualCmd ? actualCmd.command : 'MISSING');
 
