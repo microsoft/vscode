@@ -836,7 +836,7 @@ export class ChangesViewPane extends ViewPane {
 								return { showIcon: true, showLabel: false, isSecondary: true };
 							}
 							if (action.id === 'chatEditing.synchronizeChanges') {
-								return { showIcon: true, showLabel: true, isSecondary: true };
+								return { showIcon: true, showLabel: true, isSecondary: false };
 							}
 							if (action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR') {
 								return { showIcon: true, showLabel: true, isSecondary: false };
