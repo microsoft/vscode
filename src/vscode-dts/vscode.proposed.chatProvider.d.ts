@@ -17,6 +17,15 @@ declare module 'vscode' {
 		 * `undefined` if the request was initiated by other functionality in the editor.
 		 */
 		readonly requestInitiator: string;
+
+		/**
+		 * Per-model configuration provided by the user. This contains values configured
+		 * in the user's language models configuration file, validated against the model's
+		 * {@linkcode LanguageModelChatInformation.configurationSchema configurationSchema}.
+		 */
+		readonly configuration?: {
+			readonly [key: string]: any;
+		};
 	}
 
 	/**

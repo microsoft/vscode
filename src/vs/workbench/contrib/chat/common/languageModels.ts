@@ -964,7 +964,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			throw new Error(`Chat provider for model ${modelId} is not registered.`);
 		}
 		const modelConfig = this._modelConfigurations.get(modelId);
-		const mergedOptions = modelConfig ? { ...modelConfig, ...options } : options;
+		const mergedOptions = modelConfig ? { ...options, configuration: modelConfig } : options;
 		return provider.sendChatRequest(modelId, messages, from, mergedOptions, token);
 	}
 

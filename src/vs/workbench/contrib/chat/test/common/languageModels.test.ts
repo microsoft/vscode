@@ -1105,7 +1105,7 @@ suite('LanguageModels - Per-Model Configuration', function () {
 		assert.strictEqual(config, undefined);
 	});
 
-	test('sendChatRequest merges per-model config into options', async function () {
+	test('sendChatRequest passes per-model config as configuration', async function () {
 		const cts = disposables.add(new CancellationTokenSource());
 		const request = await languageModelsService.sendChatRequest(
 			'config-vendor/default/model-a',
@@ -1116,20 +1116,22 @@ suite('LanguageModels - Per-Model Configuration', function () {
 		);
 		await request.result;
 
-		assert.deepStrictEqual(receivedOptions, { temperature: 0.7, reasoningEffort: 'high' });
+		assert.deepStrictEqual(receivedOptions, { configuration: { temperature: 0.7, reasoningEffort: 'high' } });
 	});
 
-	test('caller-provided options override per-model config', async function () {
+	test('sendChatRequest does not add configuration when no per-model config exists', async function () {
+		// model-c has no per-model config
+		// Register a model-c via a different group or verify model without config
 		const cts = disposables.add(new CancellationTokenSource());
 		const request = await languageModelsService.sendChatRequest(
-			'config-vendor/default/model-a',
+			'config-vendor/default/model-b',
 			nullExtensionDescription.identifier,
 			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hello' }] }],
-			{ temperature: 1.0 },
+			{},
 			cts.token
 		);
 		await request.result;
 
-		assert.deepStrictEqual(receivedOptions, { temperature: 1.0, reasoningEffort: 'high' });
+		assert.deepStrictEqual(receivedOptions, { configuration: { temperature: 0.2 } });
 	});
 });
