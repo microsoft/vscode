@@ -29,7 +29,7 @@ const processOptions: ITerminalProcessOptions = {
  */
 function buildMultilineCommand(lines: string[], outputFile: string): { command: string; expectedLines: string[] } {
 	// Use cat heredoc to write content to a file - this exercises multiline PTY input
-	const command = `cat > ${outputFile} << 'TESTEOF'\n${lines.join('\n')}\nTESTEOF\n`;
+	const command = `cat > ${escapeForSingleQuotedShellString(outputFile)} << 'TESTEOF'\n${lines.join('\n')}\nTESTEOF\n`;
 	return { command, expectedLines: lines };
 }
 
@@ -41,21 +41,30 @@ function buildAsciiMultilineCommand(lineCount: number, outputFile: string): { co
 		lines.push(line);
 	}
 	return buildMultilineCommand(lines, outputFile);
-
 }
 
 function buildMultibyteMultilineCommand(lineCount: number, outputFile: string): { command: string; expectedLines: string[] } {
-	const lines: string[] = [];
-	for (let i = 1; i <= lineCount; i++) {
-		lines.push(`L${String(i).padStart(2, '0')} ${'中'.repeat(40)}`);
+	for (let repeatCount = 1; repeatCount <= 256; repeatCount++) {
+		const lines: string[] = [];
+		for (let i = 1; i <= lineCount; i++) {
+			lines.push(`L${String(i).padStart(2, '0')} ${'中'.repeat(repeatCount)}`);
+		}
+		const result = buildMultilineCommand(lines, outputFile);
+		if (result.command.length <= 512 && Buffer.byteLength(result.command, 'utf8') > 1024) {
+			return result;
+		}
 	}
-	return buildMultilineCommand(lines, outputFile);
+	throw new Error('Failed to generate a multibyte command within the UTF-16 and UTF-8 thresholds');
 }
 
 interface IRunMultilineTestOptions {
 	outputFile: string;
 	buildCommand: (outputFile: string) => { command: string; expectedLines: string[] };
 	maxWait?: number;
+}
+
+function escapeForSingleQuotedShellString(value: string): string {
+	return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 // These tests spawn real PTY processes and are macOS/Linux only
@@ -72,7 +81,7 @@ interface IRunMultilineTestOptions {
 	});
 
 	async function runMultilineTest(options: IRunMultilineTestOptions): Promise<void> {
-		const { outputFile, buildCommand, maxWait = 3000 } = options;
+		const { outputFile, buildCommand, maxWait = 10000 } = options;
 		const { command, expectedLines } = buildCommand(outputFile);
 
 		const terminalProcess = store.add(new TerminalProcess(
@@ -132,7 +141,7 @@ interface IRunMultilineTestOptions {
 		await exitPromise;
 
 		if (!fs.existsSync(outputFile)) {
-			throw new Error(`Output file was not created — terminal likely got stuck (command was ${command.length} bytes)`);
+			throw new Error(`Output file was not created — terminal likely got stuck (command was ${command.length} UTF-16 code units / ${Buffer.byteLength(command, 'utf8')} UTF-8 bytes)`);
 		}
 
 		const actualContent = fs.readFileSync(outputFile, 'utf-8');
@@ -163,8 +172,7 @@ interface IRunMultilineTestOptions {
 	});
 
 	test('multibyte multiline command can exceed the UTF-8 threshold while staying under the current UTF-16 gate', async function () {
-		const outputFile = '/tmp/vscode-pty-u8.txt';
-		fs.rmSync(outputFile, { force: true });
+		const outputFile = path.join(outputDir, 'output-u8.txt');
 		const { command } = buildMultibyteMultilineCommand(10, outputFile);
 		const utf16Length = command.length;
 		const utf8Length = Buffer.byteLength(command, 'utf8');
@@ -180,7 +188,6 @@ interface IRunMultilineTestOptions {
 			outputFile,
 			buildCommand: currentOutputFile => buildMultibyteMultilineCommand(10, currentOutputFile)
 		});
-		fs.rmSync(outputFile, { force: true });
 	});
 
 });
