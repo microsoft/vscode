@@ -2229,7 +2229,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						showManageModelsAction: () => {
 							const sessionType = this.getCurrentSessionType();
 							return !sessionType || sessionType === localChatSessionType;
-						}
+						},
+						showRecentlyUsed: () => true,
+						showFeatured: () => true,
 					};
 					return this.modelWidget = this.instantiationService.createInstance(EnhancedModelPickerActionItem, action, itemDelegate, pickerOptions);
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {

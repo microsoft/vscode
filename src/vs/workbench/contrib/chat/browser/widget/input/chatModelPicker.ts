@@ -155,6 +155,8 @@ export function buildModelPickerItems(
 	useGroupedModelPicker: boolean,
 	manageModelsAction: IActionWidgetDropdownAction | undefined,
 	chatEntitlementService: IChatEntitlementService,
+	showRecentlyUsed: boolean,
+	showFeatured: boolean,
 	hoverPosition?: IHoverPositionOptions,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
@@ -250,26 +252,30 @@ export function buildModelPickerItems(
 			}
 
 			// Recently used models
-			for (const id of recentModelIds) {
-				tryPlaceModel(id);
+			if (showRecentlyUsed) {
+				for (const id of recentModelIds) {
+					tryPlaceModel(id);
+				}
 			}
 
 			// Featured models from control manifest
-			for (const [entryId, entry] of Object.entries(controlModels)) {
-				if (!entry.featured || placed.has(entryId)) {
-					continue;
-				}
-				const model = resolveModel(entryId);
-				if (model && !placed.has(model.identifier)) {
-					markPlaced(model.identifier, model.metadata.id);
-					if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-						promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
-					} else {
-						promotedItems.push({ kind: 'available', model });
+			if (showFeatured) {
+				for (const [entryId, entry] of Object.entries(controlModels)) {
+					if (!entry.featured || placed.has(entryId)) {
+						continue;
 					}
-				} else if (!model && !entry.exists) {
-					markPlaced(entryId);
-					promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry) });
+					const model = resolveModel(entryId);
+					if (model && !placed.has(model.identifier)) {
+						markPlaced(model.identifier, model.metadata.id);
+						if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
+							promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
+						} else {
+							promotedItems.push({ kind: 'available', model });
+						}
+					} else if (!model && !entry.exists) {
+						markPlaced(entryId);
+						promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry) });
+					}
 				}
 			}
 
@@ -590,6 +596,8 @@ export class ModelPickerWidget extends Disposable {
 			this._delegate.useGroupedModelPicker(),
 			!showFilter ? manageModelsAction : undefined,
 			this._entitlementService,
+			this._delegate.showRecentlyUsed(),
+			this._delegate.showFeatured(),
 			this._hoverPosition,
 		);
 
