@@ -49,8 +49,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	/** Visual margin values for the card-like appearance */
 	static readonly MARGIN_TOP = 8;
-	static readonly MARGIN_BOTTOM = 10;
-	static readonly MARGIN_LEFT = 8;
+	static readonly MARGIN_BOTTOM = 18;
+	static readonly MARGIN_LEFT = 16;
 	private static readonly FOOTER_ITEM_HEIGHT = 26;
 	private static readonly FOOTER_ITEM_GAP = 4;
 	private static readonly FOOTER_VERTICAL_PADDING = 6;
