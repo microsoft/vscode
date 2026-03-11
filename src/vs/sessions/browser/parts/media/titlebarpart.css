@@ -104,11 +104,6 @@
 	display: flex;
 }
 
-/* Hide the entire titlebar left when the sidebar is visible */
-.agent-sessions-workbench:not(.nosidebar) .part.titlebar > .sessions-titlebar-container > .titlebar-left {
-	display: none !important;
-}
-
 /* macOS native: the spacer uses window-controls-container but should not block dragging */
 .agent-sessions-workbench.mac .part.titlebar .window-controls-container {
 	-webkit-app-region: drag;

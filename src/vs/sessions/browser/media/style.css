@@ -20,15 +20,23 @@
  */
 
 .agent-sessions-workbench .part.sidebar {
-	background: var(--vscode-sideBar-background);
-	border-right: 1px solid var(--vscode-sideBar-border, transparent);
-}
-
-.agent-sessions-workbench .part.auxiliarybar {
-	margin: 8px 8px 8px 0;
+	margin: 8px 0 10px 8px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
+}
+
+.agent-sessions-workbench .part.auxiliarybar {
+	margin: 8px 8px 10px 0;
+	background: var(--part-background);
+	border: 1px solid var(--part-border-color, transparent);
+	border-radius: 8px;
+}
+
+.agent-sessions-workbench .part.auxiliarybar > .content,
+.agent-sessions-workbench .part.panel > .content,
+.agent-sessions-workbench .part.sidebar > .content {
+	background-color: var(--part-background);
 }
 
 .agent-sessions-workbench .part.panel {
@@ -38,9 +46,14 @@
 	border-radius: 8px;
 }
 
-/* Grid background matches the chat bar / sidebar background */
+/* Grid background uses editor background so card panels stand out */
 .agent-sessions-workbench > .monaco-grid-view {
-	background-color: var(--vscode-sideBar-background);
+	background-color: var(--vscode-editor-background);
+}
+
+/* Remove titlebar shadow in sessions */
+.agent-sessions-workbench.monaco-workbench .part.titlebar {
+	box-shadow: none !important;
 }
 
 /* ---- Chat Layout ---- */

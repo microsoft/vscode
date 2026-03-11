@@ -12,9 +12,9 @@ import { IContextMenuService } from '../../../platform/contextview/browser/conte
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER } from '../../../workbench/common/theme.js';
+import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER } from '../../../workbench/common/theme.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
-import { sessionsSidebarBorder, sessionsSidebarHeaderBackground, sessionsSidebarHeaderForeground } from '../../common/theme.js';
+import { sessionsSidebarHeaderBackground, sessionsSidebarHeaderForeground } from '../../common/theme.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { AnchorAlignment } from '../../../base/browser/ui/contextview/contextview.js';
@@ -33,13 +33,8 @@ import { Separator } from '../../../base/common/actions.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { Menus } from '../menus.js';
-import { $, append, getWindowId, prepend } from '../../../base/browser/dom.js';
+import { $, append } from '../../../base/browser/dom.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
-import { isMacintosh, isNative } from '../../../base/common/platform.js';
-import { isFullscreen, onDidChangeFullscreen } from '../../../base/browser/browser.js';
-import { mainWindow } from '../../../base/browser/window.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { hasNativeTitlebar, getTitleBarStyle } from '../../../platform/window/common/window.js';
 
 /**
  * Sidebar part specifically for agent sessions workbench.
@@ -52,10 +47,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	static readonly placeholderViewContainersKey = 'workbench.agentsession.placeholderViewlets';
 	static readonly viewContainersWorkspaceStateKey = 'workbench.agentsession.viewletsWorkspaceState';
 
-	/** Visual margin values - sidebar is flush (no card appearance) */
-	static readonly MARGIN_TOP = 0;
-	static readonly MARGIN_BOTTOM = 0;
-	static readonly MARGIN_LEFT = 0;
+	/** Visual margin values for the card-like appearance */
+	static readonly MARGIN_TOP = 8;
+	static readonly MARGIN_BOTTOM = 10;
+	static readonly MARGIN_LEFT = 8;
 	private static readonly FOOTER_ITEM_HEIGHT = 26;
 	private static readonly FOOTER_ITEM_GAP = 4;
 	private static readonly FOOTER_VERTICAL_PADDING = 6;
@@ -105,11 +100,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@IMenuService menuService: IMenuService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
-			{ hasTitle: true, trailingSeparator: false, borderWidth: () => (this.getColor(sessionsSidebarBorder) || this.getColor(contrastBorder)) ? 1 : 0 },
+			{ hasTitle: true, trailingSeparator: false, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 },
 			SidebarPart.activeViewletSettingsKey,
 			ActiveViewletContext.bindTo(contextKeyService),
 			SidebarFocusContext.bindTo(contextKeyService),
@@ -120,7 +114,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			ViewContainerLocation.Sidebar,
 			Extensions.Viewlets,
 			Menus.SidebarTitle,
-			Menus.TitleBarLeftLayout,
+			undefined, // No global-actions-left in sidebar; toggle button lives in the titlebar
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -144,36 +138,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	protected override createTitleArea(parent: HTMLElement): HTMLElement | undefined {
 		const titleArea = super.createTitleArea(parent);
 		this.sideBarTitleArea = titleArea;
-
-		if (titleArea) {
-			// Add a drag region so the sidebar title area can be used to move the window,
-			// matching the titlebar's drag behavior.
-			prepend(titleArea, $('div.titlebar-drag-region'));
-		}
-
-		// macOS native: the sidebar spans full height and the traffic lights
-		// overlay the top-left corner. Add a fixed-width spacer inside the
-		// title area to push content horizontally past the traffic lights.
-		if (titleArea && isMacintosh && isNative && !hasNativeTitlebar(this.configurationService, getTitleBarStyle(this.configurationService))) {
-			const spacer = $('div.window-controls-container');
-			spacer.style.width = '70px';
-			spacer.style.height = '100%';
-			spacer.style.flexShrink = '0';
-			spacer.style.order = '-1'; // match global-actions-left order so DOM order is respected
-			prepend(titleArea, spacer);
-
-			// Hide spacer in fullscreen (traffic lights are not shown)
-			const updateSpacerVisibility = () => {
-				spacer.style.display = isFullscreen(mainWindow) ? 'none' : '';
-			};
-			updateSpacerVisibility();
-			this._register(onDidChangeFullscreen(windowId => {
-				if (windowId === getWindowId(mainWindow)) {
-					updateSpacerVisibility();
-				}
-			}));
-		}
-
 		return titleArea;
 	}
 
@@ -220,15 +184,17 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 		const container = assertReturnsDefined(this.getContainer());
 
-		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
+		// Store background and border as CSS variables for the card styling on .part
+		container.style.setProperty('--part-background', this.getColor(SIDE_BAR_BACKGROUND) || '');
+		container.style.setProperty('--part-border-color', this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder) || 'transparent');
+		container.style.backgroundColor = 'transparent';
 		container.style.color = this.getColor(SIDE_BAR_FOREGROUND) || '';
 		container.style.outlineColor = this.getColor(SIDE_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
 
-		// Right border to separate from the right section
-		const borderColor = this.getColor(sessionsSidebarBorder) || this.getColor(contrastBorder) || '';
-		container.style.borderRightWidth = borderColor ? '1px' : '';
-		container.style.borderRightStyle = borderColor ? 'solid' : '';
-		container.style.borderRightColor = borderColor;
+		// Clear inline borders - the card appearance uses CSS border-radius instead
+		container.style.borderRightColor = '';
+		container.style.borderRightStyle = '';
+		container.style.borderRightWidth = '';
 
 		// Title area uses sessions-specific header colors
 		if (this.sideBarTitleArea) {
@@ -247,10 +213,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		this.updateFooterVisibility();
 		const footerHeight = Math.min(height, this.getFooterHeight());
 
-		// Layout content with reduced height to account for footer
+		// Layout content with reduced dimensions to account for visual margins
 		super.layout(
-			width,
-			height - footerHeight,
+			width - SidebarPart.MARGIN_LEFT,
+			height - SidebarPart.MARGIN_TOP - SidebarPart.MARGIN_BOTTOM - footerHeight,
 			top, left
 		);
 
