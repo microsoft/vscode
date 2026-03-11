@@ -86,6 +86,7 @@ export const GENERATE_SKILL_COMMAND_ID = 'workbench.action.chat.generateSkill';
 export const GENERATE_AGENT_COMMAND_ID = 'workbench.action.chat.generateAgent';
 export const GENERATE_HOOK_COMMAND_ID = 'workbench.action.chat.generateHook';
 export const INSERT_FORK_CONVERSATION_COMMAND_ID = 'workbench.action.chat.insertForkConversationCommand';
+export const INSERT_TROUBLESHOOT_COMMAND_ID = 'workbench.action.chat.insertTroubleshootCommand';
 
 const defaultChat = {
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
@@ -1389,6 +1390,27 @@ export function registerChatActions() {
 			const commandService = accessor.get(ICommandService);
 			await commandService.executeCommand('workbench.action.chat.open', {
 				query: '/fork ',
+				isPartialQuery: true,
+			});
+		}
+	});
+
+	registerAction2(class InsertTroubleshootSlashCommandAction extends Action2 {
+		constructor() {
+			super({
+				id: INSERT_TROUBLESHOOT_COMMAND_ID,
+				title: localize2('insertTroubleshootSlashCommand', "Insert Troubleshoot Command"),
+				shortTitle: localize2('insertTroubleshootSlashCommand.short', "Insert /troubleshoot"),
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ChatContextKeys.enabled
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand('workbench.action.chat.open', {
+				query: '/troubleshoot ',
 				isPartialQuery: true,
 			});
 		}

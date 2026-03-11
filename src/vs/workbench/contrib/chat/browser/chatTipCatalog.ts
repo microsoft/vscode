@@ -19,6 +19,7 @@ import {
 	GENERATE_PROMPT_COMMAND_ID,
 	GENERATE_SKILL_COMMAND_ID,
 	INSERT_FORK_CONVERSATION_COMMAND_ID,
+	INSERT_TROUBLESHOOT_COMMAND_ID,
 } from './actions/chatActions.js';
 
 export const enum ChatTipTier {
@@ -375,9 +376,16 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	{
 		id: 'tip.troubleshoot',
 		tier: ChatTipTier.Qol,
-		buildMessage() {
+		buildMessage(ctx) {
+			const kb = formatKeybinding(ctx, INSERT_TROUBLESHOOT_COMMAND_ID);
 			return new MarkdownString(
-				localize('tip.troubleshoot', "Something unexpected happened? Use /troubleshoot followed by your question to analyze internal debug events and find root causes.")
+				localize(
+					'tip.troubleshoot',
+					"Something not working? Type [{0}](command:{1} \"Run /troubleshoot\"){2} <question> to diagnose issues from debug logs.",
+					'/troubleshoot',
+					INSERT_TROUBLESHOOT_COMMAND_ID,
+					kb
+				)
 			);
 		},
 		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
