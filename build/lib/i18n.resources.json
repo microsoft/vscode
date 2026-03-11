@@ -561,6 +561,58 @@
 		{
 			"name": "vs/workbench/contrib/list",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/browserView",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/dropOrPasteInto",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/editTelemetry",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/inlineCompletions",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/mcp",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/meteredConnection",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/processExplorer",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/remoteCodingAgents",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/telemetry",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomeAgentSessions",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/accounts",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/chat",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/request",
+			"project": "vscode-workbench"
 		}
 	],
 	"sessions": [
