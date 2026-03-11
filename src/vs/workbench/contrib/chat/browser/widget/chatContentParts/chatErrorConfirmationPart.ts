@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Button, IButtonOptions } from '../../../../../../base/browser/ui/button/button.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -13,7 +12,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatErrorLevel, IChatResponseErrorDetailsConfirmationButton, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { assertIsResponseVM, IChatErrorDetailsPart, IChatRendererContent } from '../../../common/model/chatViewModel.js';
-import { IChatWidgetService } from '../../chat.js';
+import { IChatAccessibilityService, IChatWidgetService } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatErrorWidget } from './chatErrorContentPart.js';
 
@@ -21,9 +20,6 @@ const $ = dom.$;
 
 export class ChatErrorConfirmationContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
-
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	constructor(
 		kind: ChatErrorLevel,
@@ -35,6 +31,7 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IChatService chatService: IChatService,
+		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
 	) {
 		super();
 
@@ -62,9 +59,8 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 				const widget = chatWidgetService.getWidgetBySessionResource(element.sessionResource);
 				options.userSelectedModelId = widget?.input.currentLanguageModel;
 				Object.assign(options, widget?.getModeRequestOptions());
-				if (await chatService.sendRequest(element.sessionResource, prompt, options)) {
-					this._onDidChangeHeight.fire();
-				}
+				this.chatAccessibilityService.acceptRequest(element.sessionResource);
+				await chatService.sendRequest(element.sessionResource, prompt, options);
 			}));
 		});
 	}

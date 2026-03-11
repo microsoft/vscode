@@ -7,6 +7,7 @@ import { DeferredPromise } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, isDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from '../common/quickAccess.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from '../common/quickInput.js';
@@ -27,7 +28,8 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -233,7 +235,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 	}
 
 	private getOrInstantiateProvider(value: string, enabledProviderPrefixes?: string[]): [IQuickAccessProvider | undefined, IQuickAccessProviderDescriptor | undefined] {
-		const providerDescriptor = this.registry.getQuickAccessProvider(value);
+		const providerDescriptor = this.registry.getQuickAccessProvider(value, this.contextKeyService);
 		if (!providerDescriptor || enabledProviderPrefixes && !enabledProviderPrefixes?.includes(providerDescriptor.prefix)) {
 			return [undefined, undefined];
 		}

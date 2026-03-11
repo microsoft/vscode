@@ -19,8 +19,9 @@ import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatStatusDashboard } from './chatStatusDashboard.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { disposableWindowInterval } from '../../../../../base/browser/dom.js';
-import { isNewUser, isCompletionsEnabled } from './chatStatus.js';
+import { isNewUser } from './chatStatus.js';
 import product from '../../../../../platform/product/common/product.js';
+import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 

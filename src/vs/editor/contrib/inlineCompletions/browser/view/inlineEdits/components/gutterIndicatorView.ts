@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ModifierKeyEmitter, n, trackFocus } from '../../../../../../../base/browser/dom.js';
+import { n } from '../../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
@@ -34,6 +34,17 @@ import { localize } from '../../../../../../../nls.js';
 import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
 import { InlineSuggestAlternativeAction } from '../../../model/InlineSuggestAlternativeAction.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+import { IUserInteractionService } from '../../../../../../../platform/userInteraction/browser/userInteractionService.js';
+import { Event, Emitter } from '../../../../../../../base/common/event.js';
+
+/**
+ * Customization options for the gutter indicator appearance and behavior.
+ */
+export interface GutterIndicatorCustomization {
+	/** Override the default icon */
+	readonly icon?: ThemeIcon;
+}
 
 export class InlineEditsGutterIndicatorData {
 	constructor(
@@ -41,16 +52,18 @@ export class InlineEditsGutterIndicatorData {
 		readonly originalRange: LineRange,
 		readonly model: SimpleInlineSuggestModel,
 		readonly altAction: InlineSuggestAlternativeAction | undefined,
+		readonly customization?: GutterIndicatorCustomization,
 	) { }
 }
 
 export class InlineSuggestionGutterMenuData {
 	public static fromInlineSuggestion(suggestion: InlineSuggestionItem): InlineSuggestionGutterMenuData {
 		const alternativeAction = suggestion.action?.kind === 'edit' ? suggestion.action.alternativeAction : undefined;
+		const commands = suggestion.source.inlineSuggestions.commands ?? [];
 		return new InlineSuggestionGutterMenuData(
 			suggestion.gutterMenuLinkAction,
 			suggestion.source.provider.displayName ?? localize('inlineSuggestion', "Inline Suggestion"),
-			suggestion.source.inlineSuggestions.commands ?? [],
+			commands.length > 0 ? [commands] : [],
 			alternativeAction,
 			suggestion.source.provider.modelInfo,
 			suggestion.source.provider.setModelId?.bind(suggestion.source.provider),
@@ -60,10 +73,11 @@ export class InlineSuggestionGutterMenuData {
 	constructor(
 		readonly action: Command | undefined,
 		readonly displayName: string,
-		readonly extensionCommands: InlineCompletionCommand[],
+		readonly extensionCommands: InlineCompletionCommand[][],
 		readonly alternativeAction: InlineSuggestAlternativeAction | undefined,
 		readonly modelInfo: IInlineCompletionModelInfo | undefined,
 		readonly setModelId: ((modelId: string) => Promise<void>) | undefined,
+		readonly extensionCommandsOnly: boolean = false,
 	) { }
 }
 
@@ -86,6 +100,10 @@ const CODICON_SIZE_PX = 16;
 const CODICON_PADDING_PX = 2;
 
 export class InlineEditsGutterIndicator extends Disposable {
+
+	private readonly _onDidCloseWithCommand = this._register(new Emitter<string>());
+	readonly onDidCloseWithCommand: Event<string> = this._onDidCloseWithCommand.event;
+
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
 		private readonly _data: IObservable<InlineEditsGutterIndicatorData | undefined>,
@@ -94,10 +112,11 @@ export class InlineEditsGutterIndicator extends Disposable {
 		private readonly _isHoveringOverInlineEdit: IObservable<boolean>,
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 
-		@IHoverService private readonly _hoverService: HoverService,
+		@IHoverService protected readonly _hoverService: HoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IUserInteractionService private readonly _userInteractionService: IUserInteractionService
 	) {
 		super();
 
@@ -152,7 +171,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 	private readonly _isHoveredOverInlineEditDebounced: IObservable<boolean>;
 
-	private readonly _modifierPressed = observableFromEvent(this, ModifierKeyEmitter.getInstance().event, () => ModifierKeyEmitter.getInstance().keyStatus.shiftKey);
+	private readonly _modifierPressed = derived(this, reader =>
+		this._userInteractionService.readModifierKeyStatus(this._editorObs.editor.getDomNode()!, reader).shiftKey
+	);
 	private readonly _gutterIndicatorStyles = derived(this, reader => {
 		let v = this._tabAction.read(reader);
 
@@ -341,18 +362,23 @@ export class InlineEditsGutterIndicator extends Disposable {
 		const pillIsFullyDocked = gutterViewPortWithoutStickyScrollWithoutPaddingTop.containsRect(pillFullyDockedRect);
 
 		// The icon which will be rendered in the pill
-		const iconNoneDocked = this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
-		const iconDocked = derived(this, reader => {
-			if (this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader)) {
-				return Codicon.check;
-			}
-			if (this._tabAction.read(reader) === InlineEditTabAction.Accept) {
-				return Codicon.keyboardTab;
-			}
-			const cursorLineNumber = this._editorObs.cursorLineNumber.read(reader) ?? 0;
-			const editStartLineNumber = s.range.read(reader).startLineNumber;
-			return cursorLineNumber <= editStartLineNumber ? Codicon.keyboardTabAbove : Codicon.keyboardTabBelow;
-		});
+		const customIcon = this._data.read(reader)?.customization?.icon;
+		const iconNoneDocked = customIcon
+			? constObservable(customIcon)
+			: this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
+		const iconDocked = customIcon
+			? constObservable(customIcon)
+			: derived(this, reader => {
+				if (this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader)) {
+					return Codicon.check;
+				}
+				if (this._tabAction.read(reader) === InlineEditTabAction.Accept) {
+					return Codicon.keyboardTab;
+				}
+				const cursorLineNumber = this._editorObs.cursorLineNumber.read(reader) ?? 0;
+				const editStartLineNumber = s.range.read(reader).startLineNumber;
+				return cursorLineNumber <= editStartLineNumber ? Codicon.keyboardTabAbove : Codicon.keyboardTabBelow;
+			});
 
 		const idealIconAreaWidth = 22;
 		const iconWidth = (pillRect: Rect) => {
@@ -428,18 +454,18 @@ export class InlineEditsGutterIndicator extends Disposable {
 	});
 
 
-	private readonly _iconRef = n.ref<HTMLDivElement>();
+	protected readonly _iconRef = n.ref<HTMLDivElement>();
 
 	public readonly isVisible = this._layout.map(l => !!l);
 
-	private readonly _hoverVisible = observableValue(this, false);
+	protected readonly _hoverVisible = observableValue(this, false);
 	public readonly isHoverVisible: IObservable<boolean> = this._hoverVisible;
 
 	private readonly _isHoveredOverIcon = observableValue(this, false);
 	private readonly _isHoveredOverIconDebounced: IObservable<boolean> = debouncedObservable(this._isHoveredOverIcon, 100);
 	public readonly isHoveredOverIcon: IObservable<boolean> = this._isHoveredOverIconDebounced;
 
-	private _showHover(): void {
+	protected _showHover(): void {
 		if (this._hoverVisible.get()) {
 			return;
 		}
@@ -453,17 +479,21 @@ export class InlineEditsGutterIndicator extends Disposable {
 			GutterIndicatorMenuContent,
 			this._editorObs,
 			data.gutterMenuData,
-			(focusEditor) => {
+			(focusEditor, commandId) => {
 				if (focusEditor) {
 					this._editorObs.editor.focus();
+				}
+				if (commandId) {
+					this._onDidCloseWithCommand.fire(commandId);
 				}
 				h?.dispose();
 			},
 		).toDisposableLiveElement());
 
-		const focusTracker = disposableStore.add(trackFocus(content.element)); // TODO@benibenj should this be removed?
-		disposableStore.add(focusTracker.onDidBlur(() => this._focusIsInMenu.set(false, undefined)));
-		disposableStore.add(focusTracker.onDidFocus(() => this._focusIsInMenu.set(true, undefined)));
+		const isFocused = this._userInteractionService.createFocusTracker(content.element, disposableStore); // TODO@benibenj should this be removed?
+		disposableStore.add(autorun(reader => {
+			this._focusIsInMenu.set(isFocused.read(reader), undefined);
+		}));
 		disposableStore.add(toDisposable(() => this._focusIsInMenu.set(false, undefined)));
 
 		const h = this._hoverService.showInstantHover({
@@ -564,6 +594,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 					width: layout.map(l => l.iconRect.width),
 					position: 'relative',
 					right: layout.map(l => l.iconDirection === 'top' ? '1px' : '0'),
+					color: this._data.map(d => d?.customization?.icon?.color ? asCssVariable(d.customization.icon.color.id) : undefined),
 				}
 			}, [
 				layout.map((l, reader) => withStyles(renderIcon(l.icon.read(reader)), { fontSize: toPx(Math.min(l.iconRect.width - CODICON_PADDING_PX, CODICON_SIZE_PX)) })),

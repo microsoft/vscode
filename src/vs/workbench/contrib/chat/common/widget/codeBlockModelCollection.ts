@@ -29,6 +29,7 @@ export interface CodeBlockEntry {
 	readonly vulns: readonly IMarkdownVulnerability[];
 	readonly codemapperUri?: URI;
 	readonly isEdit?: boolean;
+	readonly subAgentInvocationId?: string;
 }
 
 export class CodeBlockModelCollection extends Disposable {
@@ -39,6 +40,7 @@ export class CodeBlockModelCollection extends Disposable {
 		inLanguageId: string | undefined;
 		codemapperUri?: URI;
 		isEdit?: boolean;
+		subAgentInvocationId?: string;
 	}>();
 
 	/**
@@ -85,6 +87,7 @@ export class CodeBlockModelCollection extends Disposable {
 			vulns: entry.vulns,
 			codemapperUri: entry.codemapperUri,
 			isEdit: entry.isEdit,
+			subAgentInvocationId: entry.subAgentInvocationId,
 		};
 	}
 
@@ -195,6 +198,7 @@ export class CodeBlockModelCollection extends Disposable {
 			if (entry) {
 				entry.codemapperUri = codeblockUri.uri;
 				entry.isEdit = codeblockUri.isEdit;
+				entry.subAgentInvocationId = codeblockUri.subAgentInvocationId;
 			}
 
 			newText = codeblockUri.textWithoutResult;

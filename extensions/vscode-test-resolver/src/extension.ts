@@ -165,6 +165,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 				outputChannel.appendLine(`Launching server: "${serverCommandPath}" ${commandArgs.join(' ')}`);
 				const shell = (process.platform === 'win32');
+				// Skip prelaunch to avoid redownloading electron while it may be in use
+				env['VSCODE_SKIP_PRELAUNCH'] = '1';
 				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath, shell });
 			} else {
 				const extensionToInstall = process.env['TESTRESOLVER_INSTALL_BUILTIN_EXTENSION'];
@@ -209,12 +211,12 @@ export function activate(context: vscode.ExtensionContext) {
 				console.log('Connecting via a managed authority');
 				return Promise.resolve(new vscode.ManagedResolvedAuthority(async () => {
 					const remoteSocket = net.createConnection({ port: serverAddr.port });
-					const dataEmitter = new vscode.EventEmitter<Uint8Array>();
+					const dataEmitter = new vscode.EventEmitter<Uint8Array<ArrayBuffer>>();
 					const closeEmitter = new vscode.EventEmitter<Error | undefined>();
 					const endEmitter = new vscode.EventEmitter<void>();
 
 					await new Promise((res, rej) => {
-						remoteSocket.on('data', d => dataEmitter.fire(d))
+						remoteSocket.on('data', d => dataEmitter.fire(d as Uint8Array<ArrayBuffer>))
 							.on('error', err => { rej(); closeEmitter.fire(err); })
 							.on('close', () => endEmitter.fire())
 							.on('end', () => endEmitter.fire())

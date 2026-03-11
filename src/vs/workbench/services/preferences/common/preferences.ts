@@ -64,6 +64,7 @@ export interface ISetting {
 	value: any;
 	valueRange: IRange;
 	description: string[];
+	keywords?: string[];
 	descriptionIsMarkdown?: boolean;
 	descriptionRanges: IRange[];
 	overrides?: ISetting[];
@@ -78,6 +79,7 @@ export interface ISetting {
 	objectProperties?: IJSONSchemaMap;
 	objectPatternProperties?: IJSONSchemaMap;
 	objectAdditionalProperties?: boolean | IJSONSchema;
+	propertyNames?: IJSONSchema;
 	enum?: string[];
 	enumDescriptions?: string[];
 	enumDescriptionsAreMarkdown?: boolean;

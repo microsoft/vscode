@@ -20,6 +20,7 @@ import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../.
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../common/widget/chatColors.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../../../common/requestParser/chatRequestParser.js';
+import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../attachments/chatVariables.js';
 import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { IChatWidget } from '../../../chat.js';
 import { ChatWidget } from '../../chatWidget.js';
@@ -410,7 +411,8 @@ class ChatTokenDeleter extends Disposable {
 
 			// If this was a simple delete, try to find out whether it was inside a token
 			if (!change.text && this.widget.viewModel) {
-				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionResource, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentModeKind });
+				const attachmentCapabilities = previousSelectedAgent?.capabilities ?? this.widget.attachmentCapabilities;
+				const previousParsedValue = parser.parseChatRequestWithReferences(getDynamicVariablesForWidget(this.widget), getSelectedToolAndToolSetsForWidget(this.widget), previousInputValue, this.widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentModeKind, attachmentCapabilities });
 
 				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
 				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestSlashPromptPart || p instanceof ChatRequestToolPart);

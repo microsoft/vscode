@@ -31,6 +31,7 @@ import { INotificationService } from '../../notification/common/notification.js'
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { defaultSelectBoxStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable, selectBorder } from '../../theme/common/colorRegistry.js';
+import { ClickAnimation, triggerClickAnimation } from '../../../base/browser/ui/animations/animations.js';
 import { isDark } from '../../theme/common/theme.js';
 import { IThemeService } from '../../theme/common/themeService.js';
 import { hasNativeContextMenu } from '../../window/common/window.js';
@@ -173,6 +174,7 @@ export interface IMenuEntryActionViewItemOptions {
 	readonly keybinding?: string | null;
 	readonly hoverDelegate?: IHoverDelegate;
 	readonly keybindingNotRenderedWithLabel?: boolean;
+	readonly onClickAnimation?: ClickAnimation;
 }
 
 export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions = IMenuEntryActionViewItemOptions> extends ActionViewItem {
@@ -206,6 +208,11 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 	override async onClick(event: MouseEvent): Promise<void> {
 		event.preventDefault();
 		event.stopPropagation();
+
+		if (this._options?.onClickAnimation && this.element && !this._accessibilityService.isMotionReduced()) {
+			const icon = this._menuItemAction.item.icon;
+			triggerClickAnimation(this.element, this._options.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
+		}
 
 		try {
 			await this.actionRunner.run(this._commandAction, this._context);
@@ -263,20 +270,11 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 	}
 
 	protected override getTooltip() {
-		const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id, this._contextKeyService);
-		const keybindingLabel = keybinding && keybinding.getLabel();
-
 		const tooltip = this._commandAction.tooltip || this._commandAction.label;
-		let title = keybindingLabel
-			? localize('titleAndKb', "{0} ({1})", tooltip, keybindingLabel)
-			: tooltip;
+		let title = this._keybindingService.appendKeybinding(tooltip, this._commandAction.id, this._contextKeyService);
 		if (!this._wantsAltCommand && this._menuItemAction.alt?.enabled) {
 			const altTooltip = this._menuItemAction.alt.tooltip || this._menuItemAction.alt.label;
-			const altKeybinding = this._keybindingService.lookupKeybinding(this._menuItemAction.alt.id, this._contextKeyService);
-			const altKeybindingLabel = altKeybinding && altKeybinding.getLabel();
-			const altTitleSection = altKeybindingLabel
-				? localize('titleAndKb', "{0} ({1})", altTooltip, altKeybindingLabel)
-				: altTooltip;
+			const altTitleSection = this._keybindingService.appendKeybinding(altTooltip, this._menuItemAction.alt.id, this._contextKeyService);
 
 			title = localize('titleAndKbAndAlt', "{0}\n[{1}] {2}", title, UILabelProvider.modifierLabels[OS].altKey, altTitleSection);
 		}
@@ -436,6 +434,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 	private readonly _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
 	private readonly _storageKey: string;
+	private readonly _primaryActionListener = this._register(new MutableDisposable());
 
 	get onDidChangeDropdownVisibility(): Event<boolean> {
 		return this._dropdown.onDidChangeVisibility;
@@ -477,12 +476,16 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		this._dropdown = this._register(new DropdownMenuActionViewItem(submenuAction, submenuAction.actions, this._contextMenuService, dropdownOptions));
 		if (options?.togglePrimaryAction) {
-			this._register(this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
-				if (e.action instanceof MenuItemAction) {
-					this.update(e.action);
-				}
-			}));
+			this.registerTogglePrimaryActionListener();
 		}
+	}
+
+	private registerTogglePrimaryActionListener(): void {
+		this._primaryActionListener.value = this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
+			if (e.action instanceof MenuItemAction) {
+				this.update(e.action);
+			}
+		});
 	}
 
 	private update(lastAction: MenuItemAction): void {
@@ -524,7 +527,15 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		super.actionRunner = actionRunner;
 
 		this._defaultAction.actionRunner = actionRunner;
-		this._dropdown.actionRunner = actionRunner;
+		// When togglePrimaryAction is enabled, keep the dropdown's private
+		// action runner so that the onDidRun listener only fires for actions
+		// originating from the dropdown, not from unrelated toolbar buttons.
+		if (!this._options?.togglePrimaryAction) {
+			this._dropdown.actionRunner = actionRunner;
+		}
+		if (this._primaryActionListener.value) {
+			this.registerTogglePrimaryActionListener();
+		}
 	}
 
 	override get actionRunner(): IActionRunner {
@@ -593,7 +604,7 @@ class SubmenuEntrySelectActionViewItem extends SelectActionViewItem {
 		@IContextViewService contextViewService: IContextViewService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(null, action, action.actions.map(a => (a.id === Separator.ID ? SeparatorSelectOption : { text: a.label, isDisabled: !a.enabled, })), 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: action.tooltip, optionsAsChildren: true, useCustomDrawn: !hasNativeContextMenu(configurationService) });
+		super(null, action, action.actions.map(a => (a.id === Separator.ID ? SeparatorSelectOption : { text: a.label, isDisabled: !a.enabled, })), 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: action.tooltip || action.label, optionsAsChildren: true, useCustomDrawn: !hasNativeContextMenu(configurationService) });
 		this.select(Math.max(0, action.actions.findIndex(a => a.checked)));
 	}
 

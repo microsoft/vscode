@@ -19,7 +19,7 @@ import { AutoIndentOnPaste, IndentationToSpacesCommand, IndentationToTabsCommand
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { testCommand } from '../../../../test/browser/testCommand.js';
 import { goIndentationRules, htmlIndentationRules, javascriptIndentationRules, latexIndentationRules, luaIndentationRules, phpIndentationRules, rubyIndentationRules, vbIndentationRules } from '../../../../test/common/modes/supports/indentationRules.js';
-import { cppOnEnterRules, htmlOnEnterRules, javascriptOnEnterRules, phpOnEnterRules } from '../../../../test/common/modes/supports/onEnterRules.js';
+import { cppOnEnterRules, htmlOnEnterRules, javascriptOnEnterRules, phpOnEnterRules, vbOnEnterRules } from '../../../../test/common/modes/supports/onEnterRules.js';
 import { TypeOperations } from '../../../../common/cursor/cursorTypeOperations.js';
 import { cppBracketRules, goBracketRules, htmlBracketRules, latexBracketRules, luaBracketRules, phpBracketRules, rubyBracketRules, typescriptBracketRules, vbBracketRules } from '../../../../test/common/modes/supports/bracketRules.js';
 import { javascriptAutoClosingPairsRules, latexAutoClosingPairsRules } from '../../../../test/common/modes/supports/autoClosingPairsRules.js';
@@ -95,6 +95,7 @@ export function registerLanguageConfiguration(languageConfigurationService: ILan
 			return languageConfigurationService.register(language, {
 				brackets: vbBracketRules,
 				indentationRules: vbIndentationRules,
+				onEnterRules: vbOnEnterRules,
 			});
 		case Language.Latex:
 			return languageConfigurationService.register(language, {
@@ -1757,6 +1758,597 @@ suite('Auto Indent On Type - Visual Basic', () => {
 				'    Some code',
 				'End If',
 			].join('\n'));
+		});
+	});
+
+	test('issue #118932: indent after Module declaration', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel('', languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			viewModel.type('Module Test');
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Module Test',
+				'    ',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: indent after Sub declaration', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Module Test',
+			'    ',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(2, 5, 2, 5));
+			viewModel.type('Sub Main()');
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Module Test',
+				'    Sub Main()',
+				'        ',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: dedent on End Sub', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Module Test',
+			'    Sub Main()',
+			'        Console.WriteLine("Hello")',
+			'        End Su',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(4, 15, 4, 15));
+			viewModel.type('b', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Module Test',
+				'    Sub Main()',
+				'        Console.WriteLine("Hello")',
+				'    End Sub',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: dedent on End Module', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+		// When End Module is typed right after Module (no nested blocks), it dedents correctly
+
+		const model = createTextModel([
+			'Module Test',
+			'    Private x As Integer',
+			'    End Modul',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(3, 14, 3, 14));
+			viewModel.type('e', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Module Test',
+				'    Private x As Integer',
+				'End Module',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: indent after Function declaration', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Module Test',
+			'    ',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(2, 5, 2, 5));
+			viewModel.type('Function Add(a As Integer, b As Integer) As Integer');
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Module Test',
+				'    Function Add(a As Integer, b As Integer) As Integer',
+				'        ',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: dedent on End Function', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Module Test',
+			'    Function Add(a, b)',
+			'        Return a + b',
+			'        End Functio',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(4, 20, 4, 20));
+			viewModel.type('n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Module Test',
+				'    Function Add(a, b)',
+				'        Return a + b',
+				'    End Function',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: indent after If Then', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Sub Test()',
+			'    ',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(2, 5, 2, 5));
+			viewModel.type('If x > 0 Then');
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Sub Test()',
+				'    If x > 0 Then',
+				'        ',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: indent after ElseIf Then', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Sub Test()',
+			'    If x > 0 Then',
+			'        DoSomething()',
+			'    ElseIf x < 0 Then',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(4, 22, 4, 22));
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Sub Test()',
+				'    If x > 0 Then',
+				'        DoSomething()',
+				'    ElseIf x < 0 Then',
+				'        ',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: dedent and indent on Else', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Sub Test()',
+			'    If x > 0 Then',
+			'        DoSomething()',
+			'        Els',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(4, 12, 4, 12));
+			viewModel.type('e', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Sub Test()',
+				'    If x > 0 Then',
+				'        DoSomething()',
+				'    Else',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: indent after While', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Sub Test()',
+			'    ',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(2, 5, 2, 5));
+			viewModel.type('While x > 0');
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Sub Test()',
+				'    While x > 0',
+				'        ',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: dedent on End While', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Sub Test()',
+			'    While x > 0',
+			'        x = x - 1',
+			'        End Whil',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(4, 17, 4, 17));
+			viewModel.type('e', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Sub Test()',
+				'    While x > 0',
+				'        x = x - 1',
+				'    End While',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: indent after For', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Sub Test()',
+			'    ',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(2, 5, 2, 5));
+			viewModel.type('For i = 1 To 10');
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Sub Test()',
+				'    For i = 1 To 10',
+				'        ',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: dedent on Next', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Sub Test()',
+			'    For i = 1 To 10',
+			'        DoSomething(i)',
+			'        Nex',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(4, 12, 4, 12));
+			viewModel.type('t', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Sub Test()',
+				'    For i = 1 To 10',
+				'        DoSomething(i)',
+				'    Next',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: indent after Do', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Sub Test()',
+			'    ',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(2, 5, 2, 5));
+			viewModel.type('Do');
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Sub Test()',
+				'    Do',
+				'        ',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: dedent on Loop', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Sub Test()',
+			'    Do',
+			'        x = x + 1',
+			'        Loo',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(4, 12, 4, 12));
+			viewModel.type('p', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Sub Test()',
+				'    Do',
+				'        x = x + 1',
+				'    Loop',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: indent after Select Case', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Sub Test()',
+			'    ',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(2, 5, 2, 5));
+			viewModel.type('Select Case x');
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Sub Test()',
+				'    Select Case x',
+				'        ',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: dedent on End Select', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+		// When End Select is typed, it dedents to match Select Case level
+
+		const model = createTextModel([
+			'Sub Test()',
+			'    Select Case x',
+			'        End Selec',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(3, 18, 3, 18));
+			viewModel.type('t', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Sub Test()',
+				'    Select Case x',
+				'    End Select',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: indent after Try', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Sub Test()',
+			'    ',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(2, 5, 2, 5));
+			viewModel.type('Try');
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Sub Test()',
+				'    Try',
+				'        ',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: dedent and indent on Catch', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Sub Test()',
+			'    Try',
+			'        DoSomething()',
+			'        Catc',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(4, 13, 4, 13));
+			viewModel.type('h', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Sub Test()',
+				'    Try',
+				'        DoSomething()',
+				'    Catch',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: dedent and indent on Finally', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Sub Test()',
+			'    Try',
+			'        DoSomething()',
+			'    Catch',
+			'        HandleError()',
+			'        Finall',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(6, 15, 6, 15));
+			viewModel.type('y', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Sub Test()',
+				'    Try',
+				'        DoSomething()',
+				'    Catch',
+				'        HandleError()',
+				'    Finally',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: dedent on End Try', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Sub Test()',
+			'    Try',
+			'        DoSomething()',
+			'    Catch',
+			'        HandleError()',
+			'    Finally',
+			'        Cleanup()',
+			'        End Tr',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(8, 15, 8, 15));
+			viewModel.type('y', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Sub Test()',
+				'    Try',
+				'        DoSomething()',
+				'    Catch',
+				'        HandleError()',
+				'    Finally',
+				'        Cleanup()',
+				'    End Try',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: indent after Class', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel('', languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			viewModel.type('Class MyClass');
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Class MyClass',
+				'    ',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: dedent on End Class', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+
+		const model = createTextModel([
+			'Class MyClass',
+			'    Private x As Integer',
+			'    End Clas',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(3, 14, 3, 14));
+			viewModel.type('s', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Class MyClass',
+				'    Private x As Integer',
+				'End Class',
+			].join('\n'));
+		});
+	});
+
+	test('issue #118932: full program indentation flow', () => {
+
+		// https://github.com/microsoft/vscode/issues/118932
+		// Verify the complete flow as described in the verification comment
+		// Note: Auto-indent only triggers on typing the last character that completes a keyword
+		// and only decreases by one indentation level per keyword completion
+
+		const model = createTextModel('', languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel) => {
+			// Type Module Test and press Enter
+			viewModel.type('Module Test');
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Module Test',
+				'    ',
+			].join('\n'), 'After Module Test');
+
+			// Type Sub Main() and press Enter
+			viewModel.type('Sub Main()');
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Module Test',
+				'    Sub Main()',
+				'        ',
+			].join('\n'), 'After Sub Main()');
+
+			// Type Console.WriteLine and press Enter
+			viewModel.type('Console.WriteLine("Hello, World!")');
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Module Test',
+				'    Sub Main()',
+				'        Console.WriteLine("Hello, World!")',
+				'        ',
+			].join('\n'), 'After Console.WriteLine');
+
+			// Type End Su then 'b' to complete End Sub (auto-indent triggers on last char)
+			viewModel.type('End Su');
+			viewModel.type('b', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Module Test',
+				'    Sub Main()',
+				'        Console.WriteLine("Hello, World!")',
+				'    End Sub',
+			].join('\n'), 'After End Sub');
+
+			// Press Enter - should maintain same indent level after End Sub
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'Module Test',
+				'    Sub Main()',
+				'        Console.WriteLine("Hello, World!")',
+				'    End Sub',
+				'    ',
+			].join('\n'), 'After Enter after End Sub');
 		});
 	});
 });

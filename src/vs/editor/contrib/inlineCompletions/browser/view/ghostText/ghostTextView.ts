@@ -78,6 +78,7 @@ export class GhostTextView extends Disposable {
 	private readonly _shouldKeepCursorStable: boolean;
 	private readonly _minReservedLineCount: IObservable<number>;
 	private readonly _useSyntaxHighlighting: IObservable<boolean>;
+	private readonly _highlightShortText: boolean;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -88,6 +89,7 @@ export class GhostTextView extends Disposable {
 			shouldKeepCursorStable?: boolean;
 			minReservedLineCount?: IObservable<number>;
 			useSyntaxHighlighting?: IObservable<boolean>;
+			highlightShortSuggestions?: boolean;
 		},
 		@ILanguageService private readonly _languageService: ILanguageService
 	) {
@@ -98,6 +100,7 @@ export class GhostTextView extends Disposable {
 		this._shouldKeepCursorStable = options.shouldKeepCursorStable ?? false;
 		this._minReservedLineCount = options.minReservedLineCount ?? constObservable(0);
 		this._useSyntaxHighlighting = options.useSyntaxHighlighting ?? constObservable(true);
+		this._highlightShortText = options.highlightShortSuggestions ?? false;
 
 		this._editorObs = observableCodeEditor(this._editor);
 		this._additionalLinesWidget = this._register(
@@ -203,13 +206,24 @@ export class GhostTextView extends Disposable {
 		return undefined;
 	}
 
+	private readonly _nonWhitespaceCount = derived(this, reader => {
+		const data = this._data.read(reader);
+		if (!data) { return undefined; }
+		const ghostText = data.ghostText;
+		const allText = ghostText.parts.map(p => p.lines.map(l => l.line).join('')).join('');
+		return allText.replace(/\s/g, '').length;
+	});
+
 	private readonly _extraClassNames = derived(this, reader => {
 		const extraClasses = this._extraClasses.slice();
-		if (this._useSyntaxHighlighting.read(reader)) {
-			extraClasses.push('syntax-highlighted');
-		}
 		if (USE_SQUIGGLES_FOR_WARNING && this._warningState.read(reader)) {
 			extraClasses.push('warning');
+		}
+		const nonWhitespaceCount = this._nonWhitespaceCount.read(reader);
+		if (this._highlightShortText && nonWhitespaceCount && nonWhitespaceCount < 3) {
+			extraClasses.push('short-text');
+		} else if (this._useSyntaxHighlighting.read(reader)) {
+			extraClasses.push('syntax-highlighted');
 		}
 		const extraClassNames = extraClasses.map(c => ` ${c}`).join('');
 		return extraClassNames;
@@ -301,6 +315,10 @@ export class GhostTextView extends Disposable {
 		}
 
 		for (const p of uiState.inlineTexts) {
+			let inlineExtraClassNames = '';
+			if (this._highlightShortText && p.text.length < 5) {
+				inlineExtraClassNames += ' short-text';
+			}
 			decorations.push({
 				range: Range.fromPositions(new Position(uiState.lineNumber, p.column)),
 				options: {
@@ -311,6 +329,7 @@ export class GhostTextView extends Disposable {
 						inlineClassName: (p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration')
 							+ (this._isClickable ? ' clickable' : '')
 							+ extraClassNames
+							+ inlineExtraClassNames
 							+ p.lineDecorations.map(d => ' ' + d.className).join(' '), // TODO: take the ranges into account for line decorations
 						cursorStops: InjectedTextCursorStops.Left,
 						attachedData: new GhostTextAttachedData(this),

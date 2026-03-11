@@ -65,7 +65,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.wordBasedSuggestions': {
 			enum: ['off', 'offWithInlineSuggestions', 'currentDocument', 'matchingDocuments', 'allDocuments'],
-			default: 'matchingDocuments',
+			default: 'offWithInlineSuggestions',
 			enumDescriptions: [
 				nls.localize('wordBasedSuggestions.off', 'Turn off Word Based Suggestions.'),
 				nls.localize('wordBasedSuggestions.offWithInlineSuggestions', 'Turn off Word Based Suggestions when Inline Suggestions are present.'),

@@ -408,6 +408,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		}
 
 		this.tokenColorIndex = undefined;
+		this.tokenFontIndex = undefined;
 		this.textMateThemingRules = undefined;
 		this.customTokenScopeMatchers = undefined;
 	}
@@ -437,6 +438,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		}
 
 		this.tokenColorIndex = undefined;
+		this.tokenFontIndex = undefined;
 		this.textMateThemingRules = undefined;
 		this.customTokenScopeMatchers = undefined;
 	}
@@ -462,6 +464,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		}
 
 		this.tokenColorIndex = undefined;
+		this.tokenFontIndex = undefined;
 		this.textMateThemingRules = undefined;
 	}
 
@@ -585,6 +588,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 	public clearCaches() {
 		this.tokenColorIndex = undefined;
+		this.tokenFontIndex = undefined;
 		this.textMateThemingRules = undefined;
 		this.themeTokenScopeMatchers = undefined;
 		this.customTokenScopeMatchers = undefined;
@@ -1014,8 +1018,8 @@ class TokenFontIndex {
 		this._font2id = new Map();
 	}
 
-	public add(fontFamily: string | undefined, fontSize: string | undefined, lineHeight: number | undefined): number {
-		const font: IFontTokenOptions = { fontFamily, fontSize, lineHeight };
+	public add(fontFamily: string | undefined, fontSizeMultiplier: number | undefined, lineHeightMultiplier: number | undefined): number {
+		const font: IFontTokenOptions = { fontFamily, fontSizeMultiplier, lineHeightMultiplier };
 		let value = this._font2id.get(font);
 		if (value) {
 			return value;

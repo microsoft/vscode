@@ -251,7 +251,6 @@
 		"terminal-sticky-scroll": {"assign": ["anthonykim1"]},
 		"terminal-suggest": {"assign": ["meganrogge"]},
 		"terminal-tabs": {"assign": ["meganrogge"]},
-		"terminal-winpty": {"assign": ["anthonykim1"]},
 		"testing": {"assign": ["connor4312"]},
 		"themes": {"assign": ["aeschli"]},
 		"timeline": {"assign": ["lramos15"]},

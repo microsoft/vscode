@@ -7,10 +7,10 @@ import { VSBufferReadableStream } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isUNC } from '../../../../base/common/extpath.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { normalize, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileOperationError, FileOperationResult, IFileService, IWriteFileOptions } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getWebviewContentMimeType } from '../../../../platform/webview/common/mimeTypes.js';
 
 export namespace WebviewResourceResponse {
@@ -48,11 +48,12 @@ export async function loadLocalResource(
 		ifNoneMatch: string | undefined;
 		roots: ReadonlyArray<URI>;
 	},
+	uriIdentityService: IUriIdentityService,
 	fileService: IFileService,
 	logService: ILogService,
 	token: CancellationToken,
 ): Promise<WebviewResourceResponse.StreamResponse> {
-	const resourceToLoad = getResourceToLoad(requestUri, options.roots);
+	const resourceToLoad = getResourceToLoad(requestUri, options.roots, uriIdentityService);
 
 	logService.trace(`Webview.loadLocalResource - trying to load resource. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 
@@ -84,12 +85,14 @@ export async function loadLocalResource(
 	}
 }
 
-function getResourceToLoad(
+export function getResourceToLoad(
 	requestUri: URI,
 	roots: ReadonlyArray<URI>,
+	uriIdentityService: IUriIdentityService,
 ): URI | undefined {
+	const requestUriNoQueryString = requestUri.with({ query: '' });
 	for (const root of roots) {
-		if (containsResource(root, requestUri)) {
+		if (containsResource(root, requestUriNoQueryString, uriIdentityService)) {
 			return normalizeResourcePath(requestUri);
 		}
 	}
@@ -97,20 +100,30 @@ function getResourceToLoad(
 	return undefined;
 }
 
-function containsResource(root: URI, resource: URI): boolean {
-	if (root.scheme !== resource.scheme) {
+function containsResource(root: URI, resource: URI, uriIdentityService: IUriIdentityService): boolean {
+	if (uriIdentityService.extUri.isEqual(root, resource, /* ignoreFragment */ true)) {
 		return false;
 	}
 
-	let resourceFsPath = normalize(resource.fsPath);
-	let rootPath = normalize(root.fsPath + (root.fsPath.endsWith(sep) ? '' : sep));
-
-	if (isUNC(root.fsPath) && isUNC(resource.fsPath)) {
-		rootPath = rootPath.toLowerCase();
-		resourceFsPath = resourceFsPath.toLowerCase();
+	// Compare unc paths case-insensitively
+	if (root.scheme === Schemas.file && isUNC(root.fsPath)) {
+		if (resource.scheme === Schemas.file && isUNC(resource.fsPath)) {
+			return uriIdentityService.extUri.isEqualOrParent(
+				resource.with({
+					path: resource.path.toLowerCase(),
+					authority: resource.authority.toLowerCase()
+				}),
+				root.with({
+					path: root.path.toLowerCase(),
+					authority: root.authority.toLowerCase()
+				}),
+				/* ignoreFragment */ true
+			);
+		}
+		return false;
 	}
 
-	return resourceFsPath.startsWith(rootPath);
+	return uriIdentityService.extUri.isEqualOrParent(resource, root, /* ignoreFragment */ true);
 }
 
 function normalizeResourcePath(resource: URI): URI {

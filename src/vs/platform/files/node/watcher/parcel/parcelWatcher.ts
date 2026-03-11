@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import parcelWatcher from '@vscode/watcher';
+import parcelWatcher from '@parcel/watcher';
 import { promises } from 'fs';
 import { tmpdir, homedir } from 'os';
 import { URI } from '../../../../../base/common/uri.js';
@@ -618,7 +618,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 	protected restartWatching(watcher: ParcelWatcherInstance, delay = 800): void {
 
-		// Restart watcher delayed to accomodate for
+		// Restart watcher delayed to accommodate for
 		// changes on disk that have triggered the
 		// need for a restart in the first place.
 		const scheduler = new RunOnceScheduler(async () => {

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { hashAsync } from '../../../../../../base/common/hash.js';
 import { Disposable, IReference, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -95,9 +94,6 @@ export interface IMarkdownDiffBlockData {
  * This is a lightweight wrapper that uses CodeCompareBlockPart for the actual rendering.
  */
 export class MarkdownDiffBlockPart extends Disposable {
-	private readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
-
 	readonly element: HTMLElement;
 	private readonly comparePart: IDisposableReference<CodeCompareBlockPart>;
 	private readonly modelRef = this._register(new MutableDisposable<SimpleDiffEditorModel>());
@@ -113,10 +109,6 @@ export class MarkdownDiffBlockPart extends Disposable {
 		super();
 
 		this.comparePart = this._register(diffEditorPool.get());
-
-		this._register(this.comparePart.object.onDidChangeContentHeight(() => {
-			this._onDidChangeContentHeight.fire();
-		}));
 
 		// Create in-memory models for the diff
 		const originalUri = URI.from({

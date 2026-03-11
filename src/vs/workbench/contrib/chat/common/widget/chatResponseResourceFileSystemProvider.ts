@@ -6,21 +6,38 @@
 import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { newWriteableStream, ReadableStreamEvents } from '../../../../../base/common/stream.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileService, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat } from '../../../../../platform/files/common/files.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileService, IFileSystemProvider, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ChatResponseResource } from '../model/chatModel.js';
 import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService/chatService.js';
 import { isToolResultInputOutputDetails } from '../tools/languageModelToolsService.js';
 
+export const IChatResponseResourceFileSystemProvider = createDecorator<IChatResponseResourceFileSystemProvider>('chatResponseResourceFileSystemProvider');
+
+export interface IChatResponseResourceFileSystemProvider extends IFileSystemProvider {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Associates arbitrary data with a URI in the chat response resource filesystem.
+	 * The data is scoped to the given session and automatically cleaned up when
+	 * the session is disposed.
+	 * Returns a URI that can later be read via the file service.
+	 */
+	associate(sessionResource: URI, data: Uint8Array | { base64: string }, name?: string): URI;
+}
+
 export class ChatResponseResourceFileSystemProvider extends Disposable implements
-	IWorkbenchContribution,
+	IChatResponseResourceFileSystemProvider,
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithFileAtomicReadCapability,
 	IFileSystemProviderWithFileReadStreamCapability {
 
-	public static readonly ID = 'workbench.contrib.chatResponseResourceFileSystemProvider';
+	declare readonly _serviceBrand: undefined;
 
 	public readonly onDidChangeCapabilities = Event.None;
 	public readonly onDidChangeFile = Event.None;
@@ -32,12 +49,46 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		| FileSystemProviderCapabilities.FileAtomicRead
 		| FileSystemProviderCapabilities.FileReadWrite;
 
+	/** In-memory store for data associated via {@link associate}, keyed by URI. */
+	private readonly _associated = new ResourceMap<Uint8Array | { base64: string }>();
+
+	/** Tracks which associated URIs belong to which session, for cleanup on dispose. */
+	private readonly _sessionAssociations = new ResourceMap<ResourceSet>();
+
 	constructor(
 		@IChatService private readonly chatService: IChatService,
 		@IFileService private readonly _fileService: IFileService
 	) {
 		super();
-		this._register(this._fileService.registerProvider(ChatResponseResource.scheme, this));
+		this._register(this.chatService.onDidDisposeSession(e => {
+			for (const sessionResource of e.sessionResource) {
+				const uris = this._sessionAssociations.get(sessionResource);
+				if (uris) {
+					for (const uri of uris) {
+						this._associated.delete(uri);
+					}
+					this._sessionAssociations.delete(sessionResource);
+				}
+			}
+		}));
+	}
+
+	associate(sessionResource: URI, data: Uint8Array | { base64: string }, name?: string): URI {
+		const id = generateUuid();
+		const uri = URI.from({
+			scheme: ChatResponseResource.scheme,
+			path: `/assoc/${id}` + (name ? `/${name}` : ''),
+		});
+		this._associated.set(uri, data);
+
+		let set = this._sessionAssociations.get(sessionResource);
+		if (!set) {
+			set = new ResourceSet();
+			this._sessionAssociations.set(sessionResource, set);
+		}
+		set.add(uri);
+
+		return uri;
 	}
 
 	readFile(resource: URI): Promise<Uint8Array> {
@@ -108,6 +159,16 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 	}
 
 	private lookupURI(uri: URI): Uint8Array | Promise<Uint8Array> {
+		const associated = this._associated.get(uri);
+		if (associated) {
+			if (associated instanceof Uint8Array) {
+				return associated;
+			}
+			const decoded = decodeBase64(associated.base64).buffer;
+			this._associated.set(uri, decoded);
+			return decoded;
+		}
+
 		const { result, index } = this.findMatchingInvocation(uri);
 		const details = IChatToolInvocation.resultDetails(result);
 		if (!isToolResultInputOutputDetails(details)) {
@@ -124,5 +185,18 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		}
 
 		return part.isText ? new TextEncoder().encode(part.value) : decodeBase64(part.value).buffer;
+	}
+}
+
+export class ChatResponseResourceWorkbenchContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'chatResponseResourceWorkbenchContribution';
+
+	constructor(
+		@IChatResponseResourceFileSystemProvider chatResponseResourceFsProvider: IChatResponseResourceFileSystemProvider,
+		@IFileService fileService: IFileService,
+	) {
+		super();
+		this._register(fileService.registerProvider(ChatResponseResource.scheme, chatResponseResourceFsProvider));
 	}
 }

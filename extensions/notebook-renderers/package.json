@@ -3,7 +3,7 @@
 	"displayName": "%displayName%",
 	"description": "%description%",
 	"publisher": "vscode",
-	"version": "1.0.0",
+	"version": "10.0.0",
 	"license": "MIT",
 	"icon": "media/icon.png",
 	"engines": {
@@ -44,13 +44,13 @@
 	"scripts": {
 		"compile": "npx gulp compile-extension:notebook-renderers && npm run build-notebook",
 		"watch": "npx gulp compile-watch:notebook-renderers",
-		"build-notebook": "node ./esbuild.mjs"
+		"build-notebook": "node ./esbuild.notebook.mts"
 	},
 	"devDependencies": {
 		"@types/jsdom": "^21.1.0",
 		"@types/node": "^22.18.10",
 		"@types/vscode-notebook-renderer": "^1.60.0",
-		"jsdom": "^21.1.1"
+		"jsdom": "^28.1.0"
 	},
 	"repository": {
 		"type": "git",
