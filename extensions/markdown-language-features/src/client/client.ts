@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { BaseLanguageClient, LanguageClientOptions, NotebookDocumentSyncRegistrationType, Range, TextEdit } from 'vscode-languageclient';
+import type * as lsp from 'vscode-languageserver-types';
 import { IMdParser } from '../markdownEngine';
 import { IDisposable } from '../util/dispose';
 import { looksLikeMarkdownPath, markdownFileExtensions, markdownLanguageIds } from '../util/file';
@@ -15,9 +16,9 @@ import { VsCodeMdWorkspace } from './workspace';
 
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => BaseLanguageClient;
 
-export interface DocumentDiagnosticReport {
+interface DocumentDiagnosticReport {
 	kind: 'full' | 'unchanged';
-	items?: { range: any; severity?: number; code?: number | string; source?: string; message: string; tags?: number[]; relatedInformation?: any[]; data?: any }[];
+	items?: lsp.Diagnostic[];
 	resultId?: string;
 }
 
@@ -38,7 +39,7 @@ export class MdLanguageClient implements IDisposable {
 			textDocument: { uri: uri.toString() }
 		}, token);
 		if (result.kind === 'full' && result.items) {
-			return this._client.protocol2CodeConverter.asDiagnostics(result.items as any);
+			return this._client.protocol2CodeConverter.asDiagnostics(result.items);
 		}
 		return [];
 	}

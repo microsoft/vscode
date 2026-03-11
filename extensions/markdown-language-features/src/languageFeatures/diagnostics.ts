@@ -298,7 +298,7 @@ class WorkspaceDiagnosticManager extends Disposable {
 			}
 
 			for (const result of results) {
-				if (result && result.diagnostics.length > 0) {
+				if (result) {
 					this._collection.set(result.uri, result.diagnostics);
 				}
 			}
