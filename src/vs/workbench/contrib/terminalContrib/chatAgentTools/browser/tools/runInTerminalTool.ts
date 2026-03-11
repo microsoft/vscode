@@ -715,6 +715,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (inspected.policyValue === false) {
 			return false;
 		}
+		// Check the terminal chat service's session auto-approval state
+		if (this._terminalChatService.hasChatSessionAutoApproval(chatSessionResource)) {
+			return true;
+		}
 		// Check the live widget picker level (handles mid-session switches).
 		// Fall back to lastFocusedWidget if the session-specific widget isn't found
 		// (e.g., widget was backgrounded or URI mismatch).
