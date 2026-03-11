@@ -63,6 +63,13 @@ class MockAssignmentService implements IWorkbenchAssignmentService {
 		return value;
 	}
 
+	async getTreatmentWithoutTelemetry<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+		this.requestedTreatmentNames.push(name);
+		const value = this.treatments.get(name) as T | undefined;
+		this._onDidCallGetTreatment.fire(name);
+		return value;
+	}
+
 	addTelemetryAssignmentFilter(): void { }
 
 	dispose(): void {

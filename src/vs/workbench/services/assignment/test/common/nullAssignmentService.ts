@@ -19,5 +19,9 @@ export class NullWorkbenchAssignmentService implements IWorkbenchAssignmentServi
 		return undefined;
 	}
 
+	async getTreatmentWithoutTelemetry<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+		return undefined;
+	}
+
 	addTelemetryAssignmentFilter(filter: IAssignmentFilter): void { }
 }

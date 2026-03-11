@@ -34,6 +34,7 @@ export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentS
 
 export interface IWorkbenchAssignmentService extends IAssignmentService {
 	getCurrentExperiments(): Promise<string[] | undefined>;
+	getTreatmentWithoutTelemetry<T extends string | number | boolean>(name: string): Promise<T | undefined>;
 	addTelemetryAssignmentFilter(filter: IAssignmentFilter): void;
 }
 
@@ -213,6 +214,10 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		});
 
 		return result;
+	}
+
+	async getTreatmentWithoutTelemetry<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+		return this.doGetTreatment<T>(name);
 	}
 
 	private async doGetTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {

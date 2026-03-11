@@ -1395,7 +1395,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 				this.autoExperimentalSettings.add(property);
 			}
 			try {
-				const value = await this.workbenchAssignmentService.getTreatment(`config.${property}`);
+				const value = await this.workbenchAssignmentService.getTreatmentWithoutTelemetry(`config.${property}`);
 				if (!isUndefined(value) && !equals(value, schema.default)) {
 					overrides[property] = value;
 				}
