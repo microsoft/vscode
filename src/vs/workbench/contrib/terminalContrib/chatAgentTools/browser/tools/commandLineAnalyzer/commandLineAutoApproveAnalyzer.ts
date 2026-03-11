@@ -99,18 +99,32 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		let isDenied = false;
 		let autoApproveReason: 'subCommand' | 'commandLine' | undefined;
 		let autoApproveDefault: boolean | undefined;
+		let denialDetails: ICommandLineAnalyzerResult['denialDetails'];
 
-		const deniedSubCommandResult = subCommandResults.find(e => e.result === 'denied');
+		const deniedSubCommandResultIndex = subCommandResults.findIndex(e => e.result === 'denied');
+		const deniedSubCommandResult = deniedSubCommandResultIndex !== -1 ? subCommandResults[deniedSubCommandResultIndex] : undefined;
 		if (deniedSubCommandResult) {
 			this._log('Sub-command DENIED auto approval');
 			isDenied = true;
 			autoApproveDefault = isAutoApproveRule(deniedSubCommandResult.rule) ? deniedSubCommandResult.rule.isDefaultRule : undefined;
 			autoApproveReason = 'subCommand';
+			denialDetails = {
+				scope: 'subCommand',
+				deniedCommand: subCommands[deniedSubCommandResultIndex] ?? trimmedCommandLine,
+				reason: deniedSubCommandResult.reason,
+				ruleSourceText: isAutoApproveRule(deniedSubCommandResult.rule) ? deniedSubCommandResult.rule.sourceText : undefined,
+			};
 		} else if (commandLineResult.result === 'denied') {
 			this._log('Command line DENIED auto approval');
 			isDenied = true;
 			autoApproveDefault = isAutoApproveRule(commandLineResult.rule) ? commandLineResult.rule.isDefaultRule : undefined;
 			autoApproveReason = 'commandLine';
+			denialDetails = {
+				scope: 'commandLine',
+				deniedCommand: trimmedCommandLine,
+				reason: commandLineResult.reason,
+				ruleSourceText: isAutoApproveRule(commandLineResult.rule) ? commandLineResult.rule.sourceText : undefined,
+			};
 		} else {
 			if (subCommandResults.every(e => e.result === 'approved')) {
 				this._log('All sub-commands auto-approved');
@@ -195,6 +209,7 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 			disclaimers,
 			autoApproveInfo,
 			customActions,
+			denialDetails,
 		};
 	}
 
