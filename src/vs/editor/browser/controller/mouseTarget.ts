@@ -1049,7 +1049,6 @@ export class MouseTargetFactory {
 			const parent2 = parent1 ? parent1.parentNode : null; // expected to be the view line container span
 			const parent3 = parent2 ? parent2.parentNode : null; // expected to be the view line div
 			const parent3ClassList = parent3 && parent3.nodeType === parent3.ELEMENT_NODE ? (<HTMLElement>parent3).classList : null;
-			console.log('parent3ClassList', parent3ClassList);
 			if (parent3ClassList?.contains(ViewLine.CLASS_NAME)) {
 				return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>hitResult.offsetNode.parentNode, hitResult.offset);
 			} else {
