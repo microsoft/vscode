@@ -10,7 +10,7 @@ import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { MdLinkOpener } from '../util/openDocumentLink';
-import { WebviewResourceProvider } from '../util/resources';
+import { areUrisEqual, WebviewResourceProvider } from '../util/resources';
 import { urlToUri } from '../util/url';
 import { ImageInfo, MdDocumentRenderer } from './documentRenderer';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
@@ -29,7 +29,7 @@ export class PreviewDocumentVersion {
 	}
 
 	public equals(other: PreviewDocumentVersion): boolean {
-		return this.resource.fsPath === other.resource.fsPath
+		return areUrisEqual(this.resource, other.resource)
 			&& this._version === other._version;
 	}
 }
@@ -204,7 +204,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 
 	public isPreviewOf(resource: vscode.Uri): boolean {
-		return this._resource.fsPath === resource.fsPath;
+		return areUrisEqual(this._resource, resource);
 	}
 
 	public postMessage(msg: ToWebviewMessage.Type) {
