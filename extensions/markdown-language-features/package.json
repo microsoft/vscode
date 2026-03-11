@@ -377,6 +377,12 @@
           "description": "%markdown.preview.scrollPreviewWithEditor.desc%",
           "scope": "resource"
         },
+        "markdown.preview.imageRoot": {
+          "type": "string",
+          "default": "",
+          "description": "%markdown.preview.imageRoot.desc%",
+          "scope": "resource"
+        },
         "markdown.preview.markEditorSelection": {
           "type": "boolean",
           "default": true,

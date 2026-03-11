@@ -13,6 +13,7 @@
 	"markdown.preview.markEditorSelection.desc": "Mark the current editor selection in the Markdown preview.",
 	"markdown.preview.scrollEditorWithPreview.desc": "When a Markdown preview is scrolled, update the view of the editor.",
 	"markdown.preview.scrollPreviewWithEditor.desc": "When a Markdown editor is scrolled, update the view of the preview.",
+	"markdown.preview.imageRoot.desc": "Path relative to the workspace root that absolute image paths (starting with `/`) are resolved against in the Markdown preview. For example, set to `static` for Hugo sites where images are in the `static` folder.",
 	"markdown.preview.title": "Open Preview",
 	"markdown.previewSide.title": "Open Preview to the Side",
 	"markdown.showLockedPreviewToSide.title": "Open Locked Preview to the Side",

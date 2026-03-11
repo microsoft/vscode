@@ -89,6 +89,7 @@ interface RenderEnv {
 	readonly currentDocument: vscode.Uri | undefined;
 	readonly resourceProvider: WebviewResourceProvider | undefined;
 	readonly slugifier: SlugBuilder;
+	readonly imageRoot: string | undefined;
 }
 
 export interface IMdParser {
@@ -215,6 +216,7 @@ export class MarkdownItEngine implements IMdParser {
 			currentDocument: typeof input === 'string' ? undefined : input.uri,
 			resourceProvider,
 			slugifier: this.slugifier.createBuilder(),
+			imageRoot: typeof input === 'string' ? undefined : this._getImageRoot(input.uri),
 		};
 
 		const html = engine.renderer.render(tokens, {
@@ -247,6 +249,12 @@ export class MarkdownItEngine implements IMdParser {
 		};
 	}
 
+	private _getImageRoot(resource: vscode.Uri): string | undefined {
+		const markdownConfig = vscode.workspace.getConfiguration('markdown', resource);
+		const imageRoot = markdownConfig.get<string>('preview.imageRoot', '');
+		return imageRoot || undefined;
+	}
+
 	private _addImageRenderer(md: MarkdownIt): void {
 		const original = md.renderer.rules.image;
 		md.renderer.rules.image = (tokens: Token[], idx: number, options, env: RenderEnv, self) => {
@@ -256,7 +264,7 @@ export class MarkdownItEngine implements IMdParser {
 				env.containingImages?.add(src);
 
 				if (!token.attrGet('data-src')) {
-					token.attrSet('src', this._toResourceUri(src, env.currentDocument, env.resourceProvider));
+					token.attrSet('src', this._toResourceUri(src, env.currentDocument, env.resourceProvider, env.imageRoot));
 					token.attrSet('data-src', src);
 				}
 			}
@@ -359,7 +367,7 @@ export class MarkdownItEngine implements IMdParser {
 		};
 	}
 
-	private _toResourceUri(href: string, currentDocument: vscode.Uri | undefined, resourceProvider: WebviewResourceProvider | undefined): string {
+	private _toResourceUri(href: string, currentDocument: vscode.Uri | undefined, resourceProvider: WebviewResourceProvider | undefined, imageRoot?: string): string {
 		try {
 			// Support file:// links
 			if (isOfScheme(Schemes.file, href)) {
@@ -381,7 +389,11 @@ export class MarkdownItEngine implements IMdParser {
 				if (uri.path[0] === '/' && currentDocument) {
 					const root = vscode.workspace.getWorkspaceFolder(currentDocument);
 					if (root) {
-						uri = vscode.Uri.joinPath(root.uri, uri.fsPath).with({
+						const baseUri = imageRoot
+							? vscode.Uri.joinPath(root.uri, imageRoot)
+							: root.uri;
+
+						uri = vscode.Uri.joinPath(baseUri, uri.fsPath).with({
 							fragment: uri.fragment,
 							query: uri.query,
 						});
