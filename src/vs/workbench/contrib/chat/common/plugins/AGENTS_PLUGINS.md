@@ -165,7 +165,7 @@ Each `PluginSourceKind` has a strategy that knows how to compute cache paths, pr
 |-----|-------------|
 | `chat.plugins.installed.v1` | Installed marketplace plugins |
 | `chat.plugins.trustedMarketplaces.v1` | User-trusted marketplace canonical IDs |
-| `chat.plugins.lastFetchedPlugins.v2` | Cached marketplace fetch results (5 min TTL) |
+| `chat.plugins.lastFetchedPlugins.v2` | Last marketplace fetch results (persisted until next fetch) |
 | `chat.plugins.marketplaces.githubCache.v1` | GitHub API response cache (8 hour TTL) |
 | `chat.plugins.lastUpdateCheck.v1` | Timestamp of last periodic update check |
 

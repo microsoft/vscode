@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { joinPath } from '../../../../../base/common/resources.js';
@@ -194,19 +195,21 @@ class WorkspaceSettingsReader extends Disposable {
 			const dirs = settingsDirs.read(reader);
 			watcherStore.clear();
 
+			// Coalesce rapid file-change events into a single read.
+			const scheduler = new RunOnceScheduler(() => this._readSettings(dirs, logPrefix, fileService), 100);
+			watcherStore.add(scheduler);
+
 			for (const dir of dirs) {
-				watcherStore.add(fileService.watch(dir, { recursive: false, excludes: [] }));
+				const watcher = fileService.createWatcher(dir, { recursive: false, excludes: [] });
+				watcherStore.add(watcher);
+				watcherStore.add(watcher.onDidChange(e => {
+					if (e.affects(joinPath(dir, SETTINGS_FILENAME)) || e.affects(joinPath(dir, SETTINGS_LOCAL_FILENAME))) {
+						scheduler.schedule();
+					}
+				}));
 			}
 
-			watcherStore.add(fileService.onDidFilesChange(e => {
-				for (const dir of dirs) {
-					if (e.affects(joinPath(dir, SETTINGS_FILENAME)) || e.affects(joinPath(dir, SETTINGS_LOCAL_FILENAME))) {
-						this._readSettings(dirs, logPrefix, fileService);
-						return;
-					}
-				}
-			}));
-
+			// Perform initial read immediately.
 			this._readSettings(dirs, logPrefix, fileService);
 		}));
 	}
