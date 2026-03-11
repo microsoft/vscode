@@ -26,7 +26,7 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			serverName: 'Agent Host',
 			args: ['--type=agentHost', '--logsPath', this._environmentService.logsHome.with({ scheme: Schemas.file }).fsPath],
 			env: {
-				VSCODE_ESM_ENTRYPOINT: 'vs/platform/agent/node/agentHostMain',
+				VSCODE_ESM_ENTRYPOINT: 'vs/platform/agentHost/node/agentHostMain',
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true',
 			}

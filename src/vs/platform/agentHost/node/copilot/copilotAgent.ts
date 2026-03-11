@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createRequire } from 'node:module';
 import { CopilotClient, CopilotSession, type SessionEvent, type SessionEventPayload } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -99,6 +100,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 					delete env[key];
 				}
 			}
+			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
+
+			const nodeRequire = createRequire(import.meta.url);
+			const cliPath = nodeRequire.resolve('@github/copilot/index.js');
+			this._logService.info(`[Copilot] Resolved CLI path: ${cliPath}`);
 
 			const client = new CopilotClient({
 				githubToken: this._githubToken,
@@ -106,6 +112,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				useStdio: true,
 				autoStart: true,
 				env,
+				cliPath,
 			});
 			await client.start();
 			this._logService.info('[Copilot] CopilotClient started successfully');

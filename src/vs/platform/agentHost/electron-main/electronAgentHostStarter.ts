@@ -56,12 +56,12 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		this.utilityProcess.start({
 			type: 'agentHost',
 			name: 'agent-host',
-			entryPoint: 'vs/platform/agent/node/agentHostMain',
+			entryPoint: 'vs/platform/agentHost/node/agentHostMain',
 			execArgv,
 			args: ['--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath],
 			env: {
 				...deepClone(process.env),
-				VSCODE_ESM_ENTRYPOINT: 'vs/platform/agent/node/agentHostMain',
+				VSCODE_ESM_ENTRYPOINT: 'vs/platform/agentHost/node/agentHostMain',
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true',
 			}
