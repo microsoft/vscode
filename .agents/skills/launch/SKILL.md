@@ -349,13 +349,13 @@ Verify it's gone:
 lsof -i :9224  # should return nothing
 ```
 
-## Quick Test: Send a Chat Message as Local Agent
+## Quick Test: Send a Chat Message via Agent Host
 
-There's a helper script that automates the full flow — launch Code OSS, switch to Local Agent mode, send a message, and print the response:
+There's a helper script that automates the full flow — launch Code OSS, switch to agent host mode, send a message, and print the response:
 
 ```bash
 # From the repo root:
-./src/vs/platform/agent/test/node/createAndSendMessageAsLocalAgent.sh "Hello, what can you do?"
+./src/vs/platform/agentHost/test/node/createAndSendMessageAsLocalAgent.sh "Hello, what can you do?"
 
 # Options:
 #   --port <N>       CDP port (default: 9224)
