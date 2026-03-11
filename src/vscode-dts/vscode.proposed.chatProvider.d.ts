@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 4
+// version: 5
 
 declare module 'vscode' {
 
@@ -66,6 +66,14 @@ declare module 'vscode' {
 		readonly category?: { label: string; order: number };
 
 		readonly statusIcon?: ThemeIcon;
+
+		/**
+		 * An optional JSON schema describing the configuration options for this model.
+		 * When set, users can specify per-model configuration in their language models
+		 * configuration file. The configured values are merged into the request options
+		 * when sending chat requests to this model.
+		 */
+		readonly configurationSchema?: object;
 
 		/**
 		 * When set, this model is only shown in the model picker for the specified chat session type.

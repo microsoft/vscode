@@ -11,6 +11,7 @@ import { SerializedError, transformErrorForSerialization, transformErrorFromSeri
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -229,6 +230,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					isUserSelectable: m.isUserSelectable,
 					statusIcon: m.statusIcon,
 					targetChatSessionType: m.targetChatSessionType,
+					configurationSchema: m.configurationSchema as IJSONSchema | undefined,
 					modelPickerCategory: m.category ?? DEFAULT_MODEL_PICKER_CATEGORY,
 					capabilities: m.capabilities ? {
 						vision: m.capabilities.imageInput,

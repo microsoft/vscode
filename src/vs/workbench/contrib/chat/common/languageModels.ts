@@ -204,6 +204,11 @@ export interface ILanguageModelChatMetadata {
 	 * when the user is in a session matching this type.
 	 */
 	readonly targetChatSessionType?: string;
+	/**
+	 * An optional JSON schema describing the per-model configuration options.
+	 * Used to validate user-provided per-model configuration in `chatLanguageModels.json`.
+	 */
+	readonly configurationSchema?: IJSONSchema;
 }
 
 export namespace ILanguageModelChatMetadata {
@@ -847,7 +852,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 						for (const model of models) {
 							const modelConfig = group.models[model.metadata.id];
 							if (modelConfig) {
-								perModelConfigurations.set(model.identifier, modelConfig);
+								const resolvedModelConfig = await this._resolveModelConfiguration(modelConfig, model.metadata.configurationSchema);
+								perModelConfigurations.set(model.identifier, resolvedModelConfig);
 							}
 						}
 					}
@@ -1349,6 +1355,23 @@ export class LanguageModelsService implements ILanguageModelsService {
 			result[key] = value;
 		}
 
+		return result;
+	}
+
+	private async _resolveModelConfiguration(config: IStringDictionary<unknown>, schema: IJSONSchema | undefined): Promise<IStringDictionary<unknown>> {
+		if (!schema) {
+			return { ...config };
+		}
+
+		const result: IStringDictionary<unknown> = {};
+		for (const key in config) {
+			let value = config[key];
+			if (schema.properties?.[key]?.secret) {
+				const secretKey = this.decodeSecretKey(value);
+				value = secretKey ? await this._secretStorageService.get(secretKey) : undefined;
+			}
+			result[key] = value;
+		}
 		return result;
 	}
 
