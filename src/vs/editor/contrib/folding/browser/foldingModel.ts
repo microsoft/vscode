@@ -10,7 +10,7 @@ import { hash } from '../../../../base/common/hash.js';
 import { SelectedLines } from './folding.js';
 
 export interface IDecorationProvider {
-	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean): IModelDecorationOptions;
+	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean, lineCount?: number): IModelDecorationOptions;
 	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 	removeDecorations(decorationIds: string[]): void;
 }
@@ -62,11 +62,13 @@ export class FoldingModel {
 			let lastHiddenLine = -1; // the end of the last hidden lines
 			const updateDecorationsUntil = (index: number) => {
 				while (k < index) {
+					const startLineNumber = this._regions.getStartLineNumber(k);
 					const endLineNumber = this._regions.getEndLineNumber(k);
 					const isCollapsed = this._regions.isCollapsed(k);
 					if (endLineNumber <= dirtyRegionEndLine) {
 						const isManual = this.regions.getSource(k) !== FoldSource.provider;
-						accessor.changeDecorationOptions(this._editorDecorationIds[k], this._decorationProvider.getDecorationOption(isCollapsed, endLineNumber <= lastHiddenLine, isManual));
+						const lineCount = endLineNumber - startLineNumber;
+						accessor.changeDecorationOptions(this._editorDecorationIds[k], this._decorationProvider.getDecorationOption(isCollapsed, endLineNumber <= lastHiddenLine, isManual, lineCount));
 					}
 					if (isCollapsed && endLineNumber > lastHiddenLine) {
 						lastHiddenLine = endLineNumber;
@@ -132,7 +134,7 @@ export class FoldingModel {
 				endLineNumber: endLineNumber,
 				endColumn: this._textModel.getLineMaxColumn(endLineNumber) + 1
 			};
-			newEditorDecorations.push({ range: decorationRange, options: this._decorationProvider.getDecorationOption(isCollapsed, endLineNumber <= lastHiddenLine, isManual) });
+			newEditorDecorations.push({ range: decorationRange, options: this._decorationProvider.getDecorationOption(isCollapsed, endLineNumber <= lastHiddenLine, isManual, endLineNumber - startLineNumber) });
 			if (isCollapsed && endLineNumber > lastHiddenLine) {
 				lastHiddenLine = endLineNumber;
 			}
