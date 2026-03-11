@@ -219,7 +219,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 						this._overwrite = false;
 						this.setState(State.Ready(this.state.update, this.state.explicit, false));
 					} else {
-						this.setState(State.Idle(updateType));
+						this.setState(State.Idle(updateType, undefined, explicit || undefined));
 					}
 					return Promise.resolve(null);
 				}

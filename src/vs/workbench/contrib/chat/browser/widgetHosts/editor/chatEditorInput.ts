@@ -194,10 +194,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		// TODO@osortega,@rebornix double check: Chat Session Item icon is reserved for chat session list and deprecated for chat session status. thus here we use session type icon. We may want to show status for the Editor Title.
 		const sessionType = this.getSessionType();
 		if (sessionType !== localChatSessionType) {
-			const typeIcon = this.chatSessionsService.getIconForSessionType(sessionType);
-			if (typeIcon) {
-				return typeIcon;
-			}
+			return this.chatSessionsService.getChatSessionContribution(sessionType)?.icon;
 		}
 
 		return undefined;

@@ -10,6 +10,7 @@ import { ThemeIcon } from '../../../base/common/themables.js';
 import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
 import { toToolSetKey } from '../../contrib/chat/common/tools/languageModelToolsContribution.js';
 import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolProgressStep, IToolResult, ToolDataSource, ToolProgress, toolResultHasBuffers, ToolSet } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -30,6 +31,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		extHostContext: IExtHostContext,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@ILogService private readonly _logService: ILogService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageModelTools);
@@ -118,8 +120,13 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 			}
 		}
 
-		// Convert source from DTO
-		const source = revive<ToolDataSource>(definition.source);
+		// Convert source from DTO, matching the isBuiltinTool logic from languageModelToolsContribution
+		const isBuiltinTool = this._productService.defaultChatAgent?.chatExtensionId
+			? ExtensionIdentifier.equals(extensionId, this._productService.defaultChatAgent.chatExtensionId)
+			: false;
+		const source: ToolDataSource = isBuiltinTool
+			? ToolDataSource.Internal
+			: revive<ToolDataSource>(definition.source);
 
 		// Create the tool data
 		const toolData: IToolData = {
