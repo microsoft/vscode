@@ -41,12 +41,15 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
+import { getCustomizationSecondaryText } from './aiCustomizationListWidgetUtils.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
+
+export { truncateToFirstSentence } from './aiCustomizationListWidgetUtils.js';
 
 const $ = DOM.$;
 
@@ -223,20 +226,6 @@ export function formatDisplayName(name: string): string {
 }
 
 /**
- * Truncates a description string to the first sentence, with a maximum character fallback.
- */
-export function truncateToFirstSentence(text: string, maxChars = 120): string {
-	const match = text.match(/^[^.!?]*[.!?]/);
-	if (match && match[0].length <= maxChars) {
-		return match[0];
-	}
-	if (text.length > maxChars) {
-		return text.substring(0, maxChars).trimEnd() + '\u2026';
-	}
-	return text;
-}
-
-/**
  * Renderer for AI customization list items.
  */
 class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICustomizationItemTemplateData> {
@@ -297,10 +286,11 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const displayName = formatDisplayName(element.name);
 		templateData.nameLabel.set(displayName, element.nameMatches);
 
-		// Description - show either truncated description or filename as secondary text
-		const secondaryText = element.description ? truncateToFirstSentence(element.description) : element.filename;
+		// Hooks show shell commands here, so keep the full text instead of truncating to the first sentence.
+		const secondaryText = getCustomizationSecondaryText(element.description, element.filename, element.promptType);
+		const secondaryTextMatches = element.description && secondaryText === element.description ? element.descriptionMatches : undefined;
 		if (secondaryText) {
-			templateData.description.set(secondaryText, element.description ? element.descriptionMatches : undefined);
+			templateData.description.set(secondaryText, secondaryTextMatches);
 			templateData.description.element.style.display = '';
 			// Style differently for filename vs description
 			templateData.description.element.classList.toggle('is-filename', !element.description);
