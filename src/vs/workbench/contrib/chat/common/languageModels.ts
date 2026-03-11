@@ -1611,6 +1611,23 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return result;
 	}
 
+	private async _resolveModelConfiguration(config: IStringDictionary<unknown>, schema: IJSONSchema | undefined): Promise<IStringDictionary<unknown>> {
+		if (!schema) {
+			return { ...config };
+		}
+
+		const result: IStringDictionary<unknown> = {};
+		for (const key in config) {
+			let value = config[key];
+			if (schema.properties?.[key]?.secret) {
+				const secretKey = this.decodeSecretKey(value);
+				value = secretKey ? await this._secretStorageService.get(secretKey) : undefined;
+			}
+			result[key] = value;
+		}
+		return result;
+	}
+
 	private async _resolveLanguageModelProviderGroup(name: string, vendor: string, configuration: IStringDictionary<unknown> | undefined, schema: IJSONSchema | undefined): Promise<ILanguageModelsProviderGroup> {
 		if (!schema) {
 			return { name, vendor };
