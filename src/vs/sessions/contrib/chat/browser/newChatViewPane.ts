@@ -48,21 +48,18 @@ import { IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser
 import { EnhancedModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem2.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
-import { FolderPicker } from './folderPicker.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { IsolationMode, IsolationModePicker, SessionTargetPicker } from './sessionTargetPicker.js';
+import { IsolationMode, IsolationModePicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { SyncIndicator } from './syncIndicator.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
-import { RepoPicker } from './repoPicker.js';
 import { CloudModelPicker } from './modelPicker.js';
+import { IProjectSelection, ProjectPicker } from './projectPicker.js';
 import { ModePicker } from './modePicker.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { SlashCommandHandler } from './slashCommands.js';
@@ -82,8 +79,9 @@ interface IDraftState extends IChatModelInputState {
 	target?: AgentSessionProviders;
 	isolationMode?: IsolationMode;
 	branch?: string;
-	folderUri?: string;
-	repo?: string;
+	projectKind?: 'folder' | 'repo';
+	projectUri?: string;
+	projectRepoId?: string;
 }
 
 // #region --- Chat Welcome Widget ---
@@ -92,8 +90,6 @@ interface IDraftState extends IChatModelInputState {
  * Options for creating a `NewChatWidget`.
  */
 interface INewChatWidgetOptions {
-	readonly allowedTargets: AgentSessionProviders[];
-	readonly defaultTarget: AgentSessionProviders;
 	readonly sessionPosition?: ChatSessionPosition;
 }
 
@@ -106,11 +102,14 @@ interface INewChatWidgetOptions {
  */
 class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
-	private readonly _targetPicker: SessionTargetPicker;
+	private readonly _projectPicker: ProjectPicker;
 	private readonly _isolationModePicker: IsolationModePicker;
 	private readonly _branchPicker: BranchPicker;
 	private readonly _syncIndicator: SyncIndicator;
 	private readonly _options: INewChatWidgetOptions;
+
+	/** The inferred session target based on the current project selection. */
+	private _currentTarget: AgentSessionProviders = AgentSessionProviders.Background;
 
 	// IHistoryNavigationWidget
 	private readonly _onDidFocus = this._register(new Emitter<void>());
@@ -146,11 +145,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private _toolbarPickersContainer: HTMLElement | undefined;
 	private _localModelPickerContainer: HTMLElement | undefined;
 	private _inputSlot: HTMLElement | undefined;
-	private readonly _folderPicker: FolderPicker;
-	private _folderPickerContainer: HTMLElement | undefined;
 	private readonly _permissionPicker: NewChatPermissionPicker;
-	private readonly _repoPicker: RepoPicker;
-	private _repoPickerContainer: HTMLElement | undefined;
 	private readonly _cloudModelPicker: CloudModelPicker;
 	private readonly _modePicker: ModePicker;
 	private readonly _toolbarPickerWidgets = new Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem>();
@@ -196,25 +191,18 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		super();
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
-		this._folderPicker = this._register(this.instantiationService.createInstance(FolderPicker));
+		this._projectPicker = this._register(this.instantiationService.createInstance(ProjectPicker));
 		this._permissionPicker = this._register(this.instantiationService.createInstance(NewChatPermissionPicker));
-		this._repoPicker = this._register(this.instantiationService.createInstance(RepoPicker));
 		this._cloudModelPicker = this._register(this.instantiationService.createInstance(CloudModelPicker));
 		this._modePicker = this._register(this.instantiationService.createInstance(ModePicker));
-		this._targetPicker = this._register(new SessionTargetPicker(options.allowedTargets, this._resolveDefaultTarget(options)));
 		this._isolationModePicker = this._register(this.instantiationService.createInstance(IsolationModePicker));
 		this._branchPicker = this._register(this.instantiationService.createInstance(BranchPicker));
 		this._syncIndicator = this._register(this.instantiationService.createInstance(SyncIndicator));
 		this._options = options;
 
-		// When target changes, create new session
-		this._register(this._targetPicker.onDidChangeTarget((target) => {
-			this._createNewSession();
-			const isLocal = target === AgentSessionProviders.Background;
-			this._isolationModePicker.setVisible(isLocal);
-			this._permissionPicker.setVisible(isLocal);
-			this._branchPicker.setVisible(isLocal);
-			this._syncIndicator.setVisible(isLocal);
+		// When a project is selected, infer the target and create a new session
+		this._register(this._projectPicker.onDidSelectProject(async (project) => {
+			await this._onProjectSelected(project);
 			this._updateDraftState();
 			this._focusEditor();
 		}));
@@ -231,15 +219,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._focusEditor();
 		}));
 
-		this._register(this._folderPicker.onDidSelectFolder(async (folderUri) => {
-			const trusted = await this._requestFolderTrust(folderUri);
-			if (trusted) {
-				this._newSession.value?.setRepoUri(folderUri);
-			}
-			this._updateDraftState();
-			this._focusEditor();
-		}));
-
 		this._register(this._isolationModePicker.onDidChange((mode) => {
 			this._newSession.value?.setIsolationMode(mode);
 			this._branchPicker.setVisible(mode === 'worktree');
@@ -252,13 +231,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._register(this._modePicker.onDidChange((mode) => {
 			this._newSession.value?.setMode(mode);
 			this._focusEditor();
-		}));
-
-		this._register(this._repoPicker.onDidSelectRepo((repoId) => {
-			if (this._targetPicker.selectedTarget !== AgentSessionProviders.Background) {
-				this._newSession.value?.setRepoUri(this._getRepoUri(repoId));
-			}
-			this._updateDraftState();
 		}));
 
 		// When language models change (e.g., extension activates), reinitialize if no model selected
@@ -322,15 +294,15 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._branchPicker.render(branchContainer);
 		this._syncIndicator.render(branchContainer);
 
-		// Set initial visibility based on default target and isolation mode
-		const isLocal = this._targetPicker.selectedTarget === AgentSessionProviders.Background;
+		// Set initial visibility based on inferred target and isolation mode
+		const isLocal = this._currentTarget === AgentSessionProviders.Background;
 		const isWorktree = this._isolationModePicker.isolationMode === 'worktree';
 		this._isolationModePicker.setVisible(isLocal);
 		this._permissionPicker.setVisible(isLocal);
 		this._branchPicker.setVisible(isLocal && isWorktree);
 		this._syncIndicator.setVisible(isLocal && isWorktree);
 
-		// Render target buttons & extension pickers
+		// Render project picker & extension pickers
 		this._renderOptionGroupPickers();
 
 		// Initialize model picker
@@ -352,14 +324,19 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	private async _createNewSession(): Promise<void> {
-		const target = this._targetPicker.selectedTarget;
-		let defaultRepoUri = this._folderPicker.selectedFolderUri;
+		const target = this._currentTarget;
+		let defaultRepoUri: URI | undefined;
 
-		// For local targets, request workspace trust before creating the session
-		if (target === AgentSessionProviders.Background && defaultRepoUri) {
-			const trusted = await this._requestFolderTrust(defaultRepoUri);
-			if (!trusted) {
-				defaultRepoUri = undefined;
+		const project = this._projectPicker.selectedProject;
+		if (project) {
+			if (project.kind === 'folder') {
+				// For local targets, request workspace trust before creating the session
+				const trusted = await this._requestFolderTrust(project.uri);
+				if (trusted) {
+					defaultRepoUri = project.uri;
+				}
+			} else {
+				defaultRepoUri = project.uri;
 			}
 		}
 
@@ -381,16 +358,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._newSession.value = session;
 
 		// Wire pickers to the new session and disconnect inactive ones
-		const target = this._targetPicker.selectedTarget;
+		const target = this._currentTarget;
 		if (target === AgentSessionProviders.Background) {
 			session.setIsolationMode(this._isolationModePicker.isolationMode);
 			if (this._branchPicker.selectedBranch) {
 				session.setBranch(this._branchPicker.selectedBranch);
-			}
-		} else {
-			const selectedRepo = this._repoPicker.selectedRepo;
-			if (selectedRepo) {
-				session.setRepoUri(this._getRepoUri(selectedRepo));
 			}
 		}
 
@@ -624,31 +596,14 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	/**
-	 * Returns the folder URI for the context picker based on the current target.
-	 * Local targets use the workspace folder; cloud targets construct a github-remote-file:// URI.
+	 * Returns the folder URI for the context picker based on the current project selection.
 	 */
 	private _getContextFolderUri(): URI | undefined {
-		const target = this._targetPicker.selectedTarget;
-
-		if (target === AgentSessionProviders.Background) {
-			return this._folderPicker.selectedFolderUri;
+		const project = this._projectPicker.selectedProject;
+		if (!project) {
+			return undefined;
 		}
-
-		// For cloud targets, use the repo picker's selection
-		const selectedRepo = this._repoPicker.selectedRepo;
-		if (selectedRepo && selectedRepo.includes('/')) {
-			return this._getRepoUri(selectedRepo);
-		}
-
-		return undefined;
-	}
-
-	private _getRepoUri(repoId: string): URI {
-		return URI.from({
-			scheme: GITHUB_REMOTE_FILE_SCHEME,
-			authority: 'github',
-			path: `/${repoId}/HEAD`,
-		});
+		return project.uri;
 	}
 
 	private _createBottomToolbar(container: HTMLElement): void {
@@ -746,35 +701,20 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		const pickersRow = dom.append(this._pickersContainer, dom.$('.chat-full-welcome-pickers'));
 
-		// Left half: target switcher (right-justified within its half)
-		const leftHalf = dom.append(pickersRow, dom.$('.sessions-chat-pickers-left-half'));
-		const targetDropdownContainer = dom.append(leftHalf, dom.$('.sessions-chat-dropdown-wrapper'));
-		this._targetPicker.render(targetDropdownContainer);
+		// Project picker (unified folder + repo picker)
+		this._projectPicker.render(pickersRow);
 
-		// Right half: separator + pickers (left-justified within its half)
-		const rightHalf = dom.append(pickersRow, dom.$('.sessions-chat-pickers-right-half'));
-		this._extensionPickersLeftContainer = dom.append(rightHalf, dom.$('.sessions-chat-pickers-left-separator'));
+		// Separator between project picker and extension pickers
+		this._extensionPickersLeftContainer = dom.append(pickersRow, dom.$('.sessions-chat-pickers-left-separator'));
 		this._extensionPickersLeftContainer.style.display = 'none';
-
-		// Repo picker for cloud (rendered once, shown/hidden based on target)
-		this._repoPickerContainer = dom.append(rightHalf, dom.$('.sessions-chat-extension-pickers-right'));
-		this._repoPickerContainer.style.display = 'none';
-		this._repoPicker.render(this._repoPickerContainer);
-
-		// Folder picker for local (rendered once, shown/hidden based on target)
-		this._folderPickerContainer = this._folderPicker.render(rightHalf);
-		this._folderPickerContainer.style.display = 'none';
 	}
 
 	// --- Local session pickers ---
 
 	private _renderLocalSessionPickers(): void {
 		this._clearAllPickers();
-		if (this._folderPickerContainer) {
-			this._folderPickerContainer.style.display = '';
-		}
 		if (this._extensionPickersLeftContainer) {
-			this._extensionPickersLeftContainer.style.display = 'block';
+			this._extensionPickersLeftContainer.style.display = 'none';
 		}
 		// Show local model and mode pickers, hide remote
 		if (this._localModelPickerContainer) {
@@ -787,15 +727,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	// --- Remote session pickers ---
 
 	private _renderRemoteSessionPickers(session: RemoteNewSession, force?: boolean): void {
-		if (!this._repoPickerContainer) {
-			return;
-		}
-
-		// Hide local-only pickers
-		if (this._folderPickerContainer) {
-			this._folderPickerContainer.style.display = 'none';
-		}
-
 		// Show remote model picker, hide local pickers
 		if (this._localModelPickerContainer) {
 			this._localModelPickerContainer.style.display = 'none';
@@ -804,11 +735,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._cloudModelPicker.setSession(session);
 		this._cloudModelPicker.setVisible(true);
 
-		// Show repo picker and separator
+		// Show separator for extension pickers
 		if (this._extensionPickersLeftContainer) {
 			this._extensionPickersLeftContainer.style.display = 'block';
 		}
-		this._repoPickerContainer.style.display = '';
 
 		// Render toolbar pickers (other groups)
 		this._renderToolbarPickers(session, force);
@@ -918,12 +848,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private _clearAllPickers(): void {
 		this._clearToolbarPickers();
-		if (this._folderPickerContainer) {
-			this._folderPickerContainer.style.display = 'none';
-		}
-		if (this._repoPickerContainer) {
-			this._repoPickerContainer.style.display = 'none';
-		}
 		if (this._extensionPickersLeftContainer) {
 			this._extensionPickersLeftContainer.style.display = 'none';
 		}
@@ -960,11 +884,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			selectedModel: this._currentLanguageModel.get(),
 			selections: this._editor?.getSelections() ?? [],
 			contrib: {},
-			target: this._targetPicker.selectedTarget,
+			target: this._currentTarget,
 			isolationMode: this._isolationModePicker.isolationMode,
 			branch: this._branchPicker.selectedBranch,
-			folderUri: this._folderPicker.selectedFolderUri?.toString(),
-			repo: this._repoPicker.selectedRepo,
+			projectKind: this._projectPicker.selectedProject?.kind,
+			projectUri: this._projectPicker.selectedProject?.uri.toString(),
+			projectRepoId: this._projectPicker.selectedProject?.repoId,
 		};
 	}
 
@@ -1065,19 +990,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * For Local/Background targets, checks the folder picker.
 	 * For other targets, checks extension-contributed repo/folder option groups.
 	 */
-	private _hasRequiredRepoOrFolderSelection(sessionType: AgentSessionProviders): boolean {
-		if (sessionType === AgentSessionProviders.Local || sessionType === AgentSessionProviders.Background) {
-			return !!this._folderPicker.selectedFolderUri;
-		}
-		return !!this._repoPicker.selectedRepo;
+	private _hasRequiredRepoOrFolderSelection(_sessionType: AgentSessionProviders): boolean {
+		return !!this._projectPicker.selectedProject;
 	}
 
-	private _openRepoOrFolderPicker(sessionType: AgentSessionProviders): void {
-		if (sessionType === AgentSessionProviders.Local || sessionType === AgentSessionProviders.Background) {
-			this._folderPicker.showPicker();
-		} else {
-			this._repoPicker.showPicker();
-		}
+	private _openRepoOrFolderPicker(_sessionType: AgentSessionProviders): void {
+		this._projectPicker.showPicker();
 	}
 
 	private async _requestFolderTrust(folderUri: URI): Promise<boolean> {
@@ -1086,25 +1004,17 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			message: localize('trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
 		});
 		if (!trusted) {
-			this._folderPicker.removeFromRecents(folderUri);
+			this._projectPicker.removeFromRecents(folderUri);
 			const previousFolderUri = this._newSession.value?.repoUri;
 			if (previousFolderUri) {
-				this._folderPicker.setSelectedFolder(previousFolderUri);
+				this._projectPicker.setSelectedFolder(previousFolderUri);
 			} else {
-				this._folderPicker.clearSelection();
+				this._projectPicker.clearSelection();
 			}
 		}
 		return !!trusted;
 	}
 
-
-	private _resolveDefaultTarget(options: INewChatWidgetOptions): AgentSessionProviders {
-		const draft = this._getDraftState();
-		if (draft?.target && options.allowedTargets.includes(draft.target)) {
-			return draft.target;
-		}
-		return options.defaultTarget;
-	}
 
 	private _restoreState(): void {
 		const draft = this._getDraftState();
@@ -1127,11 +1037,15 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			if (draft.branch) {
 				this._branchPicker.setPreferredBranch(draft.branch);
 			}
-			if (draft.folderUri) {
-				try { this._folderPicker.setSelectedFolder(URI.parse(draft.folderUri)); } catch { /* ignore */ }
-			}
-			if (draft.repo) {
-				this._repoPicker.setSelectedRepo(draft.repo);
+			if (draft.projectKind && draft.projectUri) {
+				try {
+					if (draft.projectKind === 'folder') {
+						this._projectPicker.setSelectedFolder(URI.parse(draft.projectUri));
+					} else if (draft.projectRepoId) {
+						this._projectPicker.setSelectedRepo(draft.projectRepoId);
+					}
+					this._currentTarget = draft.projectKind === 'folder' ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
+				} catch { /* ignore */ }
 			}
 		}
 	}
@@ -1150,8 +1064,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private _clearDraftState(): void {
 		// Preserve picker preferences so they survive widget recreation
-		const target = this._targetPicker.selectedTarget;
+		const target = this._currentTarget;
 		const isLocal = target === AgentSessionProviders.Background;
+		const project = this._projectPicker.selectedProject;
 		const preserved: IDraftState = {
 			inputText: '',
 			attachments: [],
@@ -1162,8 +1077,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			target,
 			isolationMode: isLocal ? this._isolationModePicker.isolationMode : undefined,
 			branch: isLocal ? this._branchPicker.selectedBranch : undefined,
-			folderUri: isLocal ? this._folderPicker.selectedFolderUri?.toString() : undefined,
-			repo: isLocal ? undefined : this._repoPicker.selectedRepo,
+			projectKind: project?.kind,
+			projectUri: project?.uri.toString(),
+			projectRepoId: project?.repoId,
 		};
 		this._draftState = preserved;
 		this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(preserved), StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -1187,8 +1103,38 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._editor?.focus();
 	}
 
-	updateAllowedTargets(targets: AgentSessionProviders[]): void {
-		this._targetPicker.updateAllowedTargets(targets);
+	/**
+	 * Handles a project selection from the unified project picker.
+	 * Infers the session target from the selection kind, creates a new session,
+	 * and shows/hides pickers accordingly.
+	 */
+	private async _onProjectSelected(project: IProjectSelection): Promise<void> {
+		const newTarget = project.kind === 'folder' ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
+		const targetChanged = this._currentTarget !== newTarget;
+		this._currentTarget = newTarget;
+		const isLocal = newTarget === AgentSessionProviders.Background;
+
+		// Show/hide local-only pickers
+		this._isolationModePicker.setVisible(isLocal);
+		this._permissionPicker.setVisible(isLocal);
+		const isWorktree = this._isolationModePicker.isolationMode === 'worktree';
+		this._branchPicker.setVisible(isLocal && isWorktree);
+		this._syncIndicator.setVisible(isLocal && isWorktree);
+
+		if (isLocal) {
+			// For folder selections, request trust
+			const trusted = await this._requestFolderTrust(project.uri);
+			if (!trusted) {
+				return;
+			}
+		}
+
+		// Recreate session if target type changed, otherwise just update the URI
+		if (targetChanged) {
+			await this._createNewSession();
+		} else {
+			this._newSession.value?.setRepoUri(project.uri);
+		}
 	}
 }
 
@@ -1216,7 +1162,6 @@ export class NewChatViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
@@ -1226,23 +1171,11 @@ export class NewChatViewPane extends ViewPane {
 
 		this._widget = this._register(this.instantiationService.createInstance(
 			NewChatWidget,
-			{
-				allowedTargets: this.computeAllowedTargets(),
-				defaultTarget: AgentSessionProviders.Background,
-			} satisfies INewChatWidgetOptions,
+			{} satisfies INewChatWidgetOptions,
 		));
 
 		this._widget.render(container);
 		this._widget.focusInput();
-
-		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => {
-			this._widget?.updateAllowedTargets(this.computeAllowedTargets());
-		}));
-	}
-
-	private computeAllowedTargets(): AgentSessionProviders[] {
-		const targets: AgentSessionProviders[] = [AgentSessionProviders.Background, AgentSessionProviders.Cloud];
-		return targets;
 	}
 
 	protected override layoutBody(height: number, width: number): void {
