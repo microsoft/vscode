@@ -11,7 +11,7 @@ import { match } from '../../../../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
-import { relativePath } from '../../../../../../../base/common/resources.js';
+import { basename, relativePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
@@ -35,13 +35,13 @@ import { IWorkbenchEnvironmentService } from '../../../../../../services/environ
 import { IFilesConfigurationService } from '../../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
 import { toUserDataProfile } from '../../../../../../../platform/userDataProfile/common/userDataProfile.js';
-import { TestContextService, TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestUserDataProfileService, TestWorkspaceTrustManagementService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage, Target } from '../../../../common/promptSyntax/service/promptsService.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
+import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -50,10 +50,11 @@ import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../servic
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
 import { IRemoteAgentService } from '../../../../../../services/remote/common/remoteAgentService.js';
 import { ChatModeKind } from '../../../../common/constants.js';
-import { HookType } from '../../../../common/promptSyntax/hookSchema.js';
+import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyService, IContextKeyChangeEvent } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -64,7 +65,7 @@ suite('PromptsService', () => {
 	let testConfigService: TestConfigurationService;
 	let fileService: IFileService;
 	let testPluginsObservable: ISettableObservable<readonly IAgentPlugin[]>;
-	let testAllPluginsObservable: ISettableObservable<readonly IAgentPlugin[]>;
+	let workspaceTrustService: TestWorkspaceTrustManagementService;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
@@ -166,13 +167,14 @@ suite('PromptsService', () => {
 
 		instaService.stub(IContextKeyService, new MockContextKeyService());
 
+		workspaceTrustService = disposables.add(new TestWorkspaceTrustManagementService());
+		instaService.stub(IWorkspaceTrustManagementService, workspaceTrustService);
+
 		testPluginsObservable = observableValue<readonly IAgentPlugin[]>('testPlugins', []);
-		testAllPluginsObservable = observableValue<readonly IAgentPlugin[]>('testAllPlugins', []);
 
 		instaService.stub(IAgentPluginService, {
 			plugins: testPluginsObservable,
-			allPlugins: testAllPluginsObservable,
-			setPluginEnabled: () => { },
+			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, setEnabled: () => { } },
 		});
 
 		service = disposables.add(instaService.createInstance(PromptsService));
@@ -794,6 +796,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -850,6 +853,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local },
 				},
@@ -925,6 +929,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -943,6 +948,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1013,6 +1019,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1031,6 +1038,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1049,6 +1057,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1126,6 +1135,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/copilot-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1146,6 +1156,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1165,6 +1176,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent2.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1176,6 +1188,7 @@ suite('PromptsService', () => {
 				'Claude tools and models must be mapped to VS Code equivalents; non-Claude agents must remain unchanged.',
 			);
 		});
+
 
 		test('agents with .md extension should be recognized, except README.md', async () => {
 			const rootFolderName = 'custom-agents-md-extension';
@@ -1220,6 +1233,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
 					source: { storage: PromptsStorage.local }
 				}
@@ -1290,6 +1304,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/restricted-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1308,6 +1323,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/no-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1326,6 +1342,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
+					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/full-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1336,6 +1353,60 @@ suite('PromptsService', () => {
 				expected,
 				'Must get custom agents with agents, skills, and instructions attributes.',
 			);
+		});
+
+		test('header with infer: false sets agentInvocable to false', async () => {
+			const rootFolderName = 'custom-agents-infer-false';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/agent-infer-false.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with infer: false.\'',
+						'infer: false',
+						'---',
+						'I should not be invocable by the model.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/agent-infer-true.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with infer: true.\'',
+						'infer: true',
+						'---',
+						'I should be invocable by the model.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/agent-no-infer.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent without infer.\'',
+						'---',
+						'I should default to being invocable by the model.',
+					]
+				}
+			]);
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+
+			const inferFalseAgent = result.find(a => a.name === 'agent-infer-false');
+			assert.ok(inferFalseAgent, 'Should find agent with infer: false');
+			assert.strictEqual(inferFalseAgent.visibility.agentInvocable, false, 'infer: false should set agentInvocable to false');
+
+			const inferTrueAgent = result.find(a => a.name === 'agent-infer-true');
+			assert.ok(inferTrueAgent, 'Should find agent with infer: true');
+			assert.strictEqual(inferTrueAgent.visibility.agentInvocable, true, 'infer: true should set agentInvocable to true');
+
+			const noInferAgent = result.find(a => a.name === 'agent-no-infer');
+			assert.ok(noInferAgent, 'Should find agent without infer');
+			assert.strictEqual(noInferAgent.visibility.agentInvocable, true, 'missing infer should default agentInvocable to true');
 		});
 
 		test('agents from user data folder', async () => {
@@ -1360,7 +1431,8 @@ suite('PromptsService', () => {
 			};
 			instaService.stub(IUserDataProfileService, customUserDataProfileService);
 
-			// Recreate the service with the new stub
+			// Recreate the service with the new stub (dispose existing to avoid duplicate filesystem registration)
+			service.dispose();
 			const testService = disposables.add(instaService.createInstance(PromptsService));
 
 			// Create agent files in both workspace and user data folder
@@ -1442,7 +1514,8 @@ suite('PromptsService', () => {
 			};
 			instaService.stub(IUserDataProfileService, customUserDataProfileService);
 
-			// Recreate the service with the new stub
+			// Recreate the service with the new stub (dispose existing to avoid duplicate filesystem registration)
+			service.dispose();
 			const testService = disposables.add(instaService.createInstance(PromptsService));
 
 			// Create prompt files in both workspace and user data folder
@@ -1507,7 +1580,8 @@ suite('PromptsService', () => {
 			};
 			instaService.stub(IUserDataProfileService, customUserDataProfileService);
 
-			// Recreate the service with the new stub
+			// Recreate the service with the new stub (dispose existing to avoid duplicate filesystem registration)
+			service.dispose();
 			const testService = disposables.add(instaService.createInstance(PromptsService));
 
 			// Create instructions files in both workspace and user data folder
@@ -1589,7 +1663,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+			const result = (await service.listPromptFiles(PromptsType.skill, CancellationToken.None)).filter(s => s.storage !== PromptsStorage.internal);
 
 			assert.strictEqual(result.length, 2, 'Should find 2 skills');
 
@@ -1680,7 +1754,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+			const result = (await service.listPromptFiles(PromptsType.skill, CancellationToken.None)).filter(s => s.storage !== PromptsStorage.internal);
 
 			assert.strictEqual(result.length, 0, 'Should not find any skills in non-skill locations');
 		});
@@ -1766,7 +1840,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+			const result = (await service.listPromptFiles(PromptsType.skill, CancellationToken.None)).filter(s => s.storage !== PromptsStorage.internal);
 
 			assert.strictEqual(result.length, 1, 'Should find only 1 skill (from enabled folder)');
 			assert.ok(result[0].uri.path.includes('.claude/skills'), 'Should only find skill from .claude/skills');
@@ -1802,7 +1876,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
+			const result = (await service.listPromptFiles(PromptsType.skill, CancellationToken.None)).filter(s => s.storage !== PromptsStorage.internal);
 
 			assert.strictEqual(result.length, 1, 'Should find 1 skill from tilde-expanded path');
 			assert.ok(result[0].uri.path.includes('/home/user/my-custom-skills'), 'Path should be expanded from tilde');
@@ -1944,6 +2018,7 @@ suite('PromptsService', () => {
 				}
 			}();
 			instaService.stub(IContextKeyService, testContextKeyService);
+			service.dispose();
 			const testService = disposables.add(instaService.createInstance(PromptsService));
 
 			const registered = testService.registerContributedFile(
@@ -2196,9 +2271,10 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = await service.findAgentSkills(CancellationToken.None);
+			const allResult = await service.findAgentSkills(CancellationToken.None);
 
-			assert.ok(result, 'Should return results when agent skills are enabled');
+			assert.ok(allResult, 'Should return results when agent skills are enabled');
+			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
 			assert.strictEqual(result.length, 4, 'Should find 4 skills total');
 
 			// Check project skills (both from .github/skills and .claude/skills)
@@ -2264,10 +2340,11 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = await service.findAgentSkills(CancellationToken.None);
+			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			// Should still return the valid skill, even if one has parsing errors
-			assert.ok(result, 'Should return results even with parsing errors');
+			assert.ok(allResult, 'Should return results even with parsing errors');
+			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
 			assert.strictEqual(result.length, 1, 'Should find 1 valid skill');
 			assert.strictEqual(result[0].name, 'Valid Skill');
 			assert.strictEqual(result[0].storage, PromptsStorage.local);
@@ -2285,9 +2362,10 @@ suite('PromptsService', () => {
 			// Create empty mock filesystem
 			await mockFiles(fileService, []);
 
-			const result = await service.findAgentSkills(CancellationToken.None);
+			const allResult = await service.findAgentSkills(CancellationToken.None);
 
-			assert.ok(result, 'Should return results array');
+			assert.ok(allResult, 'Should return results array');
+			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
 			assert.strictEqual(result.length, 0, 'Should find no skills');
 		});
 
@@ -2319,9 +2397,10 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = await service.findAgentSkills(CancellationToken.None);
+			const allResult = await service.findAgentSkills(CancellationToken.None);
 
-			assert.ok(result, 'Should return results');
+			assert.ok(allResult, 'Should return results');
+			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
 			assert.strictEqual(result.length, 1, 'Should find 1 skill');
 			assert.strictEqual(result[0].name.length, 64, 'Name should be truncated to 64 characters');
 			assert.strictEqual(result[0].description?.length, 1024, 'Description should be truncated to 1024 characters');
@@ -2351,9 +2430,10 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = await service.findAgentSkills(CancellationToken.None);
+			const allResult = await service.findAgentSkills(CancellationToken.None);
 
-			assert.ok(result, 'Should return results');
+			assert.ok(allResult, 'Should return results');
+			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
 			assert.strictEqual(result.length, 1, 'Should find 1 skill');
 			assert.strictEqual(result[0].name, 'Skill with XML tags', 'XML tags should be removed from name');
 			assert.strictEqual(result[0].description, 'Description with HTML and other tags', 'XML tags should be removed from description');
@@ -2387,9 +2467,10 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = await service.findAgentSkills(CancellationToken.None);
+			const allResult = await service.findAgentSkills(CancellationToken.None);
 
-			assert.ok(result, 'Should return results');
+			assert.ok(allResult, 'Should return results');
+			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
 			assert.strictEqual(result.length, 1, 'Should find 1 skill');
 			// XML tags are removed first, then truncation happens
 			assert.ok(!result[0].name.includes('<'), 'Name should not contain XML tags');
@@ -2445,9 +2526,10 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = await service.findAgentSkills(CancellationToken.None);
+			const allResult = await service.findAgentSkills(CancellationToken.None);
 
-			assert.ok(result, 'Should return results');
+			assert.ok(allResult, 'Should return results');
+			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
 			assert.strictEqual(result.length, 2, 'Should find 2 skills (duplicate skipped)');
 
 			const duplicateSkill = result.find(s => s.name === 'Duplicate Skill');
@@ -2493,9 +2575,10 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = await service.findAgentSkills(CancellationToken.None);
+			const allResult = await service.findAgentSkills(CancellationToken.None);
 
-			assert.ok(result, 'Should return results');
+			assert.ok(allResult, 'Should return results');
+			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
 			assert.strictEqual(result.length, 1, 'Should find 1 skill (duplicates resolved by priority)');
 			assert.strictEqual(result[0].description, 'Workspace version - highest priority', 'Workspace should win over user');
 			assert.strictEqual(result[0].storage, PromptsStorage.local);
@@ -2536,9 +2619,10 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = await service.findAgentSkills(CancellationToken.None);
+			const allResult = await service.findAgentSkills(CancellationToken.None);
 
-			assert.ok(result, 'Should return results');
+			assert.ok(allResult, 'Should return results');
+			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
 			assert.strictEqual(result.length, 1, 'Should find only 1 skill (mismatched one skipped)');
 			assert.strictEqual(result[0].name, 'Valid Skill', 'Should only find the valid skill');
 		});
@@ -2575,9 +2659,10 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = await service.findAgentSkills(CancellationToken.None);
+			const allResult = await service.findAgentSkills(CancellationToken.None);
 
-			assert.ok(result, 'Should return results');
+			assert.ok(allResult, 'Should return results');
+			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
 			assert.strictEqual(result.length, 1, 'Should find only 1 skill (one without name skipped)');
 			assert.strictEqual(result[0].name, 'Valid Named Skill', 'Should only find skill with name attribute');
 		});
@@ -2630,9 +2715,10 @@ suite('PromptsService', () => {
 
 			const registered = service.registerPromptFileProvider(extension, PromptsType.skill, provider);
 
-			const result = await service.findAgentSkills(CancellationToken.None);
+			const allResult = await service.findAgentSkills(CancellationToken.None);
 
-			assert.ok(result, 'Should return results');
+			assert.ok(allResult, 'Should return results');
+			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
 			assert.strictEqual(result.length, 2, 'Should find 2 skills (workspace + extension)');
 
 			const workspaceSkill = result.find(s => s.name === 'Workspace Skill');
@@ -2692,9 +2778,10 @@ suite('PromptsService', () => {
 				'A contributed skill from extension'
 			);
 
-			const result = await service.findAgentSkills(CancellationToken.None);
+			const allResult = await service.findAgentSkills(CancellationToken.None);
 
-			assert.ok(result, 'Should return results');
+			assert.ok(allResult, 'Should return results');
+			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
 			assert.strictEqual(result.length, 2, 'Should find 2 skills (local + contributed)');
 
 			const localSkill = result.find(s => s.name === 'Local Skill');
@@ -2708,7 +2795,7 @@ suite('PromptsService', () => {
 			registered.dispose();
 
 			// After disposal, only local skill should remain
-			const resultAfterDispose = await service.findAgentSkills(CancellationToken.None);
+			const resultAfterDispose = (await service.findAgentSkills(CancellationToken.None))?.filter(s => s.storage !== PromptsStorage.internal);
 			assert.strictEqual(resultAfterDispose?.length, 1, 'Should find 1 skill after disposal');
 			assert.strictEqual(resultAfterDispose?.[0].name, 'Local Skill');
 		});
@@ -3382,7 +3469,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+			const slashCommands = (await service.getPromptSlashCommands(CancellationToken.None)).filter(c => c.promptPath.storage !== PromptsStorage.internal);
 
 			// All commands should be present in the raw list
 			assert.strictEqual(slashCommands.length, 4, 'Should find all 4 commands');
@@ -3440,7 +3527,7 @@ suite('PromptsService', () => {
 
 	suite('hooks', () => {
 		const createTestPlugin = (path: string, initialHooks: readonly IAgentPluginHook[]): { plugin: IAgentPlugin; hooks: ISettableObservable<readonly IAgentPluginHook[]> } => {
-			const enabled = observableValue<boolean>('testPluginEnabled', true);
+			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
 			const hooks = observableValue<readonly IAgentPluginHook[]>('testPluginHooks', initialHooks);
 			const commands = observableValue<readonly IAgentPluginCommand[]>('testPluginCommands', []);
 			const skills = observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', []);
@@ -3450,8 +3537,9 @@ suite('PromptsService', () => {
 			return {
 				plugin: {
 					uri: URI.file(path),
-					enabled,
-					setEnabled: () => { },
+					label: basename(URI.file(path)),
+					enablement,
+					remove: () => { },
 					hooks,
 					commands,
 					skills,
@@ -3524,7 +3612,6 @@ suite('PromptsService', () => {
 			}]);
 
 			testPluginsObservable.set([plugin], undefined);
-			testAllPluginsObservable.set([plugin], undefined);
 
 			const result = await service.getHooks(CancellationToken.None);
 			assert.ok(result, 'Expected hooks result');
@@ -3546,7 +3633,6 @@ suite('PromptsService', () => {
 			}]);
 
 			testPluginsObservable.set([plugin], undefined);
-			testAllPluginsObservable.set([plugin], undefined);
 
 			const before = await service.getHooks(CancellationToken.None);
 			assert.ok(before, 'Expected hooks result before plugin update');
@@ -3561,6 +3647,60 @@ suite('PromptsService', () => {
 			const after = await service.getHooks(CancellationToken.None);
 			assert.ok(after, 'Expected hooks result after plugin update');
 			assert.deepStrictEqual(after.hooks[HookType.PreToolUse], [{ type: 'command', command: 'echo after' }]);
+		});
+
+		test('returns undefined when workspace is untrusted', async function () {
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/test-workspace')));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, { [HOOKS_SOURCE_FOLDER]: true });
+
+			await mockFiles(fileService, [
+				{
+					path: '/test-workspace/.github/hooks/my-hook.json',
+					contents: [
+						JSON.stringify({
+							hooks: {
+								[HookType.PreToolUse]: [
+									{ type: 'command', command: 'echo test' },
+								],
+							},
+						}),
+					],
+				},
+			]);
+
+			// Trusted workspace should return hooks
+			const trustedResult = await service.getHooks(CancellationToken.None);
+			assert.ok(trustedResult, 'Expected hooks when workspace is trusted');
+			assert.strictEqual(trustedResult.hooks[HookType.PreToolUse]?.length, 1);
+
+			// Untrusted workspace should return undefined
+			await workspaceTrustService.setWorkspaceTrust(false);
+			const untrustedResult = await service.getHooks(CancellationToken.None);
+			assert.strictEqual(untrustedResult, undefined, 'Expected undefined hooks when workspace is untrusted');
+
+			// Re-trusting should return hooks again
+			await workspaceTrustService.setWorkspaceTrust(true);
+			const reTrustedResult = await service.getHooks(CancellationToken.None);
+			assert.ok(reTrustedResult, 'Expected hooks after workspace becomes trusted again');
+			assert.strictEqual(reTrustedResult.hooks[HookType.PreToolUse]?.length, 1);
+		});
+
+		test('suppresses plugin hooks when workspace is untrusted', async function () {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, {});
+
+			const { plugin } = createTestPlugin('/plugins/test-plugin', [{
+				type: HookType.PreToolUse,
+				originalId: 'plugin-pre-tool-use',
+				hooks: [{ type: 'command', command: 'echo from-plugin' }],
+			}]);
+
+			testPluginsObservable.set([plugin], undefined);
+
+			await workspaceTrustService.setWorkspaceTrust(false);
+			const result = await service.getHooks(CancellationToken.None);
+			assert.strictEqual(result, undefined, 'Expected undefined hooks when workspace is untrusted, even with plugin hooks');
 		});
 	});
 });

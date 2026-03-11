@@ -16,7 +16,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { getLanguageIdForPromptsType, PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { getLanguageIdForPromptsType, PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { IUserDataSyncEnablementService, SyncResource } from '../../../../../platform/userDataSync/common/userDataSync.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CONFIGURE_SYNC_COMMAND_ID } from '../../../../services/userDataSync/common/userDataSync.js';
@@ -26,8 +26,8 @@ import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { getCleanPromptName, SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
-import { Target, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { getTarget } from '../../common/promptSyntax/languageProviders/promptValidator.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { getTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
 
 /**
  * Options to override the default folder-picker and editor-open behaviour

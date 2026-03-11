@@ -47,6 +47,7 @@ export class ChatDebugFlowChartView extends Disposable {
 	private readonly content: HTMLElement;
 	private readonly breadcrumbWidget: BreadcrumbsWidget;
 	private readonly filterWidget: FilterWidget;
+	private readonly headerContainer: HTMLElement;
 	private readonly loadDisposables = this._register(new DisposableStore());
 
 	// Pan/zoom state
@@ -116,7 +117,8 @@ export class ChatDebugFlowChartView extends Disposable {
 		}));
 
 		// Header with FilterWidget
-		const headerContainer = DOM.append(this.container, $('.chat-debug-editor-header'));
+		this.headerContainer = DOM.append(this.container, $('.chat-debug-editor-header'));
+		const headerContainer = this.headerContainer;
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(headerContainer));
 		const syncContextKeys = bindFilterContextKeys(this.filterState, scopedContextKeyService);
 		syncContextKeys();
@@ -203,6 +205,10 @@ export class ChatDebugFlowChartView extends Disposable {
 	}
 
 	private load(): void {
+		// Check whether the chart content currently has focus before clearing it,
+		// so we only restore focus if it was taken away by the re-render.
+		const hadFocus = DOM.isAncestorOfActiveElement(this.content);
+
 		DOM.clearNode(this.content);
 		this.loadDisposables.clear();
 		this.updateBreadcrumb();
@@ -269,8 +275,11 @@ export class ChatDebugFlowChartView extends Disposable {
 			this.applyTransform();
 		}
 
-		// Restore focus after re-render (e.g. after collapse toggle)
-		if (this.focusedElementId) {
+		// Restore focus after re-render only when the chart itself had focus
+		// before clearNode removed it (e.g. after collapse toggle). Skip when
+		// focus was elsewhere (detail panel, filter, or outside the chart)
+		// so that new events arriving don't steal focus.
+		if (this.focusedElementId && hadFocus && !DOM.isAncestorOfActiveElement(this.headerContainer)) {
 			this.restoreFocus(this.focusedElementId);
 		}
 	}
@@ -312,12 +321,20 @@ export class ChatDebugFlowChartView extends Disposable {
 
 			switch (e.key) {
 				case 'Tab': {
-					// Navigate between flow chart nodes; allow natural tab-out
-					// when at the boundary so focus can reach the detail panel.
+					// Navigate between flow chart nodes. When at the boundary,
+					// explicitly move focus to the detail panel (forward) or
+					// let it leave the chart (backward). We cannot rely on
+					// natural tab-out because DOM order of SVG elements does
+					// not match the visual sorted order, which would cause
+					// focus to jump to a random chart node instead of leaving.
 					if (this.focusedElementId) {
 						const moved = this.focusAdjacentElement(this.focusedElementId, e.shiftKey ? -1 : 1);
 						if (moved) {
 							e.preventDefault();
+						} else if (!e.shiftKey && this.detailPanel.isVisible) {
+							// Forward Tab at end of chart: move to the detail panel
+							e.preventDefault();
+							this.detailPanel.focus();
 						}
 					} else if (!e.shiftKey) {
 						e.preventDefault();
@@ -349,21 +366,64 @@ export class ChatDebugFlowChartView extends Disposable {
 					}
 					break;
 				case 'ArrowDown':
+					e.preventDefault();
+					if (this.focusedElementId) {
+						this.focusEdgeNeighbor(this.focusedElementId, 'next');
+					} else {
+						this.focusFirstElement();
+					}
+					break;
 				case 'ArrowRight':
 					e.preventDefault();
 					if (this.focusedElementId) {
-						this.focusAdjacentElement(this.focusedElementId, 1);
+						// Expand collapsed subgraph or merged discovery node,
+						// then jump focus to the first revealed child.
+						if (subgraphId && this.collapsedNodeIds.has(subgraphId)) {
+							this.detailPanel.hide();
+							this.collapsedNodeIds.delete(subgraphId);
+							this.focusedElementId = `sg:${subgraphId}`;
+							this.load();
+							this.focusFirstChildOf(`sg:${subgraphId}`);
+						} else if (target.getAttribute?.('data-is-toggle')) {
+							if (!this.expandedMergedIds.has(this.focusedElementId)) {
+								// Expand and jump to the first child
+								this.detailPanel.hide();
+								const mergedId = this.focusedElementId;
+								this.expandedMergedIds.add(mergedId);
+								this.focusedElementId = mergedId;
+								this.load();
+								this.focusFirstChildOf(mergedId);
+							} else {
+								// Already expanded: jump to the first child
+								this.focusFirstChildOf(this.focusedElementId);
+							}
+						}
 					} else {
 						this.focusFirstElement();
 					}
 					break;
 				case 'ArrowUp':
+					e.preventDefault();
+					if (this.focusedElementId) {
+						this.focusEdgeNeighbor(this.focusedElementId, 'prev');
+					} else {
+						this.focusFirstElement();
+					}
+					break;
 				case 'ArrowLeft':
 					e.preventDefault();
 					if (this.focusedElementId) {
-						this.focusAdjacentElement(this.focusedElementId, -1);
-					} else {
-						this.focusFirstElement();
+						// Collapse expanded subgraph or merged discovery node
+						if (subgraphId && !this.collapsedNodeIds.has(subgraphId)) {
+							this.detailPanel.hide();
+							this.toggleSubgraph(subgraphId);
+						} else if (target.getAttribute?.('data-is-toggle') && this.expandedMergedIds.has(this.focusedElementId)) {
+							this.detailPanel.hide();
+							this.toggleMergedDiscovery(this.focusedElementId);
+						} else {
+							// Navigate back to parent (follow edge backward)
+							this.focusEdgeNeighbor(this.focusedElementId, 'prev');
+						}
 					}
 					break;
 				case 'Home':
@@ -450,6 +510,62 @@ export class ChatDebugFlowChartView extends Disposable {
 			return true;
 		}
 		return false;
+	}
+
+	private focusEdgeNeighbor(currentId: string, direction: 'next' | 'prev'): boolean {
+		if (!this.renderResult) {
+			return false;
+		}
+		const entry = this.renderResult.adjacency.get(currentId);
+		const neighbors = entry?.[direction];
+		if (!neighbors || neighbors.length === 0) {
+			return false;
+		}
+		// Focus the first neighbor that has a focusable element
+		for (const id of neighbors) {
+			const el = this.renderResult.focusableElements.get(id);
+			if (el) {
+				(el as SVGElement).focus();
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private focusFirstChildOf(parentId: string): void {
+		if (!this.renderResult) {
+			return;
+		}
+		const entry = this.renderResult.adjacency.get(parentId);
+		if (!entry?.next || entry.next.length === 0) {
+			return;
+		}
+		// Prefer a neighbor positioned to the right of the parent
+		// (expanded child) over one below (next in main flow).
+		const parentPos = this.renderResult.positions.get(parentId);
+		let bestId: string | undefined;
+		for (const id of entry.next) {
+			if (!this.renderResult.focusableElements.has(id)) {
+				continue;
+			}
+			if (!bestId) {
+				bestId = id;
+			}
+			if (parentPos) {
+				const pos = this.renderResult.positions.get(id);
+				if (pos && pos.x > parentPos.x) {
+					bestId = id;
+					break;
+				}
+			}
+		}
+		if (bestId) {
+			const el = this.renderResult.focusableElements.get(bestId);
+			if (el) {
+				this.focusedElementId = bestId;
+				(el as SVGElement).focus();
+			}
+		}
 	}
 
 	private restoreFocus(elementId: string): void {

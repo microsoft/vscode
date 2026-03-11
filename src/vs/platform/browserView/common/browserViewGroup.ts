@@ -5,6 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { CDPEvent, CDPRequest, CDPResponse } from './cdp/types.js';
 
 export const ipcBrowserViewGroupChannelName = 'browserViewGroup';
 
@@ -27,10 +28,11 @@ export interface IBrowserViewGroup extends IDisposable {
 	readonly onDidAddView: Event<IBrowserViewGroupViewEvent>;
 	readonly onDidRemoveView: Event<IBrowserViewGroupViewEvent>;
 	readonly onDidDestroy: Event<void>;
+	readonly onCDPMessage: Event<CDPResponse | CDPEvent>;
 
 	addView(viewId: string): Promise<void>;
 	removeView(viewId: string): Promise<void>;
-	getDebugWebSocketEndpoint(): Promise<string>;
+	sendCDPMessage(msg: CDPRequest): Promise<void>;
 }
 
 /**
@@ -48,12 +50,14 @@ export interface IBrowserViewGroupService {
 	onDynamicDidAddView(groupId: string): Event<IBrowserViewGroupViewEvent>;
 	onDynamicDidRemoveView(groupId: string): Event<IBrowserViewGroupViewEvent>;
 	onDynamicDidDestroy(groupId: string): Event<void>;
+	onDynamicCDPMessage(groupId: string): Event<CDPResponse | CDPEvent>;
 
 	/**
 	 * Create a new browser view group.
+	 * @param windowId The ID of the primary window the group should be associated with.
 	 * @returns The id of the newly created group.
 	 */
-	createGroup(): Promise<string>;
+	createGroup(windowId: number): Promise<string>;
 
 	/**
 	 * Destroy a browser view group.
@@ -78,9 +82,9 @@ export interface IBrowserViewGroupService {
 	removeViewFromGroup(groupId: string, viewId: string): Promise<void>;
 
 	/**
-	 * Get a short-lived CDP WebSocket endpoint URL for a specific group.
-	 * The returned URL contains a single-use token.
+	 * Send a CDP message to a group's browser proxy.
 	 * @param groupId The group identifier.
+	 * @param message The CDP request.
 	 */
-	getDebugWebSocketEndpoint(groupId: string): Promise<string>;
+	sendCDPMessage(groupId: string, message: CDPRequest): Promise<void>;
 }

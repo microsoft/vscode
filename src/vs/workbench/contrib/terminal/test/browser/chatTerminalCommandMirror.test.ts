@@ -202,6 +202,17 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			strictEqual(mirrorText.includes('before'), false);
 		});
 
+		test('disposed start marker does not throw in VT serialization', async () => {
+			const source = await createXterm();
+			await write(source, 'line 1\r\nline 2');
+
+			const startMarker = source.raw.registerMarker(0)!;
+			startMarker.dispose();
+
+			const vt = await source.getRangeAsVT(startMarker, undefined, true);
+			strictEqual(typeof vt, 'string');
+		});
+
 		test('incremental mirroring appends correctly', async () => {
 			const source = await createXterm();
 			const marker = source.raw.registerMarker(0)!;
@@ -261,10 +272,8 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			// Boundary should NOT match because the prefix diverged
 			strictEqual(boundaryMatches, false, 'Boundary check should detect divergence');
 
-			// When boundary doesn't match, the fix does a full reset + rewrite
-			// instead of corrupting the output by blind slicing
-			mirror.raw.reset();
-			await write(mirror, vt2);
+			// Use \x1bc (RIS) + new content in one write to avoid a blank frame
+			await write(mirror, `\x1bc${vt2}`);
 
 			// Final content should be the complete new VT, not corrupted
 			strictEqual(getBufferText(mirror), 'DifferentPrefixLine3');

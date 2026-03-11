@@ -61,6 +61,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		@IChatService private readonly chatService: IChatService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -107,7 +108,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor;
+		return super.capabilities | EditorInputCapabilities.ForceReveal | EditorInputCapabilities.CanDropIntoEditor;
+	}
+
+	override copy(): EditorInput {
+		return this.instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), {});
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
@@ -189,10 +194,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		// TODO@osortega,@rebornix double check: Chat Session Item icon is reserved for chat session list and deprecated for chat session status. thus here we use session type icon. We may want to show status for the Editor Title.
 		const sessionType = this.getSessionType();
 		if (sessionType !== localChatSessionType) {
-			const typeIcon = this.chatSessionsService.getIconForSessionType(sessionType);
-			if (typeIcon) {
-				return typeIcon;
-			}
+			return this.chatSessionsService.getChatSessionContribution(sessionType)?.icon;
 		}
 
 		return undefined;

@@ -196,6 +196,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	private _widget: AgentFeedbackInputWidget | undefined;
 	private _visible = false;
 	private _mouseDown = false;
+	private _suppressSelectionChangeOnce = false;
 	private _sessionResource: URI | undefined;
 	private readonly _widgetListeners = this._store.add(new DisposableStore());
 
@@ -262,10 +263,16 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _onModelChanged(): void {
 		this._hide();
+		this._suppressSelectionChangeOnce = false;
 		this._sessionResource = undefined;
 	}
 
 	private _onSelectionChanged(): void {
+		if (this._suppressSelectionChangeOnce) {
+			this._suppressSelectionChangeOnce = false;
+			return;
+		}
+
 		if (this._mouseDown || !this._editor.hasTextFocus()) {
 			return;
 		}
@@ -342,15 +349,29 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 					return;
 				}
 
+				// Don't capture Escape at this level - let it fall through to the input handler if focused
+				if (e.keyCode === KeyCode.Escape) {
+					this._hide();
+					this._editor.focus();
+					return;
+				}
+
+				// Ctrl+I / Cmd+I explicitly focuses the feedback input
+				if ((e.ctrlKey || e.metaKey) && e.keyCode === KeyCode.KeyI) {
+					e.preventDefault();
+					e.stopPropagation();
+					widget.inputElement.focus();
+					return;
+				}
+
 				// Don't focus if any modifier is held (keyboard shortcuts)
 				if (e.ctrlKey || e.altKey || e.metaKey) {
 					return;
 				}
 
-				// Don't capture Escape at this level - let it fall through to the input handler if focused
-				if (e.keyCode === KeyCode.Escape) {
-					this._hide();
-					this._editor.focus();
+				// Only auto-focus the input on typing when the document is readonly;
+				// when editable the user must click or use Ctrl+I to focus.
+				if (!this._editor.getOption(EditorOption.readOnly)) {
 					return;
 				}
 
@@ -413,6 +434,18 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}));
 	}
 
+	focusInput(): void {
+		if (this._visible && this._widget) {
+			this._widget.inputElement.focus();
+		}
+	}
+
+	private _hideAndRefocusEditor(): void {
+		this._suppressSelectionChangeOnce = true;
+		this._hide();
+		this._editor.focus();
+	}
+
 	private _addFeedback(): boolean {
 		if (!this._widget) {
 			return false;
@@ -430,8 +463,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		this._agentFeedbackService.addFeedback(this._sessionResource, model.uri, selection, text);
-		this._hide();
-		this._editor.focus();
+		this._hideAndRefocusEditor();
 		return true;
 	}
 
@@ -452,8 +484,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		const sessionResource = this._sessionResource;
-		this._hide();
-		this._editor.focus();
+		this._hideAndRefocusEditor();
 		this._agentFeedbackService.addFeedbackAndSubmit(sessionResource, model.uri, selection, text);
 	}
 

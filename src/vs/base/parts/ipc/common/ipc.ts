@@ -1118,7 +1118,7 @@ export namespace ProxyChannel {
 		const mapEventNameToEvent = new Map<string, Event<unknown>>();
 		for (const key in handler) {
 			if (propertyIsEvent(key)) {
-				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, true, undefined, disposables));
+				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, key, true, undefined, disposables));
 			}
 		}
 
@@ -1137,7 +1137,7 @@ export namespace ProxyChannel {
 					}
 
 					if (propertyIsEvent(event)) {
-						mapEventNameToEvent.set(event, Event.buffer(handler[event] as Event<unknown>, true, undefined, disposables));
+						mapEventNameToEvent.set(event, Event.buffer(handler[event] as Event<unknown>, event, true, undefined, disposables));
 
 						return mapEventNameToEvent.get(event) as Event<T>;
 					}
@@ -1209,10 +1209,10 @@ export namespace ProxyChannel {
 					}
 
 					// Function
-					return async function (...args: any[]) {
+					return async function (...args: unknown[]) {
 
 						// Add context if any
-						let methodArgs: any[];
+						let methodArgs: unknown[];
 						if (options && !isUndefinedOrNull(options.context)) {
 							methodArgs = [options.context, ...args];
 						} else {
