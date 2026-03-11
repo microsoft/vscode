@@ -58,6 +58,10 @@ class ErrorTestingSettings {
 	public anonymizedRandomUserFile: string = '<REDACTED: user-file-path>';
 	public nodeModulePathToRetain: string = 'node_modules/path/that/shouldbe/retained/names.js:14:15854';
 	public nodeModuleAsarPathToRetain: string = 'node_modules.asar/path/that/shouldbe/retained/names.js:14:12354';
+	public fullNodeModulePath: string = '/Users/username/projects/vscode/node_modules/@xterm/xterm/lib/xterm.js:1:243732';
+	public anonymizedFullNodeModulePath: string = '<REDACTED: user-file-path>/node_modules/@xterm/xterm/lib/xterm.js:1:243732';
+	public fullNodeModuleAsarPath: string = '/Users/username/projects/vscode/node_modules.asar/@xterm/xterm/lib/xterm.js:1:376066';
+	public anonymizedFullNodeModuleAsarPath: string = '<REDACTED: user-file-path>/node_modules.asar/@xterm/xterm/lib/xterm.js:1:376066';
 	public extensionPathToRetain: string = '.vscode/extensions/ms-python.python-2024.0.1/out/extension.js:144:145516';
 	public fullExtensionPath: string = '/Users/username/.vscode/extensions/ms-python.python-2024.0.1/out/extension.js:144:145516';
 	public anonymizedExtensionPath: string = '<REDACTED: user-file-path>/.vscode/extensions/ms-python.python-2024.0.1/out/extension.js:144:145516';
@@ -90,6 +94,8 @@ class ErrorTestingSettings {
 		`    at t._handleMessage (${this.nodeModuleAsarPathToRetain})`,
 		`    at t._onmessage (/${this.nodeModulePathToRetain})`,
 		`    at t.onmessage (${this.nodeModulePathToRetain})`,
+		`    at get dimensions (${this.fullNodeModulePath})`,
+		`    at _._refreshCanvasDimensions (${this.fullNodeModuleAsarPath})`,
 		`    at uv.provideCodeActions (${this.fullExtensionPath})`,
 		`    at remote.handleConnection (${this.fullServerInsidersExtensionPath})`,
 		`    at git.getRepositoryState (${this.fullBuiltinExtensionPath})`,
@@ -508,6 +514,9 @@ suite('TelemetryService', () => {
 			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModulePathToRetain), -1);
 			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModuleAsarPathToRetain), -1);
 			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModulePathToRetain), -1);
+			// Full absolute paths containing node_modules should preserve the node_modules/... suffix
+			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(settings.anonymizedFullNodeModulePath), -1, 'full node_modules path should be preserved after redaction');
+			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(settings.anonymizedFullNodeModuleAsarPath), -1, 'full node_modules.asar path should be preserved after redaction');
 
 			errorTelemetry.dispose();
 			service.dispose();
