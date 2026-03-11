@@ -212,10 +212,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._register(this._targetPicker.onDidChangeTarget((target) => {
 			this._createNewSession();
 			const isLocal = target === AgentSessionProviders.Background;
+			const isWorktree = this._isolationModePicker.isolationMode === 'worktree';
 			this._isolationModePicker.setVisible(isLocal);
 			this._permissionPicker.setVisible(isLocal);
-			this._branchPicker.setVisible(isLocal);
-			this._syncIndicator.setVisible(isLocal);
+			this._branchPicker.setVisible(isLocal && isWorktree);
+			this._syncIndicator.setVisible(isLocal && isWorktree);
 			this._updateDraftState();
 			this._focusEditor();
 		}));
@@ -314,22 +315,16 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._createBottomToolbar(inputArea);
 		this._inputSlot.appendChild(inputArea);
 
-		// Isolation mode and branch pickers (below the input, shown when Local target is selected)
+		// Isolation mode and permission pickers (below the input, shown when Local target is selected)
 		const isolationContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-local-mode'));
 		this._isolationModePicker.render(isolationContainer);
 		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
 		this._permissionPicker.render(isolationContainer);
-		const branchContainer = dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-right'));
-		this._branchPicker.render(branchContainer);
-		this._syncIndicator.render(branchContainer);
 
 		// Set initial visibility based on default target and isolation mode
 		const isLocal = this._targetPicker.selectedTarget === AgentSessionProviders.Background;
-		const isWorktree = this._isolationModePicker.isolationMode === 'worktree';
 		this._isolationModePicker.setVisible(isLocal);
 		this._permissionPicker.setVisible(isLocal);
-		this._branchPicker.setVisible(isLocal && isWorktree);
-		this._syncIndicator.setVisible(isLocal && isWorktree);
 
 		// Render target buttons & extension pickers
 		this._renderOptionGroupPickers();
@@ -657,13 +652,13 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		this._createAttachButton(toolbar);
 
+		// Mode picker (before model pickers)
+		this._modePicker.render(toolbar);
+		this._modePicker.setVisible(false);
+
 		// Local model picker (EnhancedModelPickerActionItem)
 		this._localModelPickerContainer = dom.append(toolbar, dom.$('.sessions-chat-model-picker'));
 		this._createLocalModelPicker(this._localModelPickerContainer);
-
-		// Local mode picker
-		this._modePicker.render(toolbar);
-		this._modePicker.setVisible(false);
 
 		// Remote model picker (action list dropdown)
 		this._cloudModelPicker.render(toolbar);
@@ -757,10 +752,18 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		const pickersRow = dom.append(this._pickersContainer, dom.$('.chat-full-welcome-pickers'));
 
-		// Left half: target switcher (right-justified within its half)
+		// Left half: target switcher + branch picker + sync indicator (right-justified within its half)
 		const leftHalf = dom.append(pickersRow, dom.$('.sessions-chat-pickers-left-half'));
 		const targetDropdownContainer = dom.append(leftHalf, dom.$('.sessions-chat-dropdown-wrapper'));
 		this._targetPicker.render(targetDropdownContainer);
+
+		// Branch picker and sync indicator next to target picker
+		this._branchPicker.render(leftHalf);
+		this._syncIndicator.render(leftHalf);
+		const isLocal = this._targetPicker.selectedTarget === AgentSessionProviders.Background;
+		const isWorktree = this._isolationModePicker.isolationMode === 'worktree';
+		this._branchPicker.setVisible(isLocal && isWorktree);
+		this._syncIndicator.setVisible(isLocal && isWorktree);
 
 		// Right half: separator + pickers (left-justified within its half)
 		const rightHalf = dom.append(pickersRow, dom.$('.sessions-chat-pickers-right-half'));
