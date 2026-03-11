@@ -290,6 +290,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				carousels.clear();
 			}
 		}));
+
+		// Auto-skip all pending question carousels when auto-reply is enabled mid-session
+		this._register(this.configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.AutoReply) && this.configService.getValue<boolean>(ChatConfiguration.AutoReply)) {
+				for (const [, carousels] of this.pendingQuestionCarousels) {
+					for (const carousel of carousels) {
+						carousel.skip();
+					}
+					carousels.clear();
+				}
+			}
+		}));
 	}
 
 	private _pendingDragController: ChatPendingDragController | undefined;
