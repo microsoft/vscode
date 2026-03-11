@@ -80,7 +80,7 @@ suite('PromptsService', () => {
 		testConfigService.setUserConfiguration(PromptsConfig.USE_NESTED_AGENT_MD, false);
 		testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_REFERENCED_INSTRUCTIONS, true);
 		testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
-		testConfigService.setUserConfiguration(PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS, false);
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, false);
 		testConfigService.setUserConfiguration(PromptsConfig.INSTRUCTIONS_LOCATION_KEY, { [INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.PROMPT_LOCATIONS_KEY, { [PROMPT_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.MODE_LOCATION_KEY, { [LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true });
@@ -2102,7 +2102,7 @@ suite('PromptsService', () => {
 			]);
 
 			testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
-			testConfigService.setUserConfiguration(PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS, false);
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, false);
 
 			// With parent search disabled, should not find parent files
 			let promptFiles = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
@@ -2114,7 +2114,7 @@ suite('PromptsService', () => {
 			assert.ok(!instructionFiles.some(f => f.uri.path.includes(parentFolder)), 'Should not find parent instruction files when parent search is disabled');
 
 			// With parent search enabled, should find parent files
-			testConfigService.setUserConfiguration(PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
 
 			promptFiles = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
 			agentFiles = await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
@@ -2180,7 +2180,7 @@ suite('PromptsService', () => {
 			]);
 
 			testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
-			testConfigService.setUserConfiguration(PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
 
 			// Mark the parent repo root as untrusted
 			workspaceTrustService.getUriTrustInfo = (uri: URI) => {

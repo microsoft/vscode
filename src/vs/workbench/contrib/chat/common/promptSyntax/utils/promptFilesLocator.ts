@@ -402,7 +402,7 @@ export class PromptFilesLocator {
 		const seen = new ResourceSet();
 
 		const userHome = await this.pathService.userHome();
-		const rootFolders = await this.getWorkspaceFolderRoots(this.configService.getValue(PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS) === true);
+		const rootFolders = await this.getWorkspaceFolderRoots(this.configService.getValue(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS) === true);
 
 		// Create a set of default paths for quick lookup
 		const defaultPaths = new Set(defaultLocations?.map(loc => loc.path));
