@@ -1055,7 +1055,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			await this.sessionsManagementService.sendRequestForNewSession(
 				session.resource,
 				{
-					...options?.openNewAfterSend ? { openNewSessionView: true } : {},
 					permissionLevel: this._permissionPicker.permissionLevel,
 				}
 			);
