@@ -675,8 +675,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
 		}));
-		this._register(this.chatSuggestNextWidget.onDidSelectPrompt(({ handoff, agentId }) => {
-			this.handleNextPromptSelection(handoff, agentId);
+		this._register(this.chatSuggestNextWidget.onDidSelectPrompt(({ handoff, agentId, withAutopilot }) => {
+			this.handleNextPromptSelection(handoff, agentId, withAutopilot);
 		}));
 
 		if (renderInputOnTop) {
@@ -1113,9 +1113,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined): IChatViewWelcomeContent {
 		if (this.isLockedToCodingAgent) {
 			// Check for provider-specific customizations from chat sessions service
-			const providerIcon = this._lockedAgent ? this.chatSessionsService.getIconForSessionType(this._lockedAgent.id) : undefined;
-			const providerTitle = this._lockedAgent ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgent.id) : undefined;
-			const providerMessage = this._lockedAgent ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgent.id) : undefined;
+			const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
+			const providerIcon = contribution?.icon;
+			const providerTitle = contribution?.welcomeTitle;
+			const providerMessage = contribution?.welcomeMessage;
 
 			// Fallback to default messages if provider doesn't specify
 			const message = providerMessage
@@ -1205,6 +1206,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const handoffs = responseMode?.handOffs?.get();
 
 		if (responseMode && handoffs && handoffs.length > 0) {
+			// In Autopilot mode, automatically trigger the first auto-send handoff
+			// so the plan flows seamlessly into implementation without user interaction.
+			const permissionLevel = this.inputPart.currentModeInfo.permissionLevel;
+			if (permissionLevel === ChatPermissionLevel.Autopilot) {
+				const autoSendHandoff = handoffs.find(h => h.send);
+				if (autoSendHandoff) {
+					this.handleNextPromptSelection(autoSendHandoff);
+					return;
+				}
+			}
+
 			// Log telemetry only when widget transitions from hidden to visible
 			const wasHidden = this.chatSuggestNextWidget.domNode.style.display === 'none';
 			this.chatSuggestNextWidget.render(responseMode);
@@ -1225,9 +1237,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private handleNextPromptSelection(handoff: IHandOff, agentId?: string): void {
+	private handleNextPromptSelection(handoff: IHandOff, agentId?: string, withAutopilot?: boolean): void {
 		// Hide the widget after selection
 		this.chatSuggestNextWidget.hide();
+
+		// If starting with Autopilot, set permission level before submitting
+		if (withAutopilot) {
+			this.inputPart.setPermissionLevel(ChatPermissionLevel.Autopilot);
+		}
 
 		const promptToUse = handoff.prompt;
 
@@ -1950,7 +1967,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.setViewModel(this.viewModel);
 
 		if (this._lockedAgent) {
-			let placeholder = this.chatSessionsService.getInputPlaceholderForSessionType(this._lockedAgent.id);
+			let placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
 			if (!placeholder) {
 				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.id);
 			}

@@ -110,6 +110,11 @@ export function renderFileWidgets(element: HTMLElement, instantiationService: II
 					linkText
 				};
 				shouldRenderWidget = true;
+
+				// Strip vscodeLinkType from the URI once we've extracted the metadata for better compatibility with different FS
+				searchParams.delete('vscodeLinkType');
+				const remainingQuery = searchParams.toString();
+				uri = uri.with({ query: remainingQuery });
 			}
 		}
 

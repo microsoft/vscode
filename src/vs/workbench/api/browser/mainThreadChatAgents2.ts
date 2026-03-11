@@ -253,7 +253,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						// For new untitled sessions, invoke the controller's newChatSessionItemHandler
 						// to let the extension create a proper session item before the first request.
 						if (isUntitled) {
-							const newItem = await this._chatSessionService.createNewChatSessionItem(getChatSessionType(contributedSession.chatSessionResource), request, token);
+							const newItem = await this._chatSessionService.createNewChatSessionItem(getChatSessionType(contributedSession.chatSessionResource), { prompt: request.message, command: request.command }, token);
 							if (newItem) {
 								chatSessionResource = newItem.resource;
 								isUntitled = false;

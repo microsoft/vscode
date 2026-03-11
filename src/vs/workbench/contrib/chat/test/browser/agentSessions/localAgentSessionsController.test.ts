@@ -137,7 +137,10 @@ suite('LocalAgentsSessionsController', () => {
 	test('should register itself with chat sessions service', async () => {
 		const controller = createController();
 
-		const controllerResults = await mockChatSessionsService.getChatSessionItems(undefined, CancellationToken.None);
+		const controllerResults: { readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }[] = [];
+		for await (const result of mockChatSessionsService.getChatSessionItems(undefined, CancellationToken.None)) {
+			controllerResults.push(result);
+		}
 		assert.strictEqual(controllerResults.length, 1);
 		assert.strictEqual(controllerResults[0].chatSessionType, controller.chatSessionType);
 	});

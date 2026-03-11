@@ -33,7 +33,7 @@ import { EditorTheme } from '../editorTheme.js';
 import * as viewEvents from '../viewEvents.js';
 import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
-import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
+import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
 import { ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
@@ -97,25 +97,13 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		} else {
 			const options = this._configuration.options;
-			const fontInfo = options.get(EditorOption.fontInfo);
-			const wrappingStrategy = options.get(EditorOption.wrappingStrategy);
-			const wrappingInfo = options.get(EditorOption.wrappingInfo);
-			const wrappingIndent = options.get(EditorOption.wrappingIndent);
-			const wordBreak = options.get(EditorOption.wordBreak);
-			const wrapOnEscapedLineFeeds = options.get(EditorOption.wrapOnEscapedLineFeeds);
-
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
 				this.model,
 				domLineBreaksComputerFactory,
 				monospaceLineBreaksComputerFactory,
-				fontInfo,
-				this.model.getOptions().tabSize,
-				wrappingStrategy,
-				wrappingInfo.wrappingColumn,
-				wrappingIndent,
-				wordBreak,
-				wrapOnEscapedLineFeeds
+				options,
+				this.model.getOptions().tabSize
 			);
 		}
 
@@ -184,8 +172,8 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._configuration.options.get(id);
 	}
 
-	public createLineBreaksComputer(): ILineBreaksComputer {
-		return this._lines.createLineBreaksComputer();
+	public createLineBreaksComputer(context?: ILineBreaksComputerContext): ILineBreaksComputer {
+		return this._lines.createLineBreaksComputer(context);
 	}
 
 	public addViewEventHandler(eventHandler: ViewEventHandler): void {
@@ -274,13 +262,8 @@ export class ViewModel extends Disposable implements IViewModel {
 	private _onConfigurationChanged(eventsCollector: ViewModelEventsCollector, e: ConfigurationChangedEvent): void {
 		const stableViewport = this._captureStableViewport();
 		const options = this._configuration.options;
-		const fontInfo = options.get(EditorOption.fontInfo);
-		const wrappingStrategy = options.get(EditorOption.wrappingStrategy);
-		const wrappingInfo = options.get(EditorOption.wrappingInfo);
-		const wrappingIndent = options.get(EditorOption.wrappingIndent);
-		const wordBreak = options.get(EditorOption.wordBreak);
 
-		if (this._lines.setWrappingSettings(fontInfo, wrappingStrategy, wrappingInfo.wrappingColumn, wrappingIndent, wordBreak)) {
+		if (this._lines.setWrappingSettings(e, options)) {
 			eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
@@ -332,22 +315,13 @@ export class ViewModel extends Disposable implements IViewModel {
 			for (const change of changes) {
 				switch (change.changeType) {
 					case textModelEvents.RawContentChangedType.LinesInserted: {
-						for (let lineIdx = 0; lineIdx < change.detail.length; lineIdx++) {
-							const line = change.detail[lineIdx];
-							let injectedText = change.injectedTexts[lineIdx];
-							if (injectedText) {
-								injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
-							}
-							lineBreaksComputer.addRequest(line, injectedText, null);
+						for (let i = 0; i < change.count; i++) {
+							lineBreaksComputer.addRequest(change.fromLineNumberPostEdit + i, null);
 						}
 						break;
 					}
 					case textModelEvents.RawContentChangedType.LineChanged: {
-						let injectedText: textModelEvents.LineInjectedText[] | null = null;
-						if (change.injectedText) {
-							injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
-						}
-						lineBreaksComputer.addRequest(change.detail, injectedText, null);
+						lineBreaksComputer.addRequest(change.lineNumberPostEdit, null);
 						break;
 					}
 				}
@@ -381,7 +355,7 @@ export class ViewModel extends Disposable implements IViewModel {
 						break;
 					}
 					case textModelEvents.RawContentChangedType.LinesInserted: {
-						const insertedLineBreaks = lineBreakQueue.takeCount(change.detail.length);
+						const insertedLineBreaks = lineBreakQueue.takeCount(change.count);
 						const linesInsertedEvent = this._lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLineBreaks);
 						if (linesInsertedEvent !== null) {
 							eventsCollector.emitViewEvent(linesInsertedEvent);
