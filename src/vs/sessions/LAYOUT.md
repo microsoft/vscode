@@ -101,8 +101,9 @@ The Agent Sessions titlebar includes a custom left toolbar that appears after th
 | Action | ID | Location | Behavior |
 |--------|-----|----------|----------|
 | Toggle Sidebar | `workbench.action.agentToggleSidebarVisibility` | Left toolbar (`TitleBarLeft`) | Toggles primary sidebar visibility |
-| Run Script | `workbench.action.agentSessions.runScript` | Right toolbar (`TitleBarRight`) | Split button: runs configured script or shows configure dialog |
-| Open... | (submenu) | Right toolbar (`TitleBarRight`) | Split button submenu: Open Terminal, Open in VS Code |
+| Run Script | `workbench.action.agentSessions.runScript` | Session actions toolbar (`TitleBarSessionMenu`) | Split button: runs configured script or shows configure dialog |
+| Open Terminal | `agentSession.openInTerminal` | Session actions toolbar (`TitleBarSessionMenu`) | Toggle button: opens the terminal panel for the active session, or hides the panel when the terminal view is already visible |
+| Open in VS Code | `chat.openSessionWorktreeInVSCode` | Session actions toolbar (`TitleBarSessionMenu`) | Opens the active background session worktree in a separate VS Code window |
 | Toggle Secondary Sidebar | `workbench.action.agentToggleSecondarySidebarVisibility` | Right toolbar (`TitleBarRight`) | Toggles auxiliary bar visibility |
 
 The toggle sidebar action:
@@ -117,9 +118,14 @@ The Run Script action:
 - Dropdown includes "Configure Run Action..." to set/change the script
 - Registered in `contrib/chat/browser/runScriptAction.ts`
 
-The Open... action:
-- Displayed as a split button via `Menus.OpenSubMenu` on `Menus.TitleBarRight`
-- Contains "Open Terminal" (opens terminal at session worktree) and "Open in VS Code" (opens worktree in new VS Code window)
+The Open Terminal action:
+- Displayed as a titlebar toggle action on `Menus.TitleBarSessionMenu`
+- Ensures a terminal exists for the active session worktree (or the user home directory for non-background sessions) before opening the terminal view
+- Hides the panel when the terminal view is already visible
+
+The Open in VS Code action:
+- Displayed as a titlebar action on `Menus.TitleBarSessionMenu`
+- Opens the active background session worktree in a new VS Code window
 - Registered in `contrib/chat/browser/chat.contribution.ts`
 
 ### 3.5 Panel Title Actions
@@ -640,6 +646,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-03-10 | Updated the titlebar terminal action in the session actions toolbar to be a real toggle button: it now opens and focuses the active session terminal when hidden, and hides the panel when the terminal view is already visible. Updated Section 3.4 to reflect the current `TitleBarSessionMenu` actions (`Run`, `Open Terminal`, `Open in VS Code`). |
 | 2026-03-02 | Fixed macOS sidebar traffic light spacer to only render with custom titlebar; added `!hasNativeTitlebar()` guard to `SidebarPart.createTitleArea()` so the 70px spacer is not created when using native titlebar (traffic lights are in the OS title bar, not overlapping the sidebar) |
 | 2026-02-20 | Replaced custom `EditorModal` with standard `ModalEditorPart` via `MODAL_GROUP`; main editor part created but hidden; changed `workbench.editor.useModal` from boolean to enum (`off`/`some`/`all`); sessions config uses `all`; removed `editorModal.ts` and editor modal CSS |
 | 2026-02-17 | Added `-webkit-app-region: drag` to sidebar title area so it can be used to drag the window; interactive children (actions, composite bar, labels) marked `no-drag`; CSS rules scoped to `.agent-sessions-workbench` in `parts/media/sidebarPart.css` |

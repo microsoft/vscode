@@ -21,6 +21,8 @@ import { IActiveSessionItem, ISessionsManagementService } from '../../../session
 import { SessionsTerminalContribution } from '../../browser/sessionsTerminalContribution.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 
 const HOME_DIR = URI.file('/home/user');
 
@@ -79,6 +81,7 @@ function addCommandToInstance(instance: ITerminalInstance, timestamp: number): v
 suite('SessionsTerminalContribution', () => {
 	const store = new DisposableStore();
 	let contribution: SessionsTerminalContribution;
+	let instantiationService: TestInstantiationService;
 	let activeSessionObs: ReturnType<typeof observableValue<IActiveSessionItem | undefined>>;
 	let onDidChangeSessionArchivedState: Emitter<IAgentSession>;
 
@@ -91,6 +94,9 @@ suite('SessionsTerminalContribution', () => {
 	let backgroundedInstances: Set<number>;
 	let moveToBackgroundCalls: number[];
 	let showBackgroundCalls: number[];
+	let openViewCalls: string[];
+	let hiddenParts: Parts[];
+	let terminalViewVisible: boolean;
 
 	setup(() => {
 		createdTerminals = [];
@@ -102,8 +108,11 @@ suite('SessionsTerminalContribution', () => {
 		backgroundedInstances = new Set();
 		moveToBackgroundCalls = [];
 		showBackgroundCalls = [];
+		openViewCalls = [];
+		hiddenParts = [];
+		terminalViewVisible = false;
 
-		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService = store.add(new TestInstantiationService());
 
 		activeSessionObs = observableValue('activeSession', undefined);
 		onDidChangeSessionArchivedState = store.add(new Emitter<IAgentSession>());
@@ -162,6 +171,27 @@ suite('SessionsTerminalContribution', () => {
 		});
 
 		instantiationService.stub(IPathService, new TestPathService(HOME_DIR));
+
+		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+			override isViewVisible(id: string): boolean {
+				return id === 'terminal' ? terminalViewVisible : false;
+			}
+			override async openView(id: string): Promise<null> {
+				openViewCalls.push(id);
+				if (id === 'terminal') {
+					terminalViewVisible = true;
+				}
+				return null;
+			}
+		});
+
+		instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override setPartHidden(hidden: boolean, part: Parts): void {
+				if (hidden) {
+					hiddenParts.push(part);
+				}
+			}
+		});
 
 		contribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
 	});
@@ -313,6 +343,29 @@ suite('SessionsTerminalContribution', () => {
 		await contribution.ensureTerminal(URI.file('/test/cwd'), false);
 
 		assert.strictEqual(createdTerminals.length, 1, 'should match case-insensitively');
+	});
+
+	// --- toggle action behavior ---
+
+	test('toggle opens the terminal view and focuses the ensured terminal when hidden', async () => {
+		await contribution.toggle(instantiationService);
+
+		assert.strictEqual(createdTerminals.length, 1);
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, HOME_DIR.fsPath);
+		assert.strictEqual(focusCalls, 1);
+		assert.deepStrictEqual(openViewCalls, ['terminal']);
+		assert.deepStrictEqual(hiddenParts, []);
+	});
+
+	test('toggle hides the panel when the terminal view is already visible', async () => {
+		terminalViewVisible = true;
+
+		await contribution.toggle(instantiationService);
+
+		assert.strictEqual(createdTerminals.length, 0);
+		assert.strictEqual(focusCalls, 0);
+		assert.deepStrictEqual(openViewCalls, []);
+		assert.deepStrictEqual(hiddenParts, [Parts.PANEL_PART]);
 	});
 
 	// --- onDidChangeSessionArchivedState ---
