@@ -658,7 +658,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// a confirmation that may block unattended runs.
 		if (isSessionAutoApproved && deniedAnalyzerResult?.denialDetails && context.forceConfirmationReason === undefined) {
 			const denial = deniedAnalyzerResult.denialDetails;
-			const deniedRule = denial.ruleSourceText ? ` Rule: \`${denial.ruleSourceText}\`.` : '';
+			const deniedRule = denial.ruleSourceText
+				? localize('runInTerminal.policyDeniedRule', ' Rule: `{0}`.', denial.ruleSourceText)
+				: '';
 			const deniedAttempts = this._recordDeniedCommandAttempt(chatSessionResource!, denial);
 			const shouldCircuitBreak = deniedAttempts >= deniedCommandCircuitBreakerThreshold;
 			toolSpecificData.alternativeRecommendation = shouldCircuitBreak
