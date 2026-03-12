@@ -278,4 +278,35 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.strictEqual(activeItemsFromEvent.length, 0);
 		assert.strictEqual(quickpick.activeItems.length, 0);
 	});
+
+	test('switching from hidden input to visible input focuses the quick pick input without selecting the full value #167266', () => {
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.items = [{ label: 'step 1' }];
+		quickpick.value = '>test';
+		quickpick.hideInput = true;
+		quickpick.show();
+
+		const input = mainWindow.document.querySelector('.quick-input-box input') as HTMLInputElement | null;
+		assert.ok(input);
+		assert.notStrictEqual(mainWindow.document.activeElement, input);
+
+		let selectCalls = 0;
+		const originalSelect = input.select.bind(input);
+		input.select = () => {
+			selectCalls++;
+			return originalSelect();
+		};
+
+		try {
+			quickpick.hideInput = false;
+			quickpick.valueSelection = [1, quickpick.value.length];
+
+			assert.strictEqual(mainWindow.document.activeElement, input);
+			assert.strictEqual(input.selectionStart, 1);
+			assert.strictEqual(input.selectionEnd, quickpick.value.length);
+			assert.strictEqual(selectCalls, 0);
+		} finally {
+			input.select = originalSelect;
+		}
+	});
 });
