@@ -8,6 +8,7 @@ import './media/variationA.css';
 import './media/variationB.css';
 import './media/variationC.css';
 import './media/variationD.css';
+import './media/variationE.css';
 
 import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -18,6 +19,7 @@ import { OnboardingVariationA } from './onboardingVariationA.js';
 import { OnboardingVariationB } from './onboardingVariationB.js';
 import { OnboardingVariationC } from './onboardingVariationC.js';
 import { OnboardingVariationD } from './onboardingVariationD.js';
+import { OnboardingVariationE } from './onboardingVariationE.js';
 
 const category = localize2('welcome', "Welcome");
 
@@ -156,5 +158,29 @@ registerAction2(class extends Action2 {
 			}
 		};
 		activeWinD.document.addEventListener('keydown', handler);
+	}
+});
+
+// =========================================================================
+// Variation E — In-Context UI Tour
+// =========================================================================
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.welcomeOnboardingE',
+			title: localize2('welcomeOnboardingE', "Welcome Onboarding: Variation E (UI Tour)"),
+			category,
+			f1: true,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const instantiationService = accessor.get(IInstantiationService);
+		const variationE = instantiationService.createInstance(OnboardingVariationE);
+		variationE.show();
+
+		variationE.onDidComplete(() => {
+			variationE.dispose();
+		});
 	}
 });
