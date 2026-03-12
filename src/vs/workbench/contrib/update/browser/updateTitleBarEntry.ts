@@ -20,6 +20,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { DisablementReason, IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 import { computeProgressPercent, isMajorMinorVersionChange } from '../common/updateUtils.js';
 import './media/updateTitleBarEntry.css';
 import { UpdateTooltip } from './updateTooltip.js';
@@ -27,6 +28,7 @@ import { UpdateTooltip } from './updateTooltip.js';
 const UPDATE_TITLE_BAR_ACTION_ID = 'workbench.actions.updateIndicator';
 const UPDATE_TITLE_BAR_CONTEXT = new RawContextKey<boolean>('updateTitleBar', false);
 const ACTIONABLE_STATES: readonly StateType[] = [StateType.AvailableForDownload, StateType.Downloaded, StateType.Ready];
+const DETAILED_STATES: readonly StateType[] = [...ACTIONABLE_STATES, StateType.CheckingForUpdates, StateType.Downloading, StateType.Updating, StateType.Overwriting];
 
 registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 	constructor() {
@@ -51,8 +53,9 @@ registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 export class UpdateTitleBarContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHostService private readonly hostService: IHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 		@IUpdateService updateService: IUpdateService,
@@ -64,11 +67,23 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		}
 
 		const context = UPDATE_TITLE_BAR_CONTEXT.bindTo(contextKeyService);
-
 		const updateContext = () => {
-			const mode = configurationService.getValue<string>('update.titleBar');
+			const mode = this.configurationService.getValue<string>('update.titleBar');
 			const state = updateService.state.type;
-			context.set(mode === 'detailed' || mode === 'actionable' && ACTIONABLE_STATES.includes(state));
+			switch (mode) {
+				case 'always':
+					context.set(true);
+					break;
+				case 'detailed':
+					context.set(DETAILED_STATES.includes(state));
+					break;
+				case 'actionable':
+					context.set(ACTIONABLE_STATES.includes(state));
+					break;
+				default:
+					context.set(false);
+					break;
+			}
 		};
 
 		let entry: UpdateTitleBarEntry | undefined;
@@ -84,9 +99,8 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			}
 		));
 
-		const onStateChange = () => {
-			const mode = configurationService.getValue<string>('update.titleBar');
-			if (mode !== 'none' && this.shouldShowTooltip(updateService.state)) {
+		const onStateChange = async () => {
+			if (await this.shouldShowTooltip(updateService.state)) {
 				if (context.get()) {
 					entry?.showTooltip();
 				} else {
@@ -99,7 +113,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		};
 
 		this._register(updateService.onStateChange(onStateChange));
-		this._register(configurationService.onDidChangeConfiguration(e => {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('update.titleBar')) {
 				updateContext();
 			}
@@ -108,7 +122,16 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		onStateChange();
 	}
 
-	private shouldShowTooltip(state: State): boolean {
+	private async shouldShowTooltip(state: State): Promise<boolean> {
+		const mode = this.configurationService.getValue<string>('update.titleBar');
+		if (mode === 'none') {
+			return false;
+		}
+
+		if (!await this.hostService.hadLastFocus()) {
+			return false;
+		}
+
 		switch (state.type) {
 			case StateType.Disabled:
 				return state.reason === DisablementReason.InvalidConfiguration || state.reason === DisablementReason.RunningAsAdmin;
