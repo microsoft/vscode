@@ -32,7 +32,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { createActionViewItem, getContextMenuActions, getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IAICustomizationWorkspaceService, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
@@ -607,13 +607,13 @@ export class AICustomizationListWidget extends Disposable {
 			storage: item.storage,
 		};
 
-		// Get menu actions
+		// Get menu actions, excluding inline actions to avoid duplicates
 		const actions = this.menuService.getMenuActions(AICustomizationManagementItemMenuId, this.contextKeyService, {
 			arg: context,
 			shouldForwardArgs: true,
 		});
 
-		const flatActions = getFlatContextMenuActions(actions);
+		const { secondary } = getContextMenuActions(actions, 'inline');
 
 		// Add copy path actions
 		const copyActions = [
@@ -636,7 +636,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => [...flatActions, ...copyActions],
+			getActions: () => [...secondary, ...copyActions],
 		});
 	}
 

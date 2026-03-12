@@ -98,13 +98,17 @@ registerAction2(class extends Action2 {
 		const uri = extractURI(context);
 		const name = typeof context === 'object' && !URI.isUri(context) ? (context as { name?: string }).name ?? '' : '';
 
+		if (uri.scheme !== 'file') {
+			return;
+		}
+
 		const confirmation = await dialogService.confirm({
 			message: localize('confirmDelete', "Are you sure you want to delete '{0}'?", name || uri.path),
 			primaryButton: localize('delete', "Delete"),
 		});
 
 		if (confirmation.confirmed) {
-			await fileService.del(uri);
+			await fileService.del(uri, { useTrash: true, recursive: true });
 		}
 	}
 });
@@ -122,7 +126,8 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, context: URIContext): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 		const uri = extractURI(context);
-		await clipboardService.writeText(uri.fsPath);
+		const textToCopy = uri.scheme === 'file' ? uri.fsPath : uri.toString(true);
+		await clipboardService.writeText(textToCopy);
 	}
 });
 

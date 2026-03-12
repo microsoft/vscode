@@ -284,7 +284,8 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 		const uri = extractURI(context);
-		await clipboardService.writeText(uri.fsPath);
+		const textToCopy = uri.scheme === 'file' ? uri.fsPath : uri.toString(true);
+		await clipboardService.writeText(textToCopy);
 	}
 });
 

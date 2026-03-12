@@ -249,6 +249,7 @@ class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileI
 			uri: item.uri.toString(),
 			name: item.name,
 			promptType: item.promptType,
+			storage: item.storage,
 		};
 
 		// Create scoped context key service with item type for when-clause filtering
