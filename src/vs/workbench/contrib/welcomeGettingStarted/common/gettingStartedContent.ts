@@ -225,12 +225,12 @@ export const startEntries: GettingStartedStartEntryContent = [
 const Button = (title: string, href: string) => `[${title}](${href})`;
 
 const CopilotStepTitle = localize('gettingStarted.copilotSetup.title', "Sign in to unlock AI features");
-const CopilotDescription = localize({ key: 'gettingStarted.copilotSetup.description', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "Sign in to access [Copilot]({0}) — your AI pair programmer. Build with autonomous agents, use worktrees for parallel development, connect to cloud environments, and harness the latest AI models including Claude.", defaultChat.documentationUrl ?? '');
+const CopilotDescription = localize({ key: 'gettingStarted.copilotSetup.description', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "Sign in to start using [Copilot]({0}), your AI coding assistant. Get help writing code, fixing bugs, and building projects faster — all from a simple chat.", defaultChat.documentationUrl ?? '');
 const CopilotTermsString = localize({ key: 'gettingStarted.copilotSetup.terms', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
 const CopilotAnonymousButton = Button(localize('setupCopilotButton.signIn', "Sign In"), `command:workbench.action.chat.triggerSetupAnonymousWithoutDialog`);
 const CopilotSignedOutButton = Button(localize('setupCopilotButton.signIn', "Sign In"), `command:workbench.action.chat.triggerSetup`);
 const CopilotSignedInButton = Button(localize('setupCopilotButton.signIn', "Sign In"), `command:workbench.action.chat.triggerSetup`);
-const CopilotCompleteButton = Button(localize('setupCopilotButton.chatWithCopilot', "Start to Chat"), 'command:workbench.action.chat.open');
+const CopilotCompleteButton = Button(localize('setupCopilotButton.signIn', "Sign In"), 'command:workbench.action.chat.open');
 
 function createCopilotSetupStep(id: string, button: string, when: string, includeTerms: boolean): BuiltinGettingStartedStep {
 	const description = includeTerms ?
