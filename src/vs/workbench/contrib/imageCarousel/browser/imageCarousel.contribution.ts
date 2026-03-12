@@ -84,21 +84,9 @@ class OpenImageInCarouselAction extends Action2 {
 				const collection = await carouselService.extractImagesFromResponse(responses[i]);
 				if (collection && collection.sections.length > 0) {
 					// Only use this collection if it actually contains the clicked image
-					let startIndex = 0;
-					let found = false;
-					for (const section of collection.sections) {
-						for (const img of section.images) {
-							if (img.data.equals(clickedData)) {
-								found = true;
-								break;
-							}
-							startIndex++;
-						}
-						if (found) {
-							break;
-						}
-					}
-					if (found) {
+					const allImages = collection.sections.flatMap(s => s.images);
+					const startIndex = allImages.findIndex(img => img.data.equals(clickedData));
+					if (startIndex !== -1) {
 						const input = new ImageCarouselEditorInput(collection, startIndex);
 						await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
 						return;

@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICarouselImage, IImageCarouselCollection } from './imageCarouselTypes.js';
-import { IChatResponseViewModel, isRequestVM } from '../../chat/common/model/chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../chat/common/model/chatViewModel.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from '../../chat/common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, IToolResultOutputDetails } from '../../chat/common/tools/languageModelToolsService.js';
 
@@ -41,8 +41,8 @@ export class ImageCarouselService extends Disposable implements IImageCarouselSe
 		}
 
 		// Use the corresponding user request as the carousel title
-		const request = response.session.getItems().find(item => isRequestVM(item) && item.id === response.requestId);
-		const title = request && isRequestVM(request) ? request.messageText : localize('imageCarousel.title', "Image Carousel");
+		const request = response.session.getItems().find((item): item is IChatRequestViewModel => isRequestVM(item) && item.id === response.requestId);
+		const title = request ? request.messageText : localize('imageCarousel.title', "Image Carousel");
 
 		return {
 			id: response.sessionResource.toString() + '_' + response.id,
@@ -60,7 +60,7 @@ export class ImageCarouselService extends Disposable implements IImageCarouselSe
 		const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 
 		const msg = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
-		const caption = typeof msg === 'string' ? msg : msg.value;
+		const caption = msg ? (typeof msg === 'string' ? msg : msg.value) : undefined;
 		const pushImage = (mimeType: string, data: VSBuffer) => {
 			images.push({
 				id: `${toolInvocation.toolCallId}_${images.length}`,
