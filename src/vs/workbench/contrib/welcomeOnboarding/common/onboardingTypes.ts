@@ -26,6 +26,7 @@ export const enum OnboardingVariation {
 export const enum OnboardingStepId {
 	SignIn = 'onboarding.signIn',
 	Personalize = 'onboarding.personalize',
+	Extensions = 'onboarding.extensions',
 	AgentSessions = 'onboarding.agentSessions',
 }
 
@@ -38,6 +39,8 @@ export function getOnboardingStepTitle(stepId: OnboardingStepId): string {
 			return localize('onboarding.step.signIn', "Sign In");
 		case OnboardingStepId.Personalize:
 			return localize('onboarding.step.personalize', "Make It Yours");
+		case OnboardingStepId.Extensions:
+			return localize('onboarding.step.extensions', "Supercharge Your Editor");
 		case OnboardingStepId.AgentSessions:
 			return localize('onboarding.step.agentSessions', "Meet Your AI Coding Partner");
 	}
@@ -51,7 +54,9 @@ export function getOnboardingStepSubtitle(stepId: OnboardingStepId): string {
 		case OnboardingStepId.SignIn:
 			return localize('onboarding.step.signIn.subtitle', "Sync settings, unlock AI features, and connect to GitHub");
 		case OnboardingStepId.Personalize:
-			return localize('onboarding.step.personalize.subtitle', "Choose your theme and keyboard shortcuts");
+			return localize('onboarding.step.personalize.subtitle', "Choose your theme and keyboard mapping");
+		case OnboardingStepId.Extensions:
+			return localize('onboarding.step.extensions.subtitle', "Install popular extensions to enhance your workflow");
 		case OnboardingStepId.AgentSessions:
 			return localize('onboarding.step.agentSessions.subtitle', "Code with an AI agent that runs in the background — locally, in the cloud, or both");
 	}
@@ -64,6 +69,7 @@ export function getOnboardingStepSubtitle(stepId: OnboardingStepId): string {
 export const ONBOARDING_STEPS: readonly OnboardingStepId[] = [
 	OnboardingStepId.SignIn,
 	OnboardingStepId.Personalize,
+	OnboardingStepId.Extensions,
 	OnboardingStepId.AgentSessions,
 ];
 
@@ -95,6 +101,7 @@ export interface IOnboardingKeymapOption {
 	readonly label: string;
 	readonly extensionId: string | undefined;
 	readonly description: string;
+	readonly icon: string;
 }
 
 /**
@@ -175,37 +182,43 @@ export const ONBOARDING_KEYMAP_OPTIONS: readonly IOnboardingKeymapOption[] = [
 		id: 'vscode',
 		label: localize('onboarding.keymap.vscode', "VS Code"),
 		extensionId: undefined,
-		description: localize('onboarding.keymap.vscode.desc', "Default keyboard shortcuts"),
+		description: localize('onboarding.keymap.vscode.desc', "Default keyboard mapping"),
+		icon: 'code',
 	},
 	{
 		id: 'cursor',
 		label: localize('onboarding.keymap.cursor', "Cursor"),
 		extensionId: 'AntFu.cursor-keymaps',
-		description: localize('onboarding.keymap.cursor.desc', "Keyboard shortcuts from Cursor"),
+		description: localize('onboarding.keymap.cursor.desc', "Keyboard mapping from Cursor"),
+		icon: 'edit',
 	},
 	{
 		id: 'windsurf',
 		label: localize('onboarding.keymap.windsurf', "Windsurf"),
 		extensionId: 'codeium.windsurf-keybindings',
-		description: localize('onboarding.keymap.windsurf.desc', "Keyboard shortcuts from Windsurf"),
+		description: localize('onboarding.keymap.windsurf.desc', "Keyboard mapping from Windsurf"),
+		icon: 'cloud',
 	},
 	{
 		id: 'sublime',
 		label: localize('onboarding.keymap.sublime', "Sublime Text"),
 		extensionId: 'ms-vscode.sublime-keybindings',
-		description: localize('onboarding.keymap.sublime.desc', "Keyboard shortcuts from Sublime Text"),
+		description: localize('onboarding.keymap.sublime.desc', "Keyboard mapping from Sublime Text"),
+		icon: 'file-code',
 	},
 	{
 		id: 'intellij',
 		label: localize('onboarding.keymap.intellij', "IntelliJ / JetBrains"),
 		extensionId: 'k--kato.intellij-idea-keybindings',
-		description: localize('onboarding.keymap.intellij.desc', "Keyboard shortcuts from IntelliJ IDEA"),
+		description: localize('onboarding.keymap.intellij.desc', "Keyboard mapping from IntelliJ IDEA"),
+		icon: 'coffee',
 	},
 	{
 		id: 'vim',
 		label: localize('onboarding.keymap.vim', "Vim"),
 		extensionId: 'vscodevim.vim',
 		description: localize('onboarding.keymap.vim.desc', "Vim modal editing"),
+		icon: 'terminal',
 	},
 ];
 
@@ -279,3 +292,55 @@ export const PROJECT_STARTER_CARDS: readonly IProjectStarterCard[] = [
  * Storage key for persisting onboarding completion state.
  */
 export const ONBOARDING_STORAGE_KEY = 'welcomeOnboarding.state';
+
+/**
+ * Recommended extension for the Extensions step.
+ */
+export interface IOnboardingExtension {
+	readonly id: string;
+	readonly name: string;
+	readonly publisher: string;
+	readonly description: string;
+	readonly icon: string;
+}
+
+/**
+ * Top recommended extensions shown in the Extensions step.
+ */
+export const ONBOARDING_RECOMMENDED_EXTENSIONS: readonly IOnboardingExtension[] = [
+	{
+		id: 'esbenp.prettier-vscode',
+		name: localize('ext.prettier', "Prettier"),
+		publisher: 'Prettier',
+		description: localize('ext.prettier.desc', "Code formatter for JavaScript, TypeScript, CSS, and more"),
+		icon: 'wand',
+	},
+	{
+		id: 'dbaeumer.vscode-eslint',
+		name: localize('ext.eslint', "ESLint"),
+		publisher: 'Microsoft',
+		description: localize('ext.eslint.desc', "Find and fix problems in your JavaScript code"),
+		icon: 'lightbulb',
+	},
+	{
+		id: 'ms-python.python',
+		name: localize('ext.python', "Python"),
+		publisher: 'Microsoft',
+		description: localize('ext.python.desc', "Rich Python language support with IntelliSense and debugging"),
+		icon: 'symbol-misc',
+	},
+	{
+		id: 'eamodio.gitlens',
+		name: localize('ext.gitlens', "GitLens"),
+		publisher: 'GitKraken',
+		description: localize('ext.gitlens.desc', "Supercharge Git — visualize history, blame, and more"),
+		icon: 'git-merge',
+	},
+	{
+		id: 'ms-vscode.live-server',
+		name: localize('ext.livePreview', "Live Preview"),
+		publisher: 'Microsoft',
+		description: localize('ext.livePreview.desc', "Preview HTML files with live reload in the editor"),
+		icon: 'open-preview',
+	},
+];

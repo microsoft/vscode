@@ -23,6 +23,7 @@ import {
 	ONBOARDING_STEPS,
 	ONBOARDING_THEME_OPTIONS,
 	ONBOARDING_KEYMAP_OPTIONS,
+	ONBOARDING_RECOMMENDED_EXTENSIONS,
 	IOnboardingThemeOption,
 	getOnboardingStepTitle,
 	getOnboardingStepSubtitle,
@@ -246,6 +247,9 @@ export class OnboardingVariationB extends Disposable {
 			case OnboardingStepId.Personalize:
 				this._renderPersonalizeStep(this.bodyEl);
 				break;
+			case OnboardingStepId.Extensions:
+				this._renderExtensionsStep(this.bodyEl);
+				break;
 			case OnboardingStepId.AgentSessions:
 				this._renderAgentSessionsStep(this.bodyEl);
 				break;
@@ -462,6 +466,44 @@ export class OnboardingVariationB extends Disposable {
 				severity: Severity.Warning,
 				message: localize('onboarding.b.keymap.error', "Could not install {0} keymap.", keymap.label),
 			});
+		}
+	}
+
+	// =====================================================================
+	// Step: Extensions
+	// =====================================================================
+
+	private _renderExtensionsStep(container: HTMLElement): void {
+		const wrapper = append(container, $('div.onboarding-b-sessions'));
+
+		for (const ext of ONBOARDING_RECOMMENDED_EXTENSIONS) {
+			const row = append(wrapper, $('div.onboarding-b-feature-row'));
+			row.appendChild(renderIcon(this._getExtIcon(ext.icon)));
+			const textContainer = append(row, $('div.onboarding-b-feature-text'));
+			const titleEl = append(textContainer, $('div.onboarding-b-feature-title'));
+			titleEl.textContent = ext.name;
+			const descEl = append(textContainer, $('div.onboarding-b-feature-desc'));
+			descEl.textContent = ext.description;
+
+			const installBtn = append(row, $<HTMLButtonElement>('button.onboarding-a-ext-install'));
+			installBtn.type = 'button';
+			installBtn.textContent = localize('onboarding.b.ext.install', "Install");
+			this.stepDisposables.add(addDisposableListener(installBtn, EventType.CLICK, () => {
+				installBtn.textContent = localize('onboarding.b.ext.installed', "Installed");
+				installBtn.disabled = true;
+				installBtn.classList.add('installed');
+			}));
+		}
+	}
+
+	private _getExtIcon(iconName: string): ThemeIcon {
+		switch (iconName) {
+			case 'wand': return Codicon.wand;
+			case 'lightbulb': return Codicon.lightbulb;
+			case 'symbol-misc': return Codicon.symbolMisc;
+			case 'git-merge': return Codicon.gitMerge;
+			case 'open-preview': return Codicon.openPreview;
+			default: return Codicon.extensions;
 		}
 	}
 

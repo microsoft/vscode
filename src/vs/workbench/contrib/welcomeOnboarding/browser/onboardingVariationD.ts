@@ -20,6 +20,7 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import {
 	ONBOARDING_THEME_OPTIONS,
 	ONBOARDING_KEYMAP_OPTIONS,
+	ONBOARDING_RECOMMENDED_EXTENSIONS,
 	IOnboardingThemeOption,
 } from '../common/onboardingTypes.js';
 
@@ -31,8 +32,9 @@ const enum AgentPhase {
 	SignIn = 1,
 	Theme = 2,
 	Keymap = 3,
-	Sessions = 4,
-	Complete = 5,
+	Extensions = 4,
+	Sessions = 5,
+	Complete = 6,
 }
 
 
@@ -98,7 +100,7 @@ export class OnboardingVariationD extends Disposable {
 
 		this.sendBtn = append(inputRow, $<HTMLButtonElement>('button.onboarding-d-send-btn'));
 		this.sendBtn.type = 'button';
-		this.sendBtn.appendChild(renderIcon(Codicon.send));
+		this.sendBtn.appendChild(renderIcon(Codicon.arrowUp));
 		this.sendBtn.setAttribute('aria-label', localize('onboarding.d.send', "Send"));
 
 		// Handle send
@@ -156,6 +158,9 @@ export class OnboardingVariationD extends Disposable {
 				break;
 			case AgentPhase.Keymap:
 				this._showKeymap();
+				break;
+			case AgentPhase.Extensions:
+				this._showExtensions();
 				break;
 			case AgentPhase.Sessions:
 				this._showSessions();
@@ -336,16 +341,60 @@ export class OnboardingVariationD extends Disposable {
 				pill.classList.add('selected');
 
 				this._addSuccessIndicator(actions, localize('onboarding.d.keymap.applied', "Set to {0}", keymap.label));
-				this._addMessage('user', localize('onboarding.d.keymap.userReply', "{0} shortcuts, please.", keymap.label));
-				this.phase = AgentPhase.Sessions;
-				setTimeout(() => this._runPhase(AgentPhase.Sessions), 600);
+				this._addMessage('user', localize('onboarding.d.keymap.userReply', "{0} keyboard mapping, please.", keymap.label));
+				this.phase = AgentPhase.Extensions;
+				setTimeout(() => this._runPhase(AgentPhase.Extensions), 600);
 			}));
 		}
 
 		this._addAssistantMessage(
-			localize('onboarding.d.keymap.text', "Great choice! What keyboard shortcuts do you prefer? If you're coming from another editor, pick its keymap to feel right at home."),
+			localize('onboarding.d.keymap.text', "Great choice! What keyboard mapping do you prefer? If you are coming from another editor, pick its keymap to feel right at home."),
 			actions
 		);
+	}
+
+	private _showExtensions(): void {
+		const actions = this._createActions();
+
+		const extList = append(actions, $('div.onboarding-d-feature-list'));
+
+		for (const ext of ONBOARDING_RECOMMENDED_EXTENSIONS) {
+			const item = append(extList, $('div.onboarding-d-feature-item'));
+			item.appendChild(renderIcon(this._getExtIcon(ext.icon)));
+			const text = append(item, $('span'));
+			text.textContent = `${ext.name} — ${ext.description}`;
+		}
+
+		const installBtn = this._addActionButton(actions, Codicon.cloudDownload, localize('onboarding.d.ext.installAll', "Install All"));
+		this.messageDisposables.add(addDisposableListener(installBtn, EventType.CLICK, () => {
+			this._addSuccessIndicator(actions, localize('onboarding.d.ext.done', "Extensions queued for install"));
+			this._addMessage('user', localize('onboarding.d.ext.userReply', "Install them all!"));
+			this.phase = AgentPhase.Sessions;
+			setTimeout(() => this._runPhase(AgentPhase.Sessions), 600);
+		}));
+
+		const skipBtn = this._addActionButton(actions, Codicon.arrowRight, localize('onboarding.d.ext.skip', "Skip for now"));
+		this.messageDisposables.add(addDisposableListener(skipBtn, EventType.CLICK, () => {
+			this._addMessage('user', localize('onboarding.d.ext.skipReply', "I will browse extensions later."));
+			this.phase = AgentPhase.Sessions;
+			setTimeout(() => this._runPhase(AgentPhase.Sessions), 600);
+		}));
+
+		this._addAssistantMessage(
+			localize('onboarding.d.ext.text', "Here are some popular extensions to supercharge your editor. Want me to install them?"),
+			actions
+		);
+	}
+
+	private _getExtIcon(iconName: string): ThemeIcon {
+		switch (iconName) {
+			case 'wand': return Codicon.wand;
+			case 'lightbulb': return Codicon.lightbulb;
+			case 'symbol-misc': return Codicon.symbolMisc;
+			case 'git-merge': return Codicon.gitMerge;
+			case 'open-preview': return Codicon.openPreview;
+			default: return Codicon.extensions;
+		}
 	}
 
 	private _showSessions(): void {

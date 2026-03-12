@@ -23,6 +23,7 @@ import {
 	ONBOARDING_STEPS,
 	ONBOARDING_THEME_OPTIONS,
 	ONBOARDING_KEYMAP_OPTIONS,
+	ONBOARDING_RECOMMENDED_EXTENSIONS,
 	IOnboardingThemeOption,
 	getOnboardingStepTitle,
 	getOnboardingStepSubtitle,
@@ -273,6 +274,9 @@ export class OnboardingVariationA extends Disposable {
 			case OnboardingStepId.Personalize:
 				this._renderPersonalizeStep(this.contentEl);
 				break;
+			case OnboardingStepId.Extensions:
+				this._renderExtensionsStep(this.contentEl);
+				break;
 			case OnboardingStepId.AgentSessions:
 				this._renderAgentSessionsStep(this.contentEl);
 				break;
@@ -308,21 +312,46 @@ export class OnboardingVariationA extends Disposable {
 	private _renderSignInStep(container: HTMLElement): void {
 		const wrapper = append(container, $('.onboarding-a-signin'));
 
-		// GitHub button
+		// Primary CTA: Continue with GitHub
 		const githubBtn = this._createSignInButton(wrapper, Codicon.github, localize('onboarding.signIn.github', "Continue with GitHub"));
+		githubBtn.classList.add('primary');
 		this.stepDisposables.add(addDisposableListener(githubBtn, EventType.CLICK, () => {
 			this._handleSignIn('github', ['user:email']);
 		}));
 
-		// Microsoft button
-		const msBtn = this._createSignInButton(wrapper, Codicon.account, localize('onboarding.signIn.microsoft', "Continue with Microsoft"));
+		// Divider
+		const divider = append(wrapper, $('span.onboarding-a-signin-divider'));
+		divider.textContent = localize('onboarding.signIn.orWith', "or continue with");
+
+		// Secondary icon buttons row
+		const iconRow = append(wrapper, $('.onboarding-a-signin-icon-row'));
+
+		// Google
+		const googleBtn = append(iconRow, $<HTMLButtonElement>('button.onboarding-a-signin-icon-btn'));
+		googleBtn.type = 'button';
+		googleBtn.title = localize('onboarding.signIn.google', "Google");
+		googleBtn.appendChild(renderIcon(Codicon.globe));
+		this.stepDisposables.add(addDisposableListener(googleBtn, EventType.CLICK, () => {
+			this._handleSignIn('github', ['user:email']); // placeholder
+		}));
+
+		// Microsoft
+		const msBtn = append(iconRow, $<HTMLButtonElement>('button.onboarding-a-signin-icon-btn'));
+		msBtn.type = 'button';
+		msBtn.title = localize('onboarding.signIn.microsoft', "Microsoft");
+		msBtn.appendChild(renderIcon(Codicon.account));
 		this.stepDisposables.add(addDisposableListener(msBtn, EventType.CLICK, () => {
 			this._handleSignIn('microsoft', ['openid', 'profile', 'email']);
 		}));
 
-		// Divider
-		const divider = append(wrapper, $('span.onboarding-a-signin-divider'));
-		divider.textContent = localize('onboarding.signIn.or', "or");
+		// Apple
+		const appleBtn = append(iconRow, $<HTMLButtonElement>('button.onboarding-a-signin-icon-btn'));
+		appleBtn.type = 'button';
+		appleBtn.title = localize('onboarding.signIn.apple', "Apple");
+		appleBtn.appendChild(renderIcon(Codicon.heart));
+		this.stepDisposables.add(addDisposableListener(appleBtn, EventType.CLICK, () => {
+			this._handleSignIn('github', ['user:email']); // placeholder
+		}));
 
 		// Note about anonymous access
 		const note = append(wrapper, $('p.onboarding-a-signin-note'));
@@ -376,24 +405,31 @@ export class OnboardingVariationA extends Disposable {
 			this._createThemeCard(themeGrid, theme, themeCards);
 		}
 
-		// Keymap section
+		const themeHint = append(themeSection, $('div.onboarding-a-theme-hint'));
+		themeHint.textContent = localize('onboarding.personalize.themeHint', "You can browse and install more themes later from the Extensions view.");
+
+		// Keyboard Mapping section
 		const keymapSection = append(wrapper, $('div'));
 		const keymapLabel = append(keymapSection, $('div.onboarding-a-section-label'));
-		keymapLabel.textContent = localize('onboarding.personalize.keymap', "Keyboard Shortcuts");
+		keymapLabel.textContent = localize('onboarding.personalize.keymap', "Keyboard Mapping");
 
 		const keymapList = append(keymapSection, $('.onboarding-a-keymap-list'));
 		keymapList.setAttribute('role', 'radiogroup');
-		keymapList.setAttribute('aria-label', localize('onboarding.personalize.keymapLabel', "Choose keyboard shortcuts"));
+		keymapList.setAttribute('aria-label', localize('onboarding.personalize.keymapLabel', "Choose a keyboard mapping"));
 
 		const keymapPills: HTMLButtonElement[] = [];
 		for (const keymap of ONBOARDING_KEYMAP_OPTIONS) {
 			const pill = append(keymapList, $<HTMLButtonElement>('button.onboarding-a-keymap-pill'));
 			pill.type = 'button';
-			pill.textContent = keymap.label;
 			pill.setAttribute('role', 'radio');
 			pill.setAttribute('aria-checked', keymap.id === this.selectedKeymapId ? 'true' : 'false');
 			pill.title = keymap.description;
 			keymapPills.push(pill);
+
+			// Icon + label
+			pill.appendChild(renderIcon(this._getKeymapIcon(keymap.icon)));
+			const labelSpan = append(pill, $('span'));
+			labelSpan.textContent = keymap.label;
 
 			if (keymap.id === this.selectedKeymapId) {
 				pill.classList.add('selected');
@@ -425,10 +461,10 @@ export class OnboardingVariationA extends Disposable {
 			card.classList.add('selected');
 		}
 
-		// Code preview
+		// Mini VS Code skeleton preview
 		const preview = append(card, $('div.onboarding-a-theme-preview'));
 		preview.style.backgroundColor = theme.preview.background;
-		this._renderCodePreview(preview, theme);
+		this._renderEditorSkeleton(preview, theme);
 
 		// Label
 		const label = append(card, $('div.onboarding-a-theme-label'));
@@ -452,34 +488,109 @@ export class OnboardingVariationA extends Disposable {
 		}));
 	}
 
-	private _renderCodePreview(container: HTMLElement, theme: IOnboardingThemeOption): void {
-		const lines = [
-			[
-				{ text: 'function ', color: theme.preview.keyword },
-				{ text: 'greet', color: theme.preview.function },
-				{ text: '(', color: theme.preview.foreground },
-			],
-			[
-				{ text: '  ', color: theme.preview.foreground },
-				{ text: '// hello', color: theme.preview.comment },
-			],
-			[
-				{ text: '  ', color: theme.preview.foreground },
-				{ text: 'return ', color: theme.preview.keyword },
-				{ text: '"Hi"', color: theme.preview.string },
-			],
-			[
-				{ text: '}', color: theme.preview.foreground },
-			],
-		];
+	/**
+	 * Renders a mini VS Code editor skeleton with sidebar, tabs, and code area.
+	 */
+	private _renderEditorSkeleton(container: HTMLElement, theme: IOnboardingThemeOption): void {
+		const skeleton = append(container, $('div.onboarding-a-skeleton'));
 
+		// Sidebar (narrow strip)
+		const sidebar = append(skeleton, $('div.onboarding-a-skeleton-sidebar'));
+		sidebar.style.backgroundColor = theme.preview.selection;
+		for (let i = 0; i < 4; i++) {
+			const icon = append(sidebar, $('div.onboarding-a-skeleton-sidebar-icon'));
+			icon.style.backgroundColor = theme.preview.lineNumber;
+		}
+
+		// Main area
+		const main = append(skeleton, $('div.onboarding-a-skeleton-main'));
+
+		// Tab bar
+		const tabBar = append(main, $('div.onboarding-a-skeleton-tabs'));
+		tabBar.style.borderBottom = `1px solid ${theme.preview.selection}`;
+		const activeTab = append(tabBar, $('div.onboarding-a-skeleton-tab'));
+		activeTab.style.borderBottom = `2px solid ${theme.preview.keyword}`;
+		activeTab.style.color = theme.preview.foreground;
+		activeTab.textContent = 'index.ts';
+		const inactiveTab = append(tabBar, $('div.onboarding-a-skeleton-tab.inactive'));
+		inactiveTab.style.color = theme.preview.lineNumber;
+		inactiveTab.textContent = 'app.ts';
+
+		// Code area with lines
+		const codeArea = append(main, $('div.onboarding-a-skeleton-code'));
+		const lines = [
+			[{ text: 'function ', color: theme.preview.keyword }, { text: 'greet', color: theme.preview.function }, { text: '() {', color: theme.preview.foreground }],
+			[{ text: '  ', color: theme.preview.foreground }, { text: '// hello', color: theme.preview.comment }],
+			[{ text: '  ', color: theme.preview.foreground }, { text: 'return ', color: theme.preview.keyword }, { text: '"Hi"', color: theme.preview.string }],
+			[{ text: '}', color: theme.preview.foreground }],
+		];
 		for (const line of lines) {
-			const lineEl = append(container, $('div.onboarding-a-code-line'));
+			const lineEl = append(codeArea, $('div.onboarding-a-code-line'));
 			for (const token of line) {
 				const span = append(lineEl, $('span'));
 				span.textContent = token.text;
 				span.style.color = token.color;
 			}
+		}
+	}
+
+	/** Maps keymap icon name strings to codicons. */
+	private _getKeymapIcon(iconName: string): ThemeIcon {
+		switch (iconName) {
+			case 'code': return Codicon.code;
+			case 'edit': return Codicon.edit;
+			case 'cloud': return Codicon.cloud;
+			case 'file-code': return Codicon.fileCode;
+			case 'coffee': return Codicon.coffee;
+			case 'terminal': return Codicon.terminal;
+			default: return Codicon.keyboard;
+		}
+	}
+
+	// =====================================================================
+	// Step: Extensions
+	// =====================================================================
+
+	private _renderExtensionsStep(container: HTMLElement): void {
+		const wrapper = append(container, $('div.onboarding-a-extensions'));
+
+		const extList = append(wrapper, $('div.onboarding-a-ext-list'));
+
+		for (const ext of ONBOARDING_RECOMMENDED_EXTENSIONS) {
+			const row = append(extList, $('div.onboarding-a-ext-row'));
+
+			const iconEl = append(row, $('div.onboarding-a-ext-icon'));
+			iconEl.appendChild(renderIcon(this._getExtIcon(ext.icon)));
+
+			const info = append(row, $('div.onboarding-a-ext-info'));
+			const nameRow = append(info, $('div.onboarding-a-ext-name-row'));
+			const name = append(nameRow, $('span.onboarding-a-ext-name'));
+			name.textContent = ext.name;
+			const publisher = append(nameRow, $('span.onboarding-a-ext-publisher'));
+			publisher.textContent = ext.publisher;
+			const desc = append(info, $('div.onboarding-a-ext-desc'));
+			desc.textContent = ext.description;
+
+			const installBtn = append(row, $<HTMLButtonElement>('button.onboarding-a-ext-install'));
+			installBtn.type = 'button';
+			installBtn.textContent = localize('onboarding.ext.install', "Install");
+
+			this.stepDisposables.add(addDisposableListener(installBtn, EventType.CLICK, () => {
+				installBtn.textContent = localize('onboarding.ext.installed', "Installed");
+				installBtn.disabled = true;
+				installBtn.classList.add('installed');
+			}));
+		}
+	}
+
+	private _getExtIcon(iconName: string): ThemeIcon {
+		switch (iconName) {
+			case 'wand': return Codicon.wand;
+			case 'lightbulb': return Codicon.lightbulb;
+			case 'symbol-misc': return Codicon.symbolMisc;
+			case 'git-merge': return Codicon.gitMerge;
+			case 'open-preview': return Codicon.openPreview;
+			default: return Codicon.extensions;
 		}
 	}
 

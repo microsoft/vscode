@@ -412,6 +412,215 @@
 	text-decoration: underline;
 }
 
+/* Sign-in icon row */
+.onboarding-a-signin-icon-row {
+	display: flex;
+	gap: 12px;
+	justify-content: center;
+}
+
+.onboarding-a-signin-icon-btn {
+	width: 44px;
+	height: 44px;
+	border-radius: 50%;
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	background: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 18px;
+	transition: background 0.12s ease, border-color 0.12s ease;
+	outline: none;
+}
+
+.onboarding-a-signin-icon-btn:hover {
+	background: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.onboarding-a-signin-icon-btn:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.onboarding-a-signin-btn.primary {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-background);
+}
+
+.onboarding-a-signin-btn.primary:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+/* Theme hint */
+.onboarding-a-theme-hint {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 6px;
+	font-style: italic;
+}
+
+/* Mini VS Code skeleton in theme cards */
+.onboarding-a-skeleton {
+	display: flex;
+	height: 100%;
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.onboarding-a-skeleton-sidebar {
+	width: 20px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 2px;
+	flex-shrink: 0;
+}
+
+.onboarding-a-skeleton-sidebar-icon {
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+	opacity: 0.4;
+}
+
+.onboarding-a-skeleton-main {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.onboarding-a-skeleton-tabs {
+	display: flex;
+	gap: 0;
+	padding: 0 4px;
+	height: 16px;
+	align-items: flex-end;
+}
+
+.onboarding-a-skeleton-tab {
+	font-size: 7px;
+	padding: 2px 6px;
+	white-space: nowrap;
+}
+
+.onboarding-a-skeleton-tab.inactive {
+	opacity: 0.5;
+}
+
+.onboarding-a-skeleton-code {
+	padding: 3px 6px;
+	flex: 1;
+}
+
+/* Keymap pills with icons */
+.onboarding-a-keymap-pill .codicon {
+	font-size: 12px;
+	margin-right: 4px;
+	opacity: 0.8;
+}
+
+/* Extensions step */
+.onboarding-a-extensions {
+	display: flex;
+	flex-direction: column;
+}
+
+.onboarding-a-ext-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.onboarding-a-ext-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 12px;
+	border-radius: 8px;
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+	background: var(--vscode-sideBar-background, rgba(255, 255, 255, 0.03));
+}
+
+.onboarding-a-ext-icon {
+	width: 32px;
+	height: 32px;
+	border-radius: 6px;
+	background: var(--vscode-badge-background, rgba(255, 255, 255, 0.1));
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.onboarding-a-ext-icon .codicon {
+	font-size: 16px;
+	color: var(--vscode-textLink-foreground, #3794ff);
+}
+
+.onboarding-a-ext-info {
+	flex: 1;
+	min-width: 0;
+}
+
+.onboarding-a-ext-name-row {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+}
+
+.onboarding-a-ext-name {
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.onboarding-a-ext-publisher {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.onboarding-a-ext-desc {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.onboarding-a-ext-install {
+	padding: 4px 12px;
+	border-radius: 4px;
+	border: none;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font-size: 12px;
+	font-family: inherit;
+	cursor: pointer;
+	flex-shrink: 0;
+	outline: none;
+}
+
+.onboarding-a-ext-install:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.onboarding-a-ext-install:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.onboarding-a-ext-install.installed {
+	background: var(--vscode-testing-iconPassed, #73c991);
+	color: var(--vscode-editor-background);
+	cursor: default;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.onboarding-a-overlay,
 	.onboarding-a-card,
