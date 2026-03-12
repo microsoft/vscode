@@ -341,6 +341,7 @@ export async function buildTestRunSummary(result: LiveTestResult, mode: Mode, co
 
 /** Gets a coverage summary from a test result, either overall or per-file. */
 export async function getCoverageSummary(result: LiveTestResult, coverageFiles: string[] | undefined): Promise<string> {
+	let str = '';
 	for (const task of result.tasks) {
 		const coverage = task.coverage.get();
 		if (!coverage) {
@@ -348,7 +349,8 @@ export async function getCoverageSummary(result: LiveTestResult, coverageFiles: 
 		}
 
 		if (!coverageFiles || !coverageFiles.length) {
-			return getOverallCoverageSummary(coverage);
+			str += getOverallCoverageSummary(coverage);
+			continue;
 		}
 
 		const normalized = coverageFiles.map(file => URI.file(file).fsPath);
@@ -357,7 +359,6 @@ export async function getCoverageSummary(result: LiveTestResult, coverageFiles: 
 			coveredFilesMap.set(file.uri.fsPath, file);
 		}
 
-		let str = '';
 		for (const path of normalized) {
 			const file = coveredFilesMap.get(path);
 			if (!file) {
@@ -365,11 +366,8 @@ export async function getCoverageSummary(result: LiveTestResult, coverageFiles: 
 			}
 			str += await getFileCoverageDetails(file, path);
 		}
-		if (str) {
-			return str;
-		}
 	}
-	return '';
+	return str;
 }
 
 /** Gets a file-level coverage overview sorted by lowest coverage first. */
