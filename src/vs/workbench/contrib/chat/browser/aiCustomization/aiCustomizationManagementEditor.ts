@@ -849,29 +849,26 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 *          or `null` when the user cancelled the picker.
 	 */
 	private async resolveTargetDirectoryWithPicker(type: PromptsType, target: 'workspace' | 'user'): Promise<URI | undefined | null> {
-		const storageType = target === 'user' ? PromptsStorage.user : PromptsStorage.local;
 		const allFolders = await this.promptsService.getSourceFolders(type);
-		let matchingFolders = allFolders.filter(f => f.storage === storageType);
+		const projectRoot = this.workspaceService.getActiveProjectRoot();
 
-		// getSourceFolders() tags tilde-expanded user paths (e.g. ~/.claude/agents)
-		// as PromptsStorage.local. When targeting workspace, filter to only folders
-		// that are actually under the active project root.
+		// Partition folders by whether they're under the active project root.
+		// The storage tags from getSourceFolders() are unreliable (tilde-expanded
+		// user paths like ~/.copilot/skills get tagged PromptsStorage.local),
+		// so we use the project root as the authoritative boundary.
+		let matchingFolders;
 		if (target === 'workspace') {
-			const projectRoot = this.workspaceService.getActiveProjectRoot();
-			if (projectRoot) {
-				matchingFolders = matchingFolders.filter(f => isEqualOrParent(f.uri, projectRoot));
-			}
+			matchingFolders = projectRoot
+				? allFolders.filter(f => isEqualOrParent(f.uri, projectRoot))
+				: [];
+		} else {
+			matchingFolders = projectRoot
+				? allFolders.filter(f => !isEqualOrParent(f.uri, projectRoot))
+				: allFolders;
 		}
 
 		if (matchingFolders.length === 0) {
-			// No matching folders for the requested storage type.
-			// Fall back to legacy resolution, but if that also fails,
-			// return null to prevent the command from showing an
-			// unfiltered folder picker (which would show wrong storage types).
-			const fallback = target === 'workspace'
-				? resolveWorkspaceTargetDirectory(this.workspaceService, type)
-				: await resolveUserTargetDirectory(this.promptsService, type);
-			return fallback ?? null;
+			return null;
 		}
 
 		if (matchingFolders.length === 1) {

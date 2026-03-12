@@ -108,27 +108,25 @@ export class CustomizationCreatorService {
 	 */
 	private async resolveTargetDirectoryWithPicker(type: PromptsType): Promise<URI | undefined | null> {
 		const allFolders = await this.promptsService.getSourceFolders(type);
-		let localFolders = allFolders.filter(f => f.storage === PromptsStorage.local);
-
-		// getSourceFolders() tags tilde-expanded user paths (e.g. ~/.claude/agents)
-		// as PromptsStorage.local. Filter to only folders under the active project root.
 		const projectRoot = this.workspaceService.getActiveProjectRoot();
-		if (projectRoot) {
-			localFolders = localFolders.filter(f => isEqualOrParent(f.uri, projectRoot));
-		}
 
-		if (localFolders.length === 0) {
-			// No configured local folders — fall back to the existing resolution logic
+		// Filter to only workspace-scoped folders (under the active project root).
+		// Don't rely on storage tags — tilde-expanded user paths can be tagged local.
+		const workspaceFolders = projectRoot
+			? allFolders.filter(f => isEqualOrParent(f.uri, projectRoot))
+			: [];
+
+		if (workspaceFolders.length === 0) {
+			// No workspace folders — fall back to the existing resolution logic
 			return this.resolveTargetDirectory(type);
 		}
 
-		if (localFolders.length === 1) {
-			// Exactly one configured local folder — use it directly
-			return localFolders[0].uri;
+		if (workspaceFolders.length === 1) {
+			return workspaceFolders[0].uri;
 		}
 
 		// Multiple directories — ask the user which one to use
-		const items = localFolders.map(folder => ({
+		const items = workspaceFolders.map(folder => ({
 			label: this.promptsService.getPromptLocationLabel(folder),
 			description: folder.uri.fsPath,
 			uri: folder.uri,
