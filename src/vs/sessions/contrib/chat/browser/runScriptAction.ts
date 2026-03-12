@@ -222,10 +222,6 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 	private async _showConfigureQuickPick(session: IActiveSessionItem): Promise<ITaskEntry | undefined> {
 		const nonSessionTasks = await this._sessionsConfigService.getNonSessionTasks(session);
-		if (nonSessionTasks.length === 0) {
-			// No existing tasks, go straight to custom command input
-			return this._showCustomCommandInput(session);
-		}
 
 		interface ITaskPickItem extends IQuickPickItem {
 			readonly task?: ITaskEntry;
