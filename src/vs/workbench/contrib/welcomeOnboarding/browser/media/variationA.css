@@ -1,0 +1,422 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ========================================================================
+ * Variation A — Classic Wizard Modal
+ * Full-screen overlay with centered modal, progress dots, one step at a time.
+ * ======================================================================== */
+
+.onboarding-a-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 10000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.4);
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+	opacity: 0;
+	transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.onboarding-a-overlay.visible {
+	opacity: 1;
+}
+
+.onboarding-a-overlay.exiting {
+	opacity: 0;
+	transition: opacity 0.2s ease-out;
+}
+
+.onboarding-a-card {
+	background: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	border-radius: 12px;
+	box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+	width: min(720px, 92vw);
+	max-height: min(580px, 85vh);
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	transform: scale(0.96) translateY(8px);
+	transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.onboarding-a-overlay.visible .onboarding-a-card {
+	transform: scale(1) translateY(0);
+}
+
+.onboarding-a-overlay.exiting .onboarding-a-card {
+	transform: scale(0.96) translateY(8px);
+}
+
+.onboarding-a-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 20px 28px 0;
+}
+
+.onboarding-a-progress {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.onboarding-a-progress-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--vscode-badge-background, rgba(255, 255, 255, 0.15));
+	transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.onboarding-a-progress-dot.active {
+	width: 24px;
+	border-radius: 4px;
+	background: var(--vscode-focusBorder, #007acc);
+}
+
+.onboarding-a-progress-dot.completed {
+	background: var(--vscode-focusBorder, #007acc);
+	opacity: 0.6;
+}
+
+.onboarding-a-step-label {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	font-variant-numeric: tabular-nums;
+}
+
+.onboarding-a-body {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	padding: 24px 28px;
+	overflow-y: auto;
+	min-height: 0;
+}
+
+.onboarding-a-step-title {
+	font-size: 22px;
+	font-weight: 600;
+	margin: 0 0 4px;
+	color: var(--vscode-editor-foreground);
+	line-height: 1.3;
+}
+
+.onboarding-a-step-subtitle {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	margin: 0 0 20px;
+	line-height: 1.5;
+}
+
+.onboarding-a-step-content {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.onboarding-a-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 16px 28px 20px;
+	border-top: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+}
+
+.onboarding-a-footer-right {
+	display: flex;
+	gap: 8px;
+}
+
+.onboarding-a-btn {
+	padding: 6px 16px;
+	border-radius: 6px;
+	border: 1px solid transparent;
+	cursor: pointer;
+	font-size: 13px;
+	font-family: inherit;
+	outline: none;
+	transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.onboarding-a-btn:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.onboarding-a-btn-primary {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.onboarding-a-btn-primary:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.onboarding-a-btn-secondary {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.onboarding-a-btn-secondary:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.onboarding-a-btn-secondary:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.onboarding-a-btn-ghost {
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	border: none;
+}
+
+.onboarding-a-btn-ghost:hover {
+	color: var(--vscode-editor-foreground);
+}
+
+/* Sign-In step */
+.onboarding-a-signin {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 0;
+}
+
+.onboarding-a-signin-note {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	text-align: center;
+	margin-top: 4px;
+	line-height: 1.5;
+	max-width: 340px;
+}
+
+.onboarding-a-signin-btn {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 280px;
+	padding: 10px 16px;
+	border-radius: 8px;
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	background: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+	cursor: pointer;
+	font-size: 13px;
+	font-family: inherit;
+	transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.onboarding-a-signin-btn:hover {
+	background: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.onboarding-a-signin-btn:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.onboarding-a-signin-btn .codicon {
+	font-size: 18px;
+	opacity: 0.9;
+}
+
+.onboarding-a-signin-divider {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 280px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+}
+
+.onboarding-a-signin-divider::before,
+.onboarding-a-signin-divider::after {
+	content: '';
+	flex: 1;
+	height: 1px;
+	background: var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+}
+
+/* Personalize step */
+.onboarding-a-personalize {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+.onboarding-a-section-label {
+	font-size: 12px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 8px;
+}
+
+.onboarding-a-theme-grid {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 10px;
+}
+
+.onboarding-a-theme-card {
+	border-radius: 8px;
+	border: 2px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	cursor: pointer;
+	overflow: hidden;
+	transition: border-color 0.15s ease, transform 0.15s ease;
+	outline: none;
+}
+
+.onboarding-a-theme-card:hover {
+	border-color: var(--vscode-focusBorder, #007acc);
+	transform: translateY(-1px);
+}
+
+.onboarding-a-theme-card:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.onboarding-a-theme-card.selected {
+	border-color: var(--vscode-focusBorder, #007acc);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder, #007acc);
+}
+
+.onboarding-a-theme-preview {
+	padding: 6px 8px;
+	font-family: var(--monaco-monospace-font, 'Cascadia Code', 'Fira Code', Menlo, monospace);
+	font-size: 10px;
+	line-height: 1.5;
+	min-height: 56px;
+	text-align: left;
+}
+
+.onboarding-a-theme-label {
+	padding: 6px 8px;
+	font-size: 11px;
+	text-align: center;
+	color: var(--vscode-editor-foreground);
+	border-top: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+}
+
+.onboarding-a-code-line {
+	white-space: nowrap;
+}
+
+.onboarding-a-keymap-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.onboarding-a-keymap-pill {
+	padding: 5px 14px;
+	border-radius: 16px;
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	background: transparent;
+	color: var(--vscode-editor-foreground);
+	font-size: 12px;
+	cursor: pointer;
+	font-family: inherit;
+	transition: background 0.12s ease, border-color 0.12s ease;
+	outline: none;
+}
+
+.onboarding-a-keymap-pill:hover {
+	background: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.onboarding-a-keymap-pill:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.onboarding-a-keymap-pill.selected {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-background);
+}
+
+/* Agent Sessions step */
+.onboarding-a-sessions {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.onboarding-a-sessions-features {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 12px;
+}
+
+.onboarding-a-feature-card {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 14px;
+	border-radius: 8px;
+	background: var(--vscode-sideBar-background, rgba(255, 255, 255, 0.04));
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+}
+
+.onboarding-a-feature-card .codicon {
+	font-size: 20px;
+	color: var(--vscode-textLink-foreground, #3794ff);
+}
+
+.onboarding-a-feature-title {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-editor-foreground);
+}
+
+.onboarding-a-feature-desc {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+}
+
+.onboarding-a-sessions-docs {
+	display: flex;
+	gap: 12px;
+	margin-top: 4px;
+}
+
+.onboarding-a-doc-link {
+	font-size: 12px;
+	color: var(--vscode-textLink-foreground, #3794ff);
+	text-decoration: none;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.onboarding-a-doc-link:hover {
+	text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.onboarding-a-overlay,
+	.onboarding-a-card,
+	.onboarding-a-progress-dot,
+	.onboarding-a-theme-card {
+		transition: none !important;
+	}
+}

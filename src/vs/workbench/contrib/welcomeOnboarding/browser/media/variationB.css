@@ -1,0 +1,427 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ========================================================================
+ * Variation B — Side-Nav Modal
+ * Modal with persistent step list on left, content area on right.
+ * ======================================================================== */
+
+.onboarding-b-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 10000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.4);
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+	opacity: 0;
+	transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.onboarding-b-overlay.visible { opacity: 1; }
+.onboarding-b-overlay.exiting { opacity: 0; transition: opacity 0.2s ease-out; }
+
+.onboarding-b-card {
+	background: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	border-radius: 12px;
+	box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+	width: min(860px, 94vw);
+	max-height: min(560px, 85vh);
+	display: flex;
+	flex-direction: row;
+	overflow: hidden;
+	transform: scale(0.96) translateY(8px);
+	transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.onboarding-b-overlay.visible .onboarding-b-card { transform: scale(1) translateY(0); }
+.onboarding-b-overlay.exiting .onboarding-b-card { transform: scale(0.96) translateY(8px); }
+
+/* Sidebar */
+.onboarding-b-sidebar {
+	width: 220px;
+	flex-shrink: 0;
+	display: flex;
+	flex-direction: column;
+	padding: 24px 0;
+	background: var(--vscode-sideBar-background, rgba(255, 255, 255, 0.03));
+	border-right: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+}
+
+.onboarding-b-sidebar-header {
+	padding: 0 20px 20px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.onboarding-b-sidebar-title { font-size: 14px; font-weight: 600; }
+.onboarding-b-sidebar-subtitle { font-size: 11px; color: var(--vscode-descriptionForeground); }
+
+.onboarding-b-step-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 0 8px;
+	flex: 1;
+}
+
+.onboarding-b-step-item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 12px;
+	border-radius: 6px;
+	cursor: pointer;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	transition: background 0.12s ease, color 0.12s ease;
+	border: none;
+	background: transparent;
+	font-family: inherit;
+	text-align: left;
+	width: 100%;
+	outline: none;
+}
+
+.onboarding-b-step-item:hover {
+	background: var(--vscode-list-hoverBackground);
+	color: var(--vscode-editor-foreground);
+}
+
+.onboarding-b-step-item:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: -2px;
+}
+
+.onboarding-b-step-item.active {
+	background: var(--vscode-list-activeSelectionBackground, rgba(255, 255, 255, 0.08));
+	color: var(--vscode-list-activeSelectionForeground, var(--vscode-editor-foreground));
+}
+
+.onboarding-b-step-item.completed { color: var(--vscode-editor-foreground); }
+
+.onboarding-b-step-number {
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 11px;
+	font-weight: 600;
+	flex-shrink: 0;
+	border: 1.5px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.2));
+	color: var(--vscode-descriptionForeground);
+	transition: all 0.2s ease;
+}
+
+.onboarding-b-step-item.active .onboarding-b-step-number {
+	border-color: var(--vscode-focusBorder, #007acc);
+	background: var(--vscode-focusBorder, #007acc);
+	color: var(--vscode-button-foreground, #fff);
+}
+
+.onboarding-b-step-item.completed .onboarding-b-step-number {
+	border-color: var(--vscode-testing-iconPassed, #73c991);
+	background: var(--vscode-testing-iconPassed, #73c991);
+	color: var(--vscode-editor-background);
+}
+
+.onboarding-b-sidebar-footer {
+	padding: 16px 20px 0;
+	border-top: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+}
+
+.onboarding-b-skip-link {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	background: none;
+	border: none;
+	font-family: inherit;
+	padding: 0;
+	outline: none;
+}
+
+.onboarding-b-skip-link:hover { color: var(--vscode-editor-foreground); }
+
+.onboarding-b-skip-link:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+/* Content area */
+.onboarding-b-content {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	padding: 28px 32px;
+	overflow-y: auto;
+	min-height: 0;
+}
+
+.onboarding-b-step-title {
+	font-size: 22px;
+	font-weight: 600;
+	margin: 0 0 4px;
+	line-height: 1.3;
+}
+
+.onboarding-b-step-subtitle {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	margin: 0 0 24px;
+	line-height: 1.5;
+}
+
+.onboarding-b-step-body {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.onboarding-b-footer {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	padding-top: 20px;
+	margin-top: auto;
+}
+
+.onboarding-b-btn {
+	padding: 6px 16px;
+	border-radius: 6px;
+	border: 1px solid transparent;
+	cursor: pointer;
+	font-size: 13px;
+	font-family: inherit;
+	outline: none;
+	transition: background 0.15s ease;
+}
+
+.onboarding-b-btn:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.onboarding-b-btn-primary {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.onboarding-b-btn-primary:hover { background: var(--vscode-button-hoverBackground); }
+
+/* Reusable content styles */
+.onboarding-b-signin {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.onboarding-b-signin-btn {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	max-width: 320px;
+	padding: 10px 16px;
+	border-radius: 8px;
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	background: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+	cursor: pointer;
+	font-size: 13px;
+	font-family: inherit;
+	transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.onboarding-b-signin-btn:hover {
+	background: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.onboarding-b-signin-btn:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.onboarding-b-signin-btn .codicon { font-size: 18px; opacity: 0.9; }
+
+.onboarding-b-signin-note {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+	margin-top: 8px;
+	max-width: 320px;
+}
+
+.onboarding-b-personalize {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+.onboarding-b-section-label {
+	font-size: 12px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 8px;
+}
+
+.onboarding-b-theme-grid {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 10px;
+}
+
+.onboarding-b-theme-card {
+	border-radius: 8px;
+	border: 2px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	cursor: pointer;
+	overflow: hidden;
+	transition: border-color 0.15s ease;
+	outline: none;
+}
+
+.onboarding-b-theme-card:hover { border-color: var(--vscode-focusBorder); }
+
+.onboarding-b-theme-card:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.onboarding-b-theme-card.selected {
+	border-color: var(--vscode-focusBorder);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.onboarding-b-theme-preview {
+	padding: 6px 8px;
+	font-family: var(--monaco-monospace-font, 'Cascadia Code', Menlo, monospace);
+	font-size: 10px;
+	line-height: 1.5;
+	min-height: 56px;
+	text-align: left;
+}
+
+.onboarding-b-theme-label {
+	padding: 6px 8px;
+	font-size: 11px;
+	text-align: center;
+	border-top: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+}
+
+.onboarding-b-code-line { white-space: nowrap; }
+
+.onboarding-b-keymap-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.onboarding-b-keymap-pill {
+	padding: 5px 14px;
+	border-radius: 16px;
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	background: transparent;
+	color: var(--vscode-editor-foreground);
+	font-size: 12px;
+	cursor: pointer;
+	font-family: inherit;
+	transition: background 0.12s ease, border-color 0.12s ease;
+	outline: none;
+}
+
+.onboarding-b-keymap-pill:hover {
+	background: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.onboarding-b-keymap-pill:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.onboarding-b-keymap-pill.selected {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-background);
+}
+
+.onboarding-b-sessions {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+}
+
+.onboarding-b-sessions-features {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.onboarding-b-feature-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	padding: 12px;
+	border-radius: 8px;
+	background: var(--vscode-sideBar-background, rgba(255, 255, 255, 0.04));
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+}
+
+.onboarding-b-feature-row .codicon {
+	font-size: 18px;
+	color: var(--vscode-textLink-foreground, #3794ff);
+	margin-top: 2px;
+}
+
+.onboarding-b-feature-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.onboarding-b-feature-title { font-size: 13px; font-weight: 600; }
+
+.onboarding-b-feature-desc {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+}
+
+.onboarding-b-sessions-docs {
+	display: flex;
+	gap: 12px;
+	margin-top: 4px;
+}
+
+.onboarding-b-doc-link {
+	font-size: 12px;
+	color: var(--vscode-textLink-foreground, #3794ff);
+	text-decoration: none;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.onboarding-b-doc-link:hover { text-decoration: underline; }
+
+@media (prefers-reduced-motion: reduce) {
+	.onboarding-b-overlay,
+	.onboarding-b-card,
+	.onboarding-b-step-number,
+	.onboarding-b-theme-card {
+		transition: none !important;
+	}
+}

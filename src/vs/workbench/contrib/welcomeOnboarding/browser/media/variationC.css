@@ -1,0 +1,426 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ========================================================================
+ * Variation C — Chat-Integrated Welcome
+ * Walkthrough built around the chat input, project starter cards above.
+ * ======================================================================== */
+
+.onboarding-c-container {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	width: 100%;
+	max-width: 860px;
+	margin: 0 auto;
+	padding: 24px 32px;
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+
+.onboarding-c-header {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	padding: 32px 0 24px;
+}
+
+.onboarding-c-logo {
+	font-size: 36px;
+	margin-bottom: 12px;
+	color: var(--vscode-textLink-foreground, #3794ff);
+}
+
+.onboarding-c-title {
+	font-size: 24px;
+	font-weight: 600;
+	margin: 0 0 6px;
+}
+
+.onboarding-c-subtitle {
+	font-size: 14px;
+	color: var(--vscode-descriptionForeground);
+	margin: 0;
+	line-height: 1.5;
+}
+
+/* Setup cards row */
+.onboarding-c-setup-row {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 10px;
+	margin-bottom: 24px;
+}
+
+.onboarding-c-setup-card {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 14px;
+	border-radius: 8px;
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	background: var(--vscode-sideBar-background, rgba(255, 255, 255, 0.03));
+	cursor: pointer;
+	transition: background 0.12s ease, border-color 0.12s ease;
+	outline: none;
+	font-family: inherit;
+	font-size: 13px;
+	color: var(--vscode-editor-foreground);
+}
+
+.onboarding-c-setup-card:hover {
+	background: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.onboarding-c-setup-card:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: -2px;
+}
+
+.onboarding-c-setup-card.completed {
+	border-color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.onboarding-c-setup-card .codicon {
+	font-size: 16px;
+	color: var(--vscode-textLink-foreground, #3794ff);
+	flex-shrink: 0;
+}
+
+.onboarding-c-setup-card.completed .codicon {
+	color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.onboarding-c-setup-card-text {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	text-align: left;
+}
+
+.onboarding-c-setup-card-title { font-weight: 600; font-size: 12px; }
+.onboarding-c-setup-card-desc { font-size: 11px; color: var(--vscode-descriptionForeground); }
+
+.onboarding-c-section-label {
+	font-size: 12px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 10px;
+}
+
+/* Project starter cards */
+.onboarding-c-project-grid {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 8px;
+	margin-bottom: 20px;
+	flex: 1;
+	min-height: 0;
+}
+
+.onboarding-c-project-card {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 14px;
+	border-radius: 8px;
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	background: var(--vscode-sideBar-background, rgba(255, 255, 255, 0.03));
+	cursor: pointer;
+	transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+	outline: none;
+	font-family: inherit;
+	text-align: left;
+}
+
+.onboarding-c-project-card:hover {
+	background: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+	transform: translateY(-1px);
+}
+
+.onboarding-c-project-card:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: -2px;
+}
+
+.onboarding-c-project-card-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.onboarding-c-project-card-header .codicon {
+	font-size: 16px;
+	color: var(--vscode-textLink-foreground, #3794ff);
+}
+
+.onboarding-c-project-card-title { font-size: 13px; font-weight: 600; }
+
+.onboarding-c-project-card-desc {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+
+.onboarding-c-project-card-tags {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+	margin-top: auto;
+}
+
+.onboarding-c-project-tag {
+	font-size: 10px;
+	padding: 2px 6px;
+	border-radius: 3px;
+	background: var(--vscode-badge-background, rgba(255, 255, 255, 0.1));
+	color: var(--vscode-badge-foreground, var(--vscode-descriptionForeground));
+}
+
+/* Chat placeholder */
+.onboarding-c-chat-area { margin-top: auto; padding-top: 12px; }
+
+.onboarding-c-chat-placeholder {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 12px 16px;
+	border-radius: 12px;
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	background: var(--vscode-input-background, rgba(255, 255, 255, 0.06));
+	color: var(--vscode-input-placeholderForeground, rgba(255, 255, 255, 0.4));
+	font-size: 13px;
+	cursor: text;
+	font-family: inherit;
+	width: 100%;
+	transition: border-color 0.15s ease;
+}
+
+.onboarding-c-chat-placeholder:hover { border-color: var(--vscode-focusBorder); }
+.onboarding-c-chat-placeholder .codicon { font-size: 16px; opacity: 0.6; }
+
+/* Quick links */
+.onboarding-c-links {
+	display: flex;
+	justify-content: center;
+	gap: 16px;
+	padding: 12px 0 4px;
+}
+
+.onboarding-c-link {
+	font-size: 12px;
+	color: var(--vscode-textLink-foreground, #3794ff);
+	text-decoration: none;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.onboarding-c-link:hover { text-decoration: underline; }
+
+/* Inline overlay for setup cards */
+.onboarding-c-inline-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 10000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.3);
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
+	opacity: 0;
+	transition: opacity 0.2s ease;
+}
+
+.onboarding-c-inline-overlay.visible { opacity: 1; }
+
+.onboarding-c-inline-card {
+	background: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 12px;
+	box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+	padding: 24px;
+	width: min(480px, 90vw);
+	max-height: 80vh;
+	overflow-y: auto;
+	transform: scale(0.96);
+	transition: transform 0.2s ease;
+}
+
+.onboarding-c-inline-overlay.visible .onboarding-c-inline-card { transform: scale(1); }
+
+.onboarding-c-inline-title {
+	font-size: 18px;
+	font-weight: 600;
+	margin: 0 0 4px;
+}
+
+.onboarding-c-inline-subtitle {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	margin: 0 0 20px;
+}
+
+.onboarding-c-theme-grid {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 10px;
+	margin-bottom: 16px;
+}
+
+.onboarding-c-theme-card {
+	border-radius: 8px;
+	border: 2px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	cursor: pointer;
+	overflow: hidden;
+	transition: border-color 0.15s ease;
+	outline: none;
+}
+
+.onboarding-c-theme-card:hover { border-color: var(--vscode-focusBorder); }
+
+.onboarding-c-theme-card:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.onboarding-c-theme-card.selected {
+	border-color: var(--vscode-focusBorder);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.onboarding-c-theme-preview {
+	padding: 6px 8px;
+	font-family: var(--monaco-monospace-font, 'Cascadia Code', Menlo, monospace);
+	font-size: 10px;
+	line-height: 1.5;
+	min-height: 48px;
+	text-align: left;
+}
+
+.onboarding-c-theme-label {
+	padding: 5px 8px;
+	font-size: 11px;
+	text-align: center;
+	border-top: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+}
+
+.onboarding-c-code-line { white-space: nowrap; }
+
+.onboarding-c-keymap-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.onboarding-c-keymap-pill {
+	padding: 5px 14px;
+	border-radius: 16px;
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	background: transparent;
+	color: var(--vscode-editor-foreground);
+	font-size: 12px;
+	cursor: pointer;
+	font-family: inherit;
+	transition: background 0.12s ease, border-color 0.12s ease;
+	outline: none;
+}
+
+.onboarding-c-keymap-pill:hover { background: var(--vscode-list-hoverBackground); }
+
+.onboarding-c-keymap-pill:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+}
+
+.onboarding-c-keymap-pill.selected {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-background);
+}
+
+.onboarding-c-inline-footer {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 16px;
+}
+
+.onboarding-c-btn {
+	padding: 6px 16px;
+	border-radius: 6px;
+	border: 1px solid transparent;
+	cursor: pointer;
+	font-size: 13px;
+	font-family: inherit;
+	outline: none;
+}
+
+.onboarding-c-btn:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.onboarding-c-btn-primary {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.onboarding-c-btn-primary:hover { background: var(--vscode-button-hoverBackground); }
+
+.onboarding-c-signin {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.onboarding-c-signin-btn {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	padding: 10px 16px;
+	border-radius: 8px;
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+	background: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+	cursor: pointer;
+	font-size: 13px;
+	font-family: inherit;
+	transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.onboarding-c-signin-btn:hover {
+	background: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.onboarding-c-signin-btn:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+}
+
+.onboarding-c-signin-btn .codicon { font-size: 18px; }
+
+.onboarding-c-signin-note {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+	margin-top: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.onboarding-c-project-card,
+	.onboarding-c-setup-card,
+	.onboarding-c-inline-overlay,
+	.onboarding-c-inline-card {
+		transition: none !important;
+		transform: none !important;
+	}
+}
