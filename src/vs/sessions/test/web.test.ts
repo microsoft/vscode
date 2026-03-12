@@ -25,6 +25,10 @@ import { IChatProgress } from '../../workbench/contrib/chat/common/chatService/c
 import { IChatSessionsService, IChatSessionItem, IChatSessionFileChange, ChatSessionStatus, IChatSessionHistoryItem, IChatSessionItemsDelta } from '../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IGitService, IGitExtensionDelegate, IGitRepository } from '../../workbench/contrib/git/common/gitService.js';
 import { IFileService } from '../../platform/files/common/files.js';
+import { ITerminalService } from '../../workbench/contrib/terminal/browser/terminal.js';
+import { ITerminalBackend, ITerminalBackendRegistry, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, TerminalExtensions, ITerminalProcessOptions, IShellLaunchConfig } from '../../platform/terminal/common/terminal.js';
+import { IProcessEnvironment } from '../../base/common/platform.js';
+import { Registry } from '../../platform/registry/common/platform.js';
 import { InMemoryFileSystemProvider } from '../../platform/files/common/inMemoryFilesystemProvider.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 
@@ -230,16 +234,19 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 	private readonly _sessionItems: IChatSessionItem[] = [];
 	private readonly _itemsChangedEmitter = new Emitter<IChatSessionItemsDelta>();
 	private readonly _sessionHistory = new Map<string, IChatSessionHistoryItem[]>();
+	private _worktreeCounter = 0;
 
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ITerminalService private readonly terminalService: ITerminalService,
 	) {
 		super();
 		this._register(this._itemsChangedEmitter);
 		this.registerMockAgents();
 		this.registerMockSessionProvider();
+		this.registerMockTerminalBackend();
 		this.preseedFolder();
 	}
 
@@ -286,6 +293,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 				label: message.slice(0, 50) || 'Mock Session',
 				status: ChatSessionStatus.Completed,
 				timing: { created: now, lastRequestStarted: now, lastRequestEnded: now },
+				metadata: { worktreePath: `/mock-worktrees/session-${++this._worktreeCounter}` },
 				...(changes ? { changes } : {}),
 			};
 			this._sessionItems.push(addedOrUpdated);
@@ -311,7 +319,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 				extensionVersion: '0.0.1',
 				extensionPublisherId: 'vscode',
 				extensionDisplayName: 'Sessions E2E Mock',
-				isDefault: true,
+				isDefault: agentId === 'copilotcli',
 				metadata: {},
 				slashCommands: [],
 				locations: [ChatAgentLocation.Chat],
@@ -385,11 +393,15 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 					},
 				}));
 
-				// Register an item controller so sessions appear in the sidebar list
-				const items = this._sessionItems;
+				// Register an item controller so sessions appear in the sidebar list.
+				// Only copilotcli (Background) sessions need real items — the
+				// copilot-cloud-agent controller must return an empty array to
+				// prevent it from overwriting sessions with the wrong providerType
+				// during a full model resolve.
+				const controllerItems = scheme === 'copilotcli' ? this._sessionItems : [];
 				this._register(this.chatSessionsService.registerChatSessionItemController(scheme, {
 					onDidChangeChatSessionItems: this._itemsChangedEmitter.event,
-					get items() { return items; },
+					get items() { return controllerItems; },
 					async refresh() { /* in-memory, no-op */ },
 				}));
 
@@ -398,6 +410,83 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 				console.warn(`[Sessions Web Test] Failed to register session provider for ${scheme}:`, err);
 			}
 		}
+	}
+
+	private registerMockTerminalBackend(): void {
+		const terminalService = this.terminalService;
+		const backend = this.createMockTerminalBackend();
+		Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
+		terminalService.registerProcessSupport(true);
+		console.log('[Sessions Web Test] Registered mock terminal backend');
+	}
+
+	private createMockTerminalBackend(): ITerminalBackend {
+		return {
+			remoteAuthority: undefined,
+			isVirtualProcess: false,
+			onDidRequestDetach: Event.None,
+			attachToProcess: async () => { throw new Error('Not supported'); },
+			attachToRevivedProcess: async () => { throw new Error('Not supported'); },
+			listProcesses: async () => [],
+			getProfiles: async () => [],
+			getDefaultProfile: async () => undefined,
+			getDefaultSystemShell: async () => '/bin/mock-shell',
+			getShellEnvironment: async () => ({}),
+			setTerminalLayoutInfo: async () => { },
+			getTerminalLayoutInfo: async () => undefined,
+			reduceConnectionGraceTime: () => { },
+			requestDetachInstance: () => { },
+			acceptDetachInstanceReply: () => { },
+			persistTerminalState: () => { },
+			createProcess: async (_shellLaunchConfig: IShellLaunchConfig, _cwd: string | URI, _cols: number, _rows: number, _unicodeVersion: string, _env: IProcessEnvironment, _options: ITerminalProcessOptions, _shouldPersist: boolean) => {
+				const onProcessData = new Emitter<string>();
+				const onProcessReady = new Emitter<IProcessReadyEvent>();
+				const onProcessExit = new Emitter<number | undefined>();
+				const onDidChangeHasChildProcesses = new Emitter<boolean>();
+				const onDidChangeProperty = new Emitter<IProcessProperty<ProcessPropertyType>>();
+
+				// Resolve cwd from createProcess arg or shellLaunchConfig
+				const rawCwd = _cwd || _shellLaunchConfig.cwd;
+				const cwd = !rawCwd ? '/' : typeof rawCwd === 'string' ? rawCwd : rawCwd.path;
+				console.log(`[Sessions Web Test] Mock terminal createProcess cwd: '${cwd}' (raw _cwd: '${_cwd}', slc.cwd: '${_shellLaunchConfig.cwd}')`);
+
+				// Fire ready after a microtask so the terminal service can wire up listeners
+				setTimeout(() => {
+					onProcessReady.fire({ pid: 1, cwd, windowsPty: undefined });
+				}, 0);
+
+				return {
+					id: 0,
+					shouldPersist: false,
+					onProcessData: onProcessData.event,
+					onProcessReady: onProcessReady.event,
+					onDidChangeHasChildProcesses: onDidChangeHasChildProcesses.event,
+					onDidChangeProperty: onDidChangeProperty.event,
+					onProcessExit: onProcessExit.event,
+					start: async () => undefined,
+					shutdown: async () => { },
+					input: async () => { },
+					resize: () => { },
+					clearBuffer: () => { },
+					acknowledgeDataEvent: () => { },
+					setUnicodeVersion: async () => { },
+					getInitialCwd: async () => cwd,
+					getCwd: async () => cwd,
+					getLatency: async () => [],
+					processBinary: async () => { },
+					refreshProperty: async (property: ProcessPropertyType) => { throw new Error(`Not supported: ${property}`); },
+					updateProperty: async () => { },
+					clearUnrespondedRequest: () => { },
+				};
+			},
+			getWslPath: async (original: string, _direction: 'unix-to-win' | 'win-to-unix') => original,
+			getEnvironment: async () => ({}),
+			getPerformanceMarks: () => [],
+			onPtyHostUnresponsive: Event.None,
+			onPtyHostResponsive: Event.None,
+			onPtyHostRestart: Event.None,
+			onPtyHostConnected: Event.None,
+		} as unknown as ITerminalBackend;
 	}
 
 	private preseedFolder(): void {
