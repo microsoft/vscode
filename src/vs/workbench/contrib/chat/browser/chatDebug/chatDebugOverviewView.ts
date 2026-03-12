@@ -88,6 +88,7 @@ export class ChatDebugOverviewView extends Disposable {
 
 	hide(): void {
 		DOM.hide(this.container);
+		this.refreshScheduler.cancel();
 	}
 
 	refresh(): void {

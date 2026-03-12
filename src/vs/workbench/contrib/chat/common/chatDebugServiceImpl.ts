@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import { extUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugLogProvider, IChatDebugResolvedEventContent, IChatDebugService } from './chatDebugService.js';
 import { LocalChatSessionUri } from './model/chatUri.js';
@@ -135,7 +137,7 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	addEvent(event: IChatDebugEvent): void {
 		let buffer = this._sessionBuffers.get(event.sessionResource);
 		if (!buffer) {
-			// Evict oldest session if we are at the session cap.
+			// Evict least-recently-used session if we are at the session cap.
 			if (this._sessionOrder.length >= ChatDebugServiceImpl.MAX_SESSIONS) {
 				const evicted = this._sessionOrder.shift()!;
 				this._evictSession(evicted);
@@ -143,6 +145,13 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 			buffer = new SessionEventBuffer(ChatDebugServiceImpl.MAX_EVENTS_PER_SESSION);
 			this._sessionBuffers.set(event.sessionResource, buffer);
 			this._sessionOrder.push(event.sessionResource);
+		} else {
+			// Move to end of LRU order so actively-used sessions are not evicted.
+			const idx = this._sessionOrder.findIndex(u => extUri.isEqual(u, event.sessionResource));
+			if (idx !== -1 && idx !== this._sessionOrder.length - 1) {
+				this._sessionOrder.splice(idx, 1);
+				this._sessionOrder.push(event.sessionResource);
+			}
 		}
 		buffer.push(event);
 		this._onDidAddEvent.fire(event);
@@ -268,7 +277,7 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 						sessionResource: events[i].sessionResource ?? sessionResource,
 					});
 					if (i > 0 && i % BATCH_SIZE === 0) {
-						await new Promise<void>(resolve => setTimeout(resolve, 0));
+						await timeout(0);
 					}
 				}
 			}

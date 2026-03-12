@@ -217,6 +217,29 @@ suite('ChatDebugServiceImpl', () => {
 			// The last session should be present
 			assert.ok(resources.some(r => r.toString() === sessions[5].toString()), 'Session-5 should be present');
 		});
+
+		test('should use LRU eviction — recently-used sessions are kept', () => {
+			// Fill to MAX_SESSIONS (5)
+			const sessions: URI[] = [];
+			for (let i = 0; i < 5; i++) {
+				const uri = URI.parse(`vscode-chat-session://local/session-lru2-${i}`);
+				sessions.push(uri);
+				service.addEvent({ kind: 'generic', sessionResource: uri, created: new Date(), name: `init-${i}`, level: ChatDebugLogLevel.Info });
+			}
+
+			// Touch session-0 so it moves to the back of the LRU order
+			service.addEvent({ kind: 'generic', sessionResource: sessions[0], created: new Date(), name: 'touch', level: ChatDebugLogLevel.Info });
+
+			// Add a 6th session — session-1 (the true LRU) should be evicted, not session-0
+			const session6 = URI.parse('vscode-chat-session://local/session-lru2-5');
+			service.addEvent({ kind: 'generic', sessionResource: session6, created: new Date(), name: 'new', level: ChatDebugLogLevel.Info });
+
+			const resources = service.getSessionResources();
+			assert.strictEqual(resources.length, 5);
+			assert.ok(resources.some(r => r.toString() === sessions[0].toString()), 'Session-0 should be kept (recently used)');
+			assert.ok(!resources.some(r => r.toString() === sessions[1].toString()), 'Session-1 should be evicted (LRU)');
+			assert.ok(resources.some(r => r.toString() === session6.toString()), 'Session-5 should be present');
+		});
 	});
 
 	suite('activeSessionResource', () => {
