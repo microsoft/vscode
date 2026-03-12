@@ -199,6 +199,14 @@ export class ExtHostBrowsers extends Disposable implements ExtHostBrowsersShape 
 			inactive: options?.background,
 		});
 
+		return this._getOrCreateTab(dto).value;
+	}
+
+	// #endregion
+
+	// #region Internal helpers
+
+	private _getOrCreateTab(dto: BrowserTabDto): ExtHostBrowserTab {
 		let tab = this._browserTabs.get(dto.id);
 		if (!tab) {
 			tab = new ExtHostBrowserTab(dto.id, this._proxy, this._sessions, dto);
@@ -207,8 +215,7 @@ export class ExtHostBrowsers extends Disposable implements ExtHostBrowsersShape 
 		} else {
 			tab.update(dto);
 		}
-
-		return tab.value;
+		return tab;
 	}
 
 	// #endregion
@@ -216,14 +223,7 @@ export class ExtHostBrowsers extends Disposable implements ExtHostBrowsersShape 
 	// #region Main thread callbacks
 
 	$onDidOpenBrowserTab(dto: BrowserTabDto): void {
-		let tab = this._browserTabs.get(dto.id);
-		if (!tab) {
-			tab = new ExtHostBrowserTab(dto.id, this._proxy, this._sessions, dto);
-			this._browserTabs.set(dto.id, tab);
-			this._onDidOpenBrowserTab.fire(tab.value);
-		} else if (tab.update(dto)) {
-			this._onDidChangeBrowserTabState.fire(tab.value);
-		}
+		this._getOrCreateTab(dto);
 	}
 
 	$onDidCloseBrowserTab(browserId: string): void {
@@ -239,9 +239,8 @@ export class ExtHostBrowsers extends Disposable implements ExtHostBrowsersShape 
 
 	$onDidChangeActiveBrowserTab(dto: BrowserTabDto | undefined): void {
 		this._activeBrowserTabId = dto?.id;
-		if (dto && !this._browserTabs.has(dto.id)) {
-			const tab = new ExtHostBrowserTab(dto.id, this._proxy, this._sessions, dto);
-			this._browserTabs.set(dto.id, tab);
+		if (dto) {
+			this._getOrCreateTab(dto);
 		}
 		this._onDidChangeActiveBrowserTab.fire(this.activeBrowserTab);
 	}

@@ -14,7 +14,6 @@ import { EditorGroupColumn, columnToEditorGroup } from '../../services/editor/co
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IEditorOptions } from '../../../platform/editor/common/editor.js';
-import { IEditorIdentifier } from '../../common/editor.js';
 import { CDPRequest } from '../../../platform/browserView/common/cdp/types.js';
 
 const BROWSER_EDITOR_INPUT_ID = 'workbench.editorinputs.browser';
@@ -229,19 +228,10 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 	}
 
 	async $closeBrowserTab(browserId: string): Promise<void> {
-		const toClose: IEditorIdentifier[] = [];
-		for (const editor of this.editorService.editors) {
-			if (editor.typeId === BROWSER_EDITOR_INPUT_ID && editor.resource) {
-				const parsed = BrowserViewUri.parse(editor.resource);
-				if (parsed && parsed.id === browserId) {
-					const identifiers = this.editorService.findEditors(editor.resource);
-					toClose.push(...identifiers);
-				}
-			}
-		}
-		if (toClose.length > 0) {
-			await this.editorService.closeEditors(toClose);
-		}
+		const model = await this.browserViewWorkbenchService.getBrowserViewModel(browserId);
+		const closePromise = Event.toPromise(model.onDidClose);
+		model.dispose();
+		return closePromise;
 	}
 
 	// #endregion
