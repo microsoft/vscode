@@ -53,6 +53,7 @@ import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIco
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { INewPromptOptions, NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../promptSyntax/newPromptFileActions.js';
 import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory } from './customizationCreatorService.js';
@@ -759,13 +760,31 @@ export class AICustomizationManagementEditor extends EditorPane {
 	/**
 	 * Creates a new prompt file and opens it in the embedded editor.
 	 */
-	private async createNewItemManual(type: PromptsType, target: 'workspace' | 'user'): Promise<void> {
+	private async createNewItemManual(type: PromptsType, target: 'workspace' | 'user' | 'workspace-root'): Promise<void> {
 		this.telemetryService.publicLog2<CustomizationEditorCreateItemEvent, CustomizationEditorCreateItemClassification>('chatCustomizationEditor.createItem', {
 			section: this.selectedSection,
 			promptType: type,
 			creationMode: 'manual',
 			target,
 		});
+
+		// Handle workspace-root files (e.g. AGENTS.md at project root)
+		if (target === 'workspace-root') {
+			const projectRoot = this.workspaceService.getActiveProjectRoot();
+			if (!projectRoot) {
+				return;
+			}
+			const fileUri = URI.joinPath(projectRoot, AGENT_MD_FILENAME);
+			if (await this.fileService.exists(fileUri)) {
+				// File already exists — just open it
+				await this.showEmbeddedEditor(fileUri, AGENT_MD_FILENAME, PromptsType.instructions, PromptsStorage.local, true);
+			} else {
+				await this.fileService.createFile(fileUri);
+				await this.showEmbeddedEditor(fileUri, AGENT_MD_FILENAME, PromptsType.instructions, PromptsStorage.local, true);
+			}
+			void this.listWidget.refresh();
+			return;
+		}
 
 		if (type === PromptsType.hook) {
 			if (this.workspaceService.isSessionsWindow) {
