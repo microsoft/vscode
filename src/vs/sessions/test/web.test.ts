@@ -306,7 +306,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 				extensionVersion: '0.0.1',
 				extensionPublisherId: 'vscode',
 				extensionDisplayName: 'Sessions E2E Mock',
-				isDefault: true,
+				isDefault: agentId === 'copilotcli',
 				metadata: {},
 				slashCommands: [],
 				locations: [ChatAgentLocation.Chat],
