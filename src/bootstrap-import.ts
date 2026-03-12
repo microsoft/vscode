@@ -18,16 +18,12 @@ import { join } from 'node:path';
 
 const _specifierToUrl: Record<string, string> = {};
 const _specifierToFormat: Record<string, string> = {};
-const _nodeModulesPath: string[] = [];
 
 export async function initialize(injectPath: string): Promise<void> {
 	// populate mappings
 
 	const injectPackageJSONPath = fileURLToPath(new URL('../package.json', pathToFileURL(injectPath)));
 	const packageJSON = JSON.parse(String(await promises.readFile(injectPackageJSONPath)));
-
-	// Remember the node_modules root for subpath resolution
-	_nodeModulesPath.push(join(injectPackageJSONPath, `../node_modules`));
 
 	for (const [name] of Object.entries(packageJSON.dependencies)) {
 		try {
@@ -82,26 +78,6 @@ export async function resolve(specifier: string | number, context: unknown, next
 			shortCircuit: true,
 			url: newSpecifier
 		};
-	}
-
-	// Handle subpath imports (e.g., 'vscode-jsonrpc/node') by resolving
-	// through the redirected node_modules directory, delegating the actual
-	// resolution logic to Node's resolver by adjusting parentURL.
-	if (_nodeModulesPath.length > 0 && typeof specifier === 'string' && !specifier.startsWith('.') && !specifier.startsWith('node:')) {
-		for (const nmPath of _nodeModulesPath) {
-			// Construct a synthetic parent URL located above the redirected
-			// node_modules folder so that Node's resolver will consider
-			// that node_modules when resolving the bare specifier.
-			const syntheticParentURL = pathToFileURL(join(nmPath, '..', '__bootstrap_import_resolve__.js')).href;
-			const nextContext = typeof context === 'object' && context !== null
-				? { ...(context as Record<string, unknown>), parentURL: syntheticParentURL }
-				: { parentURL: syntheticParentURL };
-			try {
-				return await nextResolve(specifier, nextContext);
-			} catch {
-				// If resolution fails for this node_modules path, try the next one
-			}
-		}
 	}
 
 	// Defer to the next hook in the chain, which would be the
