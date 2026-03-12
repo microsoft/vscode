@@ -100,7 +100,7 @@ steps:
     env:
       VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
 
-  - template: ../../common/install-builtin-extensions.yml@self
+  - template: ../common/install-builtin-extensions.yml@self
 
   - powershell: npm run gulp core-ci
     env:
