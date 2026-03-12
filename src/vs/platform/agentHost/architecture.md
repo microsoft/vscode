@@ -93,7 +93,6 @@ src/vs/platform/agentHost/
 |   +-- protocolServerHandler.ts # JSON-RPC routing, client subscriptions, action broadcast
 |   +-- webSocketTransport.ts # WebSocket IProtocolTransport + IProtocolServer impl
 |   +-- nodeAgentHostStarter.ts # Node.js (non-Electron) starter
-|   +-- copilotSessionWrapper.ts # Copilot SDK session lifecycle wrapper
 |   +-- copilot/
 |       +-- copilotAgent.ts       # CopilotAgent: IAgent backed by Copilot SDK
 |       +-- copilotSessionWrapper.ts

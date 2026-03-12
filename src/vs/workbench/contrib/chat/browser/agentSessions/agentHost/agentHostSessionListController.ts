@@ -10,7 +10,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IAgentHostService, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
 
 /**
@@ -20,7 +20,7 @@ import { getAgentHostIcon } from '../agentSessions.js';
  */
 export class AgentHostSessionListController extends Disposable implements IChatSessionItemController {
 
-	private readonly _onDidChangeChatSessionItems = this._register(new Emitter<void>());
+	private readonly _onDidChangeChatSessionItems = this._register(new Emitter<IChatSessionItemsDelta>());
 	readonly onDidChangeChatSessionItems = this._onDidChangeChatSessionItems.event;
 
 	private _items: IChatSessionItem[] = [];
@@ -37,7 +37,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		this._register(this._agentHostService.onDidNotification(n => {
 			if (n.type === 'notify/sessionAdded' && n.summary.provider === this._provider) {
 				const rawId = AgentSession.id(n.summary.resource);
-				this._items.push({
+				const item: IChatSessionItem = {
 					resource: URI.from({ scheme: this._sessionType, path: `/${rawId}` }),
 					label: n.summary.title ?? `Session ${rawId.substring(0, 8)}`,
 					iconPath: getAgentHostIcon(this._productService),
@@ -47,14 +47,15 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 						lastRequestStarted: n.summary.modifiedAt,
 						lastRequestEnded: n.summary.modifiedAt,
 					},
-				});
-				this._onDidChangeChatSessionItems.fire();
+				};
+				this._items.push(item);
+				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [item] });
 			} else if (n.type === 'notify/sessionRemoved') {
 				const removedId = AgentSession.id(n.session);
 				const idx = this._items.findIndex(item => item.resource.path === `/${removedId}`);
 				if (idx >= 0) {
-					this._items.splice(idx, 1);
-					this._onDidChangeChatSessionItems.fire();
+					const [removed] = this._items.splice(idx, 1);
+					this._onDidChangeChatSessionItems.fire({ removed: [removed.resource] });
 				}
 			}
 		}));
@@ -91,6 +92,6 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		} catch {
 			this._items = [];
 		}
-		this._onDidChangeChatSessionItems.fire();
+		this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this._items });
 	}
 }
