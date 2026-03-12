@@ -592,7 +592,7 @@ suite('LocalAgentsSessionsController', () => {
 				}));
 
 				// Simulate progress change by triggering the progress listener
-				mockChatService.triggerProgressEvent();
+				mockChatService.triggerProgressEvent(mockModel);
 
 				assert.strictEqual(changeEventCount, 1);
 			});
@@ -618,7 +618,7 @@ suite('LocalAgentsSessionsController', () => {
 				}));
 
 				// Simulate progress change by triggering the progress listener
-				mockChatService.triggerProgressEvent();
+				mockChatService.triggerProgressEvent(mockModel);
 
 				assert.strictEqual(changeEventCount, 1);
 			});

@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatDetail, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
@@ -190,22 +189,13 @@ export class MockChatService implements IChatService {
 	}
 
 
-	private onChange?: () => void;
+	private readonly _onDidChangeSessionBasedChatModel = new Emitter<IChatModel>();
+	readonly onDidChangeSessionBasedChatModel = this._onDidChangeSessionBasedChatModel.event;
 
-	registerChatModelChangeListeners(chatSessionType: string, onChange: () => void): IDisposable {
-		// Store the emitter so tests can trigger it
-		this.onChange = onChange;
-		return {
-			dispose: () => {
-				this.onChange = undefined;
-			}
-		};
-	}
-
-	// Helper method for tests to trigger progress events
-	triggerProgressEvent(): void {
-		if (this.onChange) {
-			this.onChange();
+	// Helper method for tests to trigger model change events
+	triggerProgressEvent(model?: IChatModel): void {
+		if (model) {
+			this._onDidChangeSessionBasedChatModel.fire(model);
 		}
 	}
 }
