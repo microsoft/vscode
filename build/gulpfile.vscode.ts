@@ -714,13 +714,16 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 }
 
 /**
- * Copies VS Code's own node-pty native module into the copilot SDK's
- * `prebuilds/{platform}-{arch}/` directory so the copilot CLI subprocess
- * can find it at runtime. This replaces the copilot-bundled prebuilds
- * (which are stripped by .moduleignore) with the same binary VS Code
- * already ships, avoiding new system dependency requirements.
+ * Copies VS Code's own node-pty and ripgrep binaries into the copilot SDK's
+ * expected locations so the copilot CLI subprocess can find them at runtime.
+ * The copilot-bundled prebuilds and ripgrep are stripped by .moduleignore;
+ * this replaces them with the same binaries VS Code already ships, avoiding
+ * new system dependency requirements.
+ *
+ * node-pty: `prebuilds/{platform}-{arch}/` (pty.node + spawn-helper)
+ * ripgrep:  `sdk/ripgrep/bin/{platform}-{arch}/` (rg binary)
  */
-function copyNodePtyForCopilotTask(platform: string, arch: string, destinationFolderName: string) {
+function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFolderName: string) {
 	const outputDir = path.join(path.dirname(root), destinationFolderName);
 
 	return async () => {
@@ -728,19 +731,28 @@ function copyNodePtyForCopilotTask(platform: string, arch: string, destinationFo
 			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
 			: path.join(outputDir, 'resources', 'app');
 
-		const nodePtySource = path.join(appBase, 'node_modules', 'node-pty', 'build', 'Release');
-		const prebuildsArch = platform === 'win32' ? `${platform}-${arch}` :
-			platform === 'darwin' ? `darwin-${arch}` : `linux-${arch}`;
-		const copilotPrebuildsDir = path.join(appBase, 'node_modules', '@github', 'copilot', 'prebuilds', prebuildsArch);
+		const platformArch = `${platform === 'win32' ? 'win32' : platform}-${arch}`;
 
-		if (!fs.existsSync(nodePtySource)) {
-			console.log(`[copyNodePtyForCopilot] node-pty source not found at ${nodePtySource}, skipping`);
-			return;
+		// Copy node-pty (pty.node + spawn-helper) into copilot prebuilds
+		const nodePtySource = path.join(appBase, 'node_modules', 'node-pty', 'build', 'Release');
+		const copilotPrebuildsDir = path.join(appBase, 'node_modules', '@github', 'copilot', 'prebuilds', platformArch);
+
+		if (fs.existsSync(nodePtySource)) {
+			fs.mkdirSync(copilotPrebuildsDir, { recursive: true });
+			fs.cpSync(nodePtySource, copilotPrebuildsDir, { recursive: true });
+			console.log(`[copyCopilotNativeDeps] Copied node-pty to ${copilotPrebuildsDir}`);
 		}
 
-		fs.mkdirSync(copilotPrebuildsDir, { recursive: true });
-		fs.cpSync(nodePtySource, copilotPrebuildsDir, { recursive: true });
-		console.log(`[copyNodePtyForCopilot] Copied node-pty from ${nodePtySource} to ${copilotPrebuildsDir}`);
+		// Copy ripgrep (rg binary) into copilot sdk/ripgrep
+		const rgBinary = platform === 'win32' ? 'rg.exe' : 'rg';
+		const ripgrepSource = path.join(appBase, 'node_modules', '@vscode', 'ripgrep', 'bin', rgBinary);
+		const copilotRipgrepDir = path.join(appBase, 'node_modules', '@github', 'copilot', 'sdk', 'ripgrep', 'bin', platformArch);
+
+		if (fs.existsSync(ripgrepSource)) {
+			fs.mkdirSync(copilotRipgrepDir, { recursive: true });
+			fs.copyFileSync(ripgrepSource, path.join(copilotRipgrepDir, rgBinary));
+			console.log(`[copyCopilotNativeDeps] Copied ripgrep to ${copilotRipgrepDir}`);
+		}
 	};
 }
 
@@ -769,7 +781,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 			compileNativeExtensionsBuildTask,
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts),
-			copyNodePtyForCopilotTask(platform, arch, destinationFolderName)
+			copyCopilotNativeDepsTask(platform, arch, destinationFolderName)
 		];
 
 		if (platform === 'win32') {
