@@ -11,7 +11,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
+import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_CAN_ZOOM_IN, CONTEXT_BROWSER_CAN_ZOOM_OUT, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewCommandId, BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
@@ -26,8 +26,9 @@ const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEdito
 
 const BrowserCategory = localize2('browserCategory', "Browser");
 const ActionGroupTabs = '1_tabs';
-const ActionGroupPage = '2_page';
-const ActionGroupSettings = '3_settings';
+const ActionGroupZoom = '2_zoom';
+const ActionGroupPage = '3_page';
+const ActionGroupSettings = '4_settings';
 
 interface IOpenBrowserOptions {
 	url?: string;
@@ -445,7 +446,7 @@ class ClearEphemeralBrowserStorageAction extends Action2 {
 			precondition: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '3_settings',
+				group: ActionGroupSettings,
 				order: 1,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral)
 			}
@@ -480,6 +481,113 @@ class OpenBrowserSettingsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const preferencesService = accessor.get(IPreferencesService);
 		await preferencesService.openSettings({ query: '@id:workbench.browser.*,chat.sendElementsToChat.*' });
+	}
+}
+
+// Zoom actions
+
+class ZoomInAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.zoomIn';
+
+	constructor() {
+		super({
+			id: ZoomInAction.ID,
+			title: localize2('browser.zoomInAction', 'Zoom In'),
+			category: BrowserCategory,
+			icon: Codicon.zoomIn,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: ActionGroupZoom,
+				order: 1,
+				when: CONTEXT_BROWSER_CAN_ZOOM_IN,
+			},
+			keybinding: {
+				when: CONTEXT_BROWSER_FOCUSED,
+				weight: KeybindingWeight.WorkbenchContrib + 75,
+				// Same shortcuts as 'workbench.action.zoomIn'
+				primary: KeyMod.CtrlCmd | KeyCode.Equal,
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Equal, KeyMod.CtrlCmd | KeyCode.NumpadAdd],
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.zoomIn();
+		}
+	}
+}
+
+class ZoomOutAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.zoomOut';
+
+	constructor() {
+		super({
+			id: ZoomOutAction.ID,
+			title: localize2('browser.zoomOutAction', 'Zoom Out'),
+			category: BrowserCategory,
+			icon: Codicon.zoomOut,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: ActionGroupZoom,
+				order: 2,
+				when: CONTEXT_BROWSER_CAN_ZOOM_OUT,
+			},
+			keybinding: {
+				when: CONTEXT_BROWSER_FOCUSED,
+				weight: KeybindingWeight.WorkbenchContrib + 75,
+				// Same shortcuts as 'workbench.action.zoomOut'
+				primary: KeyMod.CtrlCmd | KeyCode.Minus,
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, KeyMod.CtrlCmd | KeyCode.NumpadSubtract],
+				linux: {
+					primary: KeyMod.CtrlCmd | KeyCode.Minus,
+					secondary: [KeyMod.CtrlCmd | KeyCode.NumpadSubtract]
+				}
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.zoomOut();
+		}
+	}
+}
+
+class ResetZoomAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.resetZoom';
+
+	constructor() {
+		super({
+			id: ResetZoomAction.ID,
+			title: localize2('browser.resetZoomAction', 'Reset Zoom'),
+			category: BrowserCategory,
+			icon: Codicon.screenNormal,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: ActionGroupZoom,
+				order: 3,
+			},
+			keybinding: {
+				when: CONTEXT_BROWSER_FOCUSED,
+				weight: KeybindingWeight.WorkbenchContrib + 75,
+				// Same shortcuts as 'workbench.action.zoomReset'
+				// (note: both workbench and here use Numpad0 instead of Digit0 to avoid conflicts with keybinding to focus sidebar.)
+				primary: KeyMod.CtrlCmd | KeyCode.Numpad0,
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.resetZoom();
+		}
 	}
 }
 
@@ -617,6 +725,9 @@ registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
 registerAction2(ClearEphemeralBrowserStorageAction);
 registerAction2(OpenBrowserSettingsAction);
+registerAction2(ZoomInAction);
+registerAction2(ZoomOutAction);
+registerAction2(ResetZoomAction);
 registerAction2(ShowBrowserFindAction);
 registerAction2(HideBrowserFindAction);
 registerAction2(BrowserFindNextAction);

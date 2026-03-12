@@ -193,6 +193,11 @@ export interface IChatSessionContentProvider {
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 }
 
+export interface IChatNewSessionRequest {
+	readonly prompt: string;
+	readonly command?: string;
+}
+
 export interface IChatSessionItemController {
 
 	readonly onDidChangeChatSessionItems: Event<void>;
@@ -201,7 +206,7 @@ export interface IChatSessionItemController {
 
 	refresh(token: CancellationToken): Promise<void>;
 
-	newChatSessionItem?(request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 }
 
 /**
@@ -213,6 +218,12 @@ export interface IChatSessionOptionsWillNotifyExtensionEvent extends IWaitUntil 
 	readonly updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>;
 }
 
+export type ResolvedChatSessionsExtensionPoint = Omit<IChatSessionsExtensionPoint, 'icon'> & {
+	readonly icon: ThemeIcon | URI | undefined;
+};
+
+export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
+
 export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
 
@@ -223,22 +234,20 @@ export interface IChatSessionsService {
 	readonly onDidChangeAvailability: Event<void>;
 	readonly onDidChangeInProgress: Event<void>;
 
-	getChatSessionContribution(chatSessionType: string): IChatSessionsExtensionPoint | undefined;
+	getChatSessionContribution(chatSessionType: string): ResolvedChatSessionsExtensionPoint | undefined;
+	getAllChatSessionContributions(): ResolvedChatSessionsExtensionPoint[];
 
 	registerChatSessionItemController(chatSessionType: string, controller: IChatSessionItemController): IDisposable;
 	activateChatSessionItemProvider(chatSessionType: string): Promise<void>;
 
-	getAllChatSessionContributions(): IChatSessionsExtensionPoint[];
-	getIconForSessionType(chatSessionType: string): ThemeIcon | URI | undefined;
-	getWelcomeTitleForSessionType(chatSessionType: string): string | undefined;
-	getWelcomeMessageForSessionType(chatSessionType: string): string | undefined;
-	getInputPlaceholderForSessionType(chatSessionType: string): string | undefined;
-
 	/**
 	 * Get the list of current chat session items grouped by session type.
+	 *
 	 * @param providerTypeFilter If specified, only returns items from the given providers. If undefined, returns items from all providers.
+	 *
+	 * @returns An async iterable that produces the list of session items for each provider. The order is not guaranteed. Some provider may take a long time to resolve.
 	 */
-	getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }>>;
+	getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): AsyncIterable<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }>;
 
 	/**
 	 * Forces the controllers to refresh their session items, optionally filtered by provider type.
@@ -304,7 +313,7 @@ export interface IChatSessionsService {
 	 * Creates a new chat session item using the controller's newChatSessionItemHandler.
 	 * Returns undefined if the controller doesn't have a handler or if no controller is registered.
 	 */
-	createNewChatSessionItem(chatSessionType: string, request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+	createNewChatSessionItem(chatSessionType: string, request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 
 	/**
 	 * Registers an alias so that session-option lookups by the real resource
@@ -322,4 +331,3 @@ export function isIChatSessionFileChange2(obj: unknown): obj is IChatSessionFile
 	return candidate && candidate.uri instanceof URI && typeof candidate.insertions === 'number' && typeof candidate.deletions === 'number';
 }
 
-export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');

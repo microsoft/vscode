@@ -43,8 +43,6 @@ const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
-const useVersionedUpdate = process.platform === 'win32' && (product as typeof product & { win32VersionedUpdate?: boolean })?.win32VersionedUpdate;
-const versionedResourcesFolder = useVersionedUpdate ? commit!.substring(0, 10) : '';
 
 // Build
 const vscodeEntryPoints = [
@@ -91,6 +89,7 @@ const vscodeResourceIncludes = [
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.psm1',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.sh',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.zsh',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
 
 	// Accessibility Signals
 	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
@@ -324,6 +323,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 	const task = () => {
 		const out = sourceFolderName;
+		const versionedResourcesFolder = util.getVersionedResourcesFolder(platform, commit!);
 
 		const checksums = computeChecksums(out, [
 			'vs/base/parts/sandbox/electron-browser/preload.js',
@@ -527,10 +527,12 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			platform,
 			arch: arch === 'armhf' ? 'arm' : arch,
 			ffmpegChromium: false,
+			darwinAssetsCar: 'resources/darwin/code.car',
 			...(embedded ? {
 				darwinMiniAppName: embedded.nameShort,
 				darwinMiniAppBundleIdentifier: embedded.darwinBundleIdentifier,
 				darwinMiniAppIcon: 'resources/darwin/sessions.icns',
+				darwinMiniAppAssetsCar: 'resources/darwin/sessions.car',
 				darwinMiniAppBundleURLTypes: [{
 					role: 'Viewer',
 					name: embedded.nameLong,
@@ -567,7 +569,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		if (platform === 'win32') {
 			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32', allowEmpty: true }));
 
-			if (useVersionedUpdate) {
+			if (versionedResourcesFolder) {
 				result = es.merge(result, gulp.src('resources/win32/versioned/bin/code.cmd', { base: 'resources/win32/versioned' })
 					.pipe(replace('@@NAME@@', product.nameShort))
 					.pipe(replace('@@VERSIONFOLDER@@', versionedResourcesFolder))
@@ -645,6 +647,7 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 	const cwd = path.join(path.dirname(root), destinationFolderName);
 
 	return async () => {
+		const versionedResourcesFolder = util.getVersionedResourcesFolder('win32', commit!);
 		const deps = (await Promise.all([
 			glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' }),
 			glob('**/rg.exe', { cwd }),

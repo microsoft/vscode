@@ -586,7 +586,8 @@ export interface IConfigurationProperties {
 
 export enum RunOnOptions {
 	default = 1,
-	folderOpen = 2
+	folderOpen = 2,
+	worktreeCreated = 3
 }
 
 export const enum InstancePolicy {

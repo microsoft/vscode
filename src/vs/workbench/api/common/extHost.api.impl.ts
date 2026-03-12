@@ -1709,6 +1709,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatDebug');
 				return extHostChatDebug.registerChatDebugLogProvider(provider);
 			},
+			onDidReceiveChatDebugEvent: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatDebug');
+				return extHostChatDebug.onDidAddCoreEvent(listener, thisArgs, disposables);
+			},
 			get customAgents() {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.customAgents as readonly vscode.ChatResource[];
@@ -1971,6 +1975,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TaskGroup: extHostTypes.TaskGroup,
 			TaskPanelKind: extHostTypes.TaskPanelKind,
 			TaskRevealKind: extHostTypes.TaskRevealKind,
+			TaskRunOn: extHostTypes.TaskRunOn,
 			TaskScope: extHostTypes.TaskScope,
 			TerminalLink: extHostTypes.TerminalLink,
 			TerminalQuickFixTerminalCommand: extHostTypes.TerminalQuickFixCommand,
