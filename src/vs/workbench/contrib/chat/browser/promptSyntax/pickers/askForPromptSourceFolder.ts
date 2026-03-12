@@ -44,6 +44,11 @@ export async function askForPromptSourceFolder(
 		return;
 	}
 
+	// if only one source folder, auto-select it without showing the picker
+	if (folders.length === 1 && !existingFolder) {
+		return folders[0];
+	}
+
 	const pickOptions: IPickOptions<IFolderQuickPickItem> = {
 		placeHolder: existingFolder ? getPlaceholderStringforMove(type, isMove) : getPlaceholderStringforNew(type),
 		canPickMany: false,
