@@ -1,0 +1,158 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.image-carousel-editor {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.image-carousel-editor .empty-message {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	color: var(--vscode-descriptionForeground);
+	font-size: 14px;
+}
+
+.image-carousel-editor .slideshow-container {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 12px;
+	gap: 8px;
+}
+
+.image-carousel-editor .slideshow-container:focus,
+.image-carousel-editor .slideshow-container:focus-visible {
+	outline: none !important;
+}
+
+/* Image viewing area */
+.image-carousel-editor .image-area {
+	flex: 1;
+	min-height: 0;
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	background-color: var(--vscode-editorWidget-background);
+	border-radius: 6px;
+}
+
+.image-carousel-editor .main-image-container {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 24px 48px;
+}
+
+.image-carousel-editor .main-image {
+	max-width: 100%;
+	max-height: 100%;
+	object-fit: contain;
+	border-radius: 4px;
+}
+
+/* Overlay navigation arrows */
+.image-carousel-editor .nav-arrow {
+	position: absolute;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 32px;
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: none;
+	border-radius: 50%;
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.15s ease;
+	z-index: 1;
+}
+
+.monaco-workbench.monaco-reduce-motion .image-carousel-editor .nav-arrow {
+	transition: none;
+}
+.image-carousel-editor .image-area:hover .nav-arrow:not(:disabled) {
+	opacity: 0.8;
+}
+
+.image-carousel-editor .nav-arrow:hover:not(:disabled) {
+	opacity: 1 !important;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.image-carousel-editor .nav-arrow:disabled {
+	opacity: 0 !important;
+	cursor: default;
+	pointer-events: none;
+}
+
+.image-carousel-editor .nav-arrow.prev-arrow {
+	left: 8px;
+}
+
+.image-carousel-editor .nav-arrow.next-arrow {
+	right: 8px;
+}
+
+/* Counter */
+.image-carousel-editor .image-counter {
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	padding: 2px 0;
+}
+
+/* Thumbnail strip */
+.image-carousel-editor .thumbnails-container {
+	display: flex;
+	gap: 6px;
+	overflow-x: auto;
+	padding: 4px 0;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.image-carousel-editor .thumbnail {
+	width: 48px;
+	height: 48px;
+	border: 2px solid transparent;
+	border-radius: 4px;
+	overflow: hidden;
+	cursor: pointer;
+	transition: border-color 0.15s ease, opacity 0.15s ease;
+	flex-shrink: 0;
+	opacity: 0.6;
+	padding: 0;
+	background: none;
+}
+
+.image-carousel-editor .thumbnail:hover {
+	opacity: 1;
+	border-color: var(--vscode-focusBorder);
+}
+
+.image-carousel-editor .thumbnail.active {
+	opacity: 1;
+	border-color: var(--vscode-focusBorder);
+}
+
+.image-carousel-editor .thumbnail-image {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}

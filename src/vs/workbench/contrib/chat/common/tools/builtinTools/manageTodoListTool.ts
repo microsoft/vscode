@@ -157,7 +157,11 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			status: todo.status
 		}));
 
+		const invocationLabel = message?.replace(/^(Starting|Completed): /i, '') ?? localize('todo.updatingList', "Updating todo list");
+		const invocationMessage = new MarkdownString(invocationLabel);
+
 		return {
+			invocationMessage,
 			pastTenseMessage: new MarkdownString(message ?? localize('todo.updatedList', "Updated todo list")),
 			toolSpecificData: {
 				kind: 'todoList',

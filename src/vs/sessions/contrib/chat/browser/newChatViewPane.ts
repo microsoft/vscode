@@ -538,6 +538,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			fontFamily: 'system-ui, -apple-system, sans-serif',
 			fontSize: 13,
 			lineHeight: 20,
+			cursorWidth: 1,
 			padding: { top: 8, bottom: 2 },
 			wrappingStrategy: 'advanced',
 			stickyScroll: { enabled: false },

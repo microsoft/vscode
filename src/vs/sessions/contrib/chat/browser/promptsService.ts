@@ -23,6 +23,7 @@ import { IPathService } from '../../../../workbench/services/path/common/pathSer
 import { ISearchService } from '../../../../workbench/services/search/common/search.js';
 import { IUserDataProfileService } from '../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
 /** URI root for built-in prompts bundled with the Sessions app. */
 export const BUILTIN_PROMPTS_URI = FileAccess.asFileUri('vs/sessions/prompts');
@@ -144,6 +145,7 @@ class AgenticPromptFilesLocator extends PromptFilesLocator {
 		@IUserDataProfileService userDataService: IUserDataProfileService,
 		@ILogService logService: ILogService,
 		@IPathService pathService: IPathService,
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IAICustomizationWorkspaceService private readonly customizationWorkspaceService: IAICustomizationWorkspaceService,
 	) {
 		super(
@@ -154,7 +156,8 @@ class AgenticPromptFilesLocator extends PromptFilesLocator {
 			searchService,
 			userDataService,
 			logService,
-			pathService
+			pathService,
+			workspaceTrustManagementService
 		);
 	}
 

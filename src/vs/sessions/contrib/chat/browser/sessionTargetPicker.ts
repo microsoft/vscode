@@ -243,13 +243,13 @@ export class IsolationModePicker extends Disposable {
 		const items: IActionListItem<IsolationMode>[] = [
 			{
 				kind: ActionListItemKind.Action,
-				label: localize('isolationMode.worktree', "Copilot CLI"),
+				label: localize('isolationMode.worktree', "Worktree"),
 				group: { title: '', icon: Codicon.worktree },
 				item: 'worktree',
 			},
 			{
 				kind: ActionListItemKind.Action,
-				label: localize('isolationMode.folder', "Local"),
+				label: localize('isolationMode.folder', "Folder"),
 				group: { title: '', icon: Codicon.folder },
 				item: 'workspace',
 			},
@@ -296,8 +296,8 @@ export class IsolationModePicker extends Disposable {
 		const isDisabled = !this._repository;
 		const modeIcon = this._isolationMode === 'worktree' ? Codicon.worktree : Codicon.folder;
 		const modeLabel = this._isolationMode === 'worktree'
-			? localize('isolationMode.worktree', "Copilot CLI")
-			: localize('isolationMode.folder', "Local");
+			? localize('isolationMode.worktree', "Worktree")
+			: localize('isolationMode.folder', "Folder");
 
 		dom.append(this._triggerElement, renderIcon(modeIcon));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));

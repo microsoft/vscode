@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { joinPath, dirname, isEqual } from '../../../../base/common/resources.js';
 import { parse } from '../../../../base/common/jsonc.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
@@ -20,6 +20,11 @@ import { ITerminalInstance, ITerminalService } from '../../../../workbench/contr
 import { CommandString } from '../../../../workbench/contrib/tasks/common/taskConfiguration.js';
 
 export type TaskStorageTarget = 'user' | 'workspace';
+type TaskRunOnOption = 'default' | 'folderOpen' | 'worktreeCreated';
+
+interface ITaskRunOptions {
+	readonly runOn?: TaskRunOnOption;
+}
 
 /**
  * Shape of a single task entry inside tasks.json.
@@ -32,10 +37,16 @@ export interface ITaskEntry {
 	readonly command?: string;
 	readonly args?: CommandString[];
 	readonly inSessions?: boolean;
+	readonly runOptions?: ITaskRunOptions;
 	readonly windows?: { command?: string; args?: CommandString[] };
 	readonly osx?: { command?: string; args?: CommandString[] };
 	readonly linux?: { command?: string; args?: CommandString[] };
 	readonly [key: string]: unknown;
+}
+
+export interface INonSessionTaskEntry {
+	readonly task: ITaskEntry;
+	readonly target: TaskStorageTarget;
 }
 
 interface ITasksJson {
@@ -56,19 +67,19 @@ export interface ISessionsConfigurationService {
 	 * Returns tasks that do NOT have `inSessions: true` — used as
 	 * suggestions in the "Add Run Action" picker.
 	 */
-	getNonSessionTasks(session: IActiveSessionItem): Promise<readonly ITaskEntry[]>;
+	getNonSessionTasks(session: IActiveSessionItem): Promise<readonly INonSessionTaskEntry[]>;
 
 	/**
 	 * Sets `inSessions: true` on an existing task (identified by label),
 	 * updating it in place in its tasks.json.
 	 */
-	addTaskToSessions(task: ITaskEntry, session: IActiveSessionItem, target: TaskStorageTarget): Promise<void>;
+	addTaskToSessions(task: ITaskEntry, session: IActiveSessionItem, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<void>;
 
 	/**
 	 * Creates a new shell task with `inSessions: true` and writes it to
 	 * the appropriate tasks.json (user or workspace).
 	 */
-	createAndAddTask(command: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<ITaskEntry | undefined>;
+	createAndAddTask(label: string | undefined, command: string, session: IActiveSessionItem, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<ITaskEntry | undefined>;
 
 	/**
 	 * Runs a task entry in a terminal, resolving the correct platform
@@ -95,6 +106,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 	private readonly _fileWatcher = this._register(new MutableDisposable());
 	/** Maps `cwd.toString() + command` to the terminal `instanceId`. */
 	private readonly _taskTerminals = new Map<string, number>();
+	private readonly _knownSessionWorktrees = new Map<string, string | undefined>();
 	private readonly _lastRunTaskLabels: Map<string, string>;
 	private readonly _lastRunTaskObservables = new Map<string, ReturnType<typeof observableValue<string | undefined>>>();
 
@@ -111,6 +123,11 @@ export class SessionsConfigurationService extends Disposable implements ISession
 	) {
 		super();
 		this._lastRunTaskLabels = this._loadLastRunTaskLabels();
+
+		this._register(autorun(reader => {
+			const activeSession = this._sessionsManagementService.activeSession.read(reader);
+			this._handleActiveSessionChange(activeSession);
+		}));
 	}
 
 	getSessionTasks(session: IActiveSessionItem): IObservable<readonly ITaskEntry[]> {
@@ -126,12 +143,33 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		return this._sessionTasks;
 	}
 
-	async getNonSessionTasks(session: IActiveSessionItem): Promise<readonly ITaskEntry[]> {
-		const allTasks = await this._readAllTasks(session);
-		return allTasks.filter(t => !t.inSessions);
+	async getNonSessionTasks(session: IActiveSessionItem): Promise<readonly INonSessionTaskEntry[]> {
+		const result: INonSessionTaskEntry[] = [];
+
+		const workspaceUri = this._getTasksJsonUri(session, 'workspace');
+		if (workspaceUri) {
+			const workspaceJson = await this._readTasksJson(workspaceUri);
+			for (const task of workspaceJson.tasks ?? []) {
+				if (!task.inSessions && this._isSupportedTask(task)) {
+					result.push({ task, target: 'workspace' });
+				}
+			}
+		}
+
+		const userUri = this._getTasksJsonUri(session, 'user');
+		if (userUri) {
+			const userJson = await this._readTasksJson(userUri);
+			for (const task of userJson.tasks ?? []) {
+				if (!task.inSessions && this._isSupportedTask(task)) {
+					result.push({ task, target: 'user' });
+				}
+			}
+		}
+
+		return result;
 	}
 
-	async addTaskToSessions(task: ITaskEntry, session: IActiveSessionItem, target: TaskStorageTarget): Promise<void> {
+	async addTaskToSessions(task: ITaskEntry, session: IActiveSessionItem, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<void> {
 		const tasksJsonUri = this._getTasksJsonUri(session, target);
 		if (!tasksJsonUri) {
 			return;
@@ -144,16 +182,25 @@ export class SessionsConfigurationService extends Disposable implements ISession
 			return;
 		}
 
-		await this._jsonEditingService.write(tasksJsonUri, [
-			{ path: ['tasks', index, 'inSessions'], value: true }
-		], true);
+		const edits: { path: (string | number)[]; value: unknown }[] = [
+			{ path: ['tasks', index, 'inSessions'], value: true },
+		];
+
+		if (options) {
+			edits.push({
+				path: ['tasks', index, 'runOptions'],
+				value: options.runOn && options.runOn !== 'default' ? { runOn: options.runOn } : undefined,
+			});
+		}
+
+		await this._jsonEditingService.write(tasksJsonUri, edits, true);
 
 		if (target === 'workspace') {
 			await this._commitTasksFile(session);
 		}
 	}
 
-	async createAndAddTask(command: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<ITaskEntry | undefined> {
+	async createAndAddTask(label: string | undefined, command: string, session: IActiveSessionItem, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<ITaskEntry | undefined> {
 		const tasksJsonUri = this._getTasksJsonUri(session, target);
 		if (!tasksJsonUri) {
 			return undefined;
@@ -161,11 +208,13 @@ export class SessionsConfigurationService extends Disposable implements ISession
 
 		const tasksJson = await this._readTasksJson(tasksJsonUri);
 		const tasks = tasksJson.tasks ?? [];
+		const resolvedLabel = label?.trim() || command;
 		const newTask: ITaskEntry = {
-			label: command,
+			label: resolvedLabel,
 			type: 'shell',
 			command,
 			inSessions: true,
+			...(options?.runOn && options.runOn !== 'default' ? { runOptions: { runOn: options.runOn } } : {}),
 		};
 
 		await this._jsonEditingService.write(tasksJsonUri, [
@@ -330,6 +379,37 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		}
 		const resolvedArgs = args.map(a => CommandString.value(a)).join(' ');
 		return `${command} ${resolvedArgs}`;
+	}
+
+	private _handleActiveSessionChange(session: IActiveSessionItem | undefined): void {
+		if (!session) {
+			return;
+		}
+
+		const sessionKey = session.resource.toString();
+		const currentWorktree = session.worktree?.toString();
+		if (!this._knownSessionWorktrees.has(sessionKey)) {
+			this._knownSessionWorktrees.set(sessionKey, currentWorktree);
+			return;
+		}
+
+		const previousWorktree = this._knownSessionWorktrees.get(sessionKey);
+		this._knownSessionWorktrees.set(sessionKey, currentWorktree);
+		if (!currentWorktree || previousWorktree === currentWorktree) {
+			return;
+		}
+
+		void this._runWorktreeCreatedTasks(session);
+	}
+
+	private async _runWorktreeCreatedTasks(session: IActiveSessionItem): Promise<void> {
+		const tasks = await this._readAllTasks(session);
+		for (const task of tasks) {
+			if (!task.inSessions || task.runOptions?.runOn !== 'worktreeCreated') {
+				continue;
+			}
+			await this.runTask(task, session);
+		}
 	}
 
 	private _ensureFileWatch(folder: URI): void {

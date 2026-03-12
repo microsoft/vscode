@@ -25,11 +25,12 @@ import { IPathService } from '../../../../../../services/path/common/pathService
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { hasGlobPattern, isValidGlob, isValidPromptFolderPath, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
-import { IMockFileEntry, IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
+import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { mockService } from './mock.js';
-import { TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
+import { TestUserDataProfileService, TestWorkspaceTrustManagementService } from '../../../../../../test/common/workbenchTestServices.js';
 import { PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 
 /**
  * Mocked instance of {@link IConfigurationService}.
@@ -77,40 +78,22 @@ suite('PromptFilesLocator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
-	setup(async () => {
-		instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(ILogService, new NullLogService());
+	let fileService: IFileService;
+	const configValues: Record<string, unknown> = {};
+	let workspaceTrustService: TestWorkspaceTrustManagementService;
 
-		const fileService = disposables.add(instantiationService.createInstance(FileService));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+	// Sets all prompt file location config keys to the same value
+	const setLocations = (value: unknown) => {
+		configValues[PromptsConfig.PROMPT_LOCATIONS_KEY] = value;
+		configValues[PromptsConfig.INSTRUCTIONS_LOCATION_KEY] = value;
+		configValues[PromptsConfig.MODE_LOCATION_KEY] = value;
+		configValues[PromptsConfig.SKILLS_LOCATION_KEY] = value;
+	};
 
-		instantiationService.stub(IFileService, fileService);
-	});
-
-	/**
-	 * Create a new instance of {@link PromptFilesLocator} with provided mocked
-	 * values for configuration and workspace services.
-	 */
-	const createPromptsLocator = async (configValue: unknown, workspaceFolderPaths: string[], filesystem: IMockFolder[]) => {
-
-		const mockFs = instantiationService.createInstance(MockFilesystem, filesystem);
-		await mockFs.mock();
-
-		instantiationService.stub(IConfigurationService, mockConfigService({
-			'explorer.excludeGitIgnore': false,
-			'files.exclude': {},
-			'search.exclude': {},
-			[PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS]: false,
-			[PromptsConfig.PROMPT_LOCATIONS_KEY]: configValue,
-			[PromptsConfig.INSTRUCTIONS_LOCATION_KEY]: configValue,
-			[PromptsConfig.MODE_LOCATION_KEY]: configValue,
-			[PromptsConfig.SKILLS_LOCATION_KEY]: configValue,
-		}));
-
-		const workspaceFolders = workspaceFolderPaths.map((path, index) => {
+	// Stubs workspace context service with the given folder paths
+	const setWorkspaceFolders = (paths: string[]) => {
+		const workspaceFolders = paths.map((path, index) => {
 			const uri = URI.file(path);
-
 			return new class extends mock<IWorkspaceFolder>() {
 				override uri = uri;
 				override name = basename(uri);
@@ -118,6 +101,34 @@ suite('PromptFilesLocator', () => {
 			};
 		});
 		instantiationService.stub(IWorkspaceContextService, mockWorkspaceService(workspaceFolders));
+	};
+
+	setup(async () => {
+		instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+
+		fileService = disposables.add(instantiationService.createInstance(FileService));
+		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+		disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		instantiationService.stub(IFileService, fileService);
+
+		workspaceTrustService = disposables.add(new TestWorkspaceTrustManagementService());
+		instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrustService);
+
+		// Reset config values to defaults
+		for (const key of Object.keys(configValues)) {
+			delete configValues[key];
+		}
+		Object.assign(configValues, {
+			'explorer.excludeGitIgnore': false,
+			'files.exclude': {},
+			'search.exclude': {},
+			[PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS]: false,
+		});
+		instantiationService.stub(IConfigurationService, mockConfigService(configValues));
+
+		setWorkspaceFolders([]);
+
 		instantiationService.stub(IWorkbenchEnvironmentService, {} as IWorkbenchEnvironmentService);
 		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instantiationService.stub(ISearchService, {
@@ -125,11 +136,9 @@ suite('PromptFilesLocator', () => {
 				return true;
 			},
 			async fileSearch(query: IFileQuery) {
-				// mock the search service
-				const fs = instantiationService.get(IFileService);
 				const findFilesInLocation = async (location: URI, results: URI[] = []) => {
 					try {
-						const resolve = await fs.resolve(location);
+						const resolve = await fileService.resolve(location);
 						if (resolve.isFile) {
 							results.push(resolve.resource);
 						} else if (resolve.isDirectory && resolve.children) {
@@ -150,7 +159,6 @@ suite('PromptFilesLocator', () => {
 							results.push({ resource });
 						}
 					}
-
 				}
 				return { results, messages: [] };
 			}
@@ -164,134 +172,112 @@ suite('PromptFilesLocator', () => {
 				return Promise.resolve(uri);
 			}
 		} as IPathService);
-
-		const locator = instantiationService.createInstance(PromptFilesLocator);
-
-		return {
-			async listFiles(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
-				return locator.listFiles(type, storage, token);
-			},
-			async getConfigBasedSourceFolders(type: PromptsType): Promise<readonly URI[]> {
-				return await locator.getConfigBasedSourceFolders(type);
-			},
-			async findAgentSkills(token: CancellationToken) {
-				return await locator.findAgentSkills(token);
-			},
-			async disposeAsync(): Promise<void> {
-				await mockFs.delete();
-			}
-		};
-	};
+	});
 
 	suite('empty workspace', () => {
 		const EMPTY_WORKSPACE: string[] = [];
 
 		suite('empty filesystem', () => {
 			testT('no config value', async () => {
-				const locator = await createPromptsLocator(undefined, EMPTY_WORKSPACE, []);
+				setLocations(undefined);
+				setWorkspaceFolders(EMPTY_WORKSPACE);
+				await mockFiles(fileService, []);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				assertOutcome(
 					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[],
 					'No prompts must be found.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('object config value', async () => {
-				const locator = await createPromptsLocator({
+				setLocations({
 					'/Users/legomushroom/repos/prompts/': true,
 					'/tmp/prompts/': false,
-				}, EMPTY_WORKSPACE, []);
+				});
+				setWorkspaceFolders(EMPTY_WORKSPACE);
+				await mockFiles(fileService, []);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				assertOutcome(
 					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[],
 					'No prompts must be found.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('array config value', async () => {
-				const locator = await createPromptsLocator([
+				setLocations([
 					'relative/path/to/prompts/',
 					'/abs/path',
-				], EMPTY_WORKSPACE, []);
+				]);
+				setWorkspaceFolders(EMPTY_WORKSPACE);
+				await mockFiles(fileService, []);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				assertOutcome(
 					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[],
 					'No prompts must be found.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('null config value', async () => {
-				const locator = await createPromptsLocator(null, EMPTY_WORKSPACE, []);
+				setLocations(null);
+				setWorkspaceFolders(EMPTY_WORKSPACE);
+				await mockFiles(fileService, []);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				assertOutcome(
 					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[],
 					'No prompts must be found.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('string config value', async () => {
-				const locator = await createPromptsLocator('/etc/hosts/prompts', EMPTY_WORKSPACE, []);
+				setLocations('/etc/hosts/prompts');
+				setWorkspaceFolders(EMPTY_WORKSPACE);
+				await mockFiles(fileService, []);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				assertOutcome(
 					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
 					[],
 					'No prompts must be found.',
 				);
-				await locator.disposeAsync();
 			});
 		});
 
 		suite('non-empty filesystem', () => {
 			testT('core logic', async () => {
-				const locator = await createPromptsLocator(
+				setLocations({
+					'/Users/legomushroom/repos/prompts': true,
+					'/tmp/prompts/': true,
+					'/absolute/path/prompts': false,
+					'.copilot/prompts': true,
+				});
+				setWorkspaceFolders(EMPTY_WORKSPACE);
+				await mockFiles(fileService, [
 					{
-						'/Users/legomushroom/repos/prompts': true,
-						'/tmp/prompts/': true,
-						'/absolute/path/prompts': false,
-						'.copilot/prompts': true,
+						path: '/Users/legomushroom/repos/prompts/test.prompt.md',
+						contents: ['Hello, World!'],
 					},
-					EMPTY_WORKSPACE,
-					[
-						{
-							name: '/Users/legomushroom/repos/prompts',
-							children: [
-								{
-									name: 'test.prompt.md',
-									contents: 'Hello, World!',
-								},
-								{
-									name: 'refactor-tests.prompt.md',
-									contents: 'some file content goes here',
-								},
-							],
-						},
-						{
-							name: '/tmp/prompts',
-							children: [
-								{
-									name: 'translate.to-rust.prompt.md',
-									contents: 'some more random file contents',
-								},
-							],
-						},
-						{
-							name: '/absolute/path/prompts',
-							children: [
-								{
-									name: 'some-prompt-file.prompt.md',
-									contents: 'hey hey hey',
-								},
-							],
-						},
-					]);
+					{
+						path: '/Users/legomushroom/repos/prompts/refactor-tests.prompt.md',
+						contents: ['some file content goes here'],
+					},
+					{
+						path: '/tmp/prompts/translate.to-rust.prompt.md',
+						contents: ['some more random file contents'],
+					},
+					{
+						path: '/absolute/path/prompts/some-prompt-file.prompt.md',
+						contents: ['hey hey hey'],
+					},
+				]);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				assertOutcome(
 					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -302,7 +288,6 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
-				await locator.disposeAsync();
 			});
 
 			suite('absolute', () => {
@@ -327,47 +312,31 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const setting of settings) {
-						const locator = await createPromptsLocator(
-							{ [setting]: true },
-							EMPTY_WORKSPACE,
-							[
-								{
-									name: '/Users/legomushroom/repos/vscode',
-									children: [
-										{
-											name: 'deps/text',
-											children: [
-												{
-													name: 'my.prompt.md',
-													contents: 'oh hi, bot!',
-												},
-												{
-													name: 'nested',
-													children: [
-														{
-															name: 'specific.prompt.md',
-															contents: 'oh hi, bot!',
-														},
-														{
-															name: 'unspecific1.prompt.md',
-															contents: 'oh hi, robot!',
-														},
-														{
-															name: 'unspecific2.prompt.md',
-															contents: 'oh hi, rabot!',
-														},
-														{
-															name: 'readme.md',
-															contents: 'non prompt file',
-														},
-													],
-												}
-											],
-										},
-									],
-								},
-							],
-						);
+						setLocations({ [setting]: true });
+						setWorkspaceFolders(EMPTY_WORKSPACE);
+						await mockFiles(fileService, [
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/my.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/unspecific1.prompt.md',
+								contents: ['oh hi, robot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/unspecific2.prompt.md',
+								contents: ['oh hi, rabot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/readme.md',
+								contents: ['non prompt file'],
+							},
+						]);
+						const locator = instantiationService.createInstance(PromptFilesLocator);
 
 						assertOutcome(
 							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -379,7 +348,6 @@ suite('PromptFilesLocator', () => {
 							],
 							'Must find correct prompts.',
 						);
-						await locator.disposeAsync();
 					}
 				});
 
@@ -481,51 +449,35 @@ suite('PromptFilesLocator', () => {
 							vscodeSettings[setting] = true;
 						}
 
-						const locator = await createPromptsLocator(
-							vscodeSettings,
-							EMPTY_WORKSPACE,
-							[
-								{
-									name: '/Users/legomushroom/repos/vscode',
-									children: [
-										{
-											name: 'deps/text',
-											children: [
-												{
-													name: 'my.prompt.md',
-													contents: 'oh hi, bot!',
-												},
-												{
-													name: 'nested',
-													children: [
-														{
-															name: 'default.prompt.md',
-															contents: 'oh hi, bot!',
-														},
-														{
-															name: 'specific.prompt.md',
-															contents: 'oh hi, bot!',
-														},
-														{
-															name: 'unspecific1.prompt.md',
-															contents: 'oh hi, robot!',
-														},
-														{
-															name: 'unspecific2.prompt.md',
-															contents: 'oh hi, rawbot!',
-														},
-														{
-															name: 'readme.md',
-															contents: 'non prompt file',
-														},
-													],
-												}
-											],
-										},
-									],
-								},
-							],
-						);
+						setLocations(vscodeSettings);
+						setWorkspaceFolders(EMPTY_WORKSPACE);
+						await mockFiles(fileService, [
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/my.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/default.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/unspecific1.prompt.md',
+								contents: ['oh hi, robot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/unspecific2.prompt.md',
+								contents: ['oh hi, rawbot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/readme.md',
+								contents: ['non prompt file'],
+							},
+						]);
+						const locator = instantiationService.createInstance(PromptFilesLocator);
 
 						assertOutcome(
 							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -536,7 +488,6 @@ suite('PromptFilesLocator', () => {
 							],
 							'Must find correct prompts.',
 						);
-						await locator.disposeAsync();
 					}
 				});
 			});
@@ -567,47 +518,31 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const setting of testSettings) {
-						const locator = await createPromptsLocator(
-							{ [setting]: true },
-							['/Users/legomushroom/repos/vscode'],
-							[
-								{
-									name: '/Users/legomushroom/repos/vscode',
-									children: [
-										{
-											name: 'deps/text',
-											children: [
-												{
-													name: 'my.prompt.md',
-													contents: 'oh hi, bot!',
-												},
-												{
-													name: 'nested',
-													children: [
-														{
-															name: 'specific.prompt.md',
-															contents: 'oh hi, bot!',
-														},
-														{
-															name: 'unspecific1.prompt.md',
-															contents: 'oh hi, robot!',
-														},
-														{
-															name: 'unspecific2.prompt.md',
-															contents: 'oh hi, rabot!',
-														},
-														{
-															name: 'readme.md',
-															contents: 'non prompt file',
-														},
-													],
-												}
-											],
-										},
-									],
-								},
-							],
-						);
+						setLocations({ [setting]: true });
+						setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+						await mockFiles(fileService, [
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/my.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/unspecific1.prompt.md',
+								contents: ['oh hi, robot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/unspecific2.prompt.md',
+								contents: ['oh hi, rabot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/readme.md',
+								contents: ['non prompt file'],
+							},
+						]);
+						const locator = instantiationService.createInstance(PromptFilesLocator);
 
 						assertOutcome(
 							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -619,7 +554,6 @@ suite('PromptFilesLocator', () => {
 							],
 							'Must find correct prompts.',
 						);
-						await locator.disposeAsync();
 
 					}
 				});
@@ -722,51 +656,35 @@ suite('PromptFilesLocator', () => {
 							vscodeSettings[setting] = true;
 						}
 
-						const locator = await createPromptsLocator(
-							vscodeSettings,
-							['/Users/legomushroom/repos/vscode'],
-							[
-								{
-									name: '/Users/legomushroom/repos/vscode',
-									children: [
-										{
-											name: 'deps/text',
-											children: [
-												{
-													name: 'my.prompt.md',
-													contents: 'oh hi, bot!',
-												},
-												{
-													name: 'nested',
-													children: [
-														{
-															name: 'default.prompt.md',
-															contents: 'oh hi, bot!',
-														},
-														{
-															name: 'specific.prompt.md',
-															contents: 'oh hi, bot!',
-														},
-														{
-															name: 'unspecific1.prompt.md',
-															contents: 'oh hi, robot!',
-														},
-														{
-															name: 'unspecific2.prompt.md',
-															contents: 'oh hi, rawbot!',
-														},
-														{
-															name: 'readme.md',
-															contents: 'non prompt file',
-														},
-													],
-												}
-											],
-										},
-									],
-								},
-							],
-						);
+						setLocations(vscodeSettings);
+						setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+						await mockFiles(fileService, [
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/my.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/default.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/unspecific1.prompt.md',
+								contents: ['oh hi, robot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/unspecific2.prompt.md',
+								contents: ['oh hi, rawbot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/readme.md',
+								contents: ['non prompt file'],
+							},
+						]);
+						const locator = instantiationService.createInstance(PromptFilesLocator);
 
 						assertOutcome(
 							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -777,7 +695,6 @@ suite('PromptFilesLocator', () => {
 							],
 							'Must find correct prompts.',
 						);
-						await locator.disposeAsync();
 					}
 				});
 			});
@@ -805,47 +722,31 @@ suite('PromptFilesLocator', () => {
 
 					for (const setting of settings) {
 
-						const locator = await createPromptsLocator(
-							{ [setting]: true },
-							['/Users/legomushroom/repos/vscode'],
-							[
-								{
-									name: '/Users/legomushroom/repos/vscode',
-									children: [
-										{
-											name: 'deps/text',
-											children: [
-												{
-													name: 'my.prompt.md',
-													contents: 'oh hi, bot!',
-												},
-												{
-													name: 'nested',
-													children: [
-														{
-															name: 'specific.prompt.md',
-															contents: 'oh hi, bot!',
-														},
-														{
-															name: 'unspecific1.prompt.md',
-															contents: 'oh hi, robot!',
-														},
-														{
-															name: 'unspecific2.prompt.md',
-															contents: 'oh hi, rabot!',
-														},
-														{
-															name: 'readme.md',
-															contents: 'non prompt file',
-														},
-													],
-												}
-											],
-										},
-									],
-								},
-							],
-						);
+						setLocations({ [setting]: true });
+						setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+						await mockFiles(fileService, [
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/my.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/unspecific1.prompt.md',
+								contents: ['oh hi, robot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/unspecific2.prompt.md',
+								contents: ['oh hi, rabot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/readme.md',
+								contents: ['non prompt file'],
+							},
+						]);
+						const locator = instantiationService.createInstance(PromptFilesLocator);
 
 						assertOutcome(
 							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -857,7 +758,6 @@ suite('PromptFilesLocator', () => {
 							],
 							'Must find correct prompts.',
 						);
-						await locator.disposeAsync();
 
 					}
 				});
@@ -960,51 +860,35 @@ suite('PromptFilesLocator', () => {
 							vscodeSettings[setting] = true;
 						}
 
-						const locator = await createPromptsLocator(
-							vscodeSettings,
-							['/Users/legomushroom/repos/vscode'],
-							[
-								{
-									name: '/Users/legomushroom/repos/vscode',
-									children: [
-										{
-											name: 'deps/text',
-											children: [
-												{
-													name: 'my.prompt.md',
-													contents: 'oh hi, bot!',
-												},
-												{
-													name: 'nested',
-													children: [
-														{
-															name: 'default.prompt.md',
-															contents: 'oh hi, bot!',
-														},
-														{
-															name: 'specific.prompt.md',
-															contents: 'oh hi, bot!',
-														},
-														{
-															name: 'unspecific1.prompt.md',
-															contents: 'oh hi, robot!',
-														},
-														{
-															name: 'unspecific2.prompt.md',
-															contents: 'oh hi, rawbot!',
-														},
-														{
-															name: 'readme.md',
-															contents: 'non prompt file',
-														},
-													],
-												}
-											],
-										},
-									],
-								},
-							],
-						);
+						setLocations(vscodeSettings);
+						setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+						await mockFiles(fileService, [
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/my.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/default.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/specific.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/unspecific1.prompt.md',
+								contents: ['oh hi, robot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/unspecific2.prompt.md',
+								contents: ['oh hi, rawbot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/deps/text/nested/readme.md',
+								contents: ['non prompt file'],
+							},
+						]);
+						const locator = instantiationService.createInstance(PromptFilesLocator);
 
 						assertOutcome(
 							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -1015,7 +899,6 @@ suite('PromptFilesLocator', () => {
 							],
 							'Must find correct prompts.',
 						);
-						await locator.disposeAsync();
 
 					}
 				});
@@ -1024,72 +907,42 @@ suite('PromptFilesLocator', () => {
 	});
 
 	testT('core logic', async () => {
-		const locator = await createPromptsLocator(
+		setLocations({
+			'/Users/legomushroom/repos/prompts': true,
+			'/tmp/prompts/': true,
+			'/absolute/path/prompts': false,
+			'.copilot/prompts': true,
+		});
+		setWorkspaceFolders([
+			'/Users/legomushroom/repos/vscode',
+		]);
+		await mockFiles(fileService, [
 			{
-				'/Users/legomushroom/repos/prompts': true,
-				'/tmp/prompts/': true,
-				'/absolute/path/prompts': false,
-				'.copilot/prompts': true,
+				path: '/Users/legomushroom/repos/prompts/test.prompt.md',
+				contents: ['Hello, World!'],
 			},
-			[
-				'/Users/legomushroom/repos/vscode',
-			],
-			[
-				{
-					name: '/Users/legomushroom/repos/prompts',
-					children: [
-						{
-							name: 'test.prompt.md',
-							contents: 'Hello, World!',
-						},
-						{
-							name: 'refactor-tests.prompt.md',
-							contents: 'some file content goes here',
-						},
-					],
-				},
-				{
-					name: '/tmp/prompts',
-					children: [
-						{
-							name: 'translate.to-rust.prompt.md',
-							contents: 'some more random file contents',
-						},
-					],
-				},
-				{
-					name: '/absolute/path/prompts',
-					children: [
-						{
-							name: 'some-prompt-file.prompt.md',
-							contents: 'hey hey hey',
-						},
-					],
-				},
-				{
-					name: '/Users/legomushroom/repos/vscode',
-					children: [
-						{
-							name: '.copilot/prompts',
-							children: [
-								{
-									name: 'default.prompt.md',
-									contents: 'oh hi, robot!',
-								},
-							],
-						},
-						{
-							name: '.github/prompts',
-							children: [
-								{
-									name: 'my.prompt.md',
-									contents: 'oh hi, bot!',
-								},
-							],
-						},
-					],
-				},
-			]);
+			{
+				path: '/Users/legomushroom/repos/prompts/refactor-tests.prompt.md',
+				contents: ['some file content goes here'],
+			},
+			{
+				path: '/tmp/prompts/translate.to-rust.prompt.md',
+				contents: ['some more random file contents'],
+			},
+			{
+				path: '/absolute/path/prompts/some-prompt-file.prompt.md',
+				contents: ['hey hey hey'],
+			},
+			{
+				path: '/Users/legomushroom/repos/vscode/.copilot/prompts/default.prompt.md',
+				contents: ['oh hi, robot!'],
+			},
+			{
+				path: '/Users/legomushroom/repos/vscode/.github/prompts/my.prompt.md',
+				contents: ['oh hi, bot!'],
+			},
+		]);
+		const locator = instantiationService.createInstance(PromptFilesLocator);
 
 		assertOutcome(
 			await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -1102,81 +955,50 @@ suite('PromptFilesLocator', () => {
 			],
 			'Must find correct prompts.',
 		);
-		await locator.disposeAsync();
 	});
 
 	testT('with disabled `.github/prompts` location', async () => {
-		const locator = await createPromptsLocator(
+		setLocations({
+			'/Users/legomushroom/repos/prompts': true,
+			'/tmp/prompts/': true,
+			'/absolute/path/prompts': false,
+			'.copilot/prompts': true,
+			'.github/prompts': false,
+		});
+		setWorkspaceFolders([
+			'/Users/legomushroom/repos/vscode',
+		]);
+		await mockFiles(fileService, [
 			{
-				'/Users/legomushroom/repos/prompts': true,
-				'/tmp/prompts/': true,
-				'/absolute/path/prompts': false,
-				'.copilot/prompts': true,
-				'.github/prompts': false,
+				path: '/Users/legomushroom/repos/prompts/test.prompt.md',
+				contents: ['Hello, World!'],
 			},
-			[
-				'/Users/legomushroom/repos/vscode',
-			],
-			[
-				{
-					name: '/Users/legomushroom/repos/prompts',
-					children: [
-						{
-							name: 'test.prompt.md',
-							contents: 'Hello, World!',
-						},
-						{
-							name: 'refactor-tests.prompt.md',
-							contents: 'some file content goes here',
-						},
-					],
-				},
-				{
-					name: '/tmp/prompts',
-					children: [
-						{
-							name: 'translate.to-rust.prompt.md',
-							contents: 'some more random file contents',
-						},
-					],
-				},
-				{
-					name: '/absolute/path/prompts',
-					children: [
-						{
-							name: 'some-prompt-file.prompt.md',
-							contents: 'hey hey hey',
-						},
-					],
-				},
-				{
-					name: '/Users/legomushroom/repos/vscode',
-					children: [
-						{
-							name: '.copilot/prompts',
-							children: [
-								{
-									name: 'default.prompt.md',
-									contents: 'oh hi, robot!',
-								},
-							],
-						},
-						{
-							name: '.github/prompts',
-							children: [
-								{
-									name: 'my.prompt.md',
-									contents: 'oh hi, bot!',
-								},
-								{
-									name: 'your.prompt.md',
-									contents: 'oh hi, bot!',
-								},
-							],
-						},
-					],
-				},
-			]);
+			{
+				path: '/Users/legomushroom/repos/prompts/refactor-tests.prompt.md',
+				contents: ['some file content goes here'],
+			},
+			{
+				path: '/tmp/prompts/translate.to-rust.prompt.md',
+				contents: ['some more random file contents'],
+			},
+			{
+				path: '/absolute/path/prompts/some-prompt-file.prompt.md',
+				contents: ['hey hey hey'],
+			},
+			{
+				path: '/Users/legomushroom/repos/vscode/.copilot/prompts/default.prompt.md',
+				contents: ['oh hi, robot!'],
+			},
+			{
+				path: '/Users/legomushroom/repos/vscode/.github/prompts/my.prompt.md',
+				contents: ['oh hi, bot!'],
+			},
+			{
+				path: '/Users/legomushroom/repos/vscode/.github/prompts/your.prompt.md',
+				contents: ['oh hi, bot!'],
+			},
+		]);
+		const locator = instantiationService.createInstance(PromptFilesLocator);
 
 		assertOutcome(
 			await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -1188,116 +1010,64 @@ suite('PromptFilesLocator', () => {
 			],
 			'Must find correct prompts.',
 		);
-		await locator.disposeAsync();
 	});
 
 	suite('multi-root workspace', () => {
 		suite('core logic', () => {
 			testT('without top-level `.github` folder', async () => {
-				const locator = await createPromptsLocator(
+				setLocations({
+					'/Users/legomushroom/repos/prompts': true,
+					'/tmp/prompts/': true,
+					'/absolute/path/prompts': false,
+					'.copilot/prompts': false,
+				});
+				setWorkspaceFolders([
+					'/Users/legomushroom/repos/vscode',
+					'/Users/legomushroom/repos/node',
+				]);
+				await mockFiles(fileService, [
 					{
-						'/Users/legomushroom/repos/prompts': true,
-						'/tmp/prompts/': true,
-						'/absolute/path/prompts': false,
-						'.copilot/prompts': false,
+						path: '/Users/legomushroom/repos/prompts/test.prompt.md',
+						contents: ['Hello, World!'],
 					},
-					[
-						'/Users/legomushroom/repos/vscode',
-						'/Users/legomushroom/repos/node',
-					],
-					[
-						{
-							name: '/Users/legomushroom/repos/prompts',
-							children: [
-								{
-									name: 'test.prompt.md',
-									contents: 'Hello, World!',
-								},
-								{
-									name: 'refactor-tests.prompt.md',
-									contents: 'some file content goes here',
-								},
-							],
-						},
-						{
-							name: '/tmp/prompts',
-							children: [
-								{
-									name: 'translate.to-rust.prompt.md',
-									contents: 'some more random file contents',
-								},
-							],
-						},
-						{
-							name: '/absolute/path/prompts',
-							children: [
-								{
-									name: 'some-prompt-file.prompt.md',
-									contents: 'hey hey hey',
-								},
-							],
-						},
-						{
-							name: '/Users/legomushroom/repos/vscode',
-							children: [
-								{
-									name: '.copilot/prompts',
-									children: [
-										{
-											name: 'prompt1.prompt.md',
-											contents: 'oh hi, robot!',
-										},
-									],
-								},
-								{
-									name: '.github/prompts',
-									children: [
-										{
-											name: 'default.prompt.md',
-											contents: 'oh hi, bot!',
-										},
-									],
-								},
-							],
-						},
-						{
-							name: '/Users/legomushroom/repos/node',
-							children: [
-								{
-									name: '.copilot/prompts',
-									children: [
-										{
-											name: 'prompt5.prompt.md',
-											contents: 'oh hi, robot!',
-										},
-									],
-								},
-								{
-									name: '.github/prompts',
-									children: [
-										{
-											name: 'refactor-static-classes.prompt.md',
-											contents: 'file contents',
-										},
-									],
-								},
-							],
-						},
-						// note! this folder is not part of the workspace, so prompt files are `ignored`
-						{
-							name: '/Users/legomushroom/repos/.github/prompts',
-							children: [
-								{
-									name: 'prompt-name.prompt.md',
-									contents: 'oh hi, robot!',
-								},
-								{
-									name: 'name-of-the-prompt.prompt.md',
-									contents: 'oh hi, raw bot!',
-								},
-							],
-						},
-					]);
+					{
+						path: '/Users/legomushroom/repos/prompts/refactor-tests.prompt.md',
+						contents: ['some file content goes here'],
+					},
+					{
+						path: '/tmp/prompts/translate.to-rust.prompt.md',
+						contents: ['some more random file contents'],
+					},
+					{
+						path: '/absolute/path/prompts/some-prompt-file.prompt.md',
+						contents: ['hey hey hey'],
+					},
+					{
+						path: '/Users/legomushroom/repos/vscode/.copilot/prompts/prompt1.prompt.md',
+						contents: ['oh hi, robot!'],
+					},
+					{
+						path: '/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md',
+						contents: ['oh hi, bot!'],
+					},
+					{
+						path: '/Users/legomushroom/repos/node/.copilot/prompts/prompt5.prompt.md',
+						contents: ['oh hi, robot!'],
+					},
+					{
+						path: '/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md',
+						contents: ['file contents'],
+					},
+					{
+						path: '/Users/legomushroom/repos/.github/prompts/prompt-name.prompt.md',
+						contents: ['oh hi, robot!'],
+					},
+					{
+						path: '/Users/legomushroom/repos/.github/prompts/name-of-the-prompt.prompt.md',
+						contents: ['oh hi, raw bot!'],
+					},
+				]);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				assertOutcome(
 					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -1310,115 +1080,63 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('with top-level `.github` folder', async () => {
-				const locator = await createPromptsLocator(
+				setLocations({
+					'/Users/legomushroom/repos/prompts': true,
+					'/tmp/prompts/': true,
+					'/absolute/path/prompts': false,
+					'.copilot/prompts': false,
+				});
+				setWorkspaceFolders([
+					'/Users/legomushroom/repos/vscode',
+					'/Users/legomushroom/repos/node',
+					'/var/shared/prompts',
+				]);
+				await mockFiles(fileService, [
 					{
-						'/Users/legomushroom/repos/prompts': true,
-						'/tmp/prompts/': true,
-						'/absolute/path/prompts': false,
-						'.copilot/prompts': false,
+						path: '/Users/legomushroom/repos/prompts/test.prompt.md',
+						contents: ['Hello, World!'],
 					},
-					[
-						'/Users/legomushroom/repos/vscode',
-						'/Users/legomushroom/repos/node',
-						'/var/shared/prompts',
-					],
-					[
-						{
-							name: '/Users/legomushroom/repos/prompts',
-							children: [
-								{
-									name: 'test.prompt.md',
-									contents: 'Hello, World!',
-								},
-								{
-									name: 'refactor-tests.prompt.md',
-									contents: 'some file content goes here',
-								},
-							],
-						},
-						{
-							name: '/tmp/prompts',
-							children: [
-								{
-									name: 'translate.to-rust.prompt.md',
-									contents: 'some more random file contents',
-								},
-							],
-						},
-						{
-							name: '/absolute/path/prompts',
-							children: [
-								{
-									name: 'some-prompt-file.prompt.md',
-									contents: 'hey hey hey',
-								},
-							],
-						},
-						{
-							name: '/Users/legomushroom/repos/vscode',
-							children: [
-								{
-									name: '.copilot/prompts',
-									children: [
-										{
-											name: 'prompt1.prompt.md',
-											contents: 'oh hi, robot!',
-										},
-									],
-								},
-								{
-									name: '.github/prompts',
-									children: [
-										{
-											name: 'default.prompt.md',
-											contents: 'oh hi, bot!',
-										},
-									],
-								},
-							],
-						},
-						{
-							name: '/Users/legomushroom/repos/node',
-							children: [
-								{
-									name: '.copilot/prompts',
-									children: [
-										{
-											name: 'prompt5.prompt.md',
-											contents: 'oh hi, robot!',
-										},
-									],
-								},
-								{
-									name: '.github/prompts',
-									children: [
-										{
-											name: 'refactor-static-classes.prompt.md',
-											contents: 'file contents',
-										},
-									],
-								},
-							],
-						},
-						// note! this folder is part of the workspace, so prompt files are `included`
-						{
-							name: '/var/shared/prompts/.github/prompts',
-							children: [
-								{
-									name: 'prompt-name.prompt.md',
-									contents: 'oh hi, robot!',
-								},
-								{
-									name: 'name-of-the-prompt.prompt.md',
-									contents: 'oh hi, raw bot!',
-								},
-							],
-						},
-					]);
+					{
+						path: '/Users/legomushroom/repos/prompts/refactor-tests.prompt.md',
+						contents: ['some file content goes here'],
+					},
+					{
+						path: '/tmp/prompts/translate.to-rust.prompt.md',
+						contents: ['some more random file contents'],
+					},
+					{
+						path: '/absolute/path/prompts/some-prompt-file.prompt.md',
+						contents: ['hey hey hey'],
+					},
+					{
+						path: '/Users/legomushroom/repos/vscode/.copilot/prompts/prompt1.prompt.md',
+						contents: ['oh hi, robot!'],
+					},
+					{
+						path: '/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md',
+						contents: ['oh hi, bot!'],
+					},
+					{
+						path: '/Users/legomushroom/repos/node/.copilot/prompts/prompt5.prompt.md',
+						contents: ['oh hi, robot!'],
+					},
+					{
+						path: '/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md',
+						contents: ['file contents'],
+					},
+					{
+						path: '/var/shared/prompts/.github/prompts/prompt-name.prompt.md',
+						contents: ['oh hi, robot!'],
+					},
+					{
+						path: '/var/shared/prompts/.github/prompts/name-of-the-prompt.prompt.md',
+						contents: ['oh hi, raw bot!'],
+					},
+				]);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				assertOutcome(
 					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -1433,116 +1151,64 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('with disabled `.github/prompts` location', async () => {
-				const locator = await createPromptsLocator(
+				setLocations({
+					'/Users/legomushroom/repos/prompts': true,
+					'/tmp/prompts/': true,
+					'/absolute/path/prompts': false,
+					'.copilot/prompts': false,
+					'.github/prompts': false,
+				});
+				setWorkspaceFolders([
+					'/Users/legomushroom/repos/vscode',
+					'/Users/legomushroom/repos/node',
+					'/var/shared/prompts',
+				]);
+				await mockFiles(fileService, [
 					{
-						'/Users/legomushroom/repos/prompts': true,
-						'/tmp/prompts/': true,
-						'/absolute/path/prompts': false,
-						'.copilot/prompts': false,
-						'.github/prompts': false,
+						path: '/Users/legomushroom/repos/prompts/test.prompt.md',
+						contents: ['Hello, World!'],
 					},
-					[
-						'/Users/legomushroom/repos/vscode',
-						'/Users/legomushroom/repos/node',
-						'/var/shared/prompts',
-					],
-					[
-						{
-							name: '/Users/legomushroom/repos/prompts',
-							children: [
-								{
-									name: 'test.prompt.md',
-									contents: 'Hello, World!',
-								},
-								{
-									name: 'refactor-tests.prompt.md',
-									contents: 'some file content goes here',
-								},
-							],
-						},
-						{
-							name: '/tmp/prompts',
-							children: [
-								{
-									name: 'translate.to-rust.prompt.md',
-									contents: 'some more random file contents',
-								},
-							],
-						},
-						{
-							name: '/absolute/path/prompts',
-							children: [
-								{
-									name: 'some-prompt-file.prompt.md',
-									contents: 'hey hey hey',
-								},
-							],
-						},
-						{
-							name: '/Users/legomushroom/repos/vscode',
-							children: [
-								{
-									name: '.copilot/prompts',
-									children: [
-										{
-											name: 'prompt1.prompt.md',
-											contents: 'oh hi, robot!',
-										},
-									],
-								},
-								{
-									name: '.github/prompts',
-									children: [
-										{
-											name: 'default.prompt.md',
-											contents: 'oh hi, bot!',
-										},
-									],
-								},
-							],
-						},
-						{
-							name: '/Users/legomushroom/repos/node',
-							children: [
-								{
-									name: '.copilot/prompts',
-									children: [
-										{
-											name: 'prompt5.prompt.md',
-											contents: 'oh hi, robot!',
-										},
-									],
-								},
-								{
-									name: '.github/prompts',
-									children: [
-										{
-											name: 'refactor-static-classes.prompt.md',
-											contents: 'file contents',
-										},
-									],
-								},
-							],
-						},
-						// note! this folder is part of the workspace, so prompt files are `included`
-						{
-							name: '/var/shared/prompts/.github/prompts',
-							children: [
-								{
-									name: 'prompt-name.prompt.md',
-									contents: 'oh hi, robot!',
-								},
-								{
-									name: 'name-of-the-prompt.prompt.md',
-									contents: 'oh hi, raw bot!',
-								},
-							],
-						},
-					]);
+					{
+						path: '/Users/legomushroom/repos/prompts/refactor-tests.prompt.md',
+						contents: ['some file content goes here'],
+					},
+					{
+						path: '/tmp/prompts/translate.to-rust.prompt.md',
+						contents: ['some more random file contents'],
+					},
+					{
+						path: '/absolute/path/prompts/some-prompt-file.prompt.md',
+						contents: ['hey hey hey'],
+					},
+					{
+						path: '/Users/legomushroom/repos/vscode/.copilot/prompts/prompt1.prompt.md',
+						contents: ['oh hi, robot!'],
+					},
+					{
+						path: '/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md',
+						contents: ['oh hi, bot!'],
+					},
+					{
+						path: '/Users/legomushroom/repos/node/.copilot/prompts/prompt5.prompt.md',
+						contents: ['oh hi, robot!'],
+					},
+					{
+						path: '/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md',
+						contents: ['file contents'],
+					},
+					{
+						path: '/var/shared/prompts/.github/prompts/prompt-name.prompt.md',
+						contents: ['oh hi, robot!'],
+					},
+					{
+						path: '/var/shared/prompts/.github/prompts/name-of-the-prompt.prompt.md',
+						contents: ['oh hi, raw bot!'],
+					},
+				]);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				assertOutcome(
 					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -1553,119 +1219,67 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('mixed', async () => {
-				const locator = await createPromptsLocator(
+				setLocations({
+					'/Users/legomushroom/repos/**/*test*': true,
+					'.copilot/prompts': false,
+					'.github/prompts': true,
+					'/absolute/path/prompts/some-prompt-file.prompt.md': true,
+				});
+				setWorkspaceFolders([
+					'/Users/legomushroom/repos/vscode',
+					'/Users/legomushroom/repos/node',
+					'/var/shared/prompts',
+				]);
+				await mockFiles(fileService, [
 					{
-						'/Users/legomushroom/repos/**/*test*': true,
-						'.copilot/prompts': false,
-						'.github/prompts': true,
-						'/absolute/path/prompts/some-prompt-file.prompt.md': true,
+						path: '/Users/legomushroom/repos/prompts/test.prompt.md',
+						contents: ['Hello, World!'],
 					},
-					[
-						'/Users/legomushroom/repos/vscode',
-						'/Users/legomushroom/repos/node',
-						'/var/shared/prompts',
-					],
-					[
-						{
-							name: '/Users/legomushroom/repos/prompts',
-							children: [
-								{
-									name: 'test.prompt.md',
-									contents: 'Hello, World!',
-								},
-								{
-									name: 'refactor-tests.prompt.md',
-									contents: 'some file content goes here',
-								},
-								{
-									name: 'elf.prompt.md',
-									contents: 'haalo!',
-								},
-							],
-						},
-						{
-							name: '/tmp/prompts',
-							children: [
-								{
-									name: 'translate.to-rust.prompt.md',
-									contents: 'some more random file contents',
-								},
-							],
-						},
-						{
-							name: '/absolute/path/prompts',
-							children: [
-								{
-									name: 'some-prompt-file.prompt.md',
-									contents: 'hey hey hey',
-								},
-							],
-						},
-						{
-							name: '/Users/legomushroom/repos/vscode',
-							children: [
-								{
-									name: '.copilot/prompts',
-									children: [
-										{
-											name: 'prompt1.prompt.md',
-											contents: 'oh hi, robot!',
-										},
-									],
-								},
-								{
-									name: '.github/prompts',
-									children: [
-										{
-											name: 'default.prompt.md',
-											contents: 'oh hi, bot!',
-										},
-									],
-								},
-							],
-						},
-						{
-							name: '/Users/legomushroom/repos/node',
-							children: [
-								{
-									name: '.copilot/prompts',
-									children: [
-										{
-											name: 'prompt5.prompt.md',
-											contents: 'oh hi, robot!',
-										},
-									],
-								},
-								{
-									name: '.github/prompts',
-									children: [
-										{
-											name: 'refactor-static-classes.prompt.md',
-											contents: 'file contents',
-										},
-									],
-								},
-							],
-						},
-						// note! this folder is part of the workspace, so prompt files are `included`
-						{
-							name: '/var/shared/prompts/.github/prompts',
-							children: [
-								{
-									name: 'prompt-name.prompt.md',
-									contents: 'oh hi, robot!',
-								},
-								{
-									name: 'name-of-the-prompt.prompt.md',
-									contents: 'oh hi, raw bot!',
-								},
-							],
-						},
-					]);
+					{
+						path: '/Users/legomushroom/repos/prompts/refactor-tests.prompt.md',
+						contents: ['some file content goes here'],
+					},
+					{
+						path: '/Users/legomushroom/repos/prompts/elf.prompt.md',
+						contents: ['haalo!'],
+					},
+					{
+						path: '/tmp/prompts/translate.to-rust.prompt.md',
+						contents: ['some more random file contents'],
+					},
+					{
+						path: '/absolute/path/prompts/some-prompt-file.prompt.md',
+						contents: ['hey hey hey'],
+					},
+					{
+						path: '/Users/legomushroom/repos/vscode/.copilot/prompts/prompt1.prompt.md',
+						contents: ['oh hi, robot!'],
+					},
+					{
+						path: '/Users/legomushroom/repos/vscode/.github/prompts/default.prompt.md',
+						contents: ['oh hi, bot!'],
+					},
+					{
+						path: '/Users/legomushroom/repos/node/.copilot/prompts/prompt5.prompt.md',
+						contents: ['oh hi, robot!'],
+					},
+					{
+						path: '/Users/legomushroom/repos/node/.github/prompts/refactor-static-classes.prompt.md',
+						contents: ['file contents'],
+					},
+					{
+						path: '/var/shared/prompts/.github/prompts/prompt-name.prompt.md',
+						contents: ['oh hi, robot!'],
+					},
+					{
+						path: '/var/shared/prompts/.github/prompts/name-of-the-prompt.prompt.md',
+						contents: ['oh hi, raw bot!'],
+					},
+				]);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				assertOutcome(
 					await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -1683,7 +1297,6 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
-				await locator.disposeAsync();
 			});
 		});
 
@@ -1715,72 +1328,46 @@ suite('PromptFilesLocator', () => {
 
 					for (const setting of testSettings) {
 
-						const locator = await createPromptsLocator(
-							{ [setting]: true },
-							[
-								'/Users/legomushroom/repos/vscode',
-								'/Users/legomushroom/repos/prompts',
-							],
-							[
-								{
-									name: '/Users/legomushroom/repos/vscode',
-									children: [
-										{
-											name: 'gen/text',
-											children: [
-												{
-													name: 'my.prompt.md',
-													contents: 'oh hi, bot!',
-												},
-												{
-													name: 'nested',
-													children: [
-														{
-															name: 'specific.prompt.md',
-															contents: 'oh hi, bot!',
-														},
-														{
-															name: 'unspecific1.prompt.md',
-															contents: 'oh hi, robot!',
-														},
-														{
-															name: 'unspecific2.prompt.md',
-															contents: 'oh hi, rabot!',
-														},
-														{
-															name: 'readme.md',
-															contents: 'non prompt file',
-														},
-													],
-												}
-											],
-										},
-									],
-								},
-								{
-									name: '/Users/legomushroom/repos/prompts',
-									children: [
-										{
-											name: 'general',
-											children: [
-												{
-													name: 'common.prompt.md',
-													contents: 'oh hi, bot!',
-												},
-												{
-													name: 'uncommon-10.prompt.md',
-													contents: 'oh hi, robot!',
-												},
-												{
-													name: 'license.md',
-													contents: 'non prompt file',
-												},
-											],
-										}
-									],
-								},
-							],
-						);
+						setLocations({ [setting]: true });
+						setWorkspaceFolders([
+							'/Users/legomushroom/repos/vscode',
+							'/Users/legomushroom/repos/prompts',
+						]);
+						await mockFiles(fileService, [
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/my.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/nested/unspecific1.prompt.md',
+								contents: ['oh hi, robot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/nested/unspecific2.prompt.md',
+								contents: ['oh hi, rabot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/nested/readme.md',
+								contents: ['non prompt file'],
+							},
+							{
+								path: '/Users/legomushroom/repos/prompts/general/common.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/prompts/general/uncommon-10.prompt.md',
+								contents: ['oh hi, robot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/prompts/general/license.md',
+								contents: ['non prompt file'],
+							},
+						]);
+						const locator = instantiationService.createInstance(PromptFilesLocator);
 
 						assertOutcome(
 							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -1795,7 +1382,6 @@ suite('PromptFilesLocator', () => {
 							],
 							'Must find correct prompts.',
 						);
-						await locator.disposeAsync();
 
 					}
 				});
@@ -1920,72 +1506,46 @@ suite('PromptFilesLocator', () => {
 							vscodeSettings[setting] = true;
 						}
 
-						const locator = await createPromptsLocator(
-							vscodeSettings,
-							[
-								'/Users/legomushroom/repos/vscode',
-								'/Users/legomushroom/repos/prompts',
-							],
-							[
-								{
-									name: '/Users/legomushroom/repos/vscode',
-									children: [
-										{
-											name: 'gen/text',
-											children: [
-												{
-													name: 'my.prompt.md',
-													contents: 'oh hi, bot!',
-												},
-												{
-													name: 'nested',
-													children: [
-														{
-															name: 'specific.prompt.md',
-															contents: 'oh hi, bot!',
-														},
-														{
-															name: 'unspecific1.prompt.md',
-															contents: 'oh hi, robot!',
-														},
-														{
-															name: 'unspecific2.prompt.md',
-															contents: 'oh hi, rabot!',
-														},
-														{
-															name: 'readme.md',
-															contents: 'non prompt file',
-														},
-													],
-												}
-											],
-										},
-									],
-								},
-								{
-									name: '/Users/legomushroom/repos/prompts',
-									children: [
-										{
-											name: 'general',
-											children: [
-												{
-													name: 'common.prompt.md',
-													contents: 'oh hi, bot!',
-												},
-												{
-													name: 'uncommon-10.prompt.md',
-													contents: 'oh hi, robot!',
-												},
-												{
-													name: 'license.md',
-													contents: 'non prompt file',
-												},
-											],
-										}
-									],
-								},
-							],
-						);
+						setLocations(vscodeSettings);
+						setWorkspaceFolders([
+							'/Users/legomushroom/repos/vscode',
+							'/Users/legomushroom/repos/prompts',
+						]);
+						await mockFiles(fileService, [
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/my.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/nested/unspecific1.prompt.md',
+								contents: ['oh hi, robot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/nested/unspecific2.prompt.md',
+								contents: ['oh hi, rabot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/nested/readme.md',
+								contents: ['non prompt file'],
+							},
+							{
+								path: '/Users/legomushroom/repos/prompts/general/common.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/prompts/general/uncommon-10.prompt.md',
+								contents: ['oh hi, robot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/prompts/general/license.md',
+								contents: ['non prompt file'],
+							},
+						]);
+						const locator = instantiationService.createInstance(PromptFilesLocator);
 
 						assertOutcome(
 							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -2000,7 +1560,6 @@ suite('PromptFilesLocator', () => {
 							],
 							'Must find correct prompts.',
 						);
-						await locator.disposeAsync();
 
 					}
 				});
@@ -2044,72 +1603,46 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const setting of testSettings) {
-						const locator = await createPromptsLocator(
-							{ [setting]: true },
-							[
-								'/Users/legomushroom/repos/vscode',
-								'/Users/legomushroom/repos/prompts',
-							],
-							[
-								{
-									name: '/Users/legomushroom/repos/vscode',
-									children: [
-										{
-											name: 'gen/text',
-											children: [
-												{
-													name: 'my.prompt.md',
-													contents: 'oh hi, bot!',
-												},
-												{
-													name: 'nested',
-													children: [
-														{
-															name: 'specific.prompt.md',
-															contents: 'oh hi, bot!',
-														},
-														{
-															name: 'unspecific1.prompt.md',
-															contents: 'oh hi, robot!',
-														},
-														{
-															name: 'unspecific2.prompt.md',
-															contents: 'oh hi, rabot!',
-														},
-														{
-															name: 'readme.md',
-															contents: 'non prompt file',
-														},
-													],
-												}
-											],
-										},
-									],
-								},
-								{
-									name: '/Users/legomushroom/repos/prompts',
-									children: [
-										{
-											name: 'general',
-											children: [
-												{
-													name: 'common.prompt.md',
-													contents: 'oh hi, bot!',
-												},
-												{
-													name: 'uncommon-10.prompt.md',
-													contents: 'oh hi, robot!',
-												},
-												{
-													name: 'license.md',
-													contents: 'non prompt file',
-												},
-											],
-										}
-									],
-								},
-							],
-						);
+						setLocations({ [setting]: true });
+						setWorkspaceFolders([
+							'/Users/legomushroom/repos/vscode',
+							'/Users/legomushroom/repos/prompts',
+						]);
+						await mockFiles(fileService, [
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/my.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/nested/unspecific1.prompt.md',
+								contents: ['oh hi, robot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/nested/unspecific2.prompt.md',
+								contents: ['oh hi, rabot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/nested/readme.md',
+								contents: ['non prompt file'],
+							},
+							{
+								path: '/Users/legomushroom/repos/prompts/general/common.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/prompts/general/uncommon-10.prompt.md',
+								contents: ['oh hi, robot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/prompts/general/license.md',
+								contents: ['non prompt file'],
+							},
+						]);
+						const locator = instantiationService.createInstance(PromptFilesLocator);
 
 						assertOutcome(
 							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -2124,7 +1657,6 @@ suite('PromptFilesLocator', () => {
 							],
 							'Must find correct prompts.',
 						);
-						await locator.disposeAsync();
 
 					}
 				});
@@ -2279,72 +1811,46 @@ suite('PromptFilesLocator', () => {
 							vscodeSettings[setting] = true;
 						}
 
-						const locator = await createPromptsLocator(
-							vscodeSettings,
-							[
-								'/Users/legomushroom/repos/vscode',
-								'/Users/legomushroom/repos/prompts',
-							],
-							[
-								{
-									name: '/Users/legomushroom/repos/vscode',
-									children: [
-										{
-											name: 'gen/text',
-											children: [
-												{
-													name: 'my.prompt.md',
-													contents: 'oh hi, bot!',
-												},
-												{
-													name: 'nested',
-													children: [
-														{
-															name: 'specific.prompt.md',
-															contents: 'oh hi, bot!',
-														},
-														{
-															name: 'unspecific1.prompt.md',
-															contents: 'oh hi, robot!',
-														},
-														{
-															name: 'unspecific2.prompt.md',
-															contents: 'oh hi, rabot!',
-														},
-														{
-															name: 'readme.md',
-															contents: 'non prompt file',
-														},
-													],
-												}
-											],
-										},
-									],
-								},
-								{
-									name: '/Users/legomushroom/repos/prompts',
-									children: [
-										{
-											name: 'general',
-											children: [
-												{
-													name: 'common.prompt.md',
-													contents: 'oh hi, bot!',
-												},
-												{
-													name: 'uncommon-10.prompt.md',
-													contents: 'oh hi, robot!',
-												},
-												{
-													name: 'license.md',
-													contents: 'non prompt file',
-												},
-											],
-										}
-									],
-								},
-							],
-						);
+						setLocations(vscodeSettings);
+						setWorkspaceFolders([
+							'/Users/legomushroom/repos/vscode',
+							'/Users/legomushroom/repos/prompts',
+						]);
+						await mockFiles(fileService, [
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/my.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/nested/specific.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/nested/unspecific1.prompt.md',
+								contents: ['oh hi, robot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/nested/unspecific2.prompt.md',
+								contents: ['oh hi, rabot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/vscode/gen/text/nested/readme.md',
+								contents: ['non prompt file'],
+							},
+							{
+								path: '/Users/legomushroom/repos/prompts/general/common.prompt.md',
+								contents: ['oh hi, bot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/prompts/general/uncommon-10.prompt.md',
+								contents: ['oh hi, robot!'],
+							},
+							{
+								path: '/Users/legomushroom/repos/prompts/general/license.md',
+								contents: ['non prompt file'],
+							},
+						]);
+						const locator = instantiationService.createInstance(PromptFilesLocator);
 
 						assertOutcome(
 							await locator.listFiles(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
@@ -2359,7 +1865,6 @@ suite('PromptFilesLocator', () => {
 							],
 							'Must find correct prompts.',
 						);
-						await locator.disposeAsync();
 
 					}
 				});
@@ -2369,52 +1874,31 @@ suite('PromptFilesLocator', () => {
 
 	suite('instructions', () => {
 		testT('finds instructions files in subdirectories of .github/instructions', async () => {
-			const locator = await createPromptsLocator(
+			setLocations({
+				'.github/instructions': true,
+				'.claude/rules': false,
+				'~/.copilot/instructions': false,
+			});
+			setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+			await mockFiles(fileService, [
 				{
-					'.github/instructions': true,
-					'.claude/rules': false,
-					'~/.copilot/instructions': false,
+					path: '/Users/legomushroom/repos/vscode/.github/instructions/root.instructions.md',
+					contents: ['root instructions'],
 				},
-				['/Users/legomushroom/repos/vscode'],
-				[
-					{
-						name: '/Users/legomushroom/repos/vscode',
-						children: [
-							{
-								name: '.github/instructions',
-								children: [
-									{
-										name: 'root.instructions.md',
-										contents: 'root instructions',
-									},
-									{
-										name: 'frontend',
-										children: [
-											{
-												name: 'react.instructions.md',
-												contents: 'react instructions',
-											},
-											{
-												name: 'css.instructions.md',
-												contents: 'css instructions',
-											},
-										],
-									},
-									{
-										name: 'backend',
-										children: [
-											{
-												name: 'api.instructions.md',
-												contents: 'api instructions',
-											},
-										],
-									},
-								],
-							},
-						],
-					},
-				],
-			);
+				{
+					path: '/Users/legomushroom/repos/vscode/.github/instructions/frontend/react.instructions.md',
+					contents: ['react instructions'],
+				},
+				{
+					path: '/Users/legomushroom/repos/vscode/.github/instructions/frontend/css.instructions.md',
+					contents: ['css instructions'],
+				},
+				{
+					path: '/Users/legomushroom/repos/vscode/.github/instructions/backend/api.instructions.md',
+					contents: ['api instructions'],
+				},
+			]);
+			const locator = instantiationService.createInstance(PromptFilesLocator);
 
 			assertOutcome(
 				await locator.listFiles(PromptsType.instructions, PromptsStorage.local, CancellationToken.None),
@@ -2426,48 +1910,31 @@ suite('PromptFilesLocator', () => {
 				],
 				'Must find instructions files recursively in subdirectories of .github/instructions.',
 			);
-			await locator.disposeAsync();
 		});
 	});
 
 	suite('skills', () => {
 		suite('findAgentSkills', () => {
 			testT('finds skill files in configured locations', async () => {
-				const locator = await createPromptsLocator(
+				setLocations({
+					'.claude/skills': true,
+					// disable other defaults
+					'.github/skills': false,
+					'~/.copilot/skills': false,
+					'~/.claude/skills': false,
+				});
+				setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+				await mockFiles(fileService, [
 					{
-						'.claude/skills': true,
-						// disable other defaults
-						'.github/skills': false,
-						'~/.copilot/skills': false,
-						'~/.claude/skills': false,
+						path: '/Users/legomushroom/repos/vscode/.claude/skills/pptx/SKILL.md',
+						contents: ['# PPTX Skill'],
 					},
-					['/Users/legomushroom/repos/vscode'],
-					[
-						{
-							name: '/Users/legomushroom/repos/vscode/.claude/skills',
-							children: [
-								{
-									name: 'pptx',
-									children: [
-										{
-											name: 'SKILL.md',
-											contents: '# PPTX Skill',
-										},
-									],
-								},
-								{
-									name: 'excel',
-									children: [
-										{
-											name: 'SKILL.md',
-											contents: '# Excel Skill',
-										},
-									],
-								},
-							],
-						},
-					],
-				);
+					{
+						path: '/Users/legomushroom/repos/vscode/.claude/skills/excel/SKILL.md',
+						contents: ['# Excel Skill'],
+					},
+				]);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				const skills = await locator.findAgentSkills(CancellationToken.None);
 				assertOutcome(
@@ -2478,54 +1945,32 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find skill files.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('ignores folders without SKILL.md', async () => {
-				const locator = await createPromptsLocator(
+				setLocations({
+					'.claude/skills': true,
+					// disable other defaults
+					'.github/skills': false,
+					'~/.copilot/skills': false,
+					'~/.claude/skills': false,
+				});
+				setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+				await mockFiles(fileService, [
 					{
-						'.claude/skills': true,
-						// disable other defaults
-						'.github/skills': false,
-						'~/.copilot/skills': false,
-						'~/.claude/skills': false,
+						path: '/Users/legomushroom/repos/vscode/.claude/skills/valid-skill/SKILL.md',
+						contents: ['# Valid Skill'],
 					},
-					['/Users/legomushroom/repos/vscode'],
-					[
-						{
-							name: '/Users/legomushroom/repos/vscode/.claude/skills',
-							children: [
-								{
-									name: 'valid-skill',
-									children: [
-										{
-											name: 'SKILL.md',
-											contents: '# Valid Skill',
-										},
-									],
-								},
-								{
-									name: 'invalid-skill',
-									children: [
-										{
-											name: 'readme.md',
-											contents: 'Not a skill file',
-										},
-									],
-								},
-								{
-									name: 'another-invalid',
-									children: [
-										{
-											name: 'index.js',
-											contents: 'console.log("not a skill")',
-										},
-									],
-								},
-							],
-						},
-					],
-				);
+					{
+						path: '/Users/legomushroom/repos/vscode/.claude/skills/invalid-skill/readme.md',
+						contents: ['Not a skill file'],
+					},
+					{
+						path: '/Users/legomushroom/repos/vscode/.claude/skills/another-invalid/index.js',
+						contents: ['console.log("not a skill")'],
+					},
+				]);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				const skills = await locator.findAgentSkills(CancellationToken.None);
 				assertOutcome(
@@ -2535,26 +1980,19 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must only find folders with SKILL.md.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('returns empty array when no skills exist', async () => {
-				const locator = await createPromptsLocator(
-					{
-						'.claude/skills': true,
-						// disable other defaults
-						'.github/skills': false,
-						'~/.copilot/skills': false,
-						'~/.claude/skills': false,
-					},
-					['/Users/legomushroom/repos/vscode'],
-					[
-						{
-							name: '/Users/legomushroom/repos/vscode/.claude/skills',
-							children: [],
-						},
-					],
-				);
+				setLocations({
+					'.claude/skills': true,
+					// disable other defaults
+					'.github/skills': false,
+					'~/.copilot/skills': false,
+					'~/.claude/skills': false,
+				});
+				setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+				await mockFiles(fileService, []);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				const skills = await locator.findAgentSkills(CancellationToken.None);
 				assertOutcome(
@@ -2562,21 +2000,19 @@ suite('PromptFilesLocator', () => {
 					[],
 					'Must return empty array when no skills exist.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('returns empty array when skill folder does not exist', async () => {
-				const locator = await createPromptsLocator(
-					{
-						'.claude/skills': true,
-						// disable other defaults
-						'.github/skills': false,
-						'~/.copilot/skills': false,
-						'~/.claude/skills': false,
-					},
-					['/Users/legomushroom/repos/vscode'],
-					[], // empty filesystem
-				);
+				setLocations({
+					'.claude/skills': true,
+					// disable other defaults
+					'.github/skills': false,
+					'~/.copilot/skills': false,
+					'~/.claude/skills': false,
+				});
+				setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+				await mockFiles(fileService, []);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				const skills = await locator.findAgentSkills(CancellationToken.None);
 				assertOutcome(
@@ -2584,53 +2020,31 @@ suite('PromptFilesLocator', () => {
 					[],
 					'Must return empty array when folder does not exist.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('finds skills across multiple workspace folders', async () => {
-				const locator = await createPromptsLocator(
+				setLocations({
+					'.claude/skills': true,
+					// disable other defaults
+					'.github/skills': false,
+					'~/.copilot/skills': false,
+					'~/.claude/skills': false,
+				});
+				setWorkspaceFolders([
+					'/Users/legomushroom/repos/vscode',
+					'/Users/legomushroom/repos/node',
+				]);
+				await mockFiles(fileService, [
 					{
-						'.claude/skills': true,
-						// disable other defaults
-						'.github/skills': false,
-						'~/.copilot/skills': false,
-						'~/.claude/skills': false,
+						path: '/Users/legomushroom/repos/vscode/.claude/skills/skill-a/SKILL.md',
+						contents: ['# Skill A'],
 					},
-					[
-						'/Users/legomushroom/repos/vscode',
-						'/Users/legomushroom/repos/node',
-					],
-					[
-						{
-							name: '/Users/legomushroom/repos/vscode/.claude/skills',
-							children: [
-								{
-									name: 'skill-a',
-									children: [
-										{
-											name: 'SKILL.md',
-											contents: '# Skill A',
-										},
-									],
-								},
-							],
-						},
-						{
-							name: '/Users/legomushroom/repos/node/.claude/skills',
-							children: [
-								{
-									name: 'skill-b',
-									children: [
-										{
-											name: 'SKILL.md',
-											contents: '# Skill B',
-										},
-									],
-								},
-							],
-						},
-					],
-				);
+					{
+						path: '/Users/legomushroom/repos/node/.claude/skills/skill-b/SKILL.md',
+						contents: ['# Skill B'],
+					},
+				]);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				const skills = await locator.findAgentSkills(CancellationToken.None);
 				assertOutcome(
@@ -2641,38 +2055,26 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find skills across all workspace folders.',
 				);
-				await locator.disposeAsync();
 			});
 		});
 
 		suite('listFiles with PromptsType.skill', () => {
 			testT('does not list skills when location is disabled', async () => {
-				const locator = await createPromptsLocator(
+				setLocations({
+					'.claude/skills': false,
+					// disable other defaults
+					'.github/skills': false,
+					'~/.copilot/skills': false,
+					'~/.claude/skills': false,
+				});
+				setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+				await mockFiles(fileService, [
 					{
-						'.claude/skills': false,
-						// disable other defaults
-						'.github/skills': false,
-						'~/.copilot/skills': false,
-						'~/.claude/skills': false,
+						path: '/Users/legomushroom/repos/vscode/.claude/skills/pptx/SKILL.md',
+						contents: ['# PPTX Skill'],
 					},
-					['/Users/legomushroom/repos/vscode'],
-					[
-						{
-							name: '/Users/legomushroom/repos/vscode/.claude/skills',
-							children: [
-								{
-									name: 'pptx',
-									children: [
-										{
-											name: 'SKILL.md',
-											contents: '# PPTX Skill',
-										},
-									],
-								},
-							],
-						},
-					],
-				);
+				]);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				const files = await locator.listFiles(PromptsType.skill, PromptsStorage.local, CancellationToken.None);
 				assertOutcome(
@@ -2680,28 +2082,26 @@ suite('PromptFilesLocator', () => {
 					[],
 					'Must not list skills when location is disabled.',
 				);
-				await locator.disposeAsync();
 			});
 		});
 
 		suite('toAbsoluteLocationsForSkills path validation', () => {
 			testT('rejects glob patterns in skill paths via getConfigBasedSourceFolders', async () => {
-				const locator = await createPromptsLocator(
-					{
-						'skills/**': true,
-						'skills/*': true,
-						'**/skills': true,
-						// disable defaults
-						'.github/skills': false,
-						'.agents/skills': false,
-						'.claude/skills': false,
-						'~/.copilot/skills': false,
-						'~/.agents/skills': false,
-						'~/.claude/skills': false,
-					},
-					['/Users/legomushroom/repos/vscode'],
-					[],
-				);
+				setLocations({
+					'skills/**': true,
+					'skills/*': true,
+					'**/skills': true,
+					// disable defaults
+					'.github/skills': false,
+					'.agents/skills': false,
+					'.claude/skills': false,
+					'~/.copilot/skills': false,
+					'~/.agents/skills': false,
+					'~/.claude/skills': false,
+				});
+				setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+				await mockFiles(fileService, []);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				const folders = await locator.getConfigBasedSourceFolders(PromptsType.skill);
 				assertOutcome(
@@ -2709,24 +2109,22 @@ suite('PromptFilesLocator', () => {
 					[],
 					'Must reject glob patterns in skill paths.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('rejects absolute paths in skill paths via getConfigBasedSourceFolders', async () => {
-				const locator = await createPromptsLocator(
-					{
-						'/absolute/path/skills': true,
-						// disable defaults
-						'.github/skills': false,
-						'.agents/skills': false,
-						'.claude/skills': false,
-						'~/.copilot/skills': false,
-						'~/.agents/skills': false,
-						'~/.claude/skills': false,
-					},
-					['/Users/legomushroom/repos/vscode'],
-					[],
-				);
+				setLocations({
+					'/absolute/path/skills': true,
+					// disable defaults
+					'.github/skills': false,
+					'.agents/skills': false,
+					'.claude/skills': false,
+					'~/.copilot/skills': false,
+					'~/.agents/skills': false,
+					'~/.claude/skills': false,
+				});
+				setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+				await mockFiles(fileService, []);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				const folders = await locator.getConfigBasedSourceFolders(PromptsType.skill);
 				assertOutcome(
@@ -2734,25 +2132,23 @@ suite('PromptFilesLocator', () => {
 					[],
 					'Must reject absolute paths in skill paths.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('accepts relative paths in skill paths via getConfigBasedSourceFolders', async () => {
-				const locator = await createPromptsLocator(
-					{
-						'./my-skills': true,
-						'custom/skills': true,
-						// disable defaults
-						'.github/skills': false,
-						'.agents/skills': false,
-						'.claude/skills': false,
-						'~/.copilot/skills': false,
-						'~/.agents/skills': false,
-						'~/.claude/skills': false,
-					},
-					['/Users/legomushroom/repos/vscode'],
-					[],
-				);
+				setLocations({
+					'./my-skills': true,
+					'custom/skills': true,
+					// disable defaults
+					'.github/skills': false,
+					'.agents/skills': false,
+					'.claude/skills': false,
+					'~/.copilot/skills': false,
+					'~/.agents/skills': false,
+					'~/.claude/skills': false,
+				});
+				setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+				await mockFiles(fileService, []);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				const folders = await locator.getConfigBasedSourceFolders(PromptsType.skill);
 				assertOutcome(
@@ -2763,24 +2159,22 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must accept relative paths in skill paths.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('accepts parent relative paths for monorepos via getConfigBasedSourceFolders', async () => {
-				const locator = await createPromptsLocator(
-					{
-						'../shared-skills': true,
-						// disable defaults
-						'.github/skills': false,
-						'.agents/skills': false,
-						'.claude/skills': false,
-						'~/.copilot/skills': false,
-						'~/.agents/skills': false,
-						'~/.claude/skills': false,
-					},
-					['/Users/legomushroom/repos/vscode'],
-					[],
-				);
+				setLocations({
+					'../shared-skills': true,
+					// disable defaults
+					'.github/skills': false,
+					'.agents/skills': false,
+					'.claude/skills': false,
+					'~/.copilot/skills': false,
+					'~/.agents/skills': false,
+					'~/.claude/skills': false,
+				});
+				setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+				await mockFiles(fileService, []);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				const folders = await locator.getConfigBasedSourceFolders(PromptsType.skill);
 				assertOutcome(
@@ -2790,24 +2184,22 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must accept parent relative paths for monorepos.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('accepts tilde paths for user home skills', async () => {
-				const locator = await createPromptsLocator(
-					{
-						'~/my-skills': true,
-						// disable defaults
-						'.github/skills': false,
-						'.agents/skills': false,
-						'.claude/skills': false,
-						'~/.copilot/skills': false,
-						'~/.agents/skills': false,
-						'~/.claude/skills': false,
-					},
-					['/Users/legomushroom/repos/vscode'],
-					[],
-				);
+				setLocations({
+					'~/my-skills': true,
+					// disable defaults
+					'.github/skills': false,
+					'.agents/skills': false,
+					'.claude/skills': false,
+					'~/.copilot/skills': false,
+					'~/.agents/skills': false,
+					'~/.claude/skills': false,
+				});
+				setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+				await mockFiles(fileService, []);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				const folders = await locator.getConfigBasedSourceFolders(PromptsType.skill);
 				assertOutcome(
@@ -2817,29 +2209,27 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must accept tilde paths for user home skills.',
 				);
-				await locator.disposeAsync();
 			});
 		});
 
 		suite('getConfigBasedSourceFolders for skills', () => {
 			testT('returns source folders without glob processing', async () => {
-				const locator = await createPromptsLocator(
-					{
-						'.claude/skills': true,
-						'custom-skills': true,
-						// explicitly disable other defaults we don't want for this test
-						'.github/skills': false,
-						'.agents/skills': false,
-						'~/.copilot/skills': false,
-						'~/.agents/skills': false,
-						'~/.claude/skills': false,
-					},
-					[
-						'/Users/legomushroom/repos/vscode',
-						'/Users/legomushroom/repos/node',
-					],
-					[],
-				);
+				setLocations({
+					'.claude/skills': true,
+					'custom-skills': true,
+					// explicitly disable other defaults we don't want for this test
+					'.github/skills': false,
+					'.agents/skills': false,
+					'~/.copilot/skills': false,
+					'~/.agents/skills': false,
+					'~/.claude/skills': false,
+				});
+				setWorkspaceFolders([
+					'/Users/legomushroom/repos/vscode',
+					'/Users/legomushroom/repos/node',
+				]);
+				await mockFiles(fileService, []);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				const folders = await locator.getConfigBasedSourceFolders(PromptsType.skill);
 				assertOutcome(
@@ -2852,25 +2242,23 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must return skill source folders without glob processing.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('filters out invalid skill paths from source folders', async () => {
-				const locator = await createPromptsLocator(
-					{
-						'.claude/skills': true,
-						'skills/**': true, // glob - should be filtered out
-						'/absolute/skills': true, // absolute - should be filtered out
-						// explicitly disable other defaults we don't want for this test
-						'.github/skills': false,
-						'.agents/skills': false,
-						'~/.copilot/skills': false,
-						'~/.agents/skills': false,
-						'~/.claude/skills': false,
-					},
-					['/Users/legomushroom/repos/vscode'],
-					[],
-				);
+				setLocations({
+					'.claude/skills': true,
+					'skills/**': true, // glob - should be filtered out
+					'/absolute/skills': true, // absolute - should be filtered out
+					// explicitly disable other defaults we don't want for this test
+					'.github/skills': false,
+					'.agents/skills': false,
+					'~/.copilot/skills': false,
+					'~/.agents/skills': false,
+					'~/.claude/skills': false,
+				});
+				setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+				await mockFiles(fileService, []);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				const folders = await locator.getConfigBasedSourceFolders(PromptsType.skill);
 				assertOutcome(
@@ -2880,17 +2268,15 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must filter out invalid skill paths.',
 				);
-				await locator.disposeAsync();
 			});
 
 			testT('includes default skill source folders from defaults', async () => {
-				const locator = await createPromptsLocator(
-					{
-						'custom-skills': true,
-					},
-					['/Users/legomushroom/repos/vscode'],
-					[],
-				);
+				setLocations({
+					'custom-skills': true,
+				});
+				setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+				await mockFiles(fileService, []);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
 
 				const folders = await locator.getConfigBasedSourceFolders(PromptsType.skill);
 				assertOutcome(
@@ -2908,7 +2294,6 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must include default skill source folders.',
 				);
-				await locator.disposeAsync();
 			});
 		});
 	});
@@ -3213,23 +2598,22 @@ suite('PromptFilesLocator', () => {
 
 	suite('getConfigBasedSourceFolders', () => {
 		testT('gets unambiguous list of folders', async () => {
-			const locator = await createPromptsLocator(
-				{
-					'.github/prompts': true,
-					'/Users/**/repos/**': true,
-					'gen/text/**': true,
-					'gen/text/nested/*.prompt.md': true,
-					'general/*': true,
-					'/Users/legomushroom/repos/vscode/my-prompts': true,
-					'/Users/legomushroom/repos/vscode/your-prompts/*.md': true,
-					'/Users/legomushroom/repos/prompts/shared-prompts/*': true,
-				},
-				[
-					'/Users/legomushroom/repos/vscode',
-					'/Users/legomushroom/repos/prompts',
-				],
-				[],
-			);
+			setLocations({
+				'.github/prompts': true,
+				'/Users/**/repos/**': true,
+				'gen/text/**': true,
+				'gen/text/nested/*.prompt.md': true,
+				'general/*': true,
+				'/Users/legomushroom/repos/vscode/my-prompts': true,
+				'/Users/legomushroom/repos/vscode/your-prompts/*.md': true,
+				'/Users/legomushroom/repos/prompts/shared-prompts/*': true,
+			});
+			setWorkspaceFolders([
+				'/Users/legomushroom/repos/vscode',
+				'/Users/legomushroom/repos/prompts',
+			]);
+			await mockFiles(fileService, []);
+			const locator = instantiationService.createInstance(PromptFilesLocator);
 
 			assertOutcome(
 				await locator.getConfigBasedSourceFolders(PromptsType.prompt),
@@ -3246,29 +2630,25 @@ suite('PromptFilesLocator', () => {
 				],
 				'Must find correct prompts.',
 			);
-			await locator.disposeAsync();
 		});
 	});
 
 	suite('findAgentMDsInWorkspace', () => {
 		testT('finds AGENTS.md files using FileSearchProvider', async () => {
-			const locator = await createPromptsLocatorForAgentMD(
-				{},
-				['/Users/legomushroom/repos/workspace'],
-				[
-					{
-						path: '/Users/legomushroom/repos/workspace/AGENTS.md',
-						contents: ['# Root agents']
-					},
-					{
-						path: '/Users/legomushroom/repos/workspace/src/AGENTS.md',
-						contents: ['# Src agents']
-					}
-				],
-				true // has FileSearchProvider
-			);
+			setWorkspaceFolders(['/Users/legomushroom/repos/workspace']);
+			await mockFiles(fileService, [
+				{
+					path: '/Users/legomushroom/repos/workspace/AGENTS.md',
+					contents: ['# Root agents']
+				},
+				{
+					path: '/Users/legomushroom/repos/workspace/src/AGENTS.md',
+					contents: ['# Src agents']
+				}
+			]);
+			const locator = instantiationService.createInstance(PromptFilesLocator);
 
-			const result = await locator.findAgentMDsInWorkspace(CancellationToken.None);
+			const result = (await locator.findAgentMDsInWorkspace(CancellationToken.None)).map(f => f.uri);
 			assertOutcome(
 				result,
 				[
@@ -3277,31 +2657,31 @@ suite('PromptFilesLocator', () => {
 				],
 				'Must find all AGENTS.md files using search service.'
 			);
-			await locator.disposeAsync();
 		});
 
 		testT('finds AGENTS.md files using file service fallback', async () => {
-			const locator = await createPromptsLocatorForAgentMD(
-				{},
-				['/Users/legomushroom/repos/workspace'],
-				[
-					{
-						path: '/Users/legomushroom/repos/workspace/AGENTS.md',
-						contents: ['# Root agents']
-					},
-					{
-						path: '/Users/legomushroom/repos/workspace/src/AGENTS.md',
-						contents: ['# Src agents']
-					},
-					{
-						path: '/Users/legomushroom/repos/workspace/src/nested/AGENTS.md',
-						contents: ['# Nested agents']
-					}
-				],
-				false // no FileSearchProvider - should use file service fallback
-			);
+			setWorkspaceFolders(['/Users/legomushroom/repos/workspace']);
+			await mockFiles(fileService, [
+				{
+					path: '/Users/legomushroom/repos/workspace/AGENTS.md',
+					contents: ['# Root agents']
+				},
+				{
+					path: '/Users/legomushroom/repos/workspace/src/AGENTS.md',
+					contents: ['# Src agents']
+				},
+				{
+					path: '/Users/legomushroom/repos/workspace/src/nested/AGENTS.md',
+					contents: ['# Nested agents']
+				}
+			]);
+			instantiationService.stub(ISearchService, {
+				schemeHasFileSearchProvider: () => false,
+				async fileSearch() { throw new Error('FileSearchProvider not available'); }
+			});
+			const locator = instantiationService.createInstance(PromptFilesLocator);
 
-			const result = await locator.findAgentMDsInWorkspace(CancellationToken.None);
+			const result = (await locator.findAgentMDsInWorkspace(CancellationToken.None)).map(f => f.uri);
 			assertOutcome(
 				result,
 				[
@@ -3311,120 +2691,110 @@ suite('PromptFilesLocator', () => {
 				],
 				'Must find all AGENTS.md files using file service fallback.'
 			);
-			await locator.disposeAsync();
 		});
 
 		testT('handles cancellation token in file service fallback', async () => {
-			const locator = await createPromptsLocatorForAgentMD(
-				{},
-				['/Users/legomushroom/repos/workspace'],
-				[
-					{
-						path: '/Users/legomushroom/repos/workspace/AGENTS.md',
-						contents: ['# Root agents']
-					}
-				],
-				false // no FileSearchProvider
-			);
+			setWorkspaceFolders(['/Users/legomushroom/repos/workspace']);
+			await mockFiles(fileService, [
+				{
+					path: '/Users/legomushroom/repos/workspace/AGENTS.md',
+					contents: ['# Root agents']
+				}
+			]);
+			instantiationService.stub(ISearchService, {
+				schemeHasFileSearchProvider: () => false,
+				async fileSearch() { throw new Error('FileSearchProvider not available'); }
+			});
+			const locator = instantiationService.createInstance(PromptFilesLocator);
 
 			const source = new CancellationTokenSource();
 			// Cancel immediately
 			source.cancel();
-			const result = await locator.findAgentMDsInWorkspace(source.token);
+			const result = (await locator.findAgentMDsInWorkspace(source.token)).map(f => f.uri);
 			assertOutcome(
 				result,
 				[],
 				'Must return empty array when cancelled.'
 			);
-			await locator.disposeAsync();
 		});
 
-		const createPromptsLocatorForAgentMD = async (
-			configValue: unknown,
-			workspaceFolderPaths: string[],
-			filesystem: IMockFileEntry[],
-			hasFileSearchProvider: boolean
-		) => {
-			const mockFs = instantiationService.createInstance(MockFilesystem, filesystem);
-			await mockFs.mock();
+	});
 
-			instantiationService.stub(IConfigurationService, mockConfigService({
-				'explorer.excludeGitIgnore': false,
-				'files.exclude': {},
-				'search.exclude': {}
-			}));
+	suite('getWorkspaceFolderRoots', () => {
+		let locator: PromptFilesLocator;
 
-			const workspaceFolders = workspaceFolderPaths.map((path, index) => {
-				const uri = URI.file(path);
-
-				return new class extends mock<IWorkspaceFolder>() {
-					override uri = uri;
-					override name = basename(uri);
-					override index = index;
-				};
-			});
-			instantiationService.stub(IWorkspaceContextService, mockWorkspaceService(workspaceFolders));
-			instantiationService.stub(IWorkbenchEnvironmentService, {} as IWorkbenchEnvironmentService);
-			instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
-			instantiationService.stub(ISearchService, {
-				schemeHasFileSearchProvider(scheme: string): boolean {
-					return hasFileSearchProvider;
-				},
-				async fileSearch(query: IFileQuery) {
-					if (!hasFileSearchProvider) {
-						throw new Error('FileSearchProvider not available');
-					}
-					// mock the search service
-					const fs = instantiationService.get(IFileService);
-					const findFilesInLocation = async (location: URI, results: URI[] = []) => {
-						try {
-							const resolve = await fs.resolve(location);
-							if (resolve.isFile) {
-								results.push(resolve.resource);
-							} else if (resolve.isDirectory && resolve.children) {
-								for (const child of resolve.children) {
-									await findFilesInLocation(child.resource, results);
-								}
-							}
-						} catch (error) {
-						}
-						return results;
-					};
-					const results: IFileMatch[] = [];
-					for (const folderQuery of query.folderQueries) {
-						const allFiles = await findFilesInLocation(folderQuery.folder);
-						for (const resource of allFiles) {
-							const pathInFolder = relativePath(folderQuery.folder, resource) ?? '';
-							if (query.filePattern === undefined || match(query.filePattern, pathInFolder)) {
-								results.push({ resource });
-							}
-						}
-
-					}
-					return { results, messages: [] };
-				}
-			});
-			instantiationService.stub(IPathService, {
-				userHome(options?: { preferLocal: boolean }): URI | Promise<URI> {
-					const uri = URI.file('/Users/legomushroom');
-					if (options?.preferLocal) {
-						return uri;
-					}
-					return Promise.resolve(uri);
-				}
-			} as IPathService);
-
-			const locator = instantiationService.createInstance(PromptFilesLocator);
-
-			return {
-				async findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
-					return (await locator.findAgentMDsInWorkspace(token)).map(f => f.uri);
-				},
-				async disposeAsync(): Promise<void> {
-					await mockFs.delete();
-				}
-			};
+		// Override setWorkspaceFolders to also create the locator
+		const setWorkspaceFoldersForRoots = (paths: string[]) => {
+			setWorkspaceFolders(paths);
+			locator = instantiationService.createInstance(PromptFilesLocator);
 		};
+
+		testT('returns only workspace folder when it has .git', async () => {
+			setWorkspaceFoldersForRoots(['/repos/my-project']);
+			await mockFiles(fileService, [
+				{ path: '/repos/my-project/.git/HEAD', contents: ['ref: refs/heads/main'] },
+				{ path: '/repos/my-project/src/index.ts', contents: ['export {};'] },
+			]);
+
+			const roots = await locator.getWorkspaceFolderRoots(true);
+			assert.deepStrictEqual(
+				roots.map(r => r.path),
+				['/repos/my-project'],
+				'Should only return the workspace folder itself when it has .git',
+			);
+		});
+
+		testT('walks up to parent with .git when workspace folder has no .git', async () => {
+			setWorkspaceFoldersForRoots(['/repos/monorepo/packages/my-app']);
+			await mockFiles(fileService, [
+				{ path: '/repos/monorepo/.git/HEAD', contents: ['ref: refs/heads/main'] },
+				{ path: '/repos/monorepo/packages/my-app/src/index.ts', contents: ['export {};'] },
+			]);
+
+			workspaceTrustService.setTrustedUris([URI.file('/repos/monorepo')]);
+
+			const roots = await locator.getWorkspaceFolderRoots(true);
+			assert.deepStrictEqual(
+				roots.map(r => r.path).sort(),
+				[
+					'/repos/monorepo',
+					'/repos/monorepo/packages',
+					'/repos/monorepo/packages/my-app',
+				].sort(),
+				'Should include workspace folder and all parents up to the one with .git',
+			);
+		});
+
+		testT('does not walk up when includeParents is false', async () => {
+			setWorkspaceFoldersForRoots(['/repos/monorepo/packages/my-app']);
+			await mockFiles(fileService, [
+				{ path: '/repos/monorepo/.git/HEAD', contents: ['ref: refs/heads/main'] },
+				{ path: '/repos/monorepo/packages/my-app/src/index.ts', contents: ['export {};'] },
+			]);
+
+			workspaceTrustService.setTrustedUris([URI.file('/repos/monorepo')]);
+
+			const roots = await locator.getWorkspaceFolderRoots(false);
+			assert.deepStrictEqual(
+				roots.map(r => r.path),
+				['/repos/monorepo/packages/my-app'],
+				'Should only return workspace folders when includeParents is false',
+			);
+		});
+
+		testT('returns only workspace folder when no .git is found', async () => {
+			setWorkspaceFoldersForRoots(['/Users/legomushroom/my-project']);
+			await mockFiles(fileService, [
+				{ path: '/Users/legomushroom/my-project/src/index.ts', contents: ['export {};'] },
+			]);
+
+			const roots = await locator.getWorkspaceFolderRoots(true);
+			assert.deepStrictEqual(
+				roots.map(r => r.path),
+				['/Users/legomushroom/my-project'],
+				'Should only return the workspace folder when no .git is found in any parent',
+			);
+		});
 	});
 });
 

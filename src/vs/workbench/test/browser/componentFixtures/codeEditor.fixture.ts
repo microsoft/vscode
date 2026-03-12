@@ -70,7 +70,7 @@ function renderCodeEditor({ container, disposableStore, theme }: ComponentFixtur
 
 export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	CodeEditor: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
 		render: (context) => renderCodeEditor(context),
 	}),
 });

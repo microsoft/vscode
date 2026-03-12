@@ -5,7 +5,7 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, dispose, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IActiveCodeEditor, isCodeEditor, isCompositeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -27,7 +27,7 @@ import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../chat/common/tools/languageModelToolsService.js';
 import { CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
-import { askInPanelChat, IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
+import { continueInPanelChat, IInlineChatSession2, IInlineChatSessionService, InlineChatSessionTerminationState, rephraseInlineChat } from './inlineChatSessionService.js';
 
 export class InlineChatError extends Error {
 	static readonly code = 'InlineChatError';
@@ -83,6 +83,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const chatModelRef = this._chatService.startNewLocalSession(ChatAgentLocation.EditorInline, { canUseTools: false /* SEE https://github.com/microsoft/vscode/issues/279946 */ });
 		const chatModel = chatModelRef.object;
 		chatModel.startEditingSession(false);
+		const terminationState = observableValue<InlineChatSessionTerminationState | undefined>(this, undefined);
 
 		const store = new DisposableStore();
 		store.add(toDisposable(() => {
@@ -136,6 +137,11 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			initialSelection: editor.getSelection(),
 			chatModel,
 			editingSession: chatModel.editingSession!,
+			terminationState,
+			setTerminationState: state => {
+				terminationState.set(state, undefined);
+				this._onDidChangeSessions.fire(this);
+			},
 			dispose: store.dispose.bind(store)
 		};
 		this._sessions.set(uri, result);
@@ -235,7 +241,18 @@ export class InlineChatEscapeToolContribution extends Disposable {
 		canBeReferencedInPrompt: false,
 		alwaysDisplayInputOutput: false,
 		displayName: localize('name', "Inline Chat to Panel Chat"),
-		modelDescription: 'Moves the inline chat session to the richer panel chat which supports edits across files, creating and deleting files, multi-turn conversations between the user and the assistant, and access to more IDE tools, like retrieve problems, interact with source control, run terminal commands etc.',
+		modelDescription: 'Show a short textual response when not being able to make code changes and when not having been asked for code changes. Can also be used to move the request to the richer panel chat which supports edits across files, creating and deleting files, multi-turn conversations between the user and the assistant, and access to more IDE tools, like retrieve problems, interact with source control, run terminal commands etc.',
+		inputSchema: {
+			type: 'object',
+			additionalProperties: false,
+			properties: {
+				response: {
+					type: 'string',
+					description: localize('response.description', "Optional brief response for inline chat. Keep it at 10 words or fewer."),
+					maxLength: 200,
+				}
+			}
+		}
 	};
 
 	constructor(
@@ -243,6 +260,7 @@ export class InlineChatEscapeToolContribution extends Disposable {
 		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
 		@IDialogService dialogService: IDialogService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IChatService chatService: IChatService,
 		@ILogService logService: ILogService,
 		@IStorageService storageService: IStorageService,
@@ -268,6 +286,22 @@ export class InlineChatEscapeToolContribution extends Disposable {
 					return { content: [{ kind: 'text', value: 'Cancel' }] };
 				}
 
+				const lastRequest = session.chatModel.getRequests().at(-1);
+				if (!lastRequest) {
+					logService.warn(`InlineChatEscapeToolContribution: no request found for id ${sessionResource}`);
+					return { content: [{ kind: 'text', value: 'Cancel' }], toolResultMessage: localize('tool.cancel', "Cancel") };
+				}
+
+				if (configurationService.getValue<string>(InlineChatConfigKeys.RenderMode) === 'hover') {
+
+					const response = typeof invocation.parameters?.response === 'string' && invocation.parameters.response.trim().length > 0
+						? invocation.parameters.response.trim()
+						: localize('terminated.message', "Inline chat is designed for making single-file code changes. Continue your request in the Chat view or rephrase it for inline chat.");
+
+					session.setTerminationState(response);
+					return { content: [{ kind: 'text', value: 'Success' }] };
+				}
+
 				const dontAskAgain = storageService.getBoolean(InlineChatEscapeToolContribution.DONT_ASK_AGAIN_KEY, StorageScope.PROFILE);
 
 				let result: { confirmed: boolean; checkboxChecked?: boolean };
@@ -290,14 +324,11 @@ export class InlineChatEscapeToolContribution extends Disposable {
 
 				if (!editor || result.confirmed) {
 					logService.trace('InlineChatEscapeToolContribution: moving session to panel chat');
-					await instaService.invokeFunction(askInPanelChat, session.chatModel.getRequests().at(-1)!, session.chatModel.inputModel.state.get());
-					session.dispose();
+					await instaService.invokeFunction(continueInPanelChat, session);
 
 				} else {
 					logService.trace('InlineChatEscapeToolContribution: rephrase prompt');
-					const lastRequest = session.chatModel.getRequests().at(-1)!;
-					chatService.removeRequest(session.chatModel.sessionResource, lastRequest.id);
-					session.chatModel.inputModel.setState({ inputText: lastRequest.message.text });
+					instaService.invokeFunction(rephraseInlineChat, session);
 				}
 
 				if (result.checkboxChecked) {

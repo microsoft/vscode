@@ -18,6 +18,7 @@ import { IMarkdownString, MarkdownString } from '../../../../../base/common/html
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { getMediaMime } from '../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
@@ -61,6 +62,7 @@ import { toHistoryItemHoverContent } from '../../../scm/browser/scmHistory.js';
 import { getHistoryItemEditorTitle } from '../../../scm/browser/util.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -137,6 +139,15 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		return modelSupportsVision(this.currentLanguageModel);
 	}
 
+	private _hasClearButton = false;
+
+	protected appendDeletionHint(ariaLabel: string): string {
+		if (!this._hasClearButton) {
+			return ariaLabel;
+		}
+		return localize('chat.attachment.withDeleteHint', "{0} (Delete)", ariaLabel);
+	}
+
 	protected attachClearButton() {
 
 		if (this.attachment.range || !this.options.supportsDeletion) {
@@ -144,6 +155,8 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 			// referenced from prompt
 			return;
 		}
+
+		this._hasClearButton = true;
 
 		const clearButton = new Button(this.element, {
 			supportIcons: true,
@@ -255,7 +268,7 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 			});
 		}
 
-		this.element.ariaLabel = ariaLabel;
+		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 
 		this.instantiationService.invokeFunction(accessor => {
 			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
@@ -310,6 +323,8 @@ export class TerminalCommandAttachmentWidget extends AbstractChatAttachmentWidge
 				await clickHandler();
 			}
 		}));
+
+		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 	}
 }
 
@@ -422,7 +437,10 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const ref = attachment.references?.[0]?.reference;
 		resource = ref && URI.isUri(ref) ? ref : undefined;
 		const clickHandler = async () => {
-			if (resource) {
+			if (attachment.value instanceof Uint8Array && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+				const mimeType = getMediaMime(attachment.name) ?? 'image/png';
+				await commandService.executeCommand('workbench.action.chat.openImageInCarousel', { name: attachment.name, mimeType, data: attachment.value });
+			} else if (resource) {
 				await this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
 			}
 		};
@@ -431,9 +449,18 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
 		this._register(createImageElements(resource, attachment.name, fullName, this.element, attachment.value as Uint8Array, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
+		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
+
+		// Wire up click + keyboard (Enter/Space) open handlers
+		const canOpenCarousel = attachment.value instanceof Uint8Array && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled);
+		if (canOpenCarousel || resource) {
+			this.element.style.cursor = 'pointer';
+			this._register(registerOpenEditorListeners(this.element, async () => {
+				await clickHandler();
+			}));
+		}
 
 		if (resource) {
-			this.addResourceOpenHandlers(resource, undefined);
 			instantiationService.invokeFunction(accessor => {
 				this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
 			});
@@ -461,7 +488,6 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 
 	if (resource) {
 		element.style.cursor = 'pointer';
-		disposable.add(dom.addDisposableListener(element, 'click', clickHandler));
 	}
 	const supportsVision = modelSupportsVision(currentLanguageModel);
 	const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$((supportsVision && !previewFeaturesDisabled) ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning'));
@@ -546,7 +572,7 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
-		this.element.ariaLabel = ariaLabel;
+		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 
 		const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
 		let resource: URI | undefined;
@@ -614,7 +640,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
 			this.label.setLabel(withIcon, correspondingContentReference?.options?.status?.description);
 		}
-		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+		this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment', "Attached context, {0}", attachment.name));
 
 		if (attachment.kind === 'diagnostic') {
 			if (attachment.filterUri) {
@@ -746,7 +772,7 @@ export class PromptFileAttachmentWidget extends AbstractChatAttachmentWidget {
 		this.hintElement.innerText = typeLabel;
 
 
-		this.element.ariaLabel = ariaLabel;
+		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 	}
 }
 
@@ -784,6 +810,7 @@ export class PromptTextAttachmentWidget extends AbstractChatAttachmentWidget {
 			}));
 		}
 		this.label.setLabel(localize('instructions.label', 'Additional Instructions'), undefined, undefined);
+		this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment', "Attached context, {0}", attachment.name));
 
 		this._register(hoverService.setupDelayedHover(this.element, {
 			...commonHoverOptions,
@@ -823,7 +850,7 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 		this.label.setLabel(`$(${icon.id})\u00A0${name}`, undefined);
 
 		this.element.style.cursor = 'pointer';
-		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", name);
+		this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment', "Attached context, {0}", name));
 
 		let hoverContent: string | undefined;
 
@@ -901,10 +928,10 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 			//
 		}
 		this.label.setLabel(withIcon, undefined, { title });
-		this.element.ariaLabel = this.getAriaLabel(attachment);
+		this.element.ariaLabel = this.appendDeletionHint(this.getAriaLabel(attachment));
 	}
 	private renderGenericOutput(resource: URI, attachment: INotebookOutputVariableEntry) {
-		this.element.ariaLabel = this.getAriaLabel(attachment);
+		this.element.ariaLabel = this.appendDeletionHint(this.getAriaLabel(attachment));
 		this.label.setFile(resource, { hidePath: true, icon: ThemeIcon.fromId('output') });
 	}
 	private renderImageOutput(resource: URI, attachment: INotebookOutputVariableEntry) {
@@ -921,6 +948,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : undefined;
 		const buffer = this.getOutputItem(resource, attachment)?.data.buffer ?? new Uint8Array();
 		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
+		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 	}
 
 	private getOutputItem(resource: URI, attachment: INotebookOutputVariableEntry) {
@@ -958,7 +986,7 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const ariaLabel = localize('chat.elementAttachment', "Attached element, {0}", attachment.name);
-		this.element.ariaLabel = ariaLabel;
+		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 
 		this.element.style.position = 'relative';
 		this.element.style.cursor = 'pointer';
@@ -1264,7 +1292,7 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		this.label.setLabel(attachment.name, undefined);
 
 		this.element.style.cursor = 'pointer';
-		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+		this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment', "Attached context, {0}", attachment.name));
 
 		const { content, disposables } = toHistoryItemHoverContent(markdownRendererService, attachment.historyItem, false);
 		this._store.add(hoverService.setupDelayedHover(this.element, {
@@ -1314,7 +1342,7 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 		const nameSuffix = `\u00A0$(${Codicon.gitCommit.id})${attachment.historyItem.displayId ?? attachment.historyItem.id}`;
 		this.label.setFile(attachment.value, { fileKind: FileKind.FILE, hidePath: true, nameSuffix });
 
-		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+		this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment', "Attached context, {0}", attachment.name));
 
 		const { content, disposables } = toHistoryItemHoverContent(markdownRendererService, attachment.historyItem, false);
 		this._store.add(hoverService.setupDelayedHover(this.element, {
@@ -1359,7 +1387,7 @@ export class SCMHistoryItemChangeRangeAttachmentWidget extends AbstractChatAttac
 		const nameSuffix = `\u00A0$(${Codicon.gitCommit.id})${historyItemStartId}..${historyItemEndId}`;
 		this.label.setFile(attachment.value, { fileKind: FileKind.FILE, hidePath: true, nameSuffix });
 
-		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+		this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment', "Attached context, {0}", attachment.name));
 
 		this.addResourceOpenHandlers(attachment.value, undefined);
 	}
