@@ -2225,10 +2225,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this.renderAttachedContext();
 						},
 						getModels: () => this.getModels(),
-						canManageModels: () => {
+						useGroupedModelPicker: () => true,
+						showManageModelsAction: () => {
 							const sessionType = this.getCurrentSessionType();
 							return !sessionType || sessionType === localChatSessionType;
-						}
+						},
+						showUnavailableFeatured: () => {
+							const sessionType = this.getCurrentSessionType();
+							return !sessionType || sessionType === localChatSessionType;
+						},
+						showFeatured: () => true,
 					};
 					return this.modelWidget = this.instantiationService.createInstance(EnhancedModelPickerActionItem, action, itemDelegate, pickerOptions);
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {

@@ -481,82 +481,39 @@ function createEditSession(edit: DocumentPasteEdit): DocumentPasteEditsSession {
 }
 
 const identifierPattern = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
-const symbolCacheTtlMs = 15_000;
+const symbolCacheMaxSize = 3;
 type SymbolReferenceCacheEntry = {
-	expiresAt: number;
-	value?: ResolvedSymbolReference;
+	key: string;
 	promise?: Promise<ResolvedSymbolReference | undefined>;
 };
 
-const symbolReferenceCache = new Map<string, SymbolReferenceCacheEntry>();
+const symbolReferenceCache: SymbolReferenceCacheEntry[] = [];
 
 function getSymbolReferenceCacheKey(uri: URI, range: IRange, text: string): string {
 	return `${uri.toString()}|${range.startLineNumber}:${range.startColumn}-${range.endLineNumber}:${range.endColumn}|${text}`;
 }
 
-function pruneSymbolReferenceCache(): void {
-	const now = Date.now();
-	for (const [key, value] of symbolReferenceCache) {
-		if (value.expiresAt <= now) {
-			symbolReferenceCache.delete(key);
-		}
-	}
-}
-
 async function getCachedSymbolReference(uri: URI, range: IRange, text: string): Promise<ResolvedSymbolReference | undefined> {
 	const key = getSymbolReferenceCacheKey(uri, range, text);
-	const entry = symbolReferenceCache.get(key);
-	pruneSymbolReferenceCache();
-
-	if (!entry) {
-		return;
-	}
-
-	if (entry.value) {
-		return entry.value;
-	}
-
-	if (entry.promise) {
-		return entry.promise;
-	}
-
-	return;
+	return symbolReferenceCache.find(e => e.key === key)?.promise;
 }
 
 function cacheSymbolReference(uri: URI, range: IRange, text: string, valuePromise: Promise<ResolvedSymbolReference | undefined>): void {
-	const key = getSymbolReferenceCacheKey(uri, range, text);
-	const wrappedPromise = valuePromise.then(value => {
-		const current = symbolReferenceCache.get(key);
-		if (current?.promise !== wrappedPromise) {
-			return value;
-		}
+	const entry: SymbolReferenceCacheEntry = {
+		key: getSymbolReferenceCacheKey(uri, range, text),
+		promise: valuePromise,
+	};
+	symbolReferenceCache.unshift(entry);
+	while (symbolReferenceCache.length > symbolCacheMaxSize) {
+		symbolReferenceCache.pop();
+	}
 
-		if (!value) {
-			symbolReferenceCache.delete(key);
-			return;
+	valuePromise.catch(() => {
+		const i = symbolReferenceCache.indexOf(entry);
+		if (i !== -1) {
+			symbolReferenceCache.splice(i, 1);
 		}
-
-		symbolReferenceCache.set(key, {
-			value,
-			expiresAt: Date.now() + symbolCacheTtlMs
-		});
-		pruneSymbolReferenceCache();
-		return value;
-	}, () => {
-		const current = symbolReferenceCache.get(key);
-		if (current?.promise === wrappedPromise) {
-			symbolReferenceCache.delete(key);
-		}
-		return undefined;
 	});
-
-	symbolReferenceCache.set(key, {
-		promise: wrappedPromise,
-		expiresAt: Date.now() + symbolCacheTtlMs
-	});
-	pruneSymbolReferenceCache();
-
-	void wrappedPromise;
 }
 
 async function resolveSymbolReference(

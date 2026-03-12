@@ -154,6 +154,10 @@
 	box-shadow: inset 2px 0 0 var(--vscode-editorWarning-foreground);
 }
 
+.agent-feedback-widget-item-prReview {
+	box-shadow: inset 2px 0 0 var(--vscode-editorInfo-foreground);
+}
+
 .agent-feedback-widget-item-header {
 	display: flex;
 	align-items: flex-start;
@@ -200,6 +204,11 @@
 	color: var(--vscode-editorWarning-foreground);
 }
 
+.agent-feedback-widget-item-prReview .agent-feedback-widget-item-type {
+	background: color-mix(in srgb, var(--vscode-editorInfo-foreground) 22%, transparent);
+	color: var(--vscode-editorInfo-foreground);
+}
+
 /* Line info */
 .agent-feedback-widget-line-info {
 	font-size: 10px;
@@ -238,6 +247,10 @@
 
 .agent-feedback-widget-item-codeReview .agent-feedback-widget-suggestion {
 	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 10%, transparent);
+}
+
+.agent-feedback-widget-item-prReview .agent-feedback-widget-suggestion {
+	background: color-mix(in srgb, var(--vscode-editorInfo-foreground) 10%, transparent);
 }
 
 .agent-feedback-widget-suggestion-title,

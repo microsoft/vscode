@@ -48,7 +48,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 			.then<IUpdate | null>(asJson)
 			.then(update => {
 				if (!update || !update.url || !update.version || !update.productVersion) {
-					this.setState(State.Idle(UpdateType.Archive));
+					this.setState(State.Idle(UpdateType.Archive, undefined, explicit || undefined));
 				} else {
 					this.setState(State.AvailableForDownload(update));
 				}

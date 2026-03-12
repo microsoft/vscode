@@ -810,7 +810,7 @@ export class ActionList<T> extends Disposable {
 			availableHeight = widgetTop > 0 ? windowHeight - widgetTop - padding : windowHeight * 0.7;
 		}
 
-		const viewportMaxHeight = Math.floor(targetWindow.innerHeight * 0.4);
+		const viewportMaxHeight = Math.floor(targetWindow.innerHeight * 0.6);
 		const maxHeight = Math.min(Math.max(availableHeight, this._actionLineHeight * 3 + filterHeight), viewportMaxHeight);
 		const height = Math.min(listHeight + filterHeight, maxHeight);
 		return height - filterHeight;

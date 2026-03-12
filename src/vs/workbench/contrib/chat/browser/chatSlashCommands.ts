@@ -5,19 +5,16 @@
 
 import { timeout } from '../../../../base/common/async.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatAgentService } from '../common/participants/chatAgents.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { IChatService } from '../common/chatService/chatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../common/constants.js';
 import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
 import { ChatSubmitAction, OpenModePickerAction, OpenModelPickerAction } from './actions/chatExecuteActions.js';
 import { ManagePluginsAction } from './actions/chatPluginActions.js';
@@ -27,10 +24,7 @@ import { CONFIGURE_INSTRUCTIONS_ACTION_ID } from './promptSyntax/attachInstructi
 import { showConfigureHooksQuickPick } from './promptSyntax/hookActions.js';
 import { CONFIGURE_PROMPTS_ACTION_ID } from './promptSyntax/runPromptAction.js';
 import { CONFIGURE_SKILLS_ACTION_ID } from './promptSyntax/skillActions.js';
-import {
-	AutoApproveStorageKeys,
-	globalAutoApproveDescription,
-} from './tools/languageModelToolsService.js';
+import { IChatWidgetService } from './chat.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { Target } from '../common/promptSyntax/promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
@@ -47,9 +41,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 		@IChatService chatService: IChatService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IDialogService dialogService: IDialogService,
-		@INotificationService notificationService: INotificationService,
-		@IStorageService storageService: IStorageService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
@@ -189,109 +181,83 @@ export class ChatSlashCommandsContribution extends Disposable {
 				chatService.setChatSessionTitle(sessionResource, title);
 			}
 		}));
-		const handleEnableAutoApprove = async () => {
-			const inspection = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
-			if (inspection.policyValue !== undefined) {
-				if (inspection.policyValue === true) {
-					notificationService.info(nls.localize('autoApprove.alreadyEnabled', "Global auto-approve is already enabled."));
-					return;
-				}
-				notificationService.warn(nls.localize('autoApprove.policyBlocked', "Global auto-approve is managed by your organization policy. Contact your administrator to change this setting."));
-				return;
+		const setPermissionLevelForSession = (sessionResource: URI, level: ChatPermissionLevel) => {
+			const widget = chatWidgetService.getWidgetBySessionResource(sessionResource) ?? chatWidgetService.lastFocusedWidget;
+			if (widget) {
+				widget.input.setPermissionLevel(level);
 			}
-			if (configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
-				notificationService.info(nls.localize('autoApprove.alreadyEnabled', "Global auto-approve is already enabled."));
-				return;
-			}
-			const alreadyOptedIn = storageService.getBoolean(AutoApproveStorageKeys.GlobalAutoApproveOptIn, StorageScope.APPLICATION, false);
-			if (!alreadyOptedIn) {
-				const store = new DisposableStore();
-				try {
-					const cts = new CancellationTokenSource();
-					store.add(cts);
-					store.add(storageService.onDidChangeValue(StorageScope.APPLICATION, AutoApproveStorageKeys.GlobalAutoApproveOptIn, store)(() => {
-						if (storageService.getBoolean(AutoApproveStorageKeys.GlobalAutoApproveOptIn, StorageScope.APPLICATION, false)) {
-							cts.cancel();
-						}
-					}));
-
-					const result = await dialogService.prompt({
-						type: Severity.Warning,
-						message: nls.localize('autoApprove.enable.title', 'Enable global auto approve?'),
-						buttons: [
-							{ label: nls.localize('autoApprove.enable.button', 'Enable'), run: () => true },
-							{ label: nls.localize('autoApprove.cancel.button', 'Cancel'), run: () => false },
-						],
-						custom: {
-							markdownDetails: [{ markdown: new MarkdownString(globalAutoApproveDescription.value, { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }) }],
-						},
-						token: cts.token,
-					});
-
-					if (!cts.token.isCancellationRequested && result.result !== true) {
-						return;
-					}
-					storageService.store(AutoApproveStorageKeys.GlobalAutoApproveOptIn, true, StorageScope.APPLICATION, StorageTarget.USER);
-				} finally {
-					store.dispose();
-				}
-			}
-			await configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, true);
-			notificationService.info(nls.localize('autoApprove.enabled', "Global auto-approve enabled — all tool calls will be approved automatically"));
 		};
-		const handleDisableAutoApprove = async () => {
-			const inspection = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
-			if (inspection.policyValue !== undefined) {
-				if (inspection.policyValue === false) {
-					notificationService.info(nls.localize('autoApprove.alreadyDisabled', "Global auto-approve is already disabled."));
-					return;
-				}
-				notificationService.warn(nls.localize('autoApprove.policyBlocked', "Global auto-approve is managed by your organization policy. Contact your administrator to change this setting."));
-				return;
+		const autoApprovePolicyValue = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue;
+		if (autoApprovePolicyValue !== false) {
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'autoApprove',
+				detail: nls.localize('autoApprove', "Set permissions to bypass approvals"),
+				sortText: 'z1_autoApprove',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+				target: Target.VSCode
+			}, async (_prompt, _progress, _history, _location, sessionResource) => {
+				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
+			}));
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'disableAutoApprove',
+				detail: nls.localize('disableAutoApprove', "Set permissions back to default"),
+				sortText: 'z1_disableAutoApprove',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+				target: Target.VSCode
+			}, async (_prompt, _progress, _history, _location, sessionResource) => {
+				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
+			}));
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'yolo',
+				detail: nls.localize('yolo', "Set permissions to bypass approvals"),
+				sortText: 'z1_yolo',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+				target: Target.VSCode
+			}, async (_prompt, _progress, _history, _location, sessionResource) => {
+				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
+			}));
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'disableYolo',
+				detail: nls.localize('disableYolo', "Set permissions back to default"),
+				sortText: 'z1_disableYolo',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+				target: Target.VSCode
+			}, async (_prompt, _progress, _history, _location, sessionResource) => {
+				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
+			}));
+			if (configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false) {
+				this._store.add(slashCommandService.registerSlashCommand({
+					command: 'autopilot',
+					detail: nls.localize('autopilot', "Set permissions to autopilot mode"),
+					sortText: 'z1_autopilot',
+					executeImmediately: true,
+					silent: true,
+					locations: [ChatAgentLocation.Chat],
+					target: Target.VSCode
+				}, async (_prompt, _progress, _history, _location, sessionResource) => {
+					setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Autopilot);
+				}));
+				this._store.add(slashCommandService.registerSlashCommand({
+					command: 'exitAutopilot',
+					detail: nls.localize('exitAutopilot', "Set permissions back to default"),
+					sortText: 'z1_exitAutopilot',
+					executeImmediately: true,
+					silent: true,
+					locations: [ChatAgentLocation.Chat],
+					target: Target.VSCode
+				}, async (_prompt, _progress, _history, _location, sessionResource) => {
+					setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
+				}));
 			}
-			if (!configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
-				notificationService.info(nls.localize('autoApprove.alreadyDisabled', "Global auto-approve is already disabled."));
-				return;
-			}
-			await configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, false);
-			notificationService.info(nls.localize('autoApprove.disabled', "Global auto-approve disabled — tools will require approval"));
-		};
-		this._store.add(slashCommandService.registerSlashCommand({
-			command: 'autoApprove',
-			detail: nls.localize('autoApprove', "Enable global auto-approval of all tool calls"),
-			sortText: 'z1_autoApprove',
-			executeImmediately: true,
-			silent: true,
-			locations: [ChatAgentLocation.Chat],
-			target: Target.VSCode
-		}, handleEnableAutoApprove));
-		this._store.add(slashCommandService.registerSlashCommand({
-			command: 'disableAutoApprove',
-			detail: nls.localize('disableAutoApprove', "Disable global auto-approval of all tool calls"),
-			sortText: 'z1_disableAutoApprove',
-			executeImmediately: true,
-			silent: true,
-			locations: [ChatAgentLocation.Chat],
-			target: Target.VSCode
-		}, handleDisableAutoApprove));
-		this._store.add(slashCommandService.registerSlashCommand({
-			command: 'yolo',
-			detail: nls.localize('yolo', "Enable global auto-approval of all tool calls"),
-			sortText: 'z1_yolo',
-			executeImmediately: true,
-			silent: true,
-			locations: [ChatAgentLocation.Chat],
-			target: Target.VSCode
-		}, handleEnableAutoApprove));
-		this._store.add(slashCommandService.registerSlashCommand({
-			command: 'disableYolo',
-			detail: nls.localize('disableYolo', "Disable global auto-approval of all tool calls"),
-			sortText: 'z1_disableYolo',
-			executeImmediately: true,
-			silent: true,
-			locations: [ChatAgentLocation.Chat],
-			target: Target.VSCode
-		}, handleDisableAutoApprove));
+		}
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'help',
 			detail: '',

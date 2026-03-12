@@ -62,6 +62,7 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { CONTEXT_SYNC_ENABLEMENT } from '../../../services/userDataSync/common/userDataSync.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from '../../../services/workspaces/common/workspaceTrust.js';
+import { IPluginInstallService } from '../../chat/common/plugins/pluginInstallService.js';
 import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
 import { CONTEXT_KEYBINDINGS_EDITOR } from '../../preferences/common/preferences.js';
 import { IWebview } from '../../webview/browser/webview.js';
@@ -557,6 +558,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IProductService private readonly productService: IProductService,
+		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
 	) {
 		super();
 		const hasLocalServerContext = CONTEXT_HAS_LOCAL_SERVER.bindTo(contextKeyService);
@@ -698,11 +700,14 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 1
 			}],
 			run: async () => {
-				await this.extensionsWorkbenchService.checkForUpdates();
+				const [, pluginResult] = await Promise.all([
+					this.extensionsWorkbenchService.checkForUpdates(),
+					this.pluginInstallService.updateAllPlugins({ silent: true }, CancellationToken.None),
+				]);
 				const outdated = this.extensionsWorkbenchService.outdated;
 				if (outdated.length) {
 					return this.extensionsWorkbenchService.openSearch('@outdated ');
-				} else {
+				} else if (pluginResult.updatedNames.length === 0 && pluginResult.failedNames.length === 0) {
 					return this.dialogService.info(localize('noUpdatesAvailable', "All extensions are up to date."));
 				}
 			}

@@ -66,6 +66,7 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 				sessionResource,
 				agentFeedbackService.getFeedback(sessionResource),
 				codeReviewService.getReviewState(sessionResource).get(),
+				codeReviewService.getPRReviewState(sessionResource).get(),
 			);
 			if (comments.length > 0) {
 				return this.runWithSession(accessor, sessionResource);
@@ -148,11 +149,11 @@ class NavigateFeedbackAction extends AgentFeedbackEditorAction {
 	override async runWithSession(accessor: ServicesAccessor, sessionResource: URI): Promise<void> {
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
 		const codeReviewService = accessor.get(ICodeReviewService);
-		const editorService = accessor.get(IEditorService);
 		const comments = getSessionEditorComments(
 			sessionResource,
 			agentFeedbackService.getFeedback(sessionResource),
 			codeReviewService.getReviewState(sessionResource).get(),
+			codeReviewService.getPRReviewState(sessionResource).get(),
 		);
 
 		const comment = agentFeedbackService.getNextNavigableItem(sessionResource, comments, this._next);
@@ -160,16 +161,7 @@ class NavigateFeedbackAction extends AgentFeedbackEditorAction {
 			return;
 		}
 
-		await editorService.openEditor({
-			resource: comment.resourceUri,
-			options: {
-				preserveFocus: false,
-				revealIfVisible: true,
-				selection: { startLineNumber: comment.range.startLineNumber, startColumn: comment.range.startColumn }, // place the cursor but not selection
-			}
-		});
-
-		agentFeedbackService.setNavigationAnchor(sessionResource, comment.id);
+		await agentFeedbackService.revealSessionComment(sessionResource, comment.id, comment.resourceUri, comment.range);
 	}
 }
 

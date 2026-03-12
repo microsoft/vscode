@@ -9,6 +9,7 @@ import { createDecorator, IInstantiationService } from '../../instantiation/comm
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IBrowserViewGroupService, IBrowserViewGroupViewEvent } from '../common/browserViewGroup.js';
 import { BrowserViewGroup } from './browserViewGroup.js';
+import { CDPEvent, CDPRequest, CDPResponse } from '../common/cdp/types.js';
 
 export const IBrowserViewGroupMainService = createDecorator<IBrowserViewGroupMainService>('browserViewGroupMainService');
 
@@ -58,8 +59,8 @@ export class BrowserViewGroupMainService extends Disposable implements IBrowserV
 		return this._getGroup(groupId).removeView(viewId);
 	}
 
-	async getDebugWebSocketEndpoint(groupId: string): Promise<string> {
-		return this._getGroup(groupId).getDebugWebSocketEndpoint();
+	async sendCDPMessage(groupId: string, message: CDPRequest): Promise<void> {
+		return this._getGroup(groupId).debugger.sendMessage(message);
 	}
 
 	onDynamicDidAddView(groupId: string): Event<IBrowserViewGroupViewEvent> {
@@ -72,6 +73,10 @@ export class BrowserViewGroupMainService extends Disposable implements IBrowserV
 
 	onDynamicDidDestroy(groupId: string): Event<void> {
 		return this._getGroup(groupId).onDidDestroy;
+	}
+
+	onDynamicCDPMessage(groupId: string): Event<CDPResponse | CDPEvent> {
+		return this._getGroup(groupId).debugger.onMessage;
 	}
 
 	/**

@@ -20,10 +20,12 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { URI } from '../../../../../base/common/uri.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../common/enablement.js';
@@ -32,6 +34,7 @@ import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plug
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { pluginIcon } from './aiCustomizationIcons.js';
+import { formatDisplayName, truncateToFirstSentence } from './aiCustomizationListWidget.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 
@@ -100,6 +103,7 @@ class PluginItemDelegate implements IListVirtualDelegate<IPluginListEntry> {
 
 interface IPluginInstalledItemTemplateData {
 	readonly container: HTMLElement;
+	readonly typeIcon: HTMLElement;
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
 	readonly status: HTMLElement;
@@ -112,21 +116,24 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 	renderTemplate(container: HTMLElement): IPluginInstalledItemTemplateData {
 		container.classList.add('mcp-server-item');
 
+		const typeIcon = DOM.append(container, $('.mcp-server-icon'));
+		typeIcon.classList.add(...ThemeIcon.asClassNameArray(pluginIcon));
+
 		const details = DOM.append(container, $('.mcp-server-details'));
 		const name = DOM.append(details, $('.mcp-server-name'));
 		const description = DOM.append(details, $('.mcp-server-description'));
 		const status = DOM.append(container, $('.mcp-server-status'));
 
-		return { container, name, description, status, disposables: new DisposableStore() };
+		return { container, typeIcon, name, description, status, disposables: new DisposableStore() };
 	}
 
 	renderElement(element: IPluginInstalledItemEntry, _index: number, templateData: IPluginInstalledItemTemplateData): void {
 		templateData.disposables.clear();
 
-		templateData.name.textContent = element.item.name;
+		templateData.name.textContent = formatDisplayName(element.item.name);
 
 		if (element.item.description) {
-			templateData.description.textContent = element.item.description;
+			templateData.description.textContent = truncateToFirstSentence(element.item.description);
 			templateData.description.style.display = '';
 		} else {
 			templateData.description.style.display = 'none';
@@ -303,6 +310,7 @@ export class PluginListWidget extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget'); // reuse MCP list widget CSS
@@ -334,7 +342,7 @@ export class PluginListWidget extends Disposable {
 			}
 		}));
 
-		// Button container (Browse Marketplace)
+		// Button container (Browse Marketplace + Install from Source)
 		const buttonContainer = DOM.append(this.searchAndButtonContainer, $('.list-button-group'));
 
 		const browseButtonContainer = DOM.append(buttonContainer, $('.list-add-button-container'));
@@ -343,6 +351,15 @@ export class PluginListWidget extends Disposable {
 		this.browseButton.element.classList.add('list-add-button');
 		this._register(this.browseButton.onDidClick(() => {
 			this.toggleBrowseMode(!this.browseMode);
+		}));
+
+		const installFromSourceButton = this._register(new Button(buttonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		installFromSourceButton.label = `$(${Codicon.add.id})`;
+		installFromSourceButton.setTitle(localize('installFromSource', "Install Plugin from Source"));
+		installFromSourceButton.element.classList.add('list-icon-button');
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), installFromSourceButton.element, localize('installFromSourceTooltip', "Install Plugin from Source")));
+		this._register(installFromSourceButton.onDidClick(() => {
+			this.commandService.executeCommand('workbench.action.chat.installPluginFromSource');
 		}));
 
 		// Back to installed link (shown only in browse mode)

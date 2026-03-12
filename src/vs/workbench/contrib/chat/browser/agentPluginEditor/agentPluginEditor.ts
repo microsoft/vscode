@@ -12,7 +12,7 @@ import { Cache, CacheResult } from '../../../../../base/common/cache.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas, matchesScheme } from '../../../../../base/common/network.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../../base/common/observable.js';
 import { dirname, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -37,6 +37,7 @@ import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../../markdo
 import { IWebview, IWebviewService } from '../../../webview/browser/webview.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
+import { hasSourceChanged, IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { AgentPluginEditorInput } from './agentPluginEditorInput.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem } from './agentPluginItems.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -97,6 +98,7 @@ export class AgentPluginEditor extends EditorPane {
 		@IRequestService private readonly requestService: IRequestService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
+		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
@@ -210,12 +212,7 @@ export class AgentPluginEditor extends EditorPane {
 			reset(template.marketplace, marketplaceLabel);
 		}
 
-		// Set up actions reactively
-		const actionDisposables = this.transientDisposables.add(new DisposableStore());
-		this.transientDisposables.add(autorun(reader => {
-			actionDisposables.clear();
-			template.actionBar.clear();
-
+		const currentItem = derived(reader => {
 			// Read observables to subscribe to changes
 			const allPlugins = this.agentPluginService.plugins.read(reader);
 
@@ -266,7 +263,33 @@ export class AgentPluginEditor extends EditorPane {
 				}
 			}
 
-			const actions = this.getItemActions(currentItem);
+			return currentItem;
+		});
+
+		const storedPlugin = currentItem.map((item, r) => {
+			if (!item || item.kind === AgentPluginItemKind.Marketplace) {
+				return undefined;
+			}
+
+			return this.pluginMarketplaceService.installedPlugins.read(r)
+				.find(e => e.pluginUri.toString() === item.plugin.uri.toString())?.plugin
+				?? item.plugin.fromMarketplace;
+		});
+
+		// Set up actions reactively
+		const actionDisposables = this.transientDisposables.add(new DisposableStore());
+		this.transientDisposables.add(autorun(reader => {
+			actionDisposables.clear();
+			template.actionBar.clear();
+
+			const current = currentItem.read(reader);
+			if (!current) {
+				return;
+			}
+
+			this.pluginMarketplaceService.lastFetchedPlugins.read(reader);
+
+			const actions = this.getItemActions(current, storedPlugin.read(reader));
 			if (actions.length > 0) {
 				template.actionBar.push(actions, { icon: true, label: true });
 			}
@@ -275,11 +298,11 @@ export class AgentPluginEditor extends EditorPane {
 			}
 
 			// Update enablement status widget
-			if (currentItem.kind === AgentPluginItemKind.Installed) {
+			if (current.kind === AgentPluginItemKind.Installed) {
 				actionDisposables.add(this.instantiationService.createInstance(
 					EnablementStatusWidget,
 					template.statusContainer,
-					currentItem.plugin.enablement,
+					current.plugin.enablement,
 					pluginEnablementLabels,
 				));
 			}
@@ -289,13 +312,25 @@ export class AgentPluginEditor extends EditorPane {
 		this.activeElement = await this.openDetails(item, template, token);
 	}
 
-	private getItemActions(item: IAgentPluginItem): Action[] {
+	private getItemActions(item: IAgentPluginItem, storedPlugin: IMarketplacePlugin | undefined): Action[] {
 		if (item.kind === AgentPluginItemKind.Marketplace) {
 			return [this.instantiationService.createInstance(InstallPluginAction, item)];
 		}
 
 		const workspaceService = this.instantiationService.invokeFunction(a => a.get(IWorkspaceContextService));
 		const actions: Action[] = [];
+
+		if (storedPlugin) {
+			const cachedMarketplace = this.pluginMarketplaceService.lastFetchedPlugins.get();
+			const key = `${storedPlugin.marketplaceReference.canonicalId}::${storedPlugin.name}`;
+			const livePlugin = cachedMarketplace.find(mp =>
+				`${mp.marketplaceReference.canonicalId}::${mp.name}` === key
+			);
+			if (livePlugin && hasSourceChanged(storedPlugin.sourceDescriptor, livePlugin.sourceDescriptor)) {
+				actions.push(this.instantiationService.createInstance(UpdatePluginEditorAction, item.plugin, livePlugin));
+			}
+		}
+
 		actions.push(createEnablePluginDropDown(item.plugin, this.agentPluginService.enablementModel, workspaceService));
 		actions.push(createDisablePluginDropDown(item.plugin, this.agentPluginService.enablementModel, workspaceService));
 		actions.push(new UninstallPluginAction(item.plugin));
@@ -532,6 +567,25 @@ export class AgentPluginEditor extends EditorPane {
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		this.layoutParticipants.forEach(p => p.layout());
+	}
+}
+
+class UpdatePluginEditorAction extends Action {
+	static readonly ID = 'agentPlugin.editor.update';
+
+	constructor(
+		private readonly plugin: IAgentPlugin,
+		private readonly liveMarketplacePlugin: IMarketplacePlugin,
+		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
+		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
+	) {
+		super(UpdatePluginEditorAction.ID, localize('update', "Update"), 'extension-action label prominent install');
+	}
+
+	override async run(): Promise<void> {
+		if (await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin)) {
+			this.pluginMarketplaceService.addInstalledPlugin(this.plugin.uri, this.liveMarketplacePlugin);
+		}
 	}
 }
 
