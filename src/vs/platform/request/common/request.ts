@@ -49,7 +49,6 @@ export interface IRequestService {
 
 	/**
 	 * Fires when a request completes (successfully or with an error response).
-	 * Does not fire for requests with {@link NO_FETCH_TELEMETRY} as callSite.
 	 */
 	readonly onDidCompleteRequest: Event<IRequestCompleteEvent>;
 
