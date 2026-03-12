@@ -5,6 +5,7 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -31,7 +32,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IAICustomizationWorkspaceService, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
@@ -135,6 +136,7 @@ class AICustomizationListDelegate implements IListVirtualDelegate<IListEntry> {
 interface IAICustomizationItemTemplateData {
 	readonly container: HTMLElement;
 	readonly actionsContainer: HTMLElement;
+	readonly actionBar: ActionBar;
 	readonly typeIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly description: HighlightedLabel;
@@ -251,6 +253,9 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IAICustomizationItemTemplateData {
@@ -267,10 +272,14 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 		// Right section for actions (hover-visible)
 		const actionsContainer = DOM.append(container, $('.item-right'));
+		const actionBar = disposables.add(new ActionBar(actionsContainer, {
+			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
+		}));
 
 		return {
 			container,
 			actionsContainer,
+			actionBar,
 			typeIcon,
 			nameLabel,
 			description,
@@ -334,6 +343,29 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			templateData.description.set('', undefined);
 			templateData.description.element.style.display = 'none';
 		}
+
+		// Inline action bar from menu
+		const context = {
+			uri: element.uri.toString(),
+			name: element.name,
+			promptType: element.promptType,
+			storage: element.storage,
+		};
+
+		const menu = templateData.elementDisposables.add(
+			this.menuService.createMenu(AICustomizationManagementItemMenuId, this.contextKeyService)
+		);
+
+		const updateActions = () => {
+			const actions = menu.getActions({ arg: context, shouldForwardArgs: true });
+			const { primary } = getContextMenuActions(actions, 'inline');
+			templateData.actionBar.clear();
+			templateData.actionBar.push(primary, { icon: true, label: false });
+		};
+		updateActions();
+		templateData.elementDisposables.add(menu.onDidChange(updateActions));
+
+		templateData.actionBar.context = context;
 	}
 
 	disposeTemplate(templateData: IAICustomizationItemTemplateData): void {
@@ -543,6 +575,13 @@ export class AICustomizationListWidget extends Disposable {
 		this._register(this.promptsService.onDidChangeCustomAgents(() => this.refresh()));
 		this._register(this.promptsService.onDidChangeSlashCommands(() => this.refresh()));
 
+		// Refresh on file deletions so the list updates after inline delete actions
+		this._register(this.fileService.onDidFilesChange(e => {
+			if (e.gotDeleted()) {
+				this.refresh();
+			}
+		}));
+
 		// Section footer at bottom with description and link
 		this.sectionHeader = DOM.append(this.element, $('.section-footer'));
 		this.sectionDescription = DOM.append(this.sectionHeader, $('p.section-footer-description'));
@@ -575,13 +614,13 @@ export class AICustomizationListWidget extends Disposable {
 			storage: item.storage,
 		};
 
-		// Get menu actions
+		// Get menu actions, excluding inline actions to avoid duplicates
 		const actions = this.menuService.getMenuActions(AICustomizationManagementItemMenuId, this.contextKeyService, {
 			arg: context,
 			shouldForwardArgs: true,
 		});
 
-		const flatActions = getFlatContextMenuActions(actions);
+		const { secondary } = getContextMenuActions(actions, 'inline');
 
 		// Add copy path actions
 		const copyActions = [
@@ -604,7 +643,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => [...flatActions, ...copyActions],
+			getActions: () => [...secondary, ...copyActions],
 		});
 	}
 
