@@ -510,7 +510,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		};
 
 		const commands = observeComponent('commands', d => this._readMarkdownComponents(d));
-		const skills = observeComponent('skills', d => this._readSkills(d));
+		const skills = observeComponent('skills', d => this._readSkills(uri, d));
 		const agents = observeComponent('agents', d => this._readMarkdownComponents(d));
 		const instructions = observeComponent('rules', d => this._readRules(d));
 		const hooks = observeComponent(
@@ -699,7 +699,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 	}
 
-	private async _readSkills(dirs: readonly URI[]): Promise<readonly IAgentPluginSkill[]> {
+	private async _readSkills(pluginRoot: URI, dirs: readonly URI[]): Promise<readonly IAgentPluginSkill[]> {
 		const seen = new Set<string>();
 		const skills: IAgentPluginSkill[] = [];
 
@@ -735,6 +735,14 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 				if (await this._pathExists(childSkillMd)) {
 					addSkill(basename(child.resource), childSkillMd);
 				}
+			}
+		}
+
+		// Fallback: support single-skill plugins with SKILL.md at the plugin root
+		if (skills.length === 0) {
+			const rootSkillMd = URI.joinPath(pluginRoot, 'SKILL.md');
+			if (await this._pathExists(rootSkillMd)) {
+				addSkill(basename(pluginRoot), rootSkillMd);
 			}
 		}
 

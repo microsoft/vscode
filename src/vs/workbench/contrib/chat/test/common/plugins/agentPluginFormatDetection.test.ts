@@ -242,6 +242,45 @@ suite('AgentPlugin format detection', () => {
 		assert.deepStrictEqual(skillNames, ['deploy', 'lint']);
 	}));
 
+	test('reads root-level SKILL.md as a fallback skill', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/root-skill');
+		await writeFile('/plugins/root-skill/.plugin/plugin.json', JSON.stringify({ name: 'root-skill' }));
+		await writeFile('/plugins/root-skill/SKILL.md', '# Visual Explainer');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = discovery.plugins.get();
+		assert.strictEqual(plugins.length, 1);
+
+		await waitForState(plugins[0].skills, s => s.length > 0);
+		assert.deepStrictEqual(
+			plugins[0].skills.get().map(s => s.name),
+			['root-skill'],
+		);
+	}));
+
+	test('root-level SKILL.md is ignored when skills/ has content', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/root-skill-ignored');
+		await writeFile('/plugins/root-skill-ignored/.plugin/plugin.json', JSON.stringify({ name: 'root-skill-ignored' }));
+		await writeFile('/plugins/root-skill-ignored/SKILL.md', '# Root skill');
+		await writeFile('/plugins/root-skill-ignored/skills/real/SKILL.md', '# Real skill');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = discovery.plugins.get();
+		assert.strictEqual(plugins.length, 1);
+
+		await waitForState(plugins[0].skills, s => s.length > 0);
+		assert.deepStrictEqual(
+			plugins[0].skills.get().map(s => s.name),
+			['real'],
+		);
+	}));
+
 	test('reads agents from agents/ directory', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = pluginUri('/plugins/agents-plugin');
 		await writeFile('/plugins/agents-plugin/.plugin/plugin.json', JSON.stringify({ name: 'agents-plugin' }));
