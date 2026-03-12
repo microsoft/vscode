@@ -30,20 +30,11 @@ steps:
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
 
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      artifact: Compilation
-      path: $(Build.ArtifactStagingDirectory)
-    displayName: Download compilation output
-
-  - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-    displayName: Extract compilation output
-
-  - script: node build/setup-npm-registry.js $NPM_REGISTRY
+  - script: node build/setup-npm-registry.ts $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
@@ -100,25 +91,47 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - script: node build/azure-pipelines/distro/mixin-npm
+  - script: node build/azure-pipelines/distro/mixin-npm.ts
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Mixin distro node modules
 
   - script: |
       set -e
-      node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+      node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
       tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
-  - script: node build/azure-pipelines/distro/mixin-quality
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Wait for CLI artifact (background)
+
+  - script: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality
 
   - template: ../../common/install-builtin-extensions.yml@self
 
+  - script: npm run gulp core-ci
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Compile
+
+  - script: node build/azure-pipelines/common/extract-telemetry.ts
+    displayName: Generate lists of telemetry events
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - script: |
+        set -e
+        npm run compile --prefix test/smoke
+        npm run compile --prefix test/integration/browser
+      displayName: Compile test suites (non-OSS)
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: node build/lib/policies/policyGenerator build/lib/policies/policyData.jsonc darwin
+    - script: npm run copy-policy-dto --prefix build && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc darwin
       displayName: Generate policy definitions
       retryCountOnTaskFailure: 3
 
@@ -134,10 +147,6 @@ steps:
       set -e
       npm run gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
       mv ../vscode-reh-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH) # TODO@joaomoreno
-      ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH).zip"
-      mkdir -p $(dirname $ARCHIVE_PATH)
-      (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH))
-      echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Build server
@@ -146,15 +155,16 @@ steps:
       set -e
       npm run gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
       mv ../vscode-reh-web-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH)-web # TODO@joaomoreno
-      ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH)-web.zip"
-      mkdir -p $(dirname $ARCHIVE_PATH)
-      (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH)-web)
-      echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Build server (web)
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Wait for CLI artifact
+
     - task: DownloadPipelineArtifact@2
       inputs:
         artifact: unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
@@ -178,8 +188,23 @@ steps:
         set -e
         APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
         APP_NAME="`ls $APP_ROOT | head -n 1`"
-        APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.js $(VSCODE_ARCH)
-        APP_PATH="$(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)" node build/darwin/verify-macho.js $(VSCODE_ARCH)
+        APP_PATH="$APP_ROOT/$APP_NAME"
+        EXEC_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").nameShort")
+        # Create a symlink from 'Electron' to the actual executable for backward compatibility
+        # This ensures apps that relied on the hardcoded path 'Contents/MacOS/Electron' continue to work
+        # Remove this step once main branch is on 1.112 release.
+        if [ "$EXEC_NAME" != "Electron" ] && [ ! -L "$APP_PATH/Contents/MacOS/Electron" ]; then
+          ln -s "$EXEC_NAME" "$APP_PATH/Contents/MacOS/Electron"
+        fi
+      condition: eq(variables['BUILT_CLIENT'], 'true')
+      displayName: Create Electron symlink for backward compatibility
+
+    - script: |
+        set -e
+        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.ts $(VSCODE_ARCH)
+        APP_PATH="$(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)" node build/darwin/verify-macho.ts $(VSCODE_ARCH)
       displayName: Verify arch of Mach-O objects
 
     - script: |
@@ -191,7 +216,7 @@ steps:
       condition: eq(variables['BUILT_CLIENT'], 'true')
       displayName: Package client
 
-    - pwsh: node build/azure-pipelines/common/checkForArtifact.js CLIENT_ARCHIVE_UPLOADED unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+    - pwsh: node build/azure-pipelines/common/checkForArtifact.ts CLIENT_ARCHIVE_UPLOADED unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Check for client artifact
@@ -221,8 +246,25 @@ steps:
         security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
         export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
         security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
-        DEBUG=electron-osx-sign* node build/darwin/sign.js $(agent.builddirectory)
+        DEBUG=electron-osx-sign* node build/darwin/sign.ts $(agent.builddirectory)
       displayName: Set Hardened Entitlements
+
+    - script: |
+        set -e
+        export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
+        node build/darwin/sign-server.ts $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)
+        node build/darwin/sign-server.ts $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
+      displayName: Sign server binaries
+
+    - script: |
+        set -e
+        DMG_OUT="$(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_dmg"
+        mkdir -p $DMG_OUT
+        node build/darwin/create-dmg.ts $(agent.builddirectory) $DMG_OUT
+        python3 build/darwin/patch-dmg.py $DMG_OUT/VSCode-darwin-$(VSCODE_ARCH).dmg resources/darwin/disk.icns
+        echo "##vso[task.setvariable variable=DMG_PATH]$DMG_OUT/VSCode-darwin-$(VSCODE_ARCH).dmg"
+      condition: eq(variables['BUILT_CLIENT'], 'true')
+      displayName: Create DMG installer
 
     - script: |
         set -e
@@ -232,6 +274,22 @@ steps:
         echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
       condition: eq(variables['BUILT_CLIENT'], 'true')
       displayName: Re-package client after entitlement
+
+    - script: |
+        set -e
+        ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH).zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH))
+        echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
+      displayName: Package server
+
+    - script: |
+        set -e
+        ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH)-web.zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH)-web)
+        echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
+      displayName: Package server (web)
 
     - task: UseDotNet@2
       inputs:
@@ -257,10 +315,11 @@ steps:
         echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
       displayName: Find ESRP CLI
 
-    - script: npx deemon --detach --wait node build/azure-pipelines/darwin/codesign.js
+    - script: npx deemon --detach --wait node build/azure-pipelines/darwin/codesign.ts
       env:
         EsrpCliDllPath: $(EsrpCliDllPath)
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        BUILD_SOURCESDIRECTORY: $(Build.SourcesDirectory)
       displayName: ✍️ Codesign & Notarize
 
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
@@ -271,7 +330,7 @@ steps:
         VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --attach node build/azure-pipelines/darwin/codesign.js
+    - script: npx deemon --attach node build/azure-pipelines/darwin/codesign.ts
       condition: succeededOrFailed()
       displayName: "Post-job: ✍️ Codesign & Notarize"
 
@@ -297,6 +356,9 @@ steps:
         else
           mv $(CLIENT_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip
         fi
+
+        mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg
+        mv $(DMG_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg/VSCode-darwin-$(VSCODE_ARCH).dmg
 
         mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_server_darwin_$(VSCODE_ARCH)_archive
         mv $(SERVER_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_server_darwin_$(VSCODE_ARCH)_archive/vscode-server-darwin-$(VSCODE_ARCH).zip

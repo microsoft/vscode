@@ -26,7 +26,7 @@ import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurati
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
-import { EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, ExtensionsLocalizedLabel, FilterType, IExtensionGalleryService, IExtensionManagementService, PreferencesLocalizedLabel, SortBy, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, ExtensionRequestsTimeoutConfigKey, ExtensionsLocalizedLabel, FilterType, IExtensionGalleryService, IExtensionManagementService, PreferencesLocalizedLabel, SortBy, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions, getIdAndVersion } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { ExtensionStorageService } from '../../../../platform/extensionManagement/common/extensionStorage.js';
 import { IExtensionRecommendationNotificationService } from '../../../../platform/extensionRecommendations/common/extensionRecommendations.js';
@@ -51,7 +51,7 @@ import { ResourceContextKey, WorkbenchStateContext } from '../../../common/conte
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorExtensions } from '../../../common/editor.js';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../../common/views.js';
-import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../../services/accounts/common/defaultAccount.js';
+import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../../services/accounts/browser/defaultAccount.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -62,7 +62,8 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { CONTEXT_SYNC_ENABLEMENT } from '../../../services/userDataSync/common/userDataSync.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from '../../../services/workspaces/common/workspaceTrust.js';
-import { ILanguageModelToolsService } from '../../chat/common/languageModelToolsService.js';
+import { IPluginInstallService } from '../../chat/common/plugins/pluginInstallService.js';
+import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
 import { CONTEXT_KEYBINDINGS_EDITOR } from '../../preferences/common/preferences.js';
 import { IWebview } from '../../webview/browser/webview.js';
 import { Query } from '../common/extensionQuery.js';
@@ -265,6 +266,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('extensionsInQuickAccess', "When enabled, extensions can be searched for via Quick Access and report issues from there."),
 				default: true
 			},
+			'extensions.allowOpenInModalEditor': {
+				type: 'boolean',
+				description: localize('extensions.allowOpenInModalEditor', "Controls whether extensions and MCP servers open in a modal editor overlay."),
+				default: false, // TODO@bpasero figure out the default for stable and retire this setting
+				tags: ['experimental'],
+				experiment: {
+					mode: 'auto'
+				}
+			},
 			[VerifyExtensionSignatureConfigKey]: {
 				type: 'boolean',
 				description: localize('extensions.verifySignature', "When enabled, extensions are verified to be signed before getting installed."),
@@ -301,6 +311,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsSupportNodeGlobalNavigator', "When enabled, Node.js navigator object is exposed on the global scope."),
 				default: false,
+			},
+			[ExtensionRequestsTimeoutConfigKey]: {
+				type: 'number',
+				description: localize('extensionsRequestTimeout', "Controls the timeout in milliseconds for HTTP requests made when fetching extensions from the Marketplace"),
+				default: 60_000,
+				scope: ConfigurationScope.APPLICATION,
+				tags: ['advanced', 'usesOnlineServices']
 			},
 		}
 	});
@@ -412,7 +429,7 @@ CommandsRegistry.registerCommand({
 						context: { ...options?.context, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.COMMAND },
 					});
 				} else {
-					await extensionsWorkbenchService.install(arg, {
+					await extensionsWorkbenchService.install(id, {
 						version,
 						installPreReleaseVersion: options?.installPreReleaseVersion,
 						context: { ...options?.context, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.COMMAND },
@@ -541,6 +558,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IProductService private readonly productService: IProductService,
+		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
 	) {
 		super();
 		const hasLocalServerContext = CONTEXT_HAS_LOCAL_SERVER.bindTo(contextKeyService);
@@ -682,11 +700,14 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 1
 			}],
 			run: async () => {
-				await this.extensionsWorkbenchService.checkForUpdates();
+				const [, pluginResult] = await Promise.all([
+					this.extensionsWorkbenchService.checkForUpdates(),
+					this.pluginInstallService.updateAllPlugins({ silent: true }, CancellationToken.None),
+				]);
 				const outdated = this.extensionsWorkbenchService.outdated;
 				if (outdated.length) {
 					return this.extensionsWorkbenchService.openSearch('@outdated ');
-				} else {
+				} else if (pluginResult.updatedNames.length === 0 && pluginResult.failedNames.length === 0) {
 					return this.dialogService.info(localize('noUpdatesAvailable', "All extensions are up to date."));
 				}
 			}
@@ -1200,7 +1221,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			this.registerExtensionAction({
 				id: `extensions.sort.${id}`,
 				title,
-				precondition: ContextKeyExpr.and(precondition, ContextKeyExpr.regex(ExtensionsSearchValueContext.key, /^@feature:/).negate(), sortCapabilityContext),
+				precondition: ContextKeyExpr.and(precondition, ContextKeyExpr.regex(ExtensionsSearchValueContext.key, /^@contribute:/).negate(), sortCapabilityContext),
 				menu: [{
 					id: extensionsSortSubMenu,
 					when: ContextKeyExpr.and(ContextKeyExpr.or(CONTEXT_HAS_GALLERY, DefaultViewsContext), sortCapabilityContext),
@@ -2017,6 +2038,7 @@ class ExtensionToolsContribution extends Disposable implements IWorkbenchContrib
 		super();
 		const searchExtensionsTool = instantiationService.createInstance(SearchExtensionsTool);
 		this._register(toolsService.registerTool(SearchExtensionsToolData, searchExtensionsTool));
+		this._register(toolsService.vscodeToolSet.addTool(SearchExtensionsToolData));
 	}
 }
 

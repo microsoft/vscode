@@ -3,12 +3,12 @@
 		"c": "#",
 		"t": "source.cuda-cpp meta.preprocessor.include.cuda-cpp keyword.control.directive.include.cuda-cpp punctuation.definition.directive.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -17,12 +17,12 @@
 		"c": "include",
 		"t": "source.cuda-cpp meta.preprocessor.include.cuda-cpp keyword.control.directive.include.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -87,12 +87,12 @@
 		"c": "#",
 		"t": "source.cuda-cpp meta.preprocessor.include.cuda-cpp keyword.control.directive.include.cuda-cpp punctuation.definition.directive.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -101,12 +101,12 @@
 		"c": "include",
 		"t": "source.cuda-cpp meta.preprocessor.include.cuda-cpp keyword.control.directive.include.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -171,12 +171,12 @@
 		"c": "#",
 		"t": "source.cuda-cpp meta.preprocessor.include.cuda-cpp keyword.control.directive.include.cuda-cpp punctuation.definition.directive.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -185,12 +185,12 @@
 		"c": "include",
 		"t": "source.cuda-cpp meta.preprocessor.include.cuda-cpp keyword.control.directive.include.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -255,12 +255,12 @@
 		"c": "#",
 		"t": "source.cuda-cpp meta.preprocessor.include.cuda-cpp keyword.control.directive.include.cuda-cpp punctuation.definition.directive.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -269,12 +269,12 @@
 		"c": "include",
 		"t": "source.cuda-cpp meta.preprocessor.include.cuda-cpp keyword.control.directive.include.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -339,12 +339,12 @@
 		"c": "#",
 		"t": "source.cuda-cpp keyword.control.directive.conditional.if.cuda-cpp punctuation.definition.directive.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -353,12 +353,12 @@
 		"c": "if",
 		"t": "source.cuda-cpp keyword.control.directive.conditional.if.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -381,12 +381,12 @@
 		"c": "defined",
 		"t": "source.cuda-cpp meta.preprocessor.conditional.cuda-cpp keyword.control.directive.conditional.defined.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -437,12 +437,12 @@
 		"c": "#",
 		"t": "source.cuda-cpp meta.preprocessor.undef.cuda-cpp keyword.control.directive.undef.cuda-cpp punctuation.definition.directive.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -451,12 +451,12 @@
 		"c": "undef",
 		"t": "source.cuda-cpp meta.preprocessor.undef.cuda-cpp keyword.control.directive.undef.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -493,12 +493,12 @@
 		"c": "#",
 		"t": "source.cuda-cpp keyword.control.directive.endif.cuda-cpp punctuation.definition.directive.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -507,12 +507,12 @@
 		"c": "endif",
 		"t": "source.cuda-cpp keyword.control.directive.endif.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -521,12 +521,12 @@
 		"c": "#",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp keyword.control.directive.define.cuda-cpp punctuation.definition.directive.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -535,12 +535,12 @@
 		"c": "define",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp keyword.control.directive.define.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -661,12 +661,12 @@
 		"c": "do",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp keyword.control.do.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -745,12 +745,12 @@
 		"c": "if",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp meta.block.cpp keyword.control.if.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -1571,12 +1571,12 @@
 		"c": "while",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp keyword.control.while.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -1627,12 +1627,12 @@
 		"c": "#",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp keyword.control.directive.define.cuda-cpp punctuation.definition.directive.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -1641,12 +1641,12 @@
 		"c": "define",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp keyword.control.directive.define.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -1767,12 +1767,12 @@
 		"c": "do",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp keyword.control.do.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -1963,12 +1963,12 @@
 		"c": "if",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp meta.block.cpp keyword.control.if.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -2873,12 +2873,12 @@
 		"c": "while",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp keyword.control.while.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -2929,12 +2929,12 @@
 		"c": "#",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp keyword.control.directive.define.cuda-cpp punctuation.definition.directive.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -2943,12 +2943,12 @@
 		"c": "define",
 		"t": "source.cuda-cpp meta.preprocessor.macro.cuda-cpp keyword.control.directive.define.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -5799,12 +5799,12 @@
 		"c": "for",
 		"t": "source.cuda-cpp meta.function.definition.cuda-cpp meta.body.function.definition.cuda-cpp keyword.control.for.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -6345,12 +6345,12 @@
 		"c": "for",
 		"t": "source.cuda-cpp meta.function.definition.cuda-cpp meta.body.function.definition.cuda-cpp keyword.control.for.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -8221,12 +8221,12 @@
 		"c": "for",
 		"t": "source.cuda-cpp meta.function.definition.cuda-cpp meta.body.function.definition.cuda-cpp keyword.control.for.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -8991,12 +8991,12 @@
 		"c": "for",
 		"t": "source.cuda-cpp meta.function.definition.cuda-cpp meta.body.function.definition.cuda-cpp meta.block.cuda-cpp keyword.control.for.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -9663,12 +9663,12 @@
 		"c": "for",
 		"t": "source.cuda-cpp meta.function.definition.cuda-cpp meta.body.function.definition.cuda-cpp meta.block.cuda-cpp keyword.control.for.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -13891,12 +13891,12 @@
 		"c": "for",
 		"t": "source.cuda-cpp meta.function.definition.cuda-cpp meta.body.function.definition.cuda-cpp keyword.control.for.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -14157,12 +14157,12 @@
 		"c": "if",
 		"t": "source.cuda-cpp meta.function.definition.cuda-cpp meta.body.function.definition.cuda-cpp meta.block.cuda-cpp keyword.control.if.cuda-cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}

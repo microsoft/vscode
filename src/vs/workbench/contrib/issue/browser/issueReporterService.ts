@@ -37,6 +37,7 @@ export class IssueWebReporter extends BaseIssueReporterService {
 	) {
 		super(disableExtensions, data, os, product, window, true, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService, openerService);
 
+		// eslint-disable-next-line no-restricted-syntax
 		const target = this.window.document.querySelector<HTMLElement>('.block-system .block-info');
 
 		const webInfo = this.window.navigator.userAgent;
@@ -57,6 +58,7 @@ export class IssueWebReporter extends BaseIssueReporterService {
 			this.issueReporterModel.update({ issueType: issueType });
 
 			// Resets placeholder
+			// eslint-disable-next-line no-restricted-syntax
 			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
 			if (descriptionTextArea) {
 				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");

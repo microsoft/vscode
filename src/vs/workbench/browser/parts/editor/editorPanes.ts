@@ -262,7 +262,7 @@ export class EditorPanes extends Disposable {
 		// make sure that the pane window is visible unless
 		// this has been explicitly disabled.
 		if (!cancelled) {
-			const focus = !options || !options.preserveFocus;
+			const focus = !options?.preserveFocus;
 			if (focus && this.shouldRestoreFocus(activeElement)) {
 				pane.focus();
 			} else if (!internalOptions?.preserveWindowOrder) {

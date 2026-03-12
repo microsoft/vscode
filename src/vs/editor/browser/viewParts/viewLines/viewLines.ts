@@ -245,12 +245,10 @@ export class ViewLines extends ViewPart implements IViewLines {
 		return r;
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		if (true/*e.inlineDecorationsChanged*/) {
-			const rendStartLineNumber = this._visibleLines.getStartLineNumber();
-			const rendEndLineNumber = this._visibleLines.getEndLineNumber();
-			for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
-				this._visibleLines.getVisibleLine(lineNumber).onDecorationsChanged();
-			}
+		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
+		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
+		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
+			this._visibleLines.getVisibleLine(lineNumber).onDecorationsChanged();
 		}
 		return true;
 	}
@@ -318,7 +316,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 			}
 		}
 		this.domNode.setWidth(e.scrollWidth);
-		return this._visibleLines.onScrollChanged(e) || true;
+		return this._visibleLines.onScrollChanged(e) || e.scrollTopChanged || e.scrollLeftChanged;
 	}
 
 	public override onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
@@ -414,13 +412,15 @@ export class ViewLines extends ViewPart implements IViewLines {
 		return result;
 	}
 
-	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
-		if (this.shouldRender()) {
-			// Cannot read from the DOM because it is dirty
-			// i.e. the model & the dom are out of sync, so I'd be reading something stale
-			return null;
+	public resetLineWidthCaches(): void {
+		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
+		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
+		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
+			this._visibleLines.getVisibleLine(lineNumber).resetCachedWidth();
 		}
+	}
 
+	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
 		const originalEndLineNumber = _range.endLineNumber;
 		const range = Range.intersectRanges(_range, this._lastRenderedData.getCurrentVisibleRange());
 		if (!range) {
@@ -480,12 +480,6 @@ export class ViewLines extends ViewPart implements IViewLines {
 	}
 
 	private _visibleRangesForLineRange(lineNumber: number, startColumn: number, endColumn: number): VisibleRanges | null {
-		if (this.shouldRender()) {
-			// Cannot read from the DOM because it is dirty
-			// i.e. the model & the dom are out of sync, so I'd be reading something stale
-			return null;
-		}
-
 		if (lineNumber < this._visibleLines.getStartLineNumber() || lineNumber > this._visibleLines.getEndLineNumber()) {
 			return null;
 		}
@@ -541,7 +535,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 			// only proceed if we just did a layout
 			return;
 		}
-		if (this._asyncUpdateLineWidths.isScheduled()) {
+		if (!this._asyncUpdateLineWidths.isScheduled()) {
 			// reading widths is not scheduled => widths are up-to-date
 			return;
 		}
@@ -685,6 +679,10 @@ export class ViewLines extends ViewPart implements IViewLines {
 	// --- width
 
 	private _ensureMaxLineWidth(lineWidth: number): void {
+		// When GPU rendering is enabled, ViewLinesGpu handles max line width tracking
+		if (this._viewLineOptions.useGpu) {
+			return;
+		}
 		const iLineWidth = Math.ceil(lineWidth);
 		if (this._maxLineWidth < iLineWidth) {
 			this._maxLineWidth = iLineWidth;

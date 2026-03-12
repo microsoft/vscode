@@ -446,7 +446,6 @@ namespace McpServerSchemaVersion_v2025_07_09 {
 namespace McpServerSchemaVersion_v0_1 {
 
 	export const VERSION = 'v0.1';
-	export const SCHEMA = `https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json`;
 
 	interface RawGalleryMcpServerInput {
 		readonly choices?: readonly string[];
@@ -596,10 +595,6 @@ namespace McpServerSchemaVersion_v0_1 {
 				|| (!from.server.description || !isString(from.server.description))
 				|| (!from.server.version || !isString(from.server.version))
 			) {
-				return undefined;
-			}
-
-			if (from.server.$schema && from.server.$schema !== McpServerSchemaVersion_v0_1.SCHEMA) {
 				return undefined;
 			}
 
@@ -821,6 +816,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: readmeUrl,
+			callSite: 'mcpGalleryService.getReadme'
 		}, token);
 
 		const result = await asText(context);
@@ -944,7 +940,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			}
 		}
 
-		let url = `${mcpGalleryUrl}?limit=${query.pageSize}`;
+		let url = `${mcpGalleryUrl}?limit=${query.pageSize}&version=latest`;
 		if (query.cursor) {
 			url += `&cursor=${query.cursor}`;
 		}
@@ -956,6 +952,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		const context = await this.requestService.request({
 			type: 'GET',
 			url,
+			callSite: 'mcpGalleryService.queryMcpServers'
 		}, token);
 
 		const data = await asJson(context);
@@ -977,6 +974,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: mcpServerUrl,
+			callSite: 'mcpGalleryService.getMcpServer'
 		}, CancellationToken.None);
 
 		if (context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500) {
@@ -1035,7 +1033,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		if (!latestVersionResourceUriTemplate) {
 			return undefined;
 		}
-		return format2(latestVersionResourceUriTemplate, { name });
+		return format2(latestVersionResourceUriTemplate, { name: encodeURIComponent(name) });
 	}
 
 	private getWebUrl(name: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {

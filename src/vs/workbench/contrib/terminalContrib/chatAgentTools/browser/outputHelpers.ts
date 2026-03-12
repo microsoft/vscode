@@ -5,6 +5,9 @@
 
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
+import { truncateOutputKeepingTail } from './runInTerminalHelpers.js';
+
+const MAX_OUTPUT_LENGTH = 16000;
 
 export function getOutput(instance: ITerminalInstance, startMarker?: IXtermMarker): string {
 	if (!instance.xterm || !instance.xterm.raw) {
@@ -21,8 +24,8 @@ export function getOutput(instance: ITerminalInstance, startMarker?: IXtermMarke
 	}
 
 	let output = lines.join('\n');
-	if (output.length > 16000) {
-		output = output.slice(-16000);
+	if (output.length > MAX_OUTPUT_LENGTH) {
+		output = truncateOutputKeepingTail(output, MAX_OUTPUT_LENGTH);
 	}
 	return output;
 }

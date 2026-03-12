@@ -17,7 +17,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 
-type Listener = [Function, any, IExtensionDescription];
+type Listener = [Function, unknown, IExtensionDescription];
 
 export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSaveParticipantShape {
 
@@ -62,8 +62,8 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 					break;
 				}
 				const document = this._documents.getDocument(resource);
-				// eslint-disable-next-line local/code-no-any-casts
-				const success = await this._deliverEventAsyncAndBlameBadListeners(listener, <any>{ document, reason: TextDocumentSaveReason.to(reason) });
+
+				const success = await this._deliverEventAsyncAndBlameBadListeners(listener, { document, reason: TextDocumentSaveReason.to(reason) });
 				results.push(success);
 			}
 		} finally {
@@ -72,7 +72,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		return results;
 	}
 
-	private _deliverEventAsyncAndBlameBadListeners([listener, thisArg, extension]: Listener, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {
+	private _deliverEventAsyncAndBlameBadListeners([listener, thisArg, extension]: Listener, stubEvent: Pick<vscode.TextDocumentWillSaveEvent, 'document' | 'reason'>): Promise<boolean> {
 		const errors = this._badListeners.get(listener);
 		if (typeof errors === 'number' && errors > this._thresholds.errors) {
 			// bad listener - ignore
@@ -100,7 +100,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		});
 	}
 
-	private _deliverEventAsync(extension: IExtensionDescription, listener: Function, thisArg: any, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {
+	private _deliverEventAsync(extension: IExtensionDescription, listener: Function, thisArg: unknown, stubEvent: Pick<vscode.TextDocumentWillSaveEvent, 'document' | 'reason'>): Promise<boolean | undefined> {
 
 		const promises: Promise<vscode.TextEdit[]>[] = [];
 
@@ -111,6 +111,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		const event = Object.freeze<vscode.TextDocumentWillSaveEvent>({
 			document,
 			reason,
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			waitUntil(p: Promise<any | vscode.TextEdit[]>) {
 				if (Object.isFrozen(promises)) {
 					throw illegalState('waitUntil can not be called async');

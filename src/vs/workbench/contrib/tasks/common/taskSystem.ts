@@ -14,6 +14,7 @@ import { ConfigurationTarget } from '../../../../platform/configuration/common/c
 
 import { IShellLaunchConfig } from '../../../../platform/terminal/common/terminal.js';
 import { IMarkerData } from '../../../../platform/markers/common/markers.js';
+import type { SingleOrMany } from '../../../../base/common/types.js';
 
 export const enum TaskErrors {
 	NotConfigured,
@@ -125,7 +126,7 @@ export interface IResolvedVariables {
 
 export interface ITaskSystemInfo {
 	platform: Platform;
-	context: any;
+	context: unknown;
 	uriProvider: (this: void, path: string) => URI;
 	resolveVariables(workspaceFolder: IWorkspaceFolder, toResolve: IResolveSet, target: ConfigurationTarget): Promise<IResolvedVariables | undefined>;
 	findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined>;
@@ -151,8 +152,8 @@ export interface ITaskSystem {
 	revealTask(task: Task): boolean;
 	customExecutionComplete(task: Task, result: number): Promise<void>;
 	isTaskVisible(task: Task): boolean;
-	getTaskForTerminal(instanceId: number): Task | undefined;
-	getTerminalsForTasks(tasks: Task | Task[]): URI[] | undefined;
+	getTaskForTerminal(instanceId: number): Promise<Task | undefined>;
+	getTerminalsForTasks(tasks: SingleOrMany<Task>): URI[] | undefined;
 	getTaskProblems(instanceId: number): Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined;
 	getFirstInstance(task: Task): Task | undefined;
 	get lastTask(): VerifiedTask | undefined;

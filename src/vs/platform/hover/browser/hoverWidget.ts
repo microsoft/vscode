@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './hover.css';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import * as dom from '../../../base/browser/dom.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
@@ -93,6 +93,16 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._hoverContainer.classList.toggle('locked', this._isLocked);
 	}
 
+	/**
+	 * Adds an element to be tracked by this hover's mouse tracker. Mouse events on
+	 * this element will be considered as being "inside" the hover, preventing it
+	 * from closing. This is used for nested hovers where the child hover's container
+	 * should be treated as part of the parent hover.
+	 */
+	addMouseTrackingElement(element: HTMLElement): IDisposable {
+		return this._lockMouseTracker.addElement(element);
+	}
+
 	constructor(
 		options: IHoverOptions,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -127,6 +137,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._hover.containerDomNode.classList.add('workbench-hover');
 		if (options.appearance?.compact) {
 			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');
+		}
+		if (this._hoverPointer) {
+			this._hover.containerDomNode.classList.add('with-pointer');
 		}
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
@@ -177,7 +190,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		} else {
 			const markdown = options.content;
 
-			const { element, dispose } = this._markdownRenderer.render(markdown, {
+			const { element } = this._register(this._markdownRenderer.render(markdown, {
 				actionHandler: this._linkHandler,
 				asyncRenderCallback: () => {
 					contentsElement.classList.add('code-hover-contents');
@@ -185,9 +198,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 					// This changes the dimensions of the hover so trigger a layout
 					this._onRequestLayout.fire();
 				}
-			});
+			}));
 			contentsElement.appendChild(element);
-			this._register(toDisposable(dispose));
 		}
 		rowElement.appendChild(contentsElement);
 		this._hover.contentsDomNode.appendChild(rowElement);
@@ -553,7 +565,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		// Position hover below the target
 		else if (this._hoverPosition === HoverPosition.BELOW) {
 			// Hover on bottom is going beyond window
-			if (target.bottom + this._hover.containerDomNode.clientHeight + hoverPointerOffset > this._targetWindow.innerHeight) {
+			if (target.bottom + this._hover.containerDomNode.offsetHeight + hoverPointerOffset > this._targetWindow.innerHeight) {
 				this._hoverPosition = HoverPosition.ABOVE;
 			}
 		}
@@ -688,6 +700,27 @@ class CompositeMouseTracker extends Widget {
 		if (!this._isMouseIn) {
 			this._onMouseOut.fire();
 		}
+	}
+
+	/**
+	 * Adds an element to be tracked by this mouse tracker. Mouse events on this
+	 * element will be considered as being "inside" the tracked area.
+	 */
+	addElement(element: HTMLElement): IDisposable {
+		if (this._elements.includes(element)) {
+			return Disposable.None;
+		}
+		this._elements.push(element);
+		const store = new DisposableStore();
+		store.add(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, () => this._onTargetMouseOver()));
+		store.add(dom.addDisposableListener(element, dom.EventType.MOUSE_LEAVE, () => this._onTargetMouseLeave()));
+		store.add(toDisposable(() => {
+			const index = this._elements.indexOf(element);
+			if (index >= 0) {
+				this._elements.splice(index, 1);
+			}
+		}));
+		return store;
 	}
 }
 

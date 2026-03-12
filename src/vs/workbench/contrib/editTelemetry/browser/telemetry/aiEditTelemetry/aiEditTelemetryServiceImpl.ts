@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { prefixedUuid } from '../../../../../../base/common/uuid.js';
 import { EditSuggestionId } from '../../../../../../editor/common/textModelEditSource.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { IAiEditTelemetryService, IEditTelemetryCodeAcceptedData, IEditTelemetryCodeSuggestedData } from './aiEditTelemetryService.js';
+import { IRandomService } from '../../randomService.js';
 
 export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -17,13 +17,14 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 	private readonly _telemetryService: ITelemetryService;
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IRandomService private readonly _randomService: IRandomService,
 	) {
 		this._telemetryService = this.instantiationService.createInstance(DataChannelForwardingTelemetryService);
 	}
 
 	public createSuggestionId(data: Omit<IEditTelemetryCodeSuggestedData, 'suggestionId'>): EditSuggestionId {
-		const suggestionId = EditSuggestionId.newId();
+		const suggestionId = EditSuggestionId.newId(ns => this._randomService.generatePrefixedUuid(ns));
 		this._telemetryService.publicLog2<{
 			eventId: string | undefined;
 			suggestionId: string | undefined;
@@ -68,7 +69,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The AI model used to generate the suggestion.' };
 			applyCodeBlockSuggestionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If this suggestion is for applying a suggested code block, this is the id of the suggested code block.' };
 		}>('editTelemetry.codeSuggested', {
-			eventId: prefixedUuid('evt'),
+			eventId: this._randomService.generatePrefixedUuid('evt'),
 			suggestionId: suggestionId as unknown as string,
 			presentation: data.presentation,
 			feature: data.feature,
@@ -149,7 +150,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			applyCodeBlockSuggestionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If this suggestion is for applying a suggested code block, this is the id of the suggested code block.' };
 			acceptanceMethod: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the user accepted the code suggestion. See #IEditTelemetryCodeAcceptedData.acceptanceMethod for possible values.' };
 		}>('editTelemetry.codeAccepted', {
-			eventId: prefixedUuid('evt'),
+			eventId: this._randomService.generatePrefixedUuid('evt'),
 			suggestionId: data.suggestionId as unknown as string,
 			presentation: data.presentation,
 			feature: data.feature,

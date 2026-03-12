@@ -125,7 +125,7 @@ class PasteSelectionClipboardAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 
 		// read selection clipboard

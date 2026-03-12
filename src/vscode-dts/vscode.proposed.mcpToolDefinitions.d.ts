@@ -84,6 +84,15 @@ declare module 'vscode' {
 
 	export class McpHttpServerDefinition2 extends McpHttpServerDefinition {
 		metadata?: McpServerMetadata;
-		constructor(label: string, uri: Uri, headers?: Record<string, string>, version?: string, metadata?: McpServerMetadata);
+
+		/**
+		 * Authentication information to use to get a session for the initial MCP server connection.
+		 */
+		authentication?: {
+			providerId: string;
+			scopes: string[];
+		};
+
+		constructor(label: string, uri: Uri, headers?: Record<string, string>, version?: string, metadata?: McpServerMetadata, authentication?: { providerId: string; scopes: string[] });
 	}
 }

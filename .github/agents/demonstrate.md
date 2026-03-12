@@ -2,7 +2,28 @@
 name: Demonstrate
 description: Agent for demonstrating VS Code features
 target: github-copilot
-tools: ['edit', 'search', 'vscode-playwright-mcp/*', 'github/github-mcp-server/*', 'usages', 'fetch', 'githubRepo', 'todos']
+tools:
+- "view"
+- "create"
+- "edit"
+- "glob"
+- "grep"
+- "bash"
+- "read_bash"
+- "write_bash"
+- "stop_bash"
+- "list_bash"
+- "report_intent"
+- "fetch_documentation"
+- "agents"
+- "read"
+- "search"
+- "todo"
+- "web"
+- "github-mcp-server/*"
+- "GitHub/*"
+- "github/*"
+- "vscode-playwright-mcp/*"
 ---
 
 # Role and Objective

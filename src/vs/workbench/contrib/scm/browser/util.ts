@@ -20,6 +20,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { SCMArtifactGroupTreeElement, SCMArtifactTreeElement } from '../common/artifact.js';
 
 export function isSCMViewService(element: unknown): element is ISCMViewService {
 	return Array.isArray((element as ISCMViewService).repositories) && Array.isArray((element as ISCMViewService).visibleRepositories);
@@ -65,6 +66,18 @@ export function isSCMHistoryItemChangeNode(element: unknown): element is IResour
 	return ResourceTree.isResourceNode(element) && isSCMHistoryItemViewModelTreeElement(element.context);
 }
 
+export function isSCMArtifactGroupTreeElement(element: unknown): element is SCMArtifactGroupTreeElement {
+	return (element as SCMArtifactGroupTreeElement).type === 'artifactGroup';
+}
+
+export function isSCMArtifactNode(element: unknown): element is IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement> {
+	return ResourceTree.isResourceNode(element) && isSCMArtifactGroupTreeElement(element.context);
+}
+
+export function isSCMArtifactTreeElement(element: unknown): element is SCMArtifactTreeElement {
+	return (element as SCMArtifactTreeElement).type === 'artifact';
+}
+
 const compareActions = (a: IAction, b: IAction) => {
 	if (a instanceof MenuItemAction && b instanceof MenuItemAction) {
 		return a.id === b.id && a.enabled === b.enabled && a.hideActions?.isHidden === b.hideActions?.isHidden;
@@ -73,12 +86,12 @@ const compareActions = (a: IAction, b: IAction) => {
 	return a.id === b.id && a.enabled === b.enabled;
 };
 
-export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], secondary: IAction[]) => void, primaryGroup?: string): IDisposable {
+export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], secondary: IAction[]) => void, primaryGroup?: string, arg?: unknown): IDisposable {
 	let cachedPrimary: IAction[] = [];
 	let cachedSecondary: IAction[] = [];
 
 	const updateActions = () => {
-		const { primary, secondary } = getActionBarActions(menu.getActions({ shouldForwardArgs: true }), primaryGroup);
+		const { primary, secondary } = getActionBarActions(menu.getActions({ arg, shouldForwardArgs: true }), primaryGroup);
 
 		if (equals(cachedPrimary, primary, compareActions) && equals(cachedSecondary, secondary, compareActions)) {
 			return;
@@ -95,17 +108,20 @@ export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], s
 	return menu.onDidChange(updateActions);
 }
 
-export function collectContextMenuActions(menu: IMenu): IAction[] {
-	return getContextMenuActions(menu.getActions({ shouldForwardArgs: true }), 'inline').secondary;
+export function collectContextMenuActions(menu: IMenu, arg?: unknown): IAction[] {
+	return getContextMenuActions(menu.getActions({ arg, shouldForwardArgs: true }), 'inline').secondary;
 }
 
 export class StatusBarAction extends Action {
+	readonly commandTitle: string | undefined;
 
 	constructor(
 		private command: Command,
 		private commandService: ICommandService
 	) {
-		super(`statusbaraction{${command.id}}`, command.title, '', true);
+		super(`statusbaraction{${command.id}}`, getStatusBarCommandGenericName(command), '', true);
+
+		this.commandTitle = command.title;
 		this.tooltip = command.tooltip || '';
 	}
 
@@ -115,9 +131,11 @@ export class StatusBarAction extends Action {
 }
 
 class StatusBarActionViewItem extends ActionViewItem {
+	private readonly _commandTitle: string | undefined;
 
 	constructor(action: StatusBarAction, options: IBaseActionViewItemOptions) {
 		super(null, action, { ...options, icon: false, label: true });
+		this._commandTitle = action.commandTitle;
 	}
 
 	override render(container: HTMLElement): void {
@@ -129,7 +147,7 @@ class StatusBarActionViewItem extends ActionViewItem {
 		if (this.options.label && this.label) {
 			// Convert text nodes to span elements to enable
 			// text overflow on the left hand side of the label
-			const elements = renderLabelWithIcons(this.action.label)
+			const elements = renderLabelWithIcons(this._commandTitle ?? this.action.label)
 				.map(element => {
 					if (typeof element === 'string') {
 						const span = document.createElement('span');

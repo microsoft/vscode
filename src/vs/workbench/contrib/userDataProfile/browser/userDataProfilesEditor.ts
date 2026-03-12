@@ -41,7 +41,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverWidget, IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
-import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { ISelectOptionItem, SelectBox, SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { isString, isUndefined } from '../../../../base/common/types.js';
@@ -69,6 +69,7 @@ import { normalizeDriveLetter } from '../../../../base/common/labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 
 const editIcon = registerIcon('profiles-editor-edit-folder', Codicon.edit, localize('editIcon', 'Icon for the edit folder icon in the profiles editor.'));
 const removeIcon = registerIcon('profiles-editor-remove-folder', Codicon.close, localize('removeIcon', 'Icon for the remove folder icon in the profiles editor.'));
@@ -509,6 +510,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 class ProfileWidget extends Disposable {
 
 	private readonly profileTitle: HTMLElement;
+	private readonly builtInLabel: HTMLElement;
 	private readonly profileTreeContainer: HTMLElement;
 	private readonly buttonContainer: HTMLElement;
 
@@ -532,7 +534,9 @@ class ProfileWidget extends Disposable {
 
 		const header = append(parent, $('.profile-header'));
 		const title = append(header, $('.profile-title-container'));
-		this.profileTitle = append(title, $(''));
+		this.profileTitle = append(title, $('.profile-title'));
+		this.builtInLabel = append(title, $('.profile-built-in-label', undefined, localize('builtIn', "Built-in")));
+		this.builtInLabel.classList.add('hide');
 
 		const body = append(parent, $('.profile-body'));
 
@@ -633,6 +637,7 @@ class ProfileWidget extends Disposable {
 		this._profileElement.value = { element: profileElement, dispose: () => disposables.dispose() };
 
 		this.profileTitle.textContent = profileElement.name;
+		this.builtInLabel.classList.toggle('hide', !(profileElement instanceof UserDataProfileElement && profileElement.profile.isDefault));
 		disposables.add(profileElement.onDidChange(e => {
 			if (e.name) {
 				this.profileTitle.textContent = profileElement.name;
@@ -979,14 +984,14 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 		const renderName = (profileElement: ProfileTreeElement) => {
 			nameInput.value = profileElement.root.name;
 			nameInput.validate();
-			const isDefaultProfile = profileElement.root instanceof UserDataProfileElement && profileElement.root.profile.isDefault;
-			if (profileElement.root.disabled || isDefaultProfile) {
+			const isSystemProfile = profileElement.root instanceof UserDataProfileElement && (profileElement.root.profile.isDefault);
+			if (profileElement.root.disabled || isSystemProfile) {
 				nameInput.disable();
 			} else {
 				nameInput.enable();
 			}
-			if (isDefaultProfile) {
-				nameInput.setTooltip(localize('defaultProfileName', "Name cannot be changed for the default profile"));
+			if (isSystemProfile) {
+				nameInput.setTooltip(localize('defaultProfileName', "Name cannot be changed for the built in profiles"));
 			} else {
 				nameInput.setTooltip(localize('profileName', "Profile Name"));
 			}
@@ -1309,7 +1314,6 @@ class CopyFromProfileRenderer extends ProfilePropertyRenderer {
 	}
 
 	private getCopyFromOptions(profileElement: NewProfileElement): (ISelectOptionItem & { id?: string; source?: IUserDataProfile | URI })[] {
-		const separator = { text: '\u2500\u2500\u2500\u2500\u2500\u2500', isDisabled: true };
 		const copyFromOptions: (ISelectOptionItem & { id?: string; source?: IUserDataProfile | URI })[] = [];
 
 		copyFromOptions.push({ text: localize('empty profile', "None") });
@@ -1320,12 +1324,12 @@ class CopyFromProfileRenderer extends ProfilePropertyRenderer {
 		}
 
 		if (this.templates.length) {
-			copyFromOptions.push({ ...separator, decoratorRight: localize('from templates', "Profile Templates") });
+			copyFromOptions.push({ ...SeparatorSelectOption, decoratorRight: localize('from templates', "Profile Templates") });
 			for (const template of this.templates) {
 				copyFromOptions.push({ text: template.name, id: template.url, source: URI.parse(template.url) });
 			}
 		}
-		copyFromOptions.push({ ...separator, decoratorRight: localize('from existing profiles', "Existing Profiles") });
+		copyFromOptions.push({ ...SeparatorSelectOption, decoratorRight: localize('from existing profiles', "Existing Profiles") });
 		for (const profile of this.userDataProfilesService.profiles) {
 			if (!profile.isTransient) {
 				copyFromOptions.push({ text: profile.name, id: profile.id, source: profile });
@@ -2120,14 +2124,17 @@ class ChangeProfileAction implements IAction {
 	readonly id = 'changeProfile';
 	readonly label = 'Change Profile';
 	readonly class = ThemeIcon.asClassName(editIcon);
-	readonly enabled = true;
+	readonly enabled: boolean;
 	readonly tooltip = localize('change profile', "Change Profile");
 	readonly checked = false;
 
 	constructor(
 		private readonly item: WorkspaceTableElement,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
+		this.enabled = !uriIdentityService.extUri.isEqual(item.workspace, environmentService.agentSessionsWorkspace);
 	}
 
 	run(): void { }
@@ -2164,6 +2171,7 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 	) {
 	}
 
@@ -2190,7 +2198,7 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 		templateData.actionBar.clear();
 		const actions: IAction[] = [];
 		actions.push(this.createOpenAction(item));
-		actions.push(new ChangeProfileAction(item, this.userDataProfilesService));
+		actions.push(new ChangeProfileAction(item, this.userDataProfilesService, this.uriIdentityService, this.environmentService));
 		actions.push(this.createDeleteAction(item));
 		templateData.actionBar.push(actions, { icon: true });
 	}
@@ -2207,10 +2215,11 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 	}
 
 	private createDeleteAction(item: WorkspaceTableElement): IAction {
+		const isAgentSessionsWorkspace = this.uriIdentityService.extUri.isEqual(item.workspace, this.environmentService.agentSessionsWorkspace);
 		return {
 			label: '',
 			class: ThemeIcon.asClassName(removeIcon),
-			enabled: this.userDataProfileManagementService.getDefaultProfileToUse().id !== item.profileElement.profile.id,
+			enabled: this.userDataProfileManagementService.getDefaultProfileToUse().id !== item.profileElement.profile.id && !isAgentSessionsWorkspace,
 			id: 'deleteTrustedUri',
 			tooltip: localize('deleteTrustedUri', "Delete Path"),
 			run: () => item.profileElement.updateWorkspaces([], [item.workspace])

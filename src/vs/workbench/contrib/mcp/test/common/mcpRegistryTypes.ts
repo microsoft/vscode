@@ -171,7 +171,7 @@ export class TestMcpRegistry implements IMcpRegistry {
 		serverDefinitions: observableValue(this, [{
 			id: 'test-server',
 			label: 'Test Server',
-			launch: { type: McpServerTransportType.Stdio, command: 'echo', args: ['Hello MCP'], env: {}, envFile: undefined, cwd: undefined },
+			launch: { type: McpServerTransportType.Stdio, command: 'echo', args: ['Hello MCP'], env: {}, envFile: undefined, cwd: undefined, sandbox: undefined },
 			cacheNonce: 'a',
 		} satisfies McpServerDefinition]),
 		trustBehavior: McpServerTrust.Kind.Trusted,
@@ -239,6 +239,7 @@ export class TestMcpRegistry implements IMcpRegistry {
 			definition.launch,
 			new NullLogger(),
 			false,
+			options.taskManager,
 			this._instantiationService,
 		));
 	}

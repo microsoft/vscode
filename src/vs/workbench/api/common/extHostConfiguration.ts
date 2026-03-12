@@ -21,15 +21,16 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { Workspace } from '../../../platform/workspace/common/workspace.js';
 import { URI } from '../../../base/common/uri.js';
 
-function lookUp(tree: any, key: string) {
+function lookUp(tree: unknown, key: string) {
 	if (key) {
 		const parts = key.split('.');
 		let node = tree;
 		for (let i = 0; node && i < parts.length; i++) {
-			node = node[parts[i]];
+			node = (node as Record<string, unknown>)[parts[i]];
 		}
 		return node;
 	}
+	return undefined;
 }
 
 export type ConfigurationInspect<T> = {
@@ -52,27 +53,29 @@ export type ConfigurationInspect<T> = {
 	languageIds?: string[];
 };
 
-function isUri(thing: any): thing is vscode.Uri {
+function isUri(thing: unknown): thing is vscode.Uri {
 	return thing instanceof URI;
 }
 
-function isResourceLanguage(thing: any): thing is { uri: URI; languageId: string } {
-	return thing
-		&& thing.uri instanceof URI
-		&& (thing.languageId && typeof thing.languageId === 'string');
+function isResourceLanguage(thing: unknown): thing is { uri: URI; languageId: string } {
+	return isObject(thing)
+		&& (thing as Record<string, unknown>).uri instanceof URI
+		&& !!(thing as Record<string, unknown>).languageId
+		&& typeof (thing as Record<string, unknown>).languageId === 'string';
 }
 
-function isLanguage(thing: any): thing is { languageId: string } {
-	return thing
-		&& !thing.uri
-		&& (thing.languageId && typeof thing.languageId === 'string');
+function isLanguage(thing: unknown): thing is { languageId: string } {
+	return isObject(thing)
+		&& !(thing as Record<string, unknown>).uri
+		&& !!(thing as Record<string, unknown>).languageId
+		&& typeof (thing as Record<string, unknown>).languageId === 'string';
 }
 
-function isWorkspaceFolder(thing: any): thing is vscode.WorkspaceFolder {
-	return thing
-		&& thing.uri instanceof URI
-		&& (!thing.name || typeof thing.name === 'string')
-		&& (!thing.index || typeof thing.index === 'number');
+function isWorkspaceFolder(thing: unknown): thing is vscode.WorkspaceFolder {
+	return isObject(thing)
+		&& (thing as Record<string, unknown>).uri instanceof URI
+		&& (!(thing as Record<string, unknown>).name || typeof (thing as Record<string, unknown>).name === 'string')
+		&& (!(thing as Record<string, unknown>).index || typeof (thing as Record<string, unknown>).index === 'number');
 }
 
 function scopeToOverrides(scope: vscode.ConfigurationScope | undefined | null): IConfigurationOverrides | undefined {
@@ -187,52 +190,52 @@ export class ExtHostConfigProvider {
 			},
 			get: <T>(key: string, defaultValue?: T) => {
 				this._validateConfigurationAccess(section ? `${section}.${key}` : key, overrides, extensionDescription?.identifier);
-				let result = lookUp(config, key);
+				let result: unknown = lookUp(config, key);
 				if (typeof result === 'undefined') {
 					result = defaultValue;
 				} else {
-					let clonedConfig: any | undefined = undefined;
-					const cloneOnWriteProxy = (target: any, accessor: string): any => {
+					let clonedConfig: unknown | undefined = undefined;
+					const cloneOnWriteProxy = (target: unknown, accessor: string): unknown => {
 						if (isObject(target)) {
-							let clonedTarget: any | undefined = undefined;
+							let clonedTarget: unknown | undefined = undefined;
 							const cloneTarget = () => {
 								clonedConfig = clonedConfig ? clonedConfig : deepClone(config);
 								clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
 							};
 							return new Proxy(target, {
-								get: (target: any, property: PropertyKey) => {
+								get: (target: Record<string, unknown>, property: PropertyKey) => {
 									if (typeof property === 'string' && property.toLowerCase() === 'tojson') {
 										cloneTarget();
 										return () => clonedTarget;
 									}
 									if (clonedConfig) {
 										clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
-										return clonedTarget[property];
+										return (clonedTarget as Record<PropertyKey, unknown>)[property];
 									}
-									const result = target[property];
+									const result = (target as Record<PropertyKey, unknown>)[property];
 									if (typeof property === 'string') {
 										return cloneOnWriteProxy(result, `${accessor}.${property}`);
 									}
 									return result;
 								},
-								set: (_target: any, property: PropertyKey, value: any) => {
+								set: (_target: Record<string, unknown>, property: PropertyKey, value: unknown) => {
 									cloneTarget();
 									if (clonedTarget) {
-										clonedTarget[property] = value;
+										(clonedTarget as Record<PropertyKey, unknown>)[property] = value;
 									}
 									return true;
 								},
-								deleteProperty: (_target: any, property: PropertyKey) => {
+								deleteProperty: (_target: Record<string, unknown>, property: PropertyKey) => {
 									cloneTarget();
 									if (clonedTarget) {
-										delete clonedTarget[property];
+										delete (clonedTarget as Record<PropertyKey, unknown>)[property];
 									}
 									return true;
 								},
-								defineProperty: (_target: any, property: PropertyKey, descriptor: any) => {
+								defineProperty: (_target: Record<string, unknown>, property: PropertyKey, descriptor: PropertyDescriptor) => {
 									cloneTarget();
 									if (clonedTarget) {
-										Object.defineProperty(clonedTarget, property, descriptor);
+										Object.defineProperty(clonedTarget as Record<string, unknown>, property, descriptor);
 									}
 									return true;
 								}
@@ -291,14 +294,14 @@ export class ExtHostConfigProvider {
 		return Object.freeze(result);
 	}
 
-	private _toReadonlyValue(result: any): any {
-		const readonlyProxy = (target: any): any => {
+	private _toReadonlyValue(result: unknown): unknown {
+		const readonlyProxy = (target: unknown): unknown => {
 			return isObject(target) ?
 				new Proxy(target, {
-					get: (target: any, property: PropertyKey) => readonlyProxy(target[property]),
-					set: (_target: any, property: PropertyKey, _value: any) => { throw new Error(`TypeError: Cannot assign to read only property '${String(property)}' of object`); },
-					deleteProperty: (_target: any, property: PropertyKey) => { throw new Error(`TypeError: Cannot delete read only property '${String(property)}' of object`); },
-					defineProperty: (_target: any, property: PropertyKey) => { throw new Error(`TypeError: Cannot define property '${String(property)}' for a readonly object`); },
+					get: (target: Record<string, unknown>, property: PropertyKey) => readonlyProxy((target as Record<PropertyKey, unknown>)[property]),
+					set: (_target: Record<string, unknown>, property: PropertyKey, _value: unknown) => { throw new Error(`TypeError: Cannot assign to read only property '${String(property)}' of object`); },
+					deleteProperty: (_target: Record<string, unknown>, property: PropertyKey) => { throw new Error(`TypeError: Cannot delete read only property '${String(property)}' of object`); },
+					defineProperty: (_target: Record<string, unknown>, property: PropertyKey) => { throw new Error(`TypeError: Cannot define property '${String(property)}' for a readonly object`); },
 					setPrototypeOf: (_target: unknown) => { throw new Error(`TypeError: Cannot set prototype for a readonly object`); },
 					isExtensible: () => false,
 					preventExtensions: () => true

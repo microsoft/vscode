@@ -96,7 +96,7 @@ export function intersection<T>(setA: Set<T>, setB: Iterable<T>): Set<T> {
 }
 
 export class SetWithKey<T> implements Set<T> {
-	private _map = new Map<any, T>();
+	private _map = new Map<unknown, T>();
 
 	constructor(values: T[], private toKey: (t: T) => unknown) {
 		for (const value of values) {
@@ -142,7 +142,7 @@ export class SetWithKey<T> implements Set<T> {
 		this._map.clear();
 	}
 
-	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: unknown): void {
 		this._map.forEach(entry => callbackfn.call(thisArg, entry, entry, this));
 	}
 

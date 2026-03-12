@@ -96,8 +96,9 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	) {
 		super();
 
-		this.excludes = parseWatcherPatterns(this.request.path, this.request.excludes);
-		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
+		const ignoreCase = !isLinux;
+		this.excludes = parseWatcherPatterns(this.request.path, this.request.excludes, ignoreCase);
+		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes, ignoreCase) : undefined;
 		this.filter = isWatchRequestWithCorrelation(this.request) ? this.request.filter : undefined; // filtering is only enabled when correlating because watchers are otherwise potentially reused
 
 		this.ready = this.watch();

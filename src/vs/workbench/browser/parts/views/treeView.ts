@@ -693,7 +693,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const treeMenus = this.treeDisposables.add(this.instantiationService.createInstance(TreeMenus, this.id));
 		this.treeLabels = this.treeDisposables.add(this.instantiationService.createInstance(ResourceLabels, this));
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
-		const aligner = this.treeDisposables.add(new Aligner(this.themeService));
+		const aligner = this.treeDisposables.add(new Aligner(this.themeService, this.logService));
 		const checkboxStateHandler = this.treeDisposables.add(new CheckboxStateHandler());
 		const renderer = this.treeDisposables.add(this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, () => this.manuallyManageCheckboxes));
 		this.treeDisposables.add(renderer.onDidChangeCheckboxState(e => this._onDidChangeCheckboxState.fire(e)));
@@ -752,7 +752,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			multipleSelectionSupport: this.canSelectMany,
 			dnd: this.treeViewDnd,
 			overrideStyles: getLocationBasedViewColors(this.viewLocation).listOverrideStyles
-		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
+		}));
 
 		this.treeDisposables.add(renderer.onDidChangeMenuContext(e => e.forEach(e => this.tree?.rerender(e))));
 
@@ -999,6 +999,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	getOptimalWidth(): number {
 		if (this.tree) {
 			const parentNode = this.tree.getHTMLElement();
+			// eslint-disable-next-line no-restricted-syntax
 			const childNodes = ([] as HTMLElement[]).slice.call(parentNode.querySelectorAll('.outline-item-label > a'));
 			return DOM.getLargestChildWidth(parentNode, childNodes);
 		}
@@ -1361,7 +1362,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			for (const syntax of syntaxes) {
 				if (text.startsWith(syntax.open) && text.endsWith(syntax.close)) {
 					// If there is a match within the markers, stop processing
-					if (matches && matches.some(match => match.start < syntax.open.length || match.end > text.length - syntax.close.length)) {
+					if (matches?.some(match => match.start < syntax.open.length || match.end > text.length - syntax.close.length)) {
 						return false;
 					}
 
@@ -1531,7 +1532,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	private setAlignment(container: HTMLElement, treeItem: ITreeItem) {
-		container.parentElement!.classList.toggle('align-icon-with-twisty', !this._hasCheckbox && this.aligner.alignIconWithTwisty(treeItem));
+		container.parentElement!.classList.toggle('align-icon-with-twisty', this.aligner.alignIconWithTwisty(treeItem));
 	}
 
 	private shouldHideResourceLabelIcon(iconUrl: URI | undefined, icon: ThemeIcon | undefined): boolean {
@@ -1623,7 +1624,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 class Aligner extends Disposable {
 	private _tree: WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore> | undefined;
 
-	constructor(private themeService: IThemeService) {
+	constructor(private themeService: IThemeService, private logService: ILogService) {
 		super();
 	}
 
@@ -1635,19 +1636,30 @@ class Aligner extends Disposable {
 		if (treeItem.collapsibleState !== TreeItemCollapsibleState.None) {
 			return false;
 		}
-		if (!this.hasIcon(treeItem)) {
+		if (!this.hasIconOrCheckbox(treeItem)) {
 			return false;
 		}
 
 		if (this._tree) {
-			const parent: ITreeItem = this._tree.getParentElement(treeItem) || this._tree.getInput();
-			if (this.hasIcon(parent)) {
-				return !!parent.children && parent.children.some(c => c.collapsibleState !== TreeItemCollapsibleState.None && !this.hasIcon(c));
+			const root = this._tree.getInput();
+			let parent: ITreeItem;
+			try {
+				parent = this._tree.getParentElement(treeItem) || root;
+			} catch (error) {
+				this.logService.error(`[TreeView] Failed to resolve parent for ${treeItem.handle}`, error);
+				return false;
 			}
-			return !!parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIcon(c));
+			if (this.hasIconOrCheckbox(parent)) {
+				return !!parent.children && parent.children.some(c => c.collapsibleState !== TreeItemCollapsibleState.None && !this.hasIconOrCheckbox(c));
+			}
+			return !!parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIconOrCheckbox(c));
 		} else {
 			return false;
 		}
+	}
+
+	private hasIconOrCheckbox(node: ITreeItem): boolean {
+		return this.hasIcon(node) || !!node.checkbox;
 	}
 
 	private hasIcon(node: ITreeItem): boolean {
@@ -1811,6 +1823,7 @@ class TreeMenus implements IDisposable {
 
 	dispose() {
 		this.contextKeyService = undefined;
+		this._onDidChange.dispose();
 	}
 }
 
@@ -2102,7 +2115,7 @@ function setCascadingCheckboxUpdates(items: readonly ITreeItem[]) {
 
 			const visitedParents: Set<ITreeItem> = new Set();
 			const checkParents = (currentItem: ITreeItem) => {
-				if (currentItem.parent && (currentItem.parent.checkbox !== undefined) && currentItem.parent.children) {
+				if (currentItem.parent?.checkbox !== undefined && currentItem.parent.children) {
 					if (visitedParents.has(currentItem.parent)) {
 						return;
 					} else {

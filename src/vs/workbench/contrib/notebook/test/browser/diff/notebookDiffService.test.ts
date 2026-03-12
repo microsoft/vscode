@@ -167,9 +167,7 @@ suite('NotebookDiff Diff Service', () => {
 			{ modified: 2, original: 2 }
 		]);
 		assert.deepStrictEqual(diff.cellsDiff.changes, [
-			{ originalStart: 0, originalLength: 0, modifiedStart: 0, modifiedLength: 1 } satisfies IDiffChange,
-			{ originalStart: 0, originalLength: 1, modifiedStart: 1, modifiedLength: 1 } satisfies IDiffChange,
-			{ originalStart: 1, originalLength: 1, modifiedStart: 2, modifiedLength: 0 } satisfies IDiffChange,
+			{ originalStart: 0, originalLength: 2, modifiedStart: 0, modifiedLength: 2 } satisfies IDiffChange,
 		]);
 	});
 
@@ -441,10 +439,8 @@ suite('NotebookDiff Diff Service', () => {
 			{ modified: 6, original: 6 }
 		]);
 		assert.deepStrictEqual(diff.cellsDiff.changes, [
-			{ originalStart: 2, originalLength: 1, modifiedStart: 2, modifiedLength: 1 } satisfies IDiffChange,
-			{ originalStart: 3, originalLength: 1, modifiedStart: 3, modifiedLength: 1 } satisfies IDiffChange,
-			{ originalStart: 5, originalLength: 1, modifiedStart: 5, modifiedLength: 1 } satisfies IDiffChange,
-			{ originalStart: 6, originalLength: 1, modifiedStart: 6, modifiedLength: 1 } satisfies IDiffChange,
+			{ originalStart: 2, originalLength: 2, modifiedStart: 2, modifiedLength: 2 } satisfies IDiffChange,
+			{ originalStart: 5, originalLength: 2, modifiedStart: 5, modifiedLength: 2 } satisfies IDiffChange,
 		]);
 	});
 
@@ -894,9 +890,7 @@ suite('NotebookDiff Diff Service', () => {
 			{ modified: 5, original: 5 }
 		]);
 		assert.deepStrictEqual(diff.cellsDiff.changes, [
-			{ originalStart: 3, originalLength: 1, modifiedStart: 3, modifiedLength: 1 } satisfies IDiffChange,
-			{ originalStart: 4, originalLength: 1, modifiedStart: 4, modifiedLength: 1 } satisfies IDiffChange,
-			// { originalStart: 5, originalLength: 1, modifiedStart: 5, modifiedLength: 1 } satisfies IDiffChange,
+			{ originalStart: 3, originalLength: 2, modifiedStart: 3, modifiedLength: 2 } satisfies IDiffChange,
 		]);
 	});
 
@@ -1262,8 +1256,7 @@ suite('NotebookDiff Diff Service', () => {
 			{ modified: 4, original: 4 },
 		]);
 		assert.deepStrictEqual(diff.cellsDiff.changes, [
-			{ originalStart: 0, originalLength: 1, modifiedStart: 0, modifiedLength: 1 } satisfies IDiffChange,
-			{ originalStart: 1, originalLength: 1, modifiedStart: 1, modifiedLength: 1 } satisfies IDiffChange,
+			{ originalStart: 0, originalLength: 2, modifiedStart: 0, modifiedLength: 2 } satisfies IDiffChange,
 		]);
 	});
 	test('Detect modification and insertion of cells', async () => {
@@ -10228,8 +10221,7 @@ suite('NotebookDiff Diff Service', () => {
 			{ modified: 46, original: 46 },
 		]);
 		assert.deepStrictEqual(diff.cellsDiff.changes, [
-			{ originalStart: 5, originalLength: 1, modifiedStart: 5, modifiedLength: 1 } satisfies IDiffChange,
-			{ originalStart: 6, originalLength: 1, modifiedStart: 6, modifiedLength: 1 } satisfies IDiffChange,
+			{ originalStart: 5, originalLength: 2, modifiedStart: 5, modifiedLength: 2 } satisfies IDiffChange,
 			{ originalStart: 25, originalLength: 1, modifiedStart: 25, modifiedLength: 1 } satisfies IDiffChange,
 			{ originalStart: 42, originalLength: 1, modifiedStart: 42, modifiedLength: 1 } satisfies IDiffChange,
 			{ originalStart: 44, originalLength: 1, modifiedStart: 44, modifiedLength: 1 } satisfies IDiffChange,

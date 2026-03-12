@@ -3,28 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
-import { IToolAndToolSetEnablementMap } from '../../common/languageModelToolsService.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IChatVariablesService, IDynamicVariable } from '../../common/attachments/chatVariables.js';
+import { IToolAndToolSetEnablementMap } from '../../common/tools/languageModelToolsService.js';
 
 export class MockChatVariablesService implements IChatVariablesService {
 	_serviceBrand: undefined;
 
-	private _dynamicVariables = new Map<string, readonly IDynamicVariable[]>();
-	private _selectedToolAndToolSets = new Map<string, IToolAndToolSetEnablementMap>();
+	private _dynamicVariables = new ResourceMap<readonly IDynamicVariable[]>();
+	private _selectedToolAndToolSets = new ResourceMap<IToolAndToolSetEnablementMap>();
 
-	getDynamicVariables(sessionId: string): readonly IDynamicVariable[] {
-		return this._dynamicVariables.get(sessionId) ?? [];
+	getDynamicVariables(sessionResource: URI): readonly IDynamicVariable[] {
+		return this._dynamicVariables.get(sessionResource) ?? [];
 	}
 
-	getSelectedToolAndToolSets(sessionId: string): IToolAndToolSetEnablementMap {
-		return this._selectedToolAndToolSets.get(sessionId) ?? new Map();
+	getSelectedToolAndToolSets(sessionResource: URI): IToolAndToolSetEnablementMap {
+		return this._selectedToolAndToolSets.get(sessionResource) ?? new Map();
 	}
 
-	setDynamicVariables(sessionId: string, variables: readonly IDynamicVariable[]): void {
-		this._dynamicVariables.set(sessionId, variables);
+	setDynamicVariables(sessionResource: URI, variables: readonly IDynamicVariable[]): void {
+		this._dynamicVariables.set(sessionResource, variables);
 	}
 
-	setSelectedToolAndToolSets(sessionId: string, tools: IToolAndToolSetEnablementMap): void {
-		this._selectedToolAndToolSets.set(sessionId, tools);
+	setSelectedToolAndToolSets(sessionResource: URI, tools: IToolAndToolSetEnablementMap): void {
+		this._selectedToolAndToolSets.set(sessionResource, tools);
 	}
 }

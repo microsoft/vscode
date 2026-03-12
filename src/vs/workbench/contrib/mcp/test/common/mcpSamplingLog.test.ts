@@ -12,6 +12,7 @@ import {
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ISamplingStoredData, McpSamplingLog } from '../../common/mcpSamplingLog.js';
 import { IMcpServer } from '../../common/mcpTypes.js';
+import { asArray } from '../../../../../base/common/arrays.js';
 
 suite('MCP - Sampling Log', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -216,8 +217,8 @@ suite('MCP - Sampling Log', () => {
 		// Verify all requests are stored correctly
 		assert.strictEqual(data.lastReqs.length, 3);
 		assert.strictEqual(data.lastReqs[0].request.length, 2); // Mixed content request has 2 messages
-		assert.strictEqual(data.lastReqs[1].request[0].content.type, 'image');
-		assert.strictEqual(data.lastReqs[2].request[0].content.type, 'text');
+		assert.strictEqual(asArray(data.lastReqs[1].request[0].content)[0].type, 'image');
+		assert.strictEqual(asArray(data.lastReqs[2].request[0].content)[0].type, 'text');
 	});
 
 	test('handles multiple servers', async () => {

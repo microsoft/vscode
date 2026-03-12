@@ -6,7 +6,7 @@
 import { UriComponents } from '../../../../../base/common/uri.js';
 import { IShellLaunchConfigDto, ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { ICompleteTerminalConfiguration } from '../terminal.js';
-import { ISerializableEnvironmentDescriptionMap as ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariable.js';
+import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariable.js';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
 
@@ -90,6 +90,7 @@ export const enum RemoteTerminalChannelRequest {
 	ReviveTerminalProcesses = '$reviveTerminalProcesses',
 	GetRevivedPtyNewId = '$getRevivedPtyNewId',
 	SetUnicodeVersion = '$setUnicodeVersion',
+	SetNextCommandId = '$setNextCommandId',
 	ReduceConnectionGraceTime = '$reduceConnectionGraceTime',
 	UpdateIcon = '$updateIcon',
 	UpdateTitle = '$updateTitle',

@@ -19,7 +19,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import { ICurrentPartialCommand, isFullTerminalCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityHelpAction, AccessibleViewAction } from '../../../accessibility/browser/accessibleViewActions.js';
@@ -226,9 +226,9 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			return;
 		}
 		let line: number | undefined;
-		if ('marker' in command) {
+		if (isFullTerminalCommand(command)) {
 			line = command.marker?.line;
-		} else if ('commandStartMarker' in command) {
+		} else {
 			line = command.commandStartMarker?.line;
 		}
 		if (line === undefined || line < 0) {

@@ -79,6 +79,7 @@ export class GlyphHoverWidget extends Disposable implements IOverlayWidget, IHov
 	}
 
 	private _updateFont(): void {
+		// eslint-disable-next-line no-restricted-syntax
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}

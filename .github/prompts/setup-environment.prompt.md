@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: First Time Setup
 tools: ['runCommands', 'runTasks/runTask', 'search', 'todos', 'fetch']
 ---

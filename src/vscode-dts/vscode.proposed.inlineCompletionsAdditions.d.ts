@@ -32,23 +32,8 @@ declare module 'vscode' {
 		export const onDidChangeCompletionsUnificationState: Event<void>;
 	}
 
-	/**
-	 * temporary: to be removed
-	 */
-	export interface InlineCompletionsUnificationState {
-		codeUnification: boolean;
-		modelUnification: boolean;
-		expAssignments: string[];
-	}
-
 	export interface InlineCompletionItem {
-		/**
-		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
-		 * Defaults to `false`.
-		*/
-		completeBracketPairs?: boolean;
-
-		warning?: InlineCompletionWarning;
+		// insertText: string | SnippetString | undefined;
 
 		/** If set to `true`, this item is treated as inline edit. */
 		isInlineEdit?: boolean;
@@ -61,24 +46,42 @@ declare module 'vscode' {
 
 		showInlineEditMenu?: boolean;
 
+		/**
+		 * If set, specifies where insertText, filterText, range, jumpToPosition apply to.
+		*/
+		uri?: Uri;
+
+		// TODO: rename to gutterMenuLinkAction
 		action?: Command;
 
 		displayLocation?: InlineCompletionDisplayLocation;
 
 		/** Used for telemetry. Can be an arbitrary string. */
 		correlationId?: string;
+
+		/**
+		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
+		 * Defaults to `false`.
+		*/
+		completeBracketPairs?: boolean;
+
+		warning?: InlineCompletionWarning;
+
+		supportsRename?: boolean;
+
+		jumpToPosition?: Position;
 	}
 
-	export enum InlineCompletionDisplayLocationKind {
-		Code = 1,
-		Label = 2
-	}
 
 	export interface InlineCompletionDisplayLocation {
 		range: Range;
 		kind: InlineCompletionDisplayLocationKind;
 		label: string;
-		jumpToEdit?: boolean;
+	}
+
+	export enum InlineCompletionDisplayLocationKind {
+		Code = 1,
+		Label = 2
 	}
 
 	export interface InlineCompletionWarning {
@@ -132,7 +135,23 @@ declare module 'vscode' {
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleListEndOfLifetime?(list: InlineCompletionList, reason: InlineCompletionsDisposeReason): void;
 
-		readonly onDidChange?: Event<void>;
+		/**
+		 * Fired when the provider wants to trigger a new completion request.
+		 * Can optionally pass a {@link InlineCompletionChangeHint} which will be
+		 * included in the {@link InlineCompletionContext.changeHint} of the subsequent request.
+		 */
+		readonly onDidChange?: Event<InlineCompletionChangeHint | void>;
+
+		readonly modelInfo?: InlineCompletionModelInfo;
+		readonly onDidChangeModelInfo?: Event<void>;
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		setCurrentModelId?(modelId: string): Thenable<void>;
+
+		readonly providerOptions?: readonly InlineCompletionProviderOption[];
+		readonly onDidChangeProviderOptions?: Event<void>;
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		setProviderOptionValue?(optionId: string, valueId: string): Thenable<void>;
+
 
 		// #region Deprecated methods
 
@@ -152,6 +171,28 @@ declare module 'vscode' {
 		handleDidRejectCompletionItem?(completionItem: InlineCompletionItem): void;
 
 		// #endregion
+	}
+
+	export interface InlineCompletionModelInfo {
+		readonly models: InlineCompletionModel[];
+		readonly currentModelId: string;
+	}
+
+	export interface InlineCompletionModel {
+		readonly id: string;
+		readonly name: string;
+	}
+
+	export interface InlineCompletionProviderOption {
+		readonly id: string;
+		readonly label: string;
+		readonly values: readonly InlineCompletionProviderOptionValue[];
+		readonly currentValueId: string;
+	}
+
+	export interface InlineCompletionProviderOptionValue {
+		readonly id: string;
+		readonly label: string;
 	}
 
 	export enum InlineCompletionEndOfLifeReasonKind {
@@ -180,6 +221,18 @@ declare module 'vscode' {
 
 	export type InlineCompletionsDisposeReason = { kind: InlineCompletionsDisposeReasonKind };
 
+	/**
+	 * Arbitrary data that the provider can pass when firing {@link InlineCompletionItemProvider.onDidChange}.
+	 * This data is passed back to the provider in {@link InlineCompletionContext.changeHint}.
+	 */
+	export interface InlineCompletionChangeHint {
+		/**
+		 * Arbitrary data that the provider can use to identify what triggered the change.
+		 * This data must be JSON serializable.
+		 */
+		readonly data?: unknown;
+	}
+
 	export interface InlineCompletionContext {
 		readonly userPrompt?: string;
 
@@ -188,6 +241,12 @@ declare module 'vscode' {
 		readonly requestIssuedDateTime: number;
 
 		readonly earliestShownDateTime: number;
+
+		/**
+		 * The change hint that was passed to {@link InlineCompletionItemProvider.onDidChange}.
+		 * Only set if this request was triggered by such an event.
+		 */
+		readonly changeHint?: InlineCompletionChangeHint;
 	}
 
 	export interface PartialAcceptInfo {
@@ -217,5 +276,15 @@ declare module 'vscode' {
 		 * Defaults to false (might change).
 		 */
 		enableForwardStability?: boolean;
+	}
+
+	/**
+	 * temporary: to be removed
+	 */
+	export interface InlineCompletionsUnificationState {
+		codeUnification: boolean;
+		modelUnification: boolean;
+		extensionUnification: boolean;
+		expAssignments: string[];
 	}
 }

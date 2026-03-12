@@ -27,7 +27,7 @@ export function toolResultDetailsFromResponse(terminalResults: { output: string;
 	).values());
 }
 
-export function toolResultMessageFromResponse(result: ITaskSummary | undefined, taskLabel: string, toolResultDetails: (URI | Location)[], terminalResults: { output: string; resources?: ILinkLocation[]; state: OutputMonitorState }[], getOutputTool?: boolean): MarkdownString {
+export function toolResultMessageFromResponse(result: ITaskSummary | undefined, taskLabel: string, toolResultDetails: (URI | Location)[], terminalResults: { output: string; resources?: ILinkLocation[]; state: OutputMonitorState }[], getOutputTool?: boolean, isBackground?: boolean): MarkdownString {
 	let resultSummary = '';
 	if (result?.exitCode) {
 		resultSummary = localize('copilotChat.taskFailedWithExitCode', 'Task `{0}` failed with exit code {1}.', taskLabel, result.exitCode);
@@ -42,9 +42,13 @@ export function toolResultMessageFromResponse(result: ITaskSummary | undefined, 
 				? (problemCount
 					? `finished with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`
 					: 'finished')
-				: (problemCount
-					? `started and will continue to run in the background with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`
-					: 'started and will continue to run in the background');
+				: (isBackground
+					? (problemCount
+						? `started and will continue to run in the background with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`
+						: 'started and will continue to run in the background')
+					: (problemCount
+						? `started with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`
+						: 'started'));
 		}
 	}
 	return new MarkdownString(resultSummary);

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorunWithStore, derived, IObservable, observableFromEvent } from '../../../../../../../base/common/observable.js';
@@ -16,14 +15,15 @@ import { AbstractText } from '../../../../../../common/core/text/abstractText.js
 import { DetailedLineRangeMapping } from '../../../../../../common/diff/rangeMapping.js';
 import { EndOfLinePreference, IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from '../../../../../../common/model.js';
 import { ModelDecorationOptions } from '../../../../../../common/model/textModel.js';
-import { IInlineEditsView } from '../inlineEditsViewInterface.js';
+import { IInlineEditsView, InlineEditClickEvent } from '../inlineEditsViewInterface.js';
 import { classNames } from '../utils/utils.js';
+import { InlineCompletionEditorType } from '../../../model/provideInlineCompletions.js';
 
 export interface IOriginalEditorInlineDiffViewState {
 	diff: DetailedLineRangeMapping[];
 	modifiedText: AbstractText;
 	mode: 'insertionInline' | 'sideBySide' | 'deletion' | 'lineReplacement';
-	isInDiffEditor: boolean;
+	editorType: InlineCompletionEditorType;
 
 	modifiedCodeEditor: ICodeEditor;
 }
@@ -33,8 +33,8 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 		return allowsTrueInlineDiffRendering(mapping);
 	}
 
-	private readonly _onDidClick;
-	readonly onDidClick;
+	private readonly _onDidClick = this._register(new Emitter<InlineEditClickEvent>());
+	readonly onDidClick = this._onDidClick.event;
 
 	readonly isHovered;
 
@@ -46,8 +46,6 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 		private readonly _modifiedTextModel: ITextModel,
 	) {
 		super();
-		this._onDidClick = this._register(new Emitter<IMouseEvent>());
-		this.onDidClick = this._onDidClick.event;
 		this.isHovered = observableCodeEditor(this._originalEditor).isTargetHovered(
 			p => p.target.type === MouseTargetType.CONTENT_TEXT &&
 				p.target.detail.injectedText?.options.attachedData instanceof InlineEditAttachedData &&
@@ -212,11 +210,11 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 				}
 			}
 
-			if (diff.isInDiffEditor) {
+			if (diff.editorType === InlineCompletionEditorType.DiffEditor) {
 				for (const m of diff.diff) {
 					if (!m.original.isEmpty) {
 						originalDecorations.push({
-							range: m.original.toExclusiveRange()!,
+							range: m.original.toExclusiveRange(),
 							options: NESOriginalBackground,
 						});
 					}
@@ -242,7 +240,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 			}
 			const a = e.target.detail.injectedText?.options.attachedData;
 			if (a instanceof InlineEditAttachedData && a.owner === this) {
-				this._onDidClick.fire(e.event);
+				this._onDidClick.fire(new InlineEditClickEvent(e.event));
 			}
 		}));
 	}

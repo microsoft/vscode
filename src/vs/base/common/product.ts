@@ -43,6 +43,7 @@ export interface IChatSessionRecommendation {
 	readonly displayName: string;
 	readonly name: string;
 	readonly description: string;
+	readonly postInstallCommand?: string;
 }
 
 export type ConfigurationSyncStore = {
@@ -75,6 +76,7 @@ export interface IProductConfiguration {
 	readonly win32AppUserModelId?: string;
 	readonly win32MutexName?: string;
 	readonly win32RegValueName?: string;
+	readonly win32VersionedUpdate?: boolean;
 	readonly applicationName: string;
 	readonly embedderIdentifier?: string;
 
@@ -203,21 +205,11 @@ export interface IProductConfiguration {
 		readonly hasPrereleaseVersion?: boolean;
 		readonly excludeVersionRange?: string;
 	}>;
+	readonly extensionsForceVersionByQuality?: readonly string[];
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
 
-	readonly defaultAccount?: {
-		readonly authenticationProvider: {
-			readonly id: string;
-			readonly enterpriseProviderId: string;
-			readonly enterpriseProviderConfig: string;
-			readonly scopes: string[];
-		};
-		readonly tokenEntitlementUrl: string;
-		readonly chatEntitlementUrl: string;
-		readonly mcpRegistryDataUrl: string;
-	};
 	readonly authClientIdMetadataUrl?: string;
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
@@ -230,7 +222,7 @@ export interface IProductConfiguration {
 	readonly commonlyUsedSettings?: string[];
 	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
 
-	readonly defaultChatAgent?: IDefaultChatAgent;
+	readonly defaultChatAgent: IDefaultChatAgent;
 	readonly chatParticipantRegistry?: string;
 	readonly chatSessionRecommendations?: IChatSessionRecommendation[];
 	readonly emergencyAlertUrl?: string;
@@ -347,6 +339,9 @@ export interface IDefaultChatAgent {
 	readonly extensionId: string;
 	readonly chatExtensionId: string;
 
+	readonly chatExtensionOutputId: string;
+	readonly chatExtensionOutputExtensionStateCommand: string;
+
 	readonly documentationUrl: string;
 	readonly skusDocumentationUrl: string;
 	readonly publicCodeMatchesUrl: string;
@@ -365,11 +360,14 @@ export interface IDefaultChatAgent {
 		apple: { id: string; name: string };
 	};
 
+	readonly providerExtensionId: string;
 	readonly providerUriSetting: string;
 	readonly providerScopes: string[][];
 
 	readonly entitlementUrl: string;
 	readonly entitlementSignupLimitedUrl: string;
+	readonly tokenEntitlementUrl: string;
+	readonly mcpRegistryDataUrl: string;
 
 	readonly chatQuotaExceededContext: string;
 	readonly completionsQuotaExceededContext: string;

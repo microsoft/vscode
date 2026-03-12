@@ -122,7 +122,7 @@ export class DialogMainService implements IDialogMainService {
 
 		// Show Dialog
 		const result = await this.showOpenDialog(dialogOptions, (window || electron.BrowserWindow.getFocusedWindow()) ?? undefined);
-		if (result && result.filePaths && result.filePaths.length > 0) {
+		if (result?.filePaths && result.filePaths.length > 0) {
 			return result.filePaths;
 		}
 

@@ -13,21 +13,21 @@ import { Registry } from '../../../registry/common/platform.js';
 export class TestConfigurationService implements IConfigurationService {
 	public _serviceBrand: undefined;
 
-	private configuration: any;
+	private configuration: Record<string, unknown>;
 	readonly onDidChangeConfigurationEmitter = new Emitter<IConfigurationChangeEvent>();
 	readonly onDidChangeConfiguration = this.onDidChangeConfigurationEmitter.event;
 
-	constructor(configuration?: any) {
+	constructor(configuration?: Record<string, unknown>) {
 		this.configuration = configuration || Object.create(null);
 	}
 
-	private configurationByRoot: TernarySearchTree<string, any> = TernarySearchTree.forPaths<any>();
+	private configurationByRoot: TernarySearchTree<string, Record<string, unknown>> = TernarySearchTree.forPaths<Record<string, unknown>>();
 
 	public reloadConfiguration<T>(): Promise<T> {
-		return Promise.resolve(this.getValue());
+		return Promise.resolve(this.getValue() as T);
 	}
 
-	public getValue(arg1?: any, arg2?: any): any {
+	public getValue<T>(arg1?: string | IConfigurationOverrides, arg2?: IConfigurationOverrides): T | undefined {
 		let configuration;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : undefined;
 		if (overrides) {
@@ -37,16 +37,16 @@ export class TestConfigurationService implements IConfigurationService {
 		}
 		configuration = configuration ? configuration : this.configuration;
 		if (arg1 && typeof arg1 === 'string') {
-			return configuration[arg1] ?? getConfigurationValue(configuration, arg1);
+			return (configuration[arg1] ?? getConfigurationValue(configuration, arg1)) as T;
 		}
-		return configuration;
+		return configuration as T;
 	}
 
-	public updateValue(key: string, value: any): Promise<void> {
+	public updateValue(key: string, value: unknown): Promise<void> {
 		return Promise.resolve(undefined);
 	}
 
-	public setUserConfiguration(key: any, value: any, root?: URI): Promise<void> {
+	public setUserConfiguration(key: string, value: unknown, root?: URI): Promise<void> {
 		if (root) {
 			const configForRoot = this.configurationByRoot.get(root.fsPath) || Object.create(null);
 			configForRoot[key] = value;
@@ -64,7 +64,7 @@ export class TestConfigurationService implements IConfigurationService {
 	}
 
 	public inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
-		const value = this.getValue(key, overrides);
+		const value = this.getValue(key, overrides) as T;
 
 		return {
 			value,

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { renderADMLString, renderProfileString, renderADMX, renderADML, renderProfileManifest, renderMacOSPolicy, renderGP, renderJsonPolicies } from '../policies/render.js';
-import { NlsString, LanguageTranslations, Category, Policy, PolicyType } from '../policies/types.js';
+import { renderADMLString, renderProfileString, renderADMX, renderADML, renderProfileManifest, renderMacOSPolicy, renderGP, renderJsonPolicies } from '../policies/render.ts';
+import { type NlsString, type LanguageTranslations, type Category, type Policy, PolicyType } from '../policies/types.ts';
 
 suite('Render Functions', () => {
 

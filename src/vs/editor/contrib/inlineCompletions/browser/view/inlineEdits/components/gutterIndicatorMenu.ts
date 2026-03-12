@@ -26,18 +26,17 @@ import { defaultKeybindingLabelStyles } from '../../../../../../../platform/them
 import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { hideInlineCompletionId, inlineSuggestCommitId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
-import { IInlineEditModel } from '../inlineEditsViewInterface.js';
+import { hideInlineCompletionId, inlineSuggestCommitAlternativeActionId, inlineSuggestCommitId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
 import { FirstFnArg, } from '../utils/utils.js';
+import { InlineSuggestionGutterMenuData } from './gutterIndicatorView.js';
 
 export class GutterIndicatorMenuContent {
-
 	private readonly _inlineEditsShowCollapsed: IObservable<boolean>;
 
 	constructor(
-		private readonly _model: IInlineEditModel,
-		private readonly _close: (focusEditor: boolean) => void,
 		private readonly _editorObs: ObservableCodeEditor,
+		private readonly _data: InlineSuggestionGutterMenuData,
+		private readonly _close: (focusEditor: boolean, commandId?: string) => void,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -60,19 +59,43 @@ export class GutterIndicatorMenuContent {
 				isActive: activeElement.map(v => v === options.id),
 				onHoverChange: v => activeElement.set(v ? options.id : undefined, undefined),
 				onAction: () => {
-					this._close(true);
-					return this._commandService.executeCommand(typeof options.commandId === 'string' ? options.commandId : options.commandId.get(), ...(options.commandArgs ?? []));
+					const commandId = typeof options.commandId === 'string' ? options.commandId : options.commandId.get();
+					this._close(true, commandId);
+					return this._commandService.executeCommand(commandId, ...(options.commandArgs ?? []));
 				},
 			};
 		};
 
-		const title = header(this._model.displayName);
+		const extensionCommandGroups = this._data.extensionCommands.map(group =>
+			group.map((c, idx) => option(createOptionArgs({
+				id: c.command.id + '_' + idx,
+				title: c.command.title,
+				icon: c.icon ?? Codicon.symbolEvent,
+				commandId: c.command.id,
+				commandArgs: c.command.arguments
+			})))
+		);
+
+		const extensionCommandNodes: ChildNode = [];
+		for (const group of extensionCommandGroups) {
+			if (group.length > 0) {
+				extensionCommandNodes.push(separator());
+				extensionCommandNodes.push(...group);
+			}
+		}
+
+		if (this._data.extensionCommandsOnly) {
+			// drop leading separator
+			return hoverContent(extensionCommandNodes.slice(1));
+		}
+
+		const title = header(this._data.displayName);
 
 		const gotoAndAccept = option(createOptionArgs({
 			id: 'gotoAndAccept',
-			title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`,
+			title: localize('gotoAndAccept', "Go To / Accept"),
 			icon: Codicon.check,
-			commandId: inlineSuggestCommitId
+			commandId: inlineSuggestCommitId,
 		}));
 
 		const reject = option(createOptionArgs({
@@ -82,13 +105,25 @@ export class GutterIndicatorMenuContent {
 			commandId: hideInlineCompletionId
 		}));
 
-		const extensionCommands = this._model.extensionCommands.map((c, idx) => option(createOptionArgs({
-			id: c.command.id + '_' + idx,
-			title: c.command.title,
-			icon: c.icon ?? Codicon.symbolEvent,
-			commandId: c.command.id,
-			commandArgs: c.command.arguments
-		})));
+		const alternativeCommand = this._data.alternativeAction ? option(createOptionArgs({
+			id: 'alternativeCommand',
+			title: this._data.alternativeAction.command.title,
+			icon: this._data.alternativeAction.icon,
+			commandId: inlineSuggestCommitAlternativeActionId,
+		})) : undefined;
+
+		const showModelEnabled = false;
+		const modelOptions = showModelEnabled ? this._data.modelInfo?.models.map((m: { id: string; name: string }) => option({
+			title: m.name,
+			icon: m.id === this._data.modelInfo?.currentModelId ? Codicon.check : Codicon.circle,
+			keybinding: constObservable(undefined),
+			isActive: activeElement.map(v => v === 'model_' + m.id),
+			onHoverChange: v => activeElement.set(v ? 'model_' + m.id : undefined, undefined),
+			onAction: () => {
+				this._close(true);
+				this._data.setModelId?.(m.id);
+			},
+		})) ?? [] : [];
 
 		const toggleCollapsedMode = this._inlineEditsShowCollapsed.map(showCollapsed => showCollapsed ?
 			option(createOptionArgs({
@@ -120,7 +155,7 @@ export class GutterIndicatorMenuContent {
 			commandArgs: ['@tag:nextEditSuggestions']
 		}));
 
-		const actions = this._model.action ? [this._model.action] : [];
+		const actions = this._data.action ? [this._data.action] : [];
 		const actionBarFooter = actions.length > 0 ? actionBar(
 			actions.map(action => ({
 				id: action.id,
@@ -136,13 +171,15 @@ export class GutterIndicatorMenuContent {
 		return hoverContent([
 			title,
 			gotoAndAccept,
+			alternativeCommand,
 			reject,
 			toggleCollapsedMode,
-			extensionCommands.length ? separator() : undefined,
+			modelOptions.length ? separator() : undefined,
+			...modelOptions,
 			snooze,
 			settings,
 
-			...extensionCommands,
+			...extensionCommandNodes,
 
 			actionBarFooter ? separator() : undefined,
 			actionBarFooter

@@ -13,12 +13,12 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { isBoolean, isObject, isUndefined } from '../../../base/common/types.js';
 import { Emitter } from '../../../base/common/event.js';
 
-function isGalleryExtension(extension: any): extension is IGalleryExtension {
-	return extension.type === 'gallery';
+function isGalleryExtension(extension: unknown): extension is IGalleryExtension {
+	return (extension as IGalleryExtension).type === 'gallery';
 }
 
-function isIExtension(extension: any): extension is IExtension {
-	return extension.type === ExtensionType.User || extension.type === ExtensionType.System;
+function isIExtension(extension: unknown): extension is IExtension {
+	return (extension as IExtension).type === ExtensionType.User || (extension as IExtension).type === ExtensionType.System;
 }
 
 

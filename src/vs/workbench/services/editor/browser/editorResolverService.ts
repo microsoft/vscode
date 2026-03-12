@@ -52,7 +52,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	// Data Stores
 	private _editors: Map<string | glob.IRelativePattern, Map<string, RegisteredEditors>> = new Map<string | glob.IRelativePattern, Map<string, RegisteredEditors>>();
 	private _flattenedEditors: Map<string | glob.IRelativePattern, RegisteredEditors> = new Map();
-	private _shouldReFlattenEditors: boolean = true;
+	private _shouldReFlattenEditors = true;
 	private cache: Set<string> | undefined;
 
 	constructor(
@@ -399,7 +399,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		const findMatchingEditor = (editors: RegisteredEditors, viewType: string) => {
 			return editors.find((editor) => {
-				if (editor.options && editor.options.canSupportResource !== undefined) {
+				if (editor.options?.canSupportResource !== undefined) {
 					return editor.editorInfo.id === viewType && editor.options.canSupportResource(resource);
 				}
 				return editor.editorInfo.id === viewType;
@@ -763,7 +763,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				resolve({ item: e.item, openInBackground: false });
 
 				// Persist setting
-				if (resource && e.item && e.item.id) {
+				if (resource && e.item?.id) {
 					this.updateUserAssociations(`*${extname(resource)}`, e.item.id,);
 				}
 			}));

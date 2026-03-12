@@ -13,6 +13,12 @@ import * as vscode from 'vscode';
 import { Straightforward, Middleware, RequestContext, ConnectContext, isRequest, isConnect } from 'straightforward';
 import assert from 'assert';
 
+declare module 'https' {
+	interface Agent {
+		testCertificates?: string[];
+	}
+}
+
 (vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('vscode API - network proxy support', () => {
 
 	teardown(async function () {
@@ -56,8 +62,7 @@ import assert from 'assert';
 		});
 
 		// Using https.globalAgent because it is shared with proxyResolver.ts and mutable.
-		// eslint-disable-next-line local/code-no-any-casts
-		(https.globalAgent as any).testCertificates = [certPEM];
+		https.globalAgent.testCertificates = [certPEM];
 		resetCaches();
 
 		try {
@@ -73,8 +78,7 @@ import assert from 'assert';
 					.on('error', reject);
 			});
 		} finally {
-			// eslint-disable-next-line local/code-no-any-casts
-			delete (https.globalAgent as any).testCertificates;
+			delete https.globalAgent.testCertificates;
 			resetCaches();
 			server.close();
 		}

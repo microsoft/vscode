@@ -17,11 +17,16 @@ export interface IWebContentExtractorOptions {
 	 * 'false' by default.
 	 */
 	followRedirects?: boolean;
+
+	/**
+	 * List of trusted domain patterns for redirect validation.
+	 */
+	trustedDomains?: string[];
 }
 
 export type WebContentExtractResult =
-	| { status: 'ok'; result: string }
-	| { status: 'error'; error: string }
+	| { status: 'ok'; result: string; title?: string }
+	| { status: 'error'; error: string; statusCode?: number; result?: string; title?: string }
 	| { status: 'redirect'; toURI: URI };
 
 export interface IWebContentExtractorService {

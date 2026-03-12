@@ -18,7 +18,7 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 		return this._rawOutput.outputs || [];
 	}
 
-	get metadata(): Record<string, any> | undefined {
+	get metadata(): Record<string, unknown> | undefined {
 		return this._rawOutput.metadata;
 	}
 

@@ -19,7 +19,7 @@ export class RunInTerminalToolTelemetry {
 		subCommands: string[];
 		autoApproveAllowed: 'allowed' | 'needsOptIn' | 'off';
 		autoApproveResult: 'approved' | 'denied' | 'manual';
-		autoApproveReason: 'subCommand' | 'commandLine' | undefined;
+		autoApproveReason: 'subCommand' | 'commandLine' | 'session' | undefined;
 		autoApproveDefault: boolean | undefined;
 	}) {
 		const subCommandsSanitized = state.subCommands.map(e => {
@@ -515,6 +515,16 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'yarn',
 	'yum',
 	'zypper',
+
+	// AI tools
+	'aider',
+	'amp',
+	'claude',
+	'codex',
+	'copilot',
+	'gemini',
+	'toad',
+	'q',
 
 	// Misc Windows executables
 	'taskkill',

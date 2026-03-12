@@ -3,12 +3,12 @@
 		"c": "#",
 		"t": "source.cpp keyword.control.directive.conditional.if.cpp punctuation.definition.directive.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -17,12 +17,12 @@
 		"c": "if",
 		"t": "source.cpp keyword.control.directive.conditional.if.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -269,12 +269,12 @@
 		"c": "for",
 		"t": "source.cpp keyword.control.for.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -829,12 +829,12 @@
 		"c": "#",
 		"t": "source.cpp keyword.control.directive.endif.cpp punctuation.definition.directive.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -843,12 +843,12 @@
 		"c": "endif",
 		"t": "source.cpp keyword.control.directive.endif.cpp",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -1655,12 +1655,12 @@
 		"c": "new",
 		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp keyword.operator.wordlike.cpp keyword.operator.new.cpp",
 		"r": {
-			"dark_plus": "source.cpp keyword.operator.new: #CE92A4",
+			"dark_plus": "source.cpp keyword.operator.new: #C586C0",
 			"light_plus": "source.cpp keyword.operator.new: #AF00DB",
 			"dark_vs": "keyword.operator.new: #569CD6",
 			"light_vs": "keyword.operator.new: #0000FF",
 			"hc_black": "source.cpp keyword.operator.new: #C586C0",
-			"dark_modern": "source.cpp keyword.operator.new: #CE92A4",
+			"dark_modern": "source.cpp keyword.operator.new: #C586C0",
 			"hc_light": "source.cpp keyword.operator.new: #B5200D",
 			"light_modern": "source.cpp keyword.operator.new: #AF00DB"
 		}

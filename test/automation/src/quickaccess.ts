@@ -127,8 +127,7 @@ export class QuickAccess {
 		await this.quickInput.selectQuickInputElement(0);
 
 		// wait for editor being focused
-		await this.editors.waitForActiveTab(fileName);
-		await this.editors.selectTab(fileName);
+		await this.editors.waitForEditorFocus(fileName);
 	}
 
 	private async openQuickAccessWithRetry(kind: QuickAccessKind, value?: string): Promise<void> {
@@ -242,5 +241,23 @@ export class QuickAccess {
 				continue;
 			}
 		}
+	}
+
+	async getVisibleCommandNames(searchValue: string): Promise<string[]> {
+
+		// open commands picker
+		await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${searchValue}`);
+
+		// wait for quick input elements to be available
+		let commandNames: string[] = [];
+		await this.quickInput.waitForQuickInputElements(elementNames => {
+			commandNames = elementNames;
+			return true;
+		});
+
+		// close the quick input
+		await this.quickInput.closeQuickInput();
+
+		return commandNames;
 	}
 }

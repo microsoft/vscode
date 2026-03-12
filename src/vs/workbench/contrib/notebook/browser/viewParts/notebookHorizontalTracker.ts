@@ -72,8 +72,7 @@ export class NotebookHorizontalTracker extends Disposable {
 				stopPropagation: () => { }
 			};
 
-			// eslint-disable-next-line local/code-no-any-casts
-			(hoveringOnEditor[1] as CodeEditorWidget).delegateScrollFromMouseWheelEvent(evt as any);
+			(hoveringOnEditor[1] as CodeEditorWidget).delegateScrollFromMouseWheelEvent(evt as unknown as IMouseWheelEvent);
 		}));
 	}
 }

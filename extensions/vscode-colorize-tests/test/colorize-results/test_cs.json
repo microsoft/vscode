@@ -3,12 +3,12 @@
 		"c": "using",
 		"t": "source.cs keyword.other.directive.using.cs",
 		"r": {
-			"dark_plus": "keyword.other.directive.using: #CE92A4",
+			"dark_plus": "keyword.other.directive.using: #C586C0",
 			"light_plus": "keyword.other.directive.using: #AF00DB",
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
 			"hc_black": "keyword.other.directive.using: #C586C0",
-			"dark_modern": "keyword.other.directive.using: #CE92A4",
+			"dark_modern": "keyword.other.directive.using: #C586C0",
 			"hc_light": "keyword.other.directive.using: #B5200D",
 			"light_modern": "keyword.other.directive.using: #AF00DB"
 		}
@@ -423,12 +423,12 @@
 		"c": "if",
 		"t": "source.cs keyword.control.conditional.if.cs",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -1487,12 +1487,12 @@
 		"c": "foreach",
 		"t": "source.cs keyword.control.loop.foreach.cs",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -1585,12 +1585,12 @@
 		"c": "in",
 		"t": "source.cs keyword.control.loop.in.cs",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}

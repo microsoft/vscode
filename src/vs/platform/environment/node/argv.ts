@@ -99,6 +99,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'goto': { type: 'boolean', cat: 'o', alias: 'g', args: 'file:line[:character]', description: localize('goto', "Open a file at the path on the specified line and character position.") },
 	'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },
 	'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindow', "Force to open a file or folder in an already opened window.") },
+	'sessions': { type: 'boolean', cat: 'o', description: localize('sessions', "Opens the sessions window.") },
 	'wait': { type: 'boolean', cat: 'o', alias: 'w', description: localize('wait', "Wait for the files to be closed before returning.") },
 	'waitMarkerFilePath': { type: 'string' },
 	'locale': { type: 'string', cat: 'o', args: 'locale', description: localize('locale', "The locale to use (e.g. en-US or zh-TW).") },
@@ -165,6 +166,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'export-policy-data': { type: 'string', allowEmptyValue: true },
 	'install-source': { type: 'string' },
 	'enable-smoke-test-driver': { type: 'boolean' },
+	'skip-sessions-welcome': { type: 'boolean' },
 	'logExtensionHostCommunication': { type: 'boolean' },
 	'skip-release-notes': { type: 'boolean' },
 	'skip-welcome': { type: 'boolean' },
@@ -466,7 +468,7 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 				subcommands.push({ command: optionId, description: o.description });
 			}
 		} else if (o.description && o.cat) {
-			const cat = o.cat as keyof typeof helpCategories;
+			const cat = o.cat;
 			let optionsByCat = optionsByCategory[cat];
 			if (!optionsByCat) {
 				optionsByCategory[cat] = optionsByCat = {};

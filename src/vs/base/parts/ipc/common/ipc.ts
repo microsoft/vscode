@@ -334,7 +334,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 	// They will timeout after `timeoutDelay`.
 	private pendingRequests = new Map<string, PendingRequest[]>();
 
-	constructor(private protocol: IMessagePassingProtocol, private ctx: TContext, private logger: IIPCLogger | null = null, private timeoutDelay: number = 1000) {
+	constructor(private protocol: IMessagePassingProtocol, private ctx: TContext, private logger: IIPCLogger | null = null, private timeoutDelay = 1000) {
 		this.protocolListener = this.protocol.onMessage(msg => this.onRawMessage(msg));
 		this.sendResponse({ type: ResponseType.Initialize });
 	}
@@ -532,11 +532,11 @@ export interface IIPCLogger {
 
 export class ChannelClient implements IChannelClient, IDisposable {
 
-	private isDisposed: boolean = false;
+	private isDisposed = false;
 	private state: State = State.Uninitialized;
 	private activeRequests = new Set<IDisposable>();
 	private handlers = new Map<number, IHandler>();
-	private lastRequestId: number = 0;
+	private lastRequestId = 0;
 	private protocolListener: IDisposable | null;
 	private logger: IIPCLogger | null;
 
@@ -682,6 +682,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 					this.activeRequests.delete(emitter);
 					this.sendRequest({ id, type: RequestType.EventDispose });
 				}
+				this.handlers.delete(id);
 			}
 		});
 
@@ -779,6 +780,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		}
 		dispose(this.activeRequests.values());
 		this.activeRequests.clear();
+		this._onDidInitialize.dispose();
 	}
 }
 
@@ -995,7 +997,7 @@ export class IPCClient<TContext = string> implements IChannelClient, IChannelSer
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
-		return this.channelClient.getChannel(channelName) as T;
+		return this.channelClient.getChannel(channelName);
 	}
 
 	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
@@ -1116,7 +1118,7 @@ export namespace ProxyChannel {
 		const mapEventNameToEvent = new Map<string, Event<unknown>>();
 		for (const key in handler) {
 			if (propertyIsEvent(key)) {
-				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, true, undefined, disposables));
+				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, key, true, undefined, disposables));
 			}
 		}
 
@@ -1135,7 +1137,7 @@ export namespace ProxyChannel {
 					}
 
 					if (propertyIsEvent(event)) {
-						mapEventNameToEvent.set(event, Event.buffer(handler[event] as Event<unknown>, true, undefined, disposables));
+						mapEventNameToEvent.set(event, Event.buffer(handler[event] as Event<unknown>, event, true, undefined, disposables));
 
 						return mapEventNameToEvent.get(event) as Event<T>;
 					}
@@ -1207,10 +1209,10 @@ export namespace ProxyChannel {
 					}
 
 					// Function
-					return async function (...args: any[]) {
+					return async function (...args: unknown[]) {
 
 						// Add context if any
-						let methodArgs: any[];
+						let methodArgs: unknown[];
 						if (options && !isUndefinedOrNull(options.context)) {
 							methodArgs = [options.context, ...args];
 						} else {

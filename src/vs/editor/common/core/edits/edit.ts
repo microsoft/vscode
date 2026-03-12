@@ -113,7 +113,7 @@ export abstract class BaseEdit<T extends BaseReplacement<T> = BaseReplacement<an
 		for (const r2 of edits2.replacements) {
 			// Copy over edit1 unmodified until it touches edit2.
 			while (true) {
-				const r1 = edit1Queue[0]!;
+				const r1 = edit1Queue[0];
 				if (!r1 || r1.replaceRange.start + edit1ToEdit2 + r1.getNewLength() >= r2.replaceRange.start) {
 					break;
 				}

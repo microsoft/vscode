@@ -281,8 +281,6 @@ suite('NotebookFileWorkingCopyModel', function () {
 				return Promise.resolve({ name: 'savedFile' } as IFileStatWithMetadata);
 			}
 		};
-		// eslint-disable-next-line local/code-no-any-casts
-		(serializer as any).test = 'yes';
 
 		let resolveSerializer: (serializer: INotebookSerializer) => void = () => { };
 		const serializerPromise = new Promise<INotebookSerializer>(resolve => {
@@ -305,8 +303,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 
 		resolveSerializer(serializer);
 		await model.getNotebookSerializer();
-		// eslint-disable-next-line local/code-no-any-casts
-		const result = await model.save?.({} as any, {} as any);
+		const result = await model.save?.({} as IFileStatWithMetadata, {} as CancellationToken);
 
 		assert.strictEqual(result!.name, 'savedFile');
 	});
@@ -342,7 +339,7 @@ function mockNotebookService(notebook: NotebookTextModel, notebookSerializer: Pr
 		override async createNotebookTextDocumentSnapshot(uri: URI, context: SnapshotContext, token: CancellationToken): Promise<VSBufferReadableStream> {
 			const info = await this.withNotebookDataProvider(notebook.viewType);
 			const serializer = info.serializer;
-			const outputSizeLimit = configurationService.getValue(NotebookSetting.outputBackupSizeLimit) ?? 1024;
+			const outputSizeLimit = configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) ?? 1024;
 			const data: NotebookData = notebook.createSnapshot({ context: context, outputSizeLimit: outputSizeLimit, transientOptions: serializer.options });
 			const bytes = await serializer.notebookToData(data);
 

@@ -345,7 +345,7 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 		return null; // jschardet throws for unknown encodings (https://github.com/microsoft/vscode/issues/239928)
 	}
 
-	if (!guessed || !guessed.encoding) {
+	if (!guessed?.encoding) {
 		return null;
 	}
 

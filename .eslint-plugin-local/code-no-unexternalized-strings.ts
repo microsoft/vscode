@@ -5,7 +5,7 @@
 
 import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
 import * as eslint from 'eslint';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
 
 function isStringLiteral(node: TSESTree.Node | ESTree.Node | null | undefined): node is TSESTree.StringLiteral {
 	return !!node && node.type === AST_NODE_TYPES.Literal && typeof node.value === 'string';
@@ -24,7 +24,7 @@ function isDoubleQuoted(node: TSESTree.StringLiteral): boolean {
 const enableDoubleToSingleQuoteFixes = false;
 
 
-export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
+export default new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 
 	private static _rNlsKeys = /^[_a-zA-Z0-9][ .\-_a-zA-Z0-9]*$/;
 
@@ -100,9 +100,7 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 		function visitL10NCall(node: TSESTree.CallExpression) {
 
 			// localize(key, message)
-			const [messageNode] = (<TSESTree.CallExpression>node).arguments;
-
-			// remove message-argument from doubleQuoted list and make
+			const [messageNode] = (node as TSESTree.CallExpression).arguments;			// remove message-argument from doubleQuoted list and make
 			// sure it is a string-literal
 			if (isStringLiteral(messageNode)) {
 				doubleQuotedStringLiterals.delete(messageNode);

@@ -87,7 +87,7 @@ export class RenderingContext extends RestrictedRenderingContext {
 	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
 		const domRanges = this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
 		if (!this._viewLinesGpu) {
-			return domRanges ?? null;
+			return domRanges;
 		}
 		const gpuRanges = this._viewLinesGpu.linesVisibleRangesForRange(range, includeNewLines);
 		if (!domRanges) {

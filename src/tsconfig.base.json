@@ -20,7 +20,6 @@
 			"DOM",
 			"DOM.Iterable",
 			"WebWorker.ImportScripts"
-		],
-		"allowSyntheticDefaultImports": true
+		]
 	}
 }

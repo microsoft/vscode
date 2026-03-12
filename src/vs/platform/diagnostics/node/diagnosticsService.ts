@@ -66,6 +66,12 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		{ tag: 'agent.md', filePattern: /^agent\.md$/i },
 		{ tag: 'agents.md', filePattern: /^agents\.md$/i },
 		{ tag: 'claude.md', filePattern: /^claude\.md$/i },
+		{ tag: 'claude-settings', filePattern: /^settings\.json$/i, relativePathPattern: /^\.claude$/i },
+		{ tag: 'claude-settings-local', filePattern: /^settings\.local\.json$/i, relativePathPattern: /^\.claude$/i },
+		{ tag: 'claude-mcp', filePattern: /^mcp\.json$/i, relativePathPattern: /^\.claude$/i },
+		{ tag: 'claude-commands-dir', filePattern: /\.md$/i, relativePathPattern: /^\.claude[\/\\]commands$/i },
+		{ tag: 'claude-skills-dir', filePattern: /^SKILL\.md$/i, relativePathPattern: /^\.claude[\/\\]skills[\/\\]/i },
+		{ tag: 'claude-rules-dir', filePattern: /\.md$/i, relativePathPattern: /^\.claude[\/\\]rules$/i },
 		{ tag: 'gemini.md', filePattern: /^gemini\.md$/i },
 		{ tag: 'copilot-instructions.md', filePattern: /^copilot\-instructions\.md$/i, relativePathPattern: /^\.github$/i },
 	];
@@ -255,6 +261,12 @@ export class DiagnosticsService implements IDiagnosticsService {
 		output.push(`Screen Reader:    ${info.screenReader ? 'yes' : 'no'}`);
 		output.push(`Process Argv:     ${info.mainArguments.join(' ')}`);
 		output.push(`GPU Status:       ${this.expandGPUFeatures(info.gpuFeatureStatus)}`);
+		if (info.gpuLogMessages && info.gpuLogMessages.length > 0) {
+			output.push(`GPU Log Messages:`);
+			info.gpuLogMessages.forEach(msg => {
+				output.push(`${msg.header}: ${msg.message}`);
+			});
+		}
 
 		return output.join('\n');
 	}
@@ -431,7 +443,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 		return output.join('\n');
 	}
 
-	private expandGPUFeatures(gpuFeatures: any): string {
+	private expandGPUFeatures(gpuFeatures: Record<string, string>): string {
 		const longestFeatureName = Math.max(...Object.keys(gpuFeatures).map(feature => feature.length));
 		// Make columns aligned by adding spaces after feature name
 		return Object.keys(gpuFeatures).map(feature => `${feature}:  ${' '.repeat(longestFeatureName - feature.length)}  ${gpuFeatures[feature]}`).join('\n                  ');

@@ -17,6 +17,9 @@ parameters:
   - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
     default: false
+  - name: VSCODE_RUN_CHECKS
+    type: boolean
+    default: false
 
 steps:
   - template: ../../common/checkout.yml@self
@@ -35,15 +38,6 @@ steps:
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      artifact: Compilation
-      path: $(Build.ArtifactStagingDirectory)
-    displayName: Download compilation output
-
-  - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-    displayName: Extract compilation output
-
   - script: |
       set -e
       # Start X server
@@ -61,11 +55,11 @@ steps:
       sudo service xvfb start
     displayName: Setup system services
 
-  - script: node build/setup-npm-registry.js $NPM_REGISTRY
+  - script: node build/setup-npm-registry.ts $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
@@ -121,7 +115,7 @@ steps:
         SYSROOT_ARCH="amd64"
       fi
       export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots/glibc-2.28-gcc-8.5.0
-      SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e '(async () => { const { getVSCodeSysroot } = require("./build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+      SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
     env:
       VSCODE_ARCH: $(VSCODE_ARCH)
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -131,6 +125,10 @@ steps:
       set -e
 
       source ./build/azure-pipelines/linux/setup-env.sh
+
+      # Run preinstall script before root dependencies are installed
+      # so that v8 headers are patched correctly for native modules.
+      node build/npm/preinstall.ts
 
       for i in {1..5}; do # try 5 times
         npm ci && break
@@ -149,22 +147,50 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - script: node build/azure-pipelines/distro/mixin-npm
+  - script: node build/azure-pipelines/distro/mixin-npm.ts
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Mixin distro node modules
 
   - script: |
       set -e
-      node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+      node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
       tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
-  - script: node build/azure-pipelines/distro/mixin-quality
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Wait for CLI artifact (background)
+
+  - script: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality
 
   - template: ../../common/install-builtin-extensions.yml@self
+
+  - script: npm run gulp core-ci
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Compile
+
+  - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+    - script: node build/azure-pipelines/common/extract-telemetry.ts
+      displayName: Generate lists of telemetry events
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - script: |
+        set -e
+        npm run compile --prefix test/smoke
+        npm run compile --prefix test/integration/browser
+      displayName: Compile test suites (non-OSS)
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npm run copy-policy-dto --prefix build && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc linux
+      displayName: Generate policy definitions
+      retryCountOnTaskFailure: 3
 
   - script: |
       set -e
@@ -178,6 +204,11 @@ steps:
     displayName: Build client
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Wait for CLI artifact
+
     - task: DownloadPipelineArtifact@2
       inputs:
         artifact: $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
@@ -314,7 +345,7 @@ steps:
         - script: |
             set -e
             npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
-            sudo -E docker run -e VSCODE_ARCH -e VSCODE_QUALITY -v $(pwd):/work -w /work vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64 /bin/bash -c "./build/azure-pipelines/linux/build-snap.sh"
+            sudo -E docker run -e VSCODE_ARCH -e VSCODE_QUALITY -v $(pwd):/work -w /work vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64@sha256:ab4a88c4d85e0d7a85acabba59543f7143f575bab2c0b2b07f5b77d4a7e491ff /bin/bash -c "./build/azure-pipelines/linux/build-snap.sh"
 
             SNAP_ROOT="$(pwd)/.build/linux/snap/$(VSCODE_ARCH)"
             SNAP_EXTRACTED_PATH=$(find $SNAP_ROOT -maxdepth 1 -type d -name 'code-*')
@@ -356,7 +387,7 @@ steps:
         echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
       displayName: Find ESRP CLI
 
-    - script: npx deemon --detach --wait node build/azure-pipelines/linux/codesign.js
+    - script: npx deemon --detach --wait node build/azure-pipelines/linux/codesign.ts
       env:
         EsrpCliDllPath: $(EsrpCliDllPath)
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
@@ -370,7 +401,7 @@ steps:
         VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --attach node build/azure-pipelines/linux/codesign.js
+    - script: npx deemon --attach node build/azure-pipelines/linux/codesign.ts
       condition: succeededOrFailed()
       displayName: "✍️ Post-job: Codesign deb & rpm"
 

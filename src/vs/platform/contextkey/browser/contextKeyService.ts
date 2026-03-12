@@ -8,7 +8,7 @@ import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { MarshalledObject } from '../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
-import { cloneAndChange, distinct } from '../../../base/common/objects.js';
+import { cloneAndChange, distinct, equals } from '../../../base/common/objects.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -41,7 +41,7 @@ export class Context implements IContext {
 
 	public setValue(key: string, value: any): boolean {
 		// console.log('SET ' + key + ' = ' + value + ' ON ' + this._id);
-		if (this._value[key] !== value) {
+		if (!equals(this._value[key], value)) {
 			this._value[key] = value;
 			return true;
 		}

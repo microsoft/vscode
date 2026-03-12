@@ -5,9 +5,9 @@
 
 import * as eslint from 'eslint';
 import { join } from 'path';
-import { createImportRuleListener } from './utils';
+import { createImportRuleListener } from './utils.ts';
 
-export = new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule {
+export default new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {

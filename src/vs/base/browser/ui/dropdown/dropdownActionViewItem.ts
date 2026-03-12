@@ -73,6 +73,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 
 		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable | null => {
 			this.element = append(el, $('a.action-label'));
+			this.setAriaLabelAttributes(this.element);
 			return this.renderLabel(this.element);
 		};
 
