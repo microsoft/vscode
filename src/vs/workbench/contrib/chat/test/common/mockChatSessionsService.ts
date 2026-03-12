@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
 import { IChatModel } from '../../common/model/chatModel.js';
-import { IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItem, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItem, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, IChatSessionItemsDelta } from '../../common/chatSessionsService.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
@@ -22,7 +22,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 	private readonly _onDidChangeItemsProviders = new Emitter<{ readonly chatSessionType: string }>();
 	readonly onDidChangeItemsProviders = this._onDidChangeItemsProviders.event;
 
-	private readonly _onDidChangeSessionItems = new Emitter<{ readonly chatSessionType: string }>();
+	private readonly _onDidChangeSessionItems = new Emitter<IChatSessionItemsDelta>();
 	readonly onDidChangeSessionItems = this._onDidChangeSessionItems.event;
 
 	private readonly _onDidChangeAvailability = new Emitter<void>();
@@ -52,8 +52,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 		this._onDidChangeItemsProviders.fire(event);
 	}
 
-	fireDidChangeSessionItems(chatSessionType: string): void {
-		this._onDidChangeSessionItems.fire({ chatSessionType });
+	fireDidChangeSessionItems(event: IChatSessionItemsDelta): void {
+		this._onDidChangeSessionItems.fire(event);
 	}
 
 	fireDidChangeAvailability(): void {

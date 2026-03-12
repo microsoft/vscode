@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -585,14 +585,25 @@ suite('LocalAgentsSessionsController', () => {
 
 				// Add the session first
 				mockChatService.addSession(mockModel);
+				mockChatService.setLiveSessionItems([{
+					sessionResource,
+					title: 'Test Session',
+					lastMessageDate: Date.now(),
+					isActive: true,
+					timing: createTestTiming(),
+					lastResponseState: ResponseModelState.Complete
+				}]);
 
 				let changeEventCount = 0;
 				disposables.add(controller.onDidChangeChatSessionItems(() => {
 					changeEventCount++;
 				}));
 
+				const onDidChangeChatSessionItems = Event.toPromise(controller.onDidChangeChatSessionItems);
+
 				// Simulate progress change by triggering the progress listener
-				mockChatService.triggerProgressEvent();
+				mockChatService.triggerProgressEvent(sessionResource);
+				await onDidChangeChatSessionItems;
 
 				assert.strictEqual(changeEventCount, 1);
 			});
@@ -611,15 +622,26 @@ suite('LocalAgentsSessionsController', () => {
 
 				// Add the session first
 				mockChatService.addSession(mockModel);
+				mockChatService.setLiveSessionItems([{
+					sessionResource,
+					title: 'Test Session',
+					lastMessageDate: Date.now(),
+					isActive: true,
+					timing: createTestTiming(),
+					lastResponseState: ResponseModelState.Complete
+				}]);
 
 				let changeEventCount = 0;
 				disposables.add(controller.onDidChangeChatSessionItems(() => {
 					changeEventCount++;
 				}));
 
-				// Simulate progress change by triggering the progress listener
-				mockChatService.triggerProgressEvent();
+				const onDidChangeChatSessionItems = Event.toPromise(controller.onDidChangeChatSessionItems);
 
+				// Simulate progress change by triggering the progress listener
+				mockChatService.triggerProgressEvent(sessionResource);
+
+				await onDidChangeChatSessionItems;
 				assert.strictEqual(changeEventCount, 1);
 			});
 		});
