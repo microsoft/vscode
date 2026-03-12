@@ -4348,7 +4348,7 @@
     "@joaomoreno/unique-names-generator": "^5.2.0",
     "@vscode/extension-telemetry": "^0.9.8",
     "byline": "^5.0.0",
-    "file-type": "16.5.4",
+    "file-type": "21.3.1",
     "picomatch": "2.3.1",
     "vscode-uri": "^2.0.0",
     "which": "4.0.0"

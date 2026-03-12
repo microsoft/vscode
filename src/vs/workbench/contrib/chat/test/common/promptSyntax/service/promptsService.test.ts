@@ -53,7 +53,7 @@ import { ChatModeKind } from '../../../../common/constants.js';
 import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyService, IContextKeyChangeEvent } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 
 suite('PromptsService', () => {
@@ -3684,6 +3684,7 @@ suite('PromptsService', () => {
 			const commands = observableValue<readonly IAgentPluginCommand[]>('testPluginCommands', []);
 			const skills = observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', []);
 			const agents = observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', []);
+			const instructions = observableValue<readonly IAgentPluginInstruction[]>('testPluginInstructions', []);
 			const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('testPluginMcpServerDefinitions', []);
 
 			return {
@@ -3696,6 +3697,7 @@ suite('PromptsService', () => {
 					commands,
 					skills,
 					agents,
+					instructions,
 					mcpServerDefinitions,
 				},
 				hooks,
@@ -3853,6 +3855,112 @@ suite('PromptsService', () => {
 			await workspaceTrustService.setWorkspaceTrust(false);
 			const result = await service.getHooks(CancellationToken.None);
 			assert.strictEqual(result, undefined, 'Expected undefined hooks when workspace is untrusted, even with plugin hooks');
+		});
+	});
+
+	suite('plugin instructions', () => {
+		function createPluginWithInstructions(
+			path: string,
+			initialInstructions: readonly IAgentPluginInstruction[],
+		): { plugin: IAgentPlugin; instructions: ISettableObservable<readonly IAgentPluginInstruction[]> } {
+			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
+			const hooks = observableValue<readonly IAgentPluginHook[]>('testPluginHooks', []);
+			const commands = observableValue<readonly IAgentPluginCommand[]>('testPluginCommands', []);
+			const skills = observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', []);
+			const agents = observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', []);
+			const instructions = observableValue<readonly IAgentPluginInstruction[]>('testPluginInstructions', initialInstructions);
+			const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('testPluginMcpServerDefinitions', []);
+
+			return {
+				plugin: {
+					uri: URI.file(path),
+					label: basename(URI.file(path)),
+					enablement,
+					remove: () => { },
+					hooks,
+					commands,
+					skills,
+					agents,
+					instructions,
+					mcpServerDefinitions,
+				},
+				instructions,
+			};
+		}
+
+		test('lists plugin instructions via listPromptFiles', async function () {
+			const ruleUri = URI.file('/plugins/test-plugin/rules/prefer-const.mdc');
+			const { plugin } = createPluginWithInstructions('/plugins/test-plugin', [
+				{ uri: ruleUri, name: 'prefer-const' },
+			]);
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const result = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const pluginInstruction = result.find(p => p.uri.toString() === ruleUri.toString());
+			assert.ok(pluginInstruction, 'Plugin instruction should appear in listPromptFiles');
+			assert.strictEqual(pluginInstruction!.storage, PromptsStorage.plugin);
+		});
+
+		test('updates listed instructions when plugin instructions change', async function () {
+			const ruleUri1 = URI.file('/plugins/test-plugin/rules/rule-a.mdc');
+			const ruleUri2 = URI.file('/plugins/test-plugin/rules/rule-b.mdc');
+			const { plugin, instructions } = createPluginWithInstructions('/plugins/test-plugin', [
+				{ uri: ruleUri1, name: 'rule-a' },
+			]);
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const before = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const beforePlugin = before.filter(p => p.storage === PromptsStorage.plugin);
+			assert.strictEqual(beforePlugin.length, 1);
+
+			const eventFired = new Promise<void>(resolve => {
+				const disposable = service.onDidChangeInstructions(() => {
+					disposable.dispose();
+					resolve();
+				});
+			});
+
+			instructions.set([
+				{ uri: ruleUri1, name: 'rule-a' },
+				{ uri: ruleUri2, name: 'rule-b' },
+			], undefined);
+
+			await eventFired;
+
+			const after = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const afterPlugin = after.filter(p => p.storage === PromptsStorage.plugin);
+			assert.strictEqual(afterPlugin.length, 2);
+		});
+
+		test('removes instructions when plugin is removed', async function () {
+			const ruleUri = URI.file('/plugins/test-plugin/rules/rule-a.mdc');
+			const { plugin } = createPluginWithInstructions('/plugins/test-plugin', [
+				{ uri: ruleUri, name: 'rule-a' },
+			]);
+
+			testPluginsObservable.set([plugin], undefined);
+			const withPlugin = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			assert.ok(withPlugin.some(p => p.storage === PromptsStorage.plugin));
+
+			testPluginsObservable.set([], undefined);
+			const withoutPlugin = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			assert.ok(!withoutPlugin.some(p => p.storage === PromptsStorage.plugin));
+		});
+
+		test('namespaces plugin instruction names with plugin folder', async function () {
+			const ruleUri = URI.file('/plugins/deploy-tools/rules/lint-check.mdc');
+			const { plugin } = createPluginWithInstructions('/plugins/deploy-tools', [
+				{ uri: ruleUri, name: 'lint-check' },
+			]);
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const result = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const pluginInstruction = result.find(p => p.uri.toString() === ruleUri.toString());
+			assert.ok(pluginInstruction, 'Plugin instruction should be listed');
+			assert.strictEqual(pluginInstruction!.name, 'deploy-tools:lint-check');
 		});
 	});
 });
