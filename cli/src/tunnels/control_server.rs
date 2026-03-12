@@ -15,7 +15,7 @@ use crate::tunnels::socket_signal::CloseReason;
 use crate::update_service::{Platform, Release, TargetKind, UpdateService};
 use crate::util::command::new_tokio_command;
 use crate::util::errors::{
-	wrap, AnyError, CodeError, MismatchedLaunchModeError, NoAttachedServerError,
+	wrap, AnyError, CodeError, MismatchedLaunchModeError, NoAgentHostError, NoAttachedServerError,
 };
 use crate::util::http::{
 	DelegatedHttpRequest, DelegatedSimpleHttp, FallbackSimpleHttp, ReqwestSimpleHttp,
@@ -815,6 +815,7 @@ async fn handle_serve(
 		c.server_bridges.clone(),
 		params.socket_id,
 		params.compress,
+		params.with_agent_host,
 	)
 	.await?;
 	Ok(EmptyObject {})
@@ -827,7 +828,18 @@ async fn attach_server_bridge(
 	multiplexer: ServerMultiplexer,
 	socket_id: u16,
 	compress: bool,
+	with_agent_host: bool,
 ) -> Result<u16, AnyError> {
+	let socket_path = if with_agent_host {
+		code_server
+			.agent_host_socket
+			.as_deref()
+			.ok_or_else(|| AnyError::from(NoAgentHostError()))?
+			.to_owned()
+	} else {
+		code_server.socket.clone()
+	};
+
 	let (server_messages, decoder) = if compress {
 		(
 			ServerMessageSink::new_compressed(
@@ -848,7 +860,7 @@ async fn attach_server_bridge(
 		)
 	};
 
-	let attached_fut = ServerBridge::new(&code_server.socket, server_messages, decoder).await;
+	let attached_fut = ServerBridge::new(&socket_path, server_messages, decoder).await;
 	match attached_fut {
 		Ok(a) => {
 			multiplexer.register(socket_id, a);

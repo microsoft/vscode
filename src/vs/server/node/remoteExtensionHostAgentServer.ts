@@ -766,6 +766,16 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		console.log(`Web UI available at http://localhost${address.port === 80 ? '' : `:${address.port}`}${serverBasePath ?? ''}${queryPart}`);
 	}
 
+	if (args['agent-host-port'] || args['agent-host-path']) {
+		const tokenPart = connectionToken.type !== ServerConnectionTokenType.None ? `?${connectionTokenQueryName}=${connectionToken.value}` : '';
+		if (args['agent-host-path']) {
+			console.log(`Agent host available on socket ${args['agent-host-path']}`);
+		} else {
+			const agentHostHost = args.host || 'localhost';
+			console.log(`Agent host available at ws://${agentHostHost}:${args['agent-host-port']}${tokenPart}`);
+		}
+	}
+
 	const remoteExtensionHostAgentServer = instantiationService.createInstance(RemoteExtensionHostAgentServer, socketServer, connectionToken, vsdaMod, hasWebClient, serverBasePath);
 
 	perf.mark('code/server/ready');

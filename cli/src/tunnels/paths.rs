@@ -21,6 +21,18 @@ use crate::{
 
 pub const SERVER_FOLDER_NAME: &str = "server";
 
+/// In debug builds, checks the VSCODE_CLI_DEV_SERVER_PATH environment variable
+/// at runtime to allow pointing at a local server binary for development.
+#[cfg(debug_assertions)]
+pub fn dev_server_path() -> Option<PathBuf> {
+	std::env::var("VSCODE_CLI_DEV_SERVER_PATH").ok().map(PathBuf::from)
+}
+
+#[cfg(not(debug_assertions))]
+pub fn dev_server_path() -> Option<PathBuf> {
+	None
+}
+
 pub struct ServerPaths {
 	// Directory into which the server is downloaded
 	pub server_dir: PathBuf,
@@ -91,8 +103,9 @@ impl InstalledServer {
 	pub fn server_paths(&self, p: &LauncherPaths) -> ServerPaths {
 		let server_dir = self.get_install_folder(p);
 		ServerPaths {
-			// allow using the OSS server in development via an override
-			executable: if let Some(p) = option_env!("VSCODE_CLI_OVERRIDE_SERVER_PATH") {
+			executable: if let Some(p) = dev_server_path() {
+				p
+			} else if let Some(p) = option_env!("VSCODE_CLI_OVERRIDE_SERVER_PATH") {
 				PathBuf::from(p)
 			} else {
 				server_dir

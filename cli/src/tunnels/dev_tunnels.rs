@@ -5,13 +5,13 @@
 use super::protocol::{self, PortPrivacy, PortProtocol};
 use crate::auth;
 use crate::constants::{IS_INTERACTIVE_CLI, PROTOCOL_VERSION_TAG, TUNNEL_SERVICE_USER_AGENT};
+use crate::log;
 use crate::state::{LauncherPaths, PersistedState};
 use crate::util::errors::{
 	wrap, AnyError, CodeError, DevTunnelError, InvalidTunnelName, TunnelCreationFailed,
 	WrappedError,
 };
 use crate::util::input::prompt_placeholder;
-use crate::{debug, info, log, spanf, trace, warning};
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::{FutureExt, TryFutureExt};

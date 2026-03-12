@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
 	constants::VSCODE_CLI_UPDATE_ENDPOINT,
-	debug, log, options, spanf,
+	log, options,
 	util::{
 		errors::{wrap, AnyError, CodeError, WrappedError},
 		http::{BoxedHttp, SimpleResponse},

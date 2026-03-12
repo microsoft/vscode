@@ -75,6 +75,9 @@ pub struct ServeParams {
 	/// If true, the client and server should gzip servermsg's sent in either direction.
 	#[serde(default)]
 	pub compress: bool,
+	/// If true, connect to the agent host socket instead of the main server socket.
+	#[serde(default)]
+	pub with_agent_host: bool,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
