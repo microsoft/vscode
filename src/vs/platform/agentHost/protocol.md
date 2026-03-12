@@ -4,7 +4,7 @@
 
 > **Pre-production.** This protocol is under active development and is not shipped yet. Breaking changes to wire types, actions, and state shapes are fine — do not worry about backward compatibility until the protocol is in production. The versioning machinery exists for future use.
 
-For process architecture and IPC details, see [architecture.md](architecture.md). For design decisions, see [design.md](design.md). For the task backlog, see [backlog.md](backlog.md).
+For process architecture and IPC details, see [architecture.md](architecture.md). For design decisions, see [design.md](design.md).
 
 ## Goal
 

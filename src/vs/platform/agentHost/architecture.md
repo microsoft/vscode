@@ -2,13 +2,16 @@
 
 > **Keep this document in sync with the code.** If you change the IPC contract, add new event types, modify the process lifecycle, or restructure files, update this document as part of the same change.
 
-For design decisions, see [design.md](design.md). For the client-server state protocol, see [protocol.md](protocol.md). For the task backlog, see [backlog.md](backlog.md). For chat session wiring, see [sessions.md](sessions.md).
+For design decisions, see [design.md](design.md). For the client-server state protocol, see [protocol.md](protocol.md). For chat session wiring, see [sessions.md](sessions.md).
 
 ## Overview
 
-The agent host is a dedicated Electron **utility process** that runs the [Copilot SDK](https://github.com/github/copilot-sdk) (`@github/copilot-sdk`) in isolation. It follows the same pattern as the **pty host** (`src/vs/platform/terminal/`), communicating over **MessagePort** via the standard `ProxyChannel` IPC infrastructure.
+The agent host runs as either an Electron **utility process** (desktop) or a **standalone WebSocket server** (headless / development). It hosts agent backends (CopilotAgent, MockAgent) and exposes session state to clients through two communication layers:
 
-The renderer connects **directly** to the utility process via MessagePort (bypassing the main process for all agent service calls). A single workbench contribution (`AgentHostContribution`) discovers available agents from the agent host via `listAgents()` and dynamically registers each one as a chat session type with its own handler, list controller, and model provider.
+1. **MessagePort / ProxyChannel** (desktop only) -- the renderer connects directly to the utility process via MessagePort. `AgentHostServiceClient` proxies `IAgentService` methods and forwards action/notification events.
+2. **WebSocket / JSON-RPC protocol** (standalone server) -- multiple clients connect over WebSocket. Session state is synchronized via actions, subscriptions, and write-ahead reconciliation. See [protocol.md](protocol.md) for the full specification.
+
+In both modes, the server holds an authoritative state tree (`SessionStateManager`) mutated by actions flowing through pure reducers. Raw `IAgentProgressEvent`s from agent backends are mapped to state actions via `agentEventMapper.ts`.
 
 The entire feature is gated behind the `chat.agentHost.enabled` setting (default `false`). When disabled, the process is not spawned and no agents are registered.
 
@@ -16,24 +19,37 @@ The entire feature is gated behind the `chat.agentHost.enabled` setting (default
 
 ```
 +--------------------------------------------------------------+
-|  Renderer Window                                              |
+|  Renderer Window (Desktop)                                    |
 |                                                               |
 |  AgentHostContribution (discovers agents via listAgents())    |
 |    +-- per agent: SessionHandler, ListCtrl, LMProvider        |
+|    +-- SessionClientState (write-ahead reconciliation)        |
+|    +-- stateToProgressAdapter (state -> IChatProgress[])      |
 |                                                               |
 |  AgentHostServiceClient (IAgentHostService singleton)         |
 |    +-- ProxyChannel over delayed MessagePort                  |
-|        (URI.revive() applied to event payloads)               |
+|        (revive() applied to event payloads)                   |
 +---------------- MessagePort (direct) -------------------------+
 |  Agent Host Utility Process (agentHostMain.ts)                |
+|  -- or --                                                     |
+|  Standalone Server (agentHostServerMain.ts)                   |
 |                                                               |
-|  AgentService (IAgentService)                                 |
+|  SessionStateManager (server-authoritative state tree)        |
+|    +-- rootReducer / sessionReducer                           |
+|    +-- action envelope sequencing                             |
+|                                                               |
+|  ProtocolServerHandler (JSON-RPC routing, broadcasts)         |
+|    +-- per-client subscriptions, replay buffer                |
+|                                                               |
+|  Agent registry (Map<AgentProvider, IAgent>)                  |
 |    +-- CopilotAgent (id='copilot')                            |
 |    |     +-- CopilotClient (@github/copilot-sdk)              |
+|    +-- ScriptedMockAgent (id='mock', opt-in via flag)         |
 |                                                               |
-|  Exposed via ProxyChannel on AgentHostIpcChannels.AgentHost   |
+|  agentEventMapper.ts                                          |
+|    +-- IAgentProgressEvent -> ISessionAction mapping          |
 +---------------- UtilityProcess lifecycle ---------------------+
-|  Main Process                                                 |
+|  Main Process (Desktop only)                                  |
 |                                                               |
 |  ElectronAgentHostStarter (IAgentHostStarter)                 |
 |    +-- Spawns utility process, brokers MessagePort to windows |
@@ -45,19 +61,21 @@ The entire feature is gated behind the `chat.agentHost.enabled` setting (default
 ## File Layout
 
 ```
-src/vs/platform/agent/
+src/vs/platform/agentHost/
 +-- common/
 |   +-- agent.ts              # IAgentHostStarter, IAgentHostConnection (starter contract)
 |   +-- agentService.ts       # IAgent, IAgentService, IAgentHostService interfaces,
-|                              # IPC data types, AgentSession namespace (URI helpers),
+|                              # IPC data types, IAgentProgressEvent union,
+|                              # AgentSession namespace (URI helpers),
 |                              # AgentHostEnabledSettingId
 |   +-- state/
-|       +-- sessionState.ts        # Immutable state types (RootState, SessionState, Turn)
-|       +-- sessionActions.ts      # Action discriminated union + ActionEnvelope
+|       +-- sessionState.ts        # Immutable state types (RootState, SessionState, Turn, etc.)
+|       +-- sessionActions.ts      # Action discriminated union + ActionEnvelope + Notifications
 |       +-- sessionReducers.ts     # Pure reducer functions (rootReducer, sessionReducer)
-|       +-- sessionProtocol.ts     # Protocol messages (handshake, subscribe, reconnect)
-|       +-- sessionCapabilities.ts # Re-exports version constants + ProtocolCapabilities
+|       +-- sessionProtocol.ts     # JSON-RPC message types, request params/results
+|       +-- sessionCapabilities.ts # Version constants + ProtocolCapabilities
 |       +-- sessionClientState.ts  # Client-side state manager with write-ahead reconciliation
+|       +-- sessionTransport.ts    # IProtocolTransport / IProtocolServer abstractions
 |       +-- versions/
 |           +-- v1.ts              # v1 wire format types (tip -- editable, compiler-enforced compat)
 |           +-- versionRegistry.ts # Compile-time compat checks + runtime action->version map
@@ -66,19 +84,29 @@ src/vs/platform/agent/
 +-- electron-main/
 |   +-- electronAgentHostStarter.ts  # Spawns utility process, brokers MessagePort connections
 +-- node/
-    +-- agentHostMain.ts      # Entry point inside the utility process
-    +-- agentService.ts       # AgentService: dispatches to registered IAgent providers
-    +-- agentHostService.ts   # AgentHostProcessManager: lifecycle, crash recovery
-    +-- copilot/
-    |   +-- copilotAgent.ts       # CopilotAgent: IAgent backed by Copilot SDK
-    |   +-- copilotSessionWrapper.ts
-    |   +-- copilotToolDisplay.ts # Copilot-specific tool name -> display string mapping
+|   +-- agentHostMain.ts      # Entry point inside the Electron utility process
+|   +-- agentHostServerMain.ts # Entry point for standalone WebSocket server
+|   +-- agentService.ts       # AgentService: dispatches to registered IAgent providers
+|   +-- agentHostService.ts   # AgentHostProcessManager: lifecycle, crash recovery
+|   +-- agentEventMapper.ts   # Maps IAgentProgressEvent -> ISessionAction
+|   +-- sessionStateManager.ts # Server-authoritative state tree + reducer dispatch
+|   +-- protocolServerHandler.ts # JSON-RPC routing, client subscriptions, action broadcast
+|   +-- webSocketTransport.ts # WebSocket IProtocolTransport + IProtocolServer impl
+|   +-- nodeAgentHostStarter.ts # Node.js (non-Electron) starter
+|   +-- copilotSessionWrapper.ts # Copilot SDK session lifecycle wrapper
+|   +-- copilot/
+|       +-- copilotAgent.ts       # CopilotAgent: IAgent backed by Copilot SDK
+|       +-- copilotSessionWrapper.ts
+|       +-- copilotToolDisplay.ts # Copilot-specific tool name -> display string mapping
++-- test/
+    +-- (test files)
 
 src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/
 +-- agentHostChatContribution.ts      # AgentHostContribution: discovers agents, registers dynamically
 +-- agentHostLanguageModelProvider.ts # ILanguageModelChatProvider for SDK models
 +-- agentHostSessionHandler.ts        # AgentHostSessionHandler: generic, config-driven
 +-- agentHostSessionListController.ts # Lists persisted sessions from agent host
++-- stateToProgressAdapter.ts         # Converts protocol state -> IChatProgress[] for chat UI
 
 src/vs/workbench/contrib/chat/electron-browser/
 +-- chat.contribution.ts      # Desktop-only: registers AgentHostContribution
@@ -96,24 +124,31 @@ Sessions are identified by URIs where the **scheme is the provider name** and th
 
 The renderer uses UI resource schemes (`agent-host-copilot`) for session resources. The `AgentHostSessionHandler` converts these to provider URIs before IPC calls.
 
-## IPC Contract (`IAgentService`)
+## Communication Layers
 
-Methods proxied across MessagePort via `ProxyChannel`. URI arguments are auto-marshalled; event payload URIs require manual `URI.revive()` on the renderer side.
+### Layer 1: IAgent interface (internal)
+
+The `IAgent` interface in `agentService.ts` is what each agent backend implements. It fires `IAgentProgressEvent`s (raw SDK events) and exposes methods for session management:
 
 | Method | Description |
 |---|---|
-| `listAgents()` | Discover available agent backends (returns `IAgentDescriptor[]`) |
-| `setAuthToken(token)` | Push GitHub OAuth token for Copilot SDK auth |
-| `listModels()` | List available models from all providers |
-| `listSessions()` | List all persisted sessions from all providers |
 | `createSession(config?)` | Create a new session (returns session URI) |
-| `sendMessage(session, prompt)` | Send a user message into a session |
-| `getSessionMessages(session)` | Get session history for reconstruction |
-| `disposeSession(session)` | Dispose a session and free resources |
-| `shutdown()` | Gracefully shut down all sessions |
+| `sendMessage(session, prompt, attachments?)` | Send a user message |
+| `abortSession(session)` | Abort the current turn |
+| `respondToPermissionRequest(requestId, approved)` | Grant/deny a permission |
+| `getDescriptor()` | Return agent metadata |
+| `listModels()` | List available models |
+| `listSessions()` | List persisted sessions |
+| `setAuthToken(token)` | Set auth credentials |
+| `changeModel?(session, model)` | Change model for a session |
 
-Events:
-- `onDidSessionProgress`: streaming progress (`delta`, `message`, `idle`, `tool_start`, `tool_complete`). Each event carries a `session: URI`.
+### Layer 2: Sessions state protocol (client-facing)
+
+The server maps raw `IAgentProgressEvent`s to state actions via `agentEventMapper.ts`, dispatches them through `SessionStateManager`, and broadcasts to subscribed clients. See [protocol.md](protocol.md) for the full JSON-RPC specification, action types, state model, and versioning.
+
+### Layer 3: MessagePort relay (desktop renderer)
+
+`AgentHostServiceClient` in `electron-browser/agentHostService.ts` connects to the utility process via MessagePort and proxies `IAgentService` methods. It also forwards action envelopes and notifications as events so the renderer can feed them into `SessionClientState`.
 
 ## How It Works
 
@@ -130,6 +165,16 @@ The `chat.agentHost.enabled` setting (default `false`) controls the entire featu
 2. The utility process is **not** spawned until the first window requests a MessagePort connection.
 3. On start, the starter spawns the utility process with entry point `vs/platform/agent/node/agentHostMain`.
 4. Each renderer window gets its own MessagePort via `acquirePort('vscode:createAgentHostMessageChannel', ...)`.
+
+### Standalone Server Mode
+
+The agent host can also run as a standalone WebSocket server (`agentHostServerMain.ts`):
+
+```bash
+node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--enable-mock-agent]
+```
+
+This mode creates a `WebSocketProtocolServer` and `ProtocolServerHandler` directly without Electron. Useful for development and headless scenarios.
 
 ### Dynamic Agent Discovery
 
