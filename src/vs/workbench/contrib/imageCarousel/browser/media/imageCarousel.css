@@ -28,6 +28,11 @@
 	gap: 8px;
 }
 
+.image-carousel-editor .slideshow-container:focus,
+.image-carousel-editor .slideshow-container:focus-visible {
+	outline: none !important;
+}
+
 /* Image viewing area */
 .image-carousel-editor .image-area {
 	flex: 1;
@@ -129,6 +134,8 @@
 	transition: border-color 0.15s ease, opacity 0.15s ease;
 	flex-shrink: 0;
 	opacity: 0.6;
+	padding: 0;
+	background: none;
 }
 
 .image-carousel-editor .thumbnail:hover {

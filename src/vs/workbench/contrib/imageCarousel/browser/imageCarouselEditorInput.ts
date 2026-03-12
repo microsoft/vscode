@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
+import { IUntypedEditorInput } from '../../../common/editor.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IImageCarouselCollection } from './imageCarouselTypes.js';
 
-export class ImageCarouselEditorInput extends EditorInput implements ITextResourceEditorInput {
+export class ImageCarouselEditorInput extends EditorInput {
 	static readonly ID = 'workbench.input.imageCarousel';
 
 	private _resource: URI;
@@ -37,7 +37,7 @@ export class ImageCarouselEditorInput extends EditorInput implements ITextResour
 		return this.collection.title;
 	}
 
-	override matches(other: EditorInput | ITextResourceEditorInput): boolean {
+	override matches(other: EditorInput | IUntypedEditorInput): boolean {
 		if (other instanceof ImageCarouselEditorInput) {
 			return other.collection.id === this.collection.id;
 		}

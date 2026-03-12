@@ -52,17 +52,20 @@ export class ImageCarouselService extends Disposable implements IImageCarouselSe
 
 		const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 
+		const pushImage = (mimeType: string, data: VSBuffer) => {
+			images.push({
+				id: `${toolInvocation.toolCallId}_${images.length}`,
+				name: localize('imageCarousel.imageName', "Image {0}", images.length + 1),
+				mimeType,
+				data,
+				source: localize('imageCarousel.toolSource', "Tool: {0}", toolInvocation.toolId)
+			});
+		};
+
 		if (isToolResultInputOutputDetails(resultDetails)) {
 			for (const outputItem of resultDetails.output) {
 				if (outputItem.type === 'embed' && outputItem.mimeType?.startsWith('image/') && !outputItem.isText) {
-					const data = decodeBase64(outputItem.value);
-					images.push({
-						id: `${toolInvocation.toolCallId}_${images.length}`,
-						name: localize('imageCarousel.imageName', "Image {0}", images.length + 1),
-						mimeType: outputItem.mimeType,
-						data,
-						source: localize('imageCarousel.toolSource', "Tool: {0}", toolInvocation.toolId)
-					});
+					pushImage(outputItem.mimeType, decodeBase64(outputItem.value));
 				}
 			}
 		}
@@ -71,13 +74,7 @@ export class ImageCarouselService extends Disposable implements IImageCarouselSe
 			if (output.mimeType?.startsWith('image/')) {
 				const data = this.getImageDataFromOutputDetails(resultDetails, toolInvocation);
 				if (data) {
-					images.push({
-						id: `${toolInvocation.toolCallId}_${images.length}`,
-						name: localize('imageCarousel.imageName', "Image {0}", images.length + 1),
-						mimeType: output.mimeType,
-						data,
-						source: localize('imageCarousel.toolSource', "Tool: {0}", toolInvocation.toolId)
-					});
+					pushImage(output.mimeType, data);
 				}
 			}
 		}

@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, clearNode, Dimension, h } from '../../../../base/browser/dom.js';
+import { addDisposableListener, clearNode, Dimension, EventType, h } from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
@@ -127,13 +129,32 @@ export class ImageCarouselEditor extends EditorPane {
 			}
 		}));
 
+		// Keyboard navigation — handle locally and stop propagation
+		// so the modal editor's key handler does not block these keys
+		this._contentDisposables.add(addDisposableListener(elements.root, EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.LeftArrow) {
+				this.previous();
+				event.stopPropagation();
+				event.preventDefault();
+			} else if (event.keyCode === KeyCode.RightArrow) {
+				this.next();
+				event.stopPropagation();
+				event.preventDefault();
+			}
+		}));
+		elements.root.tabIndex = 0;
+
 		// Thumbnails
 		this._thumbnailElements = [];
 		for (let i = 0; i < this._images.length; i++) {
 			const image = this._images[i];
-			const thumbnail = h('div.thumbnail', [
+			const thumbnail = h('button.thumbnail@root', [
 				h('img.thumbnail-image@img'),
 			]);
+
+			const btn = thumbnail.root as HTMLButtonElement;
+			btn.ariaLabel = localize('imageCarousel.thumbnailLabel', "Image {0} of {1}", i + 1, this._images.length);
 
 			const img = thumbnail.img as HTMLImageElement;
 			const blob = new Blob([image.data.buffer.slice(0)], { type: image.mimeType });
@@ -142,13 +163,13 @@ export class ImageCarouselEditor extends EditorPane {
 			img.alt = image.name;
 			this._contentDisposables.add({ dispose: () => URL.revokeObjectURL(url) });
 
-			this._contentDisposables.add(addDisposableListener(thumbnail.root, 'click', () => {
+			this._contentDisposables.add(addDisposableListener(btn, 'click', () => {
 				this._currentIndex = i;
 				this.updateCurrentImage();
 			}));
 
-			this._elements.thumbnails.appendChild(thumbnail.root);
-			this._thumbnailElements.push(thumbnail.root);
+			this._elements.thumbnails.appendChild(btn);
+			this._thumbnailElements.push(btn);
 		}
 
 		this._container.appendChild(elements.root);
@@ -184,8 +205,29 @@ export class ImageCarouselEditor extends EditorPane {
 
 		// Update thumbnail selection
 		for (let i = 0; i < this._thumbnailElements.length; i++) {
-			this._thumbnailElements[i].classList.toggle('active', i === this._currentIndex);
+			const isActive = i === this._currentIndex;
+			this._thumbnailElements[i].classList.toggle('active', isActive);
+			this._thumbnailElements[i].setAttribute('aria-current', String(isActive));
 		}
+	}
+
+	previous(): void {
+		if (this._currentIndex > 0) {
+			this._currentIndex--;
+			this.updateCurrentImage();
+		}
+	}
+
+	next(): void {
+		if (this._currentIndex < this._images.length - 1) {
+			this._currentIndex++;
+			this.updateCurrentImage();
+		}
+	}
+
+	override focus(): void {
+		super.focus();
+		this._elements?.root.focus();
 	}
 
 	override layout(dimension: Dimension): void {
