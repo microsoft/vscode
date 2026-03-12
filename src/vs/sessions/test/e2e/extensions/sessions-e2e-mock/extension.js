@@ -102,23 +102,6 @@ function registerMockAuth(vscode) {
 function registerMockCommands(vscode) {
 	const disposables = [];
 
-	// Mock code review — returns canned review comments
-	disposables.push(vscode.commands.registerCommand(
-		'github.copilot.chat.codeReview.run',
-		(args) => {
-			console.log('[sessions-e2e-mock] Mock code review invoked', args);
-			const files = args?.files ?? [];
-			const comments = files.slice(0, 2).map((file, i) => ({
-				uri: file.currentUri,
-				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-				body: `Mock review comment ${i + 1}: Consider improving this code.`,
-				kind: 'suggestion',
-				severity: 'info',
-			}));
-			return { type: 'success', comments };
-		}
-	));
-
 	// Mock create PR — simulates successful PR creation
 	disposables.push(vscode.commands.registerCommand(
 		'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR',
@@ -178,7 +161,7 @@ function registerMockCommands(vscode) {
 		'github.copilot.chat.updateCopilotCLIAgentSessionChanges.update',
 		() => {
 			console.log('[sessions-e2e-mock] Mock Update Changes invoked');
-			vscode.window.showInformationMessage('Mock: Changes updated successfully');
+			vscode.window.showInformationMessage('Mock: Changes updated successfully',);
 		}
 	));
 
