@@ -80,7 +80,7 @@ suite('PromptsService', () => {
 		testConfigService.setUserConfiguration(PromptsConfig.USE_NESTED_AGENT_MD, false);
 		testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_REFERENCED_INSTRUCTIONS, true);
 		testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
-		testConfigService.setUserConfiguration(PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS, false);
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, false);
 		testConfigService.setUserConfiguration(PromptsConfig.INSTRUCTIONS_LOCATION_KEY, { [INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.PROMPT_LOCATIONS_KEY, { [PROMPT_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.MODE_LOCATION_KEY, { [LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true });
@@ -169,6 +169,7 @@ suite('PromptsService', () => {
 		instaService.stub(IContextKeyService, new MockContextKeyService());
 
 		workspaceTrustService = disposables.add(new TestWorkspaceTrustManagementService());
+		workspaceTrustService.getUriTrustInfo = (uri: URI) => Promise.resolve({ trusted: true, uri });
 		instaService.stub(IWorkspaceTrustManagementService, workspaceTrustService);
 
 		testPluginsObservable = observableValue<readonly IAgentPlugin[]>('testPlugins', []);
@@ -2046,6 +2047,156 @@ suite('PromptsService', () => {
 
 			// Restore original stub
 			instaService.stub(IContextKeyService, new MockContextKeyService());
+		});
+	});
+
+	suite('listPromptFiles - parent repo folder', () => {
+		test('should find prompts, instructions, and agents in a parent repo folder', async () => {
+			const parentFolder = '/repos/collect-prompt-parent-test';
+			const rootFolder = `${parentFolder}/repo`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				// .git in parent marks it as a repo root
+				{
+					path: `${parentFolder}/.git/HEAD`,
+					contents: ['ref: refs/heads/main'],
+				},
+				// Applying instruction in parent
+				{
+					path: `${parentFolder}/.github/instructions/typescript.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Parent TypeScript instructions\'',
+						'applyTo: "**/*.ts"',
+						'---',
+						'Parent TypeScript coding standards',
+					]
+				},
+				// Prompt file in parent
+				{
+					path: `${parentFolder}/.github/prompts/help.prompt.md`,
+					contents: [
+						'---',
+						'description: \'Parent help prompt\'',
+						'---',
+						'Help the user with their question',
+					]
+				},
+				// Agent file in parent
+				{
+					path: `${parentFolder}/.github/agents/reviewer.agent.md`,
+					contents: [
+						'---',
+						'description: \'Parent code reviewer agent\'',
+						'---',
+						'You are a code reviewer',
+					]
+				},
+				{
+					path: `${rootFolder}/src/file.ts`,
+					contents: ['console.log("test");'],
+				},
+			]);
+
+			testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, false);
+
+			// With parent search disabled, should not find parent files
+			let promptFiles = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+			let agentFiles = await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+			let instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+
+			assert.ok(!promptFiles.some(f => f.uri.path.includes(parentFolder)), 'Should not find parent prompt files when parent search is disabled');
+			assert.ok(!agentFiles.some(f => f.uri.path.includes(parentFolder)), 'Should not find parent agent files when parent search is disabled');
+			assert.ok(!instructionFiles.some(f => f.uri.path.includes(parentFolder)), 'Should not find parent instruction files when parent search is disabled');
+
+			// With parent search enabled, should find parent files
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+
+			promptFiles = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+			agentFiles = await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+			instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+
+			const promptPaths = promptFiles.map(f => f.uri.path);
+			const agentPaths = agentFiles.map(f => f.uri.path);
+			const instructionPaths = instructionFiles.map(f => f.uri.path);
+
+			assert.ok(promptPaths.includes(`${parentFolder}/.github/prompts/help.prompt.md`), 'Should find parent prompt file when parent search is enabled');
+			assert.ok(agentPaths.includes(`${parentFolder}/.github/agents/reviewer.agent.md`), 'Should find parent agent file when parent search is enabled');
+			assert.ok(instructionPaths.includes(`${parentFolder}/.github/instructions/typescript.instructions.md`), 'Should find parent instruction file when parent search is enabled');
+		});
+
+		test('should not find files in an untrusted parent repo folder', async () => {
+			const parentFolder = '/repos/untrusted-parent-test';
+			const rootFolder = `${parentFolder}/repo`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				// .git in parent marks it as a repo root
+				{
+					path: `${parentFolder}/.git/HEAD`,
+					contents: ['ref: refs/heads/main'],
+				},
+				// Applying instruction in parent
+				{
+					path: `${parentFolder}/.github/instructions/typescript.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Parent TypeScript instructions\'',
+						'applyTo: "**/*.ts"',
+						'---',
+						'Parent TypeScript coding standards',
+					]
+				},
+				// Prompt file in parent
+				{
+					path: `${parentFolder}/.github/prompts/help.prompt.md`,
+					contents: [
+						'---',
+						'description: \'Parent help prompt\'',
+						'---',
+						'Help the user with their question',
+					]
+				},
+				// Agent file in parent
+				{
+					path: `${parentFolder}/.github/agents/reviewer.agent.md`,
+					contents: [
+						'---',
+						'description: \'Parent code reviewer agent\'',
+						'---',
+						'You are a code reviewer',
+					]
+				},
+				{
+					path: `${rootFolder}/src/file.ts`,
+					contents: ['console.log("test");'],
+				},
+			]);
+
+			testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+
+			// Mark the parent repo root as untrusted
+			workspaceTrustService.getUriTrustInfo = (uri: URI) => {
+				if (uri.path === parentFolder) {
+					return Promise.resolve({ trusted: false, uri });
+				}
+				return Promise.resolve({ trusted: true, uri });
+			};
+
+			const promptFiles = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+			const agentFiles = await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+
+			assert.ok(!promptFiles.some(f => f.uri.path.includes(parentFolder)), 'Should not find parent prompt files when parent repo is untrusted');
+			assert.ok(!agentFiles.some(f => f.uri.path.includes(parentFolder)), 'Should not find parent agent files when parent repo is untrusted');
+			assert.ok(!instructionFiles.some(f => f.uri.path.includes(parentFolder)), 'Should not find parent instruction files when parent repo is untrusted');
 		});
 	});
 

@@ -136,9 +136,9 @@ export namespace PromptsConfig {
 	export const INCLUDE_REFERENCED_INSTRUCTIONS = 'chat.includeReferencedInstructions';
 
 	/**
-	 * Search for configuration files in parent folders of the workspace folder
+	 * Search for configuration files in parent repositories of the workspace folder
 	 */
-	export const SEARCH_ROOT_REPO_CUSTOMIZATIONS = 'chat.searchRootRepositoryCustomizations';
+	export const USE_CUSTOMIZATIONS_IN_PARENT_REPOS = 'chat.useCustomizationsInParentRepositories';
 
 	/**
 	 * Get value of the `reusable prompt locations` configuration setting.

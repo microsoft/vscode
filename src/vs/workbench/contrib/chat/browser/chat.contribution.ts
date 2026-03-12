@@ -995,10 +995,10 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions']
 		},
-		[PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS]: {
+		[PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS]: {
 			type: 'boolean',
-			title: nls.localize('chat.searchRootRepositoryCustomizations.title', "Search Root Repository Customizations",),
-			markdownDescription: nls.localize('chat.searchRootRepositoryCustomizations.description', "Controls whether configuration files should be searched in parent folders of the workspace folder if the parent folder are repositories.",),
+			title: nls.localize('chat.useCustomizationsInParentRepos.title', "Use Customizations in Parent Repositories",),
+			markdownDescription: nls.localize('chat.useCustomizationsInParentRepos.description', "Controls whether to use chat customization files in parent repositories.",),
 			default: false,
 			restricted: true,
 			disallowConfigurationDefault: true,
