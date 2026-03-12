@@ -2,22 +2,21 @@
 
 > **Keep this document in sync with the code.** Any change to the agent-host protocol, tool rendering approach, or architectural boundaries must be reflected here. If you add a new `toolKind`, change how tool-specific data is populated, or modify the separation between agent-specific and generic code, update this document as part of the same change.
 
-Design decisions and principles for the agent-host feature. For process architecture and IPC details, see [architecture.md](architecture.md). For the client-server state protocol, see [protocol.md](protocol.md). For the task backlog, see [backlog.md](backlog.md).
+Design decisions and principles for the agent-host feature. For process architecture and IPC details, see [architecture.md](architecture.md). For the client-server state protocol, see [protocol.md](protocol.md).
 
 ## Agent-agnostic protocol
 
-**The IPC protocol between the agent-host process and the renderer must remain agent-agnostic.** This is a hard rule.
+**The protocol between the agent-host process and clients must remain agent-agnostic.** This is a hard rule.
 
-The renderer-side code (contributions in `agentHost/` and the `AgentHostSessionHandler`) must never contain knowledge of specific agent tool names, parameter shapes, or SDK-specific behavior. It consumes display-ready fields from the protocol and renders them generically.
+There are two protocol layers:
 
-All agent-specific logic -- translating tool names like `shell`/`view`/`grep` into display strings, extracting command lines from tool parameters, determining rendering hints like `toolKind: 'terminal'` -- lives exclusively in the agent-host process layer (`src/vs/platform/agent/node/`), specifically in `copilotToolDisplay.ts` (for Copilot).
+1. **`IAgent` interface** (`common/agentService.ts`) - the internal interface that each agent backend (CopilotAgent, MockAgent) implements. It fires `IAgentProgressEvent`s (raw SDK events: `delta`, `tool_start`, `tool_complete`, etc.). This layer is agent-specific.
 
-What this means concretely:
+2. **Sessions state protocol** (`common/state/`) - the client-facing protocol. The server maps raw `IAgentProgressEvent`s into state actions (`session/delta`, `session/toolStart`, etc.) via `agentEventMapper.ts`. Clients receive immutable state snapshots and action streams via JSON-RPC over WebSocket or MessagePort. **This layer is agent-agnostic.**
 
-- `IAgentToolStartEvent` carries `displayName`, `invocationMessage`, `toolInput`, and `toolKind` -- all computed by the agent-host from SDK-specific data.
-- `IAgentToolCompleteEvent` carries `pastTenseMessage` and `toolOutput` -- also computed agent-side.
-- The renderer creates `ChatToolInvocation` objects and `toolSpecificData` (e.g., `IChatTerminalToolInvocationData`) purely from these protocol fields.
-- If we add a new agent provider, only the agent-host process code needs to change. The renderer and the protocol shape stay the same.
+All agent-specific logic -- translating tool names like `bash`/`view`/`grep` into display strings, extracting command lines from tool parameters, determining rendering hints like `toolKind: 'terminal'` -- lives in `copilotToolDisplay.ts` inside the agent-host process. These display-ready fields are carried on `IAgentToolStartEvent`/`IAgentToolCompleteEvent`, which `agentEventMapper.ts` then maps into `session/toolStart` and `session/toolComplete` state actions.
+
+Clients (renderers) never see agent-specific tool names. They consume `IToolCallState` and `ICompletedToolCall` from the session state tree, which carry generic display-ready fields (`displayName`, `invocationMessage`, `toolKind`, etc.).
 
 ## Provider-agnostic renderer contributions
 
@@ -33,18 +32,20 @@ interface IAgentHostSessionHandlerConfig {
 }
 ```
 
-Adding a new provider means adding a new `IAgent` implementation in the utility process and a new contribution class in the renderer that creates an `AgentHostSessionHandler` with the right config. No changes needed to the handler, list controller, or model provider.
+A single `AgentHostContribution` discovers agents via `listAgents()` and dynamically registers each one. Adding a new provider means adding a new `IAgent` implementation in the server process. No changes needed to the handler, list controller, or model provider.
 
-## Tool rendering
+## State-based rendering
 
-Tools from the agent-host render using the same UI components as VS Code's native chat agent. The protocol carries enough information for the renderer to choose the right rendering without knowing tool names:
+The renderer subscribes to session state via `SessionClientState` (write-ahead reconciliation) and converts immutable state changes to `IChatProgress[]` via `stateToProgressAdapter.ts`. This adapter is the only place that inspects protocol state fields like `toolKind`:
 
-- **Shell commands** (`toolKind: 'terminal'`): Rendered as `IChatTerminalToolInvocationData` with the command in a syntax-highlighted code block, output displayed below, and exit code for success/failure styling. The renderer checks `toolKind === 'terminal'` and `toolInput` to decide this -- it never checks the tool name.
-- **Everything else**: Rendered via `ChatToolProgressSubPart` using `invocationMessage` (while running) and `pastTenseMessage` (when complete). No `toolSpecificData` is set -- the standard progress/completion UI handles it.
+- **Shell commands** (`toolKind: 'terminal'`): Converted to `IChatTerminalToolInvocationData` with the command in a syntax-highlighted code block, output displayed below, and exit code for success/failure styling.
+- **Everything else**: Converted to `ChatToolInvocation` using `invocationMessage` (while running) and `pastTenseMessage` (when complete).
+
+The adapter never checks tool names - it operates purely on the generic state fields.
 
 ## Copilot SDK tool name mapping
 
-The Copilot CLI uses these built-in tools. Tool names and parameter shapes are not typed in the SDK (`toolName` is `string`) -- they come from the CLI server. The interfaces in `copilotToolDisplay.ts` are derived from observing actual CLI events.
+The Copilot CLI uses built-in tools. Tool names and parameter shapes are not typed in the SDK (`toolName` is `string`) - they come from the CLI server. The interfaces in `copilotToolDisplay.ts` are derived from observing actual CLI events.
 
 | SDK tool name | Display name | Rendering |
 |---|---|---|
@@ -59,14 +60,11 @@ The Copilot CLI uses these built-in tools. Tool names and parameter shapes are n
 
 This mapping lives in `copilotToolDisplay.ts` and is the only place that knows about Copilot-specific tool names.
 
-## Model ownership -- open question
+## Model ownership
 
-When using the agent-host, do we need VS Code's own Copilot model access at all, or does everything flow through the SDK? Key questions:
+The SDK makes its own LM requests using the GitHub token. VS Code does not make direct LM calls for agent-host sessions.
 
-- **Does VS Code need independent model access?** The SDK makes its own LM requests using the GitHub token. If all agent-host interactions go through the SDK, VS Code never directly calls a model.
-- **Can the model lists diverge?** The SDK's available models depend on the CLI version and server-side configuration.
-- **What about BYOK?** The SDK doesn't support custom endpoints. Agent-host sessions should only show SDK models, not BYOK models.
-- **Current approach:** Each provider contribution registers an `AgentHostLanguageModelProvider` that exposes SDK models in the picker. The selected model ID is passed to `createSession({ model })`. The `sendChatRequest` method throws -- agent-host models aren't usable for direct LM calls, only for the agent loop.
+Each agent's models are published to root state via the `root/agentsChanged` action. The renderer's `AgentHostLanguageModelProvider` exposes these in the model picker. The selected model ID is passed to `createSession({ model })`. The `sendChatRequest` method throws - agent-host models aren't usable for direct LM calls, only for the agent loop.
 
 ## Setting gate
 
@@ -75,10 +73,6 @@ The entire feature is controlled by `chat.agentHost.enabled` (default `false`), 
 - The renderer does not connect via MessagePort
 - No agents, sessions, or model providers are registered
 - No agent-host entries appear in the UI
-
-## Separate contributions per provider
-
-Each agent provider (Copilot) has its own independent workbench contribution class. Providers can be added, removed, or modified independently without affecting each other.
 
 ## Multi-client state synchronization
 

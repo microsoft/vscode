@@ -6,6 +6,13 @@
 // Standalone agent host server with WebSocket protocol transport.
 // Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--enable-mock-agent]
 
+import { fileURLToPath } from 'url';
+
+// This standalone process isn't bootstrapped via bootstrap-esm.ts, so we must
+// set _VSCODE_FILE_ROOT ourselves so that FileAccess can resolve module paths.
+// This file lives at out/vs/platform/agentHost/node/ - the root is `out/`.
+globalThis._VSCODE_FILE_ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
+
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';

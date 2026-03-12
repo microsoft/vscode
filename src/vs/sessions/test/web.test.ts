@@ -22,7 +22,7 @@ import { URI } from '../../base/common/uri.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/common/contributions.js';
 import { IChatProgress } from '../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService, IChatSessionItem, IChatSessionFileChange, ChatSessionStatus, IChatSessionHistoryItem } from '../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService, IChatSessionItem, IChatSessionFileChange, ChatSessionStatus, IChatSessionHistoryItem, IChatSessionItemsDelta } from '../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IGitService, IGitExtensionDelegate, IGitRepository } from '../../workbench/contrib/git/common/gitService.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -228,7 +228,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 	static readonly ID = 'sessions.test.mockChatAgent';
 
 	private readonly _sessionItems: IChatSessionItem[] = [];
-	private readonly _itemsChangedEmitter = new Emitter<void>();
+	private readonly _itemsChangedEmitter = new Emitter<IChatSessionItemsDelta>();
 	private readonly _sessionHistory = new Map<string, IChatSessionHistoryItem[]>();
 
 	constructor(
@@ -273,6 +273,7 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 
 		// Add or update session in list
 		const existing = this._sessionItems.find(s => s.resource.toString() === key);
+		let addedOrUpdated: IChatSessionItem | undefined = existing;
 		if (existing) {
 			existing.timing.lastRequestStarted = now;
 			existing.timing.lastRequestEnded = now;
@@ -280,15 +281,19 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 				existing.changes = changes;
 			}
 		} else {
-			this._sessionItems.push({
+			addedOrUpdated = {
 				resource,
 				label: message.slice(0, 50) || 'Mock Session',
 				status: ChatSessionStatus.Completed,
 				timing: { created: now, lastRequestStarted: now, lastRequestEnded: now },
 				...(changes ? { changes } : {}),
-			});
+			};
+			this._sessionItems.push(addedOrUpdated);
 		}
-		this._itemsChangedEmitter.fire();
+
+		if (addedOrUpdated) {
+			this._itemsChangedEmitter.fire({ addedOrUpdated: [addedOrUpdated] });
+		}
 	}
 
 	private registerMockAgents(): void {

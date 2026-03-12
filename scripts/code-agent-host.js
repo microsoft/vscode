@@ -41,7 +41,7 @@ function startServer(programArgs) {
 			'out',
 			'vs',
 			'platform',
-			'agent',
+			'agentHost',
 			'node',
 			'agentHostServerMain.js',
 		);

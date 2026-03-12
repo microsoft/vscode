@@ -61,7 +61,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	override async refreshModels(): Promise<void> { }
 
-	override async createSession(): Promise<URI> {
+	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
+		if (config) {
+			this.createSessionCalls.push(config);
+		}
 		const id = `sdk-session-${this._nextId++}`;
 		const session = AgentSession.uri('copilot', id);
 		this._sessions.set(id, { session, startTime: Date.now(), modifiedTime: Date.now() });

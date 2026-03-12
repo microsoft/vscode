@@ -77,7 +77,7 @@ suite('AgentSessions', () => {
 
 		test('should resolve sessions from controllers', async () => {
 			return runWithFakedTimers({}, async () => {
-				const chatSessionType = 'test-type';
+				const chatSessionType = chatSessionTestType;
 				const controller = new StaticChatSessionItemController([
 					makeSimpleSessionItem('session-1', {
 						label: 'Test Session 1'
@@ -93,9 +93,9 @@ suite('AgentSessions', () => {
 				await viewModel.resolve(undefined);
 
 				assert.strictEqual(viewModel.sessions.length, 2);
-				assert.strictEqual(viewModel.sessions[0].resource.toString(), 'test://session-1');
+				assert.strictEqual(viewModel.sessions[0].resource.toString(), `${chatSessionTestType}://session-1`);
 				assert.strictEqual(viewModel.sessions[0].label, 'Test Session 1');
-				assert.strictEqual(viewModel.sessions[1].resource.toString(), 'test://session-2');
+				assert.strictEqual(viewModel.sessions[1].resource.toString(), `${chatSessionTestType}://session-2`);
 				assert.strictEqual(viewModel.sessions[1].label, 'Test Session 2');
 			});
 		});
@@ -114,8 +114,8 @@ suite('AgentSessions', () => {
 				await viewModel.resolve(undefined);
 
 				assert.strictEqual(viewModel.sessions.length, 2);
-				assert.strictEqual(viewModel.sessions[0].resource.toString(), 'test://session-1');
-				assert.strictEqual(viewModel.sessions[1].resource.toString(), 'test://session-2');
+				assert.strictEqual(viewModel.sessions[0].resource.toString(), `${chatSessionTestType}://session-1`);
+				assert.strictEqual(viewModel.sessions[1].resource.toString(), `${chatSessionTestType}://session-2`);
 			});
 		});
 
@@ -123,7 +123,7 @@ suite('AgentSessions', () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = createViewModel();
 
 				let willResolveFired = false;
@@ -150,7 +150,7 @@ suite('AgentSessions', () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = createViewModel();
 
 				let sessionsChangedFired = false;
@@ -180,7 +180,7 @@ suite('AgentSessions', () => {
 					changes: { files: 1, insertions: 10, deletions: 5 }
 				}]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = createViewModel();
 
 				await viewModel.resolve(undefined);
@@ -241,7 +241,7 @@ suite('AgentSessions', () => {
 
 		test('should respond to onDidChangeItemsProviders event', async () => {
 			return runWithFakedTimers({}, async () => {
-				const chatSessionType = 'test-type';
+				const chatSessionType = chatSessionTestType;
 				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
 
 				mockChatSessionsService.registerChatSessionItemController(chatSessionType, controller);
@@ -263,7 +263,7 @@ suite('AgentSessions', () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = createViewModel();
 
 				const sessionsChangedPromise = Event.toPromise(viewModel.onDidChangeSessions);
@@ -280,15 +280,16 @@ suite('AgentSessions', () => {
 
 		test('should respond to onDidChangeSessionItems event', async () => {
 			return runWithFakedTimers({}, async () => {
-				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+				const testSession = makeSimpleSessionItem('session-1');
+				const controller = new StaticChatSessionItemController([testSession]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = createViewModel();
 
 				const sessionsChangedPromise = Event.toPromise(viewModel.onDidChangeSessions);
 
 				// Trigger event - this should automatically call resolve
-				mockChatSessionsService.fireDidChangeSessionItems('test-type');
+				mockChatSessionsService.fireDidChangeSessionItems({ addedOrUpdated: [testSession] });
 
 				// Wait for the sessions to be resolved
 				await sessionsChangedPromise;
@@ -301,13 +302,13 @@ suite('AgentSessions', () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = createViewModel();
 
 				await viewModel.resolve(undefined);
 
 				assert.strictEqual(viewModel.sessions.length, 1);
-				assert.strictEqual(viewModel.sessions[0].providerType, 'test-type');
+				assert.strictEqual(viewModel.sessions[0].providerType, chatSessionTestType);
 			});
 		});
 
@@ -315,7 +316,7 @@ suite('AgentSessions', () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = createViewModel();
 
 				await viewModel.resolve(undefined);
@@ -347,7 +348,7 @@ suite('AgentSessions', () => {
 					}
 				]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = createViewModel();
 
 				await viewModel.resolve(undefined);
@@ -375,7 +376,7 @@ suite('AgentSessions', () => {
 					get items() { return _items; }
 				};
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = createViewModel();
 
 				await viewModel.resolve(undefined);
@@ -415,7 +416,7 @@ suite('AgentSessions', () => {
 					timing: makeNewSessionTiming()
 				}]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = createViewModel();
 
 				await viewModel.resolve(undefined);
@@ -437,7 +438,7 @@ suite('AgentSessions', () => {
 					}
 				};
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				// Registering calls a refresh initially
 				assert.strictEqual(controllerCallCount, 1);
 
@@ -669,7 +670,7 @@ suite('AgentSessions', () => {
 
 		function createSession(overrides: Partial<IAgentSession> = {}): IAgentSession {
 			return {
-				providerType: 'test-type',
+				providerType: chatSessionTestType,
 				providerLabel: 'Test Provider',
 				icon: Codicon.chatSparkle,
 				resource: URI.parse('test://session'),
@@ -1214,7 +1215,7 @@ suite('AgentSessions', () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1236,7 +1237,7 @@ suite('AgentSessions', () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1256,7 +1257,7 @@ suite('AgentSessions', () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1284,7 +1285,7 @@ suite('AgentSessions', () => {
 					timing: makeNewSessionTiming()
 				}]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1303,7 +1304,7 @@ suite('AgentSessions', () => {
 					timing: makeNewSessionTiming()
 				}]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1358,7 +1359,7 @@ suite('AgentSessions', () => {
 					timing: futureSessionTiming,
 				}]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1379,7 +1380,7 @@ suite('AgentSessions', () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1401,7 +1402,7 @@ suite('AgentSessions', () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1424,7 +1425,7 @@ suite('AgentSessions', () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1455,7 +1456,7 @@ suite('AgentSessions', () => {
 					timing: oldSessionTiming,
 				}]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1480,7 +1481,7 @@ suite('AgentSessions', () => {
 					timing: newSessionTiming,
 				}]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1506,7 +1507,7 @@ suite('AgentSessions', () => {
 					timing: sessionTiming,
 				}]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1532,7 +1533,7 @@ suite('AgentSessions', () => {
 					timing: sessionTiming,
 				}]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1557,7 +1558,7 @@ suite('AgentSessions', () => {
 					timing: newSessionTiming,
 				}]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1590,7 +1591,7 @@ suite('AgentSessions', () => {
 					timing: newSessionTiming,
 				}]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1629,7 +1630,7 @@ suite('AgentSessions', () => {
 					timing: newSessionTiming,
 				}]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1659,7 +1660,7 @@ suite('AgentSessions', () => {
 					lastRequestEnded: Date.UTC(2025, 10 /* November */, 2),
 				};
 
-				const chatSessionType = 'test-type';
+				const chatSessionType = chatSessionTestType;
 				const controller = new StaticChatSessionItemController([{
 					resource: URI.parse('test://old-session'),
 					label: 'Old Session',
@@ -1727,7 +1728,7 @@ suite('AgentSessions', () => {
 					get items() { return _items; }
 				};
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1757,7 +1758,7 @@ suite('AgentSessions', () => {
 					get items() { return _items; }
 				};
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				await viewModel.resolve(undefined);
@@ -1967,7 +1968,7 @@ suite('AgentSessions', () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
 
-				mockChatSessionsService.registerChatSessionItemController('test-type', controller);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
 				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
 
 				// Set willShutdown to true
@@ -2018,9 +2019,11 @@ suite('AgentSessions', () => {
 
 }); // End of Agent Sessions suite
 
+const chatSessionTestType = 'test-type';
+
 function makeSimpleSessionItem(id: string, overrides?: Partial<IChatSessionItem>): IChatSessionItem {
 	return {
-		resource: URI.parse(`test://${id}`),
+		resource: URI.parse(`${chatSessionTestType}://${id}`),
 		label: `Session ${id}`,
 		timing: makeNewSessionTiming(),
 		...overrides

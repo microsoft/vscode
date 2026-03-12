@@ -43,8 +43,6 @@ const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
-const useVersionedUpdate = process.platform === 'win32' && (product as typeof product & { win32VersionedUpdate?: boolean })?.win32VersionedUpdate;
-const versionedResourcesFolder = useVersionedUpdate ? commit!.substring(0, 10) : '';
 
 // Build
 const vscodeEntryPoints = [
@@ -319,12 +317,50 @@ function computeChecksum(filename: string): string {
 	return hash;
 }
 
+const copilotPlatforms = [
+	'darwin-arm64', 'darwin-x64',
+	'linux-arm64', 'linux-x64',
+	'win32-arm64', 'win32-x64',
+];
+
+/**
+ * Returns a glob filter that strips @github/copilot platform packages and
+ * prebuilt native modules for architectures other than the build target.
+ * On stable builds, all copilot SDK dependencies are stripped entirely.
+ */
+function getCopilotExcludeFilter(platform: string, arch: string, quality: string | undefined): string[] {
+	const targetPlatformArch = `${platform}-${arch}`;
+	const nonTargetPlatforms = copilotPlatforms.filter(p => p !== targetPlatformArch);
+
+	const excludes = [
+		// Strip @github/copilot platform packages for wrong architectures
+		...nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot-${p}/**`),
+		// Strip all prebuilt native modules from @github/copilot. The platform-specific
+		// packages (@github/copilot-{platform}) provide the correct native modules.
+		// These prebuilds have system deps (e.g. libsecret) not in the build sysroot,
+		// causing dpkg-shlibdeps failures. Covers nested copies under copilot-sdk too.
+		'!**/node_modules/@github/copilot/prebuilds/**',
+	];
+
+	// Strip agent host SDK dependencies entirely from stable builds
+	if (quality === 'stable') {
+		excludes.push(
+			'!**/node_modules/@github/copilot/**',
+			'!**/node_modules/@github/copilot-sdk/**',
+			'!**/node_modules/@github/copilot-*/**',
+		);
+	}
+
+	return ['**', ...excludes];
+}
+
 function packageTask(platform: string, arch: string, sourceFolderName: string, destinationFolderName: string, _opts?: { stats?: boolean }) {
 	const destination = path.join(path.dirname(root), destinationFolderName);
 	platform = platform || process.platform;
 
 	const task = () => {
 		const out = sourceFolderName;
+		const versionedResourcesFolder = util.getVersionedResourcesFolder(platform, commit!);
 
 		const checksums = computeChecksums(out, [
 			'vs/base/parts/sandbox/electron-browser/preload.js',
@@ -437,29 +473,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(filter(depFilterPattern))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
-			.pipe(filter((() => {
-				// Strip @github/copilot platform packages for wrong architectures.
-				const copilotPlatforms = [
-					'darwin-arm64', 'darwin-x64',
-					'linux-arm64', 'linux-x64',
-					'win32-arm64', 'win32-x64',
-				];
-				const targetPlatformArch = `${platform}-${arch}`;
-				const excludes = copilotPlatforms
-					.filter(p => p !== targetPlatformArch)
-					.map(p => `!**/node_modules/@github/copilot-${p}/**`);
-
-				// Strip agent host SDK dependencies entirely from stable builds
-				if (quality === 'stable') {
-					excludes.push(
-						'!**/node_modules/@github/copilot/**',
-						'!**/node_modules/@github/copilot-sdk/**',
-						'!**/node_modules/@github/copilot-*/**',
-					);
-				}
-
-				return ['**', ...excludes];
-			})()))
+			.pipe(filter(getCopilotExcludeFilter(platform, arch, quality)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)
@@ -552,10 +566,12 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			platform,
 			arch: arch === 'armhf' ? 'arm' : arch,
 			ffmpegChromium: false,
+			darwinAssetsCar: 'resources/darwin/code.car',
 			...(embedded ? {
 				darwinMiniAppName: embedded.nameShort,
 				darwinMiniAppBundleIdentifier: embedded.darwinBundleIdentifier,
 				darwinMiniAppIcon: 'resources/darwin/sessions.icns',
+				darwinMiniAppAssetsCar: 'resources/darwin/sessions.car',
 				darwinMiniAppBundleURLTypes: [{
 					role: 'Viewer',
 					name: embedded.nameLong,
@@ -592,7 +608,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		if (platform === 'win32') {
 			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32', allowEmpty: true }));
 
-			if (useVersionedUpdate) {
+			if (versionedResourcesFolder) {
 				result = es.merge(result, gulp.src('resources/win32/versioned/bin/code.cmd', { base: 'resources/win32/versioned' })
 					.pipe(replace('@@NAME@@', product.nameShort))
 					.pipe(replace('@@VERSIONFOLDER@@', versionedResourcesFolder))
@@ -670,6 +686,7 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 	const cwd = path.join(path.dirname(root), destinationFolderName);
 
 	return async () => {
+		const versionedResourcesFolder = util.getVersionedResourcesFolder('win32', commit!);
 		const deps = (await Promise.all([
 			glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' }),
 			glob('**/rg.exe', { cwd }),
