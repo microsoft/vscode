@@ -440,12 +440,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	async handleToolStream(context: IToolInvocationStreamContext, _token: CancellationToken): Promise<IStreamedToolInvocation | undefined> {
 		const partialInput = context.rawInput as Partial<IRunInTerminalInputParams> | undefined;
 		if (partialInput && typeof partialInput === 'object' && partialInput.command) {
-			const command = partialInput.command.length > 80
-				? partialInput.command.substring(0, 77) + '...'
-				: partialInput.command;
+			const normalizedCommand = partialInput.command.replace(/\r\n|\r|\n/g, ' ');
+			const truncatedCommand = normalizedCommand.length > 80
+				? normalizedCommand.substring(0, 77) + '...'
+				: normalizedCommand;
+			const escapedCommand = escapeMarkdownSyntaxTokens(truncatedCommand);
 			const invocationMessage = partialInput.isBackground
-				? new MarkdownString(localize('runInTerminal.streaming.background', "Running `{0}` in background", command))
-				: new MarkdownString(localize('runInTerminal.streaming', "Running `{0}`", command));
+				? new MarkdownString(localize('runInTerminal.streaming.background', "Running `{0}` in background", escapedCommand))
+				: new MarkdownString(localize('runInTerminal.streaming', "Running `{0}`", escapedCommand));
 			return { invocationMessage };
 		}
 		return { invocationMessage: localize('runInTerminal.streaming.default', "Running command") };
@@ -698,12 +700,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			terminalCustomActions: customActions,
 		} : undefined;
 
-		const displayCommand = (toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).length > 80
-			? (toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).substring(0, 77) + '...'
-			: (toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original);
+		const rawDisplayCommand = toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
+		const displayCommand = rawDisplayCommand.length > 80
+			? rawDisplayCommand.substring(0, 77) + '...'
+			: rawDisplayCommand;
+		const escapedDisplayCommand = escapeMarkdownSyntaxTokens(displayCommand);
 		const invocationMessage = args.isBackground
-			? new MarkdownString(localize('runInTerminal.invocation.background', "Running `{0}` in background", displayCommand))
-			: new MarkdownString(localize('runInTerminal.invocation', "Running `{0}`", displayCommand));
+			? new MarkdownString(localize('runInTerminal.invocation.background', "Running `{0}` in background", escapedDisplayCommand))
+			: new MarkdownString(localize('runInTerminal.invocation', "Running `{0}`", escapedDisplayCommand));
 
 		return {
 			invocationMessage,
