@@ -15,7 +15,6 @@ import { BrowserTabDto, ExtHostBrowsersShape, ExtHostContext } from '../../commo
 import { MainThreadBrowsers } from '../../browser/mainThreadBrowsers.js';
 import { TestEditorGroupsService, TestEditorService } from '../../../test/browser/workbenchTestServices.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
-import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 
 suite('MainThreadBrowsers', () => {
 
