@@ -58,7 +58,7 @@ export class CustomizationCreatorService {
 		// directory and have those changes tracked.
 
 		// Capture project root BEFORE opening new chat (which may change active session)
-		const targetDir = this.resolveTargetDirectory(type);
+		const targetDir = await this.resolveTargetDirectoryWithPicker(type);
 		const systemInstructions = buildAgentInstructions(type, targetDir, trimmedName);
 		const userMessage = buildUserMessage(type, targetDir, trimmedName);
 
@@ -93,6 +93,33 @@ export class CustomizationCreatorService {
 	 */
 	resolveTargetDirectory(type: PromptsType): URI | undefined {
 		return resolveWorkspaceTargetDirectory(this.workspaceService, type);
+	}
+
+	/**
+	 * Resolves the workspace directory for a new customization file.
+	 * If multiple local source folders exist, shows a picker to let the user choose.
+	 */
+	private async resolveTargetDirectoryWithPicker(type: PromptsType): Promise<URI | undefined> {
+		const allFolders = await this.promptsService.getSourceFolders(type);
+		const localFolders = allFolders.filter(f => f.storage === PromptsStorage.local);
+
+		if (localFolders.length <= 1) {
+			// Zero or one folder — use the existing resolution logic
+			return this.resolveTargetDirectory(type);
+		}
+
+		// Multiple directories — ask the user which one to use
+		const items = localFolders.map(folder => ({
+			label: this.promptsService.getPromptLocationLabel(folder),
+			description: folder.uri.fsPath,
+			uri: folder.uri,
+		}));
+
+		const picked = await this.quickInputService.pick(items, {
+			placeHolder: localize('selectTargetDirectory', "Select a directory for the new {0}", getTypeLabel(type)),
+		});
+
+		return picked?.uri;
 	}
 
 	/**

@@ -789,9 +789,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		const targetDir = target === 'workspace'
-			? resolveWorkspaceTargetDirectory(this.workspaceService, type)
-			: await resolveUserTargetDirectory(this.promptsService, type);
+		const targetDir = await this.resolveTargetDirectoryWithPicker(type, target);
+		if (!targetDir) {
+			return;
+		}
 
 		const options: INewPromptOptions = {
 			targetFolder: targetDir,
@@ -814,6 +815,41 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		await this.commandService.executeCommand(commandId, options);
 		void this.listWidget.refresh();
+	}
+
+	/**
+	 * Resolves the target directory for creating a new customization file.
+	 * If multiple source folders exist for the given storage type, shows a
+	 * picker to let the user choose. Otherwise, returns the single match.
+	 */
+	private async resolveTargetDirectoryWithPicker(type: PromptsType, target: 'workspace' | 'user'): Promise<URI | undefined> {
+		const storageType = target === 'user' ? PromptsStorage.user : PromptsStorage.local;
+		const allFolders = await this.promptsService.getSourceFolders(type);
+		const matchingFolders = allFolders.filter(f => f.storage === storageType);
+
+		if (matchingFolders.length === 0) {
+			// Fall back to legacy resolution
+			return target === 'workspace'
+				? resolveWorkspaceTargetDirectory(this.workspaceService, type)
+				: await resolveUserTargetDirectory(this.promptsService, type);
+		}
+
+		if (matchingFolders.length === 1) {
+			return matchingFolders[0].uri;
+		}
+
+		// Multiple directories — ask the user which one to use
+		const items: (IQuickPickItem & { uri: URI })[] = matchingFolders.map(folder => ({
+			label: this.promptsService.getPromptLocationLabel(folder),
+			description: folder.uri.fsPath,
+			uri: folder.uri,
+		}));
+
+		const picked = await this.quickInputService.pick(items, {
+			placeHolder: localize('selectTargetDirectory', "Select a directory for the new {0}", getTypeLabel(type)),
+		});
+
+		return picked?.uri;
 	}
 
 	override updateStyles(): void {
@@ -1431,4 +1467,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	//#endregion
+}
+
+function getTypeLabel(type: PromptsType): string {
+	switch (type) {
+		case PromptsType.agent: return localize('typeLabel.agent', "agent");
+		case PromptsType.skill: return localize('typeLabel.skill', "skill");
+		case PromptsType.instructions: return localize('typeLabel.instructions', "instructions");
+		case PromptsType.prompt: return localize('typeLabel.prompt', "prompt");
+		case PromptsType.hook: return localize('typeLabel.hook', "hook");
+		default: return localize('typeLabel.customization', "customization");
+	}
 }
