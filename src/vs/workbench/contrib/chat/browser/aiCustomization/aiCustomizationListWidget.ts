@@ -449,9 +449,8 @@ export class AICustomizationListWidget extends Disposable {
 		this._register(this.searchInput.onDidChange(() => {
 			this.searchQuery = this.searchInput.value;
 			this.delayedFilter.trigger(() => {
-				this.filterItems();
-				if (this.searchQuery) {
-					const matchCount = this.displayEntries.filter(e => e.type === 'file-item').length;
+				const matchCount = this.filterItems();
+				if (this.searchQuery.trim()) {
 					this.telemetryService.publicLog2<CustomizationEditorSearchEvent, CustomizationEditorSearchClassification>('chatCustomizationEditor.search', {
 						section: this.currentSection,
 						resultCount: matchCount,
@@ -1038,7 +1037,7 @@ export class AICustomizationListWidget extends Disposable {
 	/**
 	 * Filters items based on the current search query and builds grouped display entries.
 	 */
-	private filterItems(): void {
+	private filterItems(): number {
 		let matchedItems: IAICustomizationListItem[];
 
 		if (!this.searchQuery.trim()) {
@@ -1122,6 +1121,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		this.list.splice(0, this.list.length, this.displayEntries);
 		this.updateEmptyState();
+		return matchedItems.length;
 	}
 
 	/**
