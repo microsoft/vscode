@@ -224,12 +224,12 @@ export const startEntries: GettingStartedStartEntryContent = [
 
 const Button = (title: string, href: string) => `[${title}](${href})`;
 
-const CopilotStepTitle = localize('gettingStarted.copilotSetup.title', "Use AI features with Copilot for free");
-const CopilotDescription = localize({ key: 'gettingStarted.copilotSetup.description', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "You can use [Copilot]({0}) to generate code across multiple files, fix errors, ask questions about your code, and much more using natural language.", defaultChat.documentationUrl ?? '');
+const CopilotStepTitle = localize('gettingStarted.copilotSetup.title', "Sign in to unlock AI features");
+const CopilotDescription = localize({ key: 'gettingStarted.copilotSetup.description', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "Sign in to access [Copilot]({0}) — your AI pair programmer. Build with autonomous agents, use worktrees for parallel development, connect to cloud environments, and harness the latest AI models including Claude.", defaultChat.documentationUrl ?? '');
 const CopilotTermsString = localize({ key: 'gettingStarted.copilotSetup.terms', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
-const CopilotAnonymousButton = Button(localize('setupCopilotButton.setup', "Use AI Features"), `command:workbench.action.chat.triggerSetupAnonymousWithoutDialog`);
-const CopilotSignedOutButton = Button(localize('setupCopilotButton.setup', "Use AI Features"), `command:workbench.action.chat.triggerSetup`);
-const CopilotSignedInButton = Button(localize('setupCopilotButton.setup', "Use AI Features"), `command:workbench.action.chat.triggerSetup`);
+const CopilotAnonymousButton = Button(localize('setupCopilotButton.signIn', "Sign In"), `command:workbench.action.chat.triggerSetupAnonymousWithoutDialog`);
+const CopilotSignedOutButton = Button(localize('setupCopilotButton.signIn', "Sign In"), `command:workbench.action.chat.triggerSetup`);
+const CopilotSignedInButton = Button(localize('setupCopilotButton.signIn', "Sign In"), `command:workbench.action.chat.triggerSetup`);
 const CopilotCompleteButton = Button(localize('setupCopilotButton.chatWithCopilot', "Start to Chat"), 'command:workbench.action.chat.open');
 
 function createCopilotSetupStep(id: string, button: string, when: string, includeTerms: boolean): BuiltinGettingStartedStep {
@@ -274,6 +274,12 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 						'onCommand:workbench.action.selectTheme'
 					],
 					media: { type: 'markdown', path: 'theme_picker', }
+				},
+				{
+					id: 'importKeyboardMappings',
+					title: localize('gettingStarted.importKeyboardMappings.title', "Import keyboard mappings"),
+					description: localize('gettingStarted.importKeyboardMappings.description.interpolated', "Already familiar with shortcuts from another editor? Install a keymap extension to bring your keybindings from Cursor, Windsurf, Vim, Emacs, or Sublime Text.\n{0}", Button(localize('browseKeymaps', "Browse Keymap Extensions"), 'command:workbench.extensions.action.showRecommendedKeymapExtensions')),
+					media: { type: 'svg', altText: 'Keyboard shortcuts overview.', path: 'shortcuts.svg' },
 				},
 				{
 					id: 'videoTutorial',
