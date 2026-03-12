@@ -673,7 +673,7 @@ registerAction2(class extends Action2 {
 
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitleContext, {
 	submenu: MenuId.SecondaryActivityBarPositionMenu,
-	title: localize('positionSecondaryActivityBar', "Activity Bar Position"),
+	title: localize('positionSecondaryActivityBar', "Secondary Activity Bar Position"),
 	when: ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar)),
 	group: '3_workbench_layout_move',
 	order: 1
