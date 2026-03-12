@@ -8,7 +8,7 @@ import { Server as ChildProcessServer } from '../../../base/parts/ipc/node/ipc.c
 import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc.mp.js';
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { AgentHostIpcChannels, type AgentProvider } from '../common/agentService.js';
+import { AgentHostIpcChannels, AgentSession, type AgentProvider } from '../common/agentService.js';
 import { SessionStatus } from '../common/state/sessionState.js';
 import { AgentService } from './agentService.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
@@ -65,7 +65,9 @@ function startAgentHost(): void {
 	server.registerChannel(AgentHostIpcChannels.AgentHost, agentChannel);
 
 	// Start WebSocket server for external clients if configured
-	startWebSocketServer(agentService, logService, disposables);
+	startWebSocketServer(agentService, logService, disposables).catch(err => {
+		logService.error('Failed to start WebSocket server', err);
+	});
 
 	process.once('exit', () => {
 		agentService.dispose();
@@ -128,7 +130,7 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 			const sessions = await agentService.listSessions();
 			return sessions.map(s => ({
 				resource: s.session,
-				provider: '' as AgentProvider,
+				provider: AgentSession.provider(s.session) ?? 'copilot',
 				title: s.summary ?? 'Session',
 				status: SessionStatus.Idle,
 				createdAt: s.startTime,

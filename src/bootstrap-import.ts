@@ -57,9 +57,12 @@ export async function initialize(injectPath: string): Promise<void> {
 			const mainPath = join(injectPackageJSONPath, `../node_modules/${name}/${main}`);
 			_specifierToUrl[name] = pathToFileURL(mainPath).href;
 			// Determine module format: .mjs is always ESM, .cjs always CJS, otherwise check type field
-			_specifierToFormat[name] = main.endsWith('.mjs') || pkgJson.type === 'module' ? 'module'
-				: main.endsWith('.cjs') ? 'commonjs'
-					: 'commonjs';
+			const isModule = main.endsWith('.mjs')
+				? true
+				: main.endsWith('.cjs')
+					? false
+					: pkgJson.type === 'module';
+			_specifierToFormat[name] = isModule ? 'module' : 'commonjs';
 
 		} catch (err) {
 			console.error(name);
@@ -82,19 +85,21 @@ export async function resolve(specifier: string | number, context: unknown, next
 	}
 
 	// Handle subpath imports (e.g., 'vscode-jsonrpc/node') by resolving
-	// through the redirected node_modules directory.
+	// through the redirected node_modules directory, delegating the actual
+	// resolution logic to Node's resolver by adjusting parentURL.
 	if (_nodeModulesPath.length > 0 && typeof specifier === 'string' && !specifier.startsWith('.') && !specifier.startsWith('node:')) {
 		for (const nmPath of _nodeModulesPath) {
-			// Try resolving the specifier as a file inside node_modules
-			let candidate = join(nmPath, specifier);
-			if (!candidate.endsWith('.js')) {
-				candidate += '.js';
-			}
+			// Construct a synthetic parent URL located above the redirected
+			// node_modules folder so that Node's resolver will consider
+			// that node_modules when resolving the bare specifier.
+			const syntheticParentURL = pathToFileURL(join(nmPath, '..', '__bootstrap_import_resolve__.js')).href;
+			const nextContext = typeof context === 'object' && context !== null
+				? { ...(context as Record<string, unknown>), parentURL: syntheticParentURL }
+				: { parentURL: syntheticParentURL };
 			try {
-				await promises.access(candidate);
-				return nextResolve(pathToFileURL(candidate).href, context);
+				return await nextResolve(specifier, nextContext);
 			} catch {
-				// not found, let next resolver handle it
+				// If resolution fails for this node_modules path, try the next one
 			}
 		}
 	}

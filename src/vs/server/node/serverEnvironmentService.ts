@@ -85,8 +85,8 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'remote-auto-shutdown-without-delay': { type: 'boolean' },
 	'inspect-ptyhost': { type: 'string', allowEmptyValue: true },
 
-	'agent-host-port': { type: 'string', cat: 'o', args: 'port', description: nls.localize('agent-host-port', "The port the agent host WebSocket server should listen to.") },
-	'agent-host-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('agent-host-path', "The path to a socket file for the agent host WebSocket server to listen to.") },
+	'agent-host-port': { type: 'string', cat: 'o', args: 'port', description: nls.localize('agent-host-port', "The port the agent host WebSocket server should listen on.") },
+	'agent-host-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('agent-host-path', "The path to a socket file for the agent host WebSocket server to listen on.") },
 
 	'use-host-proxy': { type: 'boolean' },
 	'without-browser-env-var': { type: 'boolean' },

@@ -26,7 +26,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
-import { type AgentProvider } from '../common/agentService.js';
+import { AgentSession, type AgentProvider } from '../common/agentService.js';
 import { SessionStatus } from '../common/state/sessionState.js';
 import { AgentService } from './agentService.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
@@ -129,7 +129,7 @@ async function main(): Promise<void> {
 			const sessions = await agentService.listSessions();
 			return sessions.map(s => ({
 				resource: s.session,
-				provider: '' as AgentProvider,
+				provider: AgentSession.provider(s.session) ?? 'copilot',
 				title: s.summary ?? 'Session',
 				status: SessionStatus.Idle,
 				createdAt: s.startTime,
