@@ -3711,12 +3711,14 @@
           "enum": [
             "mixed",
             "separate",
-            "hidden"
+            "hidden",
+            "default"
           ],
           "enumDescriptions": [
             "%config.untrackedChanges.mixed%",
             "%config.untrackedChanges.separate%",
-            "%config.untrackedChanges.hidden%"
+            "%config.untrackedChanges.hidden%",
+            "%config.untrackedChanges.default%"
           ],
           "default": "mixed",
           "description": "%config.untrackedChanges%",
