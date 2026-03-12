@@ -27,13 +27,25 @@ import {
 	IBrowserViewCaptureScreenshotOptions,
 	IBrowserViewFindInPageOptions,
 	IBrowserViewFindInPageResult,
-	IBrowserViewVisibilityEvent
+	IBrowserViewVisibilityEvent,
+	browserZoomDefaultIndex,
+	browserZoomFactors
 } from '../../../../platform/browserView/common/browserView.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IBrowserZoomService } from './browserZoomService.js';
+
+/** Extracts the host from a URL string for zoom tracking purposes. */
+function parseZoomHost(url: string): string | undefined {
+	const parsed = URL.parse(url);
+	if (!parsed?.host || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
+		return undefined;
+	}
+	return parsed.host;
+}
 
 type IntegratedBrowserNavigationEvent = {
 	navigationType: 'urlInput' | 'goBack' | 'goForward' | 'reload';
@@ -116,8 +128,11 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly storageScope: BrowserViewStorageScope;
 	readonly sharedWithAgent: boolean;
 	readonly zoomFactor: number;
+	readonly canZoomIn: boolean;
+	readonly canZoomOut: boolean;
 
 	readonly onDidChangeSharedWithAgent: Event<boolean>;
+	readonly onDidChangeZoom: Event<void>;
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent>;
 	readonly onDidChangeLoadingState: Event<IBrowserViewLoadingEvent>;
 	readonly onDidChangeFocus: Event<IBrowserViewFocusEvent>;
@@ -148,6 +163,9 @@ export interface IBrowserViewModel extends IDisposable {
 	getSelectedText(): Promise<string>;
 	clearStorage(): Promise<void>;
 	setSharedWithAgent(shared: boolean): Promise<void>;
+	zoomIn(): Promise<void>;
+	zoomOut(): Promise<void>;
+	resetZoom(): Promise<void>;
 }
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
@@ -163,11 +181,16 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _canGoForward: boolean = false;
 	private _error: IBrowserViewLoadError | undefined = undefined;
 	private _storageScope: BrowserViewStorageScope = BrowserViewStorageScope.Ephemeral;
+	private _isEphemeral: boolean = false;
+	private _zoomHost: string | undefined = undefined;
 	private _sharedWithAgent: boolean = false;
-	private _zoomFactor: number = 1;
+	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
 	private readonly _onDidChangeSharedWithAgent = this._register(new Emitter<boolean>());
 	readonly onDidChangeSharedWithAgent: Event<boolean> = this._onDidChangeSharedWithAgent.event;
+
+	private readonly _onDidChangeZoom = this._register(new Emitter<void>());
+	readonly onDidChangeZoom: Event<void> = this._onDidChangeZoom.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
@@ -182,6 +205,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IBrowserZoomService private readonly zoomService: IBrowserZoomService,
 	) {
 		super();
 	}
@@ -199,7 +223,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get error(): IBrowserViewLoadError | undefined { return this._error; }
 	get storageScope(): BrowserViewStorageScope { return this._storageScope; }
 	get sharedWithAgent(): boolean { return this._sharedWithAgent; }
-	get zoomFactor(): number { return this._zoomFactor; }
+	get zoomFactor(): number { return browserZoomFactors[this._browserZoomIndex]; }
+	get canZoomIn(): boolean { return this._browserZoomIndex < browserZoomFactors.length - 1; }
+	get canZoomOut(): boolean { return this._browserZoomIndex > 0; }
 
 	get onDidNavigate(): Event<IBrowserViewNavigationEvent> {
 		return this.browserViewService.onDynamicDidNavigate(this.id);
@@ -282,7 +308,26 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._error = state.lastError;
 		this._storageScope = state.storageScope;
 		this._sharedWithAgent = await this.playwrightService.isPageTracked(this.id);
-		this._zoomFactor = state.zoomFactor;
+		this._browserZoomIndex = state.browserZoomIndex;
+
+		this._isEphemeral = this._storageScope === BrowserViewStorageScope.Ephemeral;
+		this._zoomHost = parseZoomHost(this._url);
+
+		const effectiveZoomIndex = this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral);
+		if (effectiveZoomIndex !== this._browserZoomIndex) {
+			await this.setBrowserZoomIndex(effectiveZoomIndex);
+		}
+
+		this._register(this.zoomService.onDidChangeZoom(({ host, isEphemeralChange }) => {
+			if (isEphemeralChange && !this._isEphemeral) {
+				return;
+			}
+			if (host === undefined || host === this._zoomHost) {
+				void this.setBrowserZoomIndex(
+					this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral)
+				);
+			}
+		}));
 
 		// Set up state synchronization
 
@@ -292,10 +337,18 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 				this._favicon = undefined;
 			}
 
+			this._zoomHost = parseZoomHost(e.url);
 			this._url = e.url;
 			this._title = e.title;
 			this._canGoBack = e.canGoBack;
 			this._canGoForward = e.canGoForward;
+
+			// Always forceApply because Chromium resets zoom on cross-origin navigation,
+			// and an origin change may not correspond to a host change (e.g. http→https).
+			void this.setBrowserZoomIndex(
+				this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral),
+				true
+			);
 		}));
 
 		this._register(this.onDidChangeLoadingState(e => {
@@ -329,7 +382,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	async layout(bounds: IBrowserViewBounds): Promise<void> {
-		this._zoomFactor = bounds.zoomFactor;
 		return this.browserViewService.layout(this.id, bounds);
 	}
 
@@ -393,6 +445,49 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async clearStorage(): Promise<void> {
 		return this.browserViewService.clearStorage(this.id);
+	}
+
+	/**
+	 * @param forceApply When true, the IPC call is made even if the local cached zoom index
+	 * already matches the requested value. Pass true after cross-document navigation because
+	 * Chromium resets the zoom to its per-origin default, making the cache stale.
+	 */
+	private async setBrowserZoomIndex(zoomIndex: number, forceApply = false): Promise<void> {
+		const clamped = Math.max(0, Math.min(zoomIndex, browserZoomFactors.length - 1));
+		if (!forceApply && clamped === this._browserZoomIndex) {
+			return;
+		}
+		this._browserZoomIndex = clamped;
+		await this.browserViewService.setBrowserZoomIndex(this.id, this._browserZoomIndex);
+		this._onDidChangeZoom.fire();
+	}
+
+	async zoomIn(): Promise<void> {
+		if (!this.canZoomIn) {
+			return;
+		}
+		await this.setBrowserZoomIndex(this._browserZoomIndex + 1);
+		if (this._zoomHost) {
+			this.zoomService.setHostZoomIndex(this._zoomHost, this._browserZoomIndex, this._isEphemeral);
+		}
+	}
+
+	async zoomOut(): Promise<void> {
+		if (!this.canZoomOut) {
+			return;
+		}
+		await this.setBrowserZoomIndex(this._browserZoomIndex - 1);
+		if (this._zoomHost) {
+			this.zoomService.setHostZoomIndex(this._zoomHost, this._browserZoomIndex, this._isEphemeral);
+		}
+	}
+
+	async resetZoom(): Promise<void> {
+		const defaultIndex = this.zoomService.getEffectiveZoomIndex(undefined, false);
+		await this.setBrowserZoomIndex(defaultIndex);
+		if (this._zoomHost) {
+			this.zoomService.setHostZoomIndex(this._zoomHost, defaultIndex, this._isEphemeral);
+		}
 	}
 
 	private static readonly SHARE_DONT_ASK_KEY = 'browserView.shareWithAgent.dontAskAgain';
