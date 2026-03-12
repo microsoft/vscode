@@ -63,6 +63,7 @@ export class GitHubPRCIFetcher {
 		const data = await this._apiClient.request<IGitHubCheckRunsListResponse>(
 			'GET',
 			`/repos/${e(owner)}/${e(repo)}/commits/${e(ref)}/check-runs`,
+			'githubApi.getCheckRuns'
 		);
 		return data.check_runs.map(mapCheckRun);
 	}
@@ -85,6 +86,7 @@ export class GitHubPRCIFetcher {
 			detail = await this._apiClient.request<IGitHubCheckRunDetailResponse>(
 				'GET',
 				`/repos/${e(owner)}/${e(repo)}/check-runs/${checkRunId}`,
+				'githubApi.getCheckRunAnnotations'
 			);
 			const output = detail.output;
 			if (output.title) {
@@ -105,6 +107,7 @@ export class GitHubPRCIFetcher {
 			const annotations = await this._apiClient.request<readonly IGitHubCheckRunAnnotationResponse[]>(
 				'GET',
 				`/repos/${e(owner)}/${e(repo)}/check-runs/${checkRunId}/annotations`,
+				'githubApi.getCheckRunAnnotations.annotations'
 			);
 			if (annotations.length > 0) {
 				sections.push(
