@@ -23,11 +23,12 @@ When reviewing changes to these files, verify:
 
 - Package versions match what's actually installed
 - Repository URLs are valid and point to real source repositories
-- License identifiers use SPDX format and match the corresponding ThirdPartyNotices.txt entries
+- Newly added license identifiers should use SPDX format where possible
+- License identifiers match the corresponding ThirdPartyNotices.txt entries
 
 ## Red Flags
 
-- Any copyleft license (GPL, LGPL, AGPL) — flag immediately
+- Any **newly added** copyleft license (GPL, LGPL, AGPL) — flag immediately (existing copyleft entries like ffmpeg are pre-approved)
 - Any "UNKNOWN" or placeholder license text
 - License text that appears truncated or corrupted
 - A package declared as MIT but with Apache/BSD/other license text (or vice versa)
