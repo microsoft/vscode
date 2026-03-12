@@ -431,6 +431,121 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		};
 	}
 
+	async getFocusedElementData(windowId: number | undefined, rect: IRectangle, _token: CancellationToken, locator: IBrowserTargetLocator, _cancellationId?: number): Promise<IElementData | undefined> {
+		const window = this.windowById(windowId);
+		if (!window?.win) {
+			return undefined;
+		}
+
+		const allWebContents = webContents.getAllWebContents();
+		const simpleBrowserWebview = allWebContents.find(webContent => webContent.id === window.id);
+		if (!simpleBrowserWebview) {
+			return undefined;
+		}
+
+		const debuggers = simpleBrowserWebview.debugger;
+		if (!debuggers.isAttached()) {
+			debuggers.attach();
+		}
+
+		let sessionId: string | undefined;
+		try {
+			const targetId = await this.findWebviewTarget(debuggers, locator);
+			if (!targetId) {
+				return undefined;
+			}
+
+			const attach = await debuggers.sendCommand('Target.attachToTarget', { targetId, flatten: true });
+			sessionId = attach.sessionId;
+			await debuggers.sendCommand('Runtime.enable', {}, sessionId);
+
+			const { result } = await debuggers.sendCommand('Runtime.evaluate', {
+				expression: `(() => {
+					const el = document.activeElement;
+					if (!el || el.nodeType !== 1) {
+						return undefined;
+					}
+					const r = el.getBoundingClientRect();
+					const attrs = {};
+					for (let i = 0; i < el.attributes.length; i++) {
+						attrs[el.attributes[i].name] = el.attributes[i].value;
+					}
+					const ancestors = [];
+					let n = el;
+					while (n && n.nodeType === 1) {
+						const entry = { tagName: n.tagName.toLowerCase() };
+						if (n.id) {
+							entry.id = n.id;
+						}
+						if (typeof n.className === 'string' && n.className.trim().length > 0) {
+							entry.classNames = n.className.trim().split(/\\s+/).filter(Boolean);
+						}
+						ancestors.unshift(entry);
+						n = n.parentElement;
+					}
+					const css = getComputedStyle(el);
+					const computedStyles = {};
+					for (let i = 0; i < css.length; i++) {
+						const name = css[i];
+						computedStyles[name] = css.getPropertyValue(name);
+					}
+					const text = (el.innerText || '').trim();
+					return {
+						outerHTML: el.outerHTML,
+						computedStyle: '',
+						bounds: { x: r.x, y: r.y, width: r.width, height: r.height },
+						ancestors,
+						attributes: attrs,
+						computedStyles,
+						dimensions: { top: r.top, left: r.left, width: r.width, height: r.height },
+						innerText: text.length > 100 ? text.slice(0, 100) + '\\u2026' : text
+					};
+				})();`,
+				returnByValue: true
+			}, sessionId);
+
+			const focusedData = result?.value as NodeDataResponse | undefined;
+			if (!focusedData) {
+				return undefined;
+			}
+
+			const zoomFactor = simpleBrowserWebview.getZoomFactor();
+			const absoluteBounds = {
+				x: rect.x + focusedData.bounds.x,
+				y: rect.y + focusedData.bounds.y,
+				width: focusedData.bounds.width,
+				height: focusedData.bounds.height
+			};
+
+			const clippedBounds = {
+				x: Math.max(absoluteBounds.x, rect.x),
+				y: Math.max(absoluteBounds.y, rect.y),
+				width: Math.max(0, Math.min(absoluteBounds.x + absoluteBounds.width, rect.x + rect.width) - Math.max(absoluteBounds.x, rect.x)),
+				height: Math.max(0, Math.min(absoluteBounds.y + absoluteBounds.height, rect.y + rect.height) - Math.max(absoluteBounds.y, rect.y))
+			};
+
+			return {
+				outerHTML: focusedData.outerHTML,
+				computedStyle: focusedData.computedStyle,
+				bounds: {
+					x: clippedBounds.x * zoomFactor,
+					y: clippedBounds.y * zoomFactor,
+					width: clippedBounds.width * zoomFactor,
+					height: clippedBounds.height * zoomFactor
+				},
+				ancestors: focusedData.ancestors,
+				attributes: focusedData.attributes,
+				computedStyles: focusedData.computedStyles,
+				dimensions: focusedData.dimensions,
+				innerText: focusedData.innerText,
+			};
+		} finally {
+			if (debuggers.isAttached()) {
+				debuggers.detach();
+			}
+		}
+	}
+
 	async getNodeData(sessionId: string, debuggers: Electron.Debugger, window: BrowserWindow, cancellationId?: number): Promise<NodeDataResponse> {
 		return new Promise((resolve, reject) => {
 			const onMessage = async (event: Electron.Event, method: string, params: { backendNodeId: number }) => {

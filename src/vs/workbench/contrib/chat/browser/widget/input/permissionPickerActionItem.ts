@@ -57,7 +57,6 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 	) {
 		const isAutoApprovePolicyRestricted = () => configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 		const isAutopilotEnabled = () => configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
-		const isBackgroundProvider = contextKeyService.getContextKeyValue<string>('lockedCodingAgentId') === 'copilotcli';
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const currentLevel = delegate.currentPermissionLevel.get();
@@ -131,7 +130,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						},
 					} satisfies IActionWidgetDropdownAction,
 				];
-				if (isAutopilotEnabled() && !isBackgroundProvider) {
+				if (isAutopilotEnabled()) {
 					actions.push({
 						...action,
 						id: 'chat.permissions.autopilot',

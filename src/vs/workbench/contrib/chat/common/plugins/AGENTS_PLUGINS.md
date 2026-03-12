@@ -8,7 +8,7 @@ Agent plugins are a modular extension system that allows external packages of pr
 | File | Role |
 |------|------|
 | `agentPluginService.ts` | Core interfaces (`IAgentPlugin`, `IAgentPluginService`, `IAgentPluginDiscovery`) and the discovery registry singleton |
-| `agentPluginServiceImpl.ts` | `AgentPluginService` implementation, `AbstractAgentPluginDiscovery` base class, format adapters (Copilot / Claude) |
+| `agentPluginServiceImpl.ts` | `AgentPluginService` implementation, `AbstractAgentPluginDiscovery` base class, format adapters (Copilot / Claude / Open Plugin) |
 | `agentPluginRepositoryService.ts` | `IAgentPluginRepositoryService` — abstract repository clone/pull/cache operations |
 | `pluginMarketplaceService.ts` | `IPluginMarketplaceService` — marketplace metadata, installed-plugin storage, trusted-marketplace tracking, periodic update checks |
 | `pluginInstallService.ts` | `IPluginInstallService` — install/update orchestration interface |
@@ -71,7 +71,7 @@ Discoveries are registered into the global `agentPluginDiscoveryRegistry` single
 
 Shared base class that handles:
 
-1. **Format detection** — auto-detects whether a plugin uses the Copilot or Claude format based on path conventions and manifest existence.
+1. **Format detection** — auto-detects whether a plugin uses the Copilot, Claude, or Open Plugin format based on path conventions and manifest existence.
 2. **Content reading** — reads commands, skills, agents, hooks, and MCP server definitions from the filesystem.
 3. **File watching** — watches plugin directories for changes and re-reads contents on a 200 ms debounced scheduler.
 4. **Observable propagation** — sets the `plugins` observable on each refresh cycle.
@@ -86,22 +86,24 @@ Subclasses implement `_discoverPluginSources()` to determine *which* plugin URIs
 
 ### Plugin Formats
 
-Two format adapters implement `IAgentPluginFormatAdapter`:
+Three format adapters implement `IAgentPluginFormatAdapter`:
 
-| | Copilot | Claude |
-|-|---------|--------|
-| Manifest | `plugin.json` | `.claude-plugin/plugin.json` |
-| Hooks config | `hooks.json` | `hooks/hooks.json` |
-| Hook parser | `parseCopilotHooks()` | `parseClaudeHooks()` |
-| Special handling | — | `${CLAUDE_PLUGIN_ROOT}` token replacement, `CLAUDE_PLUGIN_ROOT` env var injection |
+| | Copilot | Claude | Open Plugin |
+|-|---------|--------|-------------|
+| Manifest | `plugin.json` | `.claude-plugin/plugin.json` | `.plugin/plugin.json` |
+| Hooks config | `hooks.json` | `hooks/hooks.json` | `hooks/hooks.json` |
+| Hook parser | `parseCopilotHooks()` | `parseClaudeHooks()` | `parseClaudeHooks()` |
+| Special handling | — | `${CLAUDE_PLUGIN_ROOT}` token replacement, `CLAUDE_PLUGIN_ROOT` env var injection | `${PLUGIN_ROOT}` token replacement, `PLUGIN_ROOT` env var injection |
 
-Auto-detection logic: if the plugin URI path contains `.claude` or a `.claude-plugin/plugin.json` manifest exists, the Claude adapter is used; otherwise, the Copilot adapter is used.
+Auto-detection logic: if a `.plugin/plugin.json` manifest exists, the Open Plugin adapter is used; if the plugin URI path contains `.claude` or a `.claude-plugin/plugin.json` manifest exists, the Claude adapter is used; otherwise, the Copilot adapter is used.
 
 ### Plugin Contents (Filesystem Layout)
 
 ```
 <plugin-root>/
-├── plugin.json  OR  .claude-plugin/plugin.json   # manifest
+├── plugin.json                                    # Copilot manifest
+├── .claude-plugin/plugin.json                     # Claude manifest
+├── .plugin/plugin.json                            # Open Plugin manifest
 ├── hooks.json   OR  hooks/hooks.json              # hook definitions
 ├── .mcp.json                                      # MCP server definitions (optional)
 ├── commands/
@@ -129,8 +131,10 @@ Manages the catalog of available and installed plugins:
 ### Marketplace Definition Files
 
 Checked in order per repository:
-1. `.github/plugin/marketplace.json` → `MarketplaceType.Copilot`
-2. `.claude-plugin/marketplace.json` → `MarketplaceType.Claude`
+1. `marketplace.json` → `MarketplaceType.OpenPlugin`
+2. `.plugin/marketplace.json` → `MarketplaceType.OpenPlugin`
+3. `.github/plugin/marketplace.json` → `MarketplaceType.Copilot`
+4. `.claude-plugin/marketplace.json` → `MarketplaceType.Claude`
 
 ### IPluginInstallService
 

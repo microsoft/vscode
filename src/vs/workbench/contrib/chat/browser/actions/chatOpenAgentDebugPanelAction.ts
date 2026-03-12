@@ -184,6 +184,13 @@ export function registerChatOpenAgentDebugPanelAction() {
 				return;
 			}
 
+			const maxImportSize = 50 * 1024 * 1024; // 50 MB
+			const stat = await fileService.stat(result[0]);
+			if (stat.size !== undefined && stat.size > maxImportSize) {
+				notificationService.notify({ severity: Severity.Warning, message: localize('chatDebugLog.fileTooLarge', "The selected file exceeds the 50 MB size limit for log imports.") });
+				return;
+			}
+
 			const content = await fileService.readFile(result[0]);
 			const sessionUri = await chatDebugService.importLog(content.value.buffer);
 			if (!sessionUri) {

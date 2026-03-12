@@ -474,6 +474,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const model = await this._getLanguageModel();
 		if (!model) {
 			return 'No models available';
+
 		}
 
 		const response = await this._languageModelsService.sendChatRequest(
@@ -927,8 +928,26 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _getLanguageModel(): Promise<string | undefined> {
-		const models = await this._safeSelectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
-		return models.length ? models[0] : undefined;
+		const fastModels = await this._safeSelectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
+		if (fastModels.length) {
+			return fastModels[0];
+		}
+
+		const widget = this._chatWidgetService.lastFocusedWidget ?? this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)[0];
+		const currentModel = widget?.input.currentLanguageModel;
+		if (currentModel) {
+			const currentFamilyModels = await this._safeSelectLanguageModels({ vendor: 'copilot', family: currentModel.replaceAll('copilot/', '') });
+			if (currentFamilyModels.length) {
+				return currentFamilyModels[0];
+			}
+		}
+
+		const copilotModels = await this._safeSelectLanguageModels({ vendor: 'copilot' });
+		if (copilotModels.length) {
+			return copilotModels[0];
+		}
+
+		return undefined;
 	}
 
 	private async _safeSelectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]> {

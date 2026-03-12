@@ -11,9 +11,14 @@ export class StyleLoadingMonitor {
 	#poster?: MessagePoster;
 
 	constructor() {
-		const onStyleLoadError = (event: any) => {
-			const source = event.target.dataset.source;
-			this.#unloadedStyles.push(source);
+		const onStyleLoadError = (event: Event | string) => {
+			if (!(event instanceof Event)) {
+				return;
+			}
+			const source = (event.target as HTMLElement | null)?.dataset.source;
+			if (source) {
+				this.#unloadedStyles.push(source);
+			}
 		};
 
 		window.addEventListener('DOMContentLoaded', () => {

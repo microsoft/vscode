@@ -4,22 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { untildify } from '../../../../../base/common/labels.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
-import { cloneAndChange } from '../../../../../base/common/objects.js';
-import { autorun, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { cloneAndChange, equals } from '../../../../../base/common/objects.js';
+import { autorun, derived, derivedOpts, IObservable, ObservablePromise, observableSignal, observableValue } from '../../../../../base/common/observable.js';
 import {
 	posix,
 	win32
 } from '../../../../../base/common/path.js';
 import {
 	basename,
-	extname, joinPath
+	extname, isEqualOrParent, joinPath, normalizePath
 } from '../../../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
-import { Mutable } from '../../../../../base/common/types.js';
+import { hasKey, Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -27,30 +28,30 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatConfiguration } from '../constants.js';
+import { EnablementModel, IEnablementModel } from '../enablement.js';
 import { parseClaudeHooks } from '../promptSyntax/hookClaudeCompat.js';
 import { parseCopilotHooks } from '../promptSyntax/hookCompatibility.js';
 import { IHookCommand } from '../promptSyntax/hookSchema.js';
-import { agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from './agentPluginService.js';
-import { EnablementModel, IEnablementModel } from '../enablement.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
+import { agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from './agentPluginService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 
 const COMMAND_FILE_SUFFIX = '.md';
 
 const enum AgentPluginFormat {
 	Copilot,
 	Claude,
+	OpenPlugin,
 }
 
 interface IAgentPluginFormatAdapter {
 	readonly format: AgentPluginFormat;
-	readonly manifestPaths: readonly string[];
-	readonly hookConfigPaths: readonly string[];
-	readonly hookWatchPaths: readonly string[];
+	readonly manifestPath: string;
+	readonly hookConfigPath: string;
 	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[];
 }
 
@@ -70,9 +71,8 @@ function resolveWorkspaceRoot(pluginUri: URI, workspaceContextService: IWorkspac
 
 class CopilotPluginFormatAdapter implements IAgentPluginFormatAdapter {
 	readonly format = AgentPluginFormat.Copilot;
-	readonly manifestPaths = ['plugin.json'];
-	readonly hookConfigPaths = ['hooks.json'];
-	readonly hookWatchPaths = ['hooks.json'];
+	readonly manifestPath = 'plugin.json';
+	readonly hookConfigPath = 'hooks.json';
 
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -100,7 +100,7 @@ const shellUnsafeChars = /[\s&|<>()^;!`"']/;
  * (including suffix) is quoted as one unit.
  *
  */
-export function shellQuotePluginRootInCommand(command: string, fsPath: string, token: string = '${CLAUDE_PLUGIN_ROOT}'): string {
+export function shellQuotePluginRootInCommand(command: string, fsPath: string, token: string) {
 	if (!command.includes(token)) {
 		return command;
 	}
@@ -130,67 +130,166 @@ export function shellQuotePluginRootInCommand(command: string, fsPath: string, t
 	});
 }
 
+/**
+ * Shared hook-parsing logic for plugin formats that use the Claude/open-plugin
+ * hook schema. Replaces `${token}` references in hook commands with the plugin
+ * root path (shell-quoted when necessary), injects an environment variable, and
+ * delegates to {@link parseClaudeHooks} for the actual hook resolution.
+ */
+function parsePluginRootHooks(
+	json: unknown,
+	pluginUri: URI,
+	userHome: string,
+	workspaceContextService: IWorkspaceContextService,
+	token: string,
+	envVar: string,
+): IAgentPluginHook[] {
+	const fsPath = pluginUri.fsPath;
+	const typedJson = json as { hooks?: Record<string, unknown[]> };
+
+	const mutateHookCommand = (hook: Mutable<IHookCommand>): void => {
+		for (const field of ['command', 'windows', 'linux', 'osx'] as const) {
+			if (typeof hook[field] === 'string') {
+				hook[field] = shellQuotePluginRootInCommand(hook[field], fsPath, token);
+			}
+		}
+
+		hook.env ??= {};
+		hook.env[envVar] = fsPath;
+	};
+
+	for (const lifecycle of Object.values(typedJson.hooks ?? {})) {
+		if (!Array.isArray(lifecycle)) {
+			continue;
+		}
+
+		for (const lifecycleEntry of lifecycle) {
+			if (!lifecycleEntry || typeof lifecycleEntry !== 'object') {
+				continue;
+			}
+
+			const entry = lifecycleEntry as { hooks?: Mutable<IHookCommand>[] } & Mutable<IHookCommand>;
+			if (Array.isArray(entry.hooks)) {
+				for (const hook of entry.hooks) {
+					mutateHookCommand(hook);
+				}
+			} else {
+				mutateHookCommand(entry);
+			}
+		}
+	}
+
+	const replacer = (v: unknown): unknown => {
+		return typeof v === 'string'
+			? v.replaceAll(token, pluginUri.fsPath)
+			: undefined;
+	};
+
+	const workspaceRoot = resolveWorkspaceRoot(pluginUri, workspaceContextService);
+	const { hooks, disabledAllHooks } = parseClaudeHooks(cloneAndChange(json, replacer), workspaceRoot, userHome);
+	if (disabledAllHooks) {
+		return [];
+	}
+
+	return mapParsedHooks(hooks);
+}
+
 class ClaudePluginFormatAdapter implements IAgentPluginFormatAdapter {
 	readonly format = AgentPluginFormat.Claude;
-	readonly manifestPaths = ['.claude-plugin/plugin.json'];
-	readonly hookConfigPaths = ['hooks/hooks.json'];
-	readonly hookWatchPaths = ['hooks'];
+	readonly manifestPath = '.claude-plugin/plugin.json';
+	readonly hookConfigPath = 'hooks/hooks.json';
 
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) { }
 
 	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
-		const token = '${CLAUDE_PLUGIN_ROOT}';
-		const fsPath = pluginUri.fsPath;
-		const typedJson = json as { hooks?: Record<string, unknown[]> };
-
-		const mutateHookCommand = (hook: Mutable<IHookCommand>): void => {
-			for (const field of ['command', 'windows', 'linux', 'osx'] as const) {
-				if (typeof hook[field] === 'string') {
-					hook[field] = shellQuotePluginRootInCommand(hook[field], fsPath, token);
-				}
-			}
-
-			hook.env ??= {};
-			hook.env.CLAUDE_PLUGIN_ROOT = fsPath;
-		};
-
-		for (const lifecycle of Object.values(typedJson.hooks ?? {})) {
-			if (!Array.isArray(lifecycle)) {
-				continue;
-			}
-
-			for (const lifecycleEntry of lifecycle) {
-				if (!lifecycleEntry || typeof lifecycleEntry !== 'object') {
-					continue;
-				}
-
-				const entry = lifecycleEntry as { hooks?: Mutable<IHookCommand>[] } & Mutable<IHookCommand>;
-				if (Array.isArray(entry.hooks)) {
-					for (const hook of entry.hooks) {
-						mutateHookCommand(hook);
-					}
-				} else {
-					mutateHookCommand(entry);
-				}
-			}
-		}
-
-		const replacer = (v: unknown): unknown => {
-			return typeof v === 'string'
-				? v.replaceAll('${CLAUDE_PLUGIN_ROOT}', pluginUri.fsPath)
-				: undefined;
-		};
-
-		const workspaceRoot = resolveWorkspaceRoot(pluginUri, this._workspaceContextService);
-		const { hooks, disabledAllHooks } = parseClaudeHooks(cloneAndChange(json, replacer), workspaceRoot, userHome);
-		if (disabledAllHooks) {
-			return [];
-		}
-
-		return mapParsedHooks(hooks);
+		return parsePluginRootHooks(json, pluginUri, userHome, this._workspaceContextService, '${CLAUDE_PLUGIN_ROOT}', 'CLAUDE_PLUGIN_ROOT');
 	}
+}
+
+class OpenPluginFormatAdapter implements IAgentPluginFormatAdapter {
+	readonly format = AgentPluginFormat.OpenPlugin;
+	readonly manifestPath = '.plugin/plugin.json';
+	readonly hookConfigPath = 'hooks/hooks.json';
+
+	constructor(
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+	) { }
+
+	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
+		return parsePluginRootHooks(json, pluginUri, userHome, this._workspaceContextService, '${PLUGIN_ROOT}', 'PLUGIN_ROOT');
+	}
+}
+
+interface IComponentPathConfig {
+	readonly paths: readonly string[];
+	readonly exclusive: boolean;
+}
+
+const emptyComponentPathConfig: IComponentPathConfig = { paths: [], exclusive: false };
+
+/**
+ * Parses a manifest component path field (e.g. `commands`, `skills`, `agents`)
+ * into a normalized config. Supports:
+ * - `undefined` → empty supplemental config
+ * - `string` → single supplemental path
+ * - `string[]` → multiple supplemental paths
+ * - `{ paths: string[], exclusive?: boolean }` → as-is
+ *
+ * Paths that resolve outside the plugin root are silently dropped
+ * in {@link resolveComponentDirs}.
+ */
+function parseComponentPathConfig(raw: unknown): IComponentPathConfig {
+	if (raw === undefined || raw === null) {
+		return emptyComponentPathConfig;
+	}
+
+	if (typeof raw === 'string') {
+		const trimmed = raw.trim();
+		return trimmed ? { paths: [trimmed], exclusive: false } : emptyComponentPathConfig;
+	}
+
+	if (Array.isArray(raw)) {
+		const paths = raw
+			.filter(v => typeof v === 'string')
+			.map(v => v.trim())
+			.filter(v => v.length > 0);
+		return { paths, exclusive: false };
+	}
+
+	if (typeof raw === 'object') {
+		const obj = raw as Record<string, unknown>;
+		if (Array.isArray(obj['paths'])) {
+			const paths = (obj['paths'] as unknown[])
+				.filter(v => typeof v === 'string')
+				.map(v => v.trim())
+				.filter(v => v.length > 0);
+			const exclusive = obj['exclusive'] === true;
+			return { paths, exclusive };
+		}
+	}
+
+	return emptyComponentPathConfig;
+}
+
+/**
+ * Resolves the directories to scan for a given component type, combining
+ * the default directory with any custom paths from the manifest config.
+ * Paths that resolve outside the plugin root are silently ignored.
+ */
+function resolveComponentDirs(pluginUri: URI, defaultDir: string, config: IComponentPathConfig): readonly URI[] {
+	const dirs: URI[] = [];
+	if (!config.exclusive) {
+		dirs.push(joinPath(pluginUri, defaultDir));
+	}
+	for (const p of config.paths) {
+		const resolved = normalizePath(joinPath(pluginUri, p));
+		if (isEqualOrParent(resolved, pluginUri)) {
+			dirs.push(resolved);
+		}
+	}
+	return dirs;
 }
 
 export class AgentPluginService extends Disposable implements IAgentPluginService {
@@ -274,7 +373,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 	private readonly _plugins = observableValue<readonly IAgentPlugin[]>('discoveredAgentPlugins', []);
 	public readonly plugins: IObservable<readonly IAgentPlugin[]> = this._plugins;
 
-	protected _discoverVersion = 0;
+	private _discoverVersion = 0;
 	protected _enablementModel!: IEnablementModel;
 
 	constructor(
@@ -322,6 +421,10 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 	}
 
 	private async _detectPluginFormatAdapter(pluginUri: URI): Promise<IAgentPluginFormatAdapter> {
+		if (await this._pathExists(joinPath(pluginUri, '.plugin', 'plugin.json'))) {
+			return this._instantiationService.createInstance(OpenPluginFormatAdapter);
+		}
+
 		const isInClaudeDirectory = pluginUri.path.split('/').includes('.claude');
 		if (isInClaudeDirectory || await this._pathExists(joinPath(pluginUri, '.claude-plugin', 'plugin.json'))) {
 			return this._instantiationService.createInstance(ClaudePluginFormatAdapter);
@@ -352,58 +455,90 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 
 		const store = new DisposableStore();
-		const commands = observableValue<readonly IAgentPluginCommand[]>('agentPluginCommands', []);
-		const skills = observableValue<readonly IAgentPluginSkill[]>('agentPluginSkills', []);
-		const agents = observableValue<readonly IAgentPluginAgent[]>('agentPluginAgents', []);
-		const hooks = observableValue<readonly IAgentPluginHook[]>('agentPluginHooks', []);
-		const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('agentPluginMcpServerDefinitions', []);
 		const enablement = derived(r => this._enablementModel.readEnabled(key, r));
 
-		const commandsDir = joinPath(uri, 'commands');
-		const skillsDir = joinPath(uri, 'skills');
-		const agentsDir = joinPath(uri, 'agents');
+		// Track current component directories for the file watcher. These are
+		// updated whenever the manifest is read (inside each component reader).
+		const manifest = observableValue<Record<string, unknown> | undefined>('agentPluginManifest', undefined);
 
-		const commandsScheduler = store.add(new RunOnceScheduler(async () => {
-			commands.set(await this._readCommands(uri), undefined);
-		}, 200));
-		const skillsScheduler = store.add(new RunOnceScheduler(async () => {
-			skills.set(await this._readSkills(uri), undefined);
-		}, 200));
-		const agentsScheduler = store.add(new RunOnceScheduler(async () => {
-			agents.set(await this._readAgents(uri), undefined);
-		}, 200));
-		const hooksScheduler = store.add(new RunOnceScheduler(async () => {
-			hooks.set(await this._readHooks(uri, adapter), undefined);
-		}, 200));
-		const mcpScheduler = store.add(new RunOnceScheduler(async () => {
-			mcpServerDefinitions.set(await this._readMcpDefinitions(uri, adapter), undefined);
-		}, 200));
+		const observeComponent = <T>(
+			prop: string,
+			doRead: (uris: readonly URI[]) => Promise<readonly T[]>,
+			tryReadEmbedded?: (section: unknown) => Promise<T[] | undefined>,
+			defaultPath = prop,
+		): IObservable<readonly T[]> => {
+			const secondObs = derivedOpts({ equalsFn: equals }, reader => manifest.read(reader)?.[prop]);
 
-		store.add(this._fileService.watch(uri, { recursive: true, excludes: [] }));
-		store.add(this._fileService.onDidFilesChange(e => {
-			if (e.affects(commandsDir)) {
-				commandsScheduler.schedule();
-			}
-			if (e.affects(skillsDir)) {
-				skillsScheduler.schedule();
-			}
-			if (e.affects(agentsDir)) {
-				agentsScheduler.schedule();
-			}
-			if (adapter.hookWatchPaths.some(path => e.affects(joinPath(uri, path)))) {
-				hooksScheduler.schedule();
-			}
-			if (e.affects(joinPath(uri, '.mcp.json')) || adapter.manifestPaths.some(path => e.affects(joinPath(uri, path)))) {
-				mcpScheduler.schedule();
-				hooksScheduler.schedule();
-			}
-		}));
+			const wrapped = derived(reader => {
+				const section = secondObs.read(reader);
+				if (tryReadEmbedded) {
+					if (section && typeof section === 'object' && !Array.isArray(section) && !(hasKey(section, { paths: true }))) {
+						return { kind: 'const', data: new ObservablePromise(tryReadEmbedded(section)) } as const;
+					}
+				}
 
-		commandsScheduler.schedule();
-		skillsScheduler.schedule();
-		agentsScheduler.schedule();
-		hooksScheduler.schedule();
-		mcpScheduler.schedule();
+				const paths = parseComponentPathConfig(section);
+				const dirs = resolveComponentDirs(uri, defaultPath, paths);
+				for (const d of dirs) {
+					const watcher = this._fileService.createWatcher(d, { recursive: false, excludes: [] });
+					reader.store.add(watcher);
+					reader.store.add(watcher.onDidChange(() => changeTrigger.trigger(undefined)));
+				}
+
+				return { kind: 'dirs', dirs: dirs } as const;
+			});
+
+			const changeTrigger = observableSignal('fileChange');
+
+			const promised = derived(reader => {
+				const w = wrapped.read(reader);
+				if (w.kind === 'const') {
+					return w.data.promiseResult;
+				} else {
+					changeTrigger.read(reader); // re-run when a relevant file change occurs
+					const promise = new ObservablePromise(doRead(w.dirs));
+					return promise.promiseResult;
+				}
+			});
+
+			const result = promised.map((w, r) => w.read(r)?.data ?? Iterable.empty());
+
+			return result.recomputeInitiallyAndOnChange(store);
+		};
+
+		const commands = observeComponent('commands', d => this._readMarkdownComponents(d));
+		const skills = observeComponent('skills', d => this._readSkills(d));
+		const agents = observeComponent('agents', d => this._readMarkdownComponents(d));
+		const hooks = observeComponent(
+			'hooks',
+			paths => this._readHooksFromPaths(uri, paths, adapter),
+			async section => {
+				const userHome = (await this._pathService.userHome()).fsPath;
+				return adapter.parseHooks(section, uri, userHome);
+			},
+			adapter.hookConfigPath,
+		);
+
+		const mcpServerDefinitions = observeComponent(
+			'mcpServers',
+			paths => this._readMcpDefinitionsFromPaths(paths),
+			async section => this._parseMcpServerDefinitionMap({ mcpServers: section }),
+			'.mcp.json',
+		);
+
+		// Read the manifest initially and re-read whenever manifest files change.
+		const readManifest = async () => {
+			manifest.set(await this._readManifest(uri, adapter), undefined);
+		};
+
+		const manifestWatcher = this._fileService.createWatcher(
+			joinPath(uri, adapter.manifestPath),
+			{ recursive: false, excludes: [] },
+		);
+		store.add(manifestWatcher);
+		store.add(manifestWatcher.onDidChange(() => readManifest()));
+
+		readManifest();
 
 		const plugin: PluginEntry = {
 			uri,
@@ -423,45 +558,52 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		return plugin;
 	}
 
-	private async _readMcpDefinitions(pluginUri: URI, adapter: IAgentPluginFormatAdapter): Promise<readonly IAgentPluginMcpServerDefinition[]> {
-		const mcpUri = joinPath(pluginUri, '.mcp.json');
-
-		const mcpFileConfig = await this._readJsonFile(mcpUri);
-		const fileDefinitions = this._parseMcpServerDefinitionMap(mcpFileConfig);
-
-		const pluginJsonDefinitions = await this._readInlinePluginJsonMcpDefinitions(pluginUri, adapter);
-
-		const merged = new Map<string, IMcpServerConfiguration>();
-		for (const definition of fileDefinitions) {
-			merged.set(definition.name, definition.configuration);
+	private async _readManifest(pluginUri: URI, adapter: IAgentPluginFormatAdapter): Promise<Record<string, unknown> | undefined> {
+		const json = await this._readJsonFile(joinPath(pluginUri, adapter.manifestPath));
+		if (json && typeof json === 'object') {
+			return json as Record<string, unknown>;
 		}
-		for (const definition of pluginJsonDefinitions) {
-			if (!merged.has(definition.name)) {
-				merged.set(definition.name, definition.configuration);
-			}
-		}
-
-		const definitions = [...merged.entries()]
-			.map(([name, configuration]) => ({ name, configuration } satisfies IAgentPluginMcpServerDefinition))
-			.sort((a, b) => a.name.localeCompare(b.name));
-
-		return definitions;
+		return undefined;
 	}
 
-	private async _readInlinePluginJsonMcpDefinitions(pluginUri: URI, adapter: IAgentPluginFormatAdapter): Promise<readonly IAgentPluginMcpServerDefinition[]> {
-		for (const manifestPath of adapter.manifestPaths.map(path => joinPath(pluginUri, path))) {
-			const manifest = await this._readJsonFile(manifestPath);
-			if (!manifest || typeof manifest !== 'object') {
-				continue;
-			}
-
-			const definitions = this._parseMcpServerDefinitionMap(manifest);
-			if (definitions.length > 0) {
-				return definitions;
+	/**
+	 * Reads hook definitions from a list of resolved paths (JSON files).
+	 * Each path is tried in order; the first one that contains valid hook
+	 * JSON is used.
+	 */
+	private async _readHooksFromPaths(pluginUri: URI, paths: readonly URI[], adapter: IAgentPluginFormatAdapter): Promise<readonly IAgentPluginHook[]> {
+		const userHome = (await this._pathService.userHome()).fsPath;
+		for (const hookPath of paths) {
+			const json = await this._readJsonFile(hookPath);
+			if (json) {
+				try {
+					return adapter.parseHooks(json, pluginUri, userHome);
+				} catch (e) {
+					this._logService.info(`[AgentPluginDiscovery] Failed to parse hooks from ${hookPath.toString()}:`, e);
+				}
 			}
 		}
-
 		return [];
+	}
+
+	/**
+	 * Reads MCP server definitions from a list of resolved paths (JSON files).
+	 * Definitions from all files are merged; the first definition for a given
+	 * server name wins.
+	 */
+	private async _readMcpDefinitionsFromPaths(paths: readonly URI[]): Promise<readonly IAgentPluginMcpServerDefinition[]> {
+		const merged = new Map<string, IMcpServerConfiguration>();
+		for (const mcpPath of paths) {
+			const json = await this._readJsonFile(mcpPath);
+			for (const def of this._parseMcpServerDefinitionMap(json)) {
+				if (!merged.has(def.name)) {
+					merged.set(def.name, def.configuration);
+				}
+			}
+		}
+		return [...merged.entries()]
+			.map(([name, configuration]) => ({ name, configuration } satisfies IAgentPluginMcpServerDefinition))
+			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
 	private _parseMcpServerDefinitionMap(raw: unknown): IAgentPluginMcpServerDefinition[] {
@@ -543,36 +685,6 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		return undefined;
 	}
 
-	private async _readHooks(pluginUri: URI, adapter: IAgentPluginFormatAdapter): Promise<readonly IAgentPluginHook[]> {
-		const userHome = (await this._pathService.userHome()).fsPath;
-		for (const hooksUri of adapter.hookConfigPaths.map(path => joinPath(pluginUri, path))) {
-			const json = await this._readJsonFile(hooksUri);
-			if (json) {
-				try {
-					return adapter.parseHooks(json, pluginUri, userHome);
-				} catch (e) {
-					this._logService.info(`[ConfiguredAgentPluginDiscovery] Failed to parse hooks from ${hooksUri.toString()}:`, e);
-				}
-			}
-		}
-
-		for (const manifestPath of adapter.manifestPaths.map(path => joinPath(pluginUri, path))) {
-			const manifest = await this._readJsonFile(manifestPath);
-			if (manifest && typeof manifest === 'object') {
-				const hooks = (manifest as Record<string, unknown>)['hooks'];
-				if (hooks && typeof hooks === 'object') {
-					try {
-						return adapter.parseHooks({ hooks }, pluginUri, userHome);
-					} catch (e) {
-						this._logService.info(`[ConfiguredAgentPluginDiscovery] Failed to parse hooks from manifest ${manifestPath.toString()}:`, e);
-					}
-				}
-			}
-		}
-
-		return [];
-	}
-
 	private async _readJsonFile(uri: URI): Promise<unknown | undefined> {
 		try {
 			const fileContents = await this._fileService.readFile(uri);
@@ -582,96 +694,96 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 	}
 
-	private async _readSkills(uri: URI): Promise<readonly IAgentPluginSkill[]> {
-		const skillsDir = joinPath(uri, 'skills');
-		let stat;
-		try {
-			stat = await this._fileService.resolve(skillsDir);
-		} catch {
-			return [];
-		}
-
-		if (!stat.isDirectory || !stat.children) {
-			return [];
-		}
-
+	private async _readSkills(dirs: readonly URI[]): Promise<readonly IAgentPluginSkill[]> {
+		const seen = new Set<string>();
 		const skills: IAgentPluginSkill[] = [];
-		for (const child of stat.children) {
-			const skillMd = URI.joinPath(child.resource, 'SKILL.md');
-			if (!(await this._pathExists(skillMd))) {
+
+		const addSkill = (name: string, skillMd: URI) => {
+			if (!seen.has(name)) {
+				seen.add(name);
+				skills.push({ uri: skillMd, name });
+			}
+		};
+
+		for (const dir of dirs) {
+			// If the path points directly to a skill directory (contains SKILL.md),
+			// add it as a single skill instead of scanning its children.
+			const skillMd = URI.joinPath(dir, 'SKILL.md');
+			if (await this._pathExists(skillMd)) {
+				addSkill(basename(dir), skillMd);
 				continue;
 			}
 
-			skills.push({
-				uri: skillMd,
-				name: basename(child.resource),
-			});
+			let stat;
+			try {
+				stat = await this._fileService.resolve(dir);
+			} catch {
+				continue;
+			}
+
+			if (!stat.isDirectory || !stat.children) {
+				continue;
+			}
+
+			for (const child of stat.children) {
+				const childSkillMd = URI.joinPath(child.resource, 'SKILL.md');
+				if (await this._pathExists(childSkillMd)) {
+					addSkill(basename(child.resource), childSkillMd);
+				}
+			}
 		}
 
 		skills.sort((a, b) => a.name.localeCompare(b.name));
 		return skills;
 	}
 
-	private async _readAgents(uri: URI): Promise<readonly IAgentPluginAgent[]> {
-		const agentsDir = joinPath(uri, 'agents');
-		let stat;
-		try {
-			stat = await this._fileService.resolve(agentsDir);
-		} catch {
-			return [];
-		}
+	/**
+	 * Scans directories for `.md` files, returning `{ uri, name }` entries
+	 * where name is derived from the filename (minus the `.md` extension).
+	 * If a path points to a specific `.md` file, it is included directly.
+	 * Used for both commands and agents.
+	 */
+	private async _readMarkdownComponents(dirs: readonly URI[]): Promise<readonly { uri: URI; name: string }[]> {
+		const seen = new Set<string>();
+		const items: { uri: URI; name: string }[] = [];
 
-		if (!stat.isDirectory || !stat.children) {
-			return [];
-		}
+		const addItem = (name: string, uri: URI) => {
+			if (!seen.has(name)) {
+				seen.add(name);
+				items.push({ uri, name });
+			}
+		};
 
-		const agents: IAgentPluginAgent[] = [];
-		for (const child of stat.children) {
-			if (!child.isFile || extname(child.resource).toLowerCase() !== COMMAND_FILE_SUFFIX) {
+		for (const dir of dirs) {
+			let stat;
+			try {
+				stat = await this._fileService.resolve(dir);
+			} catch {
 				continue;
 			}
 
-			const name = basename(child.resource).slice(0, -COMMAND_FILE_SUFFIX.length);
 
-			agents.push({
-				uri: child.resource,
-				name,
-			});
-		}
-
-		agents.sort((a, b) => a.name.localeCompare(b.name));
-		return agents;
-	}
-
-	private async _readCommands(uri: URI): Promise<readonly IAgentPluginCommand[]> {
-		const commandsDir = joinPath(uri, 'commands');
-		let stat;
-		try {
-			stat = await this._fileService.resolve(commandsDir);
-		} catch {
-			return [];
-		}
-
-		if (!stat.isDirectory || !stat.children) {
-			return [];
-		}
-
-		const commands: IAgentPluginCommand[] = [];
-		for (const child of stat.children) {
-			if (!child.isFile || extname(child.resource).toLowerCase() !== COMMAND_FILE_SUFFIX) {
+			// If the path points to a specific .md file, include it directly.
+			if (stat.isFile && extname(dir).toLowerCase() === COMMAND_FILE_SUFFIX) {
+				addItem(basename(dir).slice(0, -COMMAND_FILE_SUFFIX.length), dir);
 				continue;
 			}
 
-			const name = basename(child.resource).slice(0, -COMMAND_FILE_SUFFIX.length);
 
-			commands.push({
-				uri: child.resource,
-				name,
-			});
+			if (!stat.isDirectory || !stat.children) {
+				continue;
+			}
+
+			for (const child of stat.children) {
+				if (!child.isFile || extname(child.resource).toLowerCase() !== COMMAND_FILE_SUFFIX) {
+					continue;
+				}
+				addItem(basename(child.resource).slice(0, -COMMAND_FILE_SUFFIX.length), child.resource);
+			}
 		}
 
-		commands.sort((a, b) => a.name.localeCompare(b.name));
-		return commands;
+		items.sort((a, b) => a.name.localeCompare(b.name));
+		return items;
 	}
 
 	private _disposePluginEntriesExcept(keep: Set<string>): void {

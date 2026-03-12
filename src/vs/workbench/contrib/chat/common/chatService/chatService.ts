@@ -605,6 +605,7 @@ export interface IChatToolInvocation {
 	readonly subAgentInvocationId?: string;
 	readonly state: IObservable<IChatToolInvocation.State>;
 	generatedTitle?: string;
+	isAttachedToThinking: boolean;
 
 	kind: 'toolInvocation';
 
@@ -868,6 +869,7 @@ export interface IChatToolInvocationSerialized {
 	source: ToolDataSource | undefined; // undefined on pre-1.104 versions
 	readonly subAgentInvocationId?: string;
 	generatedTitle?: string;
+	isAttachedToThinking?: boolean;
 	kind: 'toolInvocationSerialized';
 }
 
