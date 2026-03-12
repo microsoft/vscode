@@ -355,6 +355,7 @@ export class PluginListWidget extends Disposable {
 
 		const installFromSourceButton = this._register(new Button(buttonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 		installFromSourceButton.label = `$(${Codicon.add.id})`;
+		installFromSourceButton.setTitle(localize('installFromSource', "Install Plugin from Source"));
 		installFromSourceButton.element.classList.add('list-icon-button');
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), installFromSourceButton.element, localize('installFromSourceTooltip', "Install Plugin from Source")));
 		this._register(installFromSourceButton.onDidClick(() => {

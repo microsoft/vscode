@@ -479,11 +479,11 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 
 				const paths = parseComponentPathConfig(section);
 				const dirs = resolveComponentDirs(uri, defaultPath, paths);
-				reader.store.add(this._fileService.onDidFilesChange(e => {
-					if (dirs.some(d => e.affects(d))) {
-						changeTrigger.trigger(undefined);
-					}
-				}));
+				for (const d of dirs) {
+					const watcher = this._fileService.createWatcher(d, { recursive: false, excludes: [] });
+					reader.store.add(watcher);
+					reader.store.add(watcher.onDidChange(() => changeTrigger.trigger(undefined)));
+				}
 
 				return { kind: 'dirs', dirs: dirs } as const;
 			});
@@ -531,12 +531,12 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			manifest.set(await this._readManifest(uri, adapter), undefined);
 		};
 
-		store.add(this._fileService.watch(uri, { recursive: true, excludes: [] }));
-		store.add(this._fileService.onDidFilesChange(e => {
-			if (e.affects(joinPath(uri, adapter.manifestPath))) {
-				readManifest();
-			}
-		}));
+		const manifestWatcher = this._fileService.createWatcher(
+			joinPath(uri, adapter.manifestPath),
+			{ recursive: false, excludes: [] },
+		);
+		store.add(manifestWatcher);
+		store.add(manifestWatcher.onDidChange(() => readManifest()));
 
 		readManifest();
 
