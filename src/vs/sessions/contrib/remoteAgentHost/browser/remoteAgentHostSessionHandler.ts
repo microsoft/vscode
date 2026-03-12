@@ -85,6 +85,7 @@ export class RemoteAgentHostSessionHandler extends Disposable implements IChatSe
 
 	private readonly _activeSessions = new Map<string, RemoteAgentHostChatSession>();
 	private readonly _sessionToBackend = new Map<string, URI>();
+	private readonly _sessionWorkingDirs = new Map<string, string>();
 	private readonly _config: IRemoteAgentHostSessionHandlerConfig;
 	private readonly _clientState: SessionClientState;
 
@@ -146,6 +147,13 @@ export class RemoteAgentHostSessionHandler extends Disposable implements IChatSe
 			}
 		}
 
+		// Capture the working directory from the active session at the time the session
+		// is first opened. This is the folder path the user typed in the input box.
+		const activeSessionItem = this._sessionsManagementService.getActiveSession();
+		if (activeSessionItem?.repository) {
+			this._sessionWorkingDirs.set(resourceKey, activeSessionItem.repository.fsPath);
+		}
+
 		const session = this._instantiationService.createInstance(
 			RemoteAgentHostChatSession,
 			sessionResource,
@@ -159,6 +167,7 @@ export class RemoteAgentHostSessionHandler extends Disposable implements IChatSe
 			() => {
 				this._activeSessions.delete(resourceKey);
 				this._sessionToBackend.delete(resourceKey);
+				this._sessionWorkingDirs.delete(resourceKey);
 				if (resolvedSession) {
 					this._clientState.unsubscribe(resolvedSession);
 					this._remoteAgentHostService.unsubscribe(this._config.address, resolvedSession);
@@ -372,8 +381,8 @@ export class RemoteAgentHostSessionHandler extends Disposable implements IChatSe
 
 	private async _createAndSubscribe(sessionResource: URI, modelId?: string): Promise<URI> {
 		const rawModelId = this._extractRawModelId(modelId);
-		const activeSession = this._sessionsManagementService.getActiveSession();
-		const workingDirectory = activeSession?.repository?.fsPath
+		const resourceKey = sessionResource.path.substring(1);
+		const workingDirectory = this._sessionWorkingDirs.get(resourceKey)
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath;
 
 		this._logService.trace(`[RemoteAgentHost] Creating new session on ${this._config.address}, model=${rawModelId ?? '(default)'}, provider=${this._config.provider}, workingDirectory=${workingDirectory ?? '(none)'}`);
