@@ -44,6 +44,7 @@ const COMMAND_FILE_SUFFIX = '.md';
 const enum AgentPluginFormat {
 	Copilot,
 	Claude,
+	OpenPlugin,
 }
 
 interface IAgentPluginFormatAdapter {
@@ -100,7 +101,7 @@ const shellUnsafeChars = /[\s&|<>()^;!`"']/;
  * (including suffix) is quoted as one unit.
  *
  */
-export function shellQuotePluginRootInCommand(command: string, fsPath: string, token: string = '${CLAUDE_PLUGIN_ROOT}'): string {
+export function shellQuotePluginRootInCommand(command: string, fsPath: string, token: string) {
 	if (!command.includes(token)) {
 		return command;
 	}
@@ -130,6 +131,70 @@ export function shellQuotePluginRootInCommand(command: string, fsPath: string, t
 	});
 }
 
+/**
+ * Shared hook-parsing logic for plugin formats that use the Claude/open-plugin
+ * hook schema. Replaces `${token}` references in hook commands with the plugin
+ * root path (shell-quoted when necessary), injects an environment variable, and
+ * delegates to {@link parseClaudeHooks} for the actual hook resolution.
+ */
+function parsePluginRootHooks(
+	json: unknown,
+	pluginUri: URI,
+	userHome: string,
+	workspaceContextService: IWorkspaceContextService,
+	token: string,
+	envVar: string,
+): IAgentPluginHook[] {
+	const fsPath = pluginUri.fsPath;
+	const typedJson = json as { hooks?: Record<string, unknown[]> };
+
+	const mutateHookCommand = (hook: Mutable<IHookCommand>): void => {
+		for (const field of ['command', 'windows', 'linux', 'osx'] as const) {
+			if (typeof hook[field] === 'string') {
+				hook[field] = shellQuotePluginRootInCommand(hook[field], fsPath, token);
+			}
+		}
+
+		hook.env ??= {};
+		hook.env[envVar] = fsPath;
+	};
+
+	for (const lifecycle of Object.values(typedJson.hooks ?? {})) {
+		if (!Array.isArray(lifecycle)) {
+			continue;
+		}
+
+		for (const lifecycleEntry of lifecycle) {
+			if (!lifecycleEntry || typeof lifecycleEntry !== 'object') {
+				continue;
+			}
+
+			const entry = lifecycleEntry as { hooks?: Mutable<IHookCommand>[] } & Mutable<IHookCommand>;
+			if (Array.isArray(entry.hooks)) {
+				for (const hook of entry.hooks) {
+					mutateHookCommand(hook);
+				}
+			} else {
+				mutateHookCommand(entry);
+			}
+		}
+	}
+
+	const replacer = (v: unknown): unknown => {
+		return typeof v === 'string'
+			? v.replaceAll(token, pluginUri.fsPath)
+			: undefined;
+	};
+
+	const workspaceRoot = resolveWorkspaceRoot(pluginUri, workspaceContextService);
+	const { hooks, disabledAllHooks } = parseClaudeHooks(cloneAndChange(json, replacer), workspaceRoot, userHome);
+	if (disabledAllHooks) {
+		return [];
+	}
+
+	return mapParsedHooks(hooks);
+}
+
 class ClaudePluginFormatAdapter implements IAgentPluginFormatAdapter {
 	readonly format = AgentPluginFormat.Claude;
 	readonly manifestPaths = ['.claude-plugin/plugin.json'];
@@ -141,55 +206,22 @@ class ClaudePluginFormatAdapter implements IAgentPluginFormatAdapter {
 	) { }
 
 	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
-		const token = '${CLAUDE_PLUGIN_ROOT}';
-		const fsPath = pluginUri.fsPath;
-		const typedJson = json as { hooks?: Record<string, unknown[]> };
+		return parsePluginRootHooks(json, pluginUri, userHome, this._workspaceContextService, '${CLAUDE_PLUGIN_ROOT}', 'CLAUDE_PLUGIN_ROOT');
+	}
+}
 
-		const mutateHookCommand = (hook: Mutable<IHookCommand>): void => {
-			for (const field of ['command', 'windows', 'linux', 'osx'] as const) {
-				if (typeof hook[field] === 'string') {
-					hook[field] = shellQuotePluginRootInCommand(hook[field], fsPath, token);
-				}
-			}
+class OpenPluginFormatAdapter implements IAgentPluginFormatAdapter {
+	readonly format = AgentPluginFormat.OpenPlugin;
+	readonly manifestPaths = ['.plugin/plugin.json'];
+	readonly hookConfigPaths = ['hooks/hooks.json'];
+	readonly hookWatchPaths = ['hooks'];
 
-			hook.env ??= {};
-			hook.env.CLAUDE_PLUGIN_ROOT = fsPath;
-		};
+	constructor(
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+	) { }
 
-		for (const lifecycle of Object.values(typedJson.hooks ?? {})) {
-			if (!Array.isArray(lifecycle)) {
-				continue;
-			}
-
-			for (const lifecycleEntry of lifecycle) {
-				if (!lifecycleEntry || typeof lifecycleEntry !== 'object') {
-					continue;
-				}
-
-				const entry = lifecycleEntry as { hooks?: Mutable<IHookCommand>[] } & Mutable<IHookCommand>;
-				if (Array.isArray(entry.hooks)) {
-					for (const hook of entry.hooks) {
-						mutateHookCommand(hook);
-					}
-				} else {
-					mutateHookCommand(entry);
-				}
-			}
-		}
-
-		const replacer = (v: unknown): unknown => {
-			return typeof v === 'string'
-				? v.replaceAll('${CLAUDE_PLUGIN_ROOT}', pluginUri.fsPath)
-				: undefined;
-		};
-
-		const workspaceRoot = resolveWorkspaceRoot(pluginUri, this._workspaceContextService);
-		const { hooks, disabledAllHooks } = parseClaudeHooks(cloneAndChange(json, replacer), workspaceRoot, userHome);
-		if (disabledAllHooks) {
-			return [];
-		}
-
-		return mapParsedHooks(hooks);
+	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
+		return parsePluginRootHooks(json, pluginUri, userHome, this._workspaceContextService, '${PLUGIN_ROOT}', 'PLUGIN_ROOT');
 	}
 }
 
@@ -322,6 +354,10 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 	}
 
 	private async _detectPluginFormatAdapter(pluginUri: URI): Promise<IAgentPluginFormatAdapter> {
+		if (await this._pathExists(joinPath(pluginUri, '.plugin', 'plugin.json'))) {
+			return this._instantiationService.createInstance(OpenPluginFormatAdapter);
+		}
+
 		const isInClaudeDirectory = pluginUri.path.split('/').includes('.claude');
 		if (isInClaudeDirectory || await this._pathExists(joinPath(pluginUri, '.claude-plugin', 'plugin.json'))) {
 			return this._instantiationService.createInstance(ClaudePluginFormatAdapter);
