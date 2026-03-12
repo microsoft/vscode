@@ -381,6 +381,12 @@ export function getElectronVersion(): Record<string, string> {
 	return { electronVersion, msBuildId };
 }
 
+export function getVersionedResourcesFolder(platform: string, commit: string): string {
+	const productJson = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
+	const useVersionedUpdate = platform === 'win32' && productJson.win32VersionedUpdate;
+	return useVersionedUpdate ? commit.substring(0, 10) : '';
+}
+
 export class VinylStat implements fs.Stats {
 
 	readonly dev: number;

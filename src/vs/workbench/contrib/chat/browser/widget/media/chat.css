@@ -2407,7 +2407,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	margin: 0 0 6px 0;
+	margin: 0 0 14px 0;
 	font-size: 13px;
 
 	/* Tool calls transition from a progress to a collapsible list part, which needs to have this top padding.

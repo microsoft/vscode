@@ -79,7 +79,7 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 					override: allowedChatMarkdownHtmlTags,
 				},
 				...options?.sanitizerConfig,
-				allowedLinkSchemes: { augment: [product.urlProtocol, CHAT_INTERNAL_SCHEME] },
+				allowedLinkSchemes: { augment: [product.urlProtocol, CHAT_INTERNAL_SCHEME, 'copilot-skill'] },
 				remoteImageIsAllowed: (_uri) => false,
 			}
 		};

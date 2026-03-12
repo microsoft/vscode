@@ -32,6 +32,7 @@ function makeToolInvocationPart(options: {
 		toolCallId: 'call-1',
 		state: observableValue('toolState', options.state),
 		toolSpecificData: options.toolSpecificData,
+		isAttachedToThinking: false,
 		toJSON: () => undefined!,
 	};
 }

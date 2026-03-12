@@ -55,6 +55,7 @@ export enum ChatConfiguration {
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	ChatCustomizationMenuEnabled = 'chat.customizationsMenu.enabled',
 	AutopilotEnabled = 'chat.autopilot.enabled',
+	ImageCarouselEnabled = 'chat.imageCarousel.enabled',
 }
 
 /**

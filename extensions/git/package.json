@@ -38,6 +38,7 @@
     "scmTextDocument",
     "scmValidation",
     "statusBarItemTooltip",
+    "taskRunOptions",
     "tabInputMultiDiff",
     "tabInputTextMerge",
     "textEditorDiffInformation",

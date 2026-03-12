@@ -1,11 +1,17 @@
 {
-	"$schema": "./component-explorer-config.schema.json",
+	"$schema": "../../node_modules/@vscode/component-explorer-cli/dist/component-explorer-config.schema.json",
 	"screenshotDir": ".screenshots",
 	"sessions": [
 		{
 			"name": "current"
 		}
 	],
+	"worktree": {
+		"maxSlots": 1,
+		"setup": {
+			"command": "echo 'test'"
+		}
+	},
 	"redirection": {
 		"port": 5337
 	},

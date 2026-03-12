@@ -400,6 +400,13 @@ declare module 'vscode' {
 		 * will immediately follow up with a new request in the same conversation.
 		 */
 		readonly yieldRequested: boolean;
+
+		/**
+		 * The resource URI identifying the chat session this context belongs to.
+		 * Available when the context is provided for title generation, summarization,
+		 * or other session-scoped operations. Extracted from the session's history entries.
+		 */
+		readonly sessionResource?: Uri;
 	}
 
 	// #endregion

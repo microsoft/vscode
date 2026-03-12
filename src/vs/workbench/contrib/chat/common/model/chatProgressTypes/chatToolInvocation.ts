@@ -32,6 +32,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public parameters: unknown;
 	public generatedTitle?: string;
 	public readonly chatRequestId?: string;
+	public isAttachedToThinking: boolean = false;
 
 	public toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatModifiedFilesConfirmationData;
 
@@ -74,7 +75,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		// For streaming invocations, use a default message until handleToolStream provides one
 		let defaultMessage: string | IMarkdownString = '';
 		if (startOptions.startInStreaming) {
-			defaultMessage = localize('toolInvocationMessage', "Using \"{0}\"", toolData.displayName);
+			defaultMessage = toolData.displayName;
 		} else if (startOptions.startInCancelled) {
 			defaultMessage = startOptions.cancelReasonMessage ?? localize('toolDeniedMessage', "Tool \"{0}\" was denied", toolData.displayName);
 		}
