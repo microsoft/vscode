@@ -33,6 +33,11 @@ import { SessionStateManager } from './sessionStateManager.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 
+/** Log to stderr so messages appear in the terminal alongside the process. */
+function log(msg: string): void {
+	process.stderr.write(`[AgentHostServer] ${msg}\n`);
+}
+
 // ---- Options ----------------------------------------------------------------
 
 interface IServerOptions {
@@ -77,6 +82,7 @@ async function main(): Promise<void> {
 	}
 
 	logService.info('[AgentHostServer] Starting standalone agent host server');
+	log('Starting standalone agent host server');
 
 	// Create state manager
 	const stateManager = disposables.add(new SessionStateManager(logService));
@@ -116,6 +122,7 @@ async function main(): Promise<void> {
 		const instantiationService = new InstantiationService(services);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		registerAgent(copilotAgent);
+		log('CopilotAgent registered');
 	}
 
 	if (options.enableMockAgent) {

@@ -3,45 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
-import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { IAgentHostService, IAgentAttachment, AgentProvider, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
-import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
-import { ToolCallStatus, TurnState, type IMessageAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
-import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { IChatProgress, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
-import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
-import { getAgentHostIcon } from '../agentSessions.js';
-import { turnsToHistory, toolCallStateToInvocation, permissionToConfirmation, finalizeToolInvocation } from './stateToProgressAdapter.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../base/common/observable.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IAgentAttachment, AgentProvider, AgentSession } from '../../../../platform/agentHost/common/agentService.js';
+import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import { SessionClientState } from '../../../../platform/agentHost/common/state/sessionClientState.js';
+import { ToolCallStatus, TurnState, type IMessageAttachment } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ISessionsManagementService } from '../../../contrib/sessions/browser/sessionsManagementService.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../../workbench/contrib/chat/common/participants/chatAgents.js';
+import { IChatProgress, IChatToolInvocation, ToolConfirmKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatToolInvocation } from '../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { getAgentHostIcon } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { turnsToHistory, toolCallStateToInvocation, permissionToConfirmation, finalizeToolInvocation } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // =============================================================================
-// AgentHostSessionHandler — renderer-side handler for a single agent host
-// chat session type. Bridges the protocol state layer with the chat UI:
-// subscribes to session state, derives IChatProgress[] from immutable state
-// changes, and dispatches client actions (turnStarted, permissionResolved,
-// turnCancelled) back to the server.
+// RemoteAgentHostChatSession - chat session backed by a remote agent host
 // =============================================================================
 
-// =============================================================================
-// Chat session
-// =============================================================================
-
-class AgentHostChatSession extends Disposable implements IChatSession {
-	readonly progressObs = observableValue<IChatProgress[]>('agentHostProgress', []);
-	readonly isCompleteObs = observableValue<boolean>('agentHostComplete', true);
+class RemoteAgentHostChatSession extends Disposable implements IChatSession {
+	readonly progressObs = observableValue<IChatProgress[]>('remoteAgentHostProgress', []);
+	readonly isCompleteObs = observableValue<boolean>('remoteAgentHostComplete', true);
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -62,7 +56,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		this._register(toDisposable(onDispose));
 
 		this.requestHandler = async (request, progress, _history, cancellationToken) => {
-			this._logService.info('[AgentHost] requestHandler called');
+			this._logService.info('[RemoteAgentHost] requestHandler called');
 			this.isCompleteObs.set(false, undefined);
 			await this._sendRequest(request, progress, cancellationToken);
 			this.isCompleteObs.set(true, undefined);
@@ -75,44 +69,49 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 }
 
 // =============================================================================
-// Session handler
+// RemoteAgentHostSessionHandler - bridges remote protocol state with chat UI
 // =============================================================================
 
-export interface IAgentHostSessionHandlerConfig {
+export interface IRemoteAgentHostSessionHandlerConfig {
 	readonly provider: AgentProvider;
 	readonly agentId: string;
 	readonly sessionType: string;
 	readonly fullName: string;
 	readonly description: string;
+	readonly address: string;
 }
 
-export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
+export class RemoteAgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
 
-	private readonly _activeSessions = new Map<string, AgentHostChatSession>();
-	/** Maps UI resource keys to resolved backend session URIs. */
+	private readonly _activeSessions = new Map<string, RemoteAgentHostChatSession>();
 	private readonly _sessionToBackend = new Map<string, URI>();
-	private readonly _config: IAgentHostSessionHandlerConfig;
-
-	/** Client state manager shared across all sessions for this handler. */
+	private readonly _config: IRemoteAgentHostSessionHandlerConfig;
 	private readonly _clientState: SessionClientState;
 
 	constructor(
-		config: IAgentHostSessionHandlerConfig,
-		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		config: IRemoteAgentHostSessionHandlerConfig,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 		this._config = config;
 
-		// Create shared client state manager for this handler instance
-		this._clientState = this._register(new SessionClientState(this._agentHostService.clientId));
+		const clientId = this._remoteAgentHostService.getClientId(config.address);
+		if (!clientId) {
+			throw new Error(`No connection to remote agent host at ${config.address}`);
+		}
+		this._clientState = this._register(new SessionClientState(clientId));
 
-		// Forward action envelopes from IPC to client state
-		this._register(this._agentHostService.onDidAction(envelope => {
+		// Forward session actions from this remote to client state
+		this._register(this._remoteAgentHostService.onDidAction(envelope => {
+			if (envelope.remoteAddress !== this._config.address) {
+				return;
+			}
 			if (isSessionAction(envelope.action)) {
 				this._clientState.receiveEnvelope(envelope);
 			}
@@ -122,19 +121,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	async provideChatSessionContent(sessionResource: URI, _token: CancellationToken): Promise<IChatSession> {
+		this._logService.info(`[RemoteAgentHost] provideChatSessionContent called: ${sessionResource.toString()}`);
 		const resourceKey = sessionResource.path.substring(1);
-
-		// For untitled (new) sessions, defer backend session creation until the
-		// first request arrives so the user-selected model is available.
-		// For existing sessions we resolve immediately to load history.
-		let resolvedSession: URI | undefined;
 		const isUntitled = resourceKey.startsWith('untitled-');
+
+		let resolvedSession: URI | undefined;
 		const history: IChatSessionHistoryItem[] = [];
 		if (!isUntitled) {
 			resolvedSession = this._resolveSessionUri(sessionResource);
 			this._sessionToBackend.set(resourceKey, resolvedSession);
 			try {
-				const snapshot = await this._agentHostService.subscribe(resolvedSession);
+				this._logService.info(`[RemoteAgentHost] Subscribing to session: ${resolvedSession.toString()}`);
+				const snapshot = await this._remoteAgentHostService.subscribe(this._config.address, resolvedSession);
+				this._logService.info(`[RemoteAgentHost] Subscribe returned, state=${snapshot?.state ? 'present' : 'null'}`);
 				if (snapshot?.state) {
 					this._clientState.handleSnapshot(resolvedSession, snapshot.state, snapshot.fromSeq);
 					const sessionState = this._clientState.getSessionState(resolvedSession);
@@ -143,11 +142,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					}
 				}
 			} catch (err) {
-				this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
+				this._logService.warn(`[RemoteAgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
 			}
 		}
+
 		const session = this._instantiationService.createInstance(
-			AgentHostChatSession,
+			RemoteAgentHostChatSession,
 			sessionResource,
 			history,
 			async (request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken) => {
@@ -161,16 +161,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._sessionToBackend.delete(resourceKey);
 				if (resolvedSession) {
 					this._clientState.unsubscribe(resolvedSession);
-					this._agentHostService.unsubscribe(resolvedSession);
-					this._agentHostService.disposeSession(resolvedSession);
+					this._remoteAgentHostService.unsubscribe(this._config.address, resolvedSession);
+					this._remoteAgentHostService.disposeSession(this._config.address, resolvedSession);
 				}
 			},
 		);
 		this._activeSessions.set(resourceKey, session);
+		this._logService.info(`[RemoteAgentHost] provideChatSessionContent returning session with ${history.length} history items`);
 		return session;
 	}
-
-	// ---- Agent registration -------------------------------------------------
 
 	private _registerAgent(): void {
 		const agentData: IChatAgentData = {
@@ -178,10 +177,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			name: this._config.agentId,
 			fullName: this._config.fullName,
 			description: this._config.description,
-			extensionId: new ExtensionIdentifier('vscode.agent-host'),
+			extensionId: new ExtensionIdentifier('vscode.remote-agent-host'),
 			extensionVersion: undefined,
 			extensionPublisherId: 'vscode',
-			extensionDisplayName: 'Agent Host',
+			extensionDisplayName: 'Remote Agent Host',
 			isDefault: false,
 			isDynamic: true,
 			isCore: true,
@@ -206,9 +205,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		progress: (parts: IChatProgress[]) => void,
 		cancellationToken: CancellationToken,
 	): Promise<IChatAgentResult> {
-		this._logService.info(`[AgentHost] _invokeAgent called for resource: ${request.sessionResource.toString()}`);
-
-		// Resolve or create backend session
 		const resourceKey = request.sessionResource.path.substring(1);
 		let resolvedSession = this._sessionToBackend.get(resourceKey);
 		if (!resolvedSession) {
@@ -225,8 +221,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		return {};
 	}
-
-	// ---- Turn handling (state-driven) ---------------------------------------
 
 	private async _handleTurn(
 		session: URI,
@@ -246,25 +240,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			displayName: a.displayName,
 		}));
 
-		// If the user selected a different model since the session was created
-		// (or since the last turn), dispatch a model change action first so the
-		// agent backend picks up the new model before processing the turn.
-		const rawModelId = this._extractRawModelId(request.userSelectedModelId);
-		if (rawModelId) {
-			const currentModel = this._clientState.getSessionState(session)?.summary.model;
-			if (currentModel !== rawModelId) {
-				const modelAction = {
-					type: 'session/modelChanged' as const,
-					session,
-					model: rawModelId,
-				};
-				const modelSeq = this._clientState.applyOptimistic(modelAction);
-				this._agentHostService.dispatchAction(modelAction, this._clientState.clientId, modelSeq);
-			}
-		}
-
-		// Dispatch session/turnStarted — the server will call sendMessage on
-		// the provider as a side effect.
 		const turnAction = {
 			type: 'session/turnStarted' as const,
 			session,
@@ -275,13 +250,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			},
 		};
 		const clientSeq = this._clientState.applyOptimistic(turnAction);
-		this._agentHostService.dispatchAction(turnAction, this._clientState.clientId, clientSeq);
+		this._remoteAgentHostService.dispatchAction(this._config.address, turnAction, this._clientState.clientId, clientSeq);
 
-		// Track live ChatToolInvocation/permission objects for this turn
 		const activeToolInvocations = new Map<string, ChatToolInvocation>();
 		const activePermissions = new Map<string, ChatToolInvocation>();
 
-		// Track last-emitted lengths to compute deltas from immutable state
 		let lastStreamedTextLen = 0;
 		let lastReasoningLen = 0;
 
@@ -296,7 +269,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			finished = true;
-			// Finalize any outstanding tool invocations
 			for (const [, invocation] of activeToolInvocations) {
 				invocation.didExecuteTool(undefined);
 			}
@@ -305,7 +277,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			resolveDone();
 		};
 
-		// Listen to state changes and translate to IChatProgress[]
 		turnDisposables.add(this._clientState.onDidChangeSessionState(e => {
 			if (e.session.toString() !== session.toString() || cancellationToken.isCancellationRequested) {
 				return;
@@ -314,8 +285,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const activeTurn = e.state.activeTurn;
 
 			if (!activeTurn || activeTurn.id !== turnId) {
-				// Turn completed (activeTurn cleared by reducer).
-				// Check if the finalized turn ended with an error and emit it.
 				const lastTurn = e.state.turns[e.state.turns.length - 1];
 				if (lastTurn?.id === turnId && lastTurn.state === TurnState.Error && lastTurn.error) {
 					progress([{ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${lastTurn.error.errorType}) ${lastTurn.error.message}`) }]);
@@ -326,21 +295,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 
-			// Stream text deltas
 			if (activeTurn.streamingText.length > lastStreamedTextLen) {
 				const delta = activeTurn.streamingText.substring(lastStreamedTextLen);
 				lastStreamedTextLen = activeTurn.streamingText.length;
 				progress([{ kind: 'markdownContent', content: new MarkdownString(delta) }]);
 			}
 
-			// Stream reasoning deltas
 			if (activeTurn.reasoning.length > lastReasoningLen) {
 				const delta = activeTurn.reasoning.substring(lastReasoningLen);
 				lastReasoningLen = activeTurn.reasoning.length;
 				progress([{ kind: 'thinking', value: delta }]);
 			}
 
-			// Handle tool calls — create/finalize ChatToolInvocations
 			for (const [toolCallId, tc] of activeTurn.toolCalls) {
 				const existing = activeToolInvocations.get(toolCallId);
 				if (!existing) {
@@ -355,7 +321,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 			}
 
-			// Handle permission requests
 			for (const [requestId, perm] of activeTurn.pendingPermissions) {
 				if (activePermissions.has(requestId)) {
 					continue;
@@ -366,7 +331,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 				IChatToolInvocation.awaitConfirmation(confirmInvocation, cancellationToken).then(reason => {
 					const approved = reason.type !== ToolConfirmKind.Denied && reason.type !== ToolConfirmKind.Skipped;
-					this._logService.info(`[AgentHost] Permission response: requestId=${requestId}, approved=${approved}`);
 					const resolveAction = {
 						type: 'session/permissionResolved' as const,
 						session,
@@ -375,69 +339,61 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						approved,
 					};
 					const seq = this._clientState.applyOptimistic(resolveAction);
-					this._agentHostService.dispatchAction(resolveAction, this._clientState.clientId, seq);
+					this._remoteAgentHostService.dispatchAction(this._config.address, resolveAction, this._clientState.clientId, seq);
 					if (approved) {
 						confirmInvocation.didExecuteTool(undefined);
 					} else {
 						confirmInvocation.didExecuteTool({ content: [], toolResultError: 'User denied' });
 					}
 				}).catch(err => {
-					this._logService.warn(`[AgentHost] Permission confirmation failed for requestId=${requestId}`, err);
+					this._logService.warn(`[RemoteAgentHost] Permission confirmation failed for requestId=${requestId}`, err);
 				});
 			}
 		}));
 
 		turnDisposables.add(cancellationToken.onCancellationRequested(() => {
-			this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
 			const cancelAction = {
 				type: 'session/turnCancelled' as const,
 				session,
 				turnId,
 			};
 			const seq = this._clientState.applyOptimistic(cancelAction);
-			this._agentHostService.dispatchAction(cancelAction, this._clientState.clientId, seq);
+			this._remoteAgentHostService.dispatchAction(this._config.address, cancelAction, this._clientState.clientId, seq);
 			finish();
 		}));
 
 		await done;
 	}
 
-	// ---- Session resolution -------------------------------------------------
-
-	/** Maps a UI session resource to a backend provider URI. */
 	private _resolveSessionUri(sessionResource: URI): URI {
 		const rawId = sessionResource.path.substring(1);
 		return AgentSession.uri(this._config.provider, rawId);
 	}
 
-	/** Creates a new backend session and subscribes to its state. */
 	private async _createAndSubscribe(sessionResource: URI, modelId?: string): Promise<URI> {
 		const rawModelId = this._extractRawModelId(modelId);
-		const workspaceFolder = this._workspaceContextService.getWorkspace().folders[0];
+		const activeSession = this._sessionsManagementService.getActiveSession();
+		const workingDirectory = activeSession?.repository?.fsPath
+			?? this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath;
 
-		this._logService.trace(`[AgentHost] Creating new session, model=${rawModelId ?? '(default)'}, provider=${this._config.provider}`);
-		const session = await this._agentHostService.createSession({
+		this._logService.trace(`[RemoteAgentHost] Creating new session on ${this._config.address}, model=${rawModelId ?? '(default)'}, provider=${this._config.provider}, workingDirectory=${workingDirectory ?? '(none)'}`);
+		const session = await this._remoteAgentHostService.createSession(this._config.address, {
 			model: rawModelId,
 			provider: this._config.provider,
-			workingDirectory: workspaceFolder?.uri.fsPath,
+			workingDirectory,
 		});
-		this._logService.trace(`[AgentHost] Created session: ${session.toString()}`);
+		this._logService.trace(`[RemoteAgentHost] Created session: ${session.toString()}`);
 
-		// Subscribe to the new session's state
 		try {
-			const snapshot = await this._agentHostService.subscribe(session);
+			const snapshot = await this._remoteAgentHostService.subscribe(this._config.address, session);
 			this._clientState.handleSnapshot(session, snapshot.state, snapshot.fromSeq);
 		} catch (err) {
-			this._logService.error(`[AgentHost] Failed to subscribe to new session: ${session.toString()}`, err);
+			this._logService.error(`[RemoteAgentHost] Failed to subscribe to new session: ${session.toString()}`, err);
 		}
 
 		return session;
 	}
 
-	/**
-	 * Extracts the raw model id from a language-model service identifier.
-	 * E.g. "agent-host-copilot:claude-sonnet-4-20250514" → "claude-sonnet-4-20250514".
-	 */
 	private _extractRawModelId(languageModelIdentifier: string | undefined): string | undefined {
 		if (!languageModelIdentifier) {
 			return undefined;
@@ -469,13 +425,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 			}
 		}
-		if (attachments.length > 0) {
-			this._logService.trace(`[AgentHost] Converted ${attachments.length} attachments from ${request.variables.variables.length} variables`);
-		}
 		return attachments;
 	}
-
-	// ---- Lifecycle ----------------------------------------------------------
 
 	override dispose(): void {
 		for (const [, session] of this._activeSessions) {

@@ -223,6 +223,32 @@
 	outline: none;
 }
 
+/* Remote folder path text input */
+.sessions-chat-remote-folder-input {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-remote-folder-text {
+	font-size: 13px;
+	font-family: var(--vscode-font-family);
+	color: var(--vscode-input-foreground);
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 4px;
+	padding: 3px 6px;
+	min-width: 180px;
+	outline: none;
+}
+
+.sessions-chat-remote-folder-text:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+.sessions-chat-remote-folder-text::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
 /* Folder label next to the picker */
 .sessions-chat-folder-label {
 	font-size: 13px;

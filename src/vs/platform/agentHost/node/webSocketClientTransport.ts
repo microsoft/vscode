@@ -1,0 +1,145 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+// WebSocket client transport for connecting to remote agent host processes.
+// Uses JSON serialization with URI revival, matching the server-side transport.
+
+import { Emitter } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import type { IProtocolMessage } from '../common/state/sessionProtocol.js';
+import type { IProtocolTransport } from '../common/state/sessionTransport.js';
+
+// ---- JSON serialization helpers ---------------------------------------------
+// These must match the server-side helpers in webSocketTransport.ts exactly.
+
+function uriReplacer(_key: string, value: unknown): unknown {
+	if (value instanceof URI) {
+		return value.toJSON();
+	}
+	if (value instanceof Map) {
+		return { $type: 'Map', entries: [...value.entries()] };
+	}
+	return value;
+}
+
+function uriReviver(_key: string, value: unknown): unknown {
+	if (value && typeof value === 'object') {
+		const obj = value as Record<string, unknown>;
+		if (obj.$mid === 1) {
+			return URI.revive(value as URI);
+		}
+		if (obj.$type === 'Map' && Array.isArray(obj.entries)) {
+			return new Map(obj.entries as [unknown, unknown][]);
+		}
+	}
+	return value;
+}
+
+// ---- Client transport -------------------------------------------------------
+
+/**
+ * A WebSocket client transport that connects to a remote agent host server.
+ * Uses the native browser WebSocket API (available in Electron renderer).
+ * Implements {@link IProtocolTransport} with JSON serialization and URI revival.
+ */
+export class WebSocketClientTransport extends Disposable implements IProtocolTransport {
+
+	private readonly _onMessage = this._register(new Emitter<IProtocolMessage>());
+	readonly onMessage = this._onMessage.event;
+
+	private readonly _onClose = this._register(new Emitter<void>());
+	readonly onClose = this._onClose.event;
+
+	private readonly _onOpen = this._register(new Emitter<void>());
+	readonly onOpen = this._onOpen.event;
+
+	private _ws: WebSocket | undefined;
+
+	get isOpen(): boolean {
+		return this._ws?.readyState === WebSocket.OPEN;
+	}
+
+	constructor(private readonly _address: string) {
+		super();
+	}
+
+	/**
+	 * Initiate the WebSocket connection. Resolves when the connection
+	 * is open, or rejects on error/timeout.
+	 */
+	connect(): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			if (this._store.isDisposed) {
+				reject(new Error('Transport is disposed'));
+				return;
+			}
+
+			const url = this._address.startsWith('ws://') || this._address.startsWith('wss://')
+				? this._address
+				: `ws://${this._address}`;
+
+			const ws = new WebSocket(url);
+			this._ws = ws;
+
+			const onOpen = () => {
+				cleanup();
+				this._onOpen.fire();
+				resolve();
+			};
+
+			const onError = () => {
+				cleanup();
+				reject(new Error(`WebSocket connection failed: ${this._address}`));
+			};
+
+			const onClose = () => {
+				cleanup();
+				reject(new Error(`WebSocket closed before connection was established: ${this._address}`));
+			};
+
+			const cleanup = () => {
+				ws.removeEventListener('open', onOpen);
+				ws.removeEventListener('error', onError);
+				ws.removeEventListener('close', onClose);
+			};
+
+			ws.addEventListener('open', onOpen);
+			ws.addEventListener('error', onError);
+			ws.addEventListener('close', onClose);
+
+			// Wire up long-lived listeners after connection
+			ws.addEventListener('message', (event: MessageEvent) => {
+				try {
+					const text = typeof event.data === 'string' ? event.data : '';
+					const message = JSON.parse(text, uriReviver) as IProtocolMessage;
+					this._onMessage.fire(message);
+				} catch {
+					// Malformed message - drop.
+				}
+			});
+
+			ws.addEventListener('close', () => {
+				this._onClose.fire();
+			});
+
+			ws.addEventListener('error', () => {
+				// Error always precedes close - closing is handled in the close handler.
+				this._onClose.fire();
+			});
+		});
+	}
+
+	send(message: IProtocolMessage): void {
+		if (this._ws?.readyState === WebSocket.OPEN) {
+			this._ws.send(JSON.stringify(message, uriReplacer));
+		}
+	}
+
+	override dispose(): void {
+		this._ws?.close();
+		super.dispose();
+	}
+}

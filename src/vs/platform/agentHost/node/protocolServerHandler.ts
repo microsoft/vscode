@@ -19,6 +19,7 @@ import {
 	type IInitializeParams,
 	type IProtocolMessage,
 	type IReconnectParams,
+	type ISetAuthTokenParams,
 	type IStateSnapshot,
 	type ISubscribeParams,
 	type IUnsubscribeParams,
@@ -83,6 +84,7 @@ export class ProtocolServerHandler extends Disposable {
 		let client: IConnectedClient | undefined;
 
 		disposables.add(transport.onMessage(msg => {
+			process.stderr.write(`[ProtocolServer] onMessage: ${JSON.stringify(msg).substring(0, 500)}\n`);
 			if (isJsonRpcRequest(msg)) {
 				// Request — expects a correlated response
 				if (!client) {
@@ -106,11 +108,17 @@ export class ProtocolServerHandler extends Disposable {
 					case 'dispatchAction':
 						if (client) {
 							const params = msg.params as IDispatchActionParams;
+							process.stderr.write(`[ProtocolServer] dispatchAction: ${JSON.stringify(params.action.type)}\n`);
 							const origin = { clientId: client.clientId, clientSeq: params.clientSeq };
 							this._stateManager.dispatchClientAction(params.action, origin);
 							this._sideEffectHandler.handleAction(params.action);
 						}
 						break;
+					case 'setAuthToken': {
+						const p = msg.params as ISetAuthTokenParams;
+						this._sideEffectHandler.handleSetAuthToken(p.token);
+						break;
+					}
 				}
 			}
 			// Responses from the client (if any) are ignored on the server side.
@@ -198,10 +206,11 @@ export class ProtocolServerHandler extends Disposable {
 		} else {
 			const snapshots: IStateSnapshot[] = [];
 			for (const sub of params.subscriptions) {
-				const snapshot = this._stateManager.getSnapshot(sub);
+				const resource = URI.revive(sub);
+				const snapshot = this._stateManager.getSnapshot(resource);
 				if (snapshot) {
 					snapshots.push(snapshot);
-					client.subscriptions.add(sub.toString());
+					client.subscriptions.add(resource.toString());
 				}
 			}
 			this._sendNotification(transport, 'reconnectResponse', {
@@ -216,14 +225,19 @@ export class ProtocolServerHandler extends Disposable {
 	// ---- Requests (expect a response) ---------------------------------------
 
 	private _handleRequest(client: IConnectedClient, method: string, params: unknown, id: number): void {
+		process.stderr.write(`[ProtocolServer] Request: method=${method} id=${id} params=${JSON.stringify(params ?? null).substring(0, 200)}\n`);
 		this._handleRequestAsync(client, method, params).then(result => {
+			process.stderr.write(`[ProtocolServer] Request '${method}' id=${id} succeeded\n`);
 			client.transport.send({ jsonrpc: '2.0', id, result: result ?? null });
 		}).catch(err => {
 			this._logService.error(`[ProtocolServer] Request '${method}' failed`, err);
+			const message = err instanceof Error && err.stack
+				? err.stack
+				: String(err?.message ?? err);
 			client.transport.send({
 				jsonrpc: '2.0',
 				id,
-				error: { code: JSON_RPC_INTERNAL_ERROR, message: String(err?.message ?? err) },
+				error: { code: JSON_RPC_INTERNAL_ERROR, message },
 			});
 		});
 	}
@@ -232,18 +246,19 @@ export class ProtocolServerHandler extends Disposable {
 		switch (method) {
 			case 'subscribe': {
 				const p = params as ISubscribeParams;
-				const snapshot = this._stateManager.getSnapshot(p.resource);
+				const resource = URI.revive(p.resource);
+				const snapshot = this._stateManager.getSnapshot(resource);
 				if (snapshot) {
-					client.subscriptions.add(p.resource.toString());
+					client.subscriptions.add(resource.toString());
 				}
 				return snapshot ?? null;
 			}
 			case 'createSession': {
-				await this._sideEffectHandler.handleCreateSession(params as ICreateSessionParams);
-				return null;
+				const session = await this._sideEffectHandler.handleCreateSession(params as ICreateSessionParams);
+				return { session };
 			}
 			case 'disposeSession': {
-				this._sideEffectHandler.handleDisposeSession((params as IDisposeSessionParams).session);
+				this._sideEffectHandler.handleDisposeSession(URI.revive((params as IDisposeSessionParams).session));
 				return null;
 			}
 			case 'listSessions': {
@@ -252,20 +267,21 @@ export class ProtocolServerHandler extends Disposable {
 			}
 			case 'fetchTurns': {
 				const p = params as IFetchTurnsParams;
-				const state = this._stateManager.getSessionState(p.session);
+				const session = URI.revive(p.session);
+				const state = this._stateManager.getSessionState(session);
 				if (state) {
 					const turns = state.turns;
 					const start = Math.max(0, p.startTurn);
 					const end = Math.min(turns.length, start + p.count);
 					return {
-						session: p.session,
+						session,
 						startTurn: start,
 						turns: turns.slice(start, end),
 						totalTurns: turns.length,
 					};
 				}
 				return {
-					session: p.session,
+					session,
 					startTurn: p.startTurn,
 					turns: [],
 					totalTurns: 0,
@@ -279,10 +295,12 @@ export class ProtocolServerHandler extends Disposable {
 	// ---- Broadcasting -------------------------------------------------------
 
 	private _sendNotification(transport: IProtocolTransport, method: string, params: unknown): void {
+		process.stderr.write(`[ProtocolServer] Sending notification: ${method}\n`);
 		transport.send({ jsonrpc: '2.0', method, params });
 	}
 
 	private _broadcastAction(envelope: IActionEnvelope): void {
+		process.stderr.write(`[ProtocolServer] Broadcasting action: ${envelope.action.type}\n`);
 		const msg: IProtocolMessage = { jsonrpc: '2.0', method: 'action', params: { envelope } };
 		for (const client of this._clients.values()) {
 			if (this._isRelevantToClient(client, envelope)) {
@@ -328,7 +346,8 @@ export class ProtocolServerHandler extends Disposable {
  */
 export interface IProtocolSideEffectHandler {
 	handleAction(action: import('../common/state/sessionActions.js').ISessionAction): void;
-	handleCreateSession(command: import('../common/state/sessionProtocol.js').ICreateSessionParams): Promise<void>;
+	handleCreateSession(command: import('../common/state/sessionProtocol.js').ICreateSessionParams): Promise<URI>;
 	handleDisposeSession(session: URI): void;
 	handleListSessions(): Promise<import('../common/state/sessionState.js').ISessionSummary[]>;
+	handleSetAuthToken(token: string): void;
 }

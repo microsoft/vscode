@@ -64,9 +64,10 @@ class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	handleAction(action: ISessionAction): void {
 		this.handledActions.push(action);
 	}
-	async handleCreateSession(_command: ICreateSessionParams): Promise<void> { }
+	async handleCreateSession(_command: ICreateSessionParams): Promise<URI> { return URI.parse('copilot:/mock-session'); }
 	handleDisposeSession(_session: URI): void { }
 	async handleListSessions(): Promise<ISessionSummary[]> { return []; }
+	handleSetAuthToken(_token: string): void { }
 }
 
 // ---- Helpers ----------------------------------------------------------------
