@@ -136,7 +136,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		this.configuration = this.resolveConfiguration();
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
+			if (e.affectsConfiguration(LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION)) {
 				this.configuration = this.resolveConfiguration();
 				this.onDidChangeActivityBarLocation();
 			} else if (e.affectsConfiguration('workbench.secondarySideBar.showLabels')) {
@@ -161,9 +161,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	}
 
 	private resolveConfiguration(): IAuxiliaryBarPartConfiguration {
-		const position = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		const position = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION);
 
-		const canShowLabels = position !== ActivityBarPosition.TOP && position !== ActivityBarPosition.BOTTOM; // use same style as activity bar in this case
+		const canShowLabels = position !== ActivityBarPosition.TOP && position !== ActivityBarPosition.BOTTOM;
 		const showLabels = canShowLabels && this.configurationService.getValue('workbench.secondarySideBar.showLabels') !== false;
 
 		return { position, canShowLabels, showLabels };
