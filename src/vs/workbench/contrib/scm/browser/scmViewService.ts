@@ -359,30 +359,30 @@ export class SCMViewService implements ISCMViewService {
 		let removed: Iterable<ISCMRepository> = Iterable.empty();
 
 		if (this.previousState && !this.didFinishLoadingRepositories.get()) {
+			// Hidden repositories are not part of the saved state, so skip
+			// the restoration logic for them. They are still added to the
+			// internal list but should not affect the visibility restoration.
+			if (repository.provider.isHidden) {
+				this.insertRepositoryView(this._repositories, repositoryView);
+				this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
+				return;
+			}
+
 			const index = this.previousState.all.indexOf(getProviderStorageKey(repository.provider));
 
 			if (index === -1) {
-				// This repository is not part of the previous state which means that it
-				// was either manually closed in the previous session, or the repository
-				// was added after the previous session. In this case, we should select
-				// all of the repositories.
-				const added: ISCMRepository[] = [];
-
-				this.insertRepositoryView(this._repositories, repositoryView);
-
+				// This repository is not part of the previous state which means
+				// it was added after the previous session. Add it as visible
+				// without changing the visibility of existing repositories.
 				if (this.selectionModeConfig.get() === ISCMRepositorySelectionMode.Multiple || !this._repositories.find(r => r.selectionIndex !== -1)) {
-					// Multiple selection mode or single selection mode (select first repository)
-					this._repositories.forEach((repositoryView, index) => {
-						if (repositoryView.selectionIndex === -1) {
-							added.push(repositoryView.repository);
-						}
-						repositoryView.selectionIndex = index;
-					});
-
-					this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
+					const maxSelectionIndex = this.getMaxSelectionIndex();
+					this.insertRepositoryView(this._repositories, { ...repositoryView, selectionIndex: maxSelectionIndex + 1 });
+					this._onDidChangeRepositories.fire({ added: [repositoryView.repository], removed: Iterable.empty() });
+				} else {
+					this.insertRepositoryView(this._repositories, repositoryView);
+					this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
 				}
 
-				this.didSelectRepository = false;
 				return;
 			}
 
