@@ -1362,6 +1362,7 @@ export interface BrowserTabDto {
 
 export interface MainThreadBrowsersShape extends IDisposable {
 	$openBrowserTab(url: string, viewColumn?: EditorGroupColumn, options?: IEditorOptions): Promise<BrowserTabDto>;
+	$closeBrowserTab(browserId: string): Promise<void>;
 	$startCDPSession(sessionId: string, browserId: string): Promise<void>;
 	$closeCDPSession(sessionId: string): Promise<void>;
 	$sendCDPMessage(sessionId: string, message: CDPRequest): Promise<void>;
@@ -1370,7 +1371,7 @@ export interface MainThreadBrowsersShape extends IDisposable {
 export interface ExtHostBrowsersShape {
 	$onDidOpenBrowserTab(browser: BrowserTabDto): void;
 	$onDidCloseBrowserTab(browserId: string): void;
-	$onDidChangeActiveBrowserTab(browserId: string | undefined): void;
+	$onDidChangeActiveBrowserTab(browser: BrowserTabDto | undefined): void;
 	$onDidChangeBrowserTab(browserId: string, data: Partial<BrowserTabDto>): void;
 	$onCDPSessionMessage(sessionId: string, message: CDPResponse | CDPEvent): void;
 	$onCDPSessionClosed(sessionId: string): void;

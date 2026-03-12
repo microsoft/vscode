@@ -22,6 +22,9 @@ declare module 'vscode' {
 
 		/** Create a new CDP session that exposes this browser tab. */
 		startCDPSession(): Thenable<BrowserCDPSession>;
+
+		/** Close this browser tab. */
+		close(): Thenable<void>;
 	}
 
 	/**

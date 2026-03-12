@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { Event } from '../../../base/common/event.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { BrowserTabDto, ExtHostBrowsersShape, ExtHostContext, MainContext, MainThreadBrowsersShape } from '../common/extHost.protocol.js';
@@ -13,6 +14,7 @@ import { EditorGroupColumn, columnToEditorGroup } from '../../services/editor/co
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IEditorOptions } from '../../../platform/editor/common/editor.js';
+import { IEditorIdentifier } from '../../common/editor.js';
 import { CDPRequest } from '../../../platform/browserView/common/cdp/types.js';
 
 const BROWSER_EDITOR_INPUT_ID = 'workbench.editorinputs.browser';
@@ -72,6 +74,11 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 			throw new Error(`Failed to open browser tab`);
 		}
 
+		// Wait for the initial navigation to complete before resolving
+		if (url !== 'about:blank' && model.url !== url) {
+			await Event.toPromise(model.onDidNavigate);
+		}
+
 		return this._toDto(model);
 	}
 
@@ -99,10 +106,12 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		for (const browserId of entries) {
 			currentIds.add(browserId);
 			if (!this._knownBrowserIds.has(browserId)) {
+				this._knownBrowserIds.add(browserId);
 				const model = await this._resolveAndTrack(browserId);
 				if (model) {
-					this._knownBrowserIds.add(browserId);
 					this._proxy.$onDidOpenBrowserTab(this._toDto(model));
+				} else {
+					this._knownBrowserIds.delete(browserId);
 				}
 			}
 		}
@@ -121,8 +130,11 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		if (active?.typeId === BROWSER_EDITOR_INPUT_ID && active.resource) {
 			const parsed = BrowserViewUri.parse(active.resource);
 			if (parsed) {
-				this._proxy.$onDidChangeActiveBrowserTab(parsed.id);
-				return;
+				const model = await this._resolveAndTrack(parsed.id);
+				if (model) {
+					this._proxy.$onDidChangeActiveBrowserTab(this._toDto(model));
+					return;
+				}
 			}
 		}
 		this._proxy.$onDidChangeActiveBrowserTab(undefined);
@@ -195,8 +207,11 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		}));
 
 		disposables.add(this.cdpService.onDidDestroy(groupId)(() => {
-			this._proxy.$onCDPSessionClosed(sessionId);
 			this._sessions.deleteAndDispose(sessionId);
+		}));
+
+		disposables.add(toDisposable(() => {
+			this._proxy.$onCDPSessionClosed(sessionId);
 		}));
 
 		this._sessions.set(sessionId, disposables);
@@ -210,6 +225,22 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 		const groupId = this._sessionGroupIds.get(sessionId);
 		if (groupId) {
 			await this.cdpService.sendCDPMessage(groupId, message);
+		}
+	}
+
+	async $closeBrowserTab(browserId: string): Promise<void> {
+		const toClose: IEditorIdentifier[] = [];
+		for (const editor of this.editorService.editors) {
+			if (editor.typeId === BROWSER_EDITOR_INPUT_ID && editor.resource) {
+				const parsed = BrowserViewUri.parse(editor.resource);
+				if (parsed && parsed.id === browserId) {
+					const identifiers = this.editorService.findEditors(editor.resource);
+					toClose.push(...identifiers);
+				}
+			}
+		}
+		if (toClose.length > 0) {
+			await this.editorService.closeEditors(toClose);
 		}
 	}
 

@@ -45,7 +45,7 @@ class ExtHostBrowserTab implements vscode.BrowserTab {
 			: new extHostTypes.ThemeIcon(Codicon.globe.id) as vscode.ThemeIcon;
 	}
 
-	update(data: Partial<BrowserTabDto>): void {
+	update(data: Partial<BrowserTabDto>): boolean {
 		let changed = false;
 		if (data.url !== undefined && data.url !== this._url) {
 			this._url = data.url;
@@ -62,6 +62,7 @@ class ExtHostBrowserTab implements vscode.BrowserTab {
 		if (changed) {
 			this._syncProperties();
 		}
+		return changed;
 	}
 
 	async startCDPSession(): Promise<vscode.BrowserCDPSession> {
@@ -70,6 +71,10 @@ class ExtHostBrowserTab implements vscode.BrowserTab {
 		const session = new ExtHostBrowserCDPSession(sessionId, this._proxy);
 		this._sessions.set(sessionId, session);
 		return session;
+	}
+
+	async close(): Promise<void> {
+		await this._proxy.$closeBrowserTab(this.id);
 	}
 }
 
@@ -84,6 +89,8 @@ class ExtHostBrowserCDPSession implements vscode.BrowserCDPSession {
 	private readonly _onDidClose = new Emitter<void>();
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 
+	private _closed = false;
+
 	constructor(
 		readonly id: string,
 		private readonly _proxy: MainThreadBrowsersShape,
@@ -95,6 +102,9 @@ class ExtHostBrowserCDPSession implements vscode.BrowserCDPSession {
 	}
 
 	async sendMessage(message: CDPRequest): Promise<void> {
+		if (this._closed) {
+			throw new Error('Session is closed');
+		}
 		if (!message || typeof message !== 'object') {
 			throw new Error('Message must be an object');
 		}
@@ -114,6 +124,7 @@ class ExtHostBrowserCDPSession implements vscode.BrowserCDPSession {
 	}
 
 	async close(): Promise<void> {
+		this._closed = true;
 		await this._proxy.$closeCDPSession(this.id);
 	}
 
@@ -123,6 +134,7 @@ class ExtHostBrowserCDPSession implements vscode.BrowserCDPSession {
 	}
 
 	_acceptClosed(): void {
+		this._closed = true;
 		this._onDidClose.fire();
 	}
 }
@@ -207,15 +219,18 @@ export class ExtHostBrowsers extends Disposable implements ExtHostBrowsersShape 
 		}
 	}
 
-	$onDidChangeActiveBrowserTab(browserId: string | undefined): void {
-		this._activeBrowserTabId = browserId;
+	$onDidChangeActiveBrowserTab(dto: BrowserTabDto | undefined): void {
+		this._activeBrowserTabId = dto?.id;
+		if (dto && !this._browserTabs.has(dto.id)) {
+			const tab = new ExtHostBrowserTab(dto.id, this._proxy, this._sessions, dto);
+			this._browserTabs.set(dto.id, tab);
+		}
 		this._onDidChangeActiveBrowserTab.fire(this.activeBrowserTab);
 	}
 
 	$onDidChangeBrowserTab(browserId: string, data: Partial<BrowserTabDto>): void {
 		const tab = this._browserTabs.get(browserId);
-		if (tab) {
-			tab.update(data);
+		if (tab && tab.update(data)) {
 			this._onDidChangeBrowserTabState.fire(tab);
 		}
 	}
