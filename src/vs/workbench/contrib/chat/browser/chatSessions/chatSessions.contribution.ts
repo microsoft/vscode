@@ -352,8 +352,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		this._register(this.onDidChangeSessionItems((delta) => {
 			const changedChatSessionTypes = new Set<string>();
-			for (const resource of delta.addedOrUpdated ?? []) {
-				changedChatSessionTypes.add(getChatSessionType(resource.resource));
+			for (const session of delta.addedOrUpdated ?? []) {
+				changedChatSessionTypes.add(getChatSessionType(session.resource));
+			}
+
+			for (const resource of delta.removed ?? []) {
+				changedChatSessionTypes.add(getChatSessionType(resource));
 			}
 
 			for (const chatSessionType of changedChatSessionTypes) {

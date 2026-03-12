@@ -58,11 +58,9 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 				return;
 			}
 
-			let item = this.getItem(sessionResource);
-			if (!item) {
-				await this.refresh(CancellationToken.None);
-				item = this.getItem(sessionResource);
-			}
+			// TODO: This gets fired too often
+			await this.refresh(CancellationToken.None);
+			const item = this.getItem(sessionResource);
 
 			if (item) {
 				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [item] });
