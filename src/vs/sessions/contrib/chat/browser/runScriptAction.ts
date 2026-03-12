@@ -212,9 +212,10 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
-					const promptUri = FileAccess.asFileUri('vs/sessions/prompts/add-run-action.prompt.md');
-					const message = `Use the prompt file located at [add-run-action](${promptUri.toString()}).`;
-					await that._chatService.sendRequest(session.resource, message, { location: ChatAgentLocation.Chat });
+					const task = await that._showConfigureQuickPick(session);
+					if (task) {
+						await that._sessionsConfigService.runTask(task, session);
+					}
 				}
 			}));
 		}));
@@ -230,6 +231,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		interface ITaskPickItem extends IQuickPickItem {
 			readonly task?: ITaskEntry;
 			readonly source?: TaskStorageTarget;
+			readonly askCopilot?: true;
 		}
 
 		const items: (ITaskPickItem | IQuickPickSeparator)[] = [];
@@ -238,6 +240,11 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		items.push({
 			label: localize('enterCustomCommand', "Enter Custom Command..."),
 			description: localize('enterCustomCommandDesc', "Create a new shell task"),
+		});
+		items.push({
+			label: localize('askCopilotRunAction', "Ask Copilot..."),
+			description: localize('askCopilotRunActionDesc', "Let Copilot help you add a run action"),
+			askCopilot: true,
 		});
 
 		if (nonSessionTasks.length > 0) {
@@ -261,7 +268,12 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		}
 
 		const pickedItem = picked as ITaskPickItem;
-		if (pickedItem.task) {
+		if (pickedItem.askCopilot) {
+			const promptUri = FileAccess.asFileUri('vs/sessions/prompts/add-run-action.prompt.md');
+			const message = `Use the prompt file located at [add-run-action](${promptUri.toString()}).`;
+			await this._chatService.sendRequest(session.resource, message, { location: ChatAgentLocation.Chat });
+			return undefined;
+		} else if (pickedItem.task) {
 			return this._showCustomCommandInput(session, { task: pickedItem.task, target: pickedItem.source ?? 'workspace' });
 		} else {
 			// Custom command path
