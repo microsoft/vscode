@@ -7,7 +7,6 @@ import { equals } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { FileAccess } from '../../../../base/common/network.js';
 import { autorun, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
@@ -269,9 +268,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 		const pickedItem = picked as ITaskPickItem;
 		if (pickedItem.askCopilot) {
-			const promptUri = FileAccess.asFileUri('vs/sessions/prompts/add-run-action.prompt.md');
-			const message = `Use the prompt file located at [add-run-action](${promptUri.toString()}).`;
-			await this._chatService.sendRequest(session.resource, message, { location: ChatAgentLocation.Chat });
+			await this._chatService.sendRequest(session.resource, '/add-run-action', { location: ChatAgentLocation.Chat });
 			return undefined;
 		} else if (pickedItem.task) {
 			return this._showCustomCommandInput(session, { task: pickedItem.task, target: pickedItem.source ?? 'workspace' });
