@@ -27,7 +27,7 @@ import { IListVirtualDelegate, IListRenderer } from '../../../../../base/browser
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { basename, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { registerColor } from '../../../../../platform/theme/common/colorRegistry.js';
 import { PANEL_BORDER } from '../../../../common/theme.js';
@@ -832,7 +832,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private async resolveTargetDirectoryWithPicker(type: PromptsType, target: 'workspace' | 'user'): Promise<URI | undefined | null> {
 		const storageType = target === 'user' ? PromptsStorage.user : PromptsStorage.local;
 		const allFolders = await this.promptsService.getSourceFolders(type);
-		const matchingFolders = allFolders.filter(f => f.storage === storageType);
+		let matchingFolders = allFolders.filter(f => f.storage === storageType);
+
+		// getSourceFolders() tags tilde-expanded user paths (e.g. ~/.claude/agents)
+		// as PromptsStorage.local. When targeting workspace, filter to only folders
+		// that are actually under the active project root.
+		if (target === 'workspace') {
+			const projectRoot = this.workspaceService.getActiveProjectRoot();
+			if (projectRoot) {
+				matchingFolders = matchingFolders.filter(f => isEqualOrParent(f.uri, projectRoot));
+			}
+		}
 
 		if (matchingFolders.length === 0) {
 			// No matching folders — fall back to legacy resolution

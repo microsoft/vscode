@@ -11,6 +11,7 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { getPromptFileDefaultLocations } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { localize } from '../../../../../nls.js';
@@ -107,7 +108,14 @@ export class CustomizationCreatorService {
 	 */
 	private async resolveTargetDirectoryWithPicker(type: PromptsType): Promise<URI | undefined | null> {
 		const allFolders = await this.promptsService.getSourceFolders(type);
-		const localFolders = allFolders.filter(f => f.storage === PromptsStorage.local);
+		let localFolders = allFolders.filter(f => f.storage === PromptsStorage.local);
+
+		// getSourceFolders() tags tilde-expanded user paths (e.g. ~/.claude/agents)
+		// as PromptsStorage.local. Filter to only folders under the active project root.
+		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		if (projectRoot) {
+			localFolders = localFolders.filter(f => isEqualOrParent(f.uri, projectRoot));
+		}
 
 		if (localFolders.length === 0) {
 			// No configured local folders — fall back to the existing resolution logic
