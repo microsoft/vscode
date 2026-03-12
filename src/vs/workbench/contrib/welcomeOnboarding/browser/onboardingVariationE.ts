@@ -111,8 +111,15 @@ const TOUR_STEPS: readonly ITourStep[] = [
 	{
 		target: 'viewport',
 		title: localize('tour.copilot.title', "Copilot & Agent Sessions"),
-		description: localize('tour.copilot.desc', "AI is built right in. Ask Copilot questions, get code suggestions inline, and launch agent sessions that code in the background — locally or in the cloud. You are ready to go!"),
+		description: localize('tour.copilot.desc', "AI is built right in. Ask Copilot questions, get code suggestions inline, and launch agent sessions that code in the background — locally or in the cloud."),
 		position: PopoverPosition.Below,
+	},
+	{
+		target: 'viewport',
+		title: localize('tour.signIn.title', "Sign In to Get Started"),
+		description: localize('tour.signIn.desc', "Sign in with GitHub to sync your settings, access pull requests and issues, and unlock the full Copilot experience. You can also try Copilot features without signing in."),
+		position: PopoverPosition.Below,
+		command: 'workbench.action.accounts.getStarted',
 	},
 ];
 
@@ -441,7 +448,7 @@ export class OnboardingVariationE extends Disposable {
 		const nextBtn = append(buttons, $<HTMLButtonElement>('button.onboarding-e-btn.onboarding-e-btn-primary'));
 		nextBtn.type = 'button';
 		nextBtn.textContent = isLast
-			? localize('tour.finish', "Start Coding")
+			? localize('tour.finish', "Sign In & Get Started")
 			: localize('tour.next', "Next");
 		this.stepDisposables.add(addDisposableListener(nextBtn, EventType.CLICK, () => {
 			if (isLast) {
