@@ -575,6 +575,13 @@ export class AICustomizationListWidget extends Disposable {
 		this._register(this.promptsService.onDidChangeCustomAgents(() => this.refresh()));
 		this._register(this.promptsService.onDidChangeSlashCommands(() => this.refresh()));
 
+		// Refresh on file deletions so the list updates after inline delete actions
+		this._register(this.fileService.onDidFilesChange(e => {
+			if (e.gotDeleted()) {
+				this.refresh();
+			}
+		}));
+
 		// Section footer at bottom with description and link
 		this.sectionHeader = DOM.append(this.element, $('.section-footer'));
 		this.sectionDescription = DOM.append(this.sectionHeader, $('p.section-footer-description'));
