@@ -7,6 +7,7 @@ import { equals } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { FileAccess } from '../../../../base/common/network.js';
 import { autorun, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
@@ -15,6 +16,8 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
+import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
+import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { IActiveSessionItem, IsActiveSessionBackgroundProviderContext, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { Menus } from '../../../browser/menus.js';
@@ -82,6 +85,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
 
@@ -208,10 +212,9 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
-					const task = await that._showConfigureQuickPick(session);
-					if (task) {
-						await that._sessionsConfigService.runTask(task, session);
-					}
+					const promptUri = FileAccess.asFileUri('vs/sessions/prompts/add-run-action.prompt.md');
+					const message = `Use the prompt file located at [add-run-action](${promptUri.toString()}).`;
+					await that._chatService.sendRequest(session.resource, message, { location: ChatAgentLocation.Chat });
 				}
 			}));
 		}));
