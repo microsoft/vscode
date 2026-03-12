@@ -829,6 +829,8 @@ suite('AgentPlugin format detection', () => {
 
 		await waitForState(plugins[0].instructions, i => i.length > 0);
 		assert.strictEqual(plugins[0].instructions.get().length, 1);
-		assert.strictEqual(plugins[0].instructions.get()[0].name, 'my-rule');
+		const instruction = plugins[0].instructions.get()[0];
+		assert.strictEqual(instruction.name, 'my-rule');
+		assert.ok(instruction.uri.path.endsWith('/rules/my-rule.mdc'));
 	}));
 });

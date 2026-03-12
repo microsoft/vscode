@@ -3915,10 +3915,19 @@ suite('PromptsService', () => {
 			const beforePlugin = before.filter(p => p.storage === PromptsStorage.plugin);
 			assert.strictEqual(beforePlugin.length, 1);
 
+			const eventFired = new Promise<void>(resolve => {
+				const disposable = service.onDidChangeInstructions(() => {
+					disposable.dispose();
+					resolve();
+				});
+			});
+
 			instructions.set([
 				{ uri: ruleUri1, name: 'rule-a' },
 				{ uri: ruleUri2, name: 'rule-b' },
 			], undefined);
+
+			await eventFired;
 
 			const after = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
 			const afterPlugin = after.filter(p => p.storage === PromptsStorage.plugin);

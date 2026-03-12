@@ -214,6 +214,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				Event.filter(modelChangeEvent, e => e.promptType === PromptsType.agent),
 				this._onDidContributedWhenChange.event,
 				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)),
+				this._onDidPluginPromptFilesChange.event,
 			)
 		));
 
@@ -675,6 +676,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this.getFileLocatorEvent(PromptsType.instructions),
 			this._onDidContributedWhenChange.event,
 			this._onDidChangeInstructions.event,
+			this._onDidPluginPromptFilesChange.event,
 		);
 	}
 
