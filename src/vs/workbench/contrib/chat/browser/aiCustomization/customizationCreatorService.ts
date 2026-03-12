@@ -112,8 +112,20 @@ export class CustomizationCreatorService {
 
 		// Filter to only workspace-scoped folders (under the active project root).
 		// Don't rely on storage tags — tilde-expanded user paths can be tagged local.
+		// Deduplicate by URI to avoid inflated counts and duplicate picker entries.
+		const seen = new Set<string>();
 		const workspaceFolders = projectRoot
-			? allFolders.filter(f => isEqualOrParent(f.uri, projectRoot))
+			? allFolders.filter(f => {
+				if (!isEqualOrParent(f.uri, projectRoot)) {
+					return false;
+				}
+				const key = f.uri.toString();
+				if (seen.has(key)) {
+					return false;
+				}
+				seen.add(key);
+				return true;
+			})
 			: [];
 
 		if (workspaceFolders.length === 0) {

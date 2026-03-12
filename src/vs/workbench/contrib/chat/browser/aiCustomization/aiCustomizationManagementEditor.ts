@@ -765,7 +765,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			section: this.selectedSection,
 			promptType: type,
 			creationMode: 'manual',
-			target,
+			target: target === 'workspace-root' ? 'workspace' : target,
 		});
 
 		// Handle workspace-root files (e.g. AGENTS.md at project root)
@@ -880,7 +880,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 
 		if (matchingFolders.length === 0) {
-			return null;
+			// No matching folders — return undefined so the command can fall
+			// back to askForPromptSourceFolder (not null which means cancellation)
+			return undefined;
 		}
 
 		if (matchingFolders.length === 1) {
