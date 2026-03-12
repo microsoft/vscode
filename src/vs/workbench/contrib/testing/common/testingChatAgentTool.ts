@@ -383,7 +383,7 @@ export function getOverallCoverageSummary(coverage: TestCoverage): string {
 
 	let str = '<coverageSummary>\n';
 	for (const f of files) {
-		str += `<file path=${JSON.stringify(f.path)} percent=${f.pct.toFixed(1)} />\n`;
+		str += `<file path="${f.path}" percent=${f.pct.toFixed(1)} />\n`;
 	}
 	str += '</coverageSummary>\n';
 	return str;
@@ -392,7 +392,7 @@ export function getOverallCoverageSummary(coverage: TestCoverage): string {
 /** Gets detailed coverage information for a single file including uncovered items. */
 export async function getFileCoverageDetails(file: FileCoverage, path: string): Promise<string> {
 	const pct = getTotalCoveragePercent(file.statement, file.branch, file.declaration) * 100;
-	let str = `<coverage path=${JSON.stringify(path)} percent=${pct.toFixed(1)} statements=${file.statement.covered}/${file.statement.total}`;
+	let str = `<coverage path="${path}" percent=${pct.toFixed(1)} statements=${file.statement.covered}/${file.statement.total}`;
 	if (file.branch) {
 		str += ` branches=${file.branch.covered}/${file.branch.total}`;
 	}
