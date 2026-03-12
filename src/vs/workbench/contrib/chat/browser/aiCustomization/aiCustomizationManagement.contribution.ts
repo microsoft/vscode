@@ -38,6 +38,23 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, isMacintosh } from '../../../../../base/common/platform.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+
+//#region Telemetry
+
+type CustomizationEditorDeleteItemEvent = {
+	promptType: string;
+	storage: string;
+};
+
+type CustomizationEditorDeleteItemClassification = {
+	promptType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of customization being deleted.' };
+	storage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The storage location of the deleted item.' };
+	owner: 'joshspicer';
+	comment: 'Tracks item deletion in the Chat Customizations editor.';
+};
+
+//#endregion
 
 //#region Editor Registration
 
@@ -230,6 +247,12 @@ registerAction2(class extends Action2 {
 		});
 
 		if (confirmation.confirmed) {
+			const telemetryService = accessor.get(ITelemetryService);
+			telemetryService.publicLog2<CustomizationEditorDeleteItemEvent, CustomizationEditorDeleteItemClassification>('chatCustomizationEditor.deleteItem', {
+				promptType: promptType ?? '',
+				storage: storage ?? '',
+			});
+
 			// For skills, delete the parent folder (e.g. .github/skills/my-skill/)
 			// since each skill is a folder containing SKILL.md.
 			const deleteTarget = isSkill ? dirname(uri) : uri;

@@ -48,10 +48,27 @@ import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js'
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 export { truncateToFirstSentence } from './aiCustomizationListWidgetUtils.js';
 
 const $ = DOM.$;
+
+//#region Telemetry
+
+type CustomizationEditorSearchEvent = {
+	section: string;
+	resultCount: number;
+};
+
+type CustomizationEditorSearchClassification = {
+	section: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The active section when the search was performed.' };
+	resultCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of items matching the search query.' };
+	owner: 'joshspicer';
+	comment: 'Tracks search usage in the Chat Customizations editor.';
+};
+
+//#endregion
 
 const ITEM_HEIGHT = 44;
 const GROUP_HEADER_HEIGHT = 36;
@@ -403,6 +420,7 @@ export class AICustomizationListWidget extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -430,7 +448,15 @@ export class AICustomizationListWidget extends Disposable {
 
 		this._register(this.searchInput.onDidChange(() => {
 			this.searchQuery = this.searchInput.value;
-			this.delayedFilter.trigger(() => this.filterItems());
+			this.delayedFilter.trigger(() => {
+				const matchCount = this.filterItems();
+				if (this.searchQuery.trim()) {
+					this.telemetryService.publicLog2<CustomizationEditorSearchEvent, CustomizationEditorSearchClassification>('chatCustomizationEditor.search', {
+						section: this.currentSection,
+						resultCount: matchCount,
+					});
+				}
+			});
 		}));
 
 		// Add button container next to search
@@ -1011,7 +1037,7 @@ export class AICustomizationListWidget extends Disposable {
 	/**
 	 * Filters items based on the current search query and builds grouped display entries.
 	 */
-	private filterItems(): void {
+	private filterItems(): number {
 		let matchedItems: IAICustomizationListItem[];
 
 		if (!this.searchQuery.trim()) {
@@ -1095,6 +1121,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		this.list.splice(0, this.list.length, this.displayEntries);
 		this.updateEmptyState();
+		return matchedItems.length;
 	}
 
 	/**
