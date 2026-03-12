@@ -284,6 +284,12 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 					markdownDescription: localize('fetchAdditionalSupport', "Controls whether Node.js' fetch implementation should be extended with additional support. Currently proxy support ({1}) and system certificates ({2}) are added when the corresponding settings are enabled. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`', '`#http.proxySupport#`', '`#http.systemCertificates#`'),
 					restricted: true
 				},
+				'http.webSocketAdditionalSupport': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: localize('webSocketAdditionalSupport', "Controls whether the built-in WebSocket implementation should be extended with additional support. Currently proxy support ({1}) and system certificates ({2}) are added when the corresponding settings are enabled. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`', '`#http.proxySupport#`', '`#http.systemCertificates#`'),
+					restricted: true
+				},
 				'http.experimental.networkInterfaceCheckInterval': {
 					type: 'number',
 					default: 300,

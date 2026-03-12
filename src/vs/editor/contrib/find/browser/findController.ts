@@ -725,11 +725,28 @@ async function matchFindAction(editor: ICodeEditor, next: boolean): Promise<void
 	if (!controller) {
 		return;
 	}
+	const shouldCloseOnResult = editor.getOption(EditorOption.find).closeOnResult;
+	const wasFindWidgetVisible = controller.getState().isRevealed;
 
 	const runMatch = (): boolean => {
+		const previousSelection = controller.editor.getSelection();
 		const result = next ? controller.moveToNextMatch() : controller.moveToPrevMatch();
+
+		let landedOnMatch = false;
 		if (result) {
+			const currentSelection = controller.editor.getSelection();
+			if (!previousSelection && currentSelection) {
+				landedOnMatch = true;
+			} else if (previousSelection && currentSelection && !previousSelection.equalsSelection(currentSelection)) {
+				landedOnMatch = true;
+			}
+		}
+
+		if (landedOnMatch) {
 			controller.editor.pushUndoStop();
+			if (shouldCloseOnResult && wasFindWidgetVisible && controller.isFindInputFocused()) {
+				controller.closeFindWidget();
+			}
 			return true;
 		}
 		return false;

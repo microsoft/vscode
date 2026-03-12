@@ -77,7 +77,6 @@ export default tseslint.config(
 			'no-var': 'warn',
 			'semi': 'warn',
 			'local/code-translation-remind': 'warn',
-			'local/code-no-native-private': 'warn',
 			'local/code-no-declare-const-enum': 'warn',
 			'local/code-parameter-properties-must-have-explicit-accessibility': 'warn',
 			'local/code-no-nls-in-standalone-editor': 'warn',
@@ -824,6 +823,36 @@ export default tseslint.config(
 					// Files should (only) be removed from the list they adopt the leak detector
 					'exclude': [
 						'src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts',
+					]
+				}
+			]
+		}
+	},
+	// git extension - ban non-type imports from git.d.ts (use git.constants for runtime values)
+	{
+		files: [
+			'extensions/git/src/**/*.ts',
+		],
+		ignores: [
+			'extensions/git/src/api/git.constants.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'@typescript-eslint': tseslint.plugin,
+		},
+		rules: {
+			'no-restricted-imports': 'off',
+			'@typescript-eslint/no-restricted-imports': [
+				'warn',
+				{
+					'patterns': [
+						{
+							'group': ['*/api/git'],
+							'allowTypeImports': true,
+							'message': 'Use \'import type\' for types from git.d.ts and import runtime const enum values from git.constants instead'
+						},
 					]
 				}
 			]
@@ -1687,6 +1716,7 @@ export default tseslint.config(
 						'vs/workbench/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
+						'vs/sessions/~',
 						'vs/workbench/contrib/terminal/terminalContribChatExports*',
 						'vs/workbench/contrib/terminal/terminalContribExports*',
 						'vscode-notebook-renderer', // Type only import
@@ -1761,6 +1791,17 @@ export default tseslint.config(
 							'when': 'hasBrowser',
 							'pattern': 'vs/workbench/services/*/~'
 						}
+					]
+				},
+				{
+					'target': 'src/vs/sessions/electron-browser/sessions.ts',
+					'layer': 'electron-browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/sessions.desktop.main.js'
 					]
 				},
 				{
@@ -1895,7 +1936,168 @@ export default tseslint.config(
 						'src/*.js',
 						'*' // node.js
 					]
-				}
+				},
+				{
+					'target': 'src/vs/sessions/sessions.common.main.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/editor/editor.all.js',
+						'vs/workbench/~',
+						'vs/workbench/api/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/terminal/terminal.all.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/sessions.desktop.main.ts',
+					'layer': 'electron-browser',
+					'restrictions': [
+						'vs/base/*/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/editor/editor.all.js',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/api/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/sessions.common.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/sessions.web.main.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/*/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/editor/editor.all.js',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/api/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/sessions.common.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/sessions.web.main.internal.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/sessions.web.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/test/sessions.web.test.internal.ts',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/test/**',
+						'vs/sessions/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/sessions.web.main.js'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/test/{web.test.ts,web.test.factory.ts}',
+					'layer': 'browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/sessions/~',
+						'vs/sessions/test/**',
+						'vs/sessions/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/contrib/**',
+						'vs/workbench/services/*/~',
+						'vs/sessions/~',
+						'vs/sessions/services/*/~'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/contrib/*/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/services/*/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/services/*/~',
+						'vs/sessions/services/*/~',
+						{
+							'when': 'test',
+							'pattern': 'vs/workbench/contrib/*/~'
+						}, // TODO@layers
+						'tas-client', // node module allowed even in /common/
+						'vscode-textmate', // node module allowed even in /common/
+						'@vscode/vscode-languagedetection', // node module allowed even in /common/
+						'@vscode/tree-sitter-wasm', // type import
+						{
+							'when': 'hasBrowser',
+							'pattern': '@xterm/xterm'
+						} // node module allowed even in /browser/
+					]
+				},
 			]
 		}
 	},
@@ -2034,6 +2236,29 @@ export default tseslint.config(
 			'comma-dangle': ['warn', 'only-multiline']
 		}
 	},
+	// Extension main sources (excluding tests)
+	{
+		files: [
+			'extensions/**/*.ts',
+		],
+		ignores: [
+			'extensions/**/*.test.ts',
+		],
+		rules: {
+			// Ban dynamic require() and import() calls in extensions to ensure tree-shaking works
+			'no-restricted-syntax': [
+				'warn',
+				{
+					'selector': `CallExpression[callee.name='require'][arguments.0.type!='Literal']`,
+					'message': 'Use static imports instead of dynamic require() calls to enable tree-shaking.'
+				},
+				{
+					'selector': `ImportExpression[source.type!='Literal']`,
+					'message': 'Use static imports instead of dynamic import() calls to enable tree-shaking.'
+				},
+			],
+		}
+	},
 	// markdown-language-features
 	{
 		files: [
@@ -2046,21 +2271,13 @@ export default tseslint.config(
 			'@typescript-eslint': tseslint.plugin,
 		},
 		rules: {
-			'@typescript-eslint/naming-convention': [
+			'no-restricted-syntax': [
 				'warn',
 				{
-					'selector': 'default',
-					'modifiers': ['private'],
-					'format': null,
-					'leadingUnderscore': 'require'
+					selector: ':matches(PropertyDefinition, TSParameterProperty, MethodDefinition[key.name!="constructor"])[accessibility="private"]',
+					message: 'Use #private instead',
 				},
-				{
-					'selector': 'default',
-					'modifiers': ['public'],
-					'format': null,
-					'leadingUnderscore': 'forbid'
-				}
-			]
+			],
 		}
 	},
 	// Additional extension strictness rules
@@ -2126,5 +2343,4 @@ export default tseslint.config(
 				},
 			],
 		}
-	},
-);
+	});

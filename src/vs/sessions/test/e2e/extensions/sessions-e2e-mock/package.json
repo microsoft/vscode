@@ -1,0 +1,27 @@
+{
+	"name": "sessions-e2e-mock",
+	"displayName": "Sessions E2E Mock",
+	"description": "Mock auth, chat participant, and file system for E2E testing",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "^1.100.0"
+	},
+	"extensionKind": ["ui", "workspace"],
+	"browser": "./extension.js",
+	"activationEvents": ["*"],
+	"capabilities": {
+		"virtualWorkspaces": true,
+		"untrustedWorkspaces": {
+			"supported": true
+		}
+	},
+	"contributes": {
+		"authentication": [
+			{
+				"id": "github",
+				"label": "GitHub (Mock)"
+			}
+		]
+	}
+}

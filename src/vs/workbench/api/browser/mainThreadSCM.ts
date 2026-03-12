@@ -596,6 +596,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 	}
 
 	dispose(): void {
+		this._onDidChangeResourceGroups.dispose();
+		this._onDidChangeResources.dispose();
 		this._artifactProvider.get()?.dispose();
 		this._stagedQuickDiff?.dispose();
 		this._quickDiff?.dispose();

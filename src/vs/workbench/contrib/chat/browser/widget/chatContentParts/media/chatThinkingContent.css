@@ -18,6 +18,8 @@
 	}
 
 	> .chat-used-context-label .monaco-button.monaco-icon-button {
+		display: flex;
+		align-items: center;
 		line-height: 1.5em;
 		font-size: 13px;
 
@@ -35,10 +37,17 @@
 
 		.rendered-markdown.chat-thinking-title-detail {
 			display: inline;
+			font-size: inherit;
+			line-height: inherit;
 
 			> p {
 				display: inline;
+				margin: 0;
 			}
+		}
+
+		.chat-thinking-title-detail-text {
+			opacity: 0.7;
 		}
 	}
 
@@ -90,7 +99,7 @@
 
 	.chat-used-context-list.chat-thinking-collapsible {
 		border: 1px solid var(--vscode-chat-requestBorder);
-		border-radius: 4px;
+		border-radius: var(--vscode-cornerRadius-medium);
 		margin-bottom: 0;
 		position: relative;
 		overflow: hidden;
@@ -98,11 +107,33 @@
 		.chat-tool-invocation-part {
 			padding: 4px 12px 4px 18px;
 			position: relative;
+		}
 
+		.chat-thinking-tool-wrapper {
 			.chat-used-context {
 				margin-bottom: 0px;
-				margin-left: 2px;
+				margin-left: 4px;
 				padding-left: 2px;
+
+				.monaco-button.monaco-text-button {
+					color: var(--vscode-descriptionForeground);
+					display: flex;
+					align-items: center;
+
+					:hover {
+						color: var(--vscode-foreground);
+					}
+
+					.monaco-button:hover .chat-collapsible-hover-chevron {
+						opacity: 1;
+					}
+				}
+			}
+
+			.chat-used-context:not(.chat-used-context-collapsed) {
+				.monaco-button.monaco-text-button {
+					color: var(--vscode-foreground);
+				}
 			}
 
 			.progress-container,
@@ -110,17 +141,35 @@
 				margin: 0 0 2px 6px;
 			}
 
-			.codicon:not(.chat-thinking-icon) {
-				display: none;
+			/* todo: ideally not !important, but the competing css has 14 specificity */
+			.codicon.codicon-check,
+			.codicon.codicon-loading {
+				display: none !important;
 			}
 
+			.chat-collapsible-hover-chevron.codicon {
+				display: inline-flex;
+			}
+
+			.show-checkmarks .chat-confirmation-widget-title > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
+				display: inline-block;
+			}
+
+			.show-checkmarks .progress-container > .codicon.codicon-check {
+				display: inline-flex;
+			}
+
+			.chat-used-context.chat-hook-outcome-blocked,
+			.chat-used-context.chat-hook-outcome-warning {
+					padding: 4px 12px 4px 20px;
+					margin-bottom: 0;
+				}
 		}
 
 		.chat-thinking-item.markdown-content {
 			padding: 6px 12px 6px 24px;
 			position: relative;
 			font-size: var(--vscode-chat-font-size-body-s);
-
 			.progress-container {
 				margin-bottom: 0px;
 				padding-top: 0px;
@@ -136,10 +185,14 @@
 		}
 
 		.chat-thinking-tool-wrapper .chat-markdown-part.rendered-markdown {
-			padding: 5px 12px 4px 20px;
+			padding: 5px 12px 4px 24px;
 
 			.status-icon.codicon-check {
 				display: none;
+			}
+
+			.show-checkmarks .status-icon.codicon-check {
+				display: inline-flex;
 			}
 
 			.code:has(.chat-codeblock-pill-container) {
@@ -233,6 +286,10 @@
 
 	.rendered-markdown > p {
 		margin: 0;
+
+		& + p {
+			margin-top: 5px;
+		}
 	}
 }
 
@@ -240,6 +297,11 @@
 	display: flex;
 	flex-direction: column;
 	width: 100%;
+
+	.monaco-button.monaco-text-button {
+		display: flex;
+		align-items: center;
+	}
 
 	.chat-used-context-list.chat-terminal-thinking-content {
 		border: none;

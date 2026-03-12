@@ -24,7 +24,7 @@ import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING
 export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	private _isFirstLoad = true;
-	private readonly _firstLoadPendingMessages = new Set<{ readonly message: any; readonly transfer?: readonly ArrayBuffer[]; readonly resolve: (value: boolean) => void }>();
+	private readonly _firstLoadPendingMessages = new Set<{ readonly message: unknown; readonly transfer?: readonly ArrayBuffer[]; readonly resolve: (value: boolean) => void }>();
 	private readonly _webview = this._register(new MutableDisposable<IWebviewElement>());
 	private readonly _webviewEvents = this._register(new DisposableStore());
 
@@ -37,7 +37,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private _contentOptions: WebviewContentOptions;
 	private _options: WebviewOptions;
 
-	private _owner: any = undefined;
+	private _owner: unknown = undefined;
 
 	private _windowId: number | undefined = undefined;
 	private get window() { return getWindowById(this._windowId, true).window; }
@@ -110,7 +110,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 			// Webviews cannot be reparented in the dom as it will destroy their contents.
 			// Mount them to a high level node to avoid this depending on the active container.
-			const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.getModalElement();
+			const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.modalElement;
 			let root: HTMLElement;
 			if (isHTMLElement(modalEditorContainer)) {
 				root = modalEditorContainer;
@@ -123,7 +123,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		return this._container.domNode;
 	}
 
-	public claim(owner: any, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined) {
+	public claim(owner: unknown, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined) {
 		if (this._isDisposed) {
 			return;
 		}
@@ -165,7 +165,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		}
 	}
 
-	public release(owner: any) {
+	public release(owner: unknown) {
 		if (this._owner !== owner) {
 			return;
 		}
@@ -370,7 +370,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	public readonly intrinsicContentSize = observableValue<{ readonly width: number; readonly height: number } | undefined>('WebviewIntrinsicContentSize', undefined);
 
-	public async postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean> {
+	public async postMessage(message: unknown, transfer?: readonly ArrayBuffer[]): Promise<boolean> {
 		if (this._webview.value) {
 			return this._webview.value.postMessage(message, transfer);
 		}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TimeoutTimer } from '../../../../base/common/async.js';
+import { TimeoutTimer, disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -30,8 +30,10 @@ import { ILanguageFeaturesService } from '../../../common/services/languageFeatu
 import { FuzzyScoreOptions } from '../../../../base/common/filters.js';
 import { assertType } from '../../../../base/common/types.js';
 import { InlineCompletionContextKeys } from '../../inlineCompletions/browser/controller/inlineCompletionContextKeys.js';
+import { getInlineCompletionsController } from '../../inlineCompletions/browser/controller/common.js';
 import { SnippetController2 } from '../../snippet/browser/snippetController2.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { autorun } from '../../../../base/common/observable.js';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -134,6 +136,7 @@ export class SuggestModel implements IDisposable {
 	private readonly _toDispose = new DisposableStore();
 	private readonly _triggerCharacterListener = new DisposableStore();
 	private readonly _triggerQuickSuggest = new TimeoutTimer();
+	private _waitForInlineCompletions: DisposableStore | undefined;
 
 	private _triggerState: SuggestTriggerOptions | undefined = undefined;
 	private _requestToken?: CancellationTokenSource;
@@ -209,6 +212,7 @@ export class SuggestModel implements IDisposable {
 	dispose(): void {
 		dispose(this._triggerCharacterListener);
 		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this._triggerQuickSuggest]);
+		this._waitForInlineCompletions?.dispose();
 		this._toDispose.dispose();
 		this._completionDisposables.dispose();
 		this.cancel();
@@ -310,8 +314,11 @@ export class SuggestModel implements IDisposable {
 	}
 
 	cancel(retrigger: boolean = false): void {
+		this._triggerQuickSuggest.cancel();
+		this._waitForInlineCompletions?.dispose();
+		this._waitForInlineCompletions = undefined;
+
 		if (this._triggerState !== undefined) {
-			this._triggerQuickSuggest.cancel();
 			this._requestToken?.cancel();
 			this._requestToken = undefined;
 			this._triggerState = undefined;
@@ -391,6 +398,10 @@ export class SuggestModel implements IDisposable {
 
 		this.cancel();
 
+		// Cancel any in-flight wait for inline completions from a previous cycle
+		this._waitForInlineCompletions?.dispose();
+		this._waitForInlineCompletions = undefined;
+
 		this._triggerQuickSuggest.cancelAndSet(() => {
 			if (this._triggerState !== undefined) {
 				return;
@@ -409,16 +420,19 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
+			let waitForInlineCompletions = false;
 			if (!QuickSuggestionsOptions.isAllOn(config)) {
 				// Check the type of the token that triggered this
 				model.tokenization.tokenizeIfCheap(pos.lineNumber);
 				const lineTokens = model.tokenization.getLineTokens(pos.lineNumber);
 				const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
-				if (QuickSuggestionsOptions.valueFor(config, tokenType) !== 'on') {
-					if (QuickSuggestionsOptions.valueFor(config, tokenType) !== 'offWhenInlineCompletions'
-						|| (this._languageFeaturesService.inlineCompletionsProvider.has(model) && this._editor.getOption(EditorOption.inlineSuggest).enabled)) {
-						return;
-					}
+				const value = QuickSuggestionsOptions.valueFor(config, tokenType);
+				if (value === 'off' || value === 'inline') {
+					return;
+				}
+				if (value === 'offWhenInlineCompletions') {
+					waitForInlineCompletions = this._languageFeaturesService.inlineCompletionsProvider.has(model)
+						&& this._editor.getOption(EditorOption.inlineSuggest).enabled;
 				}
 			}
 
@@ -431,10 +445,71 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
-			// we made it till here -> trigger now
-			this.trigger({ auto: true });
+			if (waitForInlineCompletions) {
+				// Wait for inline completions to resolve before deciding
+				this._waitForInlineCompletionsAndTrigger(model, pos);
+			} else {
+				this.trigger({ auto: true });
+			}
 
 		}, this._editor.getOption(EditorOption.quickSuggestionsDelay));
+	}
+
+	private _waitForInlineCompletionsAndTrigger(initialModel: ITextModel, initialPosition: Position): void {
+		const initialModelVersion = initialModel.getVersionId();
+		const inlineController = getInlineCompletionsController(this._editor);
+		const inlineModel = inlineController?.model.get();
+		if (!inlineModel) {
+			this.trigger({ auto: true });
+			return;
+		}
+
+		const state = inlineModel.state.get();
+		if (state?.inlineSuggestion) {
+			// Inline completions are already showing - suppress
+			return;
+		}
+
+		const store = new DisposableStore();
+		this._waitForInlineCompletions = store;
+
+		const triggerAndCleanUp = (doTrigger: boolean) => {
+			store.dispose();
+			if (this._waitForInlineCompletions === store) {
+				this._waitForInlineCompletions = undefined;
+			}
+			if (this._triggerState !== undefined) {
+				return;
+			}
+			if (!doTrigger) {
+				return;
+			}
+			const currentModel = this._editor.getModel();
+			const currentPosition = this._editor.getPosition();
+			if (currentModel === initialModel
+				&& currentModel.getVersionId() === initialModelVersion
+				&& currentPosition?.equals(initialPosition)
+				&& this._editor.hasWidgetFocus()
+			) {
+				this.trigger({ auto: true });
+			}
+		};
+
+		// Race: observe inline completions state vs 750ms timeout
+		disposableTimeout(() => {
+			triggerAndCleanUp(true);
+			inlineModel.stop('automatic');
+		}, 750, store);
+
+		store.add(autorun(reader => {
+			const status = inlineModel.status.read(reader);
+			const currentState = inlineModel.state.read(reader);
+			if (!currentState && status === 'loading') {
+				// Still loading
+				return;
+			}
+			triggerAndCleanUp(!currentState);
+		}));
 	}
 
 	private _refilterCompletionItems(): void {

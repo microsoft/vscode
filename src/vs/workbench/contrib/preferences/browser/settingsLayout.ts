@@ -209,7 +209,9 @@ export const tocData: ITOCEntry<string> = {
 						'chat.notifyWindow*',
 						'chat.statusWidget.*',
 						'chat.tips.*',
-						'chat.unifiedAgentsBar.*'
+						'chat.unifiedAgentsBar.*',
+						'accessibility.signals.chatUserActionRequired',
+						'accessibility.signals.chatResponseReceived'
 					]
 				},
 				{
@@ -230,8 +232,7 @@ export const tocData: ITOCEntry<string> = {
 					label: localize('chatTools', "Tools"),
 					settings: [
 						'chat.tools.*',
-						'chat.extensionTools.*',
-						'chat.edits2.enabled'
+						'chat.extensionTools.*'
 					]
 				},
 				{

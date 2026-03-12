@@ -825,7 +825,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 						extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension id' };
 						preRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get pre-release version' };
 						compatible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get compatible version' };
-						errorCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error code' };
+						errorCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error code or reason' };
 					}>('galleryService:fallbacktoquery', {
 						extension: extensionInfo.id,
 						preRelease: !!extensionInfo.preRelease,

@@ -28,6 +28,7 @@ import { ICompleteTerminalConfiguration, ITerminalConfiguration, TERMINAL_CONFIG
 import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
+import { getWorkspaceForTerminal } from '../common/terminalEnvironment.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 
@@ -193,7 +194,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			tabActions: shellLaunchConfig.tabActions,
 			shellIntegrationEnvironmentReporting: shellLaunchConfig.shellIntegrationEnvironmentReporting,
 		};
-		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+		const activeWorkspaceRootUri = getWorkspaceForTerminal(shellLaunchConfig.cwd, this._workspaceContextService, this._historyService)?.uri;
 
 		const result = await this._remoteTerminalChannel.createProcess(
 			shellLaunchConfigDto,

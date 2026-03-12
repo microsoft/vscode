@@ -28,13 +28,14 @@ import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AgentSessionsPicker } from './agentSessionsPicker.js';
-import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { ActiveEditorContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
 const AGENT_SESSIONS_CATEGORY = localize2('chatSessions', "Chat Agent Sessions");
 
@@ -149,7 +150,7 @@ export class PickAgentSessionAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 
-		const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker, undefined);
+		const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker, undefined, undefined);
 		await agentSessionsPicker.pickAgentSession();
 	}
 }
@@ -480,16 +481,19 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
 		const chatService = accessor.get(IChatService);
 		const dialogService = accessor.get(IDialogService);
+		const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
 		// Archive all sessions
 		for (const session of sessions) {
-			const chatModel = chatService.getSession(session.resource);
-			if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
-				isArchiveAction: true,
-				titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
-				messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
-			})) {
-				return;
+			if (!environmentService.isSessionsWindow) {
+				const chatModel = chatService.getSession(session.resource);
+				if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
+					isArchiveAction: true,
+					titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
+					messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
+				})) {
+					return;
+				}
 			}
 
 			session.setArchived(true);
@@ -704,10 +708,11 @@ export class OpenAgentSessionInEditorGroupAction extends BaseOpenAgentSessionAct
 					primary: KeyMod.WinCtrl | KeyCode.Enter
 				},
 				weight: KeybindingWeight.WorkbenchContrib + 1,
-				when: ChatContextKeys.agentSessionsViewerFocused,
+				when: ContextKeyExpr.and(ChatContextKeys.agentSessionsViewerFocused, IsSessionsWindowContext.negate()),
 			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
+				when: IsSessionsWindowContext.negate(),
 				order: 1,
 				group: 'navigation'
 			}
@@ -737,10 +742,11 @@ export class OpenAgentSessionInNewEditorGroupAction extends BaseOpenAgentSession
 					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Enter
 				},
 				weight: KeybindingWeight.WorkbenchContrib + 1,
-				when: ChatContextKeys.agentSessionsViewerFocused,
+				when: ContextKeyExpr.and(ChatContextKeys.agentSessionsViewerFocused, IsSessionsWindowContext.negate()),
 			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
+				when: IsSessionsWindowContext.negate(),
 				order: 2,
 				group: 'navigation'
 			}

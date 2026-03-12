@@ -29,15 +29,16 @@ export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOpt
 
 	const group = doFindGroup(editor, preferredGroup, editorGroupService, configurationService);
 	if (group instanceof Promise) {
-		return group.then(group => handleGroupResult(group, editor, preferredGroup, editorGroupService));
+		return group.then(group => handleGroupResult(group, editor, preferredGroup, editorGroupService, configurationService));
 	}
 
-	return handleGroupResult(group, editor, preferredGroup, editorGroupService);
+	return handleGroupResult(group, editor, preferredGroup, editorGroupService, configurationService);
 }
 
-function handleGroupResult(group: IEditorGroup, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService): [IEditorGroup, EditorActivation | undefined] {
+function handleGroupResult(group: IEditorGroup, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService, configurationService: IConfigurationService): [IEditorGroup, EditorActivation | undefined] {
 	const modalEditorPart = editorGroupService.activeModalEditorPart;
-	if (modalEditorPart && preferredGroup !== MODAL_GROUP) {
+	const modalEditorMode = configurationService.getValue<string>('workbench.editor.useModal');
+	if (modalEditorPart && preferredGroup !== MODAL_GROUP && modalEditorMode !== 'all') {
 		// Only allow to open in modal group if MODAL_GROUP is explicitly requested
 		group = handleModalEditorPart(group, editor, modalEditorPart, editorGroupService);
 	}
@@ -119,16 +120,13 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 
 	// Group: Aux Window
 	else if (preferredGroup === AUX_WINDOW_GROUP) {
-		group = editorGroupService.createAuxiliaryEditorPart({
-			bounds: options?.auxiliary?.bounds,
-			compact: options?.auxiliary?.compact,
-			alwaysOnTop: options?.auxiliary?.alwaysOnTop
-		}).then(group => group.activeGroup);
+		group = editorGroupService.createAuxiliaryEditorPart(options?.auxiliary)
+			.then(group => group.activeGroup);
 	}
 
 	// Group: Modal (gated behind a setting)
-	else if (preferredGroup === MODAL_GROUP && configurationService.getValue<boolean>('workbench.editor.allowOpenInModalEditor')) {
-		group = editorGroupService.createModalEditorPart()
+	else if (preferredGroup === MODAL_GROUP && configurationService.getValue<string>('workbench.editor.useModal') !== 'off') {
+		group = editorGroupService.createModalEditorPart(options?.modal)
 			.then(part => part.activeGroup);
 	}
 
@@ -148,10 +146,10 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 
 		// Respect option to reveal an editor if it is open (not necessarily visible)
 		// Still prefer to reveal an editor in a group where the editor is active though.
-		// We also try to reveal an editor if it has the `Singleton` capability which
-		// indicates that the same editor cannot be opened across groups.
+		// We also try to reveal an editor if it has the `ForceReveal` or `Singleton`
+		// capability which indicates that editor prefers to be revealed.
 		if (!group) {
-			if (options?.revealIfOpened || configurationService.getValue<boolean>('workbench.editor.revealIfOpen') || (isEditorInput(editor) && editor.hasCapability(EditorInputCapabilities.Singleton))) {
+			if (options?.revealIfOpened || configurationService.getValue<boolean>('workbench.editor.revealIfOpen') || (isEditorInput(editor) && (editor.hasCapability(EditorInputCapabilities.ForceReveal) || editor.hasCapability(EditorInputCapabilities.Singleton)))) {
 				let groupWithInputActive: IEditorGroup | undefined = undefined;
 				let groupWithInputOpened: IEditorGroup | undefined = undefined;
 
@@ -175,6 +173,12 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 				group = groupWithInputActive || groupWithInputOpened;
 			}
 		}
+	}
+
+	// Force modal editor part: redirect to the modal group when setting is 'on'
+	if (!group && configurationService.getValue<string>('workbench.editor.useModal') === 'all') {
+		group = editorGroupService.createModalEditorPart(options?.modal)
+			.then(part => part.activeGroup);
 	}
 
 	// Fallback to active group if target not valid but avoid

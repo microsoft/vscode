@@ -179,7 +179,8 @@ export class ChatStatusDashboard extends DomWidget {
 
 			const completionsQuotaIndicator = completionsQuota && (completionsQuota.total > 0 || completionsQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, completionsQuota, localize('completionsLabel', "Inline Suggestions"), false) : undefined;
 			const chatQuotaIndicator = chatQuota && (chatQuota.total > 0 || chatQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, chatQuota, localize('chatsLabel', "Chat messages"), false) : undefined;
-			const premiumChatQuotaIndicator = premiumChatQuota && (premiumChatQuota.total > 0 || premiumChatQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), true) : undefined;
+			const premiumChatLabel = premiumChatQuota?.overageEnabled && !premiumChatQuota?.unlimited ? localize('includedPremiumChatsLabel', "Included premium requests") : localize('premiumChatsLabel', "Premium requests");
+			const premiumChatQuotaIndicator = premiumChatQuota && (premiumChatQuota.total > 0 || premiumChatQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, premiumChatQuota, premiumChatLabel, true) : undefined;
 
 			if (resetDate) {
 				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Allowance resets {0}.", resetDateHasTime ? this.dateTimeFormatter.value.format(new Date(resetDate)) : this.dateFormatter.value.format(new Date(resetDate)))));
@@ -295,19 +296,47 @@ export class ChatStatusDashboard extends DomWidget {
 				if (currentModel) {
 					const modelContainer = this.element.appendChild($('div.model-selection'));
 
-					modelContainer.appendChild($('span.model-text', undefined, localize('modelLabel', "Model: {0}", currentModel.name)));
+					modelContainer.appendChild($('span.model-text', undefined, localize('modelLabel', "Model")));
 
 					const actionBar = modelContainer.appendChild($('div.model-action-bar'));
 					const toolbar = this._store.add(new ActionBar(actionBar, { hoverDelegate: nativeHoverDelegate }));
 					toolbar.push([toAction({
 						id: 'workbench.action.selectInlineCompletionsModel',
-						label: localize('selectModel', "Select Model"),
+						label: currentModel.name,
 						tooltip: localize('selectModel', "Select Model"),
 						class: ThemeIcon.asClassName(Codicon.gear),
 						run: async () => {
 							await this.showModelPicker(provider);
 						}
-					})], { icon: true, label: false });
+					})], { icon: false, label: true });
+				}
+			}
+		}
+
+		// Provider Options
+		{
+			const providers = this.languageFeaturesService.inlineCompletionsProvider.allNoModel();
+			for (const provider of providers) {
+				if (provider.providerOptions && provider.providerOptions.length > 0) {
+					for (const option of provider.providerOptions) {
+						const currentValue = option.values.find(v => v.id === option.currentValueId);
+						if (currentValue) {
+							const optionContainer = this.element.appendChild($('div.suggest-option-selection'));
+
+							optionContainer.appendChild($('span.suggest-option-text', undefined, option.label));
+
+							const actionBar = optionContainer.appendChild($('div.suggest-option-action-bar'));
+							const toolbar = this._store.add(new ActionBar(actionBar, { hoverDelegate: nativeHoverDelegate }));
+							toolbar.push([toAction({
+								id: `workbench.action.selectProviderOption.${option.id}`,
+								label: currentValue.label,
+								tooltip: localize('selectOption', "Select {0}", option.label),
+								run: async () => {
+									await this.showProviderOptionPicker(provider, option);
+								}
+							})], { icon: false, label: true });
+						}
+					}
 				}
 			}
 		}
@@ -500,15 +529,22 @@ export class ChatStatusDashboard extends DomWidget {
 
 			quotaBit.style.width = `${usedPercentage}%`;
 
-			if (usedPercentage >= 90) {
+			const overageEnabled = supportsOverage && typeof quota !== 'string' && quota?.overageEnabled;
+			if (usedPercentage >= 90 && !overageEnabled) {
 				quotaIndicator.classList.add('error');
-			} else if (usedPercentage >= 75) {
+			} else if (usedPercentage >= 75 && !overageEnabled) {
 				quotaIndicator.classList.add('warning');
 			}
 
 			if (supportsOverage) {
-				if (typeof quota !== 'string' && quota?.overageEnabled) {
-					overageLabel.textContent = localize('additionalUsageEnabled', "Additional paid premium requests enabled.");
+				if (typeof quota !== 'string' && quota.unlimited) {
+					overageLabel.textContent = '';
+				} else if (typeof quota !== 'string' && quota?.overageEnabled) {
+					overageLabel.replaceChildren(
+						localize('additionalUsageApprovedLine1', "Additional premium requests approved."),
+						$('br'),
+						localize('additionalUsageApprovedLine2', "You can continue after the included premium requests limit reaches 100%.")
+					);
 				} else {
 					overageLabel.textContent = localize('additionalUsageDisabled', "Additional paid premium requests disabled.");
 				}
@@ -747,6 +783,30 @@ export class ChatStatusDashboard extends DomWidget {
 
 		if (selected && selected.id && selected.id !== modelInfo.currentModelId) {
 			await provider.setModelId(selected.id);
+		}
+
+		this.hoverService.hideHover(true);
+	}
+
+	private async showProviderOptionPicker(provider: languages.InlineCompletionsProvider, option: languages.IInlineCompletionProviderOption): Promise<void> {
+		if (!provider.setProviderOption) {
+			return;
+		}
+
+		const items: IQuickPickItem[] = option.values.map(value => ({
+			id: value.id,
+			label: value.label,
+			description: value.id === option.currentValueId ? localize('currentOption.description', "Currently selected") : undefined,
+			picked: value.id === option.currentValueId,
+		}));
+
+		const selected = await this.quickInputService.pick(items, {
+			placeHolder: localize('selectProviderOptionFor', "Select {0}", option.label),
+			canPickMany: false
+		});
+
+		if (selected && selected.id && selected.id !== option.currentValueId) {
+			await provider.setProviderOption(option.id, selected.id);
 		}
 
 		this.hoverService.hideHover(true);

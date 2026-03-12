@@ -195,7 +195,7 @@ export class WebviewEditor extends EditorPane {
 			return;
 		}
 
-		const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.getModalElement();
+		const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.modalElement;
 		let clippingContainer: HTMLElement | undefined;
 		if (isHTMLElement(modalEditorContainer)) {
 			clippingContainer = modalEditorContainer;

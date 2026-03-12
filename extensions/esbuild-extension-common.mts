@@ -33,6 +33,7 @@ async function tryBuild(options: BuildOptions, didBuild?: (outDir: string) => un
 
 interface RunConfig {
 	readonly platform: 'node' | 'browser';
+	readonly format?: 'cjs' | 'esm';
 	readonly srcDir: string;
 	readonly outdir: string;
 	readonly entryPoints: string[] | Record<string, string> | { in: string; out: string }[];
@@ -44,9 +45,11 @@ function resolveOptions(config: RunConfig, outdir: string): BuildOptions {
 		platform: config.platform,
 		bundle: true,
 		minify: true,
+		treeShaking: true,
 		sourcemap: true,
 		target: ['es2024'],
 		external: ['vscode'],
+		format: config.format ?? 'cjs',
 		entryPoints: config.entryPoints,
 		outdir,
 		logOverride: {
@@ -56,10 +59,8 @@ function resolveOptions(config: RunConfig, outdir: string): BuildOptions {
 	};
 
 	if (config.platform === 'node') {
-		options.format = 'cjs';
 		options.mainFields = ['module', 'main'];
 	} else if (config.platform === 'browser') {
-		options.format = 'cjs';
 		options.mainFields = ['browser', 'module', 'main'];
 		options.alias = {
 			'path': 'path-browserify',

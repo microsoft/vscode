@@ -92,6 +92,20 @@ declare module 'vscode' {
 	 */
 	export type ChatSessionItemControllerRefreshHandler = (token: CancellationToken) => Thenable<void>;
 
+	export interface ChatSessionItemControllerNewItemHandlerContext {
+		// TODO: Use a better type but for now decrease this down to just the prompt and command since that's all we currently need.
+		// The problem with ChatRequest is that it has a resourceUri which is not good for this code path.
+		readonly request: {
+			readonly prompt: string;
+			readonly command?: string;
+		};
+	}
+
+	/**
+	 * Extension callback invoked when a new chat session is started.
+	 */
+	export type ChatSessionItemControllerNewItemHandler = (context: ChatSessionItemControllerNewItemHandlerContext, token: CancellationToken) => Thenable<ChatSessionItem>;
+
 	/**
 	 * Manages chat sessions for a specific chat session type
 	 */
@@ -119,6 +133,15 @@ declare module 'vscode' {
 		 * This is also called on first load to get the initial set of items.
 		 */
 		readonly refreshHandler: ChatSessionItemControllerRefreshHandler;
+
+		/**
+		 * Invoked when a new chat session is started.
+		 *
+		 * This allows the controller to initialize the chat session item with information from the initial request.
+		 *
+		 * The returned chat session is added to the collection and shown in the UI.
+		 */
+		newChatSessionItemHandler?: ChatSessionItemControllerNewItemHandler;
 
 		/**
 		 * Fired when an item's archived state changes.
@@ -329,6 +352,15 @@ declare module 'vscode' {
 
 	export interface ChatSession {
 		/**
+		 * An optional title for the chat session.
+		 *
+		 * When provided, this title is used as the display name for the session
+		 * (e.g. in the editor tab). When not provided, the title defaults to
+		 * the first user message in the session history.
+		 */
+		readonly title?: string;
+
+		/**
 		 * The full history of the session
 		 *
 		 * This should not include any currently active responses
@@ -363,6 +395,7 @@ declare module 'vscode' {
 		 */
 		// TODO: Should we introduce our own type for `ChatRequestHandler` since not all field apply to chat sessions?
 		// TODO: Revisit this to align with code.
+		// TODO: pass in options?
 		readonly requestHandler: ChatRequestHandler | undefined;
 	}
 
@@ -428,9 +461,8 @@ declare module 'vscode' {
 
 		/**
 		 * Called as soon as you register (call me once)
-		 * @param token
 		 */
-		provideChatSessionProviderOptions?(token: CancellationToken): Thenable<ChatSessionProviderOptions | ChatSessionProviderOptions>;
+		provideChatSessionProviderOptions?(token: CancellationToken): Thenable<ChatSessionProviderOptions>;
 	}
 
 	export interface ChatSessionOptionUpdate {
@@ -463,7 +495,15 @@ declare module 'vscode' {
 
 	export interface ChatSessionContext {
 		readonly chatSessionItem: ChatSessionItem; // Maps to URI of chat session editor (could be 'untitled-1', etc..)
+
+		/** @deprecated This will be removed along with the concept of `untitled-` sessions.  */
 		readonly isUntitled: boolean;
+
+		/**
+		 * The initial option selections for the session, provided with the first request.
+		 * Contains the options the user selected (or defaults) before the session was created.
+		 */
+		readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
 	}
 
 	export interface ChatSessionCapabilities {
@@ -579,6 +619,13 @@ declare module 'vscode' {
 		 * Provider-defined option groups (0-2 groups supported).
 		 * Examples: models picker, sub-agents picker, etc.
 		 */
-		optionGroups?: ChatSessionProviderOptionGroup[];
+		readonly optionGroups?: readonly ChatSessionProviderOptionGroup[];
+
+		/**
+		 * The set of default options used for new chat sessions, provided as key-value pairs.
+		 *
+		 * Keys correspond to option group IDs (e.g., 'models', 'subagents').
+		 */
+		readonly newSessionOptions?: Record<string, string | ChatSessionProviderOptionItem>;
 	}
 }

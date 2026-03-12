@@ -631,13 +631,17 @@ interface ICapabilitiesColumnTemplateData extends IModelTableColumnTemplateData 
 	readonly metadataRow: HTMLElement;
 }
 
-class CapabilitiesColumnRenderer extends ModelsTableColumnRenderer<ICapabilitiesColumnTemplateData> {
+class CapabilitiesColumnRenderer extends ModelsTableColumnRenderer<ICapabilitiesColumnTemplateData> implements IDisposable {
 	static readonly TEMPLATE_ID = 'capabilities';
 
 	readonly templateId: string = CapabilitiesColumnRenderer.TEMPLATE_ID;
 
 	private readonly _onDidClickCapability = new Emitter<string>();
 	readonly onDidClickCapability = this._onDidClickCapability.event;
+
+	dispose(): void {
+		this._onDidClickCapability.dispose();
+	}
 
 	renderTemplate(container: HTMLElement): ICapabilitiesColumnTemplateData {
 		const disposables = new DisposableStore();
@@ -1007,6 +1011,7 @@ export class ChatModelsWidget extends Disposable {
 		const actionsColumnRenderer = this.instantiationService.createInstance(ActionsColumnRenderer, this.viewModel);
 		const providerColumnRenderer = this.instantiationService.createInstance(ProviderColumnRenderer);
 
+		this.tableDisposables.add(capabilitiesColumnRenderer);
 		this.tableDisposables.add(capabilitiesColumnRenderer.onDidClickCapability(capability => {
 			const currentQuery = this.searchWidget.getValue();
 			const query = `@capability:${capability}`;

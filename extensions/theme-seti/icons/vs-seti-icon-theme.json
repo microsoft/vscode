@@ -1977,7 +1977,11 @@
 		"jsonl": "_json",
 		"postcss": "_css",
 		"django-html": "_html_3",
-		"blade": "_php"
+		"blade": "_php",
+		"prompt": "_markdown",
+		"instructions": "_markdown",
+		"chatagent": "_markdown",
+		"skill": "_markdown"
 	},
 	"light": {
 		"file": "_default_light",
@@ -2299,7 +2303,11 @@
 			"jsonl": "_json_light",
 			"postcss": "_css_light",
 			"django-html": "_html_3_light",
-			"blade": "_php_light"
+			"blade": "_php_light",
+			"prompt": "_markdown_light",
+			"instructions": "_markdown_light",
+			"chatagent": "_markdown_light",
+			"skill": "_markdown_light"
 		},
 		"fileNames": {
 			"mix": "_hex_light",

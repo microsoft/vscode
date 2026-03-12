@@ -71,7 +71,7 @@ export async function askInPanelChat(accessor: ServicesAccessor, request: IChatR
 		return;
 	}
 
-	const newModelRef = chatService.startSession(ChatAgentLocation.Chat);
+	const newModelRef = chatService.startNewLocalSession(ChatAgentLocation.Chat);
 	const newModel = newModelRef.object;
 
 	newModel.inputModel.setState({ ...state });

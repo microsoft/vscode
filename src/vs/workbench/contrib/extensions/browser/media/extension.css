@@ -73,10 +73,27 @@
 
 .extension-list-item > .details > .header-container > .header > .name {
 	font-weight: bold;
-	flex: 1;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
+	min-width: 0;
+}
+
+.extension-list-item > .details > .header-container > .header > .restart-required {
+	display: flex;
+	flex-shrink: 0;
+	margin-left: 8px;
+	align-items: center;
+}
+
+.extension-list-item > .details > .header-container > .header > .restart-required > .codicon {
+	font-size: 100%;
+}
+
+.extension-list-item > .details > .header-container > .header > .restart-required > .extension-restart-required-label {
+	font-size: 11px;
+	white-space: nowrap;
+	color: var(--vscode-descriptionForeground);
 }
 
 .extension-list-item.deprecated > .details > .header-container > .header > .name {
@@ -91,6 +108,10 @@
 	align-items: center;
 }
 
+.extension-list-item > .details > .header-container > .header > .install-count {
+	margin-left: auto;
+}
+
 .extension-list-item > .details > .header-container > .header .extension-kind-indicator {
 	font-size: 11px;
 	margin-left: 4px;
@@ -98,7 +119,7 @@
 
 .extension-list-item > .details > .header-container > .header > .install-count:not(:empty) {
 	font-size: 11px;
-	margin: 0 6px;
+	margin: 0 6px 0 auto;
 }
 
 .extension-list-item > .details > .header-container > .header > .activation-status:not(:empty) {

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/* eslint-disable local/code-no-native-private */
 
 import type * as vscode from 'vscode';
 import { coalesce } from '../../../base/common/arrays.js';
@@ -14,13 +13,12 @@ import { Disposable, DisposableStore, toDisposable } from '../../../base/common/
 import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import * as objects from '../../../base/common/objects.js';
-import { basename } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { SymbolKind, SymbolKinds } from '../../../editor/common/languages.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, IPromptFileVariableEntry, ISymbolVariableEntry, PromptFileVariableKind } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
-import { IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatNewSessionRequest, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
@@ -333,7 +331,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 	/**
 	 * Store option groups with onSearch callbacks per provider handle
 	 */
-	private readonly _providerOptionGroups = new Map<number, vscode.ChatSessionProviderOptionGroup[]>();
+	private readonly _providerOptionGroups = new Map<number, readonly vscode.ChatSessionProviderOptionGroup[]>();
 
 	constructor(
 		private readonly commands: ExtHostCommands,
@@ -380,6 +378,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				throw new Error('Not implemented for providers');
 			},
 			onDidChangeChatSessionItemState: onDidChangeChatSessionItemStateEmitter.event,
+			newChatSessionItemHandler: undefined,
 			dispose: () => {
 				disposables.dispose();
 			},
@@ -423,6 +422,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const disposables = new DisposableStore();
 
 		let isDisposed = false;
+		let newChatSessionItemHandler: vscode.ChatSessionItemController['newChatSessionItemHandler'];
 		const onDidChangeChatSessionItemStateEmitter = disposables.add(new Emitter<vscode.ChatSessionItem>());
 
 		const collection = new ChatSessionItemCollectionImpl(controllerHandle, this._proxy);
@@ -452,6 +452,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				});
 				return item;
 			},
+			get newChatSessionItemHandler() { return newChatSessionItemHandler; },
+			set newChatSessionItemHandler(handler: vscode.ChatSessionItemController['newChatSessionItemHandler']) { newChatSessionItemHandler = handler; },
 			dispose: () => {
 				isDisposed = true;
 				disposables.dispose();
@@ -543,6 +545,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		return {
 			id: sessionId + '',
 			resource: URI.revive(sessionResource),
+			title: session.title,
 			hasActiveResponseCallback: !!session.activeResponseCallback,
 			hasRequestHandler: !!session.requestHandler,
 			supportsInterruption: !!capabilities?.supportsInterruptions,
@@ -594,13 +597,17 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 
 		try {
-			const { optionGroups } = await provider.provideChatSessionProviderOptions(token);
-			if (!optionGroups) {
+			const result = await provider.provideChatSessionProviderOptions(token);
+			if (!result) {
 				return;
 			}
-			this._providerOptionGroups.set(handle, optionGroups);
+			const { optionGroups, newSessionOptions } = result;
+			if (optionGroups) {
+				this._providerOptionGroups.set(handle, optionGroups);
+			}
 			return {
 				optionGroups,
+				newSessionOptions,
 			};
 		} catch (error) {
 			this._logService.error(`Error calling provideChatSessionProviderOptions for handle ${handle}:`, error);
@@ -701,19 +708,16 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			} satisfies ISymbolVariableEntry;
 		}
 
-		if (URI.isUri(value) && ref.name.startsWith(`prompt:`) &&
-			ref.id.startsWith(PromptFileVariableKind.PromptFile) &&
-			ref.id.endsWith(value.toString())) {
-			return {
-				id: ref.id,
-				name: `prompt:${basename(value)}`,
-				value,
-				kind: 'promptFile',
-				modelDescription: 'Prompt instructions file',
-				isRoot: true,
-				automaticallyAdded: false,
-				range,
-			} satisfies IPromptFileVariableEntry;
+		if (URI.isUri(value) && ref.name.startsWith(`prompt:`)) {
+			if (ref.id.startsWith(PromptFileVariableKind.Instruction)) {
+				return toPromptFileVariableEntry(value, PromptFileVariableKind.Instruction);
+			}
+			if (ref.id.startsWith(PromptFileVariableKind.InstructionReference)) {
+				return toPromptFileVariableEntry(value, PromptFileVariableKind.InstructionReference);
+			}
+			if (ref.id.startsWith(PromptFileVariableKind.PromptFile)) {
+				return toPromptFileVariableEntry(value, PromptFileVariableKind.PromptFile);
+			}
 		}
 
 		const isFile = URI.isUri(value) || (value && typeof value === 'object' && 'uri' in value);
@@ -767,6 +771,26 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 
 		await controllerData.controller.refreshHandler(token);
+	}
+
+	async $newChatSessionItem(handle: number, request: IChatNewSessionRequest, token: CancellationToken): Promise<ReturnType<typeof typeConvert.ChatSessionItem.from> | undefined> {
+		const controllerData = this._chatSessionItemControllers.get(handle);
+		if (!controllerData) {
+			this._logService.warn(`No controller found for handle ${handle}`);
+			return undefined;
+		}
+
+		const handler = controllerData.controller.newChatSessionItemHandler;
+		if (!handler) {
+			return undefined;
+		}
+
+		const item = await handler({ request: { prompt: request.prompt, command: request.command } }, token);
+		if (!item) {
+			return undefined;
+		}
+
+		return typeConvert.ChatSessionItem.from(item);
 	}
 
 	$onDidChangeChatSessionItemState(controllerHandle: number, sessionResourceComponents: UriComponents, archived: boolean): void {

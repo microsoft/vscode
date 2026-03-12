@@ -261,7 +261,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this.backend = backend;
 
 			// Create variable resolver
-			const variableResolver = terminalEnvironment.createVariableResolver(this._cwdWorkspaceFolder, await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority), this._configurationResolverService);
+			// Start with the full base environment so that all standard variables (e.g. PATH) are
+			// available, then overlay the shell environment on top so that launch configuration
+			// variables and shell-profile modifications take precedence.
+			const envForResolver = { ...await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority) };
+			terminalEnvironment.mergeEnvironments(envForResolver, await backend.getShellEnvironment());
+			const variableResolver = terminalEnvironment.createVariableResolver(this._cwdWorkspaceFolder, envForResolver, this._configurationResolverService);
 
 			// resolvedUserHome is needed here as remote resolvers can launch local terminals before
 			// they're connected to the remote.
@@ -581,16 +586,16 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		return os;
 	}
 
-	setDimensions(cols: number, rows: number): Promise<void>;
-	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
-	setDimensions(cols: number, rows: number, sync: true): void;
-	setDimensions(cols: number, rows: number, sync?: boolean): MaybePromise<void> {
+	setDimensions(cols: number, rows: number, sync?: undefined, pixelWidth?: number, pixelHeight?: number): Promise<void>;
+	setDimensions(cols: number, rows: number, sync: false, pixelWidth?: number, pixelHeight?: number): Promise<void>;
+	setDimensions(cols: number, rows: number, sync: true, pixelWidth?: number, pixelHeight?: number): void;
+	setDimensions(cols: number, rows: number, sync?: boolean, pixelWidth?: number, pixelHeight?: number): MaybePromise<void> {
 		if (sync) {
-			this._resize(cols, rows);
+			this._resize(cols, rows, pixelWidth, pixelHeight);
 			return;
 		}
 
-		return this.ptyProcessReady.then(() => this._resize(cols, rows));
+		return this.ptyProcessReady.then(() => this._resize(cols, rows, pixelWidth, pixelHeight));
 	}
 
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
@@ -606,13 +611,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		await this._terminalService.setNextCommandId(process.id, commandLine, commandId);
 	}
 
-	private _resize(cols: number, rows: number) {
+	private _resize(cols: number, rows: number, pixelWidth?: number, pixelHeight?: number) {
 		if (!this._process) {
 			return;
 		}
 		// The child process could already be terminated
 		try {
-			this._process.resize(cols, rows);
+			this._process.resize(cols, rows, pixelWidth, pixelHeight);
 		} catch (error) {
 			// We tried to write to a closed pipe / channel.
 			if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {

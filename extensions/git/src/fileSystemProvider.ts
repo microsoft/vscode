@@ -131,6 +131,26 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		this.cache = cache;
 	}
 
+	private async getOrOpenRepository(uri: string | Uri): Promise<Repository | undefined> {
+		let repository = this.model.getRepository(uri);
+		if (repository) {
+			return repository;
+		}
+
+		// In case of the empty window, or the agent sessions window, no repositories are open
+		// so we need to explicitly open a repository before we can serve git content for the
+		// given git resource.
+		if (workspace.workspaceFolders === undefined || workspace.isAgentSessionsWorkspace) {
+			const fsPath = typeof uri === 'string' ? uri : fromGitUri(uri).path;
+			this.logger.info(`[GitFileSystemProvider][getOrOpenRepository] Opening repository for ${fsPath}`);
+
+			await this.model.openRepository(fsPath, true, true);
+			repository = this.model.getRepository(uri);
+		}
+
+		return repository;
+	}
+
 	watch(): Disposable {
 		return EmptyDisposable;
 	}
@@ -139,7 +159,11 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		await this.model.isInitialized;
 
 		const { submoduleOf, path, ref } = fromGitUri(uri);
-		const repository = submoduleOf ? this.model.getRepository(submoduleOf) : this.model.getRepository(uri);
+
+		const repository = submoduleOf
+			? await this.getOrOpenRepository(submoduleOf)
+			: await this.getOrOpenRepository(uri);
+
 		if (!repository) {
 			this.logger.warn(`[GitFileSystemProvider][stat] Repository not found - ${uri.toString()}`);
 			throw FileSystemError.FileNotFound();
@@ -175,7 +199,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		const { path, ref, submoduleOf } = fromGitUri(uri);
 
 		if (submoduleOf) {
-			const repository = this.model.getRepository(submoduleOf);
+			const repository = await this.getOrOpenRepository(submoduleOf);
 
 			if (!repository) {
 				throw FileSystemError.FileNotFound();
@@ -190,7 +214,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			}
 		}
 
-		const repository = this.model.getRepository(uri);
+		const repository = await this.getOrOpenRepository(uri);
 
 		if (!repository) {
 			this.logger.warn(`[GitFileSystemProvider][readFile] Repository not found - ${uri.toString()}`);

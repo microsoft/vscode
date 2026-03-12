@@ -27,6 +27,7 @@ import { ChatModeKind } from '../../common/constants.js';
 import { IChatAccessibilityService, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
+export const MarkHelpfulActionId = 'workbench.action.chat.markHelpful';
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
 const enableFeedbackConfig = 'config.telemetry.feedback.enabled';
 

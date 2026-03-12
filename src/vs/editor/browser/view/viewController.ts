@@ -264,9 +264,12 @@ export class ViewController {
 					if (data.inSelectionMode) {
 						this._wordSelectDrag(data.position, data.revealType);
 					} else {
-						const model = this.viewModel.model;
-						const modelPos = this._convertViewToModelPosition(data.position);
-						const selection = ViewController._trySelectBracketContent(model, modelPos) || ViewController._trySelectStringContent(model, modelPos);
+						let selection: Selection | undefined;
+						if (options.get(EditorOption.doubleClickSelectsBlock)) {
+							const model = this.viewModel.model;
+							const modelPos = this._convertViewToModelPosition(data.position);
+							selection = ViewController._trySelectBracketContent(model, modelPos) || ViewController._trySelectStringContent(model, modelPos);
+						}
 						if (selection) {
 							this._select(selection);
 						} else {

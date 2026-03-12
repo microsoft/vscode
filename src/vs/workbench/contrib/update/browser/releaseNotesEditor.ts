@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/releasenoteseditor.css';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { KeybindingParser } from '../../../../base/common/keybindingParser.js';
@@ -124,7 +124,7 @@ export class ReleaseNotesManager extends Disposable {
 				},
 				'releaseNotes',
 				title,
-				undefined,
+				Codicon.vscode,
 				{ group: ACTIVE_GROUP, preserveFocus: false });
 
 			const disposables = new DisposableStore();
