@@ -230,6 +230,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
+	async changeModel(session: URI, model: string): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		const entry = this._sessions.get(sessionId);
+		if (entry) {
+			this._logService.info(`[Copilot:${sessionId}] Changing model to: ${model}`);
+			await entry.session.setModel(model);
+		}
+	}
+
 	async shutdown(): Promise<void> {
 		this._logService.info('[Copilot] Shutting down...');
 		this._sessions.clearAndDisposeAll();

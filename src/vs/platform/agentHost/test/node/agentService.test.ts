@@ -30,6 +30,10 @@ class MockAgent implements IAgent {
 		return { provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent`, requiresAuth: this.id === 'copilot' };
 	}
 
+	changeModel(session: URI, model: string): Promise<void> {
+		return Promise.resolve();
+	}
+
 	async listModels(): Promise<IAgentModelInfo[]> {
 		return [{ provider: this.id, id: `${this.id}-model`, name: `${this.id} Model`, maxContextWindow: 128000, supportsVision: false, supportsReasoningEffort: false }];
 	}
