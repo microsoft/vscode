@@ -119,7 +119,7 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 		this._persistentZoomMap = this._readPersistentZoomMap();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.browser.zoom.pageZoom')) {
+			if (e.affectsConfiguration('workbench.browser.pageZoom')) {
 				this._onDidChangeZoom.fire({ host: undefined, isEphemeralChange: false });
 			}
 		}));
@@ -194,7 +194,7 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 
 	notifyWindowZoomChanged(windowZoomFactor: number): void {
 		this._windowZoomFactor = windowZoomFactor;
-		const label = this.configurationService.getValue<string>('workbench.browser.zoom.pageZoom');
+		const label = this.configurationService.getValue<string>('workbench.browser.pageZoom');
 		if (label === MATCH_WINDOW_ZOOM_LABEL) {
 			this._onDidChangeZoom.fire({ host: undefined, isEphemeralChange: false });
 		}
@@ -205,7 +205,7 @@ export class BrowserZoomService extends Disposable implements IBrowserZoomServic
 	// ---------------------------------------------------------------------------
 
 	private _getDefaultZoomIndex(): number {
-		const label = this.configurationService.getValue<string>('workbench.browser.zoom.pageZoom');
+		const label = this.configurationService.getValue<string>('workbench.browser.pageZoom');
 		if (label === MATCH_WINDOW_ZOOM_LABEL) {
 			return this._getMatchWindowZoomIndex();
 		}
