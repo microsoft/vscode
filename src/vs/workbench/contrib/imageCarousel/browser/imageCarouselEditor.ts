@@ -206,8 +206,13 @@ export class ImageCarouselEditor extends EditorPane {
 		// Update thumbnail selection
 		for (let i = 0; i < this._thumbnailElements.length; i++) {
 			const isActive = i === this._currentIndex;
-			this._thumbnailElements[i].classList.toggle('active', isActive);
-			this._thumbnailElements[i].setAttribute('aria-current', String(isActive));
+			const thumbnail = this._thumbnailElements[i];
+			thumbnail.classList.toggle('active', isActive);
+			if (isActive) {
+				thumbnail.setAttribute('aria-current', 'page');
+			} else {
+				thumbnail.removeAttribute('aria-current');
+			}
 		}
 	}
 

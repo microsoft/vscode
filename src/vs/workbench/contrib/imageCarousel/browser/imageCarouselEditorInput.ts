@@ -21,7 +21,7 @@ export class ImageCarouselEditorInput extends EditorInput {
 		super();
 		this._resource = URI.from({
 			scheme: Schemas.vscodeImageCarousel,
-			path: `/${collection.id}`,
+			path: `/${encodeURIComponent(collection.id)}`,
 		});
 	}
 
