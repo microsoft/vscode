@@ -199,8 +199,8 @@ export function registerChatOpenAgentDebugPanelAction() {
 					fileSizeBytes: stat.size,
 					result: 'fileTooLarge',
 				});
-				await dialogService.error(
-					localize('chatDebugLog.fileTooLarge', "File Too Large"),
+				await dialogService.warn(
+					localize('chatDebugLog.fileTooLargeTitle', "File Too Large"),
 					localize('chatDebugLog.fileTooLargeDetail', "The selected file ({0} MB) exceeds the 50 MB size limit for debug log imports.", (stat.size / (1024 * 1024)).toFixed(1))
 				);
 				return;
@@ -242,7 +242,7 @@ type ChatDebugExportClassification = {
 
 type ChatDebugImportEvent = {
 	fileSizeBytes: number;
-	result: string;
+	result: 'success' | 'fileTooLarge' | 'providerFailed';
 };
 
 type ChatDebugImportClassification = {
