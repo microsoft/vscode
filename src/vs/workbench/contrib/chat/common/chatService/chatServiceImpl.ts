@@ -1615,7 +1615,7 @@ export class ChatService extends Disposable implements IChatService {
 		return localSessionId;
 	}
 
-	public registerChatModelChangeListeners(chatSessionType: string, onChange: () => void): IDisposable {
+	public registerChatModelChangeListeners(chatSessionType: string, onChange: (chatSessionResource: URI) => void): IDisposable {
 		const disposableStore = new DisposableStore();
 		const chatModelsICareAbout = this.chatModels.map(models =>
 			Array.from(models).filter((model: IChatModel) => model.sessionResource.scheme === chatSessionType)
@@ -1638,7 +1638,7 @@ export class ChatService extends Disposable implements IChatService {
 					listeners.set(added.sessionResource, autorun(reader => {
 						requestChangeListener.read(reader)?.read(reader);
 						modelChangeListener.read(reader);
-						onChange();
+						onChange(added.sessionResource);
 					}));
 				});
 			}
