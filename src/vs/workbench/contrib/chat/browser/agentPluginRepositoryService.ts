@@ -91,8 +91,8 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	}
 
 	async ensureRepository(marketplace: IMarketplaceReference, options?: IEnsureRepositoryOptions): Promise<URI> {
-		return this._cloneSequencer.queue(marketplace.canonicalId, async () => {
-			const repoDir = this.getRepositoryUri(marketplace, options?.marketplaceType);
+		const repoDir = this.getRepositoryUri(marketplace, options?.marketplaceType);
+		return this._cloneSequencer.queue(repoDir.fsPath, async () => {
 			const repoExists = await this._fileService.exists(repoDir);
 			if (repoExists) {
 				this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType);
