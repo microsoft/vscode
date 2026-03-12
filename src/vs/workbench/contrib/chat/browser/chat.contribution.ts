@@ -476,6 +476,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental']
 		},
+		[ChatConfiguration.ImageCarouselEnabled]: {
+			default: false,
+			description: nls.localize('chat.imageCarousel.enabled', "Controls whether clicking an image attachment in chat opens the image carousel viewer."),
+			type: 'boolean',
+			tags: ['preview']
+		},
 		'chat.undoRequests.restoreInput': {
 			default: true,
 			markdownDescription: nls.localize('chat.undoRequests.restoreInput', "Controls whether the input of the chat should be restored when an undo request is made. The input will be filled with the text of the request that was restored."),

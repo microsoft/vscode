@@ -6,7 +6,7 @@
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 
-export interface ISlideshowImage {
+export interface ICarouselImage {
 	readonly id: string;
 	readonly name: string;
 	readonly mimeType: string;
@@ -15,8 +15,8 @@ export interface ISlideshowImage {
 	readonly source?: string;
 }
 
-export interface ISlideshowImageCollection {
+export interface IImageCarouselCollection {
 	readonly id: string;
 	readonly title: string;
-	readonly images: ReadonlyArray<ISlideshowImage>;
+	readonly images: ReadonlyArray<ICarouselImage>;
 }

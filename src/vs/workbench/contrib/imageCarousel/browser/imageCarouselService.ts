@@ -5,25 +5,29 @@
 
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ISlideshowImage, ISlideshowImageCollection } from './chatImageSlideshowTypes.js';
+import { ICarouselImage, IImageCarouselCollection } from './imageCarouselTypes.js';
 import { IChatResponseViewModel } from '../../chat/common/model/chatViewModel.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from '../../chat/common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, IToolResultOutputDetails } from '../../chat/common/tools/languageModelToolsService.js';
 
-export const IChatImageSlideshowService = createDecorator<IChatImageSlideshowService>('chatImageSlideshowService');
+export const IImageCarouselService = createDecorator<IImageCarouselService>('imageCarouselService');
 
-export interface IChatImageSlideshowService {
+export interface IImageCarouselService {
 	readonly _serviceBrand: undefined;
-	extractImagesFromResponse(response: IChatResponseViewModel): Promise<ISlideshowImageCollection | undefined>;
-	openSlideshow(collection: ISlideshowImageCollection): Promise<void>;
+
+	/**
+	 * Extract images from a chat response's tool invocations.
+	 */
+	extractImagesFromResponse(response: IChatResponseViewModel): Promise<IImageCarouselCollection | undefined>;
 }
 
-export class ChatImageSlideshowService extends Disposable implements IChatImageSlideshowService {
+export class ImageCarouselService extends Disposable implements IImageCarouselService {
 	readonly _serviceBrand: undefined;
 
-	async extractImagesFromResponse(response: IChatResponseViewModel): Promise<ISlideshowImageCollection | undefined> {
-		const images: ISlideshowImage[] = [];
+	async extractImagesFromResponse(response: IChatResponseViewModel): Promise<IImageCarouselCollection | undefined> {
+		const images: ICarouselImage[] = [];
 
 		for (const item of response.response.value) {
 			if (item.kind === 'toolInvocation' || item.kind === 'toolInvocationSerialized') {
@@ -37,14 +41,14 @@ export class ChatImageSlideshowService extends Disposable implements IChatImageS
 		}
 
 		return {
-			id: response.sessionId + '_' + response.id,
-			title: `Images from Chat Response`,
+			id: response.sessionResource.toString() + '_' + response.id,
+			title: localize('imageCarousel.title', "Image Carousel"),
 			images
 		};
 	}
 
-	private extractImagesFromToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): ISlideshowImage[] {
-		const images: ISlideshowImage[] = [];
+	private extractImagesFromToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): ICarouselImage[] {
+		const images: ICarouselImage[] = [];
 
 		const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 
@@ -54,10 +58,10 @@ export class ChatImageSlideshowService extends Disposable implements IChatImageS
 					const data = decodeBase64(outputItem.value);
 					images.push({
 						id: `${toolInvocation.toolCallId}_${images.length}`,
-						name: `Image ${images.length + 1}`,
+						name: localize('imageCarousel.imageName', "Image {0}", images.length + 1),
 						mimeType: outputItem.mimeType,
 						data,
-						source: `Tool: ${toolInvocation.toolId}`
+						source: localize('imageCarousel.toolSource', "Tool: {0}", toolInvocation.toolId)
 					});
 				}
 			}
@@ -69,10 +73,10 @@ export class ChatImageSlideshowService extends Disposable implements IChatImageS
 				if (data) {
 					images.push({
 						id: `${toolInvocation.toolCallId}_${images.length}`,
-						name: `Image ${images.length + 1}`,
+						name: localize('imageCarousel.imageName', "Image {0}", images.length + 1),
 						mimeType: output.mimeType,
 						data,
-						source: `Tool: ${toolInvocation.toolId}`
+						source: localize('imageCarousel.toolSource', "Tool: {0}", toolInvocation.toolId)
 					});
 				}
 			}
@@ -91,9 +95,5 @@ export class ChatImageSlideshowService extends Disposable implements IChatImageS
 		} else {
 			return resultDetails.output.value;
 		}
-	}
-
-	async openSlideshow(collection: ISlideshowImageCollection): Promise<void> {
-		console.log('Opening slideshow with', collection.images.length, 'images');
 	}
 }
