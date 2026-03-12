@@ -365,7 +365,9 @@ export async function getCoverageSummary(result: LiveTestResult, coverageFiles: 
 			}
 			str += await getFileCoverageDetails(file, path);
 		}
-		return str;
+		if (str) {
+			return str;
+		}
 	}
 	return '';
 }

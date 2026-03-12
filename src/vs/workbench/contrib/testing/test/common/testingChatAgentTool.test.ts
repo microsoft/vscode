@@ -266,62 +266,70 @@ suite('Workbench - RunTestTool', () => {
 
 	suite('getCoverageSummary', () => {
 		test('returns overall summary when no coverageFiles specified', async () => {
+			const fileA = URI.file('/src/a.ts');
+			const fileB = URI.file('/src/b.ts');
 			const coverageData = createTestCoverage([
-				{ uri: URI.file('/src/a.ts'), statement: { covered: 5, total: 10 } },
-				{ uri: URI.file('/src/b.ts'), statement: { covered: 10, total: 10 } },
+				{ uri: fileA, statement: { covered: 5, total: 10 } },
+				{ uri: fileB, statement: { covered: 10, total: 10 } },
 			]);
 			const result = createResultWithCoverage(coverageData);
 
 			const summary = await getCoverageSummary(result, undefined);
 			assert.ok(summary.includes('<coverageSummary>'));
-			assert.ok(summary.includes('/src/a.ts'));
-			assert.ok(!summary.includes('/src/b.ts')); // 100% covered, excluded
+			assert.ok(summary.includes(fileA.fsPath));
+			assert.ok(!summary.includes(fileB.fsPath)); // 100% covered, excluded
 		});
 
 		test('returns detailed summary for specified coverageFiles', async () => {
+			const fileA = URI.file('/src/a.ts');
 			const details: CoverageDetails[] = [
 				makeDeclaration('uncoveredFn', 10, 0),
 				makeStatement(20, 0, 25),
 			];
 			const coverageData = createTestCoverage([
-				{ uri: URI.file('/src/a.ts'), statement: { covered: 8, total: 10 }, declaration: { covered: 0, total: 1 }, details },
+				{ uri: fileA, statement: { covered: 8, total: 10 }, declaration: { covered: 0, total: 1 }, details },
 			]);
 			const result = createResultWithCoverage(coverageData);
 
-			const summary = await getCoverageSummary(result, ['/src/a.ts']);
-			assert.ok(summary.includes('<coverage path="/src/a.ts"'));
+			const summary = await getCoverageSummary(result, [fileA.fsPath]);
+			assert.ok(summary.includes(`<coverage path="${fileA.fsPath}"`));
 			assert.ok(summary.includes('uncovered functions:'));
 			assert.ok(summary.includes('uncoveredFn(L10)'));
 			assert.ok(summary.includes('uncovered lines:'));
 		});
 
 		test('returns empty string when no coverage data exists', async () => {
+			const fileA = URI.file('/src/a.ts');
 			const result = createLiveTestResult();
 			result.addTask({ id: 't', name: 'n', running: true, ctrlId: 'ctrl' });
 
-			const summary = await getCoverageSummary(result, ['/src/a.ts']);
+			const summary = await getCoverageSummary(result, [fileA.fsPath]);
 			assert.strictEqual(summary, '');
 		});
 
 		test('handles multiple coverageFiles', async () => {
+			const fileA = URI.file('/src/a.ts');
+			const fileB = URI.file('/src/b.ts');
 			const coverageData = createTestCoverage([
-				{ uri: URI.file('/src/a.ts'), statement: { covered: 8, total: 10 }, details: [makeStatement(5, 0)] },
-				{ uri: URI.file('/src/b.ts'), statement: { covered: 3, total: 10 }, details: [makeDeclaration('fn', 1, 0)] },
+				{ uri: fileA, statement: { covered: 8, total: 10 }, details: [makeStatement(5, 0)] },
+				{ uri: fileB, statement: { covered: 3, total: 10 }, details: [makeDeclaration('fn', 1, 0)] },
 			]);
 			const result = createResultWithCoverage(coverageData);
 
-			const summary = await getCoverageSummary(result, ['/src/a.ts', '/src/b.ts']);
-			assert.ok(summary.includes('/src/a.ts'));
-			assert.ok(summary.includes('/src/b.ts'));
+			const summary = await getCoverageSummary(result, [fileA.fsPath, fileB.fsPath]);
+			assert.ok(summary.includes(fileA.fsPath));
+			assert.ok(summary.includes(fileB.fsPath));
 		});
 
 		test('skips non-matching coverageFiles gracefully', async () => {
+			const fileA = URI.file('/src/a.ts');
+			const nonExistent = URI.file('/src/nonexistent.ts');
 			const coverageData = createTestCoverage([
-				{ uri: URI.file('/src/a.ts'), statement: { covered: 8, total: 10 } },
+				{ uri: fileA, statement: { covered: 8, total: 10 } },
 			]);
 			const result = createResultWithCoverage(coverageData);
 
-			const summary = await getCoverageSummary(result, ['/src/nonexistent.ts']);
+			const summary = await getCoverageSummary(result, [nonExistent.fsPath]);
 			assert.strictEqual(summary, '');
 		});
 	});
@@ -339,26 +347,31 @@ suite('Workbench - RunTestTool', () => {
 		});
 
 		test('sorts files by coverage ascending', () => {
+			const high = URI.file('/src/high.ts');
+			const low = URI.file('/src/low.ts');
+			const mid = URI.file('/src/mid.ts');
 			const coverage = createTestCoverage([
-				{ uri: URI.file('/src/high.ts'), statement: { covered: 9, total: 10 } },
-				{ uri: URI.file('/src/low.ts'), statement: { covered: 3, total: 10 } },
-				{ uri: URI.file('/src/mid.ts'), statement: { covered: 7, total: 10 } },
+				{ uri: high, statement: { covered: 9, total: 10 } },
+				{ uri: low, statement: { covered: 3, total: 10 } },
+				{ uri: mid, statement: { covered: 7, total: 10 } },
 			]);
 			const summary = getOverallCoverageSummary(coverage);
-			const lowIdx = summary.indexOf('/src/low.ts');
-			const midIdx = summary.indexOf('/src/mid.ts');
-			const highIdx = summary.indexOf('/src/high.ts');
+			const lowIdx = summary.indexOf(low.fsPath);
+			const midIdx = summary.indexOf(mid.fsPath);
+			const highIdx = summary.indexOf(high.fsPath);
 			assert.ok(lowIdx < midIdx && midIdx < highIdx);
 		});
 
 		test('excludes 100% files from listing', () => {
+			const partial = URI.file('/src/partial.ts');
+			const full = URI.file('/src/full.ts');
 			const coverage = createTestCoverage([
-				{ uri: URI.file('/src/partial.ts'), statement: { covered: 5, total: 10 } },
-				{ uri: URI.file('/src/full.ts'), statement: { covered: 10, total: 10 } },
+				{ uri: partial, statement: { covered: 5, total: 10 } },
+				{ uri: full, statement: { covered: 10, total: 10 } },
 			]);
 			const summary = getOverallCoverageSummary(coverage);
-			assert.ok(summary.includes('/src/partial.ts'));
-			assert.ok(!summary.includes('/src/full.ts'));
+			assert.ok(summary.includes(partial.fsPath));
+			assert.ok(!summary.includes(full.fsPath));
 		});
 
 		test('includes percentage in output', () => {
@@ -372,46 +385,52 @@ suite('Workbench - RunTestTool', () => {
 
 	suite('getFileCoverageDetails', () => {
 		test('shows header with statement counts', async () => {
-			const file = createFileCov(URI.file('/src/foo.ts'), { covered: 8, total: 10 }, []);
-			const output = await getFileCoverageDetails(file, '/src/foo.ts');
+			const uri = URI.file('/src/foo.ts');
+			const file = createFileCov(uri, { covered: 8, total: 10 }, []);
+			const output = await getFileCoverageDetails(file, uri.fsPath);
 			assert.ok(output.includes('statements=8/10'));
 			assert.ok(output.includes('percent=80.0'));
-			assert.ok(output.startsWith('<coverage path="/src/foo.ts"'));
+			assert.ok(output.startsWith(`<coverage path="${uri.fsPath}"`));
 			assert.ok(output.endsWith('</coverage>\n'));
 		});
 
 		test('includes branch counts when available', async () => {
-			const file = createFileCov(URI.file('/src/foo.ts'), { covered: 8, total: 10 }, [], { branch: { covered: 3, total: 5 } });
-			const output = await getFileCoverageDetails(file, '/src/foo.ts');
+			const uri = URI.file('/src/foo.ts');
+			const file = createFileCov(uri, { covered: 8, total: 10 }, [], { branch: { covered: 3, total: 5 } });
+			const output = await getFileCoverageDetails(file, uri.fsPath);
 			assert.ok(output.includes('branches=3/5'));
 		});
 
 		test('includes declaration counts when available', async () => {
-			const file = createFileCov(URI.file('/src/foo.ts'), { covered: 8, total: 10 }, [], { declaration: { covered: 2, total: 4 } });
-			const output = await getFileCoverageDetails(file, '/src/foo.ts');
+			const uri = URI.file('/src/foo.ts');
+			const file = createFileCov(uri, { covered: 8, total: 10 }, [], { declaration: { covered: 2, total: 4 } });
+			const output = await getFileCoverageDetails(file, uri.fsPath);
 			assert.ok(output.includes('declarations=2/4'));
 		});
 
 		test('omits branch/declaration when not available', async () => {
-			const file = createFileCov(URI.file('/src/foo.ts'), { covered: 8, total: 10 }, []);
-			const output = await getFileCoverageDetails(file, '/src/foo.ts');
+			const uri = URI.file('/src/foo.ts');
+			const file = createFileCov(uri, { covered: 8, total: 10 }, []);
+			const output = await getFileCoverageDetails(file, uri.fsPath);
 			assert.ok(!output.includes('branches='));
 			assert.ok(!output.includes('declarations='));
 		});
 
 		test('lists uncovered declarations', async () => {
+			const uri = URI.file('/src/foo.ts');
 			const details: CoverageDetails[] = [
 				makeDeclaration('handleError', 89, 0),
 				makeDeclaration('processQueue', 120, 0),
 				makeDeclaration('coveredFn', 50, 3),
 			];
-			const file = createFileCov(URI.file('/src/foo.ts'), { covered: 8, total: 10 }, details, { declaration: { covered: 1, total: 3 } });
-			const output = await getFileCoverageDetails(file, '/src/foo.ts');
+			const file = createFileCov(uri, { covered: 8, total: 10 }, details, { declaration: { covered: 1, total: 3 } });
+			const output = await getFileCoverageDetails(file, uri.fsPath);
 			assert.ok(output.includes('uncovered functions: handleError(L89), processQueue(L120)'));
 			assert.ok(!output.includes('coveredFn'));
 		});
 
 		test('lists uncovered branches with labels', async () => {
+			const uri = URI.file('/src/foo.ts');
 			const details: CoverageDetails[] = [
 				makeStatement(34, 5, undefined, [
 					makeBranch(34, 5, 'then'),
@@ -422,30 +441,33 @@ suite('Workbench - RunTestTool', () => {
 					makeBranch(58, 2, 'case "bar"'),
 				]),
 			];
-			const file = createFileCov(URI.file('/src/foo.ts'), { covered: 8, total: 10 }, details, { branch: { covered: 2, total: 4 } });
-			const output = await getFileCoverageDetails(file, '/src/foo.ts');
+			const file = createFileCov(uri, { covered: 8, total: 10 }, details, { branch: { covered: 2, total: 4 } });
+			const output = await getFileCoverageDetails(file, uri.fsPath);
 			assert.ok(output.includes('uncovered branches: L36(else), L56(case "foo")'));
 		});
 
 		test('lists uncovered branches without labels', async () => {
+			const uri = URI.file('/src/foo.ts');
 			const details: CoverageDetails[] = [
 				makeStatement(10, 1, undefined, [makeBranch(10, 0)]),
 			];
-			const file = createFileCov(URI.file('/src/foo.ts'), { covered: 8, total: 10 }, details);
-			const output = await getFileCoverageDetails(file, '/src/foo.ts');
+			const file = createFileCov(uri, { covered: 8, total: 10 }, details);
+			const output = await getFileCoverageDetails(file, uri.fsPath);
 			assert.ok(output.includes('uncovered branches: L10\n'));
 		});
 
 		test('uses parent statement location when branch has no location', async () => {
+			const uri = URI.file('/src/foo.ts');
 			const details: CoverageDetails[] = [
 				makeStatement(42, 1, undefined, [{ count: 0, label: 'else' }]),
 			];
-			const file = createFileCov(URI.file('/src/foo.ts'), { covered: 8, total: 10 }, details);
-			const output = await getFileCoverageDetails(file, '/src/foo.ts');
+			const file = createFileCov(uri, { covered: 8, total: 10 }, details);
+			const output = await getFileCoverageDetails(file, uri.fsPath);
 			assert.ok(output.includes('L42(else)'));
 		});
 
 		test('lists merged uncovered line ranges', async () => {
+			const uri = URI.file('/src/foo.ts');
 			const details: CoverageDetails[] = [
 				makeStatement(23, 0, 27),
 				makeStatement(28, 0, 30),
@@ -454,35 +476,38 @@ suite('Workbench - RunTestTool', () => {
 				makeStatement(100, 0, 105),
 				makeStatement(50, 5), // covered
 			];
-			const file = createFileCov(URI.file('/src/foo.ts'), { covered: 5, total: 11 }, details);
-			const output = await getFileCoverageDetails(file, '/src/foo.ts');
+			const file = createFileCov(uri, { covered: 5, total: 11 }, details);
+			const output = await getFileCoverageDetails(file, uri.fsPath);
 			assert.ok(output.includes('uncovered lines: 23-30, 45, 67-72, 100-105'));
 		});
 
 		test('omits uncovered sections when all covered', async () => {
+			const uri = URI.file('/src/foo.ts');
 			const details: CoverageDetails[] = [
 				makeDeclaration('fn', 10, 3),
 				makeStatement(20, 5),
 				makeStatement(30, 1, undefined, [makeBranch(30, 1, 'then'), makeBranch(32, 2, 'else')]),
 			];
-			const file = createFileCov(URI.file('/src/foo.ts'), { covered: 10, total: 10 }, details);
-			const output = await getFileCoverageDetails(file, '/src/foo.ts');
+			const file = createFileCov(uri, { covered: 10, total: 10 }, details);
+			const output = await getFileCoverageDetails(file, uri.fsPath);
 			assert.ok(!output.includes('uncovered'));
 		});
 
 		test('handles details() throwing gracefully', async () => {
+			const uri = URI.file('/src/err.ts');
 			const result = createLiveTestResult();
 			const accessor: ICoverageAccessor = {
 				getCoverageDetails: () => Promise.reject(new Error('not available')),
 			};
-			const file = new FileCoverage({ id: 'err', uri: URI.file('/src/err.ts'), statement: { covered: 5, total: 10 } }, result, accessor);
-			const output = await getFileCoverageDetails(file, '/src/err.ts');
-			assert.ok(output.includes('<coverage path="/src/err.ts"'));
+			const file = new FileCoverage({ id: 'err', uri, statement: { covered: 5, total: 10 } }, result, accessor);
+			const output = await getFileCoverageDetails(file, uri.fsPath);
+			assert.ok(output.includes(`<coverage path="${uri.fsPath}"`));
 			assert.ok(output.includes('</coverage>'));
 			assert.ok(!output.includes('uncovered'));
 		});
 
 		test('full output snapshot', async () => {
+			const uri = URI.file('/src/foo.ts');
 			const details: CoverageDetails[] = [
 				makeDeclaration('uncoveredFn', 10, 0),
 				makeDeclaration('coveredFn', 20, 3),
@@ -494,14 +519,14 @@ suite('Workbench - RunTestTool', () => {
 				makeStatement(50, 3),
 			];
 			const file = createFileCov(
-				URI.file('/src/foo.ts'),
+				uri,
 				{ covered: 8, total: 10 },
 				details,
 				{ branch: { covered: 1, total: 2 }, declaration: { covered: 1, total: 2 } },
 			);
 			assert.deepStrictEqual(
-				await getFileCoverageDetails(file, '/src/foo.ts'),
-				'<coverage path="/src/foo.ts" percent=71.4 statements=8/10 branches=1/2 declarations=1/2>\n' +
+				await getFileCoverageDetails(file, uri.fsPath),
+				`<coverage path="${uri.fsPath}" percent=71.4 statements=8/10 branches=1/2 declarations=1/2>\n` +
 				'uncovered functions: uncoveredFn(L10)\n' +
 				'uncovered branches: L42(else)\n' +
 				'uncovered lines: 30-32\n' +
@@ -599,6 +624,8 @@ suite('Workbench - RunTestTool', () => {
 		});
 
 		test('includes stack trace frames', async () => {
+			const testUri = URI.file('/src/test.ts');
+			const helperUri = URI.file('/src/helper.ts');
 			const result = createResultWithTests([{
 				extId: new TestId(['ctrlId', 'myTest']).toString(),
 				label: 'myTest',
@@ -607,8 +634,8 @@ suite('Workbench - RunTestTool', () => {
 					type: TestMessageType.Error,
 					message: 'fail',
 					stackTrace: [
-						{ uri: URI.file('/src/test.ts'), position: { lineNumber: 10, column: 5 }, label: 'testFn' },
-						{ uri: URI.file('/src/helper.ts'), position: undefined, label: 'helperFn' },
+						{ uri: testUri, position: { lineNumber: 10, column: 5 }, label: 'testFn' },
+						{ uri: helperUri, position: undefined, label: 'helperFn' },
 						{ uri: undefined, position: undefined, label: 'anonymous' },
 					],
 				}],
@@ -616,12 +643,13 @@ suite('Workbench - RunTestTool', () => {
 			result.markComplete();
 
 			const output = await getFailureDetails(result);
-			assert.ok(output.includes('path="/src/test.ts" line="10" col="5"'));
-			assert.ok(output.includes('path="/src/helper.ts">helperFn</stackFrame>'));
+			assert.ok(output.includes(`path="${testUri.fsPath}" line="10" col="5"`));
+			assert.ok(output.includes(`path="${helperUri.fsPath}">helperFn</stackFrame>`));
 			assert.ok(output.includes('>anonymous</stackFrame>'));
 		});
 
 		test('includes location information', async () => {
+			const testUri = URI.file('/src/test.ts');
 			const result = createResultWithTests([{
 				extId: new TestId(['ctrlId', 'myTest']).toString(),
 				label: 'myTest',
@@ -629,13 +657,13 @@ suite('Workbench - RunTestTool', () => {
 				messages: [{
 					type: TestMessageType.Error,
 					message: 'fail',
-					location: { uri: URI.file('/src/test.ts'), range: new Range(42, 8, 42, 20) },
+					location: { uri: testUri, range: new Range(42, 8, 42, 20) },
 				}],
 			}]);
 			result.markComplete();
 
 			const output = await getFailureDetails(result);
-			assert.ok(output.includes('path="/src/test.ts" line="42" col="8"'));
+			assert.ok(output.includes(`path="${testUri.fsPath}" line="42" col="8"`));
 		});
 
 		test('skips passing tests', async () => {
