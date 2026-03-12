@@ -56,7 +56,7 @@ import { ServerTelemetryChannel } from '../../platform/telemetry/common/remoteTe
 import { IServerTelemetryService, ServerNullTelemetryService, ServerTelemetryService } from '../../platform/telemetry/common/serverTelemetryService.js';
 import { RemoteTerminalChannel } from './remoteTerminalChannel.js';
 import { createURITransformer } from '../../base/common/uriTransformer.js';
-import { ServerConnectionToken } from './serverConnectionToken.js';
+import { ServerConnectionToken, ServerConnectionTokenType } from './serverConnectionToken.js';
 import { ServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
 import { REMOTE_TERMINAL_CHANNEL_NAME } from '../../workbench/contrib/terminal/common/remote/remoteTerminalChannel.js';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from '../../workbench/services/remote/common/remoteFileSystemProviderClient.js';
@@ -232,6 +232,14 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	const agentHostStarter = instantiationService.createInstance(NodeAgentHostStarter);
 	disposables.add(instantiationService.createInstance(AgentHostProcessManager, agentHostStarter));
+	if (args['agent-host-port'] || args['agent-host-path']) {
+		agentHostStarter.setWebSocketConfig({
+			port: args['agent-host-port'],
+			socketPath: args['agent-host-path'],
+			host: args.host || 'localhost',
+			connectionToken: connectionToken.type === ServerConnectionTokenType.Mandatory ? connectionToken.value : undefined,
+		});
+	}
 
 	services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService));
 	services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService));

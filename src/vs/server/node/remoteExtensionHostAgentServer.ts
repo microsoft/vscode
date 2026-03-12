@@ -834,6 +834,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		output += `\n`;
 		console.log(output);
 	}
+
 	return remoteExtensionHostAgentServer;
 }
 

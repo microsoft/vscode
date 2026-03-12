@@ -17,6 +17,8 @@ import { join } from 'node:path';
 // SEE https://nodejs.org/docs/latest/api/module.html#initialize
 
 const _specifierToUrl: Record<string, string> = {};
+const _specifierToFormat: Record<string, string> = {};
+const _nodeModulesPath: string[] = [];
 
 export async function initialize(injectPath: string): Promise<void> {
 	// populate mappings
@@ -24,19 +26,40 @@ export async function initialize(injectPath: string): Promise<void> {
 	const injectPackageJSONPath = fileURLToPath(new URL('../package.json', pathToFileURL(injectPath)));
 	const packageJSON = JSON.parse(String(await promises.readFile(injectPackageJSONPath)));
 
+	// Remember the node_modules root for subpath resolution
+	_nodeModulesPath.push(join(injectPackageJSONPath, `../node_modules`));
+
 	for (const [name] of Object.entries(packageJSON.dependencies)) {
 		try {
 			const path = join(injectPackageJSONPath, `../node_modules/${name}/package.json`);
-			let { main } = JSON.parse(String(await promises.readFile(path)));
+			const pkgJson = JSON.parse(String(await promises.readFile(path)));
+
+			// Determine the entry point: prefer exports["."].import for ESM, then main
+			let main: string | undefined;
+			if (pkgJson.exports?.['.']) {
+				const dotExport = pkgJson.exports['.'];
+				if (typeof dotExport === 'string') {
+					main = dotExport;
+				} else if (typeof dotExport === 'object' && dotExport !== null) {
+					main = dotExport.import ?? dotExport.default;
+				}
+			}
+			if (typeof main !== 'string') {
+				main = typeof pkgJson.main === 'string' ? pkgJson.main : undefined;
+			}
 
 			if (!main) {
 				main = 'index.js';
 			}
-			if (!main.endsWith('.js')) {
+			if (!main.endsWith('.js') && !main.endsWith('.mjs') && !main.endsWith('.cjs')) {
 				main += '.js';
 			}
 			const mainPath = join(injectPackageJSONPath, `../node_modules/${name}/${main}`);
 			_specifierToUrl[name] = pathToFileURL(mainPath).href;
+			// Determine module format: .mjs is always ESM, .cjs always CJS, otherwise check type field
+			_specifierToFormat[name] = main.endsWith('.mjs') || pkgJson.type === 'module' ? 'module'
+				: main.endsWith('.cjs') ? 'commonjs'
+					: 'commonjs';
 
 		} catch (err) {
 			console.error(name);
@@ -52,10 +75,28 @@ export async function resolve(specifier: string | number, context: unknown, next
 	const newSpecifier = _specifierToUrl[specifier];
 	if (newSpecifier !== undefined) {
 		return {
-			format: 'commonjs',
+			format: _specifierToFormat[specifier] ?? 'commonjs',
 			shortCircuit: true,
 			url: newSpecifier
 		};
+	}
+
+	// Handle subpath imports (e.g., 'vscode-jsonrpc/node') by resolving
+	// through the redirected node_modules directory.
+	if (_nodeModulesPath.length > 0 && typeof specifier === 'string' && !specifier.startsWith('.') && !specifier.startsWith('node:')) {
+		for (const nmPath of _nodeModulesPath) {
+			// Try resolving the specifier as a file inside node_modules
+			let candidate = join(nmPath, specifier);
+			if (!candidate.endsWith('.js')) {
+				candidate += '.js';
+			}
+			try {
+				await promises.access(candidate);
+				return nextResolve(pathToFileURL(candidate).href, context);
+			} catch {
+				// not found, let next resolver handle it
+			}
+		}
 	}
 
 	// Defer to the next hook in the chain, which would be the

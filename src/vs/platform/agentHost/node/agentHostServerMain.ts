@@ -7,7 +7,6 @@
 // Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--enable-mock-agent]
 
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
@@ -20,17 +19,11 @@ import { IProductService } from '../../product/common/productService.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
-import { AgentSession, type AgentProvider, type IAgent } from '../common/agentService.js';
-import { SessionStateManager } from './sessionStateManager.js';
+import { type AgentProvider } from '../common/agentService.js';
+import { SessionStatus } from '../common/state/sessionState.js';
+import { AgentService } from './agentService.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler, type IProtocolSideEffectHandler } from './protocolServerHandler.js';
-import { mapProgressEventToAction } from './agentEventMapper.js';
-import {
-	ISessionModelInfo,
-	SessionStatus, type ISessionSummary
-} from '../common/state/sessionState.js';
-import type { ISessionAction } from '../common/state/sessionActions.js';
-import type { ICreateSessionParams } from '../common/state/sessionProtocol.js';
 
 // ---- Options ----------------------------------------------------------------
 
@@ -52,7 +45,7 @@ function parseServerOptions(): IServerOptions {
 
 // ---- Main -------------------------------------------------------------------
 
-function main(): void {
+async function main(): Promise<void> {
 	const options = parseServerOptions();
 	const disposables = new DisposableStore();
 
@@ -77,51 +70,10 @@ function main(): void {
 
 	logService.info('[AgentHostServer] Starting standalone agent host server');
 
-	// Create state manager
-	const stateManager = disposables.add(new SessionStateManager(logService));
-
-	// Agent registry — maps provider id to agent instance
-	const agents = new Map<AgentProvider, IAgent>();
-
-	function registerAgent(agent: IAgent): void {
-		agents.set(agent.id, agent);
-		disposables.add(agent.onDidSessionProgress(e => {
-			const turnId = stateManager.getActiveTurnId(e.session);
-			if (turnId) {
-				const action = mapProgressEventToAction(e, e.session, turnId);
-				if (action) {
-					stateManager.dispatchServerAction(action);
-				}
-			}
-		}));
-		// Publish agent to root state (models fetched async)
-		publishAgentsToRootState();
-		logService.info(`[AgentHostServer] Registered agent: ${agent.id}`);
-	}
-
-	async function publishAgentsToRootState(): Promise<void> {
-		const agentInfos = await Promise.all([...agents.values()].map(async a => {
-			const d = a.getDescriptor();
-			let models: ISessionModelInfo[];
-			try {
-				const rawModels = await a.listModels();
-				models = rawModels.map(m => ({
-					id: m.id, provider: m.provider, name: m.name,
-					maxContextWindow: m.maxContextWindow, supportsVision: m.supportsVision,
-					policyState: m.policyState,
-				}));
-			} catch {
-				models = [];
-			}
-			return { provider: d.provider, displayName: d.displayName, description: d.description, models };
-		}));
-		stateManager.dispatchServerAction({ type: 'root/agentsChanged', agents: agentInfos });
-	}
-
-	function getAgent(session: URI): IAgent | undefined {
-		const provider = AgentSession.provider(session);
-		return provider ? agents.get(provider) : agents.values().next().value;
-	}
+	// Create agent service — handles agent registration, session lifecycle,
+	// event mapping, and state management (reuses the same logic as the
+	// utility-process entry point in agentHostMain.ts).
+	const agentService = disposables.add(new AgentService(logService));
 
 	// Register agents
 	if (!options.quiet) {
@@ -135,121 +87,52 @@ function main(): void {
 		services.set(ILogService, logService);
 		const instantiationService = new InstantiationService(services);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
-		registerAgent(copilotAgent);
+		agentService.registerProvider(copilotAgent);
 	}
 
 	if (options.enableMockAgent) {
 		// Dynamic import to avoid bundling test code in production
 		import('../test/node/mockAgent.js').then(({ ScriptedMockAgent }) => {
 			const mockAgent = disposables.add(new ScriptedMockAgent());
-			registerAgent(mockAgent);
+			agentService.registerProvider(mockAgent);
 		}).catch(err => {
 			logService.error('[AgentHostServer] Failed to load mock agent', err);
 		});
 	}
 
 	// WebSocket server
-	const wsServer = disposables.add(new WebSocketProtocolServer(options.port, logService));
+	const wsServer = disposables.add(await WebSocketProtocolServer.create(options.port, logService));
 
-	// Side-effect handler — routes to the correct agent based on session URI
+	// Side-effect handler — delegates to AgentService for all orchestration
 	const sideEffects: IProtocolSideEffectHandler = {
-		handleAction(action: ISessionAction): void {
-			switch (action.type) {
-				case 'session/turnStarted': {
-					const agent = getAgent(action.session);
-					if (!agent) {
-						stateManager.dispatchServerAction({
-							type: 'session/error',
-							session: action.session,
-							turnId: action.turnId,
-							error: { errorType: 'noAgent', message: 'No agent found for session' },
-						});
-						return;
-					}
-					const attachments = action.userMessage.attachments?.map(a => ({
-						type: a.type,
-						path: a.path,
-						displayName: a.displayName,
-					}));
-					agent.sendMessage(action.session, action.userMessage.text, attachments).catch(err => {
-						logService.error('[AgentHostServer] sendMessage failed', err);
-						stateManager.dispatchServerAction({
-							type: 'session/error',
-							session: action.session,
-							turnId: action.turnId,
-							error: { errorType: 'sendFailed', message: String(err) },
-						});
-					});
-					break;
-				}
-				case 'session/permissionResolved': {
-					const agent = getAgent(action.session);
-					agent?.respondToPermissionRequest(action.requestId, action.approved);
-					break;
-				}
-				case 'session/turnCancelled': {
-					const agent = getAgent(action.session);
-					agent?.abortSession(action.session).catch(() => { });
-					break;
-				}
-				case 'session/modelChanged': {
-					const agent = getAgent(action.session);
-					agent?.changeModel?.(action.session, action.model).catch(err => {
-						logService.error('[AgentHostServer] changeModel failed', err);
-					});
-					break;
-				}
-			}
+		handleAction(action) {
+			agentService.dispatchAction(action, 'ws-server', 0);
 		},
-		async handleCreateSession(command: ICreateSessionParams): Promise<void> {
-			const provider = (command.provider ?? agents.keys().next().value) as AgentProvider;
-			const agent = agents.get(provider);
-			if (!agent) {
-				throw new Error(`No agent registered for provider: ${provider}`);
-			}
-			const session = await agent.createSession({
-				provider,
+		async handleCreateSession(command) {
+			await agentService.createSession({
+				provider: command.provider as AgentProvider | undefined,
 				model: command.model,
 				workingDirectory: command.workingDirectory,
 			});
-			const summary: ISessionSummary = {
-				resource: session,
-				provider,
-				title: 'Session',
+		},
+		handleDisposeSession(session) {
+			agentService.disposeSession(session);
+		},
+		async handleListSessions() {
+			const sessions = await agentService.listSessions();
+			return sessions.map(s => ({
+				resource: s.session,
+				provider: '' as AgentProvider,
+				title: s.summary ?? 'Session',
 				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
-			};
-			stateManager.createSession(summary);
-			stateManager.dispatchServerAction({ type: 'session/ready', session });
-		},
-		handleDisposeSession(session: URI): void {
-			const agent = getAgent(session);
-			agent?.disposeSession(session).catch(() => { });
-			stateManager.removeSession(session);
-		},
-		async handleListSessions(): Promise<ISessionSummary[]> {
-			const allSessions: ISessionSummary[] = [];
-			for (const agent of agents.values()) {
-				const sessions = await agent.listSessions();
-				const provider = agent.id;
-				for (const s of sessions) {
-					allSessions.push({
-						resource: s.session,
-						provider,
-						title: s.summary ?? 'Session',
-						status: SessionStatus.Idle,
-						createdAt: s.startTime,
-						modifiedAt: s.modifiedTime,
-					});
-				}
-			}
-			return allSessions;
+				createdAt: s.startTime,
+				modifiedAt: s.modifiedTime,
+			}));
 		},
 	};
 
 	// Wire up protocol handler
-	disposables.add(new ProtocolServerHandler(stateManager, wsServer, sideEffects, logService));
+	disposables.add(new ProtocolServerHandler(agentService.stateManager, wsServer, sideEffects, logService));
 
 	// Report ready
 	const address = wsServer.address;

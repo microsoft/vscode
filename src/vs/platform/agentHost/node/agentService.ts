@@ -36,6 +36,9 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Authoritative state manager for the sessions process protocol. */
 	private readonly _stateManager: SessionStateManager;
 
+	/** Exposes the state manager for co-hosting a WebSocket protocol server. */
+	get stateManager(): SessionStateManager { return this._stateManager; }
+
 	/** Registered providers keyed by their {@link AgentProvider} id. */
 	private readonly _providers = new Map<AgentProvider, IAgent>();
 	/** Maps each active session URI (toString) to its owning provider. */
@@ -226,6 +229,13 @@ export class AgentService extends Disposable implements IAgentService {
 						this._logService.error(`[AgentService] abortSession failed for session/turnCancelled`, err);
 					});
 				}
+				break;
+			}
+			case 'session/modelChanged': {
+				const provider = this._findProviderForSession(action.session);
+				provider?.changeModel?.(action.session, action.model).catch(err => {
+					this._logService.error(`[AgentService] changeModel failed for session/modelChanged`, err);
+				});
 				break;
 			}
 		}
