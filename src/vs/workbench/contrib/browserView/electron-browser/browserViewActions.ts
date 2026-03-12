@@ -506,8 +506,9 @@ class ZoomInAction extends Action2 {
 			keybinding: {
 				when: CONTEXT_BROWSER_FOCUSED,
 				weight: KeybindingWeight.WorkbenchContrib + 75,
+				// Same shortcuts as 'workbench.action.zoomIn'
 				primary: KeyMod.CtrlCmd | KeyCode.Equal,
-				secondary: [KeyMod.CtrlCmd | KeyCode.NumpadAdd],
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Equal, KeyMod.CtrlCmd | KeyCode.NumpadAdd],
 			},
 		});
 	}
@@ -539,8 +540,13 @@ class ZoomOutAction extends Action2 {
 			keybinding: {
 				when: CONTEXT_BROWSER_FOCUSED,
 				weight: KeybindingWeight.WorkbenchContrib + 75,
+				// Same shortcuts as 'workbench.action.zoomOut'
 				primary: KeyMod.CtrlCmd | KeyCode.Minus,
-				secondary: [KeyMod.CtrlCmd | KeyCode.NumpadSubtract],
+				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, KeyMod.CtrlCmd | KeyCode.NumpadSubtract],
+				linux: {
+					primary: KeyMod.CtrlCmd | KeyCode.Minus,
+					secondary: [KeyMod.CtrlCmd | KeyCode.NumpadSubtract]
+				}
 			},
 		});
 	}
@@ -571,7 +577,8 @@ class ResetZoomAction extends Action2 {
 			keybinding: {
 				when: CONTEXT_BROWSER_FOCUSED,
 				weight: KeybindingWeight.WorkbenchContrib + 75,
-				// We use Numpad0 and not Digit0 here to match the workbench zoom reset keybinding, and to avoid conflicts with keybinding to focus sidebar.
+				// Same shortcuts as 'workbench.action.zoomReset'
+				// (note: both workbench and here use Numpad0 instead of Digit0 to avoid conflicts with keybinding to focus sidebar.)
 				primary: KeyMod.CtrlCmd | KeyCode.Numpad0,
 			},
 		});

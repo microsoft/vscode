@@ -203,7 +203,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				},
 			}
 		},
-		'workbench.browser.zoom.pageZoom': {
+		'workbench.browser.pageZoom': {
 			type: 'string',
 			enum: [MATCH_WINDOW_ZOOM_LABEL, ...browserZoomFactors.map(f => `${Math.round(f * 100)}%`)],
 			markdownEnumDescriptions: [
