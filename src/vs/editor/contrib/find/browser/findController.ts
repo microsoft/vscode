@@ -767,7 +767,7 @@ async function matchFindAction(editor: ICodeEditor, next: boolean): Promise<void
 		if (!runMatch()) {
 			// Re-announce "no results" for screen readers on explicit navigation (#301126)
 			const state = controller.getState();
-			if (state.matchesCount === 0 && state.searchString) {
+			if (wasFindWidgetVisible && state.matchesCount === 0 && state.searchString) {
 				alertFn(nls.localize('ariaSearchNoResult', "{0} found for '{1}'", NLS_NO_RESULTS, state.searchString));
 			}
 		}
