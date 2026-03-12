@@ -171,6 +171,12 @@ export interface IPluginMarketplaceService {
 	isMarketplaceTrusted(ref: IMarketplaceReference): boolean;
 	/** Records that the user trusts the given marketplace, persisted permanently. */
 	trustMarketplace(ref: IMarketplaceReference): void;
+	/**
+	 * Reads marketplace definition files from an already-cloned repository
+	 * directory and returns the declared plugins. Used by direct-install flows
+	 * that clone a repo first, then need to discover its plugins.
+	 */
+	readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference): Promise<IMarketplacePlugin[]>;
 }
 
 /**
@@ -690,8 +696,16 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return [];
 		}
 
+		return this._readPluginsFromDirectory(repoDir, reference, token);
+	}
+
+	async readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference): Promise<IMarketplacePlugin[]> {
+		return this._readPluginsFromDirectory(repoDir, reference);
+	}
+
+	private async _readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference, token?: CancellationToken): Promise<IMarketplacePlugin[]> {
 		for (const def of MARKETPLACE_DEFINITIONS) {
-			if (token.isCancellationRequested) {
+			if (token?.isCancellationRequested) {
 				return [];
 			}
 
