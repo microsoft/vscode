@@ -23,7 +23,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { filter } from '../../../../../base/common/objects.js';
 import { autorun, derived, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { basename, extUri, isEqual } from '../../../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -286,6 +286,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		displayName: string;
 	};
 	private readonly _lockedToCodingAgentContextKey: IContextKey<boolean>;
+	private readonly _lockedCodingAgentIdContextKey: IContextKey<string>;
 	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
 	private readonly _sessionIsEmptyContextKey: IContextKey<boolean>;
 	private readonly _hasPendingRequestsContextKey: IContextKey<boolean>;
@@ -400,6 +401,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		super();
 
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
+		this._lockedCodingAgentIdContextKey = ChatContextKeys.lockedCodingAgentId.bindTo(this.contextKeyService);
 		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 		this._sessionIsEmptyContextKey = ChatContextKeys.chatSessionIsEmpty.bindTo(this.contextKeyService);
 		this._hasPendingRequestsContextKey = ChatContextKeys.hasPendingRequests.bindTo(this.contextKeyService);
@@ -673,8 +675,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
 		}));
-		this._register(this.chatSuggestNextWidget.onDidSelectPrompt(({ handoff, agentId }) => {
-			this.handleNextPromptSelection(handoff, agentId);
+		this._register(this.chatSuggestNextWidget.onDidSelectPrompt(({ handoff, agentId, withAutopilot }) => {
+			this.handleNextPromptSelection(handoff, agentId, withAutopilot);
 		}));
 
 		if (renderInputOnTop) {
@@ -1111,9 +1113,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined): IChatViewWelcomeContent {
 		if (this.isLockedToCodingAgent) {
 			// Check for provider-specific customizations from chat sessions service
-			const providerIcon = this._lockedAgent ? this.chatSessionsService.getIconForSessionType(this._lockedAgent.id) : undefined;
-			const providerTitle = this._lockedAgent ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgent.id) : undefined;
-			const providerMessage = this._lockedAgent ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgent.id) : undefined;
+			const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
+			const providerIcon = contribution?.icon;
+			const providerTitle = contribution?.welcomeTitle;
+			const providerMessage = contribution?.welcomeMessage;
 
 			// Fallback to default messages if provider doesn't specify
 			const message = providerMessage
@@ -1203,6 +1206,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const handoffs = responseMode?.handOffs?.get();
 
 		if (responseMode && handoffs && handoffs.length > 0) {
+			// In Autopilot mode, automatically trigger the first auto-send handoff
+			// so the plan flows seamlessly into implementation without user interaction.
+			const permissionLevel = this.inputPart.currentModeInfo.permissionLevel;
+			if (permissionLevel === ChatPermissionLevel.Autopilot) {
+				const autoSendHandoff = handoffs.find(h => h.send);
+				if (autoSendHandoff) {
+					this.handleNextPromptSelection(autoSendHandoff);
+					return;
+				}
+			}
+
 			// Log telemetry only when widget transitions from hidden to visible
 			const wasHidden = this.chatSuggestNextWidget.domNode.style.display === 'none';
 			this.chatSuggestNextWidget.render(responseMode);
@@ -1223,9 +1237,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private handleNextPromptSelection(handoff: IHandOff, agentId?: string): void {
+	private handleNextPromptSelection(handoff: IHandOff, agentId?: string, withAutopilot?: boolean): void {
 		// Hide the widget after selection
 		this.chatSuggestNextWidget.hide();
+
+		// If starting with Autopilot, set permission level before submitting
+		if (withAutopilot) {
+			this.inputPart.setPermissionLevel(ChatPermissionLevel.Autopilot);
+		}
 
 		const promptToUse = handoff.prompt;
 
@@ -1948,7 +1967,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.setViewModel(this.viewModel);
 
 		if (this._lockedAgent) {
-			let placeholder = this.chatSessionsService.getInputPlaceholderForSessionType(this._lockedAgent.id);
+			let placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
 			if (!placeholder) {
 				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.id);
 			}
@@ -2095,6 +2114,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			displayName
 		};
 		this._lockedToCodingAgentContextKey.set(true);
+		this._lockedCodingAgentIdContextKey.set(agentId);
 		this.renderWelcomeViewContentIfNeeded();
 		// Update capabilities for the locked agent
 		const agent = this.chatAgentService.getAgent(agentId);
@@ -2109,6 +2129,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Clear all state related to locking
 		this._lockedAgent = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
+		this._lockedCodingAgentIdContextKey.set('');
 		this._updateAgentCapabilitiesContextKeys(undefined);
 
 		// Explicitly update the DOM to reflect unlocked state
@@ -2183,9 +2204,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const toolReferences = this.toolsService.toToolReferences(refs);
 		requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 
-		// remove the slash command from the input
-		requestInput.input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();
-
 		const promptPath = slashCommand.promptPath;
 		const promptRunEvent: ChatPromptRunEvent = {
 			storage: promptPath.storage,
@@ -2198,12 +2216,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.telemetryService.publicLog2<ChatPromptRunEvent, ChatPromptRunClassification>('chat.promptRun', promptRunEvent);
 
-		const input = requestInput.input.trim();
-		requestInput.input = `Follow instructions in [${basename(parseResult.uri)}](${parseResult.uri.toString()}).`;
-		if (input) {
-			// if the input is not empty, append it to the prompt
-			requestInput.input += `\n${input}`;
-		}
 		if (parseResult.header) {
 			await this._applyPromptMetadata(parseResult.header, requestInput);
 		}

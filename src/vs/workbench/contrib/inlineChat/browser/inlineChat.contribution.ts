@@ -30,6 +30,8 @@ registerAction2(InlineChatActions.KeepSessionAction2);
 registerAction2(InlineChatActions.UndoSessionAction2);
 registerAction2(InlineChatActions.UndoAndCloseSessionAction2);
 registerAction2(InlineChatActions.CancelSessionAction);
+registerAction2(InlineChatActions.ContinueInlineChatInChatViewAction);
+registerAction2(InlineChatActions.RephraseInlineChatSessionAction);
 
 // --- browser
 

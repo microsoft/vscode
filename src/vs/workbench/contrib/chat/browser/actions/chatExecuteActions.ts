@@ -31,7 +31,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { isInClaudeAgentsFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
@@ -475,8 +475,10 @@ export class OpenPermissionPickerAction extends Action2 {
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.lockedToCodingAgent.negate(),
-						IsSessionsWindowContext.negate(),
+						ContextKeyExpr.or(
+							ChatContextKeys.lockedToCodingAgent.negate(),
+							ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Background),
+						),
 					)
 			}
 		});
@@ -600,25 +602,14 @@ export class OpenDelegationPickerAction extends Action2 {
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatSessionIsEmpty.negate(), ChatContextKeys.currentlyEditingInput.negate(), ChatContextKeys.currentlyEditing.negate()),
 			menu: [
 				{
-					id: MenuId.ChatInput,
-					order: 0.5,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.enabled,
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.chatSessionIsEmpty.negate(),
-						IsSessionsWindowContext),
-					group: 'navigation',
-				},
-				{
 					id: MenuId.ChatInputSecondary,
 					order: 0.5,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.chatSessionIsEmpty.negate(),
-						IsSessionsWindowContext.negate()),
+						ChatContextKeys.chatSessionIsEmpty.negate()
+					),
 					group: 'navigation',
 				},
 			]
@@ -651,7 +642,7 @@ export class OpenWorkspacePickerAction extends Action2 {
 					order: 0.6,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.inAgentSessionsWelcome,
-						ChatContextKeys.chatSessionType.isEqualTo('local'),
+						ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
 						IsSessionsWindowContext
 					),
 					group: 'navigation',
@@ -661,7 +652,7 @@ export class OpenWorkspacePickerAction extends Action2 {
 					order: 0.6,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.inAgentSessionsWelcome,
-						ChatContextKeys.chatSessionType.isEqualTo('local'),
+						ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
 						IsSessionsWindowContext.negate()
 					),
 					group: 'navigation',

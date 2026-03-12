@@ -1416,7 +1416,11 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('session auto approval', () => {
-		test('should auto approve all commands when session has auto approval enabled', async () => {
+		setup(() => {
+			setAutoApprove({ rm: false });
+		});
+
+		test('should return policy denial details for denied commands when session has auto approval enabled', async () => {
 			const sessionId = 'test-session-123';
 			const sessionResource = LocalChatSessionUri.forSession(sessionId);
 			const terminalChatService = instantiationService.get(ITerminalChatService);
@@ -1440,8 +1444,61 @@ suite('RunInTerminalTool', () => {
 			assertAutoApproved(result);
 
 			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
-			ok(terminalData.autoApproveInfo, 'Expected autoApproveInfo to be defined');
-			ok(terminalData.autoApproveInfo.value.includes('Auto approved for this session'), 'Expected session approval message');
+			ok(terminalData.alternativeRecommendation, 'Expected policy denial alternative recommendation');
+			ok(terminalData.alternativeRecommendation.includes('POLICY_DENIED'), 'Expected policy denial marker');
+			ok(terminalData.alternativeRecommendation.includes('rm dangerous-file.txt'), 'Expected denied command details');
+		});
+
+		test('should still show confirmation when forceConfirmationReason is provided', async () => {
+			const sessionId = 'test-session-123-force';
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			const terminalChatService = instantiationService.get(ITerminalChatService);
+
+			terminalChatService.setChatSessionAutoApproval(sessionResource, true);
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'rm dangerous-file.txt',
+					explanation: 'Remove a file',
+					goal: 'Remove a file',
+					isBackground: false
+				} as IRunInTerminalInputParams,
+				chatSessionResource: sessionResource,
+				forceConfirmationReason: 'test'
+			} as IToolInvocationPreparationContext;
+
+			const result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+			assertConfirmationRequired(result);
+		});
+
+		test('should circuit break repeated denied command attempts in auto approval sessions', async () => {
+			const sessionId = 'test-session-123-circuit-break';
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			const terminalChatService = instantiationService.get(ITerminalChatService);
+
+			terminalChatService.setChatSessionAutoApproval(sessionResource, true);
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'rm dangerous-file.txt',
+					explanation: 'Remove a file',
+					goal: 'Remove a file',
+					isBackground: false
+				} as IRunInTerminalInputParams,
+				chatSessionResource: sessionResource
+			} as IToolInvocationPreparationContext;
+
+			const first = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+			const second = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+			const third = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+
+			const firstData = first!.toolSpecificData as IChatTerminalToolInvocationData;
+			const secondData = second!.toolSpecificData as IChatTerminalToolInvocationData;
+			const thirdData = third!.toolSpecificData as IChatTerminalToolInvocationData;
+
+			ok(firstData.alternativeRecommendation?.includes('POLICY_DENIED'), 'Expected initial policy denial message');
+			ok(secondData.alternativeRecommendation?.includes('POLICY_DENIED'), 'Expected second policy denial message');
+			ok(thirdData.alternativeRecommendation?.includes('POLICY_DENIED_CIRCUIT_BREAKER'), 'Expected circuit breaker policy denial message');
 		});
 	});
 

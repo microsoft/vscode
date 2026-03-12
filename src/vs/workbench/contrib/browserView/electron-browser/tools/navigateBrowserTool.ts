@@ -69,16 +69,25 @@ export class NavigateBrowserTool implements IToolImpl {
 					invocationMessage: localize('browser.goForward.invocation', "Going forward in browser history"),
 					pastTenseMessage: localize('browser.goForward.past', "Went forward in browser history"),
 				};
-			default:
+			default: {
+				if (!params.url) {
+					throw new Error('The "url" parameter is required when type is "url".');
+				}
+				const parsed = URL.parse(params.url);
+				if (!parsed) {
+					throw new Error('You must provide a complete, valid URL.');
+				}
+
 				return {
-					invocationMessage: localize('browser.navigate.invocation', "Navigating browser to {0}", params.url),
-					pastTenseMessage: localize('browser.navigate.past', "Navigated browser to {0}", params.url),
+					invocationMessage: localize('browser.navigate.invocation', "Navigating browser to {0}", parsed.href),
+					pastTenseMessage: localize('browser.navigate.past', "Navigated browser to {0}", parsed.href),
 					confirmationMessages: {
 						title: localize('browser.navigate.confirmTitle', 'Navigate Browser?'),
-						message: localize('browser.navigate.confirmMessage', 'This will navigate the browser to {0} and allow the agent to access its contents.', params.url),
+						message: localize('browser.navigate.confirmMessage', 'This will navigate the browser to {0} and allow the agent to access its contents.', parsed.href),
 						allowAutoConfirm: true,
 					},
 				};
+			}
 		}
 	}
 
@@ -97,12 +106,9 @@ export class NavigateBrowserTool implements IToolImpl {
 			case 'forward':
 				return playwrightInvoke(this.playwrightService, params.pageId, (page) => page.goForward({ waitUntil: 'domcontentloaded' }));
 			default: {
-				if (!params.url) {
-					return errorResult('The "url" parameter is required when type is "url".');
-				}
 				return playwrightInvoke(this.playwrightService, params.pageId, (page, url) => {
 					return page.goto(url, { waitUntil: 'domcontentloaded' });
-				}, params.url);
+				}, params.url!);
 			}
 		}
 	}

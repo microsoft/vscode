@@ -226,6 +226,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage,
 				this.toolInvocation.originMessage,
 				resultDetails.input,
+				resultDetails.inputLanguage,
 				resultDetails.output,
 				!!resultDetails.isError,
 			);
@@ -240,6 +241,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				this.toolInvocation.invocationMessage,
 				this.toolInvocation.originMessage,
 				typeof this.toolInvocation.toolSpecificData.rawInput === 'string' ? this.toolInvocation.toolSpecificData.rawInput : JSON.stringify(this.toolInvocation.toolSpecificData.rawInput, null, 2),
+				undefined,
 				undefined,
 				false,
 			);

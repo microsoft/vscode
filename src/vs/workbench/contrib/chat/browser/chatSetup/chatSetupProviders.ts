@@ -511,6 +511,9 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 							}
 						});
 					} else {
+						this.logService.warn(defaultChat.outputChannelId
+							? `[chat setup] No output channel found for id '${defaultChat.outputChannelId}' to show details about chat setup timeout. Please ensure the ${defaultChat.chatExtensionId} extension is activated.`
+							: '[chat setup] No output channel provided via product.json to show details about chat setup timeout.');
 						progress({
 							kind: 'command',
 							command: {

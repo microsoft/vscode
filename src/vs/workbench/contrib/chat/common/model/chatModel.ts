@@ -850,6 +850,7 @@ export class Response extends AbstractResponse implements IDisposable {
 					content: [],
 					toolResultMessage: progress.pastTenseMessage,
 					toolResultError: progress.errorMessage,
+					toolResultDetails: progress.resultDetails
 				});
 			}
 			if (progress.toolSpecificData !== undefined) {
@@ -886,6 +887,7 @@ export class Response extends AbstractResponse implements IDisposable {
 				content: [],
 				toolResultMessage: progress.pastTenseMessage,
 				toolResultError: progress.errorMessage,
+				toolResultDetails: progress.resultDetails
 			});
 			if (progress.toolSpecificData !== undefined) {
 				invocation.toolSpecificData = progress.toolSpecificData;

@@ -185,20 +185,60 @@ suite('ChatDebugServiceImpl', () => {
 		});
 	});
 
-	suite('MAX_EVENTS cap', () => {
-		test('should evict oldest events when exceeding cap', () => {
-			// The max is 10_000. Add more than that and verify trimming.
-			// We'll test with a smaller count by adding events and checking boundary behavior.
+	suite('MAX_EVENTS_PER_SESSION cap', () => {
+		test('should evict oldest events when exceeding per-session cap', () => {
+			// The max per session is 10_000. Add more than that to a single session.
 			for (let i = 0; i < 10_001; i++) {
 				service.addEvent({ kind: 'generic', sessionResource: sessionGeneric, created: new Date(), name: `event-${i}`, level: ChatDebugLogLevel.Info });
 			}
 
 			const events = service.getEvents();
-			assert.ok(events.length <= 10_000, 'Should not exceed MAX_EVENTS');
+			assert.ok(events.length <= 10_000, 'Should not exceed MAX_EVENTS_PER_SESSION');
 			// The first event should have been evicted
 			assert.ok(!(events as IChatDebugGenericEvent[]).find(e => e.name === 'event-0'), 'Event-0 should have been evicted');
 			// The last event should be present
 			assert.ok((events as IChatDebugGenericEvent[]).find(e => e.name === 'event-10000'), 'Last event should be present');
+		});
+
+		test('should evict oldest session when exceeding MAX_SESSIONS', () => {
+			// MAX_SESSIONS is 5 — add events to 6 different sessions
+			const sessions: URI[] = [];
+			for (let i = 0; i < 6; i++) {
+				const uri = URI.parse(`vscode-chat-session://local/session-lru-${i}`);
+				sessions.push(uri);
+				service.addEvent({ kind: 'generic', sessionResource: uri, created: new Date(), name: `event-${i}`, level: ChatDebugLogLevel.Info });
+			}
+
+			const resources = service.getSessionResources();
+			assert.strictEqual(resources.length, 5, 'Should not exceed MAX_SESSIONS');
+			// The first session should have been evicted
+			assert.ok(!resources.some(r => r.toString() === sessions[0].toString()), 'Session-0 should have been evicted');
+			assert.strictEqual(service.getEvents(sessions[0]).length, 0, 'Events from evicted session should be gone');
+			// The last session should be present
+			assert.ok(resources.some(r => r.toString() === sessions[5].toString()), 'Session-5 should be present');
+		});
+
+		test('should use LRU eviction — recently-used sessions are kept', () => {
+			// Fill to MAX_SESSIONS (5)
+			const sessions: URI[] = [];
+			for (let i = 0; i < 5; i++) {
+				const uri = URI.parse(`vscode-chat-session://local/session-lru2-${i}`);
+				sessions.push(uri);
+				service.addEvent({ kind: 'generic', sessionResource: uri, created: new Date(), name: `init-${i}`, level: ChatDebugLogLevel.Info });
+			}
+
+			// Touch session-0 so it moves to the back of the LRU order
+			service.addEvent({ kind: 'generic', sessionResource: sessions[0], created: new Date(), name: 'touch', level: ChatDebugLogLevel.Info });
+
+			// Add a 6th session — session-1 (the true LRU) should be evicted, not session-0
+			const session6 = URI.parse('vscode-chat-session://local/session-lru2-5');
+			service.addEvent({ kind: 'generic', sessionResource: session6, created: new Date(), name: 'new', level: ChatDebugLogLevel.Info });
+
+			const resources = service.getSessionResources();
+			assert.strictEqual(resources.length, 5);
+			assert.ok(resources.some(r => r.toString() === sessions[0].toString()), 'Session-0 should be kept (recently used)');
+			assert.ok(!resources.some(r => r.toString() === sessions[1].toString()), 'Session-1 should be evicted (LRU)');
+			assert.ok(resources.some(r => r.toString() === session6.toString()), 'Session-5 should be present');
 		});
 	});
 
