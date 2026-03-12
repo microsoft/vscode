@@ -5,6 +5,8 @@
 
 import { decodeBase64 } from './buffer.js';
 
+const textDecoder = new TextDecoder();
+
 const WELL_KNOWN_ROUTE = '/.well-known';
 export const AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/oauth-protected-resource`;
 export const AUTH_SERVER_METADATA_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/oauth-authorization-server`;
@@ -1024,12 +1026,12 @@ export function getClaimsFromJWT(token: string): IAuthorizationJWTClaims {
 	const [header, payload, _signature] = parts;
 
 	try {
-		const decodedHeader = JSON.parse(decodeBase64(header).toString());
+		const decodedHeader = JSON.parse(textDecoder.decode(decodeBase64(header)));
 		if (typeof decodedHeader !== 'object') {
 			throw new Error('Invalid JWT token format: header is not a JSON object');
 		}
 
-		const decodedPayload = JSON.parse(decodeBase64(payload).toString());
+		const decodedPayload = JSON.parse(textDecoder.decode(decodeBase64(payload)));
 		if (typeof decodedPayload !== 'object') {
 			throw new Error('Invalid JWT token format: payload is not a JSON object');
 		}
