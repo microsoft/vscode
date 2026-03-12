@@ -81,6 +81,74 @@ import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 
 const $ = DOM.$;
 
+//#region Telemetry
+
+type CustomizationEditorOpenedEvent = {
+	section: string;
+};
+
+type CustomizationEditorOpenedClassification = {
+	section: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The initially selected section when the editor opens.' };
+	owner: 'joshspicer';
+	comment: 'Tracks when the Chat Customizations editor is opened.';
+};
+
+type CustomizationEditorSectionChangedEvent = {
+	section: string;
+};
+
+type CustomizationEditorSectionChangedClassification = {
+	section: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The section the user navigated to.' };
+	owner: 'joshspicer';
+	comment: 'Tracks section navigation within the Chat Customizations editor.';
+};
+
+type CustomizationEditorItemSelectedEvent = {
+	section: string;
+	promptType: string;
+	storage: string;
+};
+
+type CustomizationEditorItemSelectedClassification = {
+	section: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The active section when the item was selected.' };
+	promptType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The prompt type of the selected item.' };
+	storage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The storage location of the selected item (local, user, extension, plugin, builtin).' };
+	owner: 'joshspicer';
+	comment: 'Tracks item selection in the Chat Customizations editor.';
+};
+
+type CustomizationEditorCreateItemEvent = {
+	section: string;
+	promptType: string;
+	creationMode: 'ai' | 'manual';
+	target: string;
+};
+
+type CustomizationEditorCreateItemClassification = {
+	section: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The active section when the item was created.' };
+	promptType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of customization being created.' };
+	creationMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the item was created via AI-guided flow or manual creation.' };
+	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The target storage for the new item (workspace, user).' };
+	owner: 'joshspicer';
+	comment: 'Tracks customization creation in the Chat Customizations editor.';
+};
+
+type CustomizationEditorSaveItemEvent = {
+	promptType: string;
+	storage: string;
+	saveTarget: string;
+};
+
+type CustomizationEditorSaveItemClassification = {
+	promptType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of customization being saved.' };
+	storage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The original storage location of the item.' };
+	saveTarget: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The target storage for the save (workspace, user, existing).' };
+	owner: 'joshspicer';
+	comment: 'Tracks save actions in the Chat Customizations editor.';
+};
+
+//#endregion
+
 export const aiCustomizationManagementSashBorder = registerColor(
 	'aiCustomizationManagement.sashBorder',
 	PANEL_BORDER,
@@ -485,6 +553,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Handle item selection
 		this.editorDisposables.add(this.listWidget.onDidSelectItem(item => {
+			this.telemetryService.publicLog2<CustomizationEditorItemSelectedEvent, CustomizationEditorItemSelectedClassification>('chatCustomizationEditor.itemSelected', {
+				section: this.selectedSection,
+				promptType: item.promptType,
+				storage: item.storage,
+			});
 			const isWorkspaceFile = item.storage === PromptsStorage.local;
 			const isReadOnly = item.storage === PromptsStorage.extension || item.storage === PromptsStorage.plugin || item.storage === BUILTIN_STORAGE;
 			this.showEmbeddedEditor(item.uri, item.name, item.promptType, item.storage, isWorkspaceFile, isReadOnly);
@@ -575,6 +648,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.ensureSectionsListReflectsActiveSection(section);
 			return;
 		}
+
+		this.telemetryService.publicLog2<CustomizationEditorSectionChangedEvent, CustomizationEditorSectionChangedClassification>('chatCustomizationEditor.sectionChanged', {
+			section,
+		});
 
 		if (this.viewMode === 'editor') {
 			this.goBackToList();
@@ -667,6 +744,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Creates a new customization using the AI-guided flow.
 	 */
 	private async createNewItemWithAI(type: PromptsType): Promise<void> {
+		this.telemetryService.publicLog2<CustomizationEditorCreateItemEvent, CustomizationEditorCreateItemClassification>('chatCustomizationEditor.createItem', {
+			section: this.selectedSection,
+			promptType: type,
+			creationMode: 'ai',
+			target: 'workspace',
+		});
 		if (this.input) {
 			this.group.closeEditor(this.input);
 		}
@@ -677,6 +760,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Creates a new prompt file and opens it in the embedded editor.
 	 */
 	private async createNewItemManual(type: PromptsType, target: 'workspace' | 'user'): Promise<void> {
+		this.telemetryService.publicLog2<CustomizationEditorCreateItemEvent, CustomizationEditorCreateItemClassification>('chatCustomizationEditor.createItem', {
+			section: this.selectedSection,
+			promptType: type,
+			creationMode: 'manual',
+			target,
+		});
 
 		if (type === PromptsType.hook) {
 			if (this.workspaceService.isSessionsWindow) {
@@ -740,6 +829,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.inEditorContextKey.set(true);
 		this.sectionContextKey.set(this.selectedSection);
+
+		this.telemetryService.publicLog2<CustomizationEditorOpenedEvent, CustomizationEditorOpenedClassification>('chatCustomizationEditor.opened', {
+			section: this.selectedSection,
+		});
 
 		await super.setInput(input, options, context, token);
 
@@ -966,6 +1059,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private goBackToList(): void {
 		const fileUri = this.currentEditingUri;
 		const backgroundSaveRequest = this.createExistingCustomizationSaveRequest();
+		if (backgroundSaveRequest) {
+			this.telemetryService.publicLog2<CustomizationEditorSaveItemEvent, CustomizationEditorSaveItemClassification>('chatCustomizationEditor.saveItem', {
+				promptType: this.currentEditingPromptType ?? '',
+				storage: String(this.currentEditingStorage ?? ''),
+				saveTarget: 'existing',
+			});
+		}
 		if (fileUri && this.currentEditingStorage === BUILTIN_STORAGE) {
 			this.disposeBuiltinEditingSession(fileUri);
 		}
@@ -1134,6 +1234,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 				}
 
 				backgroundSaveRequest = this.createBuiltinPromptSaveRequest(selection);
+				if (backgroundSaveRequest) {
+					this.telemetryService.publicLog2<CustomizationEditorSaveItemEvent, CustomizationEditorSaveItemClassification>('chatCustomizationEditor.saveItem', {
+						promptType: this.currentEditingPromptType ?? '',
+						storage: String(this.currentEditingStorage ?? ''),
+						saveTarget: selection.target,
+					});
+				}
 			}
 
 			this.goBackToList();
