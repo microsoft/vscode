@@ -1010,7 +1010,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.renderChatContentDiff(diff, content, element, index, templateData);
 	}
 
-	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[], templateData: IChatListItemTemplate): boolean {
+	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[], moreContentAvailable: boolean, templateData: IChatListItemTemplate): boolean {
 		if (element.agentOrSlashCommandDetected || this.rendererOptions.renderStyle === 'minimal' || element.isComplete || !checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse)) {
 			return false;
 		}
@@ -1023,10 +1023,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
 		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
 
-		// don't show working progress when there is thinking content in partsToRender (about to be rendered)
-		if (partsToRender.some(part => part.kind === 'thinking')) {
-			return false;
-		}
 
 		// never show working progress when there is an active thinking piece
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
@@ -1034,14 +1030,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 
-		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
-		if (collapsedToolsMode !== CollapsedToolsDisplayMode.Off &&
-			partsToRender.some(part =>
-				(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') &&
-				this.shouldPinPart(part, element)
-			)) {
-			return false;
-		}
 
 
 		const hasRenderedThinkingPart = (templateData.renderedParts ?? []).some(part => part instanceof ChatThinkingContentPart);
@@ -1058,6 +1046,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (
 			!lastPart ||
 			lastPart.kind === 'references' ||
+			(lastPart.kind === 'markdownContent' && !moreContentAvailable) ||
 			((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && (IChatToolInvocation.isComplete(lastPart) || lastPart.presentation === 'hidden')) ||
 			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
 			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
@@ -1419,7 +1408,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			element.renderData = { lastRenderTime: Date.now(), renderedWordCount: newRenderedWordCount, renderedParts: partsToRender };
 		}
 
-		if (this.shouldShowWorkingProgress(element, partsToRender, templateData)) {
+		if (this.shouldShowWorkingProgress(element, partsToRender, moreContentAvailable, templateData)) {
 			partsToRender.push({ kind: 'working' });
 		}
 
