@@ -864,10 +864,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		if (matchingFolders.length === 0) {
-			// No matching folders — fall back to legacy resolution
-			return target === 'workspace'
+			// No matching folders for the requested storage type.
+			// Fall back to legacy resolution, but if that also fails,
+			// return null to prevent the command from showing an
+			// unfiltered folder picker (which would show wrong storage types).
+			const fallback = target === 'workspace'
 				? resolveWorkspaceTargetDirectory(this.workspaceService, type)
 				: await resolveUserTargetDirectory(this.promptsService, type);
+			return fallback ?? null;
 		}
 
 		if (matchingFolders.length === 1) {
