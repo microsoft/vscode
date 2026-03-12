@@ -26,7 +26,7 @@ import { ITerminalLogService, ITerminalProfile } from '../../../../../../platfor
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IStreamedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
@@ -437,6 +437,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	}
 
+	async handleToolStream(context: IToolInvocationStreamContext, _token: CancellationToken): Promise<IStreamedToolInvocation | undefined> {
+		const partialInput = context.rawInput as Partial<IRunInTerminalInputParams> | undefined;
+		if (partialInput && typeof partialInput === 'object' && partialInput.command) {
+			const normalizedCommand = partialInput.command.replace(/\r\n|\r|\n/g, ' ');
+			const truncatedCommand = normalizedCommand.length > 80
+				? normalizedCommand.substring(0, 77) + '...'
+				: normalizedCommand;
+			const escapedCommand = escapeMarkdownSyntaxTokens(truncatedCommand);
+			const invocationMessage = partialInput.isBackground
+				? new MarkdownString(localize('runInTerminal.streaming.background', "Running `{0}` in background", escapedCommand))
+				: new MarkdownString(localize('runInTerminal.streaming', "Running `{0}`", escapedCommand));
+			return { invocationMessage };
+		}
+		return { invocationMessage: localize('runInTerminal.streaming.default', "Running command") };
+	}
+
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunInTerminalInputParams;
 
@@ -684,7 +700,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			terminalCustomActions: customActions,
 		} : undefined;
 
+		const rawDisplayCommand = toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
+		const displayCommand = rawDisplayCommand.length > 80
+			? rawDisplayCommand.substring(0, 77) + '...'
+			: rawDisplayCommand;
+		const escapedDisplayCommand = escapeMarkdownSyntaxTokens(displayCommand);
+		const invocationMessage = args.isBackground
+			? new MarkdownString(localize('runInTerminal.invocation.background', "Running `{0}` in background", escapedDisplayCommand))
+			: new MarkdownString(localize('runInTerminal.invocation', "Running `{0}`", escapedDisplayCommand));
+
 		return {
+			invocationMessage,
 			confirmationMessages,
 			toolSpecificData,
 		};
