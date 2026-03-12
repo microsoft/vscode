@@ -337,9 +337,11 @@ function getCopilotExcludeFilter(platform: string, arch: string, quality: string
 	const excludes = [
 		// Strip @github/copilot platform packages for wrong architectures
 		...nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot-${p}/**`),
-		// Strip prebuilt native modules for wrong architectures (e.g. prebuilds/darwin-arm64/*.node).
-		// These cause dpkg-shlibdeps failures when building Linux packages for a different arch.
-		...nonTargetPlatforms.map(p => `!**/prebuilds/${p}/**`),
+		// Strip all prebuilt native modules from @github/copilot. The platform-specific
+		// packages (@github/copilot-{platform}) provide the correct native modules.
+		// These prebuilds have system deps (e.g. libsecret) not in the build sysroot,
+		// causing dpkg-shlibdeps failures. Covers nested copies under copilot-sdk too.
+		'!**/node_modules/@github/copilot/prebuilds/**',
 	];
 
 	// Strip agent host SDK dependencies entirely from stable builds

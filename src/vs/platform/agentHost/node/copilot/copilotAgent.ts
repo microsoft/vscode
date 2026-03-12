@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CopilotClient, CopilotSession, type SessionEvent, type SessionEventPayload } from '@github/copilot-sdk';
+import { promises as fsp } from 'fs';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
@@ -44,7 +45,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _sessionWorkingDirs = new Map<string, string>();
 
 	constructor(
-		private readonly _logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
@@ -107,6 +108,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// FileAccess.asFileUri('') points to the `out/` directory; node_modules is one level up.
 			const cliPath = URI.joinPath(FileAccess.asFileUri(''), '..', 'node_modules', '@github', 'copilot', 'index.js').fsPath;
 			this._logService.info(`[Copilot] Resolved CLI path: ${cliPath}`);
+
+			// Copy VS Code's node-pty native module into the location the copilot SDK
+			// expects at runtime. Must happen before the CLI subprocess starts.
+			const copilotDir = URI.joinPath(FileAccess.asFileUri(''), '..', 'node_modules', '@github', 'copilot').fsPath;
+			await this._ensureNodePtyPrebuilds(copilotDir);
 
 			const client = new CopilotClient({
 				githubToken: this._githubToken,
@@ -658,6 +664,51 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}
 		return result;
+	}
+
+	/** Cached promise so the node-pty copy only runs once per process. */
+	private _nodePtyPrebuildsReady: Promise<void> | undefined;
+
+	/**
+	 * Copies VS Code's node-pty native module into `@github/copilot/sdk/prebuilds/{platform}-{arch}/`
+	 * so that the copilot CLI subprocess can find it at runtime.
+	 *
+	 * The CLI resolves node-pty from `prebuilds/{platform}-{arch}` relative to its SDK directory.
+	 * We strip the bundled all-platform prebuilds at build time, so we need to populate this
+	 * directory from VS Code's own `node-pty` installation.
+	 */
+	private _ensureNodePtyPrebuilds(copilotDir: string): Promise<void> {
+		if (!this._nodePtyPrebuildsReady) {
+			this._nodePtyPrebuildsReady = this._copyNodePtyPrebuilds(copilotDir);
+		}
+		return this._nodePtyPrebuildsReady;
+	}
+
+	private async _copyNodePtyPrebuilds(copilotDir: string): Promise<void> {
+		const appRoot = URI.joinPath(FileAccess.asFileUri(''), '..').fsPath;
+		const sourceUri = URI.joinPath(URI.file(appRoot), 'node_modules', 'node-pty', 'build', 'Release');
+		const destUri = URI.joinPath(URI.file(copilotDir), 'sdk', 'prebuilds', `${process.platform}-${process.arch}`);
+
+		// Check if the target already has a .node file - skip copy if so.
+		try {
+			const entries = await fsp.readdir(destUri.fsPath);
+			if (entries.some(e => e.endsWith('.node'))) {
+				this._logService.debug('[Copilot] node-pty prebuilds already present, skipping copy');
+				return;
+			}
+		} catch {
+			// Directory doesn't exist yet - proceed with copy.
+		}
+
+		this._logService.info(`[Copilot] Copying node-pty prebuilds: source=${sourceUri.fsPath}, dest=${destUri.fsPath}`);
+
+		try {
+			await fsp.mkdir(destUri.fsPath, { recursive: true });
+			await fsp.cp(sourceUri.fsPath, destUri.fsPath, { recursive: true, dereference: true, force: true });
+			this._logService.info('[Copilot] node-pty prebuilds copied successfully');
+		} catch (err) {
+			this._logService.error('[Copilot] Failed to copy node-pty prebuilds', err);
+		}
 	}
 
 	override dispose(): void {
