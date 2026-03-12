@@ -995,12 +995,13 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
-const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)?on\s([^:]+):\s(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
+const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
+const stashDescriptionRegex = /^(WIP\s)?on\s([^:]+):\s(.*)$/i;
 
-function parseGitStashes(raw: string): Stash[] {
+export function parseGitStashes(raw: string): Stash[] {
 	const result: Stash[] = [];
 
-	let match, hash, parents, index, wip, branchName, description, authorDate, commitDate;
+	let match;
 
 	do {
 		match = stashRegex.exec(raw);
@@ -1008,13 +1009,28 @@ function parseGitStashes(raw: string): Stash[] {
 			break;
 		}
 
-		[, hash, parents, index, wip, branchName, description, authorDate, commitDate] = match;
+		const [, hash, parents, index, message, authorDate, commitDate] = match;
+		const descriptionMatch = stashDescriptionRegex.exec(message);
+
+		let branchName: string | undefined;
+		let description: string;
+
+		if (descriptionMatch) {
+			// Standard format: "(WIP )?on <branch>: <description>"
+			const [, wip, branch, desc] = descriptionMatch;
+			branchName = branch.trim();
+			description = wip ? `WIP (${desc.trim()})` : desc.trim();
+		} else {
+			// Custom message format (e.g., lint-staged, git stash push -m)
+			description = message.trim();
+		}
+
 		result.push({
 			hash,
 			parents: parents.split(' '),
 			index: parseInt(index),
-			branchName: branchName.trim(),
-			description: wip ? `WIP (${description.trim()})` : description.trim(),
+			branchName,
+			description,
 			authorDate: authorDate ? new Date(Number(authorDate) * 1000) : undefined,
 			commitDate: commitDate ? new Date(Number(commitDate) * 1000) : undefined,
 		});

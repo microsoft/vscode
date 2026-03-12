@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes } from '../git';
+import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseGitStashes } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -661,6 +661,51 @@ suite('git', () => {
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
 			);
+		});
+	});
+
+	suite('parseGitStashes', () => {
+		test('standard stash format', () => {
+			const raw = 'a'.repeat(40) + '\n' + 'b'.repeat(40) + '\nstash@{0}\nWIP on main: abc1234 commit message\n1710000000\n1710000000\x00';
+			const stashes = parseGitStashes(raw);
+			assert.strictEqual(stashes.length, 1);
+			assert.strictEqual(stashes[0].index, 0);
+			assert.strictEqual(stashes[0].branchName, 'main');
+			assert.strictEqual(stashes[0].description, 'WIP (abc1234 commit message)');
+		});
+
+		test('standard stash without WIP prefix', () => {
+			const raw = 'a'.repeat(40) + '\n' + 'b'.repeat(40) + '\nstash@{0}\nOn main: custom save\n1710000000\n1710000000\x00';
+			const stashes = parseGitStashes(raw);
+			assert.strictEqual(stashes.length, 1);
+			assert.strictEqual(stashes[0].branchName, 'main');
+			assert.strictEqual(stashes[0].description, 'custom save');
+		});
+
+		test('custom stash message (lint-staged)', () => {
+			const raw = 'a'.repeat(40) + '\n' + 'b'.repeat(40) + '\nstash@{0}\nlint-staged automatic backup\n1710000000\n1710000000\x00';
+			const stashes = parseGitStashes(raw);
+			assert.strictEqual(stashes.length, 1);
+			assert.strictEqual(stashes[0].index, 0);
+			assert.strictEqual(stashes[0].branchName, undefined);
+			assert.strictEqual(stashes[0].description, 'lint-staged automatic backup');
+		});
+
+		test('multiple stashes with mixed formats', () => {
+			const hash = 'a'.repeat(40);
+			const parent = 'b'.repeat(40);
+			const raw =
+				`${hash}\n${parent}\nstash@{0}\nWIP on main: abc1234 work in progress\n1710000000\n1710000000\x00` +
+				`${hash}\n${parent}\nstash@{1}\nlint-staged automatic backup (def5678)\n1710000000\n1710000000\x00` +
+				`${hash}\n${parent}\nstash@{2}\nOn feature: manual save\n1710000000\n1710000000\x00`;
+			const stashes = parseGitStashes(raw);
+			assert.strictEqual(stashes.length, 3);
+			assert.strictEqual(stashes[0].branchName, 'main');
+			assert.strictEqual(stashes[0].description, 'WIP (abc1234 work in progress)');
+			assert.strictEqual(stashes[1].branchName, undefined);
+			assert.strictEqual(stashes[1].description, 'lint-staged automatic backup (def5678)');
+			assert.strictEqual(stashes[2].branchName, 'feature');
+			assert.strictEqual(stashes[2].description, 'manual save');
 		});
 	});
 });
