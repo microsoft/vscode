@@ -790,9 +790,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		const targetDir = await this.resolveTargetDirectoryWithPicker(type, target);
-		if (!targetDir) {
-			return;
+		if (targetDir === null) {
+			return; // User cancelled the picker
 		}
+		// targetDir may be undefined when no matching folder exists for the
+		// requested storage type (e.g. skills have no user-storage folder).
+		// Pass it through — the command handles undefined by showing its own
+		// folder picker via askForPromptSourceFolder.
 
 		const options: INewPromptOptions = {
 			targetFolder: targetDir,
@@ -821,14 +825,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Resolves the target directory for creating a new customization file.
 	 * If multiple source folders exist for the given storage type, shows a
 	 * picker to let the user choose. Otherwise, returns the single match.
+	 *
+	 * @returns the resolved URI, `undefined` when no folder is available,
+	 *          or `null` when the user cancelled the picker.
 	 */
-	private async resolveTargetDirectoryWithPicker(type: PromptsType, target: 'workspace' | 'user'): Promise<URI | undefined> {
+	private async resolveTargetDirectoryWithPicker(type: PromptsType, target: 'workspace' | 'user'): Promise<URI | undefined | null> {
 		const storageType = target === 'user' ? PromptsStorage.user : PromptsStorage.local;
 		const allFolders = await this.promptsService.getSourceFolders(type);
 		const matchingFolders = allFolders.filter(f => f.storage === storageType);
 
 		if (matchingFolders.length === 0) {
-			// Fall back to legacy resolution
+			// No matching folders — fall back to legacy resolution
 			return target === 'workspace'
 				? resolveWorkspaceTargetDirectory(this.workspaceService, type)
 				: await resolveUserTargetDirectory(this.promptsService, type);
@@ -846,10 +853,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 
 		const picked = await this.quickInputService.pick(items, {
-			placeHolder: localize('selectTargetDirectory', "Select a directory for the new {0}", getTypeLabel(type)),
+			placeHolder: localize('selectTargetDirectory', "Select a directory for the new customization file"),
 		});
 
-		return picked?.uri;
+		return picked?.uri ?? null;
 	}
 
 	override updateStyles(): void {
@@ -1467,15 +1474,4 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	//#endregion
-}
-
-function getTypeLabel(type: PromptsType): string {
-	switch (type) {
-		case PromptsType.agent: return localize('typeLabel.agent', "agent");
-		case PromptsType.skill: return localize('typeLabel.skill', "skill");
-		case PromptsType.instructions: return localize('typeLabel.instructions', "instructions");
-		case PromptsType.prompt: return localize('typeLabel.prompt', "prompt");
-		case PromptsType.hook: return localize('typeLabel.hook', "hook");
-		default: return localize('typeLabel.customization', "customization");
-	}
 }

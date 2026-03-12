@@ -59,6 +59,9 @@ export class CustomizationCreatorService {
 
 		// Capture project root BEFORE opening new chat (which may change active session)
 		const targetDir = await this.resolveTargetDirectoryWithPicker(type);
+		if (targetDir === null) {
+			return; // User cancelled the picker
+		}
 		const systemInstructions = buildAgentInstructions(type, targetDir, trimmedName);
 		const userMessage = buildUserMessage(type, targetDir, trimmedName);
 
@@ -98,14 +101,22 @@ export class CustomizationCreatorService {
 	/**
 	 * Resolves the workspace directory for a new customization file.
 	 * If multiple local source folders exist, shows a picker to let the user choose.
+	 *
+	 * @returns the resolved URI, `undefined` when no folder is available,
+	 *          or `null` when the user cancelled the picker.
 	 */
-	private async resolveTargetDirectoryWithPicker(type: PromptsType): Promise<URI | undefined> {
+	private async resolveTargetDirectoryWithPicker(type: PromptsType): Promise<URI | undefined | null> {
 		const allFolders = await this.promptsService.getSourceFolders(type);
 		const localFolders = allFolders.filter(f => f.storage === PromptsStorage.local);
 
-		if (localFolders.length <= 1) {
-			// Zero or one folder — use the existing resolution logic
+		if (localFolders.length === 0) {
+			// No configured local folders — fall back to the existing resolution logic
 			return this.resolveTargetDirectory(type);
+		}
+
+		if (localFolders.length === 1) {
+			// Exactly one configured local folder — use it directly
+			return localFolders[0].uri;
 		}
 
 		// Multiple directories — ask the user which one to use
@@ -116,10 +127,10 @@ export class CustomizationCreatorService {
 		}));
 
 		const picked = await this.quickInputService.pick(items, {
-			placeHolder: localize('selectTargetDirectory', "Select a directory for the new {0}", getTypeLabel(type)),
+			placeHolder: localize('selectTargetDirectory', "Select a directory for the new customization file"),
 		});
 
-		return picked?.uri;
+		return picked?.uri ?? null;
 	}
 
 	/**
