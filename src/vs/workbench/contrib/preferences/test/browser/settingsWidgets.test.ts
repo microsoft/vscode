@@ -8,7 +8,7 @@ import { getEnumItemDescriptionAndIcon } from '../../browser/settingsWidgets.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('SettingsWidgets', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('extracts an icon-only markdown enum description', () => {
 		const result = getEnumItemDescriptionAndIcon('$(terminal-bash)', true);
