@@ -5,16 +5,14 @@
 
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, IAgentAttachment, IAgentCreateSessionConfig, IAgent, IAgentService, IAgentSessionMetadata, AgentSession, IAgentDescriptor } from '../common/agentService.js';
+import { AgentProvider, IAgentCreateSessionConfig, IAgent, IAgentService, IAgentSessionMetadata, AgentSession, IAgentDescriptor } from '../common/agentService.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
-import {
-	ISessionModelInfo,
-	SessionStatus, type ISessionSummary
-} from '../common/state/sessionState.js';
-import { mapProgressEventToAction } from './agentEventMapper.js';
+import { SessionStatus, type ISessionSummary } from '../common/state/sessionState.js';
+import { AgentSideEffects } from './agentSideEffects.js';
 import { SessionStateManager } from './sessionStateManager.js';
 
 /**
@@ -47,8 +45,10 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _providerSubscriptions = this._register(new DisposableStore());
 	/** Default provider used when no explicit provider is specified. */
 	private _defaultProvider: AgentProvider | undefined;
-	/** Maps pending permission request IDs to the provider that issued them. */
-	private readonly _pendingPermissions = new Map<string, AgentProvider>();
+	/** Observable registered agents, drives `root/agentsChanged` via {@link AgentSideEffects}. */
+	private readonly _agents = observableValue<readonly IAgent[]>('agents', []);
+	/** Shared side-effect handler for action dispatch and session lifecycle. */
+	private readonly _sideEffects: AgentSideEffects;
 
 	constructor(
 		private readonly _logService: ILogService,
@@ -58,6 +58,10 @@ export class AgentService extends Disposable implements IAgentService {
 		this._stateManager = this._register(new SessionStateManager(_logService));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._onDidAction.fire(e)));
 		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
+		this._sideEffects = this._register(new AgentSideEffects(this._stateManager, {
+			getAgent: session => this._findProviderForSession(session),
+			agents: this._agents,
+		}, this._logService));
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -68,29 +72,13 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._logService.info(`Registering agent provider: ${provider.id}`);
 		this._providers.set(provider.id, provider);
-		this._providerSubscriptions.add(
-			provider.onDidSessionProgress(e => {
-				// Track permission requests so dispatchAction can route
-				if (e.type === 'permission_request') {
-					this._pendingPermissions.set(e.requestId, provider.id);
-				}
-
-				// Map to protocol action and dispatch through state manager
-				const turnId = this._stateManager.getActiveTurnId(e.session);
-				if (turnId) {
-					const action = mapProgressEventToAction(e, e.session, turnId);
-					if (action) {
-						this._stateManager.dispatchServerAction(action);
-					}
-				}
-			})
-		);
+		this._providerSubscriptions.add(this._sideEffects.registerProgressListener(provider));
 		if (!this._defaultProvider) {
 			this._defaultProvider = provider.id;
 		}
 
 		// Update root state with current agents list
-		this._publishAgentsToRootState();
+		this._updateAgents();
 	}
 
 	// ---- auth ---------------------------------------------------------------
@@ -126,7 +114,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	async refreshModels(): Promise<void> {
 		this._logService.trace('[AgentService] refreshModels called');
-		await this._publishAgentsToRootState();
+		this._updateAgents();
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
@@ -189,56 +177,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const state = this._stateManager.dispatchClientAction(action, origin);
 		this._logService.trace(`[AgentService] resulting state:`, state);
 
-		// Trigger side effects based on the action type
-		switch (action.type) {
-			case 'session/turnStarted': {
-				const provider = this._findProviderForSession(action.session);
-				if (provider) {
-					const attachments = action.userMessage.attachments?.map(a => ({
-						type: a.type,
-						path: a.path,
-						displayName: a.displayName,
-					}) satisfies IAgentAttachment);
-					provider.sendMessage(action.session, action.userMessage.text, attachments).catch(err => {
-						this._logService.error(`[AgentService] sendMessage failed for session/turnStarted`, err);
-						this._stateManager.dispatchServerAction({
-							type: 'session/error',
-							session: action.session,
-							turnId: action.turnId,
-							error: { errorType: 'sendFailed', message: String(err) },
-						});
-					});
-				}
-				break;
-			}
-			case 'session/permissionResolved': {
-				const providerId = this._pendingPermissions.get(action.requestId);
-				if (providerId) {
-					this._pendingPermissions.delete(action.requestId);
-					const permProvider = this._providers.get(providerId);
-					permProvider?.respondToPermissionRequest(action.requestId, action.approved);
-				} else {
-					this._logService.warn(`[AgentService] No pending permission request for: ${action.requestId}`);
-				}
-				break;
-			}
-			case 'session/turnCancelled': {
-				const provider = this._findProviderForSession(action.session);
-				if (provider) {
-					provider.abortSession(action.session).catch(err => {
-						this._logService.error(`[AgentService] abortSession failed for session/turnCancelled`, err);
-					});
-				}
-				break;
-			}
-			case 'session/modelChanged': {
-				const provider = this._findProviderForSession(action.session);
-				provider?.changeModel?.(action.session, action.model).catch(err => {
-					this._logService.error(`[AgentService] changeModel failed for session/modelChanged`, err);
-				});
-				break;
-			}
-		}
+		this._sideEffects.handleAction(action);
 	}
 
 	async shutdown(): Promise<void> {
@@ -252,29 +191,6 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	// ---- helpers ------------------------------------------------------------
-
-	/**
-	 * Fetches models from all providers and dispatches `root/agentsChanged`
-	 * with the merged agent + model data.
-	 */
-	private async _publishAgentsToRootState(): Promise<void> {
-		const agents = await Promise.all([...this._providers.values()].map(async p => {
-			const d = p.getDescriptor();
-			let models: ISessionModelInfo[];
-			try {
-				const rawModels = await p.listModels();
-				models = rawModels.map(m => ({
-					id: m.id, provider: m.provider, name: m.name,
-					maxContextWindow: m.maxContextWindow, supportsVision: m.supportsVision,
-					policyState: m.policyState,
-				}));
-			} catch {
-				models = [];
-			}
-			return { provider: d.provider, displayName: d.displayName, description: d.description, models };
-		}));
-		this._stateManager.dispatchServerAction({ type: 'root/agentsChanged', agents });
-	}
 
 	private _findProviderForSession(session: URI): IAgent | undefined {
 		const providerId = this._sessionToProvider.get(session.toString());
@@ -293,8 +209,15 @@ export class AgentService extends Disposable implements IAgentService {
 		return undefined;
 	}
 
+	/**
+	 * Sets the agents observable to trigger model re-fetch and
+	 * `root/agentsChanged` via the autorun in {@link AgentSideEffects}.
+	 */
+	private _updateAgents(): void {
+		this._agents.set([...this._providers.values()], undefined);
+	}
+
 	override dispose(): void {
-		this._pendingPermissions.clear();
 		for (const provider of this._providers.values()) {
 			provider.dispose();
 		}

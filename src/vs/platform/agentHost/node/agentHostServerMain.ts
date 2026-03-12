@@ -14,6 +14,7 @@ import { fileURLToPath } from 'url';
 globalThis._VSCODE_FILE_ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
 
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { observableValue } from '../../../base/common/observable.js';
 import { localize } from '../../../nls.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
@@ -26,11 +27,11 @@ import { IProductService } from '../../product/common/productService.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
-import { AgentSession, type AgentProvider } from '../common/agentService.js';
-import { SessionStatus } from '../common/state/sessionState.js';
-import { AgentService } from './agentService.js';
+import { AgentSession, type AgentProvider, type IAgent } from '../common/agentService.js';
+import { AgentSideEffects } from './agentSideEffects.js';
+import { SessionStateManager } from './sessionStateManager.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
-import { ProtocolServerHandler, type IProtocolSideEffectHandler } from './protocolServerHandler.js';
+import { ProtocolServerHandler } from './protocolServerHandler.js';
 
 // ---- Options ----------------------------------------------------------------
 
@@ -77,10 +78,30 @@ async function main(): Promise<void> {
 
 	logService.info('[AgentHostServer] Starting standalone agent host server');
 
-	// Create agent service — handles agent registration, session lifecycle,
-	// event mapping, and state management (reuses the same logic as the
-	// utility-process entry point in agentHostMain.ts).
-	const agentService = disposables.add(new AgentService(logService));
+	// Create state manager
+	const stateManager = disposables.add(new SessionStateManager(logService));
+
+	// Agent registry — maps provider id to agent instance
+	const agents = new Map<AgentProvider, IAgent>();
+
+	// Observable agents list for root state
+	const registeredAgents = observableValue<readonly IAgent[]>('agents', []);
+
+	// Shared side-effect handler
+	const sideEffects = disposables.add(new AgentSideEffects(stateManager, {
+		getAgent(session) {
+			const provider = AgentSession.provider(session);
+			return provider ? agents.get(provider) : agents.values().next().value;
+		},
+		agents: registeredAgents,
+	}, logService));
+
+	function registerAgent(agent: IAgent): void {
+		agents.set(agent.id, agent);
+		disposables.add(sideEffects.registerProgressListener(agent));
+		registeredAgents.set([...agents.values()], undefined);
+		logService.info(`[AgentHostServer] Registered agent: ${agent.id}`);
+	}
 
 	// Register agents
 	if (!options.quiet) {
@@ -94,14 +115,14 @@ async function main(): Promise<void> {
 		services.set(ILogService, logService);
 		const instantiationService = new InstantiationService(services);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
-		agentService.registerProvider(copilotAgent);
+		registerAgent(copilotAgent);
 	}
 
 	if (options.enableMockAgent) {
 		// Dynamic import to avoid bundling test code in production
 		import('../test/node/mockAgent.js').then(({ ScriptedMockAgent }) => {
 			const mockAgent = disposables.add(new ScriptedMockAgent());
-			agentService.registerProvider(mockAgent);
+			registerAgent(mockAgent);
 		}).catch(err => {
 			logService.error('[AgentHostServer] Failed to load mock agent', err);
 		});
@@ -110,36 +131,8 @@ async function main(): Promise<void> {
 	// WebSocket server
 	const wsServer = disposables.add(await WebSocketProtocolServer.create(options.port, logService));
 
-	// Side-effect handler — delegates to AgentService for all orchestration
-	const sideEffects: IProtocolSideEffectHandler = {
-		handleAction(action) {
-			agentService.dispatchAction(action, 'ws-server', 0);
-		},
-		async handleCreateSession(command) {
-			await agentService.createSession({
-				provider: command.provider as AgentProvider | undefined,
-				model: command.model,
-				workingDirectory: command.workingDirectory,
-			});
-		},
-		handleDisposeSession(session) {
-			agentService.disposeSession(session);
-		},
-		async handleListSessions() {
-			const sessions = await agentService.listSessions();
-			return sessions.map(s => ({
-				resource: s.session,
-				provider: AgentSession.provider(s.session) ?? 'copilot',
-				title: s.summary ?? 'Session',
-				status: SessionStatus.Idle,
-				createdAt: s.startTime,
-				modifiedAt: s.modifiedTime,
-			}));
-		},
-	};
-
 	// Wire up protocol handler
-	disposables.add(new ProtocolServerHandler(agentService.stateManager, wsServer, sideEffects, logService));
+	disposables.add(new ProtocolServerHandler(stateManager, wsServer, sideEffects, logService));
 
 	// Report ready
 	const address = wsServer.address;
