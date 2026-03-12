@@ -259,12 +259,12 @@
 }
 
 .onboarding-a-section-label {
-	font-size: 12px;
+	font-size: 11px;
 	font-weight: 600;
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
 	color: var(--vscode-descriptionForeground);
-	margin-bottom: 8px;
+	margin-bottom: 10px;
 }
 
 .onboarding-a-theme-grid {
@@ -298,20 +298,22 @@
 }
 
 .onboarding-a-theme-preview {
-	padding: 6px 8px;
+	padding: 0;
 	font-family: var(--monaco-monospace-font, 'Cascadia Code', 'Fira Code', Menlo, monospace);
 	font-size: 10px;
 	line-height: 1.5;
-	min-height: 56px;
+	min-height: 80px;
 	text-align: left;
 }
 
 .onboarding-a-theme-label {
 	padding: 6px 8px;
 	font-size: 11px;
+	font-weight: 500;
 	text-align: center;
 	color: var(--vscode-editor-foreground);
 	border-top: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+	background: var(--vscode-sideBar-background, rgba(255, 255, 255, 0.03));
 }
 
 .onboarding-a-code-line {
@@ -321,20 +323,23 @@
 .onboarding-a-keymap-list {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 6px;
+	gap: 8px;
 }
 
 .onboarding-a-keymap-pill {
-	padding: 5px 14px;
-	border-radius: 16px;
+	padding: 6px 14px;
+	border-radius: 20px;
 	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
-	background: transparent;
+	background: var(--vscode-sideBar-background, rgba(255, 255, 255, 0.04));
 	color: var(--vscode-editor-foreground);
 	font-size: 12px;
 	cursor: pointer;
 	font-family: inherit;
 	transition: background 0.12s ease, border-color 0.12s ease;
 	outline: none;
+	display: flex;
+	align-items: center;
+	gap: 6px;
 }
 
 .onboarding-a-keymap-pill:hover {
@@ -484,25 +489,27 @@
 .onboarding-a-skeleton {
 	display: flex;
 	height: 100%;
+	min-height: 80px;
 	border-radius: 4px;
 	overflow: hidden;
 }
 
 .onboarding-a-skeleton-sidebar {
-	width: 20px;
+	width: 24px;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 4px;
-	padding: 4px 2px;
+	gap: 5px;
+	padding: 6px 3px;
 	flex-shrink: 0;
+	border-right: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .onboarding-a-skeleton-sidebar-icon {
-	width: 10px;
-	height: 10px;
+	width: 12px;
+	height: 12px;
 	border-radius: 2px;
-	opacity: 0.4;
+	opacity: 0.35;
 }
 
 .onboarding-a-skeleton-main {
@@ -515,31 +522,30 @@
 .onboarding-a-skeleton-tabs {
 	display: flex;
 	gap: 0;
-	padding: 0 4px;
-	height: 16px;
+	padding: 0 6px;
+	height: 20px;
 	align-items: flex-end;
 }
 
 .onboarding-a-skeleton-tab {
-	font-size: 7px;
-	padding: 2px 6px;
+	font-size: 8px;
+	padding: 3px 8px;
 	white-space: nowrap;
 }
 
 .onboarding-a-skeleton-tab.inactive {
-	opacity: 0.5;
+	opacity: 0.4;
 }
 
 .onboarding-a-skeleton-code {
-	padding: 3px 6px;
+	padding: 4px 8px;
 	flex: 1;
 }
 
 /* Keymap pills with icons */
 .onboarding-a-keymap-pill .codicon {
-	font-size: 12px;
-	margin-right: 4px;
-	opacity: 0.8;
+	font-size: 13px;
+	opacity: 0.7;
 }
 
 /* Extensions step */

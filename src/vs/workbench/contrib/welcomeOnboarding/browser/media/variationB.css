@@ -372,18 +372,43 @@
 
 .onboarding-b-feature-row {
 	display: flex;
-	align-items: flex-start;
-	gap: 12px;
-	padding: 12px;
-	border-radius: 8px;
+	align-items: center;
+	gap: 14px;
+	padding: 14px 16px;
+	border-radius: 10px;
 	background: var(--vscode-sideBar-background, rgba(255, 255, 255, 0.04));
 	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+	cursor: pointer;
+	transition: background 0.12s ease, border-color 0.12s ease, transform 0.1s ease;
+	outline: none;
+	font-family: inherit;
+	text-align: left;
+	color: inherit;
+	width: 100%;
+}
+
+.onboarding-b-feature-row:hover {
+	background: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+	transform: translateX(2px);
+}
+
+.onboarding-b-feature-row:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: -2px;
 }
 
 .onboarding-b-feature-row .codicon {
-	font-size: 18px;
+	font-size: 20px;
 	color: var(--vscode-textLink-foreground, #3794ff);
-	margin-top: 2px;
+	flex-shrink: 0;
+	width: 32px;
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 8px;
+	background: var(--vscode-badge-background, rgba(255, 255, 255, 0.08));
 }
 
 .onboarding-b-feature-text {
@@ -392,12 +417,12 @@
 	gap: 2px;
 }
 
-.onboarding-b-feature-title { font-size: 13px; font-weight: 600; }
+.onboarding-b-feature-title { font-size: 13px; font-weight: 600; color: var(--vscode-editor-foreground); }
 
 .onboarding-b-feature-desc {
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
-	line-height: 1.5;
+	line-height: 1.4;
 }
 
 .onboarding-b-sessions-docs {
@@ -445,17 +470,6 @@
 	background: var(--vscode-testing-iconPassed, #73c991);
 	color: var(--vscode-editor-background);
 	cursor: default;
-}
-
-/* Clickable feature rows */
-.onboarding-b-feature-row {
-	cursor: pointer;
-	transition: background 0.12s ease, border-color 0.12s ease;
-}
-
-.onboarding-b-feature-row:hover {
-	background: var(--vscode-list-hoverBackground);
-	border-color: var(--vscode-focusBorder);
 }
 
 @media (prefers-reduced-motion: reduce) {
