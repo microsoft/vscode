@@ -684,6 +684,13 @@ declare module 'vscode' {
 		 * @returns A disposable that unregisters the provider.
 		 */
 		export function registerChatDebugLogProvider(provider: ChatDebugLogProvider): Disposable;
+
+		/**
+		 * Fired when a core-originated debug event is received (e.g., prompt discovery,
+		 * skill loading). Extensions can use this to capture events that originate
+		 * inside Core.
+		 */
+		export const onDidReceiveChatDebugEvent: Event<ChatDebugEvent>;
 	}
 
 	/**

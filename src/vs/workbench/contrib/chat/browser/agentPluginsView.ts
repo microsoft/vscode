@@ -413,7 +413,9 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 
 	async show(query: string): Promise<IPagedModel<IAgentPluginItem>> {
 		this.currentQuery = query;
-		const text = query.replace(/@agentPlugins/i, '').trim().toLowerCase();
+		const stripped = query.replace(/@agentPlugins/i, '').trim();
+		const isRecommended = /^@recommended$/i.test(stripped);
+		const text = isRecommended ? '' : stripped.toLowerCase();
 
 		let installed = this.queryInstalled();
 		if (text) {
@@ -423,14 +425,38 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 			);
 		}
 
+		// When @recommended, filter to plugins listed in workspace recommendations.
+		if (isRecommended) {
+			const recommended = this.pluginMarketplaceService.recommendedPlugins.get();
+			installed = installed.filter(p => {
+				const marketplace = p.plugin.fromMarketplace;
+				if (!marketplace) {
+					return false;
+				}
+				const key = `${marketplace.name}@${marketplace.marketplace}`;
+				return recommended.has(key);
+			});
+		}
+
 		let items: IAgentPluginItem[] = installed;
 
 		if (!this.listOptions.installedOnly) {
 			const marketplacePlugins = await this.queryMarketplacePlugins();
-			const lowerText = text.toLowerCase();
-			const marketplace = marketplacePlugins
-				.filter(p => p.name.toLowerCase().includes(lowerText) || p.description.toLowerCase().includes(lowerText))
-				.map(marketplacePluginToItem);
+			let filteredMp = marketplacePlugins;
+
+			if (isRecommended) {
+				// When @recommended, filter marketplace plugins to those in recommendations.
+				const recommended = this.pluginMarketplaceService.recommendedPlugins.get();
+				filteredMp = filteredMp.filter(p => {
+					const key = `${p.name}@${p.marketplace}`;
+					return recommended.has(key);
+				});
+			} else {
+				const lowerText = text.toLowerCase();
+				filteredMp = filteredMp.filter(p => p.name.toLowerCase().includes(lowerText) || p.description.toLowerCase().includes(lowerText));
+			}
+
+			const marketplace = filteredMp.map(marketplacePluginToItem);
 
 			// Filter out marketplace items that are already installed
 			const installedPaths = new Set(installed.map(i => i.plugin.uri.toString()));

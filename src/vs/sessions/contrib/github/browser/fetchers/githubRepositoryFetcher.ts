@@ -29,6 +29,7 @@ export class GitHubRepositoryFetcher {
 		const data = await this._apiClient.request<IGitHubRepoResponse>(
 			'GET',
 			`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
+			'githubApi.getRepository'
 		);
 		return {
 			owner: data.owner.login,

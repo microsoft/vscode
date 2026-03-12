@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../contrib/chat/common/chatDebugService.js';
@@ -17,6 +17,7 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 	private readonly _proxy: Proxied<ExtHostChatDebugShape>;
 	private readonly _providerDisposables = new Map<number, DisposableStore>();
 	private readonly _activeSessionResources = new Map<number, URI>();
+	private readonly _coreEventForwarder = this._register(new MutableDisposable());
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -25,6 +26,18 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatDebug);
+	}
+
+	$subscribeToCoreDebugEvents(): void {
+		this._coreEventForwarder.value = this._chatDebugService.onDidAddEvent(event => {
+			if (this._chatDebugService.isCoreEvent(event)) {
+				this._proxy.$onCoreDebugEvent(this._serializeEvent(event));
+			}
+		});
+	}
+
+	$unsubscribeFromCoreDebugEvents(): void {
+		this._coreEventForwarder.clear();
 	}
 
 	$registerChatDebugLogProvider(handle: number): void {
