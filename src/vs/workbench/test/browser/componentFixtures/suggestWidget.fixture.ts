@@ -34,7 +34,7 @@ interface SuggestFixtureOptions extends ComponentFixtureContext {
 	editorOptions?: IEditorOptions;
 }
 
-function renderSuggestWidget(options: SuggestFixtureOptions): void {
+async function renderSuggestWidget(options: SuggestFixtureOptions): Promise<void> {
 	const { container, disposableStore, theme } = options;
 	container.style.width = options.width ?? '500px';
 	container.style.height = options.height ?? '300px';
