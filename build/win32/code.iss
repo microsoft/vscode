@@ -86,7 +86,7 @@ Type: files; Name: "{app}\updating_version"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 0,6.1
 Name: "addcontextmenufiles"; Description: "{cm:AddContextMenuFiles,{#NameShort}}"; GroupDescription: "{cm:Other}"; Flags: unchecked
-Name: "addcontextmenufolders"; Description: "{cm:AddContextMenuFolders,{#NameShort}}"; GroupDescription: "{cm:Other}"; Flags: unchecked; Check: not ShouldUseWindows11ContextMenu
+Name: "addcontextmenufolders"; Description: "{cm:AddContextMenuFolders,{#NameShort}}"; GroupDescription: "{cm:Other}"; Flags: unchecked
 Name: "associatewithfiles"; Description: "{cm:AssociateWithFiles,{#NameShort}}"; GroupDescription: "{cm:Other}"
 Name: "addtopath"; Description: "{cm:AddToPath}"; GroupDescription: "{cm:Other}"
 Name: "runcode"; Description: "{cm:RunAfter,{#NameShort}}"; GroupDescription: "{cm:Other}"; Check: WizardSilent
@@ -1529,12 +1529,12 @@ end;
 
 function HasLegacyFileContextMenu(): Boolean;
 begin
-  Result := RegKeyExists({#EnvironmentRootKey}, 'Software\Classes\*\shell\{#RegValueName}');
+  Result := RegKeyExists({#EnvironmentRootKey}, 'Software\Classes\*\shell\{#RegValueName}\command');
 end;
 
 function HasLegacyFolderContextMenu(): Boolean;
 begin
-  Result := RegKeyExists({#EnvironmentRootKey}, 'Software\Classes\directory\shell\{#RegValueName}');
+  Result := RegKeyExists({#EnvironmentRootKey}, 'Software\Classes\directory\shell\{#RegValueName}\command');
 end;
 
 function ShouldRepairFolderContextMenu(): Boolean;
@@ -1553,7 +1553,7 @@ end;
 
 function ShouldInstallLegacyFolderContextMenu(): Boolean;
 begin
-  Result := WizardIsTaskSelected('addcontextmenufolders') or ShouldRepairFolderContextMenu();
+  Result := (WizardIsTaskSelected('addcontextmenufolders') and not ShouldUseWindows11ContextMenu()) or ShouldRepairFolderContextMenu();
 end;
 
 function BoolToStr(Value: Boolean): String;
