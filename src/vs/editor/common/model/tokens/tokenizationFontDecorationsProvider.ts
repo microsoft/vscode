@@ -139,7 +139,9 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 					options: {
 						description: 'FontOptionDecoration',
 						inlineClassName: className,
+						fontFamily: anno.fontToken.fontFamily,
 						lineHeight: anno.fontToken.lineHeightMultiplier,
+						fontSize: anno.fontToken.fontSizeMultiplier,
 						affectsFont
 					},
 					ownerId: 0,

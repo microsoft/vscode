@@ -113,6 +113,12 @@ export class LineHeightsManager {
 		return this._defaultLineHeight;
 	}
 
+	public hasVariableHeightForLineNumber(lineNumber: number): boolean {
+		this._commit();
+		const searchIndex = this._binarySearchOverOrderedCustomLinesArray(lineNumber);
+		return searchIndex >= 0;
+	}
+
 	public getAccumulatedLineHeightsIncludingLineNumber(lineNumber: number): number {
 		this._commit();
 		const searchIndex = this._binarySearchOverOrderedCustomLinesArray(lineNumber);
