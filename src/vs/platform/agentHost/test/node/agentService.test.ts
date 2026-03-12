@@ -4,82 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentSession, IAgent, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentProvider } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agentService.js';
 import { IActionEnvelope } from '../../common/state/sessionActions.js';
 import { AgentService } from '../../node/agentService.js';
-
-class MockAgent implements IAgent {
-	private readonly _onDidSessionProgress = new Emitter<IAgentProgressEvent>();
-	readonly onDidSessionProgress = this._onDidSessionProgress.event;
-
-	private readonly _sessions = new Map<string, URI>();
-	private _nextId = 1;
-
-	readonly setAuthTokenCalls: string[] = [];
-	readonly sendMessageCalls: { session: URI; prompt: string }[] = [];
-	readonly disposeSessionCalls: URI[] = [];
-
-	constructor(readonly id: AgentProvider) { }
-
-	getDescriptor(): IAgentDescriptor {
-		return { provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent`, requiresAuth: this.id === 'copilot' };
-	}
-
-	changeModel(session: URI, model: string): Promise<void> {
-		return Promise.resolve();
-	}
-
-	async listModels(): Promise<IAgentModelInfo[]> {
-		return [{ provider: this.id, id: `${this.id}-model`, name: `${this.id} Model`, maxContextWindow: 128000, supportsVision: false, supportsReasoningEffort: false }];
-	}
-
-	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		return [...this._sessions.values()].map(s => ({ session: s, startTime: Date.now(), modifiedTime: Date.now() }));
-	}
-
-	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> {
-		const rawId = `${this.id}-session-${this._nextId++}`;
-		const session = AgentSession.uri(this.id, rawId);
-		this._sessions.set(rawId, session);
-		return session;
-	}
-
-	async sendMessage(session: URI, prompt: string): Promise<void> {
-		this.sendMessageCalls.push({ session, prompt });
-	}
-
-	async getSessionMessages(_session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
-		return [];
-	}
-
-	async disposeSession(session: URI): Promise<void> {
-		this.disposeSessionCalls.push(session);
-		this._sessions.delete(AgentSession.id(session));
-	}
-
-	async abortSession(_session: URI): Promise<void> { }
-
-	respondToPermissionRequest(_requestId: string, _approved: boolean): void { }
-
-	async setAuthToken(token: string): Promise<void> {
-		this.setAuthTokenCalls.push(token);
-	}
-
-	async shutdown(): Promise<void> { }
-
-	fireProgress(event: IAgentProgressEvent): void {
-		this._onDidSessionProgress.fire(event);
-	}
-
-	dispose(): void {
-		this._onDidSessionProgress.dispose();
-	}
-}
+import { MockAgent } from './mockAgent.js';
 
 suite('AgentService (node dispatcher)', () => {
 

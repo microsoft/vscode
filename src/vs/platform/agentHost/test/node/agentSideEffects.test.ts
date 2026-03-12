@@ -4,90 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
-import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentSession, IAgent, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentProvider } from '../../common/agentService.js';
+import { AgentSession, IAgent } from '../../common/agentService.js';
 import { IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
 import { SessionStatus } from '../../common/state/sessionState.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { SessionStateManager } from '../../node/sessionStateManager.js';
-
-// ---- MockAgent --------------------------------------------------------------
-
-class MockAgent implements IAgent {
-	private readonly _onDidSessionProgress = new Emitter<IAgentProgressEvent>();
-	readonly onDidSessionProgress = this._onDidSessionProgress.event;
-
-	private readonly _sessions = new Map<string, URI>();
-	private _nextId = 1;
-
-	readonly sendMessageCalls: { session: URI; prompt: string }[] = [];
-	readonly disposeSessionCalls: URI[] = [];
-	readonly abortSessionCalls: URI[] = [];
-	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
-	readonly changeModelCalls: { session: URI; model: string }[] = [];
-
-	constructor(readonly id: AgentProvider = 'mock') { }
-
-	getDescriptor(): IAgentDescriptor {
-		return { provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent`, requiresAuth: false };
-	}
-
-	async listModels(): Promise<IAgentModelInfo[]> {
-		return [{ provider: this.id, id: `${this.id}-model`, name: `${this.id} Model`, maxContextWindow: 128000, supportsVision: false, supportsReasoningEffort: false }];
-	}
-
-	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		return [...this._sessions.values()].map(s => ({ session: s, startTime: 1000, modifiedTime: 2000, summary: 'Test session' }));
-	}
-
-	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> {
-		const rawId = `${this.id}-session-${this._nextId++}`;
-		const session = AgentSession.uri(this.id, rawId);
-		this._sessions.set(rawId, session);
-		return session;
-	}
-
-	async sendMessage(session: URI, prompt: string): Promise<void> {
-		this.sendMessageCalls.push({ session, prompt });
-	}
-
-	async getSessionMessages(_session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
-		return [];
-	}
-
-	async disposeSession(session: URI): Promise<void> {
-		this.disposeSessionCalls.push(session);
-		this._sessions.delete(AgentSession.id(session));
-	}
-
-	async abortSession(session: URI): Promise<void> {
-		this.abortSessionCalls.push(session);
-	}
-
-	respondToPermissionRequest(requestId: string, approved: boolean): void {
-		this.respondToPermissionCalls.push({ requestId, approved });
-	}
-
-	async changeModel(session: URI, model: string): Promise<void> {
-		this.changeModelCalls.push({ session, model });
-	}
-
-	async setAuthToken(_token: string): Promise<void> { }
-	async shutdown(): Promise<void> { }
-
-	fireProgress(event: IAgentProgressEvent): void {
-		this._onDidSessionProgress.fire(event);
-	}
-
-	dispose(): void {
-		this._onDidSessionProgress.dispose();
-	}
-}
+import { MockAgent } from './mockAgent.js';
 
 // ---- Tests ------------------------------------------------------------------
 
@@ -339,7 +265,7 @@ suite('AgentSideEffects', () => {
 			const sessions = await sideEffects.handleListSessions();
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].provider, 'mock');
-			assert.strictEqual(sessions[0].title, 'Test session');
+			assert.strictEqual(sessions[0].title, 'Session');
 		});
 	});
 
