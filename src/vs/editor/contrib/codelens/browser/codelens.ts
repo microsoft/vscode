@@ -112,7 +112,7 @@ CommandsRegistry.registerCommand('_executeCodeLensProvider', function (accessor,
 	return getCodeLensModel(codeLensProvider, model, CancellationToken.None).then(value => {
 
 		disposables.add(value);
-		const resolve: Promise<any>[] = [];
+		const resolve: Promise<unknown>[] = [];
 
 		for (const item of value.lenses) {
 			if (itemResolveCount === undefined || itemResolveCount === null || Boolean(item.symbol.command)) {

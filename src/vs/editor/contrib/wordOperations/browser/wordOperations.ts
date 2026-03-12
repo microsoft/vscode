@@ -474,6 +474,22 @@ export class DeleteInsideWord extends EditorAction {
 			id: 'deleteInsideWord',
 			precondition: EditorContextKeys.writable,
 			label: nls.localize2('deleteInsideWord', "Delete Word"),
+			metadata: {
+				description: nls.localize2('deleteInsideWord.description', "Delete the word at the cursor"),
+				args: [{
+					name: 'args',
+					schema: {
+						type: 'object',
+						properties: {
+							'onlyWord': {
+								type: 'boolean',
+								default: false,
+								description: nls.localize('deleteInsideWord.args.onlyWord', "Delete only the word and leave surrounding whitespace")
+							}
+						}
+					}
+				}]
+			}
 		});
 	}
 
@@ -481,12 +497,15 @@ export class DeleteInsideWord extends EditorAction {
 		if (!editor.hasModel()) {
 			return;
 		}
+
+		type DeleteInsideWordArgs = { readonly onlyWord?: boolean };
+		const onlyWord = !!(args && typeof args === 'object' && (args as DeleteInsideWordArgs).onlyWord);
 		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators), editor.getOption(EditorOption.wordSegmenterLocales));
 		const model = editor.getModel();
 		const selections = editor.getSelections();
 
 		const commands = selections.map((sel) => {
-			const deleteRange = WordOperations.deleteInsideWord(wordSeparators, model, sel);
+			const deleteRange = WordOperations.deleteInsideWord(wordSeparators, model, sel, onlyWord);
 			return new ReplaceCommand(deleteRange, '');
 		});
 

@@ -28,7 +28,7 @@ export function localizeManifest(logger: ILogger, extensionManifest: IExtensionM
  * The root element is an object literal
  */
 function replaceNLStrings(logger: ILogger, extensionManifest: IExtensionManifest, messages: ITranslations, originalMessages?: ITranslations): void {
-	const processEntry = (obj: any, key: string | number, command?: boolean) => {
+	const processEntry = (obj: Record<string, unknown>, key: string | number, command?: boolean) => {
 		const value = obj[key];
 		if (isString(value)) {
 			const str = value;
@@ -72,11 +72,11 @@ function replaceNLStrings(logger: ILogger, extensionManifest: IExtensionManifest
 		} else if (isObject(value)) {
 			for (const k in value) {
 				if (value.hasOwnProperty(k)) {
-					k === 'commands' ? processEntry(value, k, true) : processEntry(value, k, command);
+					k === 'commands' ? processEntry(value as Record<string, unknown>, k, true) : processEntry(value as Record<string, unknown>, k, command);
 				}
 			}
 		} else if (Array.isArray(value)) {
-			for (let i = 0; i < value.length; i++) {
+			for (let i = 0; i < (value as Array<unknown>).length; i++) {
 				processEntry(value, i, command);
 			}
 		}

@@ -75,6 +75,9 @@ export namespace Schemas {
 
 	export const vscodeTerminal = 'vscode-terminal';
 
+	/** Scheme used for the image carousel editor. */
+	export const vscodeImageCarousel = 'vscode-image-carousel';
+
 	/** Scheme used for code blocks in chat. */
 	export const vscodeChatCodeBlock = 'vscode-chat-code-block';
 
@@ -99,6 +102,11 @@ export namespace Schemas {
 	 * Scheme used for loading the wrapper html and script in webviews.
 	 */
 	export const vscodeWebview = 'vscode-webview';
+
+	/**
+	 * Scheme used for integrated browser tabs using WebContentsView.
+	 */
+	export const vscodeBrowser = 'vscode-browser';
 
 	/**
 	 * Scheme used for extension pages
@@ -418,8 +426,7 @@ export namespace COI {
 	 * isn't enabled the current context
 	 */
 	export function addSearchParam(urlOrSearch: URLSearchParams | Record<string, string>, coop: boolean, coep: boolean): void {
-		// eslint-disable-next-line local/code-no-any-casts
-		if (!(<any>globalThis).crossOriginIsolated) {
+		if (!(globalThis as typeof globalThis & { crossOriginIsolated?: boolean }).crossOriginIsolated) {
 			// depends on the current context being COI
 			return;
 		}

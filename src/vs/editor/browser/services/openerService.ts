@@ -170,10 +170,15 @@ export class OpenerService implements IOpenerService {
 	}
 
 	async open(target: URI | string, options?: OpenOptions): Promise<boolean> {
+		const targetURI = typeof target === 'string' ? URI.parse(target) : target;
+
+		// Internal schemes are not openable and must instead be handled in event listeners
+		if (targetURI.scheme === Schemas.internal) {
+			return false;
+		}
 
 		// check with contributed validators
 		if (!options?.skipValidation) {
-			const targetURI = typeof target === 'string' ? URI.parse(target) : target;
 			const validationTarget = this._resolvedUriTargets.get(targetURI) ?? target; // validate against the original URI that this URI resolves to, if one exists
 			for (const validator of this._validators) {
 				if (!(await validator.shouldOpen(validationTarget, options))) {

@@ -81,6 +81,7 @@ export class ExplorerModel implements IDisposable {
 	}
 
 	dispose(): void {
+		this._onDidChangeRoots.dispose();
 		dispose(this._listener);
 	}
 }

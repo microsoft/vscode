@@ -61,7 +61,7 @@ declare module 'vscode' {
 		readonly timestamp?: number;
 		readonly statistics?: SourceControlHistoryItemStatistics;
 		readonly references?: SourceControlHistoryItemRef[];
-		readonly tooltip?: string | MarkdownString | undefined;
+		readonly tooltip?: MarkdownString | Array<MarkdownString> | undefined;
 	}
 
 	export interface SourceControlHistoryItemRef {

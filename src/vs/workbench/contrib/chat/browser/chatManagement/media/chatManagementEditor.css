@@ -6,7 +6,7 @@
 .ai-management-editor {
 	height: 100%;
 	overflow: hidden;
-	max-width: 1200px;
+	max-width: 1400px;
 	margin: 0 auto;
 	display: flex;
 	flex-direction: column;
@@ -15,7 +15,7 @@
 .ai-models-management-editor {
 	height: 100%;
 	overflow: hidden;
-	max-width: 1200px;
+	max-width: 1400px;
 	margin: 0 auto;
 	padding: 15px 0px 0px 24px;
 }

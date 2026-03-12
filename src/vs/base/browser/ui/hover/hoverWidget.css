@@ -182,19 +182,6 @@
 }
 
 /**
- * Spans in markdown hovers need a margin-bottom to avoid looking cramped:
- * https://github.com/microsoft/vscode/issues/101496
-
- * This was later refined to only apply when the last child of a rendered markdown block (before the
- * border or a `hr`) uses background color:
- * https://github.com/microsoft/vscode/issues/228136
- */
-.monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) p:last-child [style*="background-color"] {
-	margin-bottom: 4px;
-	display: inline-block;
-}
-
-/**
  * Add a slight margin to try vertically align codicons with any text
  * https://github.com/microsoft/vscode/issues/221359
  */

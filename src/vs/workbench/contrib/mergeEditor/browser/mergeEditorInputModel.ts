@@ -8,7 +8,7 @@ import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/e
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
+import { basename } from '../../../../base/common/resources.js';
 import Severity from '../../../../base/common/severity.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
@@ -288,17 +288,6 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 	public async createInputModel(args: MergeEditorArgs): Promise<IMergeEditorInputModel> {
 		const store = new DisposableStore();
 
-		let resultTextFileModel = undefined as ITextFileEditorModel | undefined;
-		const modelListener = store.add(new DisposableStore());
-		const handleDidCreate = (model: ITextFileEditorModel) => {
-			if (isEqual(args.result, model.resource)) {
-				modelListener.clear();
-				resultTextFileModel = model;
-			}
-		};
-		modelListener.add(this.textFileService.files.onDidCreate(handleDidCreate));
-		this.textFileService.files.models.forEach(handleDidCreate);
-
 		let [
 			base,
 			result,
@@ -329,6 +318,9 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 		store.add(base);
 		store.add(result);
 
+		const resultTextFileModel = this.textFileService.files.models.find(m =>
+			m.resource.toString() === result.object.textEditorModel.uri.toString()
+		);
 		if (!resultTextFileModel) {
 			throw new BugIndicatingError();
 		}

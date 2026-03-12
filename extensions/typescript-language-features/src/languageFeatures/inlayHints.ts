@@ -11,20 +11,13 @@ import { API } from '../tsServer/api';
 import type * as Proto from '../tsServer/protocol/protocol';
 import { Location, Position } from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
+import { unifiedConfigSection } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
 import FileConfigurationManager, { InlayHintSettingNames, getInlayHintsPreferences } from './fileConfigurationManager';
 import { conditionalRegistration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
 
 
-const inlayHintSettingNames = Object.freeze([
-	InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName,
-	InlayHintSettingNames.parameterNamesEnabled,
-	InlayHintSettingNames.variableTypesEnabled,
-	InlayHintSettingNames.variableTypesSuppressWhenTypeMatchesName,
-	InlayHintSettingNames.propertyDeclarationTypesEnabled,
-	InlayHintSettingNames.functionLikeReturnTypesEnabled,
-	InlayHintSettingNames.enumMemberValuesEnabled,
-]);
+const inlayHintSettingNames = Object.values(InlayHintSettingNames);
 
 class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHintsProvider {
 
@@ -44,7 +37,10 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 		super();
 
 		this._register(vscode.workspace.onDidChangeConfiguration(e => {
-			if (inlayHintSettingNames.some(settingName => e.affectsConfiguration(language.id + '.' + settingName))) {
+			if (inlayHintSettingNames.some(settingName =>
+				e.affectsConfiguration(unifiedConfigSection + '.' + settingName) ||
+				e.affectsConfiguration(language.id + '.' + settingName)
+			)) {
 				this._onDidChangeInlayHints.fire();
 			}
 		}));
@@ -131,8 +127,7 @@ function fromProtocolInlayHintKind(kind: Proto.InlayHintKind): vscode.InlayHintK
 }
 
 function areInlayHintsEnabledForFile(language: LanguageDescription, document: vscode.TextDocument) {
-	const config = vscode.workspace.getConfiguration(language.id, document);
-	const preferences = getInlayHintsPreferences(config);
+	const preferences = getInlayHintsPreferences(document, language.id);
 
 	return preferences.includeInlayParameterNameHints === 'literals' ||
 		preferences.includeInlayParameterNameHints === 'all' ||

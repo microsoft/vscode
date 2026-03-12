@@ -7,7 +7,7 @@ import { IObservableWithChange, IObserver, IReader, IObservable } from '../base.
 import { DisposableStore } from '../commonFacade/deps.js';
 import { DebugLocation } from '../debugLocation.js';
 import { DebugOwner, getFunctionName } from '../debugName.js';
-import { debugGetDependencyGraph } from '../logging/debugGetDependencyGraph.js';
+import { debugGetObservableGraph } from '../logging/debugGetDependencyGraph.js';
 import { getLogger, logObservable } from '../logging/logging.js';
 import type { keepObserved, recomputeInitiallyAndOnChange } from '../utils/utils.js';
 import { derivedOpts } from './derived.js';
@@ -31,9 +31,9 @@ export function _setKeepObserved(keepObserved: typeof _keepObserved) {
 	_keepObserved = keepObserved;
 }
 
-let _debugGetDependencyGraph: typeof debugGetDependencyGraph;
-export function _setDebugGetDependencyGraph(debugGetDependencyGraph: typeof _debugGetDependencyGraph) {
-	_debugGetDependencyGraph = debugGetDependencyGraph;
+let _debugGetObservableGraph: typeof debugGetObservableGraph;
+export function _setDebugGetObservableGraph(debugGetObservableGraph: typeof _debugGetObservableGraph) {
+	_debugGetObservableGraph = debugGetObservableGraph;
 }
 
 export abstract class ConvenientObservable<T, TChange> implements IObservableWithChange<T, TChange> {
@@ -128,8 +128,21 @@ export abstract class ConvenientObservable<T, TChange> implements IObservableWit
 		return this.get();
 	}
 
-	debugGetDependencyGraph(): string {
-		return _debugGetDependencyGraph(this);
+	get debug(): DebugHelper {
+		return new DebugHelper(this);
+	}
+}
+
+class DebugHelper {
+	constructor(public readonly observable: IObservableWithChange<any, any>) {
+	}
+
+	getDependencyGraph(): string {
+		return _debugGetObservableGraph(this.observable, { type: 'dependencies' });
+	}
+
+	getObserverGraph(): string {
+		return _debugGetObservableGraph(this.observable, { type: 'observers' });
 	}
 }
 

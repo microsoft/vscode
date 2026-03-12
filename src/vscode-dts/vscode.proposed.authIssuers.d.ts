@@ -15,7 +15,7 @@ declare module 'vscode' {
 	export interface AuthenticationProviderSessionOptions {
 		/**
 		 * When specified, the authentication provider will use the provided authorization server URL to
-		 * authenticate the user. This is only used when a provider has `supportsAuthorizationServers` set
+		 * authenticate the user. This is only used when a provider has `supportedAuthorizationServers` set
 		 */
 		authorizationServer?: Uri;
 	}
@@ -23,7 +23,7 @@ declare module 'vscode' {
 	export interface AuthenticationGetSessionOptions {
 		/**
 		 * When specified, the authentication provider will use the provided authorization server URL to
-		 * authenticate the user. This is only used when a provider has `supportsAuthorizationServers` set
+		 * authenticate the user. This is only used when a provider has `supportedAuthorizationServers` set
 		 */
 		authorizationServer?: Uri;
 	}

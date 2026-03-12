@@ -52,7 +52,7 @@ export function mergeEnvironments(parent: IProcessEnvironment, other: ITerminalE
 }
 
 function _mergeEnvironmentValue(env: ITerminalEnvironment, key: string, value: string | null): void {
-	if (typeof value === 'string') {
+	if (isString(value)) {
 		env[key] = value;
 	} else {
 		delete env[key];
@@ -84,7 +84,7 @@ function mergeNonNullKeys(env: IProcessEnvironment, other: ITerminalEnvironment 
 
 async function resolveConfigurationVariables(variableResolver: VariableResolver, env: ITerminalEnvironment): Promise<ITerminalEnvironment> {
 	await Promise.all(Object.entries(env).map(async ([key, value]) => {
-		if (typeof value === 'string') {
+		if (isString(value)) {
 			try {
 				env[key] = await variableResolver(value);
 			} catch (e) {
@@ -173,7 +173,7 @@ export function getLangEnvVariable(locale?: string): string {
 			uk: 'UA',
 			zh: 'CN',
 		};
-		if (parts[0] in languageVariants) {
+		if (Object.prototype.hasOwnProperty.call(languageVariants, parts[0])) {
 			parts.push(languageVariants[parts[0]]);
 		}
 	} else {
@@ -380,7 +380,7 @@ export async function preparePathForShell(resource: string | URI, executable: st
 }
 
 export function getWorkspaceForTerminal(cwd: URI | string | undefined, workspaceContextService: IWorkspaceContextService, historyService: IHistoryService): IWorkspaceFolder | undefined {
-	const cwdUri = typeof cwd === 'string' ? URI.parse(cwd) : cwd;
+	const cwdUri = isString(cwd) ? URI.parse(cwd) : cwd;
 	let workspaceFolder = cwdUri ? workspaceContextService.getWorkspaceFolder(cwdUri) ?? undefined : undefined;
 	if (!workspaceFolder) {
 		// fallback to last active workspace if cwd is not available or it is not in workspace
@@ -392,7 +392,7 @@ export function getWorkspaceForTerminal(cwd: URI | string | undefined, workspace
 }
 
 export async function getUriLabelForShell(uri: URI | string, backend: Pick<ITerminalBackend, 'getWslPath'>, shellType?: TerminalShellType, os?: OperatingSystem, isWindowsFrontend: boolean = isWindows): Promise<string> {
-	let path = typeof uri === 'string' ? uri : uri.fsPath;
+	let path = isString(uri) ? uri : uri.fsPath;
 	if (os === OperatingSystem.Windows) {
 		if (shellType === WindowsShellType.Wsl) {
 			return backend.getWslPath(path.replaceAll('/', '\\'), 'win-to-unix');
@@ -401,7 +401,7 @@ export async function getUriLabelForShell(uri: URI | string, backend: Pick<ITerm
 			return path.replaceAll('\\', '/').replace(/^([a-zA-Z]):\//, '/$1/');
 		} else {
 			// If the frontend is not Windows but the terminal is, convert / to \.
-			path = typeof uri === 'string' ? path : uriToFsPath(uri, true);
+			path = isString(uri) ? path : uriToFsPath(uri, true);
 			return !isWindowsFrontend ? path.replaceAll('/', '\\') : path;
 		}
 	} else {

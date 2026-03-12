@@ -4,21 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { ITreeSitterLibraryService } from '../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
-import { TreeSitterLibraryService } from '../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ITreeSitterLibraryService } from '../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { TreeSitterLibraryService } from '../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../../browser/treeSitterCommandParser.js';
-import { arch } from '../../../../../../base/common/process.js';
-import { isWindows } from '../../../../../../base/common/platform.js';
 
-// TODO: The powershell grammar can cause an OOM crash on Windows/arm https://github.com/microsoft/vscode/issues/273177
-(isWindows && (arch === 'arm' || arch === 'arm64') ? suite.skip : suite)('TreeSitterCommandParser', () => {
+suite('TreeSitterCommandParser', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
@@ -215,15 +212,14 @@ import { isWindows } from '../../../../../../base/common/platform.js';
 		test('&& with complex commands', () => t('Get-ChildItem -Path C:\\ && Set-Location C:\\Users', ['&&']));
 		test('&& with parameters', () => t('Get-Process -Name notepad && Stop-Process -Name notepad', ['&&']));
 		test('&& with pipeline inside', () => t('Get-Process | Where-Object {$_.Name -eq "notepad"} && Write-Host "Found"', ['&&']));
-		// TODO: A lot of these tests are skipped until proper parsing of && is supported in https://github.com/airbus-cert/tree-sitter-powershell/issues/27
-		test.skip('nested && in script blocks', () => t('if ($true) { echo hello && echo world } && echo done', ['&&', '&&']));
-		test.skip('&& with method calls', () => t('"hello".ToUpper() && "world".ToLower()', ['&&']));
-		test.skip('&& with array operations', () => t('@(1,2,3) | ForEach-Object { $_ } && Write-Host "done"', ['&&']));
-		test.skip('&& with hashtable', () => t('@{key="value"} && Write-Host "created"', ['&&']));
-		test.skip('&& with type casting', () => t('[int]"123" && [string]456', ['&&']));
-		test.skip('&& with comparison operators', () => t('5 -gt 3 && "hello" -like "h*"', ['&&']));
-		test.skip('&& with variable assignment', () => t('$var = "test" && Write-Host $var', ['&&']));
-		test.skip('&& with expandable strings', () => t('$name="World" && "Hello $name"', ['&&']));
+		test('nested && in script blocks', () => t('if ($true) { echo hello && echo world }', ['&&']));
+		test('&& with method calls', () => t('"hello".ToUpper() && "world".ToLower()', ['&&']));
+		test('&& with array operations', () => t('@(1,2,3) | ForEach-Object { $_ } && Write-Host "done"', ['&&']));
+		test('&& with hashtable', () => t('@{key="value"} && Write-Host "created"', ['&&']));
+		test('&& with type casting', () => t('[int]"123" && [string]456', ['&&']));
+		test('&& with comparison operators', () => t('5 -gt 3 && "hello" -like "h*"', ['&&']));
+		test('&& with variable assignment', () => t('$var = "test" && Write-Host $var', ['&&']));
+		test('&& with expandable strings', () => t('$name="World" && "Hello $name"', ['&&']));
 		test('&& with subexpressions', () => t('Write-Host $(Get-Date) && Get-Location', ['&&']));
 		test('&& with here-strings', () => t('Write-Host @"\nhello\nworld\n"@ && Get-Date', ['&&']));
 		test('&& with splatting', () => t('$params = @{Path="C:\\"}; Get-ChildItem @params && Write-Host "done"', ['&&']));
@@ -233,7 +229,7 @@ import { isWindows } from '../../../../../../base/common/platform.js';
 			test('&& with error handling', () => t('try { Get-Content "file.txt" && Write-Host "success" } catch { Write-Error "failed" }', ['&&']));
 			test('&& inside foreach', () => t('ForEach-Object { Write-Host $_.Name && Write-Host $_.Length }', ['&&']));
 			test('&& with conditional logic', () => t('if (Test-Path "file.txt") { Get-Content "file.txt" && Write-Host "read" }', ['&&']));
-			test.skip('&& with switch statement', () => t('switch ($var) { 1 { "one" && "first" } 2 { "two" && "second" } }', ['&&', '&&']));
+			test('&& with switch statement', () => t('switch ($var) { 1 { "one" && "first" } 2 { "two" && "second" } }', ['&&', '&&']));
 			test('&& in do-while', () => t('do { Write-Host $i && $i++ } while ($i -lt 5)', ['&&']));
 			test('&& in for loop', () => t('for ($i=0; $i -lt 5; $i++) { Write-Host $i && Start-Sleep 1 }', ['&&']));
 			test('&& with parallel processing', () => t('1..10 | ForEach-Object -Parallel { Write-Host $_ && Start-Sleep 1 }', ['&&']));
@@ -242,22 +238,18 @@ import { isWindows } from '../../../../../../base/common/platform.js';
 		suite('edge cases', () => {
 			test('empty string', () => t('', []));
 			test('whitespace only', () => t('   \n\t  ', []));
-			test('single &', () => t('Get-Date & Get-Location', []));
-			test.skip('triple &&&', () => t('echo hello &&& echo world', ['&&']));
-			test.skip('&& at beginning', () => t('&& echo hello', ['&&']));
-			test('&& at end', () => t('echo hello &&', ['&&']));
+			test('triple &&&', () => t('echo hello &&& echo world', ['&&']));
 			test('spaced && operators', () => t('echo hello & & echo world', []));
 			test('&& with unicode', () => t('Write-Host "测试" && Write-Host "🚀"', ['&&']));
 			test('very long command with &&', () => t('Write-Host "' + 'a'.repeat(1000) + '" && Get-Date', ['&&']));
 			test('deeply nested with &&', () => t('if ($true) { if ($true) { if ($true) { echo nested && echo deep } } }', ['&&']));
 			test('&& with escaped characters', () => t('Write-Host "hello`"world" && Get-Date', ['&&']));
-			test.skip('&& with backticks', () => t('Write-Host `hello && Get-Date', ['&&']));
-			test.skip('malformed syntax with &&', () => t('echo "unclosed && Get-Date', ['&&']));
+			test('&& with backticks', () => t('Write-Host `hello && Get-Date', ['&&']));
 		});
 
 		suite('real-world scenarios', () => {
 			test('git workflow', () => t('git add . && git commit -m "message" && git push', ['&&', '&&']));
-			test.skip('build and test', () => t('dotnet build && dotnet test && dotnet publish', ['&&', '&&']));
+			test('build and test', () => t('dotnet build && dotnet test && dotnet publish', ['&&', '&&']));
 			test('file operations', () => t('New-Item -Type File "test.txt" && Add-Content "test.txt" "hello" && Get-Content "test.txt"', ['&&', '&&']));
 			test('service management', () => t('Stop-Service spooler && Set-Service spooler -StartupType Manual && Start-Service spooler', ['&&', '&&']));
 			test('registry operations', () => t('New-Item -Path "HKCU:\\Software\\Test" && Set-ItemProperty -Path "HKCU:\\Software\\Test" -Name "Value" -Value "Data"', ['&&']));

@@ -29,6 +29,7 @@ export interface ICloseSessionEvent {
 
 export interface IOpenExtensionWindowResult {
 	rendererDebugAddr?: string;
+	port?: number;
 	success: boolean;
 }
 

@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as url from 'url';
 import * as cp from 'child_process';
-import * as http from 'http';
+import type * as http from 'http';
 import { cwd } from '../../base/common/process.js';
 import { dirname, extname, resolve, join } from '../../base/common/path.js';
 import { parseArgs, buildHelpMessage, buildVersionMessage, OPTIONS, OptionDescriptions, ErrorReporter } from '../../platform/environment/node/argv.js';
@@ -279,7 +279,12 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 		} else {
 			const cliCwd = dirname(cliCommand);
 			const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
-			newCommandline.unshift('resources/app/out/cli.js');
+			const versionFolder = desc.commit.substring(0, 10);
+			if (fs.existsSync(join(cliCwd, versionFolder))) {
+				newCommandline.unshift(`${versionFolder}/resources/app/out/cli.js`);
+			} else {
+				newCommandline.unshift('resources/app/out/cli.js');
+			}
 			if (verbose) {
 				console.log(`Invoking: cd "${cliCwd}" && ELECTRON_RUN_AS_NODE=1 "${cliCommand}" "${newCommandline.join('" "')}"`);
 			}
@@ -407,7 +412,8 @@ async function openInBrowser(args: string[], verbose: boolean) {
 	}
 }
 
-function sendToPipe(args: PipeCommand, verbose: boolean): Promise<string> {
+async function sendToPipe(args: PipeCommand, verbose: boolean): Promise<string> {
+	const http = await import('http');
 	if (verbose) {
 		console.log(JSON.stringify(args, null, '  '));
 	}

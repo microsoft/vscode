@@ -14,8 +14,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { CellEditState, INotebookEditor } from '../../../../notebook/browser/notebookBrowser.js';
 import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
 import { CellKind } from '../../../../notebook/common/notebookCommon.js';
-import { IModifiedFileEntryChangeHunk } from '../../../common/chatEditingService.js';
-import { AcceptHunkAction, RejectHunkAction } from '../chatEditingEditorActions.js';
+import { IModifiedFileEntryChangeHunk } from '../../../common/editing/chatEditingService.js';
 import { ICellDiffInfo } from './notebookCellChanges.js';
 
 
@@ -123,10 +122,10 @@ export class OverlayToolbarDecorator extends Disposable {
 					} satisfies IModifiedFileEntryChangeHunk,
 				},
 				actionViewItemProvider: (action, options) => {
-					if (action.id === AcceptHunkAction.ID || action.id === RejectHunkAction.ID) {
+					if (!action.class) {
 						return new class extends ActionViewItem {
 							constructor() {
-								super(undefined, action, { ...options, keybindingNotRenderedWithLabel: true, icon: false, label: true });
+								super(undefined, action, { ...options, keybindingNotRenderedWithLabel: true /* hide keybinding for actions without icon */, icon: false, label: true });
 							}
 						};
 					}

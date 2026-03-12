@@ -27,6 +27,7 @@ export function setup(ensureStableCode: () => { stableCodePath: string | undefin
 			});
 			await app.start();
 
+
 			// Open 3 editors
 			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'bin', 'www'));
 			await app.workbench.quickaccess.runCommand('View: Keep Editor');

@@ -80,7 +80,7 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 		return this._representativePerKey.get(key);
 	}
 
-	getTrackedRanges(reader?: IReader): TrackedEdit[] {
+	public getTrackedRanges(reader?: IReader): TrackedEdit[] {
 		this._update.read(reader);
 		const ranges = this._edits.getNewRanges();
 		return ranges.map((r, idx) => {
@@ -90,7 +90,7 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 		});
 	}
 
-	isEmpty(): boolean {
+	public isEmpty(): boolean {
 		return this._edits.isEmpty();
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createReadStream, promises } from 'fs';
-import * as http from 'http';
+import type * as http from 'http';
 import * as url from 'url';
 import * as cookie from 'cookie';
 import * as crypto from 'crypto';

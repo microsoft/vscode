@@ -164,7 +164,7 @@ CommandsRegistry.registerCommand('_executePrepareCallHierarchy', async (accessor
 	}
 });
 
-function isCallHierarchyItemDto(obj: any): obj is CallHierarchyItem {
+function isCallHierarchyItemDto(obj: unknown): obj is CallHierarchyItem {
 	return true;
 }
 

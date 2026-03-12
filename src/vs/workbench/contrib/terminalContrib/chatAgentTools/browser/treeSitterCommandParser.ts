@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Parser, Query, QueryCapture, Tree } from '@vscode/tree-sitter-wasm';
-import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
-import { arch } from '../../../../../base/common/process.js';
-import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
-import { isWindows } from '../../../../../base/common/platform.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { ICommandFileWriteParser } from './commandParsers/commandFileWriteParser.js';
+import { SedFileWriteParser } from './commandParsers/sedFileWriteParser.js';
 
 export const enum TreeSitterCommandParserLanguage {
 	Bash = 'bash',
@@ -20,6 +20,9 @@ export const enum TreeSitterCommandParserLanguage {
 export class TreeSitterCommandParser extends Disposable {
 	private readonly _parser: Lazy<Promise<Parser>>;
 	private readonly _treeCache = this._register(new TreeCache());
+	private readonly _commandFileWriteParsers: ICommandFileWriteParser[] = [
+		new SedFileWriteParser(),
+	];
 
 	constructor(
 		@ITreeSitterLibraryService private readonly _treeSitterLibraryService: ITreeSitterLibraryService,
@@ -36,10 +39,8 @@ export class TreeSitterCommandParser extends Disposable {
 	async extractPwshDoubleAmpersandChainOperators(commandLine: string): Promise<QueryCapture[]> {
 		const captures = await this._queryTree(TreeSitterCommandParserLanguage.PowerShell, commandLine, [
 			'(',
-			'  (command',
-			'    (command_elements',
-			'      (generic_token) @double.ampersand',
-			'        (#eq? @double.ampersand "&&")))',
+			'  (pipeline',
+			'    (pipeline_chain_tail) @double.ampersand)',
 			')',
 		].join('\n'));
 		return captures;
@@ -65,14 +66,39 @@ export class TreeSitterCommandParser extends Disposable {
 		return captures.map(e => e.node.text.trim());
 	}
 
+	/**
+	 * Extracts file targets from commands that perform file writes beyond shell redirections.
+	 * Uses registered command parsers (e.g., for `sed -i`) to detect command-specific file writes.
+	 * Returns an array of file paths that would be modified.
+	 */
+	async getCommandFileWrites(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
+		// Currently only bash-like shells are supported for command-specific parsing
+		if (languageId !== TreeSitterCommandParserLanguage.Bash) {
+			return [];
+		}
+
+		// Query for all commands
+		const query = '(command) @command';
+		const captures = await this._queryTree(languageId, commandLine, query);
+
+		const result: string[] = [];
+		for (const capture of captures) {
+			const commandText = capture.node.text;
+			for (const parser of this._commandFileWriteParsers) {
+				if (parser.canHandle(commandText)) {
+					result.push(...parser.extractFileWrites(commandText));
+				}
+			}
+		}
+		return result;
+	}
+
 	private async _queryTree(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<QueryCapture[]> {
 		const { tree, query } = await this._doQuery(languageId, commandLine, querySource);
 		return query.captures(tree.rootNode);
 	}
 
 	private async _doQuery(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<{ tree: Tree; query: Query }> {
-		this._throwIfCanCrash(languageId);
-
 		const language = await this._treeSitterLibraryService.getLanguagePromise(languageId);
 		if (!language) {
 			throw new BugIndicatingError('Failed to fetch language grammar');
@@ -97,17 +123,6 @@ export class TreeSitterCommandParser extends Disposable {
 		}
 
 		return { tree, query };
-	}
-
-	private _throwIfCanCrash(languageId: TreeSitterCommandParserLanguage) {
-		// TODO: The powershell grammar can cause an OOM crash on Windows/arm https://github.com/microsoft/vscode/issues/273177
-		if (
-			isWindows &&
-			(arch === 'arm' || arch === 'arm64') &&
-			languageId === TreeSitterCommandParserLanguage.PowerShell
-		) {
-			throw new ErrorNoTelemetry('powershell grammar is not supported on arm or arm64');
-		}
 	}
 }
 

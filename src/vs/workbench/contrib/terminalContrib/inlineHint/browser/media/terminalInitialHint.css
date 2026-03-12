@@ -1,0 +1,49 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .terminal-initial-hint {
+	color: var(--vscode-terminal-initialHintForeground);
+	container-type: inline-size;
+}
+
+.monaco-workbench .terminal-initial-hint .terminal-initial-hint-separator {
+	display: none;
+}
+
+.monaco-workbench .terminal-initial-hint .terminal-initial-hint-compact {
+	display: none !important;
+}
+
+@container (max-width: 500px) {
+	.monaco-workbench .terminal-initial-hint .terminal-initial-hint-prose {
+		display: none !important;
+	}
+	.monaco-workbench .terminal-initial-hint .terminal-initial-hint-separator {
+		display: block;
+	}
+	.monaco-workbench .terminal-initial-hint .terminal-initial-hint-compact {
+		display: inline !important;
+	}
+}
+
+@container (max-width: 240px) {
+	.monaco-workbench .terminal-initial-hint > * {
+		display: none !important;
+	}
+}
+
+.monaco-workbench .terminal-initial-hint a {
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench .terminal-initial-hint a,
+.monaco-workbench .terminal-initial-hint .detail {
+	font-style: italic;
+}
+
+.monaco-workbench .terminal-initial-hint .detail {
+	display: inline;
+}

@@ -106,6 +106,26 @@ suite('Editor Contrib - Line Operations', () => {
 					});
 				});
 		});
+
+		test('applies to whole document when selection is single line', function () {
+			withTestCodeEditor(
+				[
+					'omicron',
+					'beta',
+					'alpha'
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const sortLinesAscendingAction = new SortLinesAscendingAction();
+
+					editor.setSelection(new Selection(2, 1, 2, 4));
+					executeAction(sortLinesAscendingAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), [
+						'alpha',
+						'beta',
+						'omicron'
+					]);
+				});
+		});
 	});
 
 	suite('SortLinesDescendingAction', () => {
@@ -187,7 +207,7 @@ suite('Editor Contrib - Line Operations', () => {
 						'beta',
 						'omicron',
 					]);
-					assertSelection(editor, new Selection(1, 1, 3, 7));
+					assertSelection(editor, new Selection(1, 1, 3, 8));
 				});
 		});
 
@@ -240,12 +260,29 @@ suite('Editor Contrib - Line Operations', () => {
 						'beta'
 					]);
 					const expectedSelections = [
-						new Selection(1, 1, 3, 7),
-						new Selection(5, 1, 6, 4)
+						new Selection(1, 1, 3, 8),
+						new Selection(5, 1, 6, 5)
 					];
 					editor.getSelections()!.forEach((actualSelection, index) => {
 						assert.deepStrictEqual(actualSelection.toString(), expectedSelections[index].toString());
 					});
+				});
+		});
+
+		test('applies to whole document when selection is single line', function () {
+			withTestCodeEditor(
+				[
+					'alpha',
+					'beta',
+					'alpha',
+					'omicron'
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const deleteDuplicateLinesAction = new DeleteDuplicateLinesAction();
+
+					editor.setSelection(new Selection(2, 1, 2, 2));
+					executeAction(deleteDuplicateLinesAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), ['alpha', 'beta', 'omicron']);
 				});
 		});
 	});
@@ -729,7 +766,7 @@ suite('Editor Contrib - Line Operations', () => {
 				});
 		});
 
-		test('handles single line selection', function () {
+		test('applies to whole document when selection is single line', function () {
 			withTestCodeEditor(
 				[
 					'line1',
@@ -742,8 +779,7 @@ suite('Editor Contrib - Line Operations', () => {
 					// Select only line 2
 					editor.setSelection(new Selection(2, 1, 2, 6));
 					executeAction(reverseLinesAction, editor);
-					// Single line should remain unchanged
-					assert.deepStrictEqual(model.getLinesContent(), ['line1', 'line2', 'line3']);
+					assert.deepStrictEqual(model.getLinesContent(), ['line3', 'line2', 'line1']);
 				});
 		});
 
@@ -763,6 +799,26 @@ suite('Editor Contrib - Line Operations', () => {
 					editor.setSelection(new Selection(2, 1, 4, 1));
 					executeAction(reverseLinesAction, editor);
 					assert.deepStrictEqual(model.getLinesContent(), ['line1', 'line3', 'line2', 'line4', 'line5']);
+				});
+		});
+
+		test('applies to whole document when selection is single line', function () {
+			withTestCodeEditor(
+				[
+					'omicron',
+					'beta',
+					'alpha'
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const reverseLinesAction = new ReverseLinesAction();
+
+					editor.setSelection(new Selection(2, 1, 2, 4));
+					executeAction(reverseLinesAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), [
+						'alpha',
+						'beta',
+						'omicron'
+					]);
 				});
 		});
 	});

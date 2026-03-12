@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { MockFilesystem } from './mockFilesystem.js';
+import { mockFiles, MockFilesystem } from './mockFilesystem.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
@@ -195,33 +195,23 @@ suite('MockFilesystem', () => {
 		instantiationService.stub(IFileService, fileService);
 	});
 
-	test('mocks file structure', async () => {
+	test('mocks file structure using new simplified format', async () => {
 		const mockFilesystem = instantiationService.createInstance(MockFilesystem, [
 			{
-				name: '/root/folder',
-				children: [
-					{
-						name: 'file.txt',
-						contents: 'contents',
-					},
-					{
-						name: 'Subfolder',
-						children: [
-							{
-								name: 'test.ts',
-								contents: 'other contents',
-							},
-							{
-								name: 'file.test.ts',
-								contents: 'hello test',
-							},
-							{
-								name: '.file-2.TEST.ts',
-								contents: 'test hello',
-							},
-						]
-					}
-				]
+				path: '/root/folder/file.txt',
+				contents: ['contents']
+			},
+			{
+				path: '/root/folder/Subfolder/test.ts',
+				contents: ['other contents']
+			},
+			{
+				path: '/root/folder/Subfolder/file.test.ts',
+				contents: ['hello test']
+			},
+			{
+				path: '/root/folder/Subfolder/.file-2.TEST.ts',
+				contents: ['test hello']
 			}
 		]);
 
@@ -282,6 +272,28 @@ suite('MockFilesystem', () => {
 						],
 					}
 				],
+			},
+			fileService,
+		);
+	});
+
+	test('can be created using static factory method', async () => {
+		await mockFiles(fileService, [
+			{
+				path: '/simple/test.txt',
+				contents: ['line 1', 'line 2', 'line 3']
+			}
+		]);
+
+		await validateFile(
+			'/simple/test.txt',
+			{
+				resource: URI.file('/simple/test.txt'),
+				name: 'test.txt',
+				isFile: true,
+				isDirectory: false,
+				isSymbolicLink: false,
+				contents: 'line 1\nline 2\nline 3',
 			},
 			fileService,
 		);

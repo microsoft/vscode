@@ -31,13 +31,14 @@ import { IObservableViewZone, PlaceholderViewZone, ViewZoneOverlayWidget, applyO
  * Make sure to add the view zones to the editor!
  */
 export class HideUnchangedRegionsFeature extends Disposable {
-	private static readonly _breadcrumbsSourceFactory = observableValue<((textModel: ITextModel, instantiationService: IInstantiationService) => IDiffEditorBreadcrumbsSource)>(
+	public static readonly _breadcrumbsSourceFactory = observableValue<((textModel: ITextModel, instantiationService: IInstantiationService) => IDiffEditorBreadcrumbsSource)>(
 		this, () => ({
 			dispose() {
 			},
 			getBreadcrumbItems(startRange, reader) {
 				return [];
 			},
+			getAt: () => [],
 		}));
 	public static setBreadcrumbsSourceFactory(factory: (textModel: ITextModel, instantiationService: IInstantiationService) => IDiffEditorBreadcrumbsSource) {
 		this._breadcrumbsSourceFactory.set(factory, undefined);
@@ -491,4 +492,6 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 
 export interface IDiffEditorBreadcrumbsSource extends IDisposable {
 	getBreadcrumbItems(startRange: LineRange, reader: IReader): { name: string; kind: SymbolKind; startLineNumber: number }[];
+
+	getAt(lineNumber: number, reader: IReader): { name: string; kind: SymbolKind; startLineNumber: number }[];
 }

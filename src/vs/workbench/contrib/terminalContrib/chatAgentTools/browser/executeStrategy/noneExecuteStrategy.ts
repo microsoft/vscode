@@ -6,12 +6,12 @@
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { setupRecreatingStartMarker } from './strategyHelpers.js';
+import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHelpers.js';
 
 /**
  * This strategy is used when no shell integration is available. There are very few extension APIs
@@ -19,12 +19,12 @@ import { setupRecreatingStartMarker } from './strategyHelpers.js';
  * with `sendText` instead of `shellIntegration.executeCommand` and relying on idle events instead
  * of execution events.
  */
-export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
+export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteStrategy {
 	readonly type = 'none';
-	private readonly _startMarker = new MutableDisposable<IXtermMarker>();
+	private readonly _startMarker = this._register(new MutableDisposable<IXtermMarker>());
 
 
-	private readonly _onDidCreateStartMarker = new Emitter<IXtermMarker | undefined>;
+	private readonly _onDidCreateStartMarker = this._register(new Emitter<IXtermMarker | undefined>);
 	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
 
 	constructor(
@@ -32,6 +32,7 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 		private readonly _hasReceivedUserInput: () => boolean,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
+		super();
 	}
 
 	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
@@ -47,6 +48,7 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 			if (!xterm) {
 				throw new Error('Xterm is not available');
 			}
+			const alternateBufferPromise = createAltBufferPromise(xterm, store, this._log.bind(this));
 
 			// Wait for the terminal to idle before executing the command
 			this._log('Waiting for idle');
@@ -79,7 +81,21 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 
 			// Assume the command is done when it's idle
 			this._log('Waiting for idle with prompt heuristics');
-			const promptResult = await waitForIdleWithPromptHeuristics(this._instance.onData, this._instance, 1000, 10000);
+			const promptResultOrAltBuffer = await Promise.race([
+				waitForIdleWithPromptHeuristics(this._instance.onData, this._instance, 1000, 10000),
+				alternateBufferPromise.then(() => 'alternateBuffer' as const)
+			]);
+			if (promptResultOrAltBuffer === 'alternateBuffer') {
+				this._log('Detected alternate buffer entry, skipping output capture');
+				return {
+					output: undefined,
+					additionalInformation: undefined,
+					exitCode: undefined,
+					error: 'alternateBuffer',
+					didEnterAltBuffer: true,
+				};
+			}
+			const promptResult = promptResultOrAltBuffer;
 			this._log(`Prompt detection result: ${promptResult.detected ? 'detected' : 'not detected'} - ${promptResult.reason}`);
 
 			if (token.isCancellationRequested) {

@@ -204,13 +204,13 @@ suite('Common Editor Config', () => {
 		const hoverOptions: IEditorHoverOptions = {};
 		Object.defineProperty(hoverOptions, 'enabled', {
 			writable: false,
-			value: true
+			value: 'on'
 		});
 		const config = new TestConfiguration({ hover: hoverOptions });
 
-		assert.strictEqual(config.options.get(EditorOption.hover).enabled, true);
-		config.updateOptions({ hover: { enabled: false } });
-		assert.strictEqual(config.options.get(EditorOption.hover).enabled, false);
+		assert.strictEqual(config.options.get(EditorOption.hover).enabled, 'on');
+		config.updateOptions({ hover: { enabled: 'off' } });
+		assert.strictEqual(config.options.get(EditorOption.hover).enabled, 'off');
 
 		config.dispose();
 	});
@@ -380,8 +380,8 @@ suite('migrateOptions', () => {
 		assert.deepStrictEqual(migrate({ quickSuggestions: { comments: 'on', strings: 'off' } }), { quickSuggestions: { comments: 'on', strings: 'off' } });
 	});
 	test('hover', () => {
-		assert.deepStrictEqual(migrate({ hover: true }), { hover: { enabled: true } });
-		assert.deepStrictEqual(migrate({ hover: false }), { hover: { enabled: false } });
+		assert.deepStrictEqual(migrate({ hover: true }), { hover: { enabled: 'on' } });
+		assert.deepStrictEqual(migrate({ hover: false }), { hover: { enabled: 'off' } });
 	});
 	test('parameterHints', () => {
 		assert.deepStrictEqual(migrate({ parameterHints: true }), { parameterHints: { enabled: true } });

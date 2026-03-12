@@ -90,14 +90,6 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 			return;
 		}
 
-		const startLineNumber = ctx.visibleRange.startLineNumber;
-		const endLineNumber = ctx.visibleRange.endLineNumber;
-		const lineCount = endLineNumber - startLineNumber + 1;
-		const needed = new Array<boolean>(lineCount);
-		for (let i = 0; i < lineCount; i++) {
-			needed[i] = true;
-		}
-
 		this._renderResult = [];
 		for (let lineNumber = ctx.viewportData.startLineNumber; lineNumber <= ctx.viewportData.endLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - ctx.viewportData.startLineNumber;
@@ -130,9 +122,6 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 	}
 
 	private _applyRenderWhitespace(ctx: RenderingContext, lineNumber: number, selections: OffsetRange[] | null, lineData: ViewLineRenderingData): string {
-		if (lineData.hasVariableFonts) {
-			return '';
-		}
 		if (this._options.renderWhitespace === 'selection' && !selections) {
 			return '';
 		}

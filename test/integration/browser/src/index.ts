@@ -10,8 +10,8 @@ import * as url from 'url';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import { URI } from 'vscode-uri';
-import * as kill from 'tree-kill';
-import * as minimist from 'minimist';
+import kill from 'tree-kill';
+import minimist from 'minimist';
 import { promisify } from 'util';
 import { promises } from 'fs';
 

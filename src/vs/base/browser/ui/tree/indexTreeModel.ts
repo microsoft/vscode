@@ -89,7 +89,7 @@ function isCollapsibleStateUpdate(update: CollapseStateUpdate): update is Collap
 	return 'collapsible' in update;
 }
 
-export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
+export class IndexTreeModel<T extends Exclude<unknown, undefined>, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
 
 	readonly rootRef = [];
 

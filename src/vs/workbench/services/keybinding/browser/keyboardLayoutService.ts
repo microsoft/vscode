@@ -36,7 +36,7 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	// keyboard mapper
 	protected _initialized: boolean;
 	protected _keyboardMapper: IKeyboardMapper | null;
-	private readonly _onDidChangeKeyboardMapper = new Emitter<void>();
+	private readonly _onDidChangeKeyboardMapper = this._register(new Emitter<void>());
 	public readonly onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
 	// keymap infos
@@ -520,7 +520,7 @@ class UserKeyboardLayout extends Disposable {
 export class BrowserKeyboardLayoutService extends Disposable implements IKeyboardLayoutService {
 	public _serviceBrand: undefined;
 
-	private readonly _onDidChangeKeyboardLayout = new Emitter<void>();
+	private readonly _onDidChangeKeyboardLayout = this._register(new Emitter<void>());
 	public readonly onDidChangeKeyboardLayout: Event<void> = this._onDidChangeKeyboardLayout.event;
 
 	private _userKeyboardLayout: UserKeyboardLayout;

@@ -20,7 +20,7 @@ export interface IKeyboardConfig {
 }
 
 export function readKeyboardConfig(configurationService: IConfigurationService): IKeyboardConfig {
-	const keyboard = configurationService.getValue<{ dispatch: any; mapAltGrToCtrlAlt: any } | undefined>('keyboard');
+	const keyboard = configurationService.getValue<{ dispatch: string; mapAltGrToCtrlAlt: boolean } | undefined>('keyboard');
 	const dispatch = (keyboard?.dispatch === 'keyCode' ? DispatchConfig.KeyCode : DispatchConfig.Code);
 	const mapAltGrToCtrlAlt = Boolean(keyboard?.mapAltGrToCtrlAlt);
 	return { dispatch, mapAltGrToCtrlAlt };

@@ -9,8 +9,8 @@ import { MenuRegistry, MenuId, registerAction2 } from '../../platform/actions/co
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../platform/configuration/common/configurationRegistry.js';
 import { KeyMod, KeyCode } from '../../base/common/keyCodes.js';
 import { isLinux, isMacintosh, isWindows } from '../../base/common/platform.js';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction, StopTracing } from './actions/developerActions.js';
-import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction } from './actions/windowActions.js';
+import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction, ShowContentTracingAction, StopTracing } from './actions/developerActions.js';
+import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction, CloseOtherWindowsAction } from './actions/windowActions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { CommandsRegistry } from '../../platform/commands/common/commands.js';
@@ -28,8 +28,7 @@ import { NativeWindow } from './window.js';
 import { ModifierKeyEmitter } from '../../base/browser/dom.js';
 import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from '../common/configuration.js';
 import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-browser/window.js';
-import { DefaultAccountManagementContribution } from '../services/accounts/common/defaultAccount.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contributions.js';
+import product from '../../platform/product/common/product.js';
 
 // Actions
 (function registerActions(): void {
@@ -43,6 +42,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 	registerAction2(SwitchWindowAction);
 	registerAction2(QuickSwitchWindowAction);
 	registerAction2(CloseWindowAction);
+	registerAction2(CloseOtherWindowsAction);
 	registerAction2(ToggleWindowAlwaysOnTopAction);
 	registerAction2(EnableWindowAlwaysOnTopAction);
 	registerAction2(DisableWindowAlwaysOnTopAction);
@@ -114,6 +114,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 	registerAction2(ToggleDevToolsAction);
 	registerAction2(OpenUserDataFolderAction);
 	registerAction2(ShowGPUInfoAction);
+	registerAction2(ShowContentTracingAction);
 	registerAction2(StopTracing);
 })();
 
@@ -276,7 +277,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 						localize(`window.menuStyle.native`, "Use the native menu. This is ignored when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`'),
 						localize(`window.menuStyle.inherit`, "Matches the menu style to the title bar style defined in {0}.", '`#window.titleBarStyle#`'),
 					],
-				'default': isMacintosh ? 'native' : 'inherit',
+				'default': product.quality !== 'stable' ? 'inherit' : (isMacintosh ? 'native' : 'inherit'), // TODO@bpasero figure out the default
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': isMacintosh ?
 					localize('window.menuStyle.mac', "Adjust the context menu appearances to either be native by the OS, custom, or inherited from the title bar style defined in {0}.", '`#window.titleBarStyle#`') :
@@ -454,6 +455,10 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 			'remote-debugging-port': {
 				type: 'string',
 				description: localize('argv.remoteDebuggingPort', "Specifies the port to use for remote debugging.")
+			},
+			'js-flags': {
+				type: 'string',
+				description: localize('argv.jsFlags', "Specifies V8 JavaScript engine flags to pass (e.g. \"--max-old-space-size=4096\"). These flags are applied to the main process, renderer and utility processes.")
 			}
 		}
 	};
@@ -475,8 +480,4 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 	}
 
 	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);
-})();
-
-(function registerWorkbenchContributions(): void {
-	registerWorkbenchContribution2('workbench.contributions.defaultAccountManagement', DefaultAccountManagementContribution, WorkbenchPhase.AfterRestored);
 })();

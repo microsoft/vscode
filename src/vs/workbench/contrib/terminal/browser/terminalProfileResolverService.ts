@@ -22,7 +22,7 @@ import { isUriComponents, URI } from '../../../../base/common/uri.js';
 import { deepClone } from '../../../../base/common/objects.js';
 import { ITerminalInstanceService } from './terminal.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import type { SingleOrMany } from '../../../../base/common/types.js';
+import { isString, type SingleOrMany } from '../../../../base/common/types.js';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell(remoteAuthority: string | undefined, os: OperatingSystem): Promise<string>;
@@ -132,7 +132,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
-		const resource = shellLaunchConfig === undefined || typeof shellLaunchConfig.cwd === 'string' ? undefined : shellLaunchConfig.cwd;
+		const resource = shellLaunchConfig === undefined || isString(shellLaunchConfig.cwd) ? undefined : shellLaunchConfig.cwd;
 		shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon)
 			|| this._getCustomIcon(resolvedProfile.icon)
 			|| this.getDefaultIcon(resource);
@@ -169,11 +169,11 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		return this._context.getEnvironment(remoteAuthority);
 	}
 
-	private _getCustomIcon(icon?: unknown): TerminalIcon | undefined {
+	private _getCustomIcon(icon?: TerminalIcon): TerminalIcon | undefined {
 		if (!icon) {
 			return undefined;
 		}
-		if (typeof icon === 'string') {
+		if (isString(icon)) {
 			return ThemeIcon.fromId(icon);
 		}
 		if (ThemeIcon.isThemeIcon(icon)) {
@@ -182,11 +182,8 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		if (URI.isUri(icon) || isUriComponents(icon)) {
 			return URI.revive(icon);
 		}
-		if (typeof icon === 'object' && 'light' in icon && 'dark' in icon) {
-			const castedIcon = (icon as { light: unknown; dark: unknown });
-			if ((URI.isUri(castedIcon.light) || isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || isUriComponents(castedIcon.dark))) {
-				return { light: URI.revive(castedIcon.light), dark: URI.revive(castedIcon.dark) };
-			}
+		if ((URI.isUri(icon.light) || isUriComponents(icon.light)) && (URI.isUri(icon.dark) || isUriComponents(icon.dark))) {
+			return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
 		}
 		return undefined;
 	}
@@ -303,7 +300,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 
 		// Resolve args variables
 		if (profile.args) {
-			if (typeof profile.args === 'string') {
+			if (isString(profile.args)) {
 				profile.args = await this._resolveVariables(profile.args, env, lastActiveWorkspace);
 			} else {
 				profile.args = await Promise.all(profile.args.map(arg => this._resolveVariables(arg, env, lastActiveWorkspace)));
@@ -351,7 +348,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		if (profile === null || profile === undefined || typeof profile !== 'object') {
 			return false;
 		}
-		if ('path' in profile && typeof (profile as { path: unknown }).path === 'string') {
+		if ('path' in profile && isString((profile as { path: unknown }).path)) {
 			return true;
 		}
 		return false;

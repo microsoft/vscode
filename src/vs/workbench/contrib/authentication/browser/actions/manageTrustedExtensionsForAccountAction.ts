@@ -189,6 +189,7 @@ class ManageTrustedExtensionsForAccountActionImpl {
 		quickPick.canSelectMany = true;
 		quickPick.customButton = true;
 		quickPick.customLabel = localize('manageTrustedExtensions.cancel', 'Cancel');
+		quickPick.customButtonSecondary = true;
 		quickPick.title = localize('manageTrustedExtensions', "Manage Trusted Extensions");
 		quickPick.placeholder = localize('manageExtensions', "Choose which extensions can access this account");
 

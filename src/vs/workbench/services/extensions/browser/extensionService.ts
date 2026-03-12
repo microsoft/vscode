@@ -106,8 +106,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		// Initialize installed extensions first and do it only after workbench is ready
 		lifecycleService.when(LifecyclePhase.Ready).then(async () => {
-			await this._userDataInitializationService.initializeInstalledExtensions(this._instantiationService);
-			this._initialize();
+			await this._initializeIfNeeded();
 		});
 
 		this._initFetchFileSystem();
@@ -117,6 +116,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const provider = new FetchFileSystemProvider();
 		this._register(this._fileService.registerProvider(Schemas.http, provider));
 		this._register(this._fileService.registerProvider(Schemas.https, provider));
+	}
+
+	protected override async _initialize(): Promise<void> {
+		await this._userDataInitializationService.initializeInstalledExtensions(this._instantiationService);
+		await super._initialize();
 	}
 
 	private _scanWebExtensionsPromise: Promise<IExtensionDescription[]> | undefined;
@@ -193,12 +197,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		// monitor for breakage
 		const connection = this._remoteAgentService.getConnection();
 		if (connection) {
-			connection.onDidStateChange(async (e) => {
+			this._register(connection.onDidStateChange(async (e) => {
 				if (e.type === PersistentConnectionEventType.ConnectionLost) {
 					this._remoteAuthorityResolverService._clearResolvedAuthority(remoteAuthority);
 				}
-			});
-			connection.onReconnecting(() => this._resolveAuthorityAgain());
+			}));
+			this._register(connection.onReconnecting(() => this._resolveAuthorityAgain()));
 		}
 
 		return this._resolveExtensionsDefault(emitter);
