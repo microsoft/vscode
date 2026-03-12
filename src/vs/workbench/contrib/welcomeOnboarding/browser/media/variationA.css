@@ -374,6 +374,23 @@
 	border-radius: 8px;
 	background: var(--vscode-sideBar-background, rgba(255, 255, 255, 0.04));
 	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
+	cursor: pointer;
+	transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+	outline: none;
+	font-family: inherit;
+	text-align: left;
+	color: inherit;
+}
+
+.onboarding-a-feature-card:hover {
+	background: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+	transform: translateY(-1px);
+}
+
+.onboarding-a-feature-card:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: -2px;
 }
 
 .onboarding-a-feature-card .codicon {

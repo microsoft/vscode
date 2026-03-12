@@ -18,6 +18,7 @@ import { IAuthenticationService } from '../../../services/authentication/common/
 import { IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import {
 	OnboardingStepId,
 	ONBOARDING_STEPS,
@@ -72,6 +73,7 @@ export class OnboardingVariationB extends Disposable {
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -350,7 +352,15 @@ export class OnboardingVariationB extends Disposable {
 		// Keymaps
 		const keymapSection = append(wrapper, $('div'));
 		const keymapLabel = append(keymapSection, $('div.onboarding-b-section-label'));
-		keymapLabel.textContent = localize('onboarding.b.keymap', "Keyboard Shortcuts");
+		keymapLabel.textContent = localize('onboarding.b.keymap', "Keyboard Mapping");
+
+		const keymapHint = append(keymapSection, $('div.onboarding-b-section-label'));
+		keymapHint.textContent = localize('onboarding.b.keymapHint', "Coming from another editor? Import your keyboard mapping.");
+		keymapHint.style.textTransform = 'none';
+		keymapHint.style.fontWeight = 'normal';
+		keymapHint.style.letterSpacing = '0';
+		keymapHint.style.fontStyle = 'italic';
+		keymapHint.style.fontSize = '11px';
 
 		const keymapList = append(keymapSection, $('div.onboarding-b-keymap-list'));
 
@@ -485,7 +495,7 @@ export class OnboardingVariationB extends Disposable {
 			const descEl = append(textContainer, $('div.onboarding-b-feature-desc'));
 			descEl.textContent = ext.description;
 
-			const installBtn = append(row, $<HTMLButtonElement>('button.onboarding-a-ext-install'));
+			const installBtn = append(row, $<HTMLButtonElement>('button.onboarding-b-ext-install'));
 			installBtn.type = 'button';
 			installBtn.textContent = localize('onboarding.b.ext.install', "Install");
 			this.stepDisposables.add(addDisposableListener(installBtn, EventType.CLICK, () => {
@@ -516,24 +526,39 @@ export class OnboardingVariationB extends Disposable {
 
 		const features = append(wrapper, $('div.onboarding-b-sessions-features'));
 
-		this._createFeatureRow(features, Codicon.cloud, localize('onboarding.b.sessions.cloud', "Cloud Sessions"), localize('onboarding.b.sessions.cloud.desc', "Code keeps running in the cloud, even when your laptop is closed."));
-		this._createFeatureRow(features, Codicon.deviceDesktop, localize('onboarding.b.sessions.local', "Local Sessions"), localize('onboarding.b.sessions.local.desc', "Full access to your machine, tools, and local environment."));
-		this._createFeatureRow(features, Codicon.layers, localize('onboarding.b.sessions.parallel', "Parallel Sessions"), localize('onboarding.b.sessions.parallel.desc', "Run multiple agent sessions at once. Review when ready."));
-		this._createFeatureRow(features, Codicon.github, localize('onboarding.b.sessions.github', "GitHub Integration"), localize('onboarding.b.sessions.github.desc', "Create PRs, manage issues, and review code — all from the agent."));
+		const cloudRow = this._createFeatureRow(features, Codicon.cloud, localize('onboarding.b.sessions.cloud', "Cloud Sessions"), localize('onboarding.b.sessions.cloud.desc', "Code keeps running in the cloud, even when your laptop is closed."));
+		this.stepDisposables.add(addDisposableListener(cloudRow, EventType.CLICK, () => {
+			this._dismiss('complete');
+			this.commandService.executeCommand('workbench.action.chat.open');
+		}));
+
+		const localRow = this._createFeatureRow(features, Codicon.deviceDesktop, localize('onboarding.b.sessions.local', "Local Sessions"), localize('onboarding.b.sessions.local.desc', "Full access to your machine, tools, and local environment."));
+		this.stepDisposables.add(addDisposableListener(localRow, EventType.CLICK, () => {
+			this._dismiss('complete');
+			this.commandService.executeCommand('workbench.action.chat.open');
+		}));
+
+		const worktreeRow = this._createFeatureRow(features, Codicon.gitBranch, localize('onboarding.b.sessions.worktree', "Worktree Sessions"), localize('onboarding.b.sessions.worktree.desc', "Branch off and work in parallel with isolated worktrees."));
+		this.stepDisposables.add(addDisposableListener(worktreeRow, EventType.CLICK, () => {
+			this._dismiss('complete');
+			this.commandService.executeCommand('workbench.action.chat.open');
+		}));
 
 		const docs = append(wrapper, $('div.onboarding-b-sessions-docs'));
 		this._createDocLink(docs, localize('onboarding.b.sessions.learnMore', "Agent sessions docs"), 'https://code.visualstudio.com/docs/copilot/agent-sessions');
 		this._createDocLink(docs, localize('onboarding.b.sessions.github.docs', "GitHub integration"), 'https://code.visualstudio.com/docs/copilot/github');
 	}
 
-	private _createFeatureRow(parent: HTMLElement, icon: ThemeIcon, title: string, description: string): void {
-		const row = append(parent, $('div.onboarding-b-feature-row'));
+	private _createFeatureRow(parent: HTMLElement, icon: ThemeIcon, title: string, description: string): HTMLElement {
+		const row = append(parent, $('button.onboarding-b-feature-row'));
+		(row as HTMLButtonElement).type = 'button';
 		row.appendChild(renderIcon(icon));
 		const textContainer = append(row, $('div.onboarding-b-feature-text'));
 		const titleEl = append(textContainer, $('div.onboarding-b-feature-title'));
 		titleEl.textContent = title;
 		const descEl = append(textContainer, $('div.onboarding-b-feature-desc'));
 		descEl.textContent = description;
+		return row;
 	}
 
 	private _createDocLink(parent: HTMLElement, label: string, href: string): void {

@@ -417,6 +417,47 @@
 
 .onboarding-b-doc-link:hover { text-decoration: underline; }
 
+/* Extension install button */
+.onboarding-b-ext-install {
+	padding: 4px 12px;
+	border-radius: 4px;
+	border: none;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font-size: 12px;
+	font-family: inherit;
+	cursor: pointer;
+	flex-shrink: 0;
+	outline: none;
+	margin-left: auto;
+}
+
+.onboarding-b-ext-install:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.onboarding-b-ext-install:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.onboarding-b-ext-install.installed {
+	background: var(--vscode-testing-iconPassed, #73c991);
+	color: var(--vscode-editor-background);
+	cursor: default;
+}
+
+/* Clickable feature rows */
+.onboarding-b-feature-row {
+	cursor: pointer;
+	transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.onboarding-b-feature-row:hover {
+	background: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.onboarding-b-overlay,
 	.onboarding-b-card,

@@ -90,6 +90,9 @@ export interface IOnboardingThemeOption {
 		readonly function: string;
 		readonly lineNumber: string;
 		readonly selection: string;
+		readonly sidebarBackground: string;
+		readonly tabBarBackground: string;
+		readonly tabActiveBorder: string;
 	};
 }
 
@@ -122,6 +125,9 @@ export const ONBOARDING_THEME_OPTIONS: readonly IOnboardingThemeOption[] = [
 			function: '#dcdcaa',
 			lineNumber: '#6e7681',
 			selection: '#264f78',
+			sidebarBackground: '#181818',
+			tabBarBackground: '#181818',
+			tabActiveBorder: '#569cd6',
 		},
 	},
 	{
@@ -138,6 +144,9 @@ export const ONBOARDING_THEME_OPTIONS: readonly IOnboardingThemeOption[] = [
 			function: '#795e26',
 			lineNumber: '#6e7681',
 			selection: '#add6ff',
+			sidebarBackground: '#f8f8f8',
+			tabBarBackground: '#f8f8f8',
+			tabActiveBorder: '#0000ff',
 		},
 	},
 	{
@@ -154,6 +163,9 @@ export const ONBOARDING_THEME_OPTIONS: readonly IOnboardingThemeOption[] = [
 			function: '#dcdcaa',
 			lineNumber: '#858585',
 			selection: '#264f78',
+			sidebarBackground: '#000000',
+			tabBarBackground: '#000000',
+			tabActiveBorder: '#569cd6',
 		},
 	},
 	{
@@ -170,6 +182,9 @@ export const ONBOARDING_THEME_OPTIONS: readonly IOnboardingThemeOption[] = [
 			function: '#5e2cbc',
 			lineNumber: '#292929',
 			selection: '#add6ff',
+			sidebarBackground: '#ffffff',
+			tabBarBackground: '#ffffff',
+			tabActiveBorder: '#0f4a85',
 		},
 	},
 ];

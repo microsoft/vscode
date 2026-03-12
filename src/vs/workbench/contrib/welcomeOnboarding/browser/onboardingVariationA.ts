@@ -18,6 +18,7 @@ import { IAuthenticationService } from '../../../services/authentication/common/
 import { IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import {
 	OnboardingStepId,
 	ONBOARDING_STEPS,
@@ -79,6 +80,7 @@ export class OnboardingVariationA extends Disposable {
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -413,6 +415,9 @@ export class OnboardingVariationA extends Disposable {
 		const keymapLabel = append(keymapSection, $('div.onboarding-a-section-label'));
 		keymapLabel.textContent = localize('onboarding.personalize.keymap', "Keyboard Mapping");
 
+		const keymapHint = append(keymapSection, $('div.onboarding-a-theme-hint'));
+		keymapHint.textContent = localize('onboarding.personalize.keymapHint', "Coming from another editor? Import your keyboard mapping to feel right at home.");
+
 		const keymapList = append(keymapSection, $('.onboarding-a-keymap-list'));
 		keymapList.setAttribute('role', 'radiogroup');
 		keymapList.setAttribute('aria-label', localize('onboarding.personalize.keymapLabel', "Choose a keyboard mapping"));
@@ -494,9 +499,9 @@ export class OnboardingVariationA extends Disposable {
 	private _renderEditorSkeleton(container: HTMLElement, theme: IOnboardingThemeOption): void {
 		const skeleton = append(container, $('div.onboarding-a-skeleton'));
 
-		// Sidebar (narrow strip)
+		// Sidebar (narrow strip — uses actual theme sidebar color)
 		const sidebar = append(skeleton, $('div.onboarding-a-skeleton-sidebar'));
-		sidebar.style.backgroundColor = theme.preview.selection;
+		sidebar.style.backgroundColor = theme.preview.sidebarBackground;
 		for (let i = 0; i < 4; i++) {
 			const icon = append(sidebar, $('div.onboarding-a-skeleton-sidebar-icon'));
 			icon.style.backgroundColor = theme.preview.lineNumber;
@@ -505,11 +510,12 @@ export class OnboardingVariationA extends Disposable {
 		// Main area
 		const main = append(skeleton, $('div.onboarding-a-skeleton-main'));
 
-		// Tab bar
+		// Tab bar (uses actual theme tab bar background)
 		const tabBar = append(main, $('div.onboarding-a-skeleton-tabs'));
-		tabBar.style.borderBottom = `1px solid ${theme.preview.selection}`;
+		tabBar.style.backgroundColor = theme.preview.tabBarBackground;
+		tabBar.style.borderBottom = `1px solid ${theme.preview.lineNumber}40`;
 		const activeTab = append(tabBar, $('div.onboarding-a-skeleton-tab'));
-		activeTab.style.borderBottom = `2px solid ${theme.preview.keyword}`;
+		activeTab.style.borderBottom = `2px solid ${theme.preview.tabActiveBorder}`;
 		activeTab.style.color = theme.preview.foreground;
 		activeTab.textContent = 'index.ts';
 		const inactiveTab = append(tabBar, $('div.onboarding-a-skeleton-tab.inactive'));
@@ -627,10 +633,24 @@ export class OnboardingVariationA extends Disposable {
 
 		const features = append(wrapper, $('.onboarding-a-sessions-features'));
 
-		// Feature cards
-		this._createFeatureCard(features, Codicon.cloud, localize('onboarding.sessions.cloud', "Cloud Sessions"), localize('onboarding.sessions.cloud.desc', "Run agents in the cloud. Code keeps running even when you close the window."));
-		this._createFeatureCard(features, Codicon.deviceDesktop, localize('onboarding.sessions.local', "Local Sessions"), localize('onboarding.sessions.local.desc', "Run agents locally with full access to your machine and tools."));
-		this._createFeatureCard(features, Codicon.layers, localize('onboarding.sessions.parallel', "Parallel Sessions"), localize('onboarding.sessions.parallel.desc', "Run multiple sessions simultaneously. Review results when you are ready."));
+		// Clickable feature cards that launch sessions
+		const cloudCard = this._createFeatureCard(features, Codicon.cloud, localize('onboarding.sessions.cloud', "Cloud Sessions"), localize('onboarding.sessions.cloud.desc', "Run agents in the cloud. Code keeps running even when you close the window."));
+		this.stepDisposables.add(addDisposableListener(cloudCard, EventType.CLICK, () => {
+			this._dismiss('complete');
+			this.commandService.executeCommand('workbench.action.chat.open');
+		}));
+
+		const localCard = this._createFeatureCard(features, Codicon.deviceDesktop, localize('onboarding.sessions.local', "Local Sessions"), localize('onboarding.sessions.local.desc', "Run agents locally with full access to your machine and tools."));
+		this.stepDisposables.add(addDisposableListener(localCard, EventType.CLICK, () => {
+			this._dismiss('complete');
+			this.commandService.executeCommand('workbench.action.chat.open');
+		}));
+
+		const parallelCard = this._createFeatureCard(features, Codicon.gitBranch, localize('onboarding.sessions.worktree', "Worktree Sessions"), localize('onboarding.sessions.worktree.desc', "Branch off and work in parallel with isolated worktrees."));
+		this.stepDisposables.add(addDisposableListener(parallelCard, EventType.CLICK, () => {
+			this._dismiss('complete');
+			this.commandService.executeCommand('workbench.action.chat.open');
+		}));
 
 		// Doc links
 		const docs = append(wrapper, $('.onboarding-a-sessions-docs'));
@@ -638,13 +658,15 @@ export class OnboardingVariationA extends Disposable {
 		this._createDocLink(docs, localize('onboarding.sessions.github', "GitHub integration docs"), 'https://code.visualstudio.com/docs/copilot/github');
 	}
 
-	private _createFeatureCard(parent: HTMLElement, icon: ThemeIcon, title: string, description: string): void {
-		const card = append(parent, $('.onboarding-a-feature-card'));
+	private _createFeatureCard(parent: HTMLElement, icon: ThemeIcon, title: string, description: string): HTMLElement {
+		const card = append(parent, $('button.onboarding-a-feature-card'));
+		(card as HTMLButtonElement).type = 'button';
 		card.appendChild(renderIcon(icon));
 		const titleEl = append(card, $('div.onboarding-a-feature-title'));
 		titleEl.textContent = title;
 		const descEl = append(card, $('div.onboarding-a-feature-desc'));
 		descEl.textContent = description;
+		return card;
 	}
 
 	private _createDocLink(parent: HTMLElement, label: string, href: string): void {
