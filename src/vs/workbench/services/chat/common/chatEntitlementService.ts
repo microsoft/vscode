@@ -772,9 +772,9 @@ export class ChatEntitlementRequests extends Disposable {
 		return quotas;
 	}
 
-	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined> {
+	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken, callSite: string): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string): Promise<IRequestContext | undefined> {
 		let lastRequest: IRequestContext | undefined;
 
 		for (const session of sessions) {
@@ -790,7 +790,8 @@ export class ChatEntitlementRequests extends Disposable {
 					disableCache: true,
 					headers: {
 						'Authorization': `Bearer ${session.accessToken}`
-					}
+					},
+					callSite
 				}, token);
 
 				const status = response.res.statusCode;
@@ -843,7 +844,7 @@ export class ChatEntitlementRequests extends Disposable {
 			public_code_suggestions: 'enabled'
 		};
 
-		const response = await this.request(defaultChatAgent.entitlementSignupLimitedUrl, 'POST', body, sessions, CancellationToken.None);
+		const response = await this.request(defaultChatAgent.entitlementSignupLimitedUrl, 'POST', body, sessions, CancellationToken.None, 'chatEntitlementService.signUpFree');
 		if (!response) {
 			const retry = await this.onUnknownSignUpError(localize('signUpNoResponseError', "No response received."), '[chat entitlement] sign-up: no response');
 			return retry ? this.doSignUpFree(sessions) : { errorCode: 1 };
