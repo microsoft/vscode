@@ -332,14 +332,10 @@ function getCopilotExcludeFilter(platform: string, arch: string, quality: string
 	const targetPlatformArch = `${platform}-${arch}`;
 	const nonTargetPlatforms = copilotPlatforms.filter(p => p !== targetPlatformArch);
 
-	// Strip wrong-architecture @github/copilot-{platform} packages and prebuilds.
-	// Keep target-platform prebuilds (pty.node, spawn-helper, conpty) so the
-	// copilot CLI can use them from the read-only app bundle at runtime.
-	// keytar.node is stripped by .moduleignore since it requires libsecret on Linux.
-	const excludes = nonTargetPlatforms.flatMap(p => [
-		`!**/node_modules/@github/copilot-${p}/**`,
-		`!**/node_modules/@github/copilot/prebuilds/${p}/**`,
-	]);
+	// Strip wrong-architecture @github/copilot-{platform} packages.
+	// All copilot prebuilds are stripped by .moduleignore; VS Code's own
+	// node-pty is copied into the prebuilds location by a post-packaging task.
+	const excludes = nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot-${p}/**`);
 
 	// Strip agent host SDK dependencies entirely from stable builds
 	if (quality === 'stable') {
@@ -717,6 +713,37 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 	};
 }
 
+/**
+ * Copies VS Code's own node-pty native module into the copilot SDK's
+ * `prebuilds/{platform}-{arch}/` directory so the copilot CLI subprocess
+ * can find it at runtime. This replaces the copilot-bundled prebuilds
+ * (which are stripped by .moduleignore) with the same binary VS Code
+ * already ships, avoiding new system dependency requirements.
+ */
+function copyNodePtyForCopilotTask(platform: string, arch: string, destinationFolderName: string) {
+	const outputDir = path.join(path.dirname(root), destinationFolderName);
+
+	return async () => {
+		const appBase = platform === 'darwin'
+			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
+			: path.join(outputDir, 'resources', 'app');
+
+		const nodePtySource = path.join(appBase, 'node_modules', 'node-pty', 'build', 'Release');
+		const prebuildsArch = platform === 'win32' ? `${platform}-${arch}` :
+			platform === 'darwin' ? `darwin-${arch}` : `linux-${arch}`;
+		const copilotPrebuildsDir = path.join(appBase, 'node_modules', '@github', 'copilot', 'prebuilds', prebuildsArch);
+
+		if (!fs.existsSync(nodePtySource)) {
+			console.log(`[copyNodePtyForCopilot] node-pty source not found at ${nodePtySource}, skipping`);
+			return;
+		}
+
+		fs.mkdirSync(copilotPrebuildsDir, { recursive: true });
+		fs.cpSync(nodePtySource, copilotPrebuildsDir, { recursive: true });
+		console.log(`[copyNodePtyForCopilot] Copied node-pty from ${nodePtySource} to ${copilotPrebuildsDir}`);
+	};
+}
+
 const buildRoot = path.dirname(root);
 
 const BUILD_TARGETS = [
@@ -741,7 +768,8 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const packageTasks: task.Task[] = [
 			compileNativeExtensionsBuildTask,
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
-			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
+			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts),
+			copyNodePtyForCopilotTask(platform, arch, destinationFolderName)
 		];
 
 		if (platform === 'win32') {
