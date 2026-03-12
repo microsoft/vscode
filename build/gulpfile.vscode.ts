@@ -332,15 +332,14 @@ function getCopilotExcludeFilter(platform: string, arch: string, quality: string
 	const targetPlatformArch = `${platform}-${arch}`;
 	const nonTargetPlatforms = copilotPlatforms.filter(p => p !== targetPlatformArch);
 
-	const excludes = [
-		// Strip @github/copilot platform packages for wrong architectures
-		...nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot-${p}/**`),
-		// Strip all prebuilt native modules from @github/copilot. The platform-specific
-		// packages (@github/copilot-{platform}) provide the correct native modules.
-		// These prebuilds have system deps (e.g. libsecret) not in the build sysroot,
-		// causing dpkg-shlibdeps failures. Covers nested copies under copilot-sdk too.
-		'!**/node_modules/@github/copilot/prebuilds/**',
-	];
+	// Strip wrong-architecture @github/copilot-{platform} packages and prebuilds.
+	// Keep target-platform prebuilds (pty.node, spawn-helper, conpty) so the
+	// copilot CLI can use them from the read-only app bundle at runtime.
+	// keytar.node is stripped by .moduleignore since it requires libsecret on Linux.
+	const excludes = nonTargetPlatforms.flatMap(p => [
+		`!**/node_modules/@github/copilot-${p}/**`,
+		`!**/node_modules/@github/copilot/prebuilds/${p}/**`,
+	]);
 
 	// Strip agent host SDK dependencies entirely from stable builds
 	if (quality === 'stable') {

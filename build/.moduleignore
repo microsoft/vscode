@@ -191,9 +191,9 @@ zone.js/dist/**
 
 # @github/copilot - strip unneeded binaries and files
 @github/copilot/sdk/index.js
-@github/copilot/prebuilds/**
 @github/copilot/clipboard/**
 @github/copilot/ripgrep/**
+@github/copilot/**/keytar.node
 
 # @github/copilot platform binaries - not needed
 @github/copilot-darwin-arm64/**
