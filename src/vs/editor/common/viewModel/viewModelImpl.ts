@@ -263,7 +263,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		const stableViewport = this._captureStableViewport();
 		const options = this._configuration.options;
 
-		if (this._lines.setWrappingSettings(e, options)) {
+		if (this._lines.setWrappingSettings(options)) {
 			eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
