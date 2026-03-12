@@ -862,10 +862,34 @@ export class AICustomizationManagementEditor extends EditorPane {
 				? allFolders.filter(f => isEqualOrParent(f.uri, projectRoot))
 				: [];
 		} else {
-			matchingFolders = projectRoot
+			const userFolders = projectRoot
 				? allFolders.filter(f => !isEqualOrParent(f.uri, projectRoot))
 				: allFolders;
+			// For user creation targets in Sessions, only offer the canonical
+			// ~/.copilot directory — other user roots (e.g. ~/.claude) are for
+			// reading, not writing. Use the workspace service's storage filter
+			// and prefer the first includedUserFileRoot (~/.copilot).
+			const filter = this.workspaceService.getStorageSourceFilter(type);
+			if (filter.includedUserFileRoots && filter.includedUserFileRoots.length > 0) {
+				// Use the first root (~/.copilot) as the canonical creation target
+				const primaryRoot = filter.includedUserFileRoots[0];
+				matchingFolders = userFolders.filter(f => isEqualOrParent(f.uri, primaryRoot));
+			} else {
+				matchingFolders = userFolders;
+			}
 		}
+
+		// Deduplicate by URI (getSourceFolders may return the same path
+		// from both config-based discovery and the AgenticPromptsService override)
+		const seen = new Set<string>();
+		matchingFolders = matchingFolders.filter(f => {
+			const key = f.uri.toString();
+			if (seen.has(key)) {
+				return false;
+			}
+			seen.add(key);
+			return true;
+		});
 
 		if (matchingFolders.length === 0) {
 			return null;
