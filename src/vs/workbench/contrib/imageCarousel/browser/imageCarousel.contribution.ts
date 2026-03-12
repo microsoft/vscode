@@ -82,10 +82,23 @@ class OpenImageInCarouselAction extends Action2 {
 			// Search responses in reverse to find the one containing the clicked image
 			for (let i = responses.length - 1; i >= 0; i--) {
 				const collection = await carouselService.extractImagesFromResponse(responses[i]);
-				if (collection && collection.images.length > 0) {
+				if (collection && collection.sections.length > 0) {
 					// Only use this collection if it actually contains the clicked image
-					const startIndex = collection.images.findIndex(img => img.data.equals(clickedData));
-					if (startIndex !== -1) {
+					let startIndex = 0;
+					let found = false;
+					for (const section of collection.sections) {
+						for (const img of section.images) {
+							if (img.data.equals(clickedData)) {
+								found = true;
+								break;
+							}
+							startIndex++;
+						}
+						if (found) {
+							break;
+						}
+					}
+					if (found) {
 						const input = new ImageCarouselEditorInput(collection, startIndex);
 						await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
 						return;
@@ -98,11 +111,14 @@ class OpenImageInCarouselAction extends Action2 {
 		const collection = {
 			id: generateUuid(),
 			title: localize('imageCarousel.title', "Image Carousel"),
-			images: [{
-				id: generateUuid(),
-				name: args.name,
-				mimeType: args.mimeType,
-				data: VSBuffer.wrap(args.data),
+			sections: [{
+				title: '',
+				images: [{
+					id: generateUuid(),
+					name: args.name,
+					mimeType: args.mimeType,
+					data: VSBuffer.wrap(args.data),
+				}],
 			}],
 		};
 

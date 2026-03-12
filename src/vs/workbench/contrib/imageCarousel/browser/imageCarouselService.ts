@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICarouselImage, IImageCarouselCollection } from './imageCarouselTypes.js';
-import { IChatResponseViewModel } from '../../chat/common/model/chatViewModel.js';
+import { IChatResponseViewModel, isRequestVM } from '../../chat/common/model/chatViewModel.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from '../../chat/common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, IToolResultOutputDetails } from '../../chat/common/tools/languageModelToolsService.js';
 
@@ -27,23 +27,30 @@ export class ImageCarouselService extends Disposable implements IImageCarouselSe
 	readonly _serviceBrand: undefined;
 
 	async extractImagesFromResponse(response: IChatResponseViewModel): Promise<IImageCarouselCollection | undefined> {
-		const images: ICarouselImage[] = [];
+		const allImages: ICarouselImage[] = [];
 
 		for (const item of response.response.value) {
 			if (item.kind === 'toolInvocation' || item.kind === 'toolInvocationSerialized') {
-				const toolImages = this.extractImagesFromToolInvocation(item);
-				images.push(...toolImages);
+				const images = this.extractImagesFromToolInvocation(item);
+				allImages.push(...images);
 			}
 		}
 
-		if (images.length === 0) {
+		if (allImages.length === 0) {
 			return undefined;
 		}
 
+		// Use the corresponding user request as the carousel title
+		const request = response.session.getItems().find(item => isRequestVM(item) && item.id === response.requestId);
+		const title = request && isRequestVM(request) ? request.messageText : localize('imageCarousel.title', "Image Carousel");
+
 		return {
 			id: response.sessionResource.toString() + '_' + response.id,
-			title: localize('imageCarousel.title', "Image Carousel"),
-			images
+			title,
+			sections: [{
+				title: '',
+				images: allImages,
+			}],
 		};
 	}
 
@@ -52,13 +59,16 @@ export class ImageCarouselService extends Disposable implements IImageCarouselSe
 
 		const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 
+		const msg = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
+		const caption = typeof msg === 'string' ? msg : msg.value;
 		const pushImage = (mimeType: string, data: VSBuffer) => {
 			images.push({
 				id: `${toolInvocation.toolCallId}_${images.length}`,
 				name: localize('imageCarousel.imageName', "Image {0}", images.length + 1),
 				mimeType,
 				data,
-				source: localize('imageCarousel.toolSource', "Tool: {0}", toolInvocation.toolId)
+				source: localize('imageCarousel.toolSource', "Tool: {0}", toolInvocation.toolId),
+				caption,
 			});
 		};
 
