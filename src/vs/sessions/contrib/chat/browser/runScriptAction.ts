@@ -237,8 +237,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			description: localize('enterCustomCommandDesc', "Create a new shell task"),
 		});
 		items.push({
-			label: localize('askCopilotRunAction', "Ask Copilot..."),
-			description: localize('askCopilotRunActionDesc', "Let Copilot help you add a run action"),
+			label: localize('generateNewRunAction', "Generate New Action..."),
+			description: localize('generateNewRunActionDesc', "Let Copilot help you add a run action"),
 			askCopilot: true,
 		});
 
