@@ -174,10 +174,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 		const variationE = instantiationService.createInstance(OnboardingVariationE);
-		variationE.show();
+		await variationE.show();
 
 		variationE.onDidComplete(() => {
 			variationE.dispose();

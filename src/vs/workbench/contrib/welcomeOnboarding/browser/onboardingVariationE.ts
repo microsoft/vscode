@@ -26,7 +26,7 @@ const enum PopoverPosition {
  * A single step in the UI tour.
  */
 interface ITourStep {
-	/** CSS selector to find the target element, or 'viewport' for full-screen steps */
+	/** Part ID (e.g. 'workbench.parts.sidebar') or 'viewport' for full-screen steps */
 	readonly target: string;
 	/** Title shown in the popover */
 	readonly title: string;
@@ -53,33 +53,33 @@ const TOUR_STEPS: readonly ITourStep[] = [
 		position: PopoverPosition.Below,
 	},
 	{
-		target: '.part.activitybar',
+		target: 'workbench.parts.activitybar',
 		title: localize('tour.activityBar.title', "Activity Bar"),
 		description: localize('tour.activityBar.desc', "This is your navigation hub. Switch between Explorer, Search, Source Control, Debug, and Extensions. Each icon opens a different view in the sidebar."),
 		position: PopoverPosition.Right,
 	},
 	{
-		target: '.part.sidebar',
+		target: 'workbench.parts.sidebar',
 		title: localize('tour.sidebar.title', "Sidebar"),
 		description: localize('tour.sidebar.desc', "The sidebar shows the content for the active view. Right now it is the Explorer — your file tree. You can drag and drop files, create folders, and manage your project here."),
 		position: PopoverPosition.Right,
 		command: 'workbench.view.explorer',
 	},
 	{
-		target: '.part.editor',
+		target: 'workbench.parts.editor',
 		title: localize('tour.editor.title', "Editor Area"),
 		description: localize('tour.editor.desc', "This is where you write code. Open multiple files in tabs, split the editor side by side, and use mini-map navigation on the right edge."),
 		position: PopoverPosition.Left,
 	},
 	{
-		target: '.part.titlebar',
+		target: 'workbench.parts.titlebar',
 		title: localize('tour.commandCenter.title', "Command Center"),
 		description: localize('tour.commandCenter.desc', "Click here or press the shortcut to quickly search files, run commands, and navigate your workspace. It is the fastest way to do anything in VS Code."),
 		position: PopoverPosition.Below,
 		shortcut: '\u2318P',
 	},
 	{
-		target: '.part.panel',
+		target: 'workbench.parts.panel',
 		title: localize('tour.panel.title', "Panel"),
 		description: localize('tour.panel.desc', "The panel hosts the integrated terminal, output logs, problems list, and debug console. Toggle it anytime to see errors, run commands, or check build output."),
 		position: PopoverPosition.Above,
@@ -87,13 +87,13 @@ const TOUR_STEPS: readonly ITourStep[] = [
 		shortcut: '\u2318J',
 	},
 	{
-		target: '.part.statusbar',
+		target: 'workbench.parts.statusbar',
 		title: localize('tour.statusBar.title', "Status Bar"),
 		description: localize('tour.statusBar.desc', "The status bar shows context about your workspace — Git branch, language mode, encoding, line/column, and notifications. Click items to change settings."),
 		position: PopoverPosition.Above,
 	},
 	{
-		target: '.part.sidebar',
+		target: 'workbench.parts.sidebar',
 		title: localize('tour.extensions.title', "Extensions Marketplace"),
 		description: localize('tour.extensions.desc', "Browse thousands of extensions to add languages, themes, debuggers, and tools. VS Code's extensions are what make it endlessly customizable."),
 		position: PopoverPosition.Right,
@@ -101,7 +101,7 @@ const TOUR_STEPS: readonly ITourStep[] = [
 		shortcut: '\u2318\u21E7X',
 	},
 	{
-		target: '.part.sidebar',
+		target: 'workbench.parts.sidebar',
 		title: localize('tour.sourceControl.title', "Source Control"),
 		description: localize('tour.sourceControl.desc', "Built-in Git support lets you stage changes, commit, push, pull, and resolve merge conflicts — all without leaving the editor."),
 		position: PopoverPosition.Right,
@@ -146,10 +146,27 @@ export class OnboardingVariationE extends Disposable {
 		super();
 	}
 
-	show(): void {
+	async show(): Promise<void> {
 		if (this.backdrop) {
 			return;
 		}
+
+		// Set up a welcoming initial state:
+		// 1. Open the Welcome/Getting Started tab so the editor area isn't empty
+		// 2. Make sure Explorer is visible in the sidebar
+		// 3. Close the panel so the tour can reveal it dramatically at step 6
+		try {
+			await this.commandService.executeCommand('workbench.action.openWalkthrough');
+		} catch { /* ok if not available */ }
+		try {
+			await this.commandService.executeCommand('workbench.view.explorer');
+		} catch { /* ok */ }
+		try {
+			await this.commandService.executeCommand('workbench.action.closePanel');
+		} catch { /* ok */ }
+
+		// Small delay for layout to settle
+		await new Promise(resolve => setTimeout(resolve, 200));
 
 		const container = this.layoutService.activeContainer;
 
@@ -247,13 +264,15 @@ export class OnboardingVariationE extends Disposable {
 			return new DOMRect(w / 2 - 200, h / 2 - 60, 400, 120);
 		}
 
-		// Find the target part by walking the DOM tree manually
+		// Find target by part ID — walk the entire container tree
 		const container = this.layoutService.activeContainer;
-		const partClasses = step.target.replace('.', '').split('.');
-
-		const found = this._findElementWithClasses(container, partClasses, 3);
+		const found = this._findElementById(container, step.target, 12);
 		if (found) {
-			return found.getBoundingClientRect();
+			const rect = found.getBoundingClientRect();
+			// Only use if the element is actually visible and has size
+			if (rect.width > 0 && rect.height > 0) {
+				return rect;
+			}
 		}
 
 		// Fallback: center of screen
@@ -262,20 +281,19 @@ export class OnboardingVariationE extends Disposable {
 	}
 
 	/**
-	 * Recursively search for an element that has all the given CSS classes,
-	 * up to a maximum depth to avoid deep traversals.
+	 * Find an element by its ID attribute, searching up to maxDepth levels.
 	 */
-	private _findElementWithClasses(parent: Element, classes: string[], maxDepth: number): HTMLElement | undefined {
+	private _findElementById(parent: Element, id: string, maxDepth: number): HTMLElement | undefined {
 		if (maxDepth <= 0) {
 			return undefined;
 		}
 		const children = parent.children;
 		for (let i = 0; i < children.length; i++) {
 			const el = children[i] as HTMLElement;
-			if (classes.every(cls => el.classList.contains(cls))) {
+			if (el.id === id) {
 				return el;
 			}
-			const found = this._findElementWithClasses(el, classes, maxDepth - 1);
+			const found = this._findElementById(el, id, maxDepth - 1);
 			if (found) {
 				return found;
 			}
@@ -457,11 +475,12 @@ export class OnboardingVariationE extends Disposable {
 			switch (position) {
 				case PopoverPosition.Right:
 					x = targetRect.right + margin;
-					y = targetRect.top;
+					// Vertically center on the target, clamped to visible area
+					y = targetRect.top + targetRect.height / 2 - popRect.height / 2;
 					break;
 				case PopoverPosition.Left:
 					x = targetRect.left - popRect.width - margin;
-					y = targetRect.top;
+					y = targetRect.top + targetRect.height / 2 - popRect.height / 2;
 					break;
 				case PopoverPosition.Below:
 					x = targetRect.left + targetRect.width / 2 - popRect.width / 2;
@@ -473,13 +492,29 @@ export class OnboardingVariationE extends Disposable {
 					break;
 			}
 
-			// Clamp to viewport
+			// Clamp to viewport with some padding
 			x = Math.max(margin, Math.min(x, win.innerWidth - popRect.width - margin));
 			y = Math.max(margin, Math.min(y, win.innerHeight - popRect.height - margin));
 
-			popover.style.left = `${x}px`;
-			popover.style.top = `${y}px`;
+			popover.style.left = `${Math.round(x)}px`;
+			popover.style.top = `${Math.round(y)}px`;
 			popover.style.visibility = 'visible';
+
+			// Reposition the arrow to point at the target center
+			const arrow = popover.firstChild as HTMLElement;
+			if (arrow && arrow.classList.contains('onboarding-e-popover-arrow')) {
+				if (position === PopoverPosition.Right || position === PopoverPosition.Left) {
+					// Vertical arrow position: point at target's vertical center
+					const targetCenterY = targetRect.top + targetRect.height / 2;
+					const arrowY = Math.max(16, Math.min(targetCenterY - y, popRect.height - 16));
+					arrow.style.top = `${Math.round(arrowY)}px`;
+				} else {
+					// Horizontal arrow position: point at target's horizontal center
+					const targetCenterX = targetRect.left + targetRect.width / 2;
+					const arrowX = Math.max(16, Math.min(targetCenterX - x, popRect.width - 16));
+					arrow.style.left = `${Math.round(arrowX)}px`;
+				}
+			}
 		});
 	}
 
