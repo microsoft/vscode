@@ -319,6 +319,41 @@ function computeChecksum(filename: string): string {
 	return hash;
 }
 
+const copilotPlatforms = [
+	'darwin-arm64', 'darwin-x64',
+	'linux-arm64', 'linux-x64',
+	'win32-arm64', 'win32-x64',
+];
+
+/**
+ * Returns a glob filter that strips @github/copilot platform packages and
+ * prebuilt native modules for architectures other than the build target.
+ * On stable builds, all copilot SDK dependencies are stripped entirely.
+ */
+function getCopilotExcludeFilter(platform: string, arch: string, quality: string | undefined): string[] {
+	const targetPlatformArch = `${platform}-${arch}`;
+	const nonTargetPlatforms = copilotPlatforms.filter(p => p !== targetPlatformArch);
+
+	const excludes = [
+		// Strip @github/copilot platform packages for wrong architectures
+		...nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot-${p}/**`),
+		// Strip prebuilt native modules for wrong architectures (e.g. prebuilds/darwin-arm64/*.node).
+		// These cause dpkg-shlibdeps failures when building Linux packages for a different arch.
+		...nonTargetPlatforms.map(p => `!**/prebuilds/${p}/**`),
+	];
+
+	// Strip agent host SDK dependencies entirely from stable builds
+	if (quality === 'stable') {
+		excludes.push(
+			'!**/node_modules/@github/copilot/**',
+			'!**/node_modules/@github/copilot-sdk/**',
+			'!**/node_modules/@github/copilot-*/**',
+		);
+	}
+
+	return ['**', ...excludes];
+}
+
 function packageTask(platform: string, arch: string, sourceFolderName: string, destinationFolderName: string, _opts?: { stats?: boolean }) {
 	const destination = path.join(path.dirname(root), destinationFolderName);
 	platform = platform || process.platform;
@@ -437,29 +472,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(filter(depFilterPattern))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
-			.pipe(filter((() => {
-				// Strip @github/copilot platform packages for wrong architectures.
-				const copilotPlatforms = [
-					'darwin-arm64', 'darwin-x64',
-					'linux-arm64', 'linux-x64',
-					'win32-arm64', 'win32-x64',
-				];
-				const targetPlatformArch = `${platform}-${arch}`;
-				const excludes = copilotPlatforms
-					.filter(p => p !== targetPlatformArch)
-					.map(p => `!**/node_modules/@github/copilot-${p}/**`);
-
-				// Strip agent host SDK dependencies entirely from stable builds
-				if (quality === 'stable') {
-					excludes.push(
-						'!**/node_modules/@github/copilot/**',
-						'!**/node_modules/@github/copilot-sdk/**',
-						'!**/node_modules/@github/copilot-*/**',
-					);
-				}
-
-				return ['**', ...excludes];
-			})()))
+			.pipe(filter(getCopilotExcludeFilter(platform, arch, quality)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)
