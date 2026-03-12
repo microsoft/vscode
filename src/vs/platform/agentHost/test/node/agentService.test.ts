@@ -222,7 +222,10 @@ suite('AgentService (node dispatcher)', () => {
 			const envelopes: IActionEnvelope[] = [];
 			disposables.add(service.onDidAction(e => envelopes.push(e)));
 
-			await service.refreshModels();
+			service.refreshModels();
+
+			// Model fetch is async inside AgentSideEffects — wait for it
+			await new Promise(r => setTimeout(r, 50));
 
 			const agentsChanged = envelopes.find(e => e.action.type === 'root/agentsChanged');
 			assert.ok(agentsChanged);
