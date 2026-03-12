@@ -35,6 +35,7 @@ export type { IMarketplaceReference } from './marketplaceReference.js';
 export const enum MarketplaceType {
 	Copilot = 'copilot',
 	Claude = 'claude',
+	OpenPlugin = 'openPlugin',
 }
 
 export const enum PluginSourceKind {
@@ -177,6 +178,8 @@ export interface IPluginMarketplaceService {
  * The first match determines the marketplace type.
  */
 const MARKETPLACE_DEFINITIONS: { type: MarketplaceType; path: string }[] = [
+	{ type: MarketplaceType.OpenPlugin, path: 'marketplace.json' },
+	{ type: MarketplaceType.OpenPlugin, path: '.plugin/marketplace.json' },
 	{ type: MarketplaceType.Copilot, path: '.github/plugin/marketplace.json' },
 	{ type: MarketplaceType.Claude, path: '.claude-plugin/marketplace.json' },
 ];
