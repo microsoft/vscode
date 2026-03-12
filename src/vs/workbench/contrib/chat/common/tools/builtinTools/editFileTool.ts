@@ -109,27 +109,19 @@ export class EditTool implements IToolImpl {
 			throw new Error(result.errorMessage);
 		}
 
-		let dispose: IDisposable;
-		await new Promise((resolve) => {
-			// The file will not be modified until the first edits start streaming in,
-			// so wait until we see that it _was_ modified before waiting for it to be done.
-			let wasFileBeingModified = false;
-
+		let dispose: IDisposable | undefined;
+		await new Promise<void>((resolve) => {
 			dispose = autorun((r) => {
-
 				const entries = editSession.entries.read(r);
 				const currentFile = entries?.find((e) => e.modifiedURI.toString() === uri.toString());
-				if (currentFile) {
-					if (currentFile.isCurrentlyBeingModifiedBy.read(r)) {
-						wasFileBeingModified = true;
-					} else if (wasFileBeingModified) {
-						resolve(true);
-					}
+				if (!currentFile || !currentFile.isCurrentlyBeingModifiedBy.read(r)) {
+					resolve();
 				}
 			});
 		}).finally(() => {
-			dispose.dispose();
+			dispose?.dispose();
 		});
+
 
 		return {
 			content: [{ kind: 'text', value: 'The file was edited successfully' }]
