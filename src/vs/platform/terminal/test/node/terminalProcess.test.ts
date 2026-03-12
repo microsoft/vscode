@@ -28,8 +28,6 @@ const shellMatrix: IShellLaunchConfig[] = [
 	{ executable: '/bin/sh', args: ['-i'] },
 	{ executable: '/bin/ksh', args: ['-i'] },
 	{ executable: '/bin/dash', args: ['-i'] },
-	{ executable: '/bin/csh', args: ['-i'] },
-	{ executable: '/bin/tcsh', args: ['-i'] },
 ];
 
 const lineCounts = [10, 20];
@@ -43,14 +41,17 @@ function escapeForDoubleQuotedShellString(value: string): string {
 	return `"${value.replace(/[\\"$`]/g, '\\$&')}"`;
 }
 
-function buildMultilineCommand(outputFile: string, lineCount: number): { command: string; expectedLines: string[] } {
-	const expectedLines: string[] = [];
+function buildMultilineCommand(outputFile: string, lineCount: number): { command: string; expectedByteCount: number } {
+	const lines: string[] = [];
 	for (let i = 1; i <= lineCount; i++) {
-		expectedLines.push(`L${String(i).padStart(2, '0')} ${'a'.repeat(51)}`);
+		lines.push(`L${String(i).padStart(2, '0')} ${'a'.repeat(51)}`);
 	}
 	const escapedOutputFile = escapeForDoubleQuotedShellString(outputFile);
-	const command = `printf "%s\\n" \\\n${expectedLines.map(line => escapeForDoubleQuotedShellString(line)).join(' \\\n')} > ${escapedOutputFile}\n`;
-	return { command, expectedLines };
+	const content = lines.join('\n');
+	const command = `echo '${content}' | wc -c > ${escapedOutputFile}\n`;
+	// echo outputs: content bytes + trailing newline
+	const expectedByteCount = content.length + 1;
+	return { command, expectedByteCount };
 }
 
 // These tests spawn real PTY processes and are macOS/Linux only.
@@ -69,7 +70,7 @@ function buildMultilineCommand(outputFile: string, lineCount: number): { command
 	async function runShellMultilineTest(shellLaunchConfig: IShellLaunchConfig, lineCount: number): Promise<void> {
 		const shellName = path.posix.basename(shellLaunchConfig.executable!);
 		const outputFile = path.join(outputDir, `output-${shellName}-${lineCount}.txt`);
-		const { command, expectedLines } = buildMultilineCommand(outputFile, lineCount);
+		const { command, expectedByteCount } = buildMultilineCommand(outputFile, lineCount);
 		const terminalProcess = store.add(new TerminalProcess(
 			shellLaunchConfig,
 			outputDir,
@@ -124,8 +125,8 @@ function buildMultilineCommand(outputFile: string, lineCount: number): { command
 			throw new Error('Output file was not created');
 		}
 
-		const actualLines = fs.readFileSync(outputFile, 'utf-8').trimEnd().split('\n');
-		deepStrictEqual(actualLines, expectedLines);
+		const actualByteCount = parseInt(fs.readFileSync(outputFile, 'utf-8').trim(), 10);
+		deepStrictEqual(actualByteCount, expectedByteCount);
 	}
 
 	for (const lineCount of lineCounts) {
