@@ -2378,6 +2378,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._onDidSubmitAgent.fire({ agent: sent.data.agent, slashCommand: sent.data.slashCommand });
 		this.handleDelegationExitIfNeeded(this._lockedAgent, sent.data.agent);
+
+		// If the session was replaced (untitled -> real contributed session), swap the widget's model
+		if (sent.newSessionResource) {
+			const newModel = this.chatService.getSession(sent.newSessionResource);
+			if (newModel) {
+				this.setModel(newModel);
+			}
+		}
+
 		sent.data.responseCreatedPromise.then(() => {
 			// Only start accessibility progress once a real request/response model exists.
 			this.chatAccessibilityService.acceptRequest(submittedSessionResource);

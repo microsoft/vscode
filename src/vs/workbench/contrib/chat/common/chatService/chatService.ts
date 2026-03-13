@@ -1288,6 +1288,8 @@ export interface ChatSendResultRejected {
 export interface ChatSendResultSent {
 	readonly kind: 'sent';
 	readonly data: IChatSendRequestData;
+	/** Set when the session was replaced by a new one (e.g. untitled -> real contributed session). */
+	readonly newSessionResource?: URI;
 }
 
 export interface ChatSendResultQueued {
