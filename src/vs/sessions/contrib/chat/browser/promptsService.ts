@@ -134,8 +134,8 @@ export class AgenticPromptsService extends PromptsService {
 						disableModelInvocation: parsed.header?.disableModelInvocation === true,
 						userInvocable: parsed.header?.userInvocable !== false,
 					});
-				} catch {
-					// Skip unparseable skill files
+				} catch (e) {
+					this.logger.warn(`[discoverBuiltinSkills] Failed to parse built-in skill: ${skillFileUri}`, e instanceof Error ? e.message : String(e));
 				}
 			}
 			return skills;
