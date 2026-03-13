@@ -12,12 +12,14 @@ import { Event } from '../../../../../../base/common/event.js';
 import { escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { getMediaMime } from '../../../../../../base/common/mime.js';
 import { basename, posix, win32 } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -369,6 +371,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	constructor(
 		@IChatService protected readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -1120,6 +1123,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const isError = exitCode !== undefined && exitCode !== 0;
 		const endCwd = await toolTerminal.instance.getCwdResource();
+
+		const imageContent = await this._extractImagesFromOutput(terminalResult, endCwd);
+
 		return {
 			toolResultMessage,
 			toolMetadata: {
@@ -1132,11 +1138,87 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				output: [{ type: 'embed', isText: true, value: terminalResult }],
 				isError: true
 			} : undefined,
-			content: [{
-				kind: 'text',
-				value: resultText.join(''),
-			}]
+			content: [
+				{
+					kind: 'text',
+					value: resultText.join(''),
+				},
+				...imageContent,
+			]
 		};
+	}
+
+	private static readonly _maxImageFileSize = 5 * 1024 * 1024;
+	private static readonly _imageExtensions = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
+
+	/**
+	 * Scans terminal output for file paths that point to images and reads them.
+	 * Returns data content parts for any found images that exist on disk.
+	 */
+	private async _extractImagesFromOutput(output: string, cwd: URI | undefined): Promise<IToolResult['content']> {
+		const os = await this._osBackend;
+		const isWindows = os === OperatingSystem.Windows;
+		const pathModule = isWindows ? win32 : posix;
+		const normalizedOutput = output.replace(/\r?\n/g, '');
+
+		// Match absolute paths ending with image extensions.
+		// Unix: /path/to/image.png
+		// Windows: C:\path\to\image.png or C:/path/to/image.png
+		const pathPattern = isWindows
+			? /(?:[A-Za-z]:[\\\/](?:[^\s\\/:*?"<>|]+[\\\/])*[^\s\\/:*?"<>|]+\.(?:png|jpe?g|gif|webp|bmp))/gi
+			: /(?:\/(?:[^\s/]+\/)*[^\s/]+\.(?:png|jpe?g|gif|webp|bmp))/gi;
+
+		const matches = new Set<string>();
+		for (const match of normalizedOutput.matchAll(pathPattern)) {
+			matches.add(match[0]);
+		}
+
+		if (matches.size === 0) {
+			return [];
+		}
+
+		const results: IToolResult['content'] = [];
+		for (const filePath of matches) {
+			try {
+				const ext = pathModule.extname(filePath).toLowerCase();
+				if (!RunInTerminalTool._imageExtensions.has(ext)) {
+					continue;
+				}
+
+				const mimeType = getMediaMime(filePath);
+				if (!mimeType || !mimeType.startsWith('image/')) {
+					continue;
+				}
+
+				// Resolve the URI - absolute paths can be converted directly
+				let fileUri: URI;
+				if (pathModule.isAbsolute(filePath)) {
+					fileUri = URI.file(filePath);
+				} else if (cwd) {
+					fileUri = URI.joinPath(cwd, filePath);
+				} else {
+					continue;
+				}
+
+				const stat = await this._fileService.stat(fileUri).catch(() => undefined);
+				if (!stat || stat.isDirectory || stat.size > RunInTerminalTool._maxImageFileSize) {
+					continue;
+				}
+
+				const fileContent = await this._fileService.readFile(fileUri);
+				results.push({
+					kind: 'data',
+					value: {
+						mimeType,
+						data: fileContent.value,
+					},
+				});
+			} catch {
+				// Ignore files that can't be read
+			}
+		}
+
+		return results;
 	}
 
 	private _handleTerminalVisibility(toolTerminal: IToolTerminal, chatSessionResource: URI) {

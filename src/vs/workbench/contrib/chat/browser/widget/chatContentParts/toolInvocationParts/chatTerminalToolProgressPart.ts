@@ -11,12 +11,17 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
+import { ChatResponseResource } from '../../../../common/model/chatModel.js';
+import { isToolResultInputOutputDetails } from '../../../../common/tools/languageModelToolsService.js';
 import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
+import { getExtensionForMimeType } from '../../../../../../../base/common/mime.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
 import { ChatQueryTitlePart } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, type IChatMarkdownContentPartOptions } from '../chatMarkdownContentPart.js';
 import { ChatProgressSubPart } from '../chatProgressContentPart.js';
+import { ChatResourceGroupWidget } from '../chatResourceGroupWidget.js';
+import { IChatCollapsibleIODataPart } from '../chatToolInputOutputContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { TerminalToolAutoExpand } from './terminalToolAutoExpand.js';
 import { ChatCollapsibleContentPart } from '../chatCollapsibleContentPart.js';
@@ -429,12 +434,71 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}));
 		}
 
+		this._renderImagePills(toolInvocation, context, elements.container);
+
 		// Only auto-expand in thinking containers if there's actual output to show
 		const hasStoredOutput = !!terminalData.terminalCommandOutput;
 		if (expandedStateByInvocation.get(toolInvocation) || (this._isInThinkingContainer && IChatToolInvocation.isComplete(toolInvocation) && hasStoredOutput)) {
 			void this._toggleOutput(true);
 		}
 		this._register(this._terminalChatService.registerProgressPart(this));
+	}
+
+	/**
+	 * Renders image attachment pills below the terminal output when the tool
+	 * result contains image data parts.
+	 */
+	private _renderImagePills(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext, innerContainer: HTMLElement): void {
+		const createImageParts = (): IChatCollapsibleIODataPart[] => {
+			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
+			if (!isToolResultInputOutputDetails(resultDetails)) {
+				return [];
+			}
+
+			const imageParts: IChatCollapsibleIODataPart[] = [];
+			for (let i = 0; i < resultDetails.output.length; i++) {
+				const o = resultDetails.output[i];
+				if (o.type === 'embed' && o.mimeType?.startsWith('image/') && !o.isText) {
+					const ext = getExtensionForMimeType(o.mimeType);
+					const permalinkBasename = ext ? `file${ext}` : 'file.bin';
+					const permalinkUri = ChatResponseResource.createUri(context.element.sessionResource, toolInvocation.toolCallId, i, permalinkBasename);
+					imageParts.push({ kind: 'data', base64Value: o.value, mimeType: o.mimeType, uri: permalinkUri });
+				}
+			}
+			return imageParts;
+		};
+
+		const renderImages = () => {
+			const imageParts = createImageParts();
+			if (imageParts.length === 0) {
+				return;
+			}
+
+
+			const innerWidget = this._register(this._instantiationService.createInstance(ChatResourceGroupWidget, imageParts));
+			innerContainer.appendChild(innerWidget.domNode);
+			if (this._thinkingCollapsibleWrapper) {
+				const outerWidget = this._register(this._instantiationService.createInstance(ChatResourceGroupWidget, imageParts));
+				outerWidget.domNode.classList.add('chat-terminal-collapsed-image-pills');
+				this._thinkingCollapsibleWrapper.domNode.appendChild(outerWidget.domNode);
+
+				this._register(autorun(reader => {
+					const expanded = this._thinkingCollapsibleWrapper!.expanded.read(reader);
+					outerWidget.domNode.style.display = expanded ? 'none' : '';
+				}));
+			}
+		};
+
+		if (toolInvocation.kind === 'toolInvocationSerialized') {
+			renderImages();
+		} else {
+			this._register(autorun(reader => {
+				const state = toolInvocation.state.read(reader);
+				if (state.type === IChatToolInvocation.StateKind.Completed) {
+					renderImages();
+				}
+			}));
+		}
 	}
 
 	private _createCollapsibleWrapper(contentElement: HTMLElement, commandText: string, toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext): HTMLElement {
