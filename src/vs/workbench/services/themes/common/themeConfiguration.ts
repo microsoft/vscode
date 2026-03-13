@@ -302,7 +302,30 @@ export class ThemeConfiguration {
 	}
 
 	public get tokenColorCustomizations(): ITokenColorCustomizations {
-		return this.configurationService.getValue<ITokenColorCustomizations>(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS) || {};
+		const tokenColorCustomization = this.configurationService.getValue<ITokenColorCustomizations>(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS) || {};
+		const textMateRules = tokenColorCustomization.textMateRules;
+		if (!textMateRules) {
+			return tokenColorCustomization;
+		}
+		const updatedRules = textMateRules.map(rule => {
+			const fontSize = rule.settings?.fontSize;
+			const lineHeight = rule.settings?.lineHeight;
+			if (fontSize !== undefined && lineHeight === undefined) {
+				return {
+					...rule,
+					settings: {
+						...rule.settings,
+						lineHeight: fontSize
+					}
+				};
+			}
+			return rule;
+		});
+		const updatedTokenColorCustomization = {
+			...tokenColorCustomization,
+			textMateRules: updatedRules
+		};
+		return updatedTokenColorCustomization;
 	}
 
 	public get semanticTokenColorCustomizations(): ISemanticTokenColorCustomizations | undefined {
@@ -360,7 +383,7 @@ export class ThemeConfiguration {
 		return ConfigurationTarget.USER;
 	}
 
-	private async writeConfiguration(key: string, value: any, settingsTarget: ThemeSettingTarget): Promise<void> {
+	private async writeConfiguration(key: string, value: unknown, settingsTarget: ThemeSettingTarget): Promise<void> {
 		if (settingsTarget === undefined || settingsTarget === 'preview') {
 			return;
 		}

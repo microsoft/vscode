@@ -25,6 +25,7 @@ export const enum TestingConfigKeys {
 	ShowCoverageInExplorer = 'testing.showCoverageInExplorer',
 	CoverageBarThresholds = 'testing.coverageBarThresholds',
 	CoverageToolbarEnabled = 'testing.coverageToolbarEnabled',
+	ResultsViewLayout = 'testing.resultsView.layout',
 }
 
 export const enum AutoOpenTesting {
@@ -58,6 +59,11 @@ export const enum TestingDisplayedCoveragePercent {
 	TotalCoverage = 'totalCoverage',
 	Statement = 'statement',
 	Minimum = 'minimum',
+}
+
+export const enum TestingResultsViewLayout {
+	TreeLeft = 'treeLeft',
+	TreeRight = 'treeRight',
 }
 
 export const testingConfiguration: IConfigurationNode = {
@@ -191,6 +197,18 @@ export const testingConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false, // todo@connor4312: disabled by default until UI sync
 		},
+		[TestingConfigKeys.ResultsViewLayout]: {
+			description: localize('testing.resultsView.layout', 'Controls the layout of the Test Results view.'),
+			enum: [
+				TestingResultsViewLayout.TreeRight,
+				TestingResultsViewLayout.TreeLeft,
+			],
+			enumDescriptions: [
+				localize('testing.resultsView.layout.treeRight', 'Show the test run tree on the right side with details on the left.'),
+				localize('testing.resultsView.layout.treeLeft', 'Show the test run tree on the left side with details on the right.'),
+			],
+			default: TestingResultsViewLayout.TreeRight,
+		},
 	}
 };
 
@@ -228,6 +246,7 @@ export interface ITestingConfiguration {
 	[TestingConfigKeys.ShowCoverageInExplorer]: boolean;
 	[TestingConfigKeys.CoverageBarThresholds]: ITestingCoverageBarThresholds;
 	[TestingConfigKeys.CoverageToolbarEnabled]: boolean;
+	[TestingConfigKeys.ResultsViewLayout]: TestingResultsViewLayout;
 }
 
 export const getTestingConfiguration = <K extends TestingConfigKeys>(config: IConfigurationService, key: K) => config.getValue<ITestingConfiguration[K]>(key);

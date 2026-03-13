@@ -85,7 +85,7 @@ export namespace commands {
 	/**
 	 * {@linkcode IWorkbench.commands IWorkbench.commands.executeCommand}
 	 */
-	export async function executeCommand(command: string, ...args: any[]): Promise<unknown> {
+	export async function executeCommand(command: string, ...args: unknown[]): Promise<unknown> {
 		const workbench = await workbenchPromise.p;
 
 		return workbench.commands.executeCommand(command, ...args);

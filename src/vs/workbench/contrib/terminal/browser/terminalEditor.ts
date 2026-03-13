@@ -13,6 +13,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -47,6 +48,8 @@ export class TerminalEditor extends EditorPane {
 
 	private readonly _newDropdown: MutableDisposable<DropdownWithPrimaryActionViewItem> = this._register(new MutableDisposable());
 
+	private readonly _sessionDisposables = this._register(new DisposableStore());
+
 	private readonly _disposableStore = this._register(new DisposableStore());
 
 	constructor(
@@ -58,6 +61,7 @@ export class TerminalEditor extends EditorPane {
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -84,13 +88,14 @@ export class TerminalEditor extends EditorPane {
 			// since the editor does not monitor focus changes, for ex. between the terminal
 			// panel and the editors, this is needed so that the active instance gets set
 			// when focus changes between them.
-			this._register(this._editorInput.terminalInstance.onDidFocus(() => this._setActiveInstance()));
+			this._sessionDisposables.add(this._editorInput.terminalInstance.onDidFocus(() => this._setActiveInstance()));
 			this._editorInput.setCopyLaunchConfig(this._editorInput.terminalInstance.shellLaunchConfig);
 		}
 	}
 
 	override clearInput(): void {
 		super.clearInput();
+		this._sessionDisposables.clear();
 		if (this._overflowGuardElement && this._editorInput?.terminalInstance?.domElement.parentElement === this._overflowGuardElement) {
 			this._editorInput.terminalInstance?.detachFromElement();
 		}
@@ -152,7 +157,8 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
-		const actions = getTerminalActionBarArgs(TerminalLocation.Editor, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
+		this._disposableStore.clear();
+		const actions = getTerminalActionBarArgs(TerminalLocation.Editor, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore, this._configurationService);
 		this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 	}
 
@@ -176,7 +182,7 @@ export class TerminalEditor extends EditorPane {
 				if (action instanceof MenuItemAction) {
 					const location = { viewColumn: ACTIVE_GROUP };
 					this._disposableStore.clear();
-					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
+					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore, this._configurationService);
 					this._newDropdown.value = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, { hoverDelegate: options.hoverDelegate });
 					this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 					return this._newDropdown.value;

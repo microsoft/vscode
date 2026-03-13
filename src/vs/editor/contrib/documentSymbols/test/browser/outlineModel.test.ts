@@ -197,6 +197,7 @@ suite('OutlineModel', function () {
 				super(null!);
 			}
 			readyForTesting() {
+				// eslint-disable-next-line local/code-no-any-casts
 				this._groups = this.children as any;
 			}
 		};

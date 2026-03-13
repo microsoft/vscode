@@ -34,7 +34,7 @@ pub enum RequestedVersion {
 }
 
 lazy_static! {
-	static ref COMMIT_RE: Regex = Regex::new(r"^[a-e0-f]{40}$").unwrap();
+	static ref COMMIT_RE: Regex = Regex::new(r"(?i)^[0-9a-f]{40}$").unwrap();
 }
 
 impl RequestedVersion {

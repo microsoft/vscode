@@ -21,6 +21,7 @@ import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { URI } from '../../../../base/common/uri.js';
 
 const timelineViewIcon = registerIcon('timeline-view-icon', Codicon.history, localize('timelineViewIcon', 'View icon of the timeline view.'));
 const timelineOpenIcon = registerIcon('timeline-open', Codicon.history, localize('timelineOpenIcon', 'Icon for the open timeline action.'));
@@ -72,7 +73,10 @@ namespace OpenTimelineAction {
 	export function handler(): ICommandHandler {
 		return (accessor, arg) => {
 			const service = accessor.get(ITimelineService);
-			return service.setUri(arg);
+
+			if (URI.isUri(arg)) {
+				return service.setUri(arg);
+			}
 		};
 	}
 }

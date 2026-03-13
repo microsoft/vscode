@@ -208,7 +208,7 @@ suite.skip('vscode API - Copy Paste', function () {
 });
 
 function reverseString(str: string) {
-	return str.split("").reverse().join("");
+	return str.split('').reverse().join('');
 }
 
 function getNextDocumentText(disposables: vscode.Disposable[], doc: vscode.TextDocument): Promise<string> {

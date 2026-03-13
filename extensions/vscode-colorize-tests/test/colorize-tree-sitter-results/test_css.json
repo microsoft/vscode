@@ -126,6 +126,20 @@
 		}
 	},
 	{
+		"c": "mystyle.css",
+		"t": "string.quoted.double.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
 		"c": "\"",
 		"t": "string.quoted.double.css",
 		"r": {
@@ -197,6 +211,20 @@
 	},
 	{
 		"c": "\"",
+		"t": "string.quoted.double.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "mystyle.css",
 		"t": "string.quoted.double.css",
 		"r": {
 			"dark_plus": "string: #CE9178",
@@ -295,6 +323,20 @@
 	},
 	{
 		"c": "\"",
+		"t": "string.quoted.double.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "bluish.css",
 		"t": "string.quoted.double.css",
 		"r": {
 			"dark_plus": "string: #CE9178",
@@ -3375,6 +3417,20 @@
 	},
 	{
 		"c": "'",
+		"t": "string.quoted.single.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "<angle>",
 		"t": "string.quoted.single.css",
 		"r": {
 			"dark_plus": "string: #CE9178",
@@ -7308,6 +7364,20 @@
 		}
 	},
 	{
+		"c": "#B3AE94",
+		"t": "string.quoted.single.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
 		"c": "'",
 		"t": "string.quoted.single.css",
 		"r": {
@@ -8401,6 +8471,20 @@
 	},
 	{
 		"c": "'",
+		"t": "meta.selector.css string.quoted.single.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "codicon-",
 		"t": "meta.selector.css string.quoted.single.css",
 		"r": {
 			"dark_plus": "string: #CE9178",

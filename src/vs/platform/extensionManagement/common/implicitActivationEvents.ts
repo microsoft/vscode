@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IStringDictionary } from '../../../base/common/collections.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../extensions/common/extensions.js';
 
 export interface IActivationEventsGenerator<T> {
-	(contributions: T[], result: { push(item: string): void }): void;
+	(contributions: readonly T[]): Iterable<string>;
 }
 
 export class ImplicitActivationEventsImpl {
 
-	private readonly _generators = new Map<string, IActivationEventsGenerator<any>>();
+	private readonly _generators = new Map<string, IActivationEventsGenerator<unknown>>();
 	private readonly _cache = new WeakMap<IExtensionDescription, string[]>();
 
 	public register<T>(extensionPointName: string, generator: IActivationEventsGenerator<T>): void {
-		this._generators.set(extensionPointName, generator);
+		this._generators.set(extensionPointName, generator as IActivationEventsGenerator<unknown>);
 	}
 
 	/**
@@ -70,10 +71,10 @@ export class ImplicitActivationEventsImpl {
 				// There's no generator for this extension point
 				continue;
 			}
-			const contrib = (desc.contributes as any)[extPointName];
+			const contrib = (desc.contributes as IStringDictionary<unknown>)[extPointName];
 			const contribArr = Array.isArray(contrib) ? contrib : [contrib];
 			try {
-				generator(contribArr, activationEvents);
+				activationEvents.push(...generator(contribArr));
 			} catch (err) {
 				onUnexpectedError(err);
 			}

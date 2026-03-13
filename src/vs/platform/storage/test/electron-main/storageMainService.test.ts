@@ -43,6 +43,7 @@ suite('StorageMainService', function () {
 		settingsResource: joinPath(inMemoryProfileRoot, 'settingsResource'),
 		keybindingsResource: joinPath(inMemoryProfileRoot, 'keybindingsResource'),
 		tasksResource: joinPath(inMemoryProfileRoot, 'tasksResource'),
+		mcpResource: joinPath(inMemoryProfileRoot, 'mcp.json'),
 		snippetsHome: joinPath(inMemoryProfileRoot, 'snippetsHome'),
 		promptsHome: joinPath(inMemoryProfileRoot, 'promptsHome'),
 		extensionsResource: joinPath(inMemoryProfileRoot, 'extensionsResource'),
@@ -187,6 +188,7 @@ suite('StorageMainService', function () {
 		const workspaceStorage2 = storageMainService.workspaceStorage(workspace);
 		notStrictEqual(workspaceStorage, workspaceStorage2);
 
+		await profileStorage2.close();
 		await workspaceStorage2.close();
 	});
 

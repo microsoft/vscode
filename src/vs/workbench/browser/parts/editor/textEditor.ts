@@ -7,7 +7,7 @@ import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
 import { distinct, deepClone } from '../../../../base/common/objects.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { isObject, assertIsDefined } from '../../../../base/common/types.js';
+import { isObject, assertReturnsDefined } from '../../../../base/common/types.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorOpenContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneScrollPosition, IEditorPaneWithScrolling } from '../../../common/editor.js';
@@ -248,7 +248,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 		this.updateEditorConfiguration();
 
 		// Update aria label on editor
-		const editorContainer = assertIsDefined(this.editorContainer);
+		const editorContainer = assertReturnsDefined(this.editorContainer);
 		editorContainer.setAttribute('aria-label', this.computeAriaLabel());
 	}
 

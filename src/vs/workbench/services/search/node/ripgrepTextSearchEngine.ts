@@ -56,6 +56,10 @@ export class RipgrepTextSearchEngine {
 			}
 		})}`);
 
+		if (!query.pattern) {
+			return Promise.resolve({ limitHit: false });
+		}
+
 		return new Promise((resolve, reject) => {
 			token.onCancellationRequested(() => cancel());
 
@@ -403,6 +407,11 @@ function getNumLinesAndLastNewlineLength(text: string): { numLines: number; last
 export function getRgArgs(query: TextSearchQuery2, options: RipgrepTextSearchOptions): string[] {
 	const args = ['--hidden', '--no-require-git'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
+
+	if (options.folderOptions.ignoreGlobCase) {
+		args.push('--glob-case-insensitive');
+		args.push('--ignore-file-case-insensitive');
+	}
 
 	const { doubleStarIncludes, otherIncludes } = groupBy(
 		options.folderOptions.includes,

@@ -23,6 +23,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../editor/common/editorResolverService.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 
 export const ITextEditorService = createDecorator<ITextEditorService>('textEditorService');
 
@@ -53,6 +54,16 @@ export interface ITextEditorService {
 	 */
 	resolveTextEditor(input: IUntypedEditorInput): Promise<EditorInput>;
 	resolveTextEditor(input: IUntypedFileEditorInput): Promise<IFileEditorInput>;
+}
+
+class FileEditorInputLeakError extends Error {
+
+	constructor(message: string, stack: string) {
+		super(message);
+
+		this.name = 'FileEditorInputLeakError';
+		this.stack = stack;
+	}
 }
 
 export class TextEditorService extends Disposable implements ITextEditorService {
@@ -247,10 +258,65 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 		// Otherwise create and add to cache
 		input = factoryFn();
 		this.editorInputCache.set(resource, input);
-		Event.once(input.onWillDispose)(() => this.editorInputCache.delete(resource));
+
+		// Track Leaks
+		const leakId = this.trackLeaks(input);
+
+		Event.once(input.onWillDispose)(() => {
+
+			// Remove from cache
+			this.editorInputCache.delete(resource);
+
+			// Untrack Leaks
+			if (leakId) {
+				this.untrackLeaks(leakId);
+			}
+		});
 
 		return input;
 	}
+
+	//#region Leak Monitoring
+
+	private static readonly LEAK_TRACKING_THRESHOLD = 256;
+	private static readonly LEAK_REPORTING_THRESHOLD = 2 * this.LEAK_TRACKING_THRESHOLD;
+	private static LEAK_REPORTED = false;
+
+	private readonly mapLeakToCounter = new Map<string, number>();
+
+	private trackLeaks(input: TextResourceEditorInput | IFileEditorInput | UntitledTextEditorInput): string | undefined {
+		if (TextEditorService.LEAK_REPORTED || this.editorInputCache.size < TextEditorService.LEAK_TRACKING_THRESHOLD) {
+			return undefined;
+		}
+
+		const leakId = `${input.resource.scheme}#${input.typeId || '<no typeId>'}#${input.editorId || '<no editorId>'}\n${new Error().stack?.split('\n').slice(2).join('\n') ?? ''}`;
+		const leakCounter = (this.mapLeakToCounter.get(leakId) ?? 0) + 1;
+		this.mapLeakToCounter.set(leakId, leakCounter);
+
+		if (this.editorInputCache.size > TextEditorService.LEAK_REPORTING_THRESHOLD) {
+			TextEditorService.LEAK_REPORTED = true;
+
+			const [topLeak, topCount] = Array.from(this.mapLeakToCounter.entries()).reduce(
+				([topLeak, topCount], [key, val]) => val > topCount ? [key, val] : [topLeak, topCount]
+			);
+
+			const message = `Potential text editor input LEAK detected, having ${this.editorInputCache.size} text editor inputs already. Most frequent owner (${topCount})`;
+			onUnexpectedError(new FileEditorInputLeakError(message, topLeak));
+		}
+
+		return leakId;
+	}
+
+	private untrackLeaks(leakId: string): void {
+		const stackCounter = (this.mapLeakToCounter.get(leakId) ?? 1) - 1;
+		this.mapLeakToCounter.set(leakId, stackCounter);
+
+		if (stackCounter === 0) {
+			this.mapLeakToCounter.delete(leakId);
+		}
+	}
+
+	//#endregion
 }
 
 registerSingleton(ITextEditorService, TextEditorService, InstantiationType.Eager /* do not change: https://github.com/microsoft/vscode/issues/137675 */);

@@ -1,0 +1,47 @@
+{
+	"scenario": "Scenario: Switch between Local and Cloud mode",
+	"generatedAt": "2026-03-06T04:35:09.018Z",
+	"steps": [
+		{
+			"description": "Click button \"Cloud\"",
+			"commands": [
+				"click button \"Cloud\""
+			]
+		},
+		{
+			"description": "Write \"hello world\" and hit enter",
+			"commands": [
+				"click textbox \"Chat input\"",
+				"type \"hello world\"",
+				"press Enter"
+			]
+		},
+		{
+			"description": "Make sure \"Pick Repository\" picker opens",
+			"commands": [
+				"# ASSERT_VISIBLE: Pick Repository",
+				"click listbox \"Repository Picker\""
+			]
+		},
+		{
+			"description": "Press escape key",
+			"commands": [
+				"press Escape"
+			]
+		},
+		{
+			"description": "Click on button \"Local\"",
+			"commands": [
+				"click button \"Local\""
+			]
+		},
+		{
+			"description": "Clear chat",
+			"commands": [
+				"click textbox \"Chat input\"",
+				"press Meta+A",
+				"press Backspace"
+			]
+		}
+	]
+}

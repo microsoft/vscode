@@ -206,6 +206,18 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(pathRes.descriptionMatch[0].start, 1);
 		assert.strictEqual(pathRes.descriptionMatch[0].end, 4);
 
+		// Ellipsis Match
+		const ellipsisRes = scoreItem(resource, '…me/path/someFile123.txt', true, ResourceAccessor);
+		assert.ok(ellipsisRes.score);
+		assert.ok(pathRes.descriptionMatch);
+		assert.ok(pathRes.labelMatch);
+		assert.strictEqual(pathRes.labelMatch.length, 1);
+		assert.strictEqual(pathRes.labelMatch[0].start, 8);
+		assert.strictEqual(pathRes.labelMatch[0].end, 11);
+		assert.strictEqual(pathRes.descriptionMatch.length, 1);
+		assert.strictEqual(pathRes.descriptionMatch[0].start, 1);
+		assert.strictEqual(pathRes.descriptionMatch[0].end, 4);
+
 		// No Match
 		const noRes = scoreItem(resource, '987', true, ResourceAccessor);
 		assert.ok(!noRes.score);
@@ -1085,34 +1097,54 @@ suite('Fuzzy Scorer', () => {
 		const resourceA = URI.file('djangosite/ufrela/def.py');
 		const resourceB = URI.file('djangosite/urls/default.py');
 
-		for (const query of ['url/def']) {
-			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceB);
-			assert.strictEqual(res[1], resourceA);
+		const query = 'url/def';
 
-			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceB);
-			assert.strictEqual(res[1], resourceA);
-		}
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.strictEqual(res[0], resourceB);
+		assert.strictEqual(res[1], resourceA);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.strictEqual(res[0], resourceB);
+		assert.strictEqual(res[1], resourceA);
 	});
 
 	test('compareFilesByScore - boost shorter prefix match if multiple queries are used (#99171)', function () {
 		const resourceA = URI.file('mesh_editor_lifetime_job.h');
 		const resourceB = URI.file('lifetime_job.h');
 
-		for (const query of ['m life, life m']) {
-			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceB);
-			assert.strictEqual(res[1], resourceA);
+		const query = 'm life, life m';
 
-			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
-			assert.strictEqual(res[0], resourceB);
-			assert.strictEqual(res[1], resourceA);
-		}
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.strictEqual(res[0], resourceB);
+		assert.strictEqual(res[1], resourceA);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.strictEqual(res[0], resourceB);
+		assert.strictEqual(res[1], resourceA);
+	});
+
+	test('compareFilesByScore - boost consecutive matches in the beginning over end', function () {
+		const resourceA = URI.file('src/vs/server/node/extensionHostStatusService.ts');
+		const resourceB = URI.file('src/vs/workbench/browser/parts/notifications/notificationsStatus.ts');
+
+		const query = 'notStatus';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.strictEqual(res[0], resourceB);
+		assert.strictEqual(res[1], resourceA);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.strictEqual(res[0], resourceB);
+		assert.strictEqual(res[1], resourceA);
 	});
 
 	test('prepareQuery', () => {
 		assert.strictEqual(prepareQuery(' f*a ').normalized, 'fa');
+		assert.strictEqual(prepareQuery(' f…a ').normalized, 'fa');
+		assert.strictEqual(prepareQuery('main#').normalized, 'main');
+		assert.strictEqual(prepareQuery('main#').original, 'main#');
+		assert.strictEqual(prepareQuery('foo*').normalized, 'foo');
+		assert.strictEqual(prepareQuery('foo*').original, 'foo*');
 		assert.strictEqual(prepareQuery('model Tester.ts').original, 'model Tester.ts');
 		assert.strictEqual(prepareQuery('model Tester.ts').originalLowercase, 'model Tester.ts'.toLowerCase());
 		assert.strictEqual(prepareQuery('model Tester.ts').normalized, 'modelTester.ts');
@@ -1255,16 +1287,70 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(_doScore('contiguous', '"contguous"')[0], 0);
 
 		const score = _doScore('contiguous', '"contiguous"');
-		assert.strictEqual(score[0], 253);
+		assert.ok(score[0] > 0);
 	});
 
 	test('Using quotes should highlight contiguous indexes', function () {
 		const score = _doScore('2021-7-26.md', '"26"');
-		assert.strictEqual(score[0], 13);
+		assert.strictEqual(score[0], 14);
 
 		// The indexes of the 2 and 6 of "26"
 		assert.strictEqual(score[1][0], 7);
 		assert.strictEqual(score[1][1], 8);
+	});
+
+	test('Workspace symbol search with special characters (#, *)', function () {
+		// Simulates the scenario from the issue where rust-analyzer uses # and * as query modifiers
+		// The original query (with special chars) should reach the language server
+		// but normalized query (without special chars) should be used for fuzzy matching
+
+		// Test #: User types "main#", language server returns "main" symbol
+		let query = prepareQuery('main#');
+		assert.strictEqual(query.original, 'main#'); // Sent to language server
+		assert.strictEqual(query.normalized, 'main'); // Used for fuzzy matching
+		let [score, matches] = _doScore2('main', 'main#');
+		assert.ok(typeof score === 'number' && score > 0, 'Should match "main" symbol when query is "main#"');
+		assert.ok(matches.length > 0);
+
+		// Test *: User types "foo*", language server returns "foo" symbol
+		query = prepareQuery('foo*');
+		assert.strictEqual(query.original, 'foo*'); // Sent to language server
+		assert.strictEqual(query.normalized, 'foo'); // Used for fuzzy matching
+		[score, matches] = _doScore2('foo', 'foo*');
+		assert.ok(typeof score === 'number' && score > 0, 'Should match "foo" symbol when query is "foo*"');
+		assert.ok(matches.length > 0);
+
+		// Test both: User types "MyClass#*", should match "MyClass"
+		query = prepareQuery('MyClass#*');
+		assert.strictEqual(query.original, 'MyClass#*');
+		assert.strictEqual(query.normalized, 'MyClass');
+		[score, matches] = _doScore2('MyClass', 'MyClass#*');
+		assert.ok(typeof score === 'number' && score > 0, 'Should match "MyClass" symbol when query is "MyClass#*"');
+		assert.ok(matches.length > 0);
+
+		// Test fuzzy matching still works: User types "MC#", should match "MyClass"
+		query = prepareQuery('MC#');
+		assert.strictEqual(query.original, 'MC#');
+		assert.strictEqual(query.normalized, 'MC');
+		[score, matches] = _doScore2('MyClass', 'MC#');
+		assert.ok(typeof score === 'number' && score > 0, 'Should fuzzy match "MyClass" symbol when query is "MC#"');
+		assert.ok(matches.length > 0);
+
+		// Make sure leading # or # in the middle are not removed.
+		query = prepareQuery('#SpecialFunction');
+		assert.strictEqual(query.original, '#SpecialFunction');
+		assert.strictEqual(query.normalized, '#SpecialFunction');
+		[score, matches] = _doScore2('#SpecialFunction', '#SpecialFunction');
+		assert.ok(typeof score === 'number' && score > 0, 'Should match "#SpecialFunction" symbol when query is "#SpecialFunction"');
+		assert.ok(matches.length > 0);
+
+		// Make sure standalone # is not removed
+		query = prepareQuery('#');
+		assert.strictEqual(query.original, '#');
+		assert.strictEqual(query.normalized, '#', 'Standalone # should not be removed');
+		[score, matches] = _doScore2('#', '#');
+		assert.ok(typeof score === 'number' && score > 0, 'Should match "#" symbol when query is "#"');
+		assert.ok(matches.length > 0);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

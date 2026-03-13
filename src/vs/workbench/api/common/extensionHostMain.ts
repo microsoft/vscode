@@ -23,6 +23,7 @@ import { IURITransformerService, URITransformerService } from './extHostUriTrans
 import { IExtHostExtensionService, IHostUtils } from './extHostExtensionService.js';
 import { IExtHostTelemetry } from './extHostTelemetry.js';
 import { Mutable } from '../../../base/common/types.js';
+import { IExtHostApiDeprecationService } from './extHostApiDeprecationService.js';
 
 export interface IExitFn {
 	(code?: number): any;
@@ -59,11 +60,13 @@ export abstract class ErrorHandler {
 		const rpcService = accessor.get(IExtHostRpcService);
 		const extensionService = accessor.get(IExtHostExtensionService);
 		const extensionTelemetry = accessor.get(IExtHostTelemetry);
+		const apiDeprecationService = accessor.get(IExtHostApiDeprecationService);
 
 		const mainThreadExtensions = rpcService.getProxy(MainContext.MainThreadExtensionService);
 		const mainThreadErrors = rpcService.getProxy(MainContext.MainThreadErrors);
 
-		const map = await extensionService.getExtensionPathIndex();
+		const extensionsRegistry = await extensionService.getExtensionRegistry();
+		const extensionsMap = await extensionService.getExtensionPathIndex();
 		const extensionErrors = new WeakMap<Error, { extensionIdentifier: ExtensionIdentifier | undefined; stack: string }>();
 
 		// PART 1
@@ -80,7 +83,7 @@ export abstract class ErrorHandler {
 				stackTraceMessage += `\n\tat ${call.toString()}`;
 				fileName = call.getFileName();
 				if (!extension && fileName) {
-					extension = map.findSubstr(URI.file(fileName));
+					extension = extensionsMap.findSubstr(URI.file(fileName));
 				}
 			}
 			const result = `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
@@ -116,7 +119,10 @@ export abstract class ErrorHandler {
 		// having caused the error. Note that the runtime order is actually reversed, the code
 		// below accesses the stack-property which triggers the code above
 		errors.setUnexpectedErrorHandler(err => {
-			logService.error(err);
+
+			if (!errors.PendingMigrationError.is(err)) {
+				logService.error(err);
+			}
 
 			const errorData = errors.transformErrorForSerialization(err);
 
@@ -128,7 +134,18 @@ export abstract class ErrorHandler {
 				extension = stackData?.extensionIdentifier;
 			}
 
-			if (extension) {
+			if (!extension) {
+				return;
+			}
+
+			if (errors.PendingMigrationError.is(err)) {
+				// report pending migration via the API deprecation service which (1) informs the extensions author during
+				// dev-time and (2) collects telemetry so that we can reach out too
+				const extensionDesc = extensionsRegistry.getExtensionDescription(extension);
+				if (extensionDesc) {
+					apiDeprecationService.report(err.name, extensionDesc, `${err.message}\n FROM: ${err.stack}`);
+				}
+			} else {
 				mainThreadExtensions.$onExtensionRuntimeError(extension, errorData);
 				const reported = extensionTelemetry.onExtensionError(extension, err);
 				logService.trace('forwarded error to extension?', reported, extension);

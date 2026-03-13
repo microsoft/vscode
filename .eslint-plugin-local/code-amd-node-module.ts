@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import type * as ESTree from 'estree';
+import { readFileSync } from 'fs';
 import { join } from 'path';
 
 
-export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
+export default new class ApiProviderNaming implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
@@ -21,7 +23,8 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 		const modules = new Set<string>();
 
 		try {
-			const { dependencies, optionalDependencies } = require(join(__dirname, '../package.json'));
+			const packageJson = JSON.parse(readFileSync(join(import.meta.dirname, '../package.json'), 'utf-8'));
+			const { dependencies, optionalDependencies } = packageJson;
 			const all = Object.keys(dependencies).concat(Object.keys(optionalDependencies));
 			for (const key of all) {
 				modules.add(key);
@@ -33,13 +36,13 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 		}
 
 
-		const checkImport = (node: any) => {
+		const checkImport = (node: ESTree.Literal & { parent?: ESTree.Node & { importKind?: string } }) => {
 
-			if (node.type !== 'Literal' || typeof node.value !== 'string') {
+			if (typeof node.value !== 'string') {
 				return;
 			}
 
-			if (node.parent.importKind === 'type') {
+			if (node.parent?.type === 'ImportDeclaration' && node.parent.importKind === 'type') {
 				return;
 			}
 

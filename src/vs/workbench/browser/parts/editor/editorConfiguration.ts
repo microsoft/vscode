@@ -25,7 +25,6 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 		'terminalEditor',
 		'mainThreadWebview-simpleBrowser.view',
 		'mainThreadWebview-browserPreview',
-		'workbench.editor.chatSession',
 		'workbench.editor.processExplorer'
 	]);
 

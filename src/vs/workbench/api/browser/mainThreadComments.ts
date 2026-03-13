@@ -216,10 +216,13 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	dispose() {
 		this._isDisposed = true;
 		this._onDidChangeCollapsibleState.dispose();
+		this._onDidChangeInitialCollapsibleState.dispose();
 		this._onDidChangeComments.dispose();
 		this._onDidChangeInput.dispose();
 		this._onDidChangeLabel.dispose();
+		this._onDidChangeCanReply.dispose();
 		this._onDidChangeState.dispose();
+		this._onDidChangeApplicability.dispose();
 	}
 
 	toJSON(): MarshalledCommentThread {
@@ -521,7 +524,7 @@ export class MainThreadCommentController extends Disposable implements ICommentC
 		await this._proxy.$updateCommentThreadTemplate(this.handle, threadHandle, range);
 	}
 
-	toJSON(): any {
+	toJSON() {
 		return {
 			$mid: MarshalledId.CommentController,
 			handle: this.handle

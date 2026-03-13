@@ -26,6 +26,7 @@ suite('BulkCellEdits', function () {
 		const notebook = mockObject<NotebookTextModel>()();
 		notebook.uri.returns(URI.file('/project/notebook.ipynb'));
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const notebookEditorModel = mockObject<IResolvedNotebookEditorModel>()({ notebook: notebook as any });
 		notebookEditorModel.isReadonly.returns(false);
 
@@ -35,6 +36,7 @@ suite('BulkCellEdits', function () {
 		const edits = [
 			new ResourceNotebookCellEdit(inputUri, { index: 0, count: 1, editType: CellEditType.Replace, cells: [] })
 		];
+		// eslint-disable-next-line local/code-no-any-casts
 		const bce = new BulkCellEdits(new UndoRedoGroup(), new UndoRedoSource(), progress, CancellationToken.None, edits, editorService, notebookService as any);
 		await bce.apply();
 

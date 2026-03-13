@@ -10,8 +10,7 @@ import { LanguageService } from '../../../../../editor/common/services/languageS
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { GettingStartedDetailsRenderer } from '../../browser/gettingStartedDetailsRenderer.js';
 import { convertInternalMediaPathToFileURI } from '../../browser/gettingStartedService.js';
-import { TestFileService } from '../../../../test/browser/workbenchTestServices.js';
-import { TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
+import { TestExtensionService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
 
 
 suite('Getting Started Markdown Renderer', () => {

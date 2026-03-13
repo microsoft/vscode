@@ -18,12 +18,13 @@ import { INotebookCellStatusBarItemProvider, INotebookContributionData, INoteboo
 import { INotebookService, SimpleNotebookProviderInfo } from '../../contrib/notebook/common/notebookService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape, NotebookDataDto } from '../common/extHost.protocol.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { INotebookFileMatchNoModel } from '../../contrib/search/common/searchNotebookHelpers.js';
 import { NotebookPriorityInfo } from '../../contrib/search/common/search.js';
 import { coalesce } from '../../../base/common/arrays.js';
+import { FileOperationError } from '../../../platform/files/common/files.js';
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks implements MainThreadNotebookShape {
@@ -80,6 +81,9 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 			},
 			save: async (uri, versionId, options, token) => {
 				const stat = await this._proxy.$saveNotebook(handle, uri, versionId, options, token);
+				if (isFileOperationError(stat)) {
+					throw new FileOperationError(stat.message, stat.fileOperationResult, stat.options);
+				}
 				return {
 					...stat,
 					children: undefined,
@@ -206,11 +210,8 @@ CommandsRegistry.registerCommand('_executeDataToNotebook', async (accessor, ...a
 	return new SerializableObjectWithBuffers(NotebookDto.toNotebookDataDto(dto));
 });
 
-CommandsRegistry.registerCommand('_executeNotebookToData', async (accessor, ...args) => {
-
-	const [notebookType, dto] = args;
+CommandsRegistry.registerCommand('_executeNotebookToData', async (accessor, notebookType: string, dto: SerializableObjectWithBuffers<NotebookDataDto>) => {
 	assertType(typeof notebookType === 'string', 'string');
-	assertType(typeof dto === 'object');
 
 	const notebookService = accessor.get(INotebookService);
 	const info = await notebookService.withNotebookDataProvider(notebookType);
@@ -222,3 +223,8 @@ CommandsRegistry.registerCommand('_executeNotebookToData', async (accessor, ...a
 	const bytes = await info.serializer.notebookToData(data);
 	return bytes;
 });
+
+function isFileOperationError(error: unknown): error is FileOperationError {
+	const candidate = error as FileOperationError | undefined;
+	return typeof candidate?.fileOperationResult === 'number' && typeof candidate?.message === 'string';
+}

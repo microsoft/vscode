@@ -132,7 +132,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		inset.webview.contentOptions = reviveWebviewContentOptions(options);
 	}
 
-	async $postMessage(handle: number, value: any): Promise<boolean> {
+	async $postMessage(handle: number, value: unknown): Promise<boolean> {
 		const inset = this.getInset(handle);
 		inset.webview.postMessage(value);
 		return true;

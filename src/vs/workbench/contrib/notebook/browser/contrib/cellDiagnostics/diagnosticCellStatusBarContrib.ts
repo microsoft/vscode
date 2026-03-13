@@ -15,7 +15,7 @@ import { registerNotebookContribution } from '../../notebookEditorExtensions.js'
 import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
 import { INotebookCellStatusBarItem, CellStatusbarAlignment } from '../../../common/notebookCommon.js';
 import { ICellExecutionError } from '../../../common/notebookExecutionStateService.js';
-import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import { IChatAgentService } from '../../../../chat/common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 
 export class DiagnosticCellStatusBarContrib extends Disposable implements INotebookEditorContribution {
@@ -58,8 +58,9 @@ class DiagnosticCellStatusBarItem extends Disposable {
 		let item: INotebookCellStatusBarItem | undefined;
 
 		if (error?.location && this.hasNotebookAgent()) {
-			const keybinding = this.keybindingService.lookupKeybinding(OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID)?.getLabel();
-			const tooltip = localize('notebook.cell.status.diagnostic', "Quick Actions {0}", `(${keybinding})`);
+			const tooltip = this.keybindingService.appendKeybinding(
+				localize('notebook.cell.status.diagnostic', "Quick Actions"),
+				OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID);
 
 			item = {
 				text: `$(sparkle)`,

@@ -9,6 +9,9 @@ import { ICachedPublicClientApplication, ICachedPublicClientApplicationManager }
 import { CachedPublicClientApplication } from './cachedPublicClientApplication';
 import { IAccountAccess, ScopedAccountAccess } from '../common/accountAccess';
 import { MicrosoftAuthenticationTelemetryReporter } from '../common/telemetryReporter';
+import { Environment } from '@azure/ms-rest-azure-env';
+import { Config } from '../common/config';
+import { DEFAULT_REDIRECT_URI } from '../common/env';
 
 export interface IPublicClientApplicationInfo {
 	clientId: string;
@@ -26,6 +29,7 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 	readonly onDidAccountsChange = this._onDidAccountsChangeEmitter.event;
 
 	private constructor(
+		private readonly _env: Environment,
 		private readonly _pcasSecretStorage: IPublicClientApplicationSecretStorage,
 		private readonly _accountAccess: IAccountAccess,
 		private readonly _secretStorage: SecretStorage,
@@ -44,13 +48,13 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		secretStorage: SecretStorage,
 		logger: LogOutputChannel,
 		telemetryReporter: MicrosoftAuthenticationTelemetryReporter,
-		cloudName: string
+		env: Environment
 	): Promise<CachedPublicClientApplicationManager> {
-		const pcasSecretStorage = await PublicClientApplicationsSecretStorage.create(secretStorage, cloudName);
+		const pcasSecretStorage = await PublicClientApplicationsSecretStorage.create(secretStorage, env.name);
 		// TODO: Remove the migrations in a version
 		const migrations = await pcasSecretStorage.getOldValue();
-		const accountAccess = await ScopedAccountAccess.create(secretStorage, cloudName, logger, migrations);
-		const manager = new CachedPublicClientApplicationManager(pcasSecretStorage, accountAccess, secretStorage, logger, telemetryReporter, [pcasSecretStorage, accountAccess]);
+		const accountAccess = await ScopedAccountAccess.create(secretStorage, env.name, logger, migrations);
+		const manager = new CachedPublicClientApplicationManager(env, pcasSecretStorage, accountAccess, secretStorage, logger, telemetryReporter, [pcasSecretStorage, accountAccess]);
 		await manager.initialize();
 		return manager;
 	}
@@ -110,7 +114,7 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		Disposable.from(...this._pcaDisposables.values()).dispose();
 	}
 
-	async getOrCreate(clientId: string, refreshTokensToMigrate?: string[]): Promise<ICachedPublicClientApplication> {
+	async getOrCreate(clientId: string, migrate?: { refreshTokensToMigrate?: string[]; tenant: string }): Promise<ICachedPublicClientApplication> {
 		let pca = this._pcas.get(clientId);
 		if (pca) {
 			this._logger.debug(`[getOrCreate] [${clientId}] PublicClientApplicationManager cache hit`);
@@ -122,13 +126,24 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		}
 
 		// TODO: MSAL Migration. Remove this when we remove the old flow.
-		if (refreshTokensToMigrate?.length) {
+		if (migrate?.refreshTokensToMigrate?.length) {
 			this._logger.debug(`[getOrCreate] [${clientId}] Migrating refresh tokens to PCA...`);
-			for (const refreshToken of refreshTokensToMigrate) {
+			const authority = new URL(migrate.tenant, this._env.activeDirectoryEndpointUrl).toString();
+			let redirectUri = DEFAULT_REDIRECT_URI;
+			if (pca.isBrokerAvailable && process.platform === 'darwin') {
+				redirectUri = Config.macOSBrokerRedirectUri;
+			}
+			for (const refreshToken of migrate.refreshTokensToMigrate) {
 				try {
 					// Use the refresh token to acquire a result. This will cache the refresh token for future operations.
 					// The scopes don't matter here since we can create any token from the refresh token.
-					const result = await pca.acquireTokenByRefreshToken({ refreshToken, forceCache: true, scopes: [] });
+					const result = await pca.acquireTokenByRefreshToken({
+						refreshToken,
+						forceCache: true,
+						scopes: [],
+						authority,
+						redirectUri
+					});
 					if (result?.account) {
 						this._logger.debug(`[getOrCreate] [${clientId}] Refresh token migrated to PCA.`);
 					}
@@ -231,10 +246,16 @@ class PublicClientApplicationsSecretStorage implements IPublicClientApplicationS
 	private readonly _onDidChangeEmitter = new EventEmitter<void>;
 	readonly onDidChange: Event<void> = this._onDidChangeEmitter.event;
 
-	private readonly _oldKey = `publicClientApplications-${this._cloudName}`;
-	private readonly _key = `publicClients-${this._cloudName}`;
+	private readonly _oldKey: string;
+	private readonly _key: string;
 
-	private constructor(private readonly _secretStorage: SecretStorage, private readonly _cloudName: string) {
+	private constructor(
+		private readonly _secretStorage: SecretStorage,
+		private readonly _cloudName: string
+	) {
+		this._oldKey = `publicClientApplications-${this._cloudName}`;
+		this._key = `publicClients-${this._cloudName}`;
+
 		this._disposable = Disposable.from(
 			this._onDidChangeEmitter,
 			this._secretStorage.onDidChange(e => {

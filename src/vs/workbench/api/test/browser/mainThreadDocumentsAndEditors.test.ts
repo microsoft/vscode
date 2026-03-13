@@ -83,12 +83,14 @@ suite('MainThreadDocumentsAndEditors', () => {
 		codeEditorService = new TestCodeEditorService(themeService);
 		textFileService = new class extends mock<ITextFileService>() {
 			override isDirty() { return false; }
+			// eslint-disable-next-line local/code-no-any-casts
 			override files = <any>{
 				onDidSave: Event.None,
 				onDidRevert: Event.None,
 				onDidChangeDirty: Event.None,
 				onDidChangeEncoding: Event.None
 			};
+			// eslint-disable-next-line local/code-no-any-casts
 			override untitled = <any>{
 				onDidChangeEncoding: Event.None
 			};

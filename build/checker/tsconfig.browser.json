@@ -1,0 +1,29 @@
+{
+	"extends": "../../src/tsconfig.base.json",
+	"compilerOptions": {
+		"lib": [
+			"ES2024",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"types": [],
+		"noEmit": true,
+		"skipLibCheck": true
+	},
+	"include": [
+		"../../src/*.ts",
+		"../../src/**/common/**/*.ts",
+		"../../src/**/browser/**/*.ts",
+		"../../src/typings/*.d.ts",
+		"../../src/vs/monaco.d.ts",
+		"../../src/vscode-dts/vscode.proposed.*.d.ts",
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../node_modules/@webgpu/types/dist/index.d.ts",
+		"../../node_modules/@types/trusted-types/index.d.ts",
+		"../../node_modules/@types/wicg-file-system-access/index.d.ts"
+	],
+	"exclude": [
+		"../../src/**/test/**",
+		"../../src/**/fixtures/**"
+	]
+}

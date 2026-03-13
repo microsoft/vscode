@@ -21,7 +21,7 @@ function writeIgnoreState(codeEditorService: ICodeEditorService, model: ITextMod
 }
 
 function readIgnoreState(codeEditorService: ICodeEditorService, model: ITextModel): boolean | undefined {
-	return codeEditorService.getModelProperty(model.uri, ignoreUnusualLineTerminators);
+	return codeEditorService.getModelProperty(model.uri, ignoreUnusualLineTerminators) as boolean | undefined;
 }
 
 export class UnusualLineTerminatorsDetector extends Disposable implements IEditorContribution {

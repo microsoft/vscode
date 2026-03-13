@@ -11,7 +11,7 @@ import { DeferredPromise, Promises } from '../../../../base/common/async.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from '../../../../base/parts/storage/common/storage.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AbstractStorageService, isProfileUsingDefaultStorage, IS_NEW_KEY, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -168,7 +168,7 @@ export class BrowserStorageService extends AbstractStorageService {
 			return;
 		}
 
-		const oldProfileStorage = assertIsDefined(this.profileStorage);
+		const oldProfileStorage = assertReturnsDefined(this.profileStorage);
 		const oldItems = oldProfileStorage.items;
 
 		// Close old profile storage but only if this is
@@ -181,7 +181,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		await this.createProfileStorage(toProfile);
 
 		// Handle data switch and eventing
-		this.switchData(oldItems, assertIsDefined(this.profileStorage), StorageScope.PROFILE);
+		this.switchData(oldItems, assertReturnsDefined(this.profileStorage), StorageScope.PROFILE);
 	}
 
 	protected async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {

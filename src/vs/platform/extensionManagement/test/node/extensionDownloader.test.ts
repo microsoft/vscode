@@ -24,6 +24,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IUriIdentityService } from '../../../uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -144,7 +145,7 @@ suite('ExtensionDownloader Tests', () => {
 		return disposables.add(instantiationService.createInstance(TestExtensionDownloader));
 	}
 
-	function aGalleryExtension(name: string, properties: Partial<IGalleryExtension> = {}, galleryExtensionProperties: any = {}, assets: Partial<IGalleryExtensionAssets> = {}): IGalleryExtension {
+	function aGalleryExtension(name: string, properties: Partial<IGalleryExtension> = {}, galleryExtensionProperties: IStringDictionary<unknown> = {}, assets: Partial<IGalleryExtensionAssets> = {}): IGalleryExtension {
 		const targetPlatform = getTargetPlatform(platform, arch);
 		const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', allTargetPlatforms: [targetPlatform], properties: {}, assets: {}, ...properties });
 		galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], targetPlatform, ...galleryExtensionProperties };

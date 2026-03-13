@@ -93,7 +93,7 @@ export class ResourcesDropHandler {
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 	}
 
@@ -105,6 +105,17 @@ export class ResourcesDropHandler {
 
 		// Make the window active to handle the drop properly within
 		await this.hostService.focus(targetWindow);
+
+		// Check for registered drop handlers
+		const dndRegistry = Registry.as<IDragAndDropContributionRegistry>(Extensions.DragAndDropContribution);
+		for (const { resource } of editors) {
+			if (resource) {
+				const handled = await this.instantiationService.invokeFunction(accessor => dndRegistry.handleResourceDrop(resource, accessor));
+				if (handled) {
+					return;
+				}
+			}
+		}
 
 		// Check for workspace file / folder being dropped if we are allowed to do so
 		if (this.options.allowWorkspaceOpen) {
@@ -470,7 +481,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 	private readDragData(type: ViewType): CompositeDragAndDropData | undefined {
 		if (this.transferData.hasData(type === 'view' ? DraggedViewIdentifier.prototype : DraggedCompositeIdentifier.prototype)) {
 			const data = this.transferData.getData(type === 'view' ? DraggedViewIdentifier.prototype : DraggedCompositeIdentifier.prototype);
-			if (data && data[0]) {
+			if (data?.[0]) {
 				return new CompositeDragAndDropData(type, data[0].id);
 			}
 		}

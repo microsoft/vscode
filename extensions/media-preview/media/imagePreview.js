@@ -306,6 +306,8 @@
 			return;
 		}
 
+		console.error('Error loading image', e);
+
 		hasLoadedImage = true;
 		document.body.classList.add('error');
 		document.body.classList.remove('loading');

@@ -51,6 +51,7 @@ export class ShowSignalSoundHelp extends Action2 {
 		qp.selectedItems = items.filter(i => accessibilitySignalService.isSoundEnabled(i.signal) || userGestureSignals.includes(i.signal) && configurationService.getValue(i.signal.settingsKey + '.sound') !== 'never');
 		disposables.add(qp.onDidAccept(() => {
 			const enabledSounds = qp.selectedItems.map(i => i.signal);
+			// eslint-disable-next-line local/code-no-any-casts
 			const disabledSounds = qp.items.map(i => (i as any).signal).filter(i => !enabledSounds.includes(i));
 			for (const signal of enabledSounds) {
 				let { sound, announcement } = configurationService.getValue<{ sound: string; announcement?: string }>(signal.settingsKey);

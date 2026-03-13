@@ -20,7 +20,8 @@ export class DomReadingContext {
 			const rect = this._domNode.getBoundingClientRect();
 			this.markDidDomLayout();
 			this._clientRectDeltaLeft = rect.left;
-			this._clientRectScale = rect.width / this._domNode.offsetWidth;
+			const offsetWidth = this._domNode.offsetWidth;
+			this._clientRectScale = offsetWidth > 0 ? rect.width / offsetWidth : 1;
 		}
 	}
 

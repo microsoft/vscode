@@ -33,9 +33,8 @@
 
 .monaco-icon-label-iconpath {
 	width: 16px;
-	height: 16px;
-	padding-left: 2px;
-	margin-top: 2px;
+	height: 22px;
+	margin-right: 6px;
 	display: flex;
 }
 
@@ -77,6 +76,11 @@
 
 .vs .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
 	opacity: .95;
+}
+
+.monaco-icon-label.bold > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,
+.monaco-icon-label.bold > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
+	font-weight: bold;
 }
 
 .monaco-icon-label.italic > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,

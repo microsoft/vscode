@@ -16,14 +16,15 @@ import { getRemoteAuthority } from '../../../../platform/remote/common/remoteHos
 import { isVirtualResource } from '../../../../platform/workspace/common/virtualWorkspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISingleFolderWorkspaceIdentifier, isSavedWorkspace, isSingleFolderWorkspaceIdentifier, isTemporaryWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, toWorkspaceIdentifier, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse, IWorkspaceTrustEnablementService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { Memento, MementoObject } from '../../../common/memento.js';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse, IWorkspaceTrustEnablementService, ResourceTrustRequestOptions } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { Memento } from '../../../common/memento.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isEqualAuthority } from '../../../../base/common/resources.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { promiseWithResolvers } from '../../../../base/common/async.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 
 export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
 export const WORKSPACE_TRUST_STARTUP_PROMPT = 'security.workspace.trust.startupPrompt';
@@ -367,6 +368,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return { trusted: true, uri };
 		}
 
+		// Agent sessions workspace file is always trusted
+		if (this.uriIdentityService.extUri.isEqual(uri, this.environmentService.agentSessionsWorkspace)) {
+			return { trusted: true, uri };
+		}
+
 		if (this.isTrustedVirtualResource(uri)) {
 			return { trusted: true, uri };
 		}
@@ -495,7 +501,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	isWorkspaceTrustForced(): boolean {
 		// Remote - remote authority explicitly sets workspace trust
-		if (this.environmentService.remoteAuthority && this._remoteAuthority && this._remoteAuthority.options?.isTrusted !== undefined) {
+		if (this.environmentService.remoteAuthority && this._remoteAuthority?.options?.isTrusted !== undefined) {
 			return true;
 		}
 
@@ -660,11 +666,17 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	private _openFilesTrustRequestPromise?: Promise<WorkspaceTrustUriResponse>;
 	private _openFilesTrustRequestResolver?: (response: WorkspaceTrustUriResponse) => void;
 
+	private readonly _resourcesTrustRequestPromises = new ResourceMap<Promise<boolean | undefined>>();
+	private readonly _resourcesTrustRequestResolvers = new ResourceMap<(trusted: boolean | undefined) => void>();
+
 	private _workspaceTrustRequestPromise?: Promise<boolean | undefined>;
 	private _workspaceTrustRequestResolver?: (trusted: boolean | undefined) => void;
 
 	private readonly _onDidInitiateOpenFilesTrustRequest = this._register(new Emitter<void>());
 	readonly onDidInitiateOpenFilesTrustRequest = this._onDidInitiateOpenFilesTrustRequest.event;
+
+	private readonly _onDidInitiateResourcesTrustRequest = this._register(new Emitter<ResourceTrustRequestOptions>());
+	readonly onDidInitiateResourcesTrustRequest = this._onDidInitiateResourcesTrustRequest.event;
 
 	private readonly _onDidInitiateWorkspaceTrustRequest = this._register(new Emitter<WorkspaceTrustRequestOptions | undefined>());
 	readonly onDidInitiateWorkspaceTrustRequest = this._onDidInitiateWorkspaceTrustRequest.event;
@@ -761,6 +773,48 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 
 	//#endregion
 
+	//#region Resource(s) trust request
+
+	async completeResourcesTrustRequest(uri: URI, result: WorkspaceTrustUriResponse): Promise<void> {
+		const resolver = this._resourcesTrustRequestResolvers.get(uri);
+		if (!resolver) {
+			return;
+		}
+
+		const trusted = result === WorkspaceTrustUriResponse.Open;
+		await this.workspaceTrustManagementService.setUrisTrust([uri], trusted);
+
+		resolver(trusted);
+
+		this._resourcesTrustRequestResolvers.delete(uri);
+		this._resourcesTrustRequestPromises.delete(uri);
+	}
+
+	async requestResourcesTrust(options: ResourceTrustRequestOptions): Promise<boolean | undefined> {
+		// Check if all resources are already trusted
+		const resourcesTrustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(options.uri);
+		if (resourcesTrustInfo.trusted) {
+			return true;
+		}
+
+		// Return existing promise for this URI
+		const existingPromise = this._resourcesTrustRequestPromises.get(options.uri);
+		if (existingPromise) {
+			return existingPromise;
+		}
+
+		// Create a new promise for this URI
+		const promise = new Promise<boolean | undefined>(resolve => {
+			this._resourcesTrustRequestResolvers.set(options.uri, resolve);
+		});
+		this._resourcesTrustRequestPromises.set(options.uri, promise);
+		this._onDidInitiateResourcesTrustRequest.fire(options);
+
+		return promise;
+	}
+
+	//#endregion
+
 	//#region Workspace trust request
 
 	private resolveWorkspaceTrustRequest(trusted?: boolean): void {
@@ -850,10 +904,15 @@ class WorkspaceTrustTransitionManager extends Disposable {
 	}
 }
 
+interface WorkspaceTrustMementoData {
+	acceptsOutOfWorkspaceFiles?: boolean;
+	isEmptyWorkspaceTrusted?: boolean | undefined;
+}
+
 class WorkspaceTrustMemento {
 
-	private readonly _memento?: Memento;
-	private readonly _mementoObject: MementoObject;
+	private readonly _memento?: Memento<WorkspaceTrustMementoData>;
+	private readonly _mementoObject: WorkspaceTrustMementoData;
 
 	private readonly _acceptsOutOfWorkspaceFilesKey = 'acceptsOutOfWorkspaceFiles';
 	private readonly _isEmptyWorkspaceTrustedKey = 'isEmptyWorkspaceTrusted';

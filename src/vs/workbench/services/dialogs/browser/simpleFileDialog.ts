@@ -26,7 +26,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { isValidBasename } from '../../../../base/common/extpath.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { createCancelablePromise, CancelablePromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ICommandHandler } from '../../../../platform/commands/common/commands.js';
@@ -105,7 +105,7 @@ enum UpdateResult {
 export const RemoteFileDialogContext = new RawContextKey<boolean>('remoteFileDialogVisible', false);
 
 export interface ISimpleFileDialog extends IDisposable {
-	showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined>;
+	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
 	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
 }
 
@@ -189,7 +189,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		return this.filePickBox.busy;
 	}
 
-	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI | undefined> {
+	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI[] | undefined> {
 		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
 		this.userHome = await this.getUserHome();
 		this.trueHome = await this.getUserHome(true);
@@ -198,7 +198,11 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			return Promise.resolve(undefined);
 		}
 		this.options = newOptions;
-		return this.pickResource();
+		const result = await this.pickResource();
+		if (Array.isArray(result)) {
+			return result;
+		}
+		return result ? [result] : undefined;
 	}
 
 	public async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
@@ -215,8 +219,8 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		this.options.canSelectFiles = true;
 
 		return new Promise<URI | undefined>((resolve) => {
-			this.pickResource(true).then(folderUri => {
-				resolve(folderUri);
+			this.pickResource(true).then(result => {
+				resolve(Array.isArray(result) ? result[0] : result);
 			});
 		});
 	}
@@ -281,7 +285,14 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			: this.fileDialogService.preferredHome(this.scheme);
 	}
 
-	private async pickResource(isSave: boolean = false): Promise<URI | undefined> {
+	private normalizeUri(uri: URI): URI {
+		uri = resources.addTrailingPathSeparator(uri, this.separator); // Ensures that c: is c:/ since this comes from user input and can be incorrect.
+		// To be consistent, we should never have a trailing path separator on directories (or anything else). Will not remove from c:/.
+		uri = resources.removeTrailingPathSeparator(uri);
+		return uri;
+	}
+
+	private async pickResource(isSave: boolean = false): Promise<URI[] | URI | undefined> {
 		this.allowFolderSelection = !!this.options.canSelectFolders;
 		this.allowFileSelection = !!this.options.canSelectFiles;
 		this.separator = this.labelService.getSeparator(this.scheme, this.remoteAuthority);
@@ -302,17 +313,19 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			}
 		}
 
-		return new Promise<URI | undefined>((resolve) => {
+		return new Promise<URI[] | URI | undefined>((resolve) => {
 			this.filePickBox = this._register(this.quickInputService.createQuickPick<FileQuickPickItem>());
 			this.busy = true;
 			this.filePickBox.matchOnLabel = false;
 			this.filePickBox.sortByLabel = false;
 			this.filePickBox.ignoreFocusOut = true;
+			this.filePickBox.placeholder = nls.localize('remoteFileDialog.placeholder', "Folder path");
 			this.filePickBox.ok = true;
 			this.filePickBox.okLabel = typeof this.options.openLabel === 'string' ? this.options.openLabel : this.options.openLabel?.withoutMnemonic;
 			if ((this.scheme !== Schemas.file) && this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1) && (this.options.availableFileSystems.indexOf(Schemas.file) > -1)) {
 				this.filePickBox.customButton = true;
 				this.filePickBox.customLabel = nls.localize('remoteFileDialog.local', 'Show Local');
+				this.filePickBox.customButtonSecondary = true;
 				let action;
 				if (isSave) {
 					action = SaveLocalFileCommand;
@@ -343,13 +356,15 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			this.filePickBox.value = this.pathFromUri(this.currentFolder, true);
 			this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 
-			const doResolve = (uri: URI | undefined) => {
-				if (uri) {
-					uri = resources.addTrailingPathSeparator(uri, this.separator); // Ensures that c: is c:/ since this comes from user input and can be incorrect.
-					// To be consistent, we should never have a trailing path separator on directories (or anything else). Will not remove from c:/.
-					uri = resources.removeTrailingPathSeparator(uri);
+			const doResolve = (uriOrUris: URI | URI[] | undefined) => {
+				if (uriOrUris) {
+					if (Array.isArray(uriOrUris)) {
+						uriOrUris = uriOrUris.map(uri => this.normalizeUri(uri));
+					} else {
+						uriOrUris = this.normalizeUri(uriOrUris);
+					}
 				}
-				resolve(uri);
+				resolve(uriOrUris);
 				this.contextKey.set(false);
 				this.dispose();
 			};
@@ -371,15 +386,16 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 					});
 				} else {
 					return this.fileDialogService.showOpenDialog(this.options).then(result => {
-						doResolve(result ? result[0] : undefined);
+						doResolve(result);
 					});
 				}
 			}));
 
+			const busyDisposable = this._register(new MutableDisposable());
 			const handleAccept = () => {
 				if (this.busy) {
 					// Save the accept until the file picker is not busy.
-					this.onBusyChangeEmitter.event((busy: boolean) => {
+					busyDisposable.value = this.onBusyChangeEmitter.event((busy: boolean) => {
 						if (!busy) {
 							handleAccept();
 						}
@@ -639,7 +655,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 				} catch (e) {
 					// do nothing
 				}
-				if (stat && stat.isDirectory && (resources.basename(valueUri) !== '.') && this.endsWithSlash(value)) {
+				if (stat?.isDirectory && (resources.basename(valueUri) !== '.') && this.endsWithSlash(value)) {
 					valueUri = this.tryAddTrailingSeparatorToDirectory(valueUri, stat);
 					return await this.updateItems(valueUri) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 				} else if (this.endsWithSlash(value)) {
@@ -662,7 +678,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 						} catch (e) {
 							// do nothing
 						}
-						if (statWithoutTrailing && statWithoutTrailing.isDirectory) {
+						if (statWithoutTrailing?.isDirectory) {
 							this.badPath = undefined;
 							inputUriDirname = this.tryAddTrailingSeparatorToDirectory(inputUriDirname, statWithoutTrailing);
 							return await this.updateItems(inputUriDirname, false, resources.basename(valueUri)) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
@@ -816,6 +832,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		prompt.ok = true;
 		prompt.customButton = true;
 		prompt.customLabel = nls.localize('remoteFileDialog.cancel', 'Cancel');
+		prompt.customButtonSecondary = true;
 		prompt.value = this.pathFromUri(uri);
 
 		let isResolving = false;
@@ -859,7 +876,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		}
 
 		if (this.requiresTrailing) { // save
-			if (stat && stat.isDirectory) {
+			if (stat?.isDirectory) {
 				// Can't do this
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateFolder', 'The folder already exists. Please use a new file name.');
 				return Promise.resolve(false);
