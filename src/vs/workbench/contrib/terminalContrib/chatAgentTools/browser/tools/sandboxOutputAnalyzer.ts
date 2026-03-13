@@ -26,7 +26,6 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 		if (options.exitCode === undefined || options.exitCode === 0) {
 			return undefined;
 		}
-
 		if (!(await this._sandboxService.isEnabled())) {
 			return undefined;
 		}
