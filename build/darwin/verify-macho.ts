@@ -34,6 +34,8 @@ const FILES_TO_SKIP = [
 	// Copilot prebuilds and ripgrep: single-arch binaries in per-platform directories
 	'**/node_modules/@github/copilot/prebuilds/darwin-*/**',
 	'**/node_modules/@github/copilot/ripgrep/bin/darwin-*/**',
+	'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/**',
+	'**/node_modules.asar.unpacked/@github/copilot/ripgrep/bin/darwin-*/**',
 ];
 
 function isFileSkipped(file: string): boolean {

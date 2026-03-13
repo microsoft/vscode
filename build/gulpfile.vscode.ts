@@ -732,21 +732,33 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 			: path.join(outputDir, 'resources', 'app');
 
 		// On stable builds the copilot SDK is stripped entirely -- nothing to copy into.
-		const copilotDir = path.join(appBase, 'node_modules', '@github', 'copilot');
-		if (!fs.existsSync(copilotDir)) {
+		// Check both plain node_modules and ASAR-unpacked for copilot presence.
+		const copilotPlainDir = path.join(appBase, 'node_modules', '@github', 'copilot');
+		const unpackedGithubDir = path.join(appBase, 'node_modules.asar.unpacked', '@github');
+		const hasCopilotPlain = fs.existsSync(copilotPlainDir);
+		const hasCopilotUnpacked = fs.existsSync(unpackedGithubDir) &&
+			fs.readdirSync(unpackedGithubDir).some(d => d.startsWith('copilot-'));
+		if (!hasCopilotPlain && !hasCopilotUnpacked) {
 			const quality = (product as { quality?: string }).quality;
 			if (quality && quality !== 'stable') {
-				throw new Error(`[copyCopilotNativeDeps] Copilot SDK directory not found at ${copilotDir} -- unexpected for ${quality} build`);
+				throw new Error(`[copyCopilotNativeDeps] Copilot SDK not found -- unexpected for ${quality} build`);
 			}
 			console.log(`[copyCopilotNativeDeps] Skipping -- copilot SDK not present (stable build)`);
 			return;
 		}
 
+		// The copilot CLI runs as a child process (plain Node.js, no Electron ASAR
+		// patching), so it needs real files on disk. Prefer plain node_modules/ if it
+		// exists; otherwise use the ASAR-unpacked location.
+		const copilotBase = hasCopilotPlain ? copilotPlainDir : path.join(unpackedGithubDir, 'copilot');
+		const nodeModulesBase = hasCopilotPlain
+			? path.join(appBase, 'node_modules')
+			: path.join(appBase, 'node_modules.asar.unpacked');
 		const platformArch = `${platform === 'win32' ? 'win32' : platform}-${arch}`;
 
 		// Copy node-pty (pty.node + spawn-helper) into copilot prebuilds
-		const nodePtySource = path.join(appBase, 'node_modules', 'node-pty', 'build', 'Release');
-		const copilotPrebuildsDir = path.join(appBase, 'node_modules', '@github', 'copilot', 'prebuilds', platformArch);
+		const nodePtySource = path.join(nodeModulesBase, 'node-pty', 'build', 'Release');
+		const copilotPrebuildsDir = path.join(copilotBase, 'prebuilds', platformArch);
 
 		if (fs.existsSync(nodePtySource)) {
 			fs.mkdirSync(copilotPrebuildsDir, { recursive: true });
@@ -756,8 +768,8 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 
 		// Copy ripgrep (rg binary) into copilot ripgrep
 		const rgBinary = platform === 'win32' ? 'rg.exe' : 'rg';
-		const ripgrepSource = path.join(appBase, 'node_modules', '@vscode', 'ripgrep', 'bin', rgBinary);
-		const copilotRipgrepDir = path.join(appBase, 'node_modules', '@github', 'copilot', 'ripgrep', 'bin', platformArch);
+		const ripgrepSource = path.join(nodeModulesBase, '@vscode', 'ripgrep', 'bin', rgBinary);
+		const copilotRipgrepDir = path.join(copilotBase, 'ripgrep', 'bin', platformArch);
 
 		if (fs.existsSync(ripgrepSource)) {
 			fs.mkdirSync(copilotRipgrepDir, { recursive: true });
