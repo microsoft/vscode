@@ -281,7 +281,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		// When grouped by repository, hide the badge only if the name it shows
 		// matches the section header (i.e. the repository name for this session).
 		// Badges with a different name (e.g. worktree name) are still shown.
-		if (this.options.isGroupedByRepository?.()) {
+		// Archived sessions always keep their badge since they are grouped under
+		// the "Archived" section, not a repository section.
+		if (this.options.isGroupedByRepository?.() && !session.element.isArchived()) {
 			const raw = typeof badge === 'string' ? badge : badge.value;
 			const match = raw.match(/^\$\((?:repo|folder|worktree)\)\s*(.+)/);
 			if (match) {

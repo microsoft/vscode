@@ -859,5 +859,18 @@ suite('AgentSessionsDataSource', () => {
 			assert.strictEqual(getRepositoryName(session), 'vscode');
 			// Badge text shows a different name than the repo — renderer should NOT hide it
 		});
+
+		test('archived session still returns repo name from metadata', () => {
+			// Archived sessions are grouped under "Archived", not under a repo section,
+			// so the renderer must keep their badge visible even when the badge name
+			// matches the repo name. getRepositoryName still resolves normally.
+			const session = createMockSession({
+				id: '1',
+				isArchived: true,
+				metadata: { repositoryPath: '/Users/user/Projects/vscode' },
+				badge: '$(repo) vscode',
+			});
+			assert.strictEqual(getRepositoryName(session), 'vscode');
+		});
 	});
 });
