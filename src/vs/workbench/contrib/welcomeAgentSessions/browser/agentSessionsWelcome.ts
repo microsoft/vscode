@@ -60,6 +60,7 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
@@ -167,6 +168,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ILogService private readonly logService: ILogService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super(AgentSessionsWelcomePage.ID, group, telemetryService, themeService, storageService);
 
@@ -205,6 +207,13 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this._openedAt = Date.now();
 		await super.setInput(input, options, context, token);
 		this._workspaceKind = input.workspaceKind ?? 'empty';
+
+		// Close the chat panel if it's visible to prevent duplicate chat UI
+		// Users should have either the welcome view or the chat widget visible, but not both
+		if (this.viewsService.isViewVisible(ChatViewId)) {
+			this.viewsService.closeView(ChatViewId);
+		}
+
 		await this.buildContent();
 	}
 
