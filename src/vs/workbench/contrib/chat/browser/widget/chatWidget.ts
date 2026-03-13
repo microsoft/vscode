@@ -2469,15 +2469,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
 		const sessionResource = this.viewModel?.sessionResource;
+		const capturedModeId = this.input.currentModeObs.get().id;
 		const userSelectedTools = this.input.selectedToolsModel.userSelectedTools;
 
 		let lastToolsSnapshot = userSelectedTools.get();
 
 		// When the widget has loaded a new session, return a snapshot of the tools for this session.
-		// Only sync with the tools model when this session is shown.
+		// Only sync with the tools model when this session is shown with the same mode.
 		const scopedTools = derived(reader => {
 			const activeSession = this._viewModelObs.read(reader)?.sessionResource;
-			if (isEqual(activeSession, sessionResource)) {
+			const currentModeId = this.input.currentModeObs.read(reader).id;
+			if (isEqual(activeSession, sessionResource) && currentModeId === capturedModeId) {
 				const tools = userSelectedTools.read(reader);
 				lastToolsSnapshot = tools;
 				return tools;
