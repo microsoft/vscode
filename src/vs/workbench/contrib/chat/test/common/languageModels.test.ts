@@ -160,7 +160,7 @@ suite('LanguageModels', function () {
 				}));
 				return modelMetadataAndIdentifier;
 			},
-			sendChatRequest: async (modelId: string, messages: IChatMessage[], _from: ExtensionIdentifier, _options: { [name: string]: any }, token: CancellationToken) => {
+			sendChatRequest: async (modelId: string, messages: IChatMessage[], _from: ExtensionIdentifier | undefined, _options: { [name: string]: any }, token: CancellationToken) => {
 				// const message = messages.at(-1);
 
 				const defer = new DeferredPromise();

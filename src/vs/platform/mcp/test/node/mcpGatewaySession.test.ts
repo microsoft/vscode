@@ -112,6 +112,145 @@ suite('McpGatewaySession', () => {
 		onDidChangeResources.dispose();
 	});
 
+	test('negotiates to older protocol version when client requests it', async () => {
+		const { invoker, onDidChangeTools, onDidChangeResources } = createInvoker();
+		const session = new McpGatewaySession('session-negotiate-1', new NullLogService(), () => { }, invoker);
+
+		const responses = await session.handleIncoming({
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+			params: {
+				protocolVersion: '2025-03-26',
+				capabilities: {},
+				clientInfo: { name: 'test-client', version: '1.0.0' },
+			},
+		});
+
+		assert.strictEqual(responses.length, 1);
+		const response = responses[0] as IJsonRpcSuccessResponse;
+		assert.strictEqual((response.result as { protocolVersion: string }).protocolVersion, '2025-03-26');
+		session.dispose();
+		onDidChangeTools.dispose();
+		onDidChangeResources.dispose();
+	});
+
+	test('negotiates to each supported protocol version', async () => {
+		const supportedVersions = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05', '2024-10-07'];
+		for (const version of supportedVersions) {
+			const { invoker, onDidChangeTools, onDidChangeResources } = createInvoker();
+			const session = new McpGatewaySession(`session-ver-${version}`, new NullLogService(), () => { }, invoker);
+
+			const responses = await session.handleIncoming({
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'initialize',
+				params: { protocolVersion: version, capabilities: {} },
+			});
+
+			const response = responses[0] as IJsonRpcSuccessResponse;
+			assert.strictEqual(
+				(response.result as { protocolVersion: string }).protocolVersion,
+				version,
+				`Expected server to negotiate to ${version}`
+			);
+			session.dispose();
+			onDidChangeTools.dispose();
+			onDidChangeResources.dispose();
+		}
+	});
+
+	test('falls back to latest version for unsupported client version', async () => {
+		const { invoker, onDidChangeTools, onDidChangeResources } = createInvoker();
+		const session = new McpGatewaySession('session-negotiate-2', new NullLogService(), () => { }, invoker);
+
+		const responses = await session.handleIncoming({
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+			params: {
+				protocolVersion: '2099-01-01',
+				capabilities: {},
+				clientInfo: { name: 'test-client', version: '1.0.0' },
+			},
+		});
+
+		assert.strictEqual(responses.length, 1);
+		const response = responses[0] as IJsonRpcSuccessResponse;
+		assert.strictEqual((response.result as { protocolVersion: string }).protocolVersion, '2025-11-25');
+		session.dispose();
+		onDidChangeTools.dispose();
+		onDidChangeResources.dispose();
+	});
+
+	test('falls back to latest version when no params provided', async () => {
+		const { invoker, onDidChangeTools, onDidChangeResources } = createInvoker();
+		const session = new McpGatewaySession('session-negotiate-3', new NullLogService(), () => { }, invoker);
+
+		const responses = await session.handleIncoming({
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+		});
+
+		assert.strictEqual(responses.length, 1);
+		const response = responses[0] as IJsonRpcSuccessResponse;
+		assert.strictEqual((response.result as { protocolVersion: string }).protocolVersion, '2025-11-25');
+		session.dispose();
+		onDidChangeTools.dispose();
+		onDidChangeResources.dispose();
+	});
+
+	test('falls back to latest version when protocolVersion is not a string', async () => {
+		const { invoker, onDidChangeTools, onDidChangeResources } = createInvoker();
+		const session = new McpGatewaySession('session-negotiate-4', new NullLogService(), () => { }, invoker);
+
+		const responses = await session.handleIncoming({
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+			params: {
+				protocolVersion: 42,
+				capabilities: {},
+			},
+		});
+
+		assert.strictEqual(responses.length, 1);
+		const response = responses[0] as IJsonRpcSuccessResponse;
+		assert.strictEqual((response.result as { protocolVersion: string }).protocolVersion, '2025-11-25');
+		session.dispose();
+		onDidChangeTools.dispose();
+		onDidChangeResources.dispose();
+	});
+
+	test('initialize response includes server info and capabilities', async () => {
+		const { invoker, onDidChangeTools, onDidChangeResources } = createInvoker();
+		const session = new McpGatewaySession('session-init-caps', new NullLogService(), () => { }, invoker);
+
+		const responses = await session.handleIncoming({
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+			params: { protocolVersion: '2025-03-26', capabilities: {} },
+		});
+
+		const result = (responses[0] as IJsonRpcSuccessResponse).result as MCP.InitializeResult;
+		assert.deepStrictEqual(result, {
+			protocolVersion: '2025-03-26',
+			capabilities: {
+				tools: { listChanged: true },
+				resources: { listChanged: true },
+			},
+			serverInfo: {
+				name: 'VS Code MCP Gateway',
+				version: '1.0.0',
+			},
+		});
+		session.dispose();
+		onDidChangeTools.dispose();
+		onDidChangeResources.dispose();
+	});
+
 	test('rejects non-initialize requests before initialized notification', async () => {
 		const { invoker, onDidChangeTools, onDidChangeResources } = createInvoker();
 		const session = new McpGatewaySession('session-2', new NullLogService(), () => { }, invoker);

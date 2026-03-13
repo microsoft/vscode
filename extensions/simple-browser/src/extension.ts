@@ -38,7 +38,7 @@ const openerId = 'simpleBrowser.open';
  */
 async function shouldUseIntegratedBrowser(): Promise<boolean> {
 	const config = vscode.workspace.getConfiguration();
-	if (!config.get<boolean>(useIntegratedBrowserSetting, false)) {
+	if (!config.get<boolean>(useIntegratedBrowserSetting, true)) {
 		return false;
 	}
 

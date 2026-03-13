@@ -1024,9 +1024,13 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		let managers: IExtensionHostManager[];
 		if (activationKind === ActivationKind.Immediate) {
 			// For immediate activation, only activate on local extension hosts
-			// and defer remote activation until the remote host is ready
+			// and on remote extension hosts that are already ready.
+			// Defer activation for remote hosts that are not yet ready to avoid
+			// blocking (e.g. during remote authority resolution).
 			managers = this._extensionHostManagers.filter(
-				extHostManager => extHostManager.kind === ExtensionHostKind.LocalProcess || extHostManager.kind === ExtensionHostKind.LocalWebWorker
+				extHostManager => extHostManager.kind === ExtensionHostKind.LocalProcess
+					|| extHostManager.kind === ExtensionHostKind.LocalWebWorker
+					|| extHostManager.isReady
 			);
 			this._pendingRemoteActivationEvents.add(activationEvent);
 		} else {

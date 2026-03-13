@@ -131,10 +131,12 @@
           "type": "object",
           "default": {
             "https://schemastore.azurewebsites.net/": true,
-            "https://raw.githubusercontent.com/": true,
+            "https://raw.githubusercontent.com/microsoft/vscode/": true,
+            "https://raw.githubusercontent.com/devcontainers/spec/": true,
             "https://www.schemastore.org/": true,
             "https://json.schemastore.org/": true,
-            "https://json-schema.org/": true
+            "https://json-schema.org/": true,
+            "https://developer.microsoft.com/json-schemas/": true
           },
           "additionalProperties": {
             "type": "boolean"
@@ -188,7 +190,7 @@
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
     "request-light": "^0.8.0",
-    "vscode-languageclient": "^10.0.0-next.18"
+    "vscode-languageclient": "^10.0.0-next.20"
   },
   "devDependencies": {
     "@types/node": "22.x"

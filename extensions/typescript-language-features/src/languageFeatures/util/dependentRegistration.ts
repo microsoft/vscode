@@ -90,19 +90,6 @@ export function requireMinVersion(
 	);
 }
 
-export function requireGlobalConfiguration(
-	section: string,
-	configValue: string,
-) {
-	return new Condition(
-		() => {
-			const config = vscode.workspace.getConfiguration(section, null);
-			return !!config.get<boolean>(configValue);
-		},
-		vscode.workspace.onDidChangeConfiguration
-	);
-}
-
 /**
  * Requires that a configuration value has been modified from its default value in either the global or workspace scope
  *

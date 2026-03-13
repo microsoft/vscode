@@ -1449,6 +1449,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					message: computedNotificiations[0].message,
 					severity: computedNotificiations[0].severity,
 					extensions: computedNotificiations[0].extensions,
+					query: computedNotificiations[0].query,
+					action: computedNotificiations[0].action,
 					key: computedNotificiations[0].key,
 					dismiss: () => {
 						this.setDismissedNotifications([...this.getDismissedNotifications(), computedNotificiations[0].key]);
@@ -1497,6 +1499,34 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					severity: Severity.Warning,
 					extensions: invalidExtensions,
 					key: 'invalidExtensions:' + invalidExtensions.sort((a, b) => a.identifier.id.localeCompare(b.identifier.id)).map(e => `${e.identifier.id.toLowerCase()}@${e.local?.manifest.version}`).join('-'),
+				});
+			}
+		}
+
+		if (!this.configurationService.getValue(AutoRestartConfigurationKey)) {
+			const restartRequiredExtensions = this.local.filter(e => e.runtimeState !== undefined && (e.runtimeState.action === ExtensionRuntimeActionType.RestartExtensions || e.runtimeState.action === ExtensionRuntimeActionType.ReloadWindow));
+			if (restartRequiredExtensions.length) {
+				const needsReload = restartRequiredExtensions.some(e => e.runtimeState?.action === ExtensionRuntimeActionType.ReloadWindow);
+				computedNotificiations.push({
+					message: needsReload
+						? nls.localize('extensions need reload', "Extensions require a window reload to take effect.")
+						: nls.localize('extensions need restart', "Extensions require a restart to take effect."),
+					severity: Severity.Info,
+					extensions: restartRequiredExtensions,
+					query: '@restartrequired',
+					action: {
+						label: needsReload
+							? nls.localize('reload window', "Reload Window")
+							: nls.localize('restart extensions action', "Restart Extensions"),
+						run: () => {
+							if (needsReload) {
+								this.hostService.reload();
+							} else {
+								this.updateRunningExtensions();
+							}
+						}
+					},
+					key: 'restartRequired:' + restartRequiredExtensions.sort((a, b) => a.identifier.id.localeCompare(b.identifier.id)).map(e => e.identifier.id.toLowerCase()).join('-'),
 				});
 			}
 		}

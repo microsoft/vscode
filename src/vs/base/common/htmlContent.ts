@@ -210,9 +210,9 @@ export function createMarkdownLink(text: string, href: string, title?: string, e
 	return `[${escapeTokens ? escapeMarkdownSyntaxTokens(text) : text}](${href}${title ? ` "${escapeMarkdownSyntaxTokens(title)}"` : ''})`;
 }
 
-export function createMarkdownCommandLink(command: { title: string; id: string; arguments?: unknown[]; tooltip?: string }, escapeTokens = true): string {
+export function createMarkdownCommandLink(command: { text: string; id: string; arguments?: unknown[]; tooltip: string }, escapeTokens = true): string {
 	const uri = createCommandUri(command.id, ...(command.arguments || [])).toString();
-	return createMarkdownLink(command.title, uri, command.tooltip, escapeTokens);
+	return createMarkdownLink(command.text, uri, command.tooltip, escapeTokens);
 }
 
 export function createCommandUri(commandId: string, ...commandArgs: unknown[]): URI {

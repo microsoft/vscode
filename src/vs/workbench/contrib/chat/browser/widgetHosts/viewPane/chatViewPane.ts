@@ -66,6 +66,7 @@ import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IHostService } from '../../../../../services/host/browser/host.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	/**
@@ -126,6 +127,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@ICommandService private readonly commandService: ICommandService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -248,7 +250,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (!this._widget?.viewModel && !this.restoringSession) {
 				const sessionResource = this.getTransferredOrPersistedSessionInfo();
 				this.restoringSession =
-					(sessionResource ? this.chatService.getOrRestoreSession(sessionResource) : Promise.resolve(undefined)).then(async modelRef => {
+					(sessionResource ? this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None) : Promise.resolve(undefined)).then(async modelRef => {
 						if (!this._widget) {
 							return; // renderBody has not been called yet
 						}
@@ -397,6 +399,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		sessionsToolbar.context = sessionsControl;
 
+		// Refresh sessions when window gets focus to compensate for missing events
+		this._register(this.hostService.onDidChangeFocus(hasFocus => {
+			if (hasFocus) {
+				sessionsControl.refresh();
+			}
+		}));
+
 		// Deal with orientation configuration
 		this._register(Event.runAndSubscribe(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsOrientation)), e => {
 			const newSessionsViewerOrientationConfiguration = this.configurationService.getValue<'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
@@ -452,7 +461,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				newSessionsContainerVisible =
 					!!this.chatEntitlementService.sentiment.installed &&						// chat is installed (otherwise make room for terms and welcome)
-					(!this._widget || (this._widget.isEmpty() && !!this._widget.viewModel)) &&	// chat widget empty (but not when model is loading)
+					(!this._widget || (this._widget.isEmpty() && !!this._widget.viewModel && !this._widget.viewModel.model.title)) &&	// chat widget empty (but not when model is loading or has a title)
 					!this.welcomeController?.isShowingWelcome.get();							// welcome not showing
 			}
 
@@ -530,6 +539,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					: 'explicit',
 				supportsChangingModes: true,
 				dndContainer: parent,
+				inputEditorMinLines: this.workbenchEnvironmentService.isSessionsWindow ? 2 : undefined,
+				isSessionsWindow: this.workbenchEnvironmentService.isSessionsWindow,
 			},
 			{
 				listForeground: SIDE_BAR_FOREGROUND,
@@ -676,7 +687,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private async _applyModel(): Promise<void> {
 		const sessionResource = this.getTransferredOrPersistedSessionInfo();
-		const modelRef = sessionResource ? await this.chatService.getOrRestoreSession(sessionResource) : undefined;
+		const modelRef = sessionResource ? await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None) : undefined;
 		await this.showModel(modelRef);
 	}
 
@@ -687,8 +698,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let ref: IChatModelReference | undefined;
 		if (startNewSession) {
 			ref = modelRef ?? (this.chatService.transferredSessionResource
-				? await this.chatService.getOrRestoreSession(this.chatService.transferredSessionResource)
-				: this.chatService.startSession(ChatAgentLocation.Chat));
+				? await this.chatService.acquireOrLoadSession(this.chatService.transferredSessionResource, ChatAgentLocation.Chat, CancellationToken.None)
+				: this.chatService.startNewLocalSession(ChatAgentLocation.Chat));
 			if (!ref) {
 				throw new Error('Could not start chat session');
 			}
@@ -698,7 +709,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const model = ref?.object;
 
 		if (model) {
-			await this.updateWidgetLockState(model.sessionResource); // Update widget lock state based on session type
+			await this.updateWidgetLockState(getChatSessionType(model.sessionResource)); // Update widget lock state based on session type
 
 			// remember as model to restore in view state
 			this.viewState.sessionResource = model.sessionResource;
@@ -720,8 +731,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		return model;
 	}
 
-	private async updateWidgetLockState(sessionResource: URI): Promise<void> {
-		const sessionType = getChatSessionType(sessionResource);
+	private async updateWidgetLockState(sessionType: string): Promise<void> {
 		if (sessionType === localChatSessionType) {
 			this._widget.unlockFromCodingAgent();
 			return;
@@ -729,9 +739,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		let canResolve = false;
 		try {
-			canResolve = await this.chatSessionsService.canResolveChatSession(sessionResource);
+			canResolve = await this.chatSessionsService.canResolveChatSession(sessionType);
 		} catch (error) {
-			this.logService.warn(`Failed to resolve chat session '${sessionResource.toString()}' for locking`, error);
+			this.logService.warn(`Failed to resolve chat session type '${sessionType}' for locking`, error);
 		}
 
 		if (!canResolve) {
@@ -741,7 +751,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
 		if (contribution) {
-			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
+			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, sessionType);
 		} else {
 			this._widget.unlockFromCodingAgent();
 		}
@@ -774,12 +784,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}, 100);
 
 			try {
-				const sessionType = getChatSessionType(sessionResource);
-				if (sessionType !== localChatSessionType) {
-					await this.chatSessionsService.canResolveChatSession(sessionResource);
-				}
-
-				const newModelRef = await this.chatService.loadSessionForResource(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+				const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 				clearWidget.dispose();
 				await queue;
 

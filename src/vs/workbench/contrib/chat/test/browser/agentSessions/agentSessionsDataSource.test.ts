@@ -20,16 +20,16 @@ suite('getAgentSessionTime', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('returns lastRequestEnded when available', () => {
+	test('returns lastRequestStarted when available', () => {
 		const timing: IChatSessionTiming = {
 			created: 1000,
 			lastRequestStarted: 2000,
 			lastRequestEnded: 3000,
 		};
-		assert.strictEqual(getAgentSessionTime(timing), 3000);
+		assert.strictEqual(getAgentSessionTime(timing), 2000);
 	});
 
-	test('returns lastRequestStarted when lastRequestEnded is undefined', () => {
+	test('returns lastRequestStarted even when lastRequestEnded is undefined', () => {
 		const timing: IChatSessionTiming = {
 			created: 1000,
 			lastRequestStarted: 2000,
@@ -38,7 +38,7 @@ suite('getAgentSessionTime', () => {
 		assert.strictEqual(getAgentSessionTime(timing), 2000);
 	});
 
-	test('returns created when both lastRequestEnded and lastRequestStarted are undefined', () => {
+	test('returns created when lastRequestStarted is undefined', () => {
 		const timing: IChatSessionTiming = {
 			created: 1000,
 			lastRequestStarted: undefined,
@@ -95,7 +95,7 @@ suite('sessionDateFromNow', () => {
 
 suite('AgentSessionsDataSource', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const ONE_DAY = 24 * 60 * 60 * 1000;
 	const WEEK_THRESHOLD = 7 * ONE_DAY; // 7 days
@@ -108,6 +108,8 @@ suite('AgentSessionsDataSource', () => {
 		hasChanges: boolean;
 		startTime: number;
 		endTime: number;
+		metadata: { [key: string]: unknown };
+		badge: string;
 	}> = {}): IAgentSession {
 		const now = Date.now();
 		return {
@@ -123,6 +125,8 @@ suite('AgentSessionsDataSource', () => {
 				lastRequestStarted: undefined,
 			},
 			changes: overrides.hasChanges ? { files: 1, insertions: 10, deletions: 5 } : undefined,
+			metadata: overrides.metadata,
+			badge: overrides.badge,
 			isArchived: () => overrides.isArchived ?? false,
 			setArchived: () => { },
 			isRead: () => overrides.isRead ?? true,
@@ -152,7 +156,9 @@ suite('AgentSessionsDataSource', () => {
 			onDidChange: Event.None,
 			groupResults: () => options.groupBy,
 			exclude: options.exclude ?? (() => false),
-			getExcludes: () => ({ providers: [], states: [], archived: false, read: options.excludeRead ?? false })
+			getExcludes: () => ({ providers: [], states: [], archived: false, read: options.excludeRead ?? false }),
+			isDefault: () => true,
+			reset: () => { },
 		};
 	}
 
@@ -182,7 +188,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: undefined });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -202,7 +208,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -223,7 +229,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -244,7 +250,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -263,7 +269,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -281,7 +287,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -299,7 +305,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -319,7 +325,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -353,7 +359,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -382,7 +388,7 @@ suite('AgentSessionsDataSource', () => {
 		test('empty sessions returns empty result', () => {
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel([]);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -399,7 +405,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -422,7 +428,7 @@ suite('AgentSessionsDataSource', () => {
 
 			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Date });
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -456,7 +462,7 @@ suite('AgentSessionsDataSource', () => {
 				excludeRead: true  // Filtering to show only unread sessions
 			});
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -481,7 +487,7 @@ suite('AgentSessionsDataSource', () => {
 				excludeRead: false  // Not filtering to unread only
 			});
 			const sorter = createMockSorter();
-			const dataSource = new AgentSessionsDataSource(filter, sorter);
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, sorter));
 
 			const mockModel = createMockModel(sessions);
 			const result = Array.from(dataSource.getChildren(mockModel));
@@ -492,6 +498,305 @@ suite('AgentSessionsDataSource', () => {
 			assert.strictEqual(sections.length, 1);
 			assert.strictEqual(sections[0].section, AgentSessionSection.More);
 			assert.strictEqual(sections[0].sessions.length, 2);
+		});
+	});
+
+	suite('groupSessionsByRepository', () => {
+
+		function sortedGroups(result: IAgentSessionSection[]) {
+			return result
+				.map(s => ({ label: s.label, count: s.sessions.length }))
+				.sort((a, b) => a.label.localeCompare(b.label));
+		}
+
+		test('groups sessions by metadata.owner + metadata.name (cloud sessions)', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', startTime: now, metadata: { owner: 'microsoft', name: 'vscode' } }),
+				createMockSession({ id: '2', startTime: now - 1, metadata: { owner: 'microsoft', name: 'vscode' } }),
+				createMockSession({ id: '3', startTime: now - 2, metadata: { owner: 'microsoft', name: 'typescript' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'typescript', count: 1 },
+				{ label: 'vscode', count: 2 },
+			]);
+		});
+
+		test('groups sessions by metadata.repositoryNwo', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { repositoryNwo: 'microsoft/vscode' } }),
+				createMockSession({ id: '2', metadata: { repositoryNwo: 'microsoft/vscode' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'vscode', count: 2 },
+			]);
+		});
+
+		test('groups sessions by metadata.repository (nwo format)', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { repository: 'microsoft/vscode' } }),
+				createMockSession({ id: '2', metadata: { repository: 'microsoft/vscode' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'vscode', count: 2 },
+			]);
+		});
+
+		test('groups sessions by metadata.repository (URL format)', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { repository: 'https://github.com/microsoft/vscode' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'vscode', count: 1 },
+			]);
+		});
+
+		test('strips .git suffix from repository URLs', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { repository: 'https://github.com/microsoft/vscode.git' } }),
+				createMockSession({ id: '2', metadata: { repositoryUrl: 'https://github.com/microsoft/vscode.git' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'vscode', count: 2 },
+			]);
+		});
+
+		test('handles git@ SSH URLs', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { repository: 'git@github.com:microsoft/vscode.git' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'vscode', count: 1 },
+			]);
+		});
+
+		test('groups sessions by metadata.repositoryUrl', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { repositoryUrl: 'https://github.com/microsoft/vscode' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'vscode', count: 1 },
+			]);
+		});
+
+		test('groups sessions by metadata.repositoryPath (basename)', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { repositoryPath: '/Users/user/Projects/vscode' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'vscode', count: 1 },
+			]);
+		});
+
+		test('groups sessions by metadata.worktreePath', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { worktreePath: '/Users/user/Projects/vscode.worktrees/my-branch' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'vscode', count: 1 },
+			]);
+		});
+
+		test('groups sessions by metadata.workingDirectoryPath', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { workingDirectoryPath: '/Users/user/Projects/vscode' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'vscode', count: 1 },
+			]);
+		});
+
+		test('resolves worktree paths to parent repo name', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { workingDirectoryPath: '/Users/user/Projects/vscode.worktrees/copilot-branch' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'vscode', count: 1 },
+			]);
+		});
+
+		test('groups sessions by badge with $(repo) prefix', () => {
+			const sessions = [
+				createMockSession({ id: '1', badge: '$(repo) vscode' }),
+				createMockSession({ id: '2', badge: '$(repo) vscode' }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'vscode', count: 2 },
+			]);
+		});
+
+		test('groups sessions by badge with $(folder) prefix', () => {
+			const sessions = [
+				createMockSession({ id: '1', badge: '$(folder) my-project' }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'my-project', count: 1 },
+			]);
+		});
+
+		test('cloud and local sessions for same repo merge into one group', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { owner: 'microsoft', name: 'vscode' } }),
+				createMockSession({ id: '2', metadata: { repositoryPath: '/Users/user/Projects/vscode' } }),
+				createMockSession({ id: '3', badge: '$(repo) vscode' }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'vscode', count: 3 },
+			]);
+		});
+
+		test('sessions without any repo info go to Other', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { isolationMode: 'workspace' } }),
+				createMockSession({ id: '2' }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'Other', count: 2 },
+			]);
+		});
+
+		test('repo named "other" does not collide with the Other fallback group', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', startTime: now, metadata: { repositoryPath: '/path/other' } }),
+				createMockSession({ id: '2', startTime: now - 1 }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.strictEqual(result.length, 2, 'should have 2 separate groups');
+			const labels = result.map(s => s.label);
+			assert.ok(labels.includes('other'), 'should have a group for repo named "other"');
+			assert.ok(labels.includes('Other'), 'should have the fallback "Other" group');
+			assert.strictEqual(result.find(s => s.label === 'other')!.sessions.length, 1);
+			assert.strictEqual(result.find(s => s.label === 'Other')!.sessions.length, 1);
+		});
+
+		test('archived sessions go to Archived section', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { repositoryPath: '/path/vscode' } }),
+				createMockSession({ id: '2', isArchived: true, metadata: { repositoryPath: '/path/vscode' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(result.map(s => ({ label: s.label, section: s.section, count: s.sessions.length })), [
+				{ label: 'vscode', section: AgentSessionSection.Repository, count: 1 },
+				{ label: 'Archived', section: AgentSessionSection.Archived, count: 1 },
+			]);
+		});
+
+		test('metadata extraction priority: owner+name > repositoryNwo > repository > repositoryUrl > repositoryPath > workingDirectoryPath > badge', () => {
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+
+			// owner+name takes priority over repositoryNwo
+			const ds1 = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			assert.strictEqual(getSectionsFromResult(ds1.getChildren(createMockModel([
+				createMockSession({ id: '1', metadata: { owner: 'org', name: 'fromOwner', repositoryNwo: 'org/fromNwo' } }),
+			])))[0].label, 'fromOwner');
+
+			// repositoryNwo takes priority over repository
+			const ds2 = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			assert.strictEqual(getSectionsFromResult(ds2.getChildren(createMockModel([
+				createMockSession({ id: '2', metadata: { repositoryNwo: 'org/fromNwo', repository: 'org/fromRepo' } }),
+			])))[0].label, 'fromNwo');
+
+			// badge is used when no metadata fields match
+			const ds3 = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			assert.strictEqual(getSectionsFromResult(ds3.getChildren(createMockModel([
+				createMockSession({ id: '3', metadata: { isolationMode: 'workspace' }, badge: '$(repo) fromBadge' }),
+			])))[0].label, 'fromBadge');
+		});
+
+		test('empty string metadata values are treated as missing', () => {
+			const sessions = [
+				createMockSession({ id: '1', metadata: { repositoryNwo: '', repositoryPath: '/path/vscode' } }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(result.map(s => s.label), ['vscode']);
 		});
 	});
 });

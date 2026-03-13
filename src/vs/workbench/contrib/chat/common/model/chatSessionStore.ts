@@ -13,9 +13,11 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
@@ -57,6 +59,8 @@ export class ChatSessionStore extends Disposable {
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 
@@ -339,6 +343,8 @@ export class ChatSessionStore extends Disposable {
 		}
 	}
 
+	private _didReportIssue = false;
+
 	private async writeSession(session: ChatModel | ISerializableChatData): Promise<void> {
 		try {
 			const index = this.internalGetIndex();
@@ -349,7 +355,32 @@ export class ChatSessionStore extends Disposable {
 						session.dataSerializer = new ChatSessionOperationLog();
 					}
 
-					const { op, data } = session.dataSerializer.write(session);
+					let op: 'append' | 'replace';
+					let data: VSBuffer;
+					try {
+						({ op, data } = session.dataSerializer.write(session));
+					} catch (e) {
+						// This is a big of an ugly prompt, but there is _something_ going on with
+						// missing sessions. Unfortunately it's hard to root cause because users would
+						// not notice an error until they reload the window, at which point any error
+						// is gone. Throw a very verbose dialog here so we can get some quality
+						// bug reports, if the issue is indeed in the serialized.
+						// todo@connor4312: remove after a little bit
+						if (!this._didReportIssue) {
+							this._didReportIssue = true;
+							this.dialogService.prompt({
+								custom: true, // so text is copyable
+								title: localize('chatSessionStore.serializationError', 'Error saving chat session'),
+								message: localize('chatSessionStore.writeError', 'Error serializing chat session for storage. The session will be lost if the window is closed. Please report this issue to the VS Code team:\n\n{0}', e.stack || toErrorMessage(e)),
+								buttons: [
+									{ label: localize('reportIssue', 'Report Issue'), run: () => this.openerService.open('https://github.com/microsoft/vscode/issues/new?template=bug_report.md') }
+								]
+							});
+						}
+
+						throw e;
+					}
+
 					if (data.byteLength > 0) {
 						await this.fileService.writeFile(storageLocation.log, data, { append: op === 'append' });
 					}

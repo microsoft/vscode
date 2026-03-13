@@ -138,6 +138,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(IExtensionService, {
 			onDidChangeExtensions: Event.None,
 			extensions: [],
+			canAddExtension(extension: any) { return false; },
+			canRemoveExtension(extension: any) { return false; },
 			async whenInstalledExtensionsRegistered() { return true; }
 		});
 

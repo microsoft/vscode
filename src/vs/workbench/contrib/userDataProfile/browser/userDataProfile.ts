@@ -26,7 +26,6 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/edit
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { UserDataProfilesEditor, UserDataProfilesEditorInput, UserDataProfilesEditorInputSerializer } from './userDataProfilesEditor.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -133,14 +132,14 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			async handleDrop(resource: URI, accessor: ServicesAccessor): Promise<boolean> {
 				const uriIdentityService = accessor.get(IUriIdentityService);
 				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
-				const editorGroupsService = accessor.get(IEditorGroupsService);
+				const editorService = accessor.get(IEditorService);
 				const textEditorService = accessor.get(ITextEditorService);
 				const notificationService = accessor.get(INotificationService);
 				if (uriIdentityService.extUri.extname(resource) === `.${PROFILE_EXTENSION}`) {
 					const template = await userDataProfileImportExportService.resolveProfileTemplate(resource);
 					if (!template) {
 						notificationService.warn(localize('invalid profile', "The dropped profile is invalid."));
-						editorGroupsService.activeGroup.openEditor(textEditorService.createTextEditor({ resource }));
+						editorService.openEditor(textEditorService.createTextEditor({ resource }));
 						return true;
 					}
 					const editor = await that.openProfilesEditor();

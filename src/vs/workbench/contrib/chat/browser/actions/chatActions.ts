@@ -55,7 +55,7 @@ import { ElicitationState, IChatService, IChatToolInvocation } from '../../commo
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
-import { AgentsControlClickBehavior, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
@@ -79,11 +79,14 @@ export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
 export const CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID = 'workbench.action.chat.triggerSetupSupportAnonymousAction';
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
 
-export const GENERATE_INSTRUCTIONS_COMMAND_ID = 'workbench.action.chat.generateInstructions';
-export const GENERATE_INSTRUCTION_COMMAND_ID = 'workbench.action.chat.generateInstruction';
+export const GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID = 'workbench.action.chat.generateAgentInstructions';
+export const GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID = 'workbench.action.chat.generateOnDemandInstructions';
 export const GENERATE_PROMPT_COMMAND_ID = 'workbench.action.chat.generatePrompt';
 export const GENERATE_SKILL_COMMAND_ID = 'workbench.action.chat.generateSkill';
 export const GENERATE_AGENT_COMMAND_ID = 'workbench.action.chat.generateAgent';
+export const GENERATE_HOOK_COMMAND_ID = 'workbench.action.chat.generateHook';
+export const INSERT_FORK_CONVERSATION_COMMAND_ID = 'workbench.action.chat.insertForkConversationCommand';
+export const INSERT_TROUBLESHOOT_COMMAND_ID = 'workbench.action.chat.insertTroubleshootCommand';
 
 const defaultChat = {
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
@@ -366,6 +369,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		if (opts?.query) {
 
 			if (opts.isPartialQuery) {
+				chatWidget.input.showScrollbarUntilAccept();
 				chatWidget.setInput(opts.query);
 			} else {
 				if (!chatWidget.viewModel) {
@@ -599,36 +603,14 @@ export function registerChatActions() {
 			const viewsService = accessor.get(IViewsService);
 			const viewDescriptorService = accessor.get(IViewDescriptorService);
 			const widgetService = accessor.get(IChatWidgetService);
-			const configurationService = accessor.get(IConfigurationService);
 
 			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
 			const chatVisible = viewsService.isViewVisible(ChatViewId);
-			const clickBehavior = configurationService.getValue<AgentsControlClickBehavior>(ChatConfiguration.AgentsControlClickBehavior);
-			switch (clickBehavior) {
-				case AgentsControlClickBehavior.Cycle:
-					if (chatVisible) {
-						if (
-							chatLocation === ViewContainerLocation.AuxiliaryBar &&
-							!layoutService.isAuxiliaryBarMaximized()
-						) {
-							layoutService.setAuxiliaryBarMaximized(true);
-							(await widgetService.revealWidget())?.focusInput();
-						} else {
-							this.updatePartVisibility(layoutService, chatLocation, false);
-						}
-					} else {
-						this.updatePartVisibility(layoutService, chatLocation, true);
-						(await widgetService.revealWidget())?.focusInput();
-					}
-					break;
-				default:
-					if (chatVisible) {
-						this.updatePartVisibility(layoutService, chatLocation, false);
-					} else {
-						this.updatePartVisibility(layoutService, chatLocation, true);
-						(await widgetService.revealWidget())?.focusInput();
-					}
-					break;
+			if (chatVisible) {
+				this.updatePartVisibility(layoutService, chatLocation, false);
+			} else {
+				this.updatePartVisibility(layoutService, chatLocation, true);
+				(await widgetService.revealWidget())?.focusInput();
 			}
 		}
 
@@ -678,7 +660,79 @@ export function registerChatActions() {
 				}, {
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('copilot'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('new-session'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('comment')),
+					order: 1
+				}],
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const widgetService = accessor.get(IChatWidgetService);
+			await widgetService.openSession(LocalChatSessionUri.getNewSessionUri(), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
+		}
+	});
+
+	registerAction2(class NewChatEditorCopilotIconAction extends Action2 {
+		constructor() {
+			super({
+				id: ACTION_ID_OPEN_CHAT + '.copilotIcon',
+				title: localize2('interactiveSession.open', "New Chat Editor"),
+				icon: Codicon.copilot,
+				f1: false,
+				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.enabled,
+				menu: [{
+					id: MenuId.EditorTitle,
+					group: 'navigation',
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('copilot')),
+					order: 1
+				}],
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const widgetService = accessor.get(IChatWidgetService);
+			await widgetService.openSession(LocalChatSessionUri.getNewSessionUri(), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
+		}
+	});
+
+	registerAction2(class NewChatEditorNewSessionIconAction extends Action2 {
+		constructor() {
+			super({
+				id: ACTION_ID_OPEN_CHAT + '.newSessionIcon',
+				title: localize2('interactiveSession.open', "New Chat Editor"),
+				icon: Codicon.newSession,
+				f1: false,
+				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.enabled,
+				menu: [{
+					id: MenuId.EditorTitle,
+					group: 'navigation',
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('new-session')),
+					order: 1
+				}],
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const widgetService = accessor.get(IChatWidgetService);
+			await widgetService.openSession(LocalChatSessionUri.getNewSessionUri(), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
+		}
+	});
+
+	registerAction2(class NewChatEditorCommentIconAction extends Action2 {
+		constructor() {
+			super({
+				id: ACTION_ID_OPEN_CHAT + '.commentIcon',
+				title: localize2('interactiveSession.open', "New Chat Editor"),
+				icon: Codicon.comment,
+				f1: false,
+				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.enabled,
+				menu: [{
+					id: MenuId.EditorTitle,
+					group: 'navigation',
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('comment')),
 					order: 1
 				}],
 			});
@@ -910,6 +964,54 @@ export function registerChatActions() {
 		}
 	});
 
+	registerAction2(class PreviousQuestionCarouselQuestionAction extends Action2 {
+		static readonly ID = 'workbench.action.chat.previousQuestion';
+
+		constructor() {
+			super({
+				id: PreviousQuestionCarouselQuestionAction.ID,
+				title: localize2('interactiveSession.previousQuestion.label', "Chat: Previous Question"),
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.Editing.hasQuestionCarousel),
+				keybinding: [{
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyMod.Alt | KeyCode.KeyP,
+					when: ContextKeyExpr.and(ChatContextKeys.inChatQuestionCarousel, ChatContextKeys.Editing.hasQuestionCarousel),
+				}]
+			});
+		}
+
+		run(accessor: ServicesAccessor): void {
+			const widgetService = accessor.get(IChatWidgetService);
+			widgetService.lastFocusedWidget?.navigateToPreviousQuestion();
+		}
+	});
+
+	registerAction2(class NextQuestionCarouselQuestionAction extends Action2 {
+		static readonly ID = 'workbench.action.chat.nextQuestion';
+
+		constructor() {
+			super({
+				id: NextQuestionCarouselQuestionAction.ID,
+				title: localize2('interactiveSession.nextQuestion.label', "Chat: Next Question"),
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.Editing.hasQuestionCarousel),
+				keybinding: [{
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyMod.Alt | KeyCode.KeyN,
+					when: ContextKeyExpr.and(ChatContextKeys.inChatQuestionCarousel, ChatContextKeys.Editing.hasQuestionCarousel),
+				}]
+			});
+		}
+
+		run(accessor: ServicesAccessor): void {
+			const widgetService = accessor.get(IChatWidgetService);
+			widgetService.lastFocusedWidget?.navigateToNextQuestion();
+		}
+	});
+
 	registerAction2(class FocusTipAction extends Action2 {
 		static readonly ID = 'workbench.action.chat.focusTip';
 
@@ -1138,9 +1240,8 @@ export function registerChatActions() {
 	registerAction2(class GenerateInstructionsAction extends Action2 {
 		constructor() {
 			super({
-				id: GENERATE_INSTRUCTIONS_COMMAND_ID,
-				title: localize2('generateInstructions', "Generate Workspace Instructions with Agent"),
-				shortTitle: localize2('generateInstructions.short', "Generate Instructions with Agent"),
+				id: GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,
+				title: localize2('generateInstructions', "Generate Agent Instructions"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -1161,9 +1262,8 @@ export function registerChatActions() {
 	registerAction2(class GenerateInstructionAction extends Action2 {
 		constructor() {
 			super({
-				id: GENERATE_INSTRUCTION_COMMAND_ID,
-				title: localize2('generateInstruction', "Generate On-demand Instruction with Agent"),
-				shortTitle: localize2('generateInstruction.short', "Generate Instruction with Agent"),
+				id: GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID,
+				title: localize2('generateOnDemandInstructions', "Generate On-Demand Instructions"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -1175,7 +1275,7 @@ export function registerChatActions() {
 			const commandService = accessor.get(ICommandService);
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
-				query: '/create-instruction ',
+				query: '/create-instructions ',
 				isPartialQuery: true,
 			});
 		}
@@ -1185,8 +1285,8 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: GENERATE_PROMPT_COMMAND_ID,
-				title: localize2('generatePrompt', "Generate Prompt File with Agent"),
-				shortTitle: localize2('generatePrompt.short', "Generate Prompt with Agent"),
+				title: localize2('generatePrompt', "Generate Prompt File"),
+				shortTitle: localize2('generatePrompt.short', "Generate Prompt"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -1208,8 +1308,8 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: GENERATE_SKILL_COMMAND_ID,
-				title: localize2('generateSkill', "Generate Skill with Agent"),
-				shortTitle: localize2('generateSkill.short', "Generate Skill with Agent"),
+				title: localize2('generateSkill', "Generate Skill"),
+				shortTitle: localize2('generateSkill.short', "Generate Skill"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -1231,8 +1331,8 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: GENERATE_AGENT_COMMAND_ID,
-				title: localize2('generateAgent', "Generate Custom Agent with Agent"),
-				shortTitle: localize2('generateAgent.short', "Generate Agent with Agent"),
+				title: localize2('generateAgent', "Generate Custom Agent"),
+				shortTitle: localize2('generateAgent.short', "Generate Agent"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -1245,6 +1345,72 @@ export function registerChatActions() {
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
 				query: '/create-agent ',
+				isPartialQuery: true,
+			});
+		}
+	});
+
+	registerAction2(class GenerateHookAction extends Action2 {
+		constructor() {
+			super({
+				id: GENERATE_HOOK_COMMAND_ID,
+				title: localize2('generateHook', "Generate Hook"),
+				shortTitle: localize2('generateHook.short', "Generate Hook"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.sparkle,
+				f1: true,
+				precondition: ChatContextKeys.enabled
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand('workbench.action.chat.open', {
+				mode: 'agent',
+				query: '/create-hook ',
+				isPartialQuery: true,
+			});
+		}
+	});
+
+	registerAction2(class InsertForkConversationSlashCommandAction extends Action2 {
+		constructor() {
+			super({
+				id: INSERT_FORK_CONVERSATION_COMMAND_ID,
+				title: localize2('insertForkConversationSlashCommand', "Insert Fork Command"),
+				shortTitle: localize2('insertForkConversationSlashCommand.short', "Insert /fork"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.repoForked,
+				f1: true,
+				precondition: ChatContextKeys.enabled
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand('workbench.action.chat.open', {
+				query: '/fork ',
+				isPartialQuery: true,
+			});
+		}
+	});
+
+	registerAction2(class InsertTroubleshootSlashCommandAction extends Action2 {
+		constructor() {
+			super({
+				id: INSERT_TROUBLESHOOT_COMMAND_ID,
+				title: localize2('insertTroubleshootSlashCommand', "Insert Troubleshoot Command"),
+				shortTitle: localize2('insertTroubleshootSlashCommand.short', "Insert /troubleshoot"),
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ChatContextKeys.enabled
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand('workbench.action.chat.open', {
+				query: '/troubleshoot ',
 				isPartialQuery: true,
 			});
 		}
@@ -1480,11 +1646,10 @@ export async function handleModeSwitch(
 		return { needToClearSession: false };
 	}
 
-	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
-	const needToClearEdits = (!configurationService.getValue(ChatConfiguration.Edits2Enabled) && (fromMode === ChatModeKind.Edit || toMode === ChatModeKind.Edit)) && requestCount > 0;
+	const needToClearEdits = (fromMode === ChatModeKind.Edit || toMode === ChatModeKind.Edit) && requestCount > 0;
 	if (needToClearEdits) {
-		// If not using edits2 and switching into or out of edit mode, ask to discard the session
+		// Switching into or out of edit mode, ask to discard the session
 		const phrase = localize('switchMode.confirmPhrase', "Switching agents will end your current edit session.");
 
 		const currentEdits = model.editingSession.entries.get();

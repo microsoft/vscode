@@ -35,6 +35,15 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 		super(toolInvocation);
 
 		this.domNode = this.createProgressPart();
+
+		// Toggle show-checkmarks class for the accessibility setting
+		const updateCheckmarks = () => this.domNode.classList.toggle('show-checkmarks', !!this.configurationService.getValue<boolean>(AccessibilityWorkbenchSettingId.ShowChatCheckmarks));
+		updateCheckmarks();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks)) {
+				updateCheckmarks();
+			}
+		}));
 	}
 
 	private createProgressPart(): HTMLElement {

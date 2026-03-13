@@ -52,8 +52,8 @@
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.105.0",
-			"sha256": "0c45b90342e8aafd4ff2963b4006de64208ca58c2fd01fea7a710fe61dcfd12a",
+			"version": "1.110.0",
+			"sha256": "ad3f7d935b64f4ee123853c464b47b3cba13e5018edef831770ae9c3eb218f5b",
 			"repo": "https://github.com/microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",
@@ -116,6 +116,7 @@
 				"name": "Apple"
 			}
 		},
+		"providerExtensionId": "vscode.github-authentication",
 		"providerUriSetting": "github-enterprise.uri",
 		"providerScopes": [
 			[

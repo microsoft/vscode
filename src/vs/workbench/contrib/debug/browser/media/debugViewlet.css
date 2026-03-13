@@ -57,6 +57,7 @@
 	line-height: inherit;
 	padding-top: 0;
 	padding-bottom: 0;
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
 
 	/* The debug view title is crowded, let this one get narrower than others */
 	min-width: 90px;

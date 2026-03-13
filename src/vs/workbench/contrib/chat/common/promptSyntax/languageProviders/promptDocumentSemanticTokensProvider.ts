@@ -8,7 +8,7 @@ import { DocumentSemanticTokensProvider, ProviderResult, SemanticTokens, Semanti
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
-import { getTarget, isVSCodeOrDefaultTarget } from './promptValidator.js';
+import { getTarget, isVSCodeOrDefaultTarget } from './promptFileAttributes.js';
 
 export class PromptDocumentSemanticTokensProvider implements DocumentSemanticTokensProvider {
 	/**

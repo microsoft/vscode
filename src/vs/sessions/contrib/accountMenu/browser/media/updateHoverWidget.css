@@ -1,0 +1,65 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sessions-update-hover {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	min-width: 200px;
+	padding: 12px 16px;
+}
+
+.sessions-update-hover-header {
+	font-weight: 600;
+	font-size: 13px;
+}
+
+/* Progress bar track */
+.sessions-update-hover-progress-track {
+	height: 4px;
+	border-radius: 2px;
+	background-color: var(--vscode-editorWidget-border, rgba(128, 128, 128, 0.3));
+	overflow: hidden;
+}
+
+/* Progress bar fill */
+.sessions-update-hover-progress-fill {
+	height: 100%;
+	border-radius: 2px;
+	background-color: var(--vscode-progressBar-background, #0078d4);
+	transition: width 0.2s ease;
+}
+
+/* Details grid */
+.sessions-update-hover-grid {
+	display: grid;
+	grid-template-columns: auto auto auto auto;
+	column-gap: 8px;
+	row-gap: 2px;
+	font-size: 12px;
+	align-items: baseline;
+}
+
+.sessions-update-hover-label {
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Version number emphasis */
+.sessions-update-hover-version {
+	color: var(--vscode-textLink-foreground);
+}
+
+/* Compact age label */
+.sessions-update-hover-age {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+}
+
+/* Commit hashes - subtle */
+.sessions-update-hover-commit {
+	color: var(--vscode-descriptionForeground);
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+}

@@ -6,10 +6,9 @@
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { BrowserView } from './browserView.js';
-import { ICDPTarget, CDPBrowserVersion, CDPWindowBounds, CDPTargetInfo, ICDPConnection, ICDPBrowserTarget } from '../common/cdp/types.js';
+import { ICDPTarget, CDPBrowserVersion, CDPWindowBounds, CDPTargetInfo, ICDPConnection, ICDPBrowserTarget, CDPRequest, CDPResponse, CDPEvent } from '../common/cdp/types.js';
 import { CDPBrowserProxy } from '../common/cdp/proxy.js';
 import { IBrowserViewGroup, IBrowserViewGroupViewEvent } from '../common/browserViewGroup.js';
-import { IBrowserViewCDPProxyServer } from './browserViewCDPProxyServer.js';
 import { IBrowserViewMainService } from './browserViewMainService.js';
 
 /**
@@ -49,8 +48,8 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 
 	constructor(
 		readonly id: string,
-		@IBrowserViewMainService private readonly browserViewMainService: IBrowserViewMainService,
-		@IBrowserViewCDPProxyServer private readonly cdpProxyServer: IBrowserViewCDPProxyServer,
+		private readonly windowId: number,
+		@IBrowserViewMainService private readonly browserViewMainService: IBrowserViewMainService
 	) {
 		super();
 	}
@@ -87,6 +86,10 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 	async removeView(viewId: string): Promise<void> {
 		const view = this.views.get(viewId);
 		if (view && this.views.delete(viewId)) {
+			// If no remaining views belong to the view's context, and we don't own the context, remove it from known contexts
+			if (!this.ownedContextIds.has(view.session.id) && ![...this.views.values()].some(v => v.session.id === view.session.id)) {
+				this.knownContextIds.delete(view.session.id);
+			}
 			this._onDidRemoveView.fire({ viewId: view.id });
 			this._onTargetDestroyed.fire(view);
 		}
@@ -123,12 +126,12 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		return this.views.values();
 	}
 
-	async createTarget(url: string, browserContextId?: string): Promise<ICDPTarget> {
+	async createTarget(url: string, browserContextId?: string, windowId = this.windowId): Promise<ICDPTarget> {
 		if (browserContextId && !this.knownContextIds.has(browserContextId)) {
 			throw new Error(`Unknown browser context ${browserContextId}`);
 		}
 
-		const target = await this.browserViewMainService.createTarget(url, browserContextId);
+		const target = await this.browserViewMainService.createTarget(url, browserContextId, windowId);
 		if (target instanceof BrowserView) {
 			await this.addView(target.id);
 		}
@@ -184,19 +187,26 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 
 	// #region CDP endpoint
 
-	/**
-	 * Get a WebSocket endpoint URL for connecting to this group's CDP
-	 * session. The URL contains a short-lived, single-use token.
-	 */
-	async getDebugWebSocketEndpoint(): Promise<string> {
-		return this.cdpProxyServer.getWebSocketEndpointForTarget(this);
+	private _debugger: CDPBrowserProxy | undefined;
+	get debugger(): CDPBrowserProxy {
+		if (!this._debugger) {
+			this._debugger = this._register(new CDPBrowserProxy(this));
+		}
+		return this._debugger;
+	}
+
+	async sendCDPMessage(msg: CDPRequest): Promise<void> {
+		return this.debugger.sendMessage(msg);
+	}
+
+	get onCDPMessage(): Event<CDPResponse | CDPEvent> {
+		return this.debugger.onMessage;
 	}
 
 	// #endregion
 
 	override dispose(): void {
 		this._onDidDestroy.fire();
-		this.cdpProxyServer.removeTarget(this);
 		super.dispose();
 	}
 }

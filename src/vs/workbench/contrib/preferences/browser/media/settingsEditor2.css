@@ -10,7 +10,7 @@
 .settings-editor {
 	height: 100%;
 	overflow: hidden;
-	max-width: 1200px;
+	max-width: 1400px;
 	margin: auto;
 }
 
@@ -27,7 +27,7 @@
 	padding-top: 3px;
 	padding-left: 24px;
 	padding-right: 24px;
-	max-width: 1200px;
+	max-width: 1400px;
 }
 
 .settings-editor > .settings-header > .search-container {
@@ -62,6 +62,7 @@
 .settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget {
 	margin-right: 3px;
 	padding-bottom: 3px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget:empty {
@@ -93,13 +94,6 @@
 
 .settings-editor > .settings-header > .settings-header-controls .settings-target-container {
 	flex: auto;
-}
-
-.settings-editor > .settings-header > .settings-header-controls > .settings-right-controls {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding-bottom: 4px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label {
@@ -167,7 +161,7 @@
 
 .settings-editor > .settings-body > .no-results-message {
 	display: none;
-	max-width: 1200px;
+	max-width: 1400px;
 	margin: auto;
 	margin-top: 20px;
 	padding-left: 24px;
@@ -295,6 +289,7 @@
 	pointer-events: none;
 	z-index: 10;
 	position: absolute;
+	box-shadow: var(--vscode-shadow-sm);
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-list {
@@ -357,7 +352,7 @@
 
 .settings-editor > .settings-body .settings-toc-wrapper {
 	height: 100%;
-	max-width: 1200px;
+	max-width: 1400px;
 	margin: auto;
 }
 
@@ -381,7 +376,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
-	max-width: min(100%, 1200px);
+	max-width: min(100%, 1400px);
 	/* We don't want the widgets to be too long */
 	margin: auto;
 	box-sizing: border-box;
@@ -391,7 +386,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents.group-title {
-	max-width: min(100%, 1200px);
+	max-width: min(100%, 1400px);
 	/* Cut off title if too long for window */
 }
 

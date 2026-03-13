@@ -7,7 +7,7 @@ import electron, { Display, Rectangle } from 'electron';
 import { Color } from '../../../base/common/color.js';
 import { Event } from '../../../base/common/event.js';
 import { join } from '../../../base/common/path.js';
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { INodeProcess, IProcessEnvironment, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -177,8 +177,15 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	if (isLinux) {
 		options.icon = join(environmentMainService.appRoot, 'resources/linux/code.png'); // always on Linux
-	} else if (isWindows && !environmentMainService.isBuilt) {
-		options.icon = join(environmentMainService.appRoot, 'resources/win32/code_150x150.png'); // only when running out of sources on Windows
+	} else if (isWindows) {
+		if (!environmentMainService.isBuilt) {
+			options.icon = join(environmentMainService.appRoot, 'resources/win32/code_150x150.png'); // only when running out of sources on Windows
+		} else if ((process as INodeProcess).isEmbeddedApp) {
+			// For sub app the proxy executable acts as a launcher to the main executable whose
+			// icon will be used when creating windows if the following override is not set.
+			// This avoids sharing icon with the main application.
+			options.icon = join(environmentMainService.appRoot, 'resources/win32/sessions.ico');
+		}
 	}
 
 	if (isMacintosh) {

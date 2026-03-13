@@ -4,15 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsTitleBarWidget.css';
-import { $, addDisposableListener, EventType, reset } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType, getActiveWindow, reset } from '../../../../base/browser/dom.js';
 
+import { Separator } from '../../../../base/common/actions.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { localize } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IMarshalledAgentSessionContext, getAgentChangesSummary, hasValidDiff } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -24,12 +32,11 @@ import { AgentSessionsPicker } from '../../../../workbench/contrib/chat/browser/
 import { autorun } from '../../../../base/common/observable.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { getAgentChangesSummary, hasValidDiff, IAgentSession, isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
-import { getAgentSessionProvider, getAgentSessionProviderIcon } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { basename } from '../../../../base/common/resources.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ViewAllSessionChangesAction } from '../../../../workbench/contrib/chat/browser/chatEditing/chatEditingActions.js';
+import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title
@@ -39,7 +46,9 @@ import { ViewAllSessionChangesAction } from '../../../../workbench/contrib/chat/
  * - Kind icon at the beginning (provider type icon)
  * - Session title
  * - Repository folder name
- * - Changes summary (+insertions -deletions)
+ *
+ * Session actions (changes, terminal, etc.) are rendered via the
+ * SessionTitleActions menu toolbar next to the session title.
  *
  * On click, opens the sessions picker.
  */
@@ -63,7 +72,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
 		@IChatService private readonly chatService: IChatService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
-		@ICommandService private readonly commandService: ICommandService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super(undefined, action, options);
 
@@ -116,10 +128,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			const label = this._getActiveSessionLabel();
 			const icon = this._getActiveSessionIcon();
 			const repoLabel = this._getRepositoryLabel();
-			const changes = this._getChanges();
+			const changesSummary = this._getChangesSummary();
 
 			// Build a render-state key from all displayed data
-			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${changes?.insertions ?? ''}|${changes?.deletions ?? ''}`;
+			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${changesSummary?.insertions ?? ''}|${changesSummary?.deletions ?? ''}`;
 
 			// Skip re-render if state hasn't changed
 			if (this._lastRenderState === renderState) {
@@ -136,7 +148,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._container.setAttribute('aria-label', localize('agentSessionsShowSessions', "Show Sessions"));
 			this._container.tabIndex = 0;
 
-			// Center group: icon + label + folder + changes together
+			// Session pill: icon + label + folder together
+			const sessionPill = $('span.agent-sessions-titlebar-pill');
+
+			// Center group: icon + label + folder
 			const centerGroup = $('span.agent-sessions-titlebar-center');
 
 			// Kind icon at the beginning
@@ -150,74 +165,62 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			labelEl.textContent = label;
 			centerGroup.appendChild(labelEl);
 
-			// Folder and changes shown next to the title
-			if (repoLabel || changes) {
-				if (repoLabel) {
-					const separator1 = $('span.agent-sessions-titlebar-separator');
-					separator1.textContent = '\u00B7';
-					centerGroup.appendChild(separator1);
+			// Folder shown next to the title
+			if (repoLabel) {
+				const separator1 = $('span.agent-sessions-titlebar-separator');
+				separator1.textContent = '\u00B7';
+				centerGroup.appendChild(separator1);
 
-					const repoEl = $('span.agent-sessions-titlebar-repo');
-					repoEl.textContent = repoLabel;
-					centerGroup.appendChild(repoEl);
-				}
-
-				if (changes) {
-					const separator2 = $('span.agent-sessions-titlebar-separator');
-					separator2.textContent = '\u00B7';
-					centerGroup.appendChild(separator2);
-
-					const changesEl = $('span.agent-sessions-titlebar-changes');
-
-					// Diff icon
-					const changesIconEl = $('span.agent-sessions-titlebar-changes-icon' + ThemeIcon.asCSSSelector(Codicon.diffMultiple));
-					changesEl.appendChild(changesIconEl);
-
-					const addedEl = $('span.agent-sessions-titlebar-added');
-					addedEl.textContent = `+${changes.insertions}`;
-					changesEl.appendChild(addedEl);
-
-					const removedEl = $('span.agent-sessions-titlebar-removed');
-					removedEl.textContent = `-${changes.deletions}`;
-					changesEl.appendChild(removedEl);
-
-					centerGroup.appendChild(changesEl);
-
-					// Separate hover for changes
-					this._dynamicDisposables.add(this.hoverService.setupManagedHover(
-						getDefaultHoverDelegate('mouse'),
-						changesEl,
-						localize('agentSessions.viewChanges', "View All Changes")
-					));
-
-					// Click on changes opens multi-diff editor
-					this._dynamicDisposables.add(addDisposableListener(changesEl, EventType.CLICK, (e) => {
-						e.preventDefault();
-						e.stopPropagation();
-						this._openChanges();
-					}));
-				}
+				const repoEl = $('span.agent-sessions-titlebar-repo');
+				repoEl.textContent = repoLabel;
+				centerGroup.appendChild(repoEl);
 			}
 
-			this._container.appendChild(centerGroup);
+			// Changes summary shown next to the repo
+			if (changesSummary) {
+				const separator2 = $('span.agent-sessions-titlebar-separator');
+				separator2.textContent = '\u00B7';
+				centerGroup.appendChild(separator2);
 
-			// Hover
-			this._dynamicDisposables.add(this.hoverService.setupManagedHover(
-				getDefaultHoverDelegate('mouse'),
-				this._container,
-				label
-			));
+				const changesEl = $('span.agent-sessions-titlebar-changes');
 
-			// Click handler - show sessions picker
-			this._dynamicDisposables.add(addDisposableListener(this._container, EventType.MOUSE_DOWN, (e) => {
+				const addedEl = $('span.agent-sessions-titlebar-changes-added');
+				addedEl.textContent = `+${changesSummary.insertions}`;
+				changesEl.appendChild(addedEl);
+
+				const removedEl = $('span.agent-sessions-titlebar-changes-removed');
+				removedEl.textContent = `-${changesSummary.deletions}`;
+				changesEl.appendChild(removedEl);
+
+				centerGroup.appendChild(changesEl);
+			}
+
+			sessionPill.appendChild(centerGroup);
+
+			// Click handler on pill - show sessions picker
+			this._dynamicDisposables.add(addDisposableListener(sessionPill, EventType.MOUSE_DOWN, (e) => {
 				e.preventDefault();
 				e.stopPropagation();
 			}));
-			this._dynamicDisposables.add(addDisposableListener(this._container, EventType.CLICK, (e) => {
+			this._dynamicDisposables.add(addDisposableListener(sessionPill, EventType.CLICK, (e) => {
 				e.preventDefault();
 				e.stopPropagation();
 				this._showSessionsPicker();
 			}));
+			this._dynamicDisposables.add(addDisposableListener(sessionPill, EventType.CONTEXT_MENU, (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				this._showContextMenu(e);
+			}));
+
+			this._container.appendChild(sessionPill);
+
+			// Hover
+			this._dynamicDisposables.add(this.hoverService.setupManagedHover(
+				getDefaultHoverDelegate('mouse'),
+				sessionPill,
+				label
+			));
 
 			// Keyboard handler
 			this._dynamicDisposables.add(addDisposableListener(this._container, EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -258,20 +261,19 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 	/**
 	 * Get the label of the active chat session.
-	 * Prefers the live model title over the snapshot label from the active session service.
-	 * Falls back to a generic label if no active session is found.
 	 */
 	private _getActiveSessionLabel(): string {
 		const activeSession = this.activeSessionService.getActiveSession();
-		if (activeSession?.resource) {
-			const model = this.chatService.getSession(activeSession.resource);
-			if (model?.title) {
-				return model.title;
-			}
+		const label = activeSession?.label;
+		if (label) {
+			return label; // prefer session label to support renamed sessions
 		}
 
-		if (activeSession?.label) {
-			return activeSession.label;
+		if (activeSession) {
+			const activeModel = this.chatService.getSession(activeSession.resource);
+			if (activeModel?.title) {
+				return activeModel.title; // fall back to chat model title if available
+			}
 		}
 
 		return localize('agentSessions.newSession', "New Session");
@@ -289,6 +291,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		// Try to get icon from the agent session model (has provider-resolved icon)
 		const agentSession = this.agentSessionsService.getSession(activeSession.resource);
 		if (agentSession) {
+			// For background sessions, distinguish worktree vs folder based on metadata
+			if (agentSession.providerType === AgentSessionProviders.Background) {
+				const hasWorktree = typeof agentSession.metadata?.worktreePath === 'string';
+				return hasWorktree ? Codicon.worktree : Codicon.folder;
+			}
+
 			return agentSession.icon;
 		}
 
@@ -318,29 +326,58 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		return basename(uri);
 	}
 
+	private _showContextMenu(e: MouseEvent): void {
+		const activeSession = this.activeSessionService.getActiveSession();
+		if (!activeSession) {
+			return;
+		}
+
+		const agentSession = this.agentSessionsService.getSession(activeSession.resource);
+		if (!agentSession) {
+			return;
+		}
+
+		this.chatSessionsService.activateChatSessionItemProvider(agentSession.providerType);
+
+		const contextOverlay: Array<[string, boolean | string]> = [
+			[ChatContextKeys.isArchivedAgentSession.key, agentSession.isArchived()],
+			[ChatContextKeys.isReadAgentSession.key, agentSession.isRead()],
+			[ChatContextKeys.agentSessionType.key, agentSession.providerType],
+		];
+
+		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
+
+		const marshalledContext: IMarshalledAgentSessionContext = {
+			session: agentSession,
+			sessions: [agentSession],
+			$mid: MarshalledId.AgentSessionContext,
+		};
+
+		this.contextMenuService.showContextMenu({
+			getActions: () => Separator.join(...menu.getActions({ arg: marshalledContext, shouldForwardArgs: true }).map(([, actions]) => actions)),
+			getAnchor: () => new StandardMouseEvent(getActiveWindow(), e),
+			getActionsContext: () => marshalledContext
+		});
+
+		menu.dispose();
+	}
+
 	/**
-	 * Get the changes summary (insertions/deletions) for the active session.
+	 * Get the changes summary for the active session.
 	 */
-	private _getChanges(): { insertions: number; deletions: number } | undefined {
+	private _getChangesSummary(): { insertions: number; deletions: number } | undefined {
 		const activeSession = this.activeSessionService.getActiveSession();
 		if (!activeSession) {
 			return undefined;
 		}
 
-		let changes: IAgentSession['changes'] | undefined;
-
-		if (isAgentSession(activeSession)) {
-			changes = activeSession.changes;
-		} else {
-			const agentSession = this.agentSessionsService.getSession(activeSession.resource);
-			changes = agentSession?.changes;
-		}
-
+		const agentSession = this.agentSessionsService.getSession(activeSession.resource);
+		const changes = agentSession?.changes;
 		if (!changes || !hasValidDiff(changes)) {
 			return undefined;
 		}
 
-		return getAgentChangesSummary(changes) ?? undefined;
+		return getAgentChangesSummary(changes);
 	}
 
 	private _showSessionsPicker(): void {
@@ -348,15 +385,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			overrideSessionOpen: (session, openOptions) => this.activeSessionService.openSession(session.resource, openOptions)
 		});
 		picker.pickAgentSession();
-	}
-
-	private _openChanges(): void {
-		const activeSession = this.activeSessionService.getActiveSession();
-		if (!activeSession) {
-			return;
-		}
-
-		this.commandService.executeCommand(ViewAllSessionChangesAction.ID, activeSession.resource);
 	}
 }
 
@@ -377,22 +405,24 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 
 		// Register the submenu item in the Agent Sessions command center
 		this._register(MenuRegistry.appendMenuItem(Menus.CommandCenter, {
-			submenu: Menus.TitleBarControlMenu,
+			submenu: Menus.TitleBarSessionTitle,
 			title: localize('agentSessionsControl', "Agent Sessions"),
 			order: 101,
+			when: ContextKeyExpr.and(IsAuxiliaryWindowContext.negate(), SessionsWelcomeVisibleContext.negate())
 		}));
 
 		// Register a placeholder action so the submenu appears
-		this._register(MenuRegistry.appendMenuItem(Menus.TitleBarControlMenu, {
+		this._register(MenuRegistry.appendMenuItem(Menus.TitleBarSessionTitle, {
 			command: {
 				id: FocusAgentSessionsAction.id,
 				title: localize('showSessions', "Show Sessions"),
 			},
 			group: 'a_sessions',
-			order: 1
+			order: 1,
+			when: IsAuxiliaryWindowContext.negate()
 		}));
 
-		this._register(actionViewItemService.register(Menus.CommandCenter, Menus.TitleBarControlMenu, (action, options) => {
+		this._register(actionViewItemService.register(Menus.CommandCenter, Menus.TitleBarSessionTitle, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}

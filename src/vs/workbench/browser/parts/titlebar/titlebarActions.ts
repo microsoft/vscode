@@ -14,6 +14,7 @@ import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activi
 import { IAction } from '../../../../base/common/actions.js';
 import { IsMainWindowFullscreenContext, IsCompactTitleBarContext, TitleBarStyleContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
+import { NotificationsPosition, NotificationsSettings } from '../../../common/notifications.js';
 
 // --- Context Menu Actions --- //
 
@@ -58,13 +59,19 @@ registerAction2(class ToggleCommandCenter extends ToggleTitleBarConfigAction {
 
 registerAction2(class ToggleNavigationControl extends ToggleTitleBarConfigAction {
 	constructor() {
-		super('workbench.navigationControl.enabled', localize('toggle.navigation', 'Navigation Controls'), localize('toggle.navigationDescription', "Toggle visibility of the Navigation Controls in title bar"), 2, ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), ContextKeyExpr.has('config.window.commandCenter')));
+		super('workbench.navigationControl.enabled', localize('toggle.navigation', 'Navigation Controls'), localize('toggle.navigationDescription', "Toggle visibility of the Navigation Controls in title bar"), 2, ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), ContextKeyExpr.has(`config.${LayoutSettings.COMMAND_CENTER}`)));
 	}
 });
 
 registerAction2(class ToggleLayoutControl extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(LayoutSettings.LAYOUT_ACTIONS, localize('toggle.layout', 'Layout Controls'), localize('toggle.layoutDescription', "Toggle visibility of the Layout Controls in title bar"), 4);
+	}
+});
+
+registerAction2(class ToggleNotificationsButton extends ToggleTitleBarConfigAction {
+	constructor() {
+		super(NotificationsSettings.NOTIFICATIONS_BUTTON, localize('toggle.notifications', 'Notifications'), localize('toggle.notificationsDescription', "Toggle visibility of the Notifications button in title bar"), 5, ContextKeyExpr.equals(`config.${NotificationsSettings.NOTIFICATIONS_POSITION}`, NotificationsPosition.TOP_RIGHT));
 	}
 });
 
