@@ -15,6 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
+import { safeIntl } from '../../../../../base/common/date.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
@@ -23,6 +24,7 @@ import { IChatWidgetService } from '../chat.js';
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem } from './chatDebugTypes.js';
 
 const $ = DOM.$;
+const numberFormatter = safeIntl.NumberFormat();
 
 export const enum OverviewNavigation {
 	Home = 'home',
@@ -284,7 +286,7 @@ export class ChatDebugOverviewView extends Disposable {
 		const metrics: OverviewMetric[] = [
 			{ label: localize('chatDebug.metric.modelTurns', "Model Turns"), value: String(modelTurns.length) },
 			{ label: localize('chatDebug.metric.toolCalls', "Tool Calls"), value: String(toolCalls.length) },
-			{ label: localize('chatDebug.metric.totalTokens', "Total Tokens"), value: totalTokens.toLocaleString() },
+			{ label: localize('chatDebug.metric.totalTokens', "Total Tokens"), value: numberFormatter.value.format(totalTokens) },
 			{ label: localize('chatDebug.metric.errors', "Errors"), value: String(errors.length) },
 			{ label: localize('chatDebug.metric.totalEvents', "Total Events"), value: String(events.length) },
 		];
