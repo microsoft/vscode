@@ -24,7 +24,7 @@ import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
-import { basename, dirname } from '../../../../base/common/resources.js';
+import { basename, dirname, extname } from '../../../../base/common/resources.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -166,8 +166,7 @@ const IMAGE_EXTENSION_REGEX = (function () {
 })();
 
 function isImageResource(uri: URI): boolean {
-	const mimeType = getMediaMime(uri.path);
-	return !!mimeType && mimeType.startsWith('image/');
+	return IMAGE_EXTENSION_REGEX.test(extname(uri));
 }
 
 async function collectImageFilesFromFolder(fileService: IFileService, folderUri: URI): Promise<URI[]> {

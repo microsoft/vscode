@@ -111,9 +111,9 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		const resolveMap = new Map<string, IFileStat>();
 		resolveMap.set('/workspace/images', createFileStat(
 			URI.file('/workspace/images'), false, false, true, false, [
-			{ resource: URI.file('/workspace/images/photo.png') },
-			{ resource: URI.file('/workspace/images/other.jpg') },
-			{ resource: URI.file('/workspace/images/readme.txt') },
+			{ resource: URI.file('/workspace/images/photo.png'), isFile: true },
+			{ resource: URI.file('/workspace/images/other.jpg'), isFile: true },
+			{ resource: URI.file('/workspace/images/readme.txt'), isFile: true },
 			{ resource: URI.file('/workspace/images/subfolder'), isDirectory: true, isFile: false },
 		]
 		));
@@ -157,9 +157,9 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		const resolveMap = new Map<string, IFileStat>();
 		resolveMap.set('/workspace/images', createFileStat(
 			URI.file('/workspace/images'), false, false, true, false, [
-			{ resource: URI.file('/workspace/images/anim.gif') },
-			{ resource: URI.file('/workspace/images/photo.webp') },
-			{ resource: URI.file('/workspace/images/script.js') },
+			{ resource: URI.file('/workspace/images/anim.gif'), isFile: true },
+			{ resource: URI.file('/workspace/images/photo.webp'), isFile: true },
+			{ resource: URI.file('/workspace/images/script.js'), isFile: true },
 		]
 		));
 
@@ -224,9 +224,9 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		const resolveMap = new Map<string, IFileStat>();
 		resolveMap.set('/workspace/photos', createFileStat(
 			folderUri, false, false, true, false, [
-			{ resource: URI.file('/workspace/photos/sunset.png') },
-			{ resource: URI.file('/workspace/photos/mountain.jpg') },
-			{ resource: URI.file('/workspace/photos/notes.txt') },
+			{ resource: URI.file('/workspace/photos/sunset.png'), isFile: true },
+			{ resource: URI.file('/workspace/photos/mountain.jpg'), isFile: true },
+			{ resource: URI.file('/workspace/photos/notes.txt'), isFile: true },
 		]
 		));
 
@@ -263,8 +263,8 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		const resolveMap = new Map<string, IFileStat>();
 		resolveMap.set(wsRoot.path, createFileStat(
 			wsRoot, false, false, true, false, [
-			{ resource: logoUri },
-			{ resource: readmeUri },
+			{ resource: logoUri, isFile: true },
+			{ resource: readmeUri, isFile: true },
 		]
 		));
 
@@ -293,7 +293,7 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		const resolveMap = new Map<string, IFileStat>();
 		resolveMap.set('/workspace/docs', createFileStat(
 			folderUri, false, false, true, false, [
-			{ resource: URI.file('/workspace/docs/readme.md') },
+			{ resource: URI.file('/workspace/docs/readme.md'), isFile: true },
 		]
 		));
 
@@ -319,8 +319,8 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		const resolveMap = new Map<string, IFileStat>();
 		resolveMap.set('/workspace/docs', createFileStat(
 			URI.file('/workspace/docs'), false, false, true, false, [
-			{ resource: URI.file('/workspace/docs/readme.md') },
-			{ resource: URI.file('/workspace/docs/notes.txt') },
+			{ resource: URI.file('/workspace/docs/readme.md'), isFile: true },
+			{ resource: URI.file('/workspace/docs/notes.txt'), isFile: true },
 		]
 		));
 
@@ -367,8 +367,8 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		const resolveMap = new Map<string, IFileStat>();
 		resolveMap.set('/workspace/broken', createFileStat(
 			folderUri, false, false, true, false, [
-			{ resource: URI.file('/workspace/broken/corrupt.png') },
-			{ resource: URI.file('/workspace/broken/missing.jpg') },
+			{ resource: URI.file('/workspace/broken/corrupt.png'), isFile: true },
+			{ resource: URI.file('/workspace/broken/missing.jpg'), isFile: true },
 		]
 		));
 
