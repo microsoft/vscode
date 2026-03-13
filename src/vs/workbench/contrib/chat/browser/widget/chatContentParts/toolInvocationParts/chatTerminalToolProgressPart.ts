@@ -1194,10 +1194,12 @@ class ChatTerminalToolOutputSection extends Disposable {
 				this._scrollOutputToBottom();
 			}
 		}));
-		// Forward input from the mirror terminal to the live terminal instance
+		// Forward input from the mirror terminal to the live terminal instance.
+		// Use bracketed paste mode when available to avoid macOS PTY canonical-mode
+		// buffer corruption with multiline input exceeding ~1024 bytes.
 		this._register(mirror.onDidInput(data => {
 			if (!liveTerminalInstance.isDisposed) {
-				liveTerminalInstance.sendText(data, false);
+				liveTerminalInstance.sendText(data, false, true);
 			}
 		}));
 		await mirror.attach(this._terminalContainer);
