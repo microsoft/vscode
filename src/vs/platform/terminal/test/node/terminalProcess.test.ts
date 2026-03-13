@@ -30,7 +30,7 @@ const shellMatrix: IShellLaunchConfig[] = [
 	{ executable: '/bin/dash', args: ['-i'] },
 ];
 
-const lineCounts = [10, 20];
+const lineCounts = [10, 20, 30, 40, 50];
 const waitDuration = 4000;
 
 const BRACKETED_PASTE_START = '\x1b[200~';
@@ -133,7 +133,7 @@ function buildMultilineCommand(outputFile: string, lineCount: number): { command
 	}
 
 	for (const lineCount of lineCounts) {
-		const sizeName = lineCount === 10 ? 'small' : lineCount === 20 ? 'medium' : 'large';
+		const sizeName = `${lineCount}-line`;
 		for (const shell of shellMatrix) {
 			const shellName = path.posix.basename(shell.executable!);
 			test(`${shellName} ${sizeName} multiline write`, async function () {
@@ -237,7 +237,7 @@ function buildMultilineCommand(outputFile: string, lineCount: number): { command
 	];
 
 	for (const lineCount of lineCounts) {
-		const sizeName = lineCount === 10 ? 'small' : lineCount === 20 ? 'medium' : 'large';
+		const sizeName = `${lineCount}-line`;
 		for (const shell of bracketedPasteShells) {
 			const shellName = path.posix.basename(shell.executable!);
 			test(`${shellName} ${sizeName} multiline write with bracketed paste`, async function () {
