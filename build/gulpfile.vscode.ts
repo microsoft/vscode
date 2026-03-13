@@ -747,6 +747,29 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 		// directory so the CLI subprocess can access them without ASAR patching.
 		const nodeModulesDir = path.join(appBase, 'node_modules');
 		const unpackedDir = path.join(appBase, 'node_modules.asar.unpacked');
+		const asarFile = path.join(appBase, 'node_modules.asar');
+
+		// Diagnostic logging: understand post-ASAR filesystem layout
+		console.log(`[copyCopilotNativeDeps] appBase: ${appBase}`);
+		console.log(`[copyCopilotNativeDeps] node_modules/ exists: ${fs.existsSync(nodeModulesDir)} (isDir: ${fs.existsSync(nodeModulesDir) && fs.statSync(nodeModulesDir).isDirectory()})`);
+		console.log(`[copyCopilotNativeDeps] node_modules.asar exists: ${fs.existsSync(asarFile)}`);
+		console.log(`[copyCopilotNativeDeps] node_modules.asar.unpacked/ exists: ${fs.existsSync(unpackedDir)}`);
+		if (fs.existsSync(unpackedDir)) {
+			const unpackedContents = fs.readdirSync(unpackedDir);
+			console.log(`[copyCopilotNativeDeps] node_modules.asar.unpacked/ contents: ${JSON.stringify(unpackedContents)}`);
+			const unpackedGithub = path.join(unpackedDir, '@github');
+			if (fs.existsSync(unpackedGithub)) {
+				console.log(`[copyCopilotNativeDeps] .asar.unpacked/@github/ contents: ${JSON.stringify(fs.readdirSync(unpackedGithub))}`);
+			}
+		}
+		if (fs.existsSync(nodeModulesDir) && fs.statSync(nodeModulesDir).isDirectory()) {
+			const nmGithub = path.join(nodeModulesDir, '@github');
+			if (fs.existsSync(nmGithub)) {
+				console.log(`[copyCopilotNativeDeps] node_modules/@github/ contents: ${JSON.stringify(fs.readdirSync(nmGithub))}`);
+			} else {
+				console.log(`[copyCopilotNativeDeps] node_modules/@github/ does not exist`);
+			}
+		}
 
 		// Find source binaries: prefer plain node_modules/, fall back to .asar.unpacked/
 		const nodePtySourcePlain = path.join(nodeModulesDir, 'node-pty', 'build', 'Release');
