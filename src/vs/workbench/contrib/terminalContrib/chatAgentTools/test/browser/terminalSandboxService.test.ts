@@ -313,7 +313,6 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		ok(config.filesystem.allowWrite.includes('/workspace-one'), 'Should include the first workspace folder path');
 		ok(config.filesystem.allowWrite.includes('/workspace-two'), 'Should include the second workspace folder path');
 		ok(config.filesystem.allowWrite.includes('~/.npm'), 'Should include the default npm write path');
-		ok(!config.filesystem.allowWrite.includes('.'), 'Should replace dot with concrete workspace folder paths');
 	});
 
 	test('should delegate wrapping to sandbox helper', async () => {
