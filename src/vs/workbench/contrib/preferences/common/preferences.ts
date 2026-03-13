@@ -72,6 +72,7 @@ export const CONTEXT_TOC_ROW_FOCUS = new RawContextKey<boolean>('settingsTocRowF
 export const CONTEXT_SETTINGS_ROW_FOCUS = new RawContextKey<boolean>('settingRowFocus', false);
 export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindings', false);
 export const CONTEXT_KEYBINDINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inKeybindingsSearch', false);
+export const CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE = new RawContextKey<boolean>('keybindingsSearchHasValue', false);
 export const CONTEXT_KEYBINDING_FOCUS = new RawContextKey<boolean>('keybindingFocus', false);
 export const CONTEXT_WHEN_FOCUS = new RawContextKey<boolean>('whenFocus', false);
 export const CONTEXT_AI_SETTING_RESULTS_AVAILABLE = new RawContextKey<boolean>('aiSettingResultsAvailable', false);
@@ -128,7 +129,6 @@ export enum WorkbenchSettingsEditorSettings {
 export type ExtensionToggleData = {
 	settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations>;
 	recommendedExtensionsGalleryInfo: IStringDictionary<IGalleryExtension>;
-	commonlyUsed: string[];
 };
 
 let cachedExtensionToggleData: ExtensionToggleData | undefined;
@@ -154,7 +154,7 @@ export async function getExperimentalExtensionToggleData(
 		return cachedExtensionToggleData;
 	}
 
-	if (productService.extensionRecommendations && productService.commonlyUsedSettings) {
+	if (productService.extensionRecommendations) {
 		const settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations> = {};
 		Object.keys(productService.extensionRecommendations).forEach(extensionId => {
 			const extensionInfo = productService.extensionRecommendations![extensionId];
@@ -187,8 +187,7 @@ export async function getExperimentalExtensionToggleData(
 
 		cachedExtensionToggleData = {
 			settingsEditorRecommendedExtensions,
-			recommendedExtensionsGalleryInfo,
-			commonlyUsed: productService.commonlyUsedSettings
+			recommendedExtensionsGalleryInfo
 		};
 		return cachedExtensionToggleData;
 	}

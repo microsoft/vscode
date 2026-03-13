@@ -19,10 +19,13 @@ import { TerminalCommandId } from '../../../terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalVoiceSession } from './terminalVoice.js';
 
+const VOICE_CATEGORY = localize2('voiceCategory', "Voice");
+
 export function registerTerminalVoiceActions() {
 	registerActiveInstanceAction({
 		id: TerminalCommandId.StartVoice,
 		title: localize2('workbench.action.terminal.startDictation', "Start Dictation in Terminal"),
+		category: VOICE_CATEGORY,
 		precondition: ContextKeyExpr.and(
 			SpeechToTextInProgress.toNegated(),
 			sharedWhenClause.terminalAvailable
@@ -66,6 +69,7 @@ export function registerTerminalVoiceActions() {
 	registerActiveInstanceAction({
 		id: TerminalCommandId.StopVoice,
 		title: localize2('workbench.action.terminal.stopDictation', "Stop Dictation in Terminal"),
+		category: VOICE_CATEGORY,
 		precondition: TerminalContextKeys.terminalDictationInProgress,
 		f1: true,
 		keybinding: {

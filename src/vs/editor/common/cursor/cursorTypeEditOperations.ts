@@ -664,14 +664,14 @@ export class PasteOperation {
 	}
 
 	private static _distributePasteToCursors(config: CursorConfiguration, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): string[] | null {
-		if (pasteOnNewLine) {
-			return null;
-		}
 		if (selections.length === 1) {
 			return null;
 		}
 		if (multicursorText && multicursorText.length === selections.length) {
 			return multicursorText;
+		}
+		if (pasteOnNewLine) {
+			return null;
 		}
 		if (config.multiCursorPaste === 'spread') {
 			// Try to spread the pasted text in case the line count matches the cursor count

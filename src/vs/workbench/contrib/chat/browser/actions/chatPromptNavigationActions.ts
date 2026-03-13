@@ -10,8 +10,8 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 
 export function registerChatPromptNavigationActions() {
 	registerAction2(class NextUserPromptAction extends Action2 {

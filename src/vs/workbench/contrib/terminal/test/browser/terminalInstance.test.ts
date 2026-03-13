@@ -288,6 +288,12 @@ suite('Workbench - TerminalInstance', () => {
 				{ code: 1260, message: `The terminal process failed to launch: Windows cannot open this program because it has been prevented by a software restriction policy. For more information, open Event Viewer or contact your system Administrator.` }
 			);
 		});
+		test('should format conpty launch failure', () => {
+			deepStrictEqual(
+				parseExitResult({ message: 'A native exception occurred during launch (Cannot launch conpty). Winpty has been removed, see https://code.visualstudio.com/updates/v1_109#_removal-of-winpty-support for more details. You can also try enabling the `terminal.integrated.windowsUseConptyDll` setting.' }, {}, ProcessState.KilledDuringLaunch, undefined),
+				{ code: undefined, message: `The terminal process failed to launch: A native exception occurred during launch (Cannot launch conpty). Winpty has been removed, see https://code.visualstudio.com/updates/v1_109#_removal-of-winpty-support for more details. You can also try enabling the \`terminal.integrated.windowsUseConptyDll\` setting..` }
+			);
+		});
 		test('should format generic failures', () => {
 			deepStrictEqual(
 				parseExitResult({ code: 123, message: 'A native exception occurred during launch (Cannot create process, error code: 123)' }, {}, ProcessState.KilledDuringLaunch, undefined),
@@ -397,6 +403,12 @@ suite('Workbench - TerminalInstance', () => {
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'process', workspaceFolder: { uri: URI.from({ scheme: Schemas.file, path: 'folder' }) } as IWorkspaceFolder, staticTitle: 'my-title' }));
 			strictEqual(terminalLabelComputer.title, 'my-title');
 			strictEqual(terminalLabelComputer.description, 'folder');
+		});
+		test('should use shellLaunchConfig.titleTemplate as template when set', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, sequence: 'my-sequence', processName: 'zsh', shellLaunchConfig: { titleTemplate: '${sequence}' } }));
+			strictEqual(terminalLabelComputer.title, 'my-sequence');
+			strictEqual(terminalLabelComputer.description, 'cwd');
 		});
 		test('should provide cwdFolder for all cwds only when in multi-root', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } } } });

@@ -66,10 +66,11 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 				rows: number,
 				unicodeVersion: '6' | '11',
 				env: any,
-				windowsEnableConpty: boolean,
+				options: any,
 				shouldPersist: boolean
 			) => new TestTerminalChildProcess(shouldPersist),
-			getLatency: () => Promise.resolve([])
+			getLatency: () => Promise.resolve([]),
+			getShellEnvironment: () => Promise.resolve({})
 		} as unknown as ITerminalBackend;
 	}
 }

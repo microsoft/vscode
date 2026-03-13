@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, ModifierKeyEmitter, n, ObserverNodeWithElement } from '../../../../../../../base/browser/dom.js';
+import { $, n, ObserverNodeWithElement } from '../../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IEquatable } from '../../../../../../../base/common/equals.js';
@@ -14,7 +14,7 @@ import { OS } from '../../../../../../../base/common/platform.js';
 import { localize } from '../../../../../../../nls.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
-import { editorBackground, editorHoverForeground } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { editorHoverForeground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { contrastBorder } from '../../../../../../../platform/theme/common/colors/baseColors.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
@@ -30,13 +30,16 @@ import { ILanguageService } from '../../../../../../common/languages/language.js
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { inlineSuggestCommitAlternativeActionId } from '../../../controller/commandIds.js';
 import { InlineSuggestAlternativeAction } from '../../../model/InlineSuggestAlternativeAction.js';
+import { InlineCompletionEditorType } from '../../../model/provideInlineCompletions.js';
 import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getModifiedBorderColor, getOriginalBorderColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, modifiedChangedTextOverlayColor, observeColor, originalChangedTextOverlayColor } from '../theme.js';
+import { getEditorBackgroundColor, getModifiedBorderColor, getOriginalBorderColor, INLINE_EDITS_BORDER_RADIUS, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, modifiedChangedTextOverlayColor, observeColor, originalChangedTextOverlayColor } from '../theme.js';
 import { getEditorValidOverlayRect, mapOutFalsy, rectToProps } from '../utils/utils.js';
+import { IUserInteractionService } from '../../../../../../../platform/userInteraction/browser/userInteractionService.js';
 
 export class WordReplacementsViewData implements IEquatable<WordReplacementsViewData> {
 	constructor(
 		public readonly edit: TextReplacement,
+		public readonly editorType: InlineCompletionEditorType,
 		public readonly alternativeAction: InlineSuggestAlternativeAction | undefined,
 	) { }
 
@@ -78,6 +81,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 		@IThemeService private readonly _themeService: IThemeService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IUserInteractionService private readonly _userInteractionService: IUserInteractionService,
 	) {
 		super();
 		this._start = this._editor.observePosition(constObservable(this._viewData.edit.range.getStartPosition()), this._store);
@@ -85,7 +89,11 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 		this._line = document.createElement('div');
 		this._primaryElement = observableValue<ObserverNodeWithElement | null>(this, null);
 		this._secondaryElement = observableValue<ObserverNodeWithElement | null>(this, null);
-		this.isHovered = this._primaryElement.map((e, reader) => e?.didMouseMoveDuringHover.read(reader) ?? false);
+		this.isHovered = derived(this, reader => {
+			const elem = this._primaryElement.read(reader);
+			if (!elem) { return false; }
+			return this._userInteractionService.createHoverTracker(elem.element, reader.store).read(reader);
+		});
 		this._renderTextEffect = derived(this, _reader => {
 			const tm = this._editor.model.get()!;
 			const origLine = tm.getLineContent(this._viewData.edit.range.startLineNumber);
@@ -104,7 +112,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 		});
 		const modifiedLineHeight = this._editor.observeLineHeightForPosition(this._viewData.edit.range.getStartPosition());
 		const altCount = observableFromPromise(this._viewData.alternativeAction?.count ?? new Promise<undefined>(resolve => resolve(undefined))).map(c => c.value);
-		const altModifierActive = observableFromEvent(this, ModifierKeyEmitter.getInstance().event, () => ModifierKeyEmitter.getInstance().keyStatus.shiftKey);
+		const altModifierActive = derived(this, reader => this._userInteractionService.readModifierKeyStatus(this._editor.editor.getDomNode()!, reader).shiftKey);
 		this._layout = derived(this, reader => {
 			this._renderTextEffect.read(reader);
 			const widgetStart = this._start.read(reader);
@@ -205,11 +213,12 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 				const passiveStyles = {
 					borderColor: hcBorderColor ? hcBorderColor.toString() : observeColor(editorHoverForeground, this._themeService).map(c => c.transparent(0.2).toString()).read(reader),
-					backgroundColor: asCssVariable(editorBackground),
+					backgroundColor: getEditorBackgroundColor(this._viewData.editorType),
 					color: '',
 					opacity: '0.7',
 				};
 
+				const editorBackground = getEditorBackgroundColor(this._viewData.editorType);
 				const primaryActionStyles = derived(this, r => alternativeActionActive.read(r) ? primaryActiveStyles : primaryActiveStyles);
 				const secondaryActionStyles = derived(this, r => alternativeActionActive.read(r) ? secondaryActiveStyles : passiveStyles);
 				// TODO@benibenj clicking the arrow does not accept suggestion anymore
@@ -227,7 +236,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).lowerBackground.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH, BORDER_WIDTH, 0)),
-								background: asCssVariable(editorBackground),
+								background: editorBackground,
 								cursor: 'pointer',
 								pointerEvents: 'auto',
 							},
@@ -241,13 +250,13 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								width: undefined,
 								pointerEvents: 'auto',
 								boxSizing: 'border-box',
-								borderRadius: '4px',
+								borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 
-								background: asCssVariable(editorBackground),
+								background: editorBackground,
 								display: 'flex',
 								justifyContent: 'left',
 
-								outline: `2px solid ${asCssVariable(editorBackground)}`,
+								outline: `2px solid ${editorBackground}`,
 							},
 							onmousedown: (e) => this._mouseDown(e),
 						}, [
@@ -258,7 +267,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 									fontSize: this._editor.getOption(EditorOption.fontSize),
 									fontWeight: this._editor.getOption(EditorOption.fontWeight),
 									width: rectToProps(reader => layout.read(reader).codeLine.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH)).width,
-									borderRadius: '4px',
+									borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 									border: primaryActionStyles.map(s => `${BORDER_WIDTH}px solid ${s.borderColor}`),
 									boxSizing: 'border-box',
 									padding: `${BORDER_WIDTH}px`,
@@ -287,7 +296,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 									id: DOM_ID_RENAME,
 									style: {
 										position: 'relative',
-										borderRadius: '4px',
+										borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 										borderTop: `${BORDER_WIDTH}px solid`,
 										borderRight: `${BORDER_WIDTH}px solid`,
 										borderBottom: `${BORDER_WIDTH}px solid`,
@@ -326,7 +335,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).originalLine.withMargin(BORDER_WIDTH)),
 								boxSizing: 'border-box',
-								borderRadius: '4px',
+								borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 								border: `${BORDER_WIDTH}px solid ${originalBorderColor}`,
 								background: asCssVariable(originalChangedTextOverlayColor),
 								pointerEvents: 'none',

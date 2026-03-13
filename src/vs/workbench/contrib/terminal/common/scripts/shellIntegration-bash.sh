@@ -62,6 +62,12 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
+# Prevent AI-executed commands from polluting shell history
+if [ "${VSCODE_PREVENT_SHELL_HISTORY:-}" = "1" ]; then
+	export HISTCONTROL="ignorespace"
+	builtin unset VSCODE_PREVENT_SHELL_HISTORY
+fi
+
 # Apply EnvironmentVariableCollections if needed
 if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_REPLACE"
@@ -102,6 +108,14 @@ if [ -z "${VSCODE_PYTHON_AUTOACTIVATE_GUARD:-}" ]; then
 			builtin printf '\x1b[0m\x1b[7m * \x1b[0;103m VS Code Python bash activation failed with exit code %d \x1b[0m' "$__vsc_activation_status"
 		fi
 	fi
+	# Remove any leftover Python activation env vars.
+	for var in "${!VSCODE_PYTHON_@}"; do
+		case "$var" in
+			VSCODE_PYTHON_*_ACTIVATE)
+				unset "$var"
+				;;
+		esac
+	done
 fi
 
 __vsc_get_trap() {

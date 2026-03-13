@@ -220,7 +220,7 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 		const sentMessages = transport.getSentMessages();
 		const pingResponse = sentMessages.find(m =>
 			'id' in m && m.id === pingRequest.id && 'result' in m
-		) as MCP.JSONRPCResponse;
+		) as MCP.JSONRPCResultResponse;
 
 		assert.ok(pingResponse, 'No ping response was sent');
 		assert.deepStrictEqual(pingResponse.result, {});
@@ -246,7 +246,7 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 		const sentMessages = transport.getSentMessages();
 		const rootsResponse = sentMessages.find(m =>
 			'id' in m && m.id === rootsRequest.id && 'result' in m
-		) as MCP.JSONRPCResponse;
+		) as MCP.JSONRPCResultResponse;
 
 		assert.ok(rootsResponse, 'No roots/list response was sent');
 		assert.strictEqual((rootsResponse.result as MCP.ListRootsResult).roots.length, 2);
@@ -400,6 +400,7 @@ suite.skip('Workbench - MCP - McpTask', () => { // TODO@connor4312 https://githu
 			taskId: 'task1',
 			status: 'working',
 			createdAt: new Date().toISOString(),
+			lastUpdatedAt: new Date().toISOString(),
 			ttl: null,
 			...overrides
 		};

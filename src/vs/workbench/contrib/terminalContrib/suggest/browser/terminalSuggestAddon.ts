@@ -7,7 +7,6 @@ import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { sep } from '../../../../../base/common/path.js';
 import { commonPrefixLength } from '../../../../../base/common/strings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -17,7 +16,7 @@ import { TerminalCapability, type ITerminalCapabilityStore } from '../../../../.
 import type { IPromptInputModel, IPromptInputModelState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import type { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
-import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
+import { terminalSuggestConfigSection, TerminalSuggestSettingId, normalizeQuickSuggestionsConfig, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
 import { LineContext } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import { ITerminalCompletionService } from './terminalCompletionService.js';
@@ -74,7 +73,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _suggestWidget?: SimpleSuggestWidget<TerminalCompletionModel, TerminalCompletionItem>;
 	private _cachedFontInfo: ISimpleSuggestWidgetFontInfo | undefined;
 	private _enableWidget: boolean = true;
-	private _pathSeparator: string = sep;
+	private _pathSeparator: string | undefined;
 	private _isFilteringDirectories: boolean = false;
 
 	// TODO: Remove these in favor of prompt input state
@@ -257,6 +256,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._lastUserDataTimestamp = Date.now();
 		}));
 		this._register(xterm.onScroll(() => this.hideSuggestWidget(true)));
+		this._register(xterm.onResize(() => this._relayoutOnResize()));
 	}
 
 	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, explicitlyInvoked?: boolean): Promise<void> {
@@ -295,7 +295,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._requestedCompletionsIndex = this._currentPromptInputState.cursorIndex;
 
 		// Show loading indicator before making async completion request (only for explicit invocations)
-		if (explicitlyInvoked) {
+		if (explicitlyInvoked && this._container) {
 			const suggestWidget = this._ensureSuggestWidget(terminal);
 			const cursorPosition = this._getCursorPosition(terminal);
 			if (cursorPosition) {
@@ -303,7 +303,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 		}
 
-		const quickSuggestionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).quickSuggestions;
+		const quickSuggestionsConfig = normalizeQuickSuggestionsConfig(this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).quickSuggestions);
 		const allowFallbackCompletions = explicitlyInvoked || quickSuggestionsConfig.unknown === 'on';
 		this._logService.trace('SuggestAddon#_handleCompletionProviders provideCompletions');
 		// Trim ghost text from the prompt value when requesting completions
@@ -343,8 +343,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._isFilteringDirectories) {
 			const firstDir = completions.find(e => e.kind === TerminalCompletionItemKind.Folder);
 			const textLabel = isString(firstDir?.label) ? firstDir.label : firstDir?.label.label;
-			this._pathSeparator = textLabel?.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
-			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
+			// Get path separator from the completion label, which is coming from the extension host
+			const labelSep = textLabel?.match(/(?<sep>[\\\/])/)?.groups?.sep;
+			if (labelSep) {
+				this._pathSeparator = labelSep;
+			}
+			if (this._pathSeparator) {
+				normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
+			}
 		}
 
 		// Add any "ghost text" suggestion suggested by the shell. This aligns with behavior of the
@@ -365,7 +371,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
-		const items = completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c));
+		const items = completions.filter(c => !!c.label).map(c => new TerminalCompletionItem(c, this._pathSeparator));
 		if (isInlineCompletionSupported(this.shellType)) {
 			items.push(this._inlineCompletionItem);
 		}
@@ -386,7 +392,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	setContainerWithOverflow(container: HTMLElement): void {
+		const containerChanged = this._container !== container;
+		const parentChanged = this._suggestWidget?.element.domNode.parentElement !== container;
+		if (!containerChanged && !parentChanged) {
+			return;
+		}
 		this._container = container;
+		if (this._suggestWidget) {
+			container.appendChild(this._suggestWidget.element.domNode);
+		}
 	}
 
 	setScreen(screen: HTMLElement): void {
@@ -507,6 +521,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _sync(promptInputState: IPromptInputModelState): void {
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
+		const quickSuggestions = normalizeQuickSuggestionsConfig(config.quickSuggestions);
 		{
 			let sent = false;
 
@@ -522,8 +537,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 					const commandLineHasSpace = promptInputState.prefix.trim().match(/\s/);
 					if (
-						(!commandLineHasSpace && config.quickSuggestions.commands !== 'off') ||
-						(commandLineHasSpace && config.quickSuggestions.arguments !== 'off')
+						(!commandLineHasSpace && quickSuggestions.commands === 'on') ||
+						(commandLineHasSpace && quickSuggestions.arguments === 'on')
 					) {
 						if (promptInputState.prefix.match(/[^\s]$/)) {
 							sent = this._requestTriggerCharQuickSuggestCompletions();
@@ -569,11 +584,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					if (config.suggestOnTriggerCharacters && !sent && this._mostRecentPromptInputState.cursorIndex > 0) {
 						const char = this._mostRecentPromptInputState.value[this._mostRecentPromptInputState.cursorIndex - 1];
 						if (
-							// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
-							// with git branches in particular
-							this._isFilteringDirectories && char.match(/[\\\/]$/) ||
-							// Check if the character is a trigger character from providers
-							this._checkProviderTriggerCharacters(char)
+							char && (
+								// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
+								// with git branches in particular
+								this._isFilteringDirectories && char.match(/[\\\/]$/) ||
+								// Check if the character is a trigger character from providers
+								this._checkProviderTriggerCharacters(char)
+							)
 						) {
 							sent = this._requestTriggerCharQuickSuggestCompletions();
 						}
@@ -622,7 +639,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
 			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._requestedCompletionsIndex);
 			let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(0, this._requestedCompletionsIndex + this._cursorIndexDelta);
-			if (this._isFilteringDirectories) {
+			if (this._isFilteringDirectories && this._pathSeparator) {
 				normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 			}
 			const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
@@ -667,7 +684,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			// model and the slowdown/flickering that could potentially cause.
 			this._addPropertiesToInlineCompletionItem(completions);
 
-			const x = new TerminalCompletionItem(this._inlineCompletion);
+			const x = new TerminalCompletionItem(this._inlineCompletion, this._pathSeparator);
 			this._inlineCompletionItem.idx = x.idx;
 			this._inlineCompletionItem.score = x.score;
 			this._inlineCompletionItem.labelLow = x.labelLow;
@@ -757,7 +774,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _showCompletions(model: TerminalCompletionModel, explicitlyInvoked?: boolean): void {
 		this._logService.trace('SuggestAddon#_showCompletions');
-		if (!this._terminal?.element) {
+		if (!this._terminal?.element || !this._container) {
 			return;
 		}
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
@@ -1039,6 +1056,18 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._focusedItem = undefined;
 		this._suggestWidget?.hide();
 	}
+
+	private _relayoutOnResize(): void {
+		if (!this._terminalSuggestWidgetVisibleContextKey.get() || !this._terminal) {
+			return;
+		}
+		const cursorPosition = this._getCursorPosition(this._terminal);
+		if (!cursorPosition) {
+			this.hideSuggestWidget(true);
+			return;
+		}
+		this._suggestWidget?.relayout(cursorPosition);
+	}
 }
 
 class PersistedWidgetSize {
@@ -1078,4 +1107,3 @@ export function normalizePathSeparator(path: string, sep: string): string {
 	}
 	return path.replaceAll('/', '\\');
 }
-

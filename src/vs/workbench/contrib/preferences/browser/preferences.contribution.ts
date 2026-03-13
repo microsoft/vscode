@@ -43,7 +43,7 @@ import { PreferencesEditorInput, SettingsEditor2Input } from '../../../services/
 import { SettingsEditorModel } from '../../../services/preferences/common/preferencesModels.js';
 import { CURRENT_PROFILE_CONTEXT, IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { ExplorerFolderContext, ExplorerRootContext } from '../../files/common/files.js';
-import { CONTEXT_AI_SETTING_RESULTS_AVAILABLE, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, CONTEXT_WHEN_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ACCEPT_WHEN, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REJECT_WHEN, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH } from '../common/preferences.js';
+import { CONTEXT_AI_SETTING_RESULTS_AVAILABLE, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, CONTEXT_WHEN_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ACCEPT_WHEN, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REJECT_WHEN, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH } from '../common/preferences.js';
 import { PreferencesContribution } from '../common/preferencesContribution.js';
 import { KeybindingsEditor } from './keybindingsEditor.js';
 import { ConfigureLanguageBasedSettingsAction } from './preferencesActions.js';
@@ -248,7 +248,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			run(accessor: ServicesAccessor, args: string | IOpenSettingsActionOptions) {
 				// args takes a string for backcompat
 				const opts = typeof args === 'string' ? { query: args } : sanitizeOpenSettingsArgs(args);
-				return accessor.get(IPreferencesService).openSettings(opts);
+				return accessor.get(IPreferencesService).openSettings({ ...opts });
 			}
 		}));
 		this._register(registerAction2(class extends Action2 {
@@ -836,6 +836,12 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 							order: 1,
 						},
 						{
+							id: MenuId.ModalEditorEditorTitle,
+							when: ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.keybindingsResource.toString()),
+							group: 'navigation',
+							order: 1,
+						},
+						{
 							id: MenuId.GlobalActivity,
 							group: '2_configuration',
 							order: 4
@@ -881,6 +887,11 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						{ id: MenuId.CommandPalette },
 						{
 							id: MenuId.EditorTitle,
+							when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
+							group: 'navigation',
+						},
+						{
+							id: MenuId.ModalEditorEditorTitle,
 							when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
 							group: 'navigation',
 						}
@@ -965,7 +976,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					title: nls.localize('clear', "Clear Search Results"),
 					keybinding: {
 						weight: KeybindingWeight.WorkbenchContrib,
-						when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
+						when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE),
 						primary: KeyCode.Escape,
 					}
 				});
@@ -1246,13 +1257,24 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		const commandId = '_workbench.openWorkspaceSettingsEditor';
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !CommandsRegistry.getCommand(commandId)) {
 			CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openWorkspaceSettings({ jsonEditor: false }));
+			const when = ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor'));
 			MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 				command: {
 					id: commandId,
 					title: OPEN_USER_SETTINGS_UI_TITLE,
 					icon: preferencesOpenSettingsIcon
 				},
-				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor')),
+				when,
+				group: 'navigation',
+				order: 1
+			});
+			MenuRegistry.appendMenuItem(MenuId.ModalEditorEditorTitle, {
+				command: {
+					id: commandId,
+					title: OPEN_USER_SETTINGS_UI_TITLE,
+					icon: preferencesOpenSettingsIcon
+				},
+				when,
 				group: 'navigation',
 				order: 1
 			});
@@ -1272,13 +1294,24 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						return this.preferencesService.openFolderSettings({ folderUri: folder.uri, jsonEditor: false, groupId });
 					}
 				});
+				const when = ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString()), ContextKeyExpr.not('isInDiffEditor'));
 				MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 					command: {
 						id: commandId,
 						title: OPEN_USER_SETTINGS_UI_TITLE,
 						icon: preferencesOpenSettingsIcon
 					},
-					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString()), ContextKeyExpr.not('isInDiffEditor')),
+					when,
+					group: 'navigation',
+					order: 1
+				});
+				MenuRegistry.appendMenuItem(MenuId.ModalEditorEditorTitle, {
+					command: {
+						id: commandId,
+						title: OPEN_USER_SETTINGS_UI_TITLE,
+						icon: preferencesOpenSettingsIcon
+					},
+					when,
 					group: 'navigation',
 					order: 1
 				});
@@ -1320,6 +1353,11 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 							when: openUserSettingsEditorWhen,
 							group: 'navigation',
 							order: 1
+						}, {
+							id: MenuId.ModalEditorEditorTitle,
+							when: openUserSettingsEditorWhen,
+							group: 'navigation',
+							order: 1
 						}]
 					});
 				}
@@ -1346,6 +1384,11 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 					icon: preferencesOpenSettingsIcon,
 					menu: [{
 						id: MenuId.EditorTitle,
+						when: openSettingsJsonWhen,
+						group: 'navigation',
+						order: 1
+					}, {
+						id: MenuId.ModalEditorEditorTitle,
 						when: openSettingsJsonWhen,
 						group: 'navigation',
 						order: 1

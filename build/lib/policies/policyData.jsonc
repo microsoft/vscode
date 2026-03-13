@@ -39,20 +39,6 @@
     ],
     "policies": [
         {
-            "key": "chat.mcp.gallery.serviceUrl",
-            "name": "McpGalleryServiceUrl",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.101",
-            "localization": {
-                "description": {
-                    "key": "mcp.gallery.serviceUrl",
-                    "value": "Configure the MCP Gallery service URL to connect to"
-                }
-            },
-            "type": "string",
-            "default": ""
-        },
-        {
             "key": "extensions.gallery.serviceUrl",
             "name": "ExtensionGalleryServiceUrl",
             "category": "Extensions",
@@ -67,6 +53,20 @@
             "default": ""
         },
         {
+            "key": "chat.mcp.gallery.serviceUrl",
+            "name": "McpGalleryServiceUrl",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.101",
+            "localization": {
+                "description": {
+                    "key": "mcp.gallery.serviceUrl",
+                    "value": "Configure the MCP Gallery service URL to connect to"
+                }
+            },
+            "type": "string",
+            "default": ""
+        },
+        {
             "key": "extensions.allowed",
             "name": "AllowedExtensions",
             "category": "Extensions",
@@ -74,7 +74,7 @@
             "localization": {
                 "description": {
                     "key": "extensions.allowed.policy",
-                    "value": "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions"
+                    "value": "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://aka.ms/vscode/enterprise/extensions/allowed"
                 }
             },
             "type": "object",
@@ -87,8 +87,8 @@
             "minimumVersion": "1.99",
             "localization": {
                 "description": {
-                    "key": "autoApprove2.description",
-                    "value": "Global auto approve also known as \"YOLO mode\" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.\n\nThis feature disables critical security protections and makes it much easier for an attacker to compromise the machine."
+                    "key": "autoApprove3.description",
+                    "value": "Global auto approve also known as \"YOLO mode\" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.\n\nThis feature disables critical security protections and makes it much easier for an attacker to compromise the machine.\n\nNote: This setting only controls tool approval and does not prevent the agent from asking questions. To automatically answer agent questions, use the `#chat.autoReply#` setting."
                 }
             },
             "type": "boolean",
@@ -164,6 +164,34 @@
                 "description": {
                     "key": "chat.agent.enabled.description",
                     "value": "When enabled, agent mode can be activated from chat and tools in agentic contexts with side effects can be used."
+                }
+            },
+            "type": "boolean",
+            "default": true
+        },
+        {
+            "key": "chat.editMode.hidden",
+            "name": "DeprecatedEditModeHidden",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.112",
+            "localization": {
+                "description": {
+                    "key": "chat.editMode.hidden",
+                    "value": "When enabled, hides the Edit mode from the chat mode picker."
+                }
+            },
+            "type": "boolean",
+            "default": true
+        },
+        {
+            "key": "chat.useHooks",
+            "name": "ChatHooks",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.109",
+            "localization": {
+                "description": {
+                    "key": "chat.useHooks.description",
+                    "value": "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`."
                 }
             },
             "type": "boolean",
@@ -272,6 +300,20 @@
             },
             "type": "boolean",
             "default": true
+        },
+        {
+            "key": "workbench.browser.enableChatTools",
+            "name": "BrowserChatTools",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.110",
+            "localization": {
+                "description": {
+                    "key": "browser.enableChatTools",
+                    "value": "When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser."
+                }
+            },
+            "type": "boolean",
+            "default": false
         }
     ]
 }

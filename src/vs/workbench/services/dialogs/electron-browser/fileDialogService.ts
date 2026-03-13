@@ -27,6 +27,7 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { IEditorService } from '../../editor/common/editorService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -48,10 +49,11 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		@ICommandService commandService: ICommandService,
 		@IEditorService editorService: IEditorService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		super(hostService, contextService, historyService, environmentService, instantiationService,
-			configurationService, fileService, openerService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService, logService);
+			configurationService, fileService, openerService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService, logService, remoteAgentService);
 	}
 
 	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {

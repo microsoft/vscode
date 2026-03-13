@@ -15,15 +15,15 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ILabelService } from '../../../platform/label/common/label.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { AuthInfo, Credentials, IRequestService } from '../../../platform/request/common/request.js';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkspace, IWorkspaceContextService, WorkbenchState, isUntitledWorkspace, WorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspace, IWorkspaceContextService, isUntitledWorkspace, WorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { checkGlobFileExists } from '../../services/extensions/common/workspaceContains.js';
 import { IFileQueryBuilderOptions, ITextQueryBuilderOptions, QueryBuilder } from '../../services/search/common/queryBuilder.js';
 import { IEditorService, ISaveEditorsResult } from '../../services/editor/common/editorService.js';
 import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from '../../services/search/common/search.js';
 import { IWorkspaceEditingService } from '../../services/workspaces/common/workspaceEditing.js';
-import { ExtHostContext, ExtHostWorkspaceShape, ITextSearchComplete, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostWorkspaceShape, ITextSearchComplete, IWorkspaceData, MainContext, MainThreadWorkspaceShape, ResourceTrustRequestOptionsDto } from '../common/extHost.protocol.js';
 import { IEditSessionIdentityService } from '../../../platform/workspace/common/editSessions.js';
 import { EditorResourceAccessor, SaveReason, SideBySideEditor } from '../../common/editor.js';
 import { coalesce } from '../../../base/common/arrays.js';
@@ -67,9 +67,9 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		} else {
 			this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted()));
 		}
-		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._store);
-		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._store);
-		this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this, this._store);
+		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
+		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
+		this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this, this._toDispose);
 	}
 
 	override dispose(): void {
@@ -129,7 +129,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 	}
 
 	private getWorkspaceData(workspace: IWorkspace): IWorkspaceData | null {
-		if (this._contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+		if (!this._contextService.hasWorkspaceData()) {
 			return null;
 		}
 		return {
@@ -138,7 +138,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 			folders: workspace.folders,
 			id: workspace.id,
 			name: this._labelService.getWorkspaceLabel(workspace),
-			transient: workspace.transient
+			transient: workspace.transient,
 		};
 	}
 
@@ -241,8 +241,19 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 
 	// --- trust ---
 
+	$requestResourceTrust(optionsDto: ResourceTrustRequestOptionsDto): Promise<boolean | undefined> {
+		const options = { ...optionsDto, uri: URI.revive(optionsDto.uri) } satisfies ResourceTrustRequestOptions;
+		return this._workspaceTrustRequestService.requestResourcesTrust(options);
+	}
+
 	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
 		return this._workspaceTrustRequestService.requestWorkspaceTrust(options);
+	}
+
+	async $isResourceTrusted(resource: UriComponents): Promise<boolean> {
+		const uri = URI.revive(resource);
+		const trustInfo = await this._workspaceTrustManagementService.getUriTrustInfo(uri);
+		return trustInfo.trusted;
 	}
 
 	private isWorkspaceTrusted(): boolean {
@@ -251,6 +262,10 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 
 	private _onDidGrantWorkspaceTrust(): void {
 		this._proxy.$onDidGrantWorkspaceTrust();
+	}
+
+	private _onDidChangeWorkspaceTrustedFolders(): void {
+		this._proxy.$onDidChangeWorkspaceTrustedFolders();
 	}
 
 	// --- edit sessions ---

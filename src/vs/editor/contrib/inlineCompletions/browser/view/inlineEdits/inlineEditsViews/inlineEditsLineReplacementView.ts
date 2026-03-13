@@ -7,7 +7,7 @@ import { $, n } from '../../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorunDelta, constObservable, derived, IObservable } from '../../../../../../../base/common/observable.js';
-import { editorBackground, scrollbarShadow } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { scrollbarShadow } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { IEditorMouseEvent, IViewZoneChangeAccessor } from '../../../../../../browser/editorBrowser.js';
@@ -23,8 +23,9 @@ import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../../common/viewModel/inlineDecorations.js';
+import { InlineCompletionEditorType } from '../../../model/provideInlineCompletions.js';
 import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, modifiedChangedLineBackgroundColor, originalBackgroundColor } from '../theme.js';
+import { getEditorBackgroundColor, getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, INLINE_EDITS_BORDER_RADIUS, modifiedChangedLineBackgroundColor, originalBackgroundColor } from '../theme.js';
 import { getEditorValidOverlayRect, getPrefixTrim, mapOutFalsy, rectToProps } from '../utils/utils.js';
 
 export class InlineEditsLineReplacementView extends Disposable implements IInlineEditsView {
@@ -55,7 +56,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			modifiedLines: string[];
 			replacements: Replacement[];
 		} | undefined>,
-		private readonly _isInDiffEditor: IObservable<boolean>,
+		private readonly _editorType: IObservable<InlineCompletionEditorType>,
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -207,7 +208,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 				const layoutProps = layout.read(reader);
 				const contentLeft = this._editor.layoutInfoContentLeft.read(reader);
 
-				const separatorWidth = this._isInDiffEditor.read(reader) ? 3 : 1;
+				const separatorWidth = this._editorType.read(reader) === InlineCompletionEditorType.DiffEditor ? 3 : 1;
 
 				modifiedLineElements.lines.forEach((l, i) => {
 					l.style.width = `${layoutProps.lowerText.width}px`;
@@ -217,6 +218,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 
 				const modifiedBorderColor = getModifiedBorderColor(this._tabAction).read(reader);
 				const originalBorderColor = getOriginalBorderColor(this._tabAction).read(reader);
+				const editorBackground = getEditorBackgroundColor(this._editorType.read(reader));
 
 				return [
 					n.div({
@@ -232,9 +234,9 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).background.translateX(-contentLeft).withMargin(separatorWidth)),
-								borderRadius: '4px',
+								borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 
-								border: `${separatorWidth + 1}px solid ${asCssVariable(editorBackground)}`,
+								border: `${separatorWidth + 1}px solid ${editorBackground}`,
 								boxSizing: 'border-box',
 								pointerEvents: 'none',
 							}
@@ -244,7 +246,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).background.translateX(-contentLeft)),
-								borderRadius: '4px',
+								borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 
 								border: getEditorBlendedColor(originalBorderColor, this._themeService).map(c => `1px solid ${c.toString()}`),
 								pointerEvents: 'none',
@@ -257,8 +259,8 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).lowerBackground.translateX(-contentLeft)),
-								borderRadius: '0 0 4px 4px',
-								background: asCssVariable(editorBackground),
+								borderRadius: `0 0 ${INLINE_EDITS_BORDER_RADIUS}px ${INLINE_EDITS_BORDER_RADIUS}px`,
+								background: editorBackground,
 								boxShadow: `${asCssVariable(scrollbarShadow)} 0 6px 6px -6px`,
 								border: `1px solid ${asCssVariable(modifiedBorderColor)}`,
 								boxSizing: 'border-box',
@@ -289,7 +291,7 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 								fontWeight: this._editor.getOption(EditorOption.fontWeight),
 								pointerEvents: 'none',
 								whiteSpace: 'nowrap',
-								borderRadius: '0 0 4px 4px',
+								borderRadius: `0 0 ${INLINE_EDITS_BORDER_RADIUS}px ${INLINE_EDITS_BORDER_RADIUS}px`,
 								overflow: 'hidden',
 							}
 						}, [...modifiedLineElements.lines]),

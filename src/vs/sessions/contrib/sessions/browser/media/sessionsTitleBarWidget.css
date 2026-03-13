@@ -1,0 +1,94 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Container - button style hover */
+.command-center .agent-sessions-titlebar-container {
+	display: flex;
+	width: 100%;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	justify-content: flex-start;
+	padding: 0 10px;
+	height: 22px;
+	border-radius: 4px;
+	-webkit-app-region: no-drag;
+	overflow: hidden;
+	color: var(--vscode-commandCenter-foreground);
+	gap: 6px;
+	cursor: default;
+}
+
+/* Session pill - clickable area for session picker */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill {
+	display: flex;
+	align-items: center;
+	padding: 0 4px;
+	border-radius: 4px;
+	min-width: 0;
+	max-width: 600px;
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.command-center .agent-sessions-titlebar-container:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Center group: icon + label + folder */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-center {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	justify-content: flex-start;
+	cursor: pointer;
+}
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-icon {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	font-size: 14px;
+}
+
+/* Label (title) */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Repository/folder label */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-repo {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	opacity: 0.7;
+}
+
+/* Dot separator */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
+	opacity: 0.5;
+	flex-shrink: 0;
+}
+
+/* Changes summary */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-changes {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: 3px;
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-changes-added {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-changes-removed {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
