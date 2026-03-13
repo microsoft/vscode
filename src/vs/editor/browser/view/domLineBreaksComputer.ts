@@ -8,7 +8,7 @@ import { CharCode } from '../../../base/common/charCode.js';
 import * as strings from '../../../base/common/strings.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { applyFontInfo } from '../config/domFontInfo.js';
-import { EditorOption, IComputedEditorOptions, WrappingIndent } from '../../common/config/editorOptions.js';
+import { EditorFontLigatures, EditorOption, IComputedEditorOptions, WrappingIndent } from '../../common/config/editorOptions.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
 import { InjectedTextOptions, TextDirection } from '../../common/model.js';
 import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
