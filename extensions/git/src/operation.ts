@@ -48,6 +48,7 @@ export const enum OperationKind {
 	RenameBranch = 'RenameBranch',
 	Remove = 'Remove',
 	Reset = 'Reset',
+	Revert = 'Revert',
 	Rebase = 'Rebase',
 	RebaseAbort = 'RebaseAbort',
 	RebaseContinue = 'RebaseContinue',
@@ -72,7 +73,7 @@ export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchO
 	GetBranchOperation | GetBranchesOperation | GetCommitTemplateOperation | GetObjectDetailsOperation | GetObjectFilesOperation | GetRefsOperation |
 	GetRemoteRefsOperation | HashObjectOperation | IgnoreOperation | LogOperation | LogFileOperation | MergeOperation | MergeAbortOperation |
 	MergeBaseOperation | MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation | RenameBranchOperation |
-	RemoveOperation | ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RefreshOperation | RevertFilesOperation |
+	RemoveOperation | ResetOperation | RevertOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RefreshOperation | RevertFilesOperation |
 	RevListOperation | RevParseOperation | SetBranchUpstreamOperation | ShowOperation | StageOperation | StatusOperation | StashOperation |
 	SubmoduleUpdateOperation | SyncOperation | TagOperation | WorktreeOperation;
 
@@ -117,6 +118,7 @@ export type RemoteOperation = BaseOperation & { kind: OperationKind.Remote };
 export type RenameBranchOperation = BaseOperation & { kind: OperationKind.RenameBranch };
 export type RemoveOperation = BaseOperation & { kind: OperationKind.Remove };
 export type ResetOperation = BaseOperation & { kind: OperationKind.Reset };
+export type RevertOperation = BaseOperation & { kind: OperationKind.Revert };
 export type RebaseOperation = BaseOperation & { kind: OperationKind.Rebase };
 export type RebaseAbortOperation = BaseOperation & { kind: OperationKind.RebaseAbort };
 export type RebaseContinueOperation = BaseOperation & { kind: OperationKind.RebaseContinue };
@@ -175,6 +177,7 @@ export const Operation = {
 	RenameBranch: { kind: OperationKind.RenameBranch, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RenameBranchOperation,
 	Remove: { kind: OperationKind.Remove, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RemoveOperation,
 	Reset: { kind: OperationKind.Reset, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as ResetOperation,
+	Revert: { kind: OperationKind.Revert, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RevertOperation,
 	Rebase: { kind: OperationKind.Rebase, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseOperation,
 	RebaseAbort: { kind: OperationKind.RebaseAbort, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseAbortOperation,
 	RebaseContinue: { kind: OperationKind.RebaseContinue, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseContinueOperation,
