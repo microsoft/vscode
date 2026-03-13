@@ -89,7 +89,10 @@ export class ChatDebugDetailPanel extends Disposable {
 
 		let sashStartWidth: number | undefined;
 		this._register(this.sash.onDidStart(() => sashStartWidth = this._width));
-		this._register(this.sash.onDidEnd(() => sashStartWidth = undefined));
+		this._register(this.sash.onDidEnd(() => {
+			sashStartWidth = undefined;
+			this.sash.layout();
+		}));
 		this._register(this.sash.onDidChange(e => {
 			if (sashStartWidth === undefined) {
 				return;
@@ -99,6 +102,7 @@ export class ChatDebugDetailPanel extends Disposable {
 			const newWidth = Math.max(DETAIL_PANEL_MIN_WIDTH, Math.min(DETAIL_PANEL_MAX_WIDTH, sashStartWidth + delta));
 			this._width = newWidth;
 			this.element.style.width = `${newWidth}px`;
+			this.sash.layout();
 			this._onDidChangeWidth.fire(newWidth);
 		}));
 
