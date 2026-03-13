@@ -5,6 +5,9 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Orientation, Sash, SashState } from '../../../../../base/browser/ui/sash/sash.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -27,6 +30,10 @@ import { renderModelTurnContent, modelTurnContentToPlainText } from './chatDebug
 
 const $ = DOM.$;
 
+const DETAIL_PANEL_DEFAULT_WIDTH = 350;
+const DETAIL_PANEL_MIN_WIDTH = 200;
+const DETAIL_PANEL_MAX_WIDTH = 800;
+
 /**
  * Reusable detail panel that resolves and displays the content of a
  * single {@link IChatDebugEvent}. Used by both the logs view and the
@@ -37,12 +44,22 @@ export class ChatDebugDetailPanel extends Disposable {
 	private readonly _onDidHide = this._register(new Emitter<void>());
 	readonly onDidHide = this._onDidHide.event;
 
+	private readonly _onDidChangeWidth = this._register(new Emitter<number>());
+	readonly onDidChangeWidth = this._onDidChangeWidth.event;
+
 	readonly element: HTMLElement;
 	private readonly contentContainer: HTMLElement;
+	private readonly scrollable: DomScrollableElement;
+	private readonly sash: Sash;
 	private readonly detailDisposables = this._register(new DisposableStore());
 	private currentDetailText: string = '';
 	private currentDetailEventId: string | undefined;
 	private firstFocusableElement: HTMLElement | undefined;
+	private _width: number = DETAIL_PANEL_DEFAULT_WIDTH;
+
+	get width(): number {
+		return this._width;
+	}
 
 	constructor(
 		parent: HTMLElement,
@@ -56,7 +73,33 @@ export class ChatDebugDetailPanel extends Disposable {
 		super();
 		this.element = DOM.append(parent, $('.chat-debug-detail-panel'));
 		this.contentContainer = $('.chat-debug-detail-content');
+		this.scrollable = this._register(new DomScrollableElement(this.contentContainer, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+		}));
+		this.element.style.width = `${this._width}px`;
 		DOM.hide(this.element);
+
+		// Sash on the parent container, positioned at the left edge of the detail panel
+		this.sash = this._register(new Sash(parent, {
+			getVerticalSashLeft: () => parent.offsetWidth - this._width,
+		}, { orientation: Orientation.VERTICAL }));
+		this.sash.state = SashState.Disabled;
+
+		let sashStartWidth: number | undefined;
+		this._register(this.sash.onDidStart(() => sashStartWidth = this._width));
+		this._register(this.sash.onDidEnd(() => sashStartWidth = undefined));
+		this._register(this.sash.onDidChange(e => {
+			if (sashStartWidth === undefined) {
+				return;
+			}
+			// Dragging left (negative currentX delta) should increase width
+			const delta = e.startX - e.currentX;
+			const newWidth = Math.max(DETAIL_PANEL_MIN_WIDTH, Math.min(DETAIL_PANEL_MAX_WIDTH, sashStartWidth + delta));
+			this._width = newWidth;
+			this.element.style.width = `${newWidth}px`;
+			this._onDidChangeWidth.fire(newWidth);
+		}));
 
 		// Handle Ctrl+A / Cmd+A to select all within the detail panel
 		this._register(DOM.addDisposableListener(this.element, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -87,13 +130,15 @@ export class ChatDebugDetailPanel extends Disposable {
 		const resolved = event.id ? await this.chatDebugService.resolveEvent(event.id) : undefined;
 
 		DOM.show(this.element);
+		this.sash.state = SashState.Enabled;
+		this.sash.layout();
 		DOM.clearNode(this.element);
 		DOM.clearNode(this.contentContainer);
 		this.detailDisposables.clear();
 
 		// Header with action buttons
 		const header = DOM.append(this.element, $('.chat-debug-detail-header'));
-		this.element.appendChild(this.contentContainer);
+		this.element.appendChild(this.scrollable.getDomNode());
 
 		const fullScreenButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.openInEditor', "Open in Editor"), title: localize('chatDebug.openInEditor', "Open in Editor") }));
 		fullScreenButton.element.classList.add('chat-debug-detail-button');
@@ -142,7 +187,13 @@ export class ChatDebugDetailPanel extends Disposable {
 			this.contentContainer.appendChild(contentEl);
 		} else if (resolved && resolved.kind === 'modelTurn') {
 			this.currentDetailText = modelTurnContentToPlainText(resolved);
-			const { element: contentEl, disposables: contentDisposables } = renderModelTurnContent(resolved);
+			const languageService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageService));
+			const { element: contentEl, disposables: contentDisposables } = await renderModelTurnContent(resolved, languageService);
+			if (this.currentDetailEventId !== event.id) {
+				// Another event was selected while we were rendering
+				contentDisposables.dispose();
+				return;
+			}
 			this.detailDisposables.add(contentDisposables);
 			this.contentContainer.appendChild(contentEl);
 		} else if (event.kind === 'userMessage') {
@@ -165,6 +216,8 @@ export class ChatDebugDetailPanel extends Disposable {
 			}
 			pre.textContent = this.currentDetailText;
 		}
+
+		this.scrollable.scanDomNode();
 	}
 
 	get isVisible(): boolean {
@@ -175,10 +228,15 @@ export class ChatDebugDetailPanel extends Disposable {
 		this.firstFocusableElement?.focus();
 	}
 
+	layoutSash(): void {
+		this.sash.layout();
+	}
+
 	hide(): void {
 		this.currentDetailEventId = undefined;
 		this.firstFocusableElement = undefined;
 		DOM.hide(this.element);
+		this.sash.state = SashState.Disabled;
 		DOM.clearNode(this.element);
 		DOM.clearNode(this.contentContainer);
 		this.detailDisposables.clear();

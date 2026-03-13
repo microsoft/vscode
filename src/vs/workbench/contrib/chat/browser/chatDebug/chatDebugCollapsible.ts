@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IChatDebugMessageSection } from '../../common/chatDebugService.js';
 
@@ -64,8 +66,15 @@ export function renderCollapsibleSection(parent: HTMLElement, section: IChatDebu
 	contentEl.textContent = section.content;
 	contentEl.tabIndex = 0;
 
+	const scrollable = new DomScrollableElement(contentEl, {
+		horizontal: ScrollbarVisibility.Hidden,
+		vertical: ScrollbarVisibility.Auto,
+	});
+	disposables.add(scrollable);
+
 	const wrapper = DOM.append(sectionEl, $('div.chat-debug-message-section-content-wrapper'));
-	wrapper.appendChild(contentEl);
+	wrapper.appendChild(scrollable.getDomNode());
 
 	setupCollapsibleToggle(chevron, header, wrapper, disposables, initiallyCollapsed);
+	scrollable.scanDomNode();
 }

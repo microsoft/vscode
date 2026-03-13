@@ -336,6 +336,7 @@
 	flex-direction: row;
 	flex: 1;
 	overflow: hidden;
+	position: relative;
 }
 .chat-debug-logs-main {
 	display: flex;
@@ -428,7 +429,6 @@
 }
 .chat-debug-detail-panel {
 	flex-shrink: 0;
-	width: 350px;
 	display: flex;
 	flex-direction: column;
 	border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
@@ -464,7 +464,6 @@
 .chat-debug-detail-content {
 	flex: 1;
 	min-height: 0;
-	overflow-y: auto;
 }
 .chat-debug-detail-panel pre {
 	margin: 0;
@@ -644,7 +643,6 @@
 .chat-debug-message-section-content-wrapper {
 	border-top: 1px solid var(--vscode-widget-border, transparent);
 	max-height: 300px;
-	overflow-y: auto;
 }
 .chat-debug-message-section-content {
 	margin: 0;
@@ -727,6 +725,7 @@
 	display: flex;
 	flex: 1;
 	overflow: hidden;
+	position: relative;
 }
 .chat-debug-flowchart-content {
 	flex: 1;

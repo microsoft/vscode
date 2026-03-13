@@ -20,7 +20,7 @@ const _ttpPolicy = createTrustedTypesPolicy('chatDebugTokenizer', {
 	}
 });
 
-function tryParseJSON(text: string): { parsed: unknown; isJSON: true } | { isJSON: false } {
+export function tryParseJSON(text: string): { parsed: unknown; isJSON: true } | { isJSON: false } {
 	try {
 		return { parsed: JSON.parse(text), isJSON: true };
 	} catch {
@@ -32,7 +32,7 @@ function tryParseJSON(text: string): { parsed: unknown; isJSON: true } | { isJSO
  * Render a collapsible section. When `tokenizedHtml` is provided the content
  * is rendered as syntax-highlighted HTML; otherwise plain-text is used.
  */
-function renderSection(
+export function renderSection(
 	parent: HTMLElement,
 	label: string,
 	plainText: string,
