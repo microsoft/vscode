@@ -673,7 +673,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': true,
 				'markdownDescription':
-					localize('workbench.activityBar.dragAndDrop.enabled', "Whether activity bar drag and drop is enabled.")
+					localize('workbench.activityBar.dragAndDrop.enabled', "Controls whether Activity Bar drag and drop is enabled.")
 			},
 			'workbench.view.alwaysShowHeaderActions': {
 				'type': 'boolean',
