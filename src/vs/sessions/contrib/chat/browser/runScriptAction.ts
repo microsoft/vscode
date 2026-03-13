@@ -15,8 +15,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
-import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { IActiveSessionItem, IsActiveSessionBackgroundProviderContext, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
@@ -87,7 +86,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
-		@IChatService private readonly _chatService: IChatService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly _viewsService: IViewsService,
 	) {
 		super();
@@ -243,7 +242,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						const viewPane = that._viewsService.getViewWithId<NewChatViewPane>(SessionsViewId);
 						viewPane?.sendQuery('/generate-run-commands');
 					} else {
-						await that._chatService.sendRequest(session.resource, '/generate-run-commands', { location: ChatAgentLocation.Chat });
+						const widget = that._chatWidgetService.getWidgetBySessionResource(session.resource);
+						await widget?.acceptInput('/generate-run-commands');
 					}
 				}
 			}));
