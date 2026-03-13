@@ -1022,7 +1022,7 @@ export class ChatService extends Disposable implements IChatService {
 								TROUBLESHOOT_COMMAND_NAME,
 								missingSettings.join(', '),
 								settingsArg
-							), { isTrusted: true }),
+							)),
 						});
 						model.setResponse(request, {});
 						request.response?.complete();
