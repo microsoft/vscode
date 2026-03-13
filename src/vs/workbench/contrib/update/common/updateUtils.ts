@@ -216,3 +216,12 @@ export function preprocessError(error?: string): string | undefined {
 		'This might mean the application was put on quarantine by macOS. See [this link](https://github.com/microsoft/vscode/issues/7426#issuecomment-425093469) for more information'
 	);
 }
+
+/**
+ * Determines whether there is a major or minor version change between two versions.
+ */
+export function isMajorMinorVersionChange(previousVersion?: string, newVersion?: string): boolean {
+	const previous = tryParseVersion(previousVersion);
+	const current = tryParseVersion(newVersion);
+	return !!previous && !!current && (previous.major !== current.major || previous.minor !== current.minor);
+}
