@@ -101,9 +101,17 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			}
 		}
 
-		// Add new connections
+		// Add or update connections
 		for (const connectionInfo of this._remoteAgentHostService.connections) {
-			if (!this._connections.has(connectionInfo.address)) {
+			const existing = this._connections.get(connectionInfo.address);
+			if (existing) {
+				// If the name changed, tear down and re-register with new name
+				if (existing.name !== connectionInfo.name) {
+					this._logService.info(`[RemoteAgentHost] Name changed for ${connectionInfo.address}: ${existing.name} -> ${connectionInfo.name}`);
+					this._connections.deleteAndDispose(connectionInfo.address);
+					this._setupConnection(connectionInfo.address, connectionInfo.name);
+				}
+			} else {
 				this._setupConnection(connectionInfo.address, connectionInfo.name);
 			}
 		}
