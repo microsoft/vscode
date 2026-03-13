@@ -889,12 +889,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 			const repoName = this.getRepositoryName(session);
 			if (!repoName) {
-				this.logService?.warn(
-					'[AgentSessions] Could not determine repository name for session, categorizing as "Other"',
-					`resource=${session.resource.toString()}`,
-					`badge=${session.badge ? (typeof session.badge === 'string' ? session.badge : session.badge.value) : 'none'}`,
-					`metadata=${JSON.stringify(session.metadata)}`,
-				);
+				this.logService?.warn('[AgentSessions] Could not determine repository name for session, categorizing as "Other"', JSON.stringify(session));
 			}
 			const repoId = repoName || unknownKey;
 			const repoLabel = repoName || unknownLabel;
