@@ -52,7 +52,7 @@ function _validateUri(ret: URI, _strict?: boolean): void {
 // back to the file-scheme. that should cause the least carnage and still be a
 // clear warning
 function _schemeFix(scheme: string, _strict: boolean): string {
-	if (!scheme && !_strict) {
+	if (!_notEmpty(scheme) && !_strict) {
 		return 'file';
 	}
 	return scheme;
@@ -82,6 +82,17 @@ function _referenceResolution(scheme: string, path: string): string {
 const _empty = '';
 const _slash = '/';
 const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
+
+function _notEmpty(str: string | null | undefined): str is string {
+	return str !== undefined && str !== null && str !== _empty;
+}
+
+function _emptyIfUndefined(str: string | null | undefined): string {
+	if (_notEmpty(str)) {
+		return str;
+	}
+	return _empty;
+}
 
 /**
  * Uniform Resource Identifier (URI) http://tools.ietf.org/html/rfc3986.
@@ -161,20 +172,20 @@ export class URI implements UriComponents {
 	protected constructor(schemeOrData: string | UriComponents, authority?: string, path?: string, query?: string, fragment?: string, _strict: boolean = false) {
 
 		if (typeof schemeOrData === 'object') {
-			this.scheme = schemeOrData.scheme || _empty;
-			this.authority = schemeOrData.authority || _empty;
-			this.path = schemeOrData.path || _empty;
-			this.query = schemeOrData.query || _empty;
-			this.fragment = schemeOrData.fragment || _empty;
+			this.scheme = _emptyIfUndefined(schemeOrData.scheme);
+			this.authority = _emptyIfUndefined(schemeOrData.authority);
+			this.path = _emptyIfUndefined(schemeOrData.path);
+			this.query = _emptyIfUndefined(schemeOrData.query);
+			this.fragment = _emptyIfUndefined(schemeOrData.fragment);
 			// no validation because it's this URI
 			// that creates uri components.
 			// _validateUri(this);
 		} else {
 			this.scheme = _schemeFix(schemeOrData, _strict);
-			this.authority = authority || _empty;
-			this.path = _referenceResolution(this.scheme, path || _empty);
-			this.query = query || _empty;
-			this.fragment = fragment || _empty;
+			this.authority = _emptyIfUndefined(authority);
+			this.path = _referenceResolution(this.scheme, _emptyIfUndefined(path));
+			this.query = _emptyIfUndefined(query);
+			this.fragment = _emptyIfUndefined(fragment);
 
 			_validateUri(this, _strict);
 		}
@@ -497,16 +508,16 @@ class Uri extends URI {
 		// this isn't correct and can violate the UriComponents contract but
 		// this is part of the vscode.Uri API and we shouldn't change how that
 		// works anymore
-		if (this.scheme) {
+		if (_notEmpty(this.scheme)) {
 			res.scheme = this.scheme;
 		}
-		if (this.authority) {
+		if (_notEmpty(this.authority)) {
 			res.authority = this.authority;
 		}
-		if (this.query) {
+		if (_notEmpty(this.query)) {
 			res.query = this.query;
 		}
-		if (this.fragment) {
+		if (_notEmpty(this.fragment)) {
 			res.fragment = this.fragment;
 		}
 		return res;
@@ -661,15 +672,15 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 
 	let res = '';
 	let { scheme, authority, path, query, fragment } = uri;
-	if (scheme) {
+	if (_notEmpty(scheme)) {
 		res += scheme;
 		res += ':';
 	}
-	if (authority || scheme === 'file') {
+	if (_notEmpty(authority) || scheme === 'file') {
 		res += _slash;
 		res += _slash;
 	}
-	if (authority) {
+	if (_notEmpty(authority)) {
 		let idx = authority.indexOf('@');
 		if (idx !== -1) {
 			// <user>@<auth>
@@ -696,7 +707,7 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 			res += authority.substr(idx);
 		}
 	}
-	if (path) {
+	if (_notEmpty(path)) {
 		// lower-case windows drive letters in /C:/fff or C:/fff
 		if (path.length >= 3 && path.charCodeAt(0) === CharCode.Slash && path.charCodeAt(2) === CharCode.Colon) {
 			const code = path.charCodeAt(1);
@@ -712,11 +723,11 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 		// encode the rest of the path
 		res += encoder(path, true, false);
 	}
-	if (query) {
+	if (_notEmpty(query)) {
 		res += '?';
 		res += encoder(query, false, false);
 	}
-	if (fragment) {
+	if (_notEmpty(fragment)) {
 		res += '#';
 		res += !skipEncoding ? encodeURIComponentFast(fragment, false, false) : fragment;
 	}
