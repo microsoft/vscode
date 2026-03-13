@@ -219,6 +219,13 @@ import './contrib/logs/browser/logs.contribution.js';
 import './contrib/workspace/browser/workspace.contribution.js';
 import './contrib/welcome/browser/welcome.contribution.js';
 
+// Agent Host
+import '../platform/agentHost/electron-browser/agentHostService.js';
+
+// Remote Agent Host
+import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
+import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
+
 //#endregion
 
 export { main } from './electron-browser/sessions.main.js';

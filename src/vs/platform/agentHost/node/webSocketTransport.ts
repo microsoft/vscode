@@ -9,10 +9,10 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
-import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
+import { protocolReplacer, protocolReviver } from '../common/state/jsonSerialization.js';
 
 /**
  * Options for creating a {@link WebSocketProtocolServer}.
@@ -30,31 +30,6 @@ export interface IWebSocketServerOptions {
 	 * must include a valid token in the `tkn` query parameter.
 	 */
 	readonly connectionTokenValidate?: (token: unknown) => boolean;
-}
-
-// ---- JSON serialization helpers ---------------------------------------------
-
-function uriReplacer(_key: string, value: unknown): unknown {
-	if (value instanceof URI) {
-		return value.toJSON();
-	}
-	if (value instanceof Map) {
-		return { $type: 'Map', entries: [...value.entries()] };
-	}
-	return value;
-}
-
-function uriReviver(_key: string, value: unknown): unknown {
-	if (value && typeof value === 'object') {
-		const obj = value as Record<string, unknown>;
-		if (obj.$mid === 1) {
-			return URI.revive(value as URI);
-		}
-		if (obj.$type === 'Map' && Array.isArray(obj.entries)) {
-			return new Map(obj.entries as [unknown, unknown][]);
-		}
-	}
-	return value;
 }
 
 // ---- Per-connection transport -----------------------------------------------
@@ -80,7 +55,7 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 		this._ws.on('message', (data: Buffer | string) => {
 			try {
 				const text = typeof data === 'string' ? data : data.toString('utf-8');
-				const message = JSON.parse(text, uriReviver) as IProtocolMessage;
+				const message = JSON.parse(text, protocolReviver) as IProtocolMessage;
 				this._onMessage.fire(message);
 			} catch {
 				// Malformed message — drop. No logger available at transport level.
@@ -99,7 +74,7 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 
 	send(message: IProtocolMessage): void {
 		if (this._ws.readyState === this._WebSocket.OPEN) {
-			this._ws.send(JSON.stringify(message, uriReplacer));
+			this._ws.send(JSON.stringify(message, protocolReplacer));
 		}
 	}
 

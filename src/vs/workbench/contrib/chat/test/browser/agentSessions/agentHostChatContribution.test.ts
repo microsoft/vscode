@@ -176,13 +176,14 @@ function createTestServices(disposables: DisposableStore) {
 function createContribution(disposables: DisposableStore) {
 	const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 
-	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot'));
+	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined));
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 		provider: 'copilot' as const,
 		agentId: 'agent-host-copilot',
 		sessionType: 'agent-host-copilot',
 		fullName: 'Agent Host - Copilot',
 		description: 'Copilot SDK agent running in a dedicated process',
+		connection: agentHostService,
 	}));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
@@ -1406,6 +1407,126 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(contribution);
 			// Let async work settle
 			await timeout(10);
+		});
+	});
+
+	// ---- IAgentConnection unification -------------------------------------
+
+	suite('IAgentConnection config', () => {
+
+		test('handler uses custom extensionId from config', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+
+			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'remote-test-copilot',
+				sessionType: 'remote-test-copilot',
+				fullName: 'Remote Copilot',
+				description: 'Remote agent',
+				connection: agentHostService,
+				extensionId: 'vscode.remote-agent-host',
+				extensionDisplayName: 'Remote Agent Host',
+			}));
+
+			const registered = chatAgentService.registeredAgents.get('remote-test-copilot');
+			assert.ok(registered);
+			assert.strictEqual(registered.data.extensionId.value, 'vscode.remote-agent-host');
+			assert.strictEqual(registered.data.extensionDisplayName, 'Remote Agent Host');
+		});
+
+		test('handler defaults extensionId when not provided', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+
+			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'default-ext-test',
+				sessionType: 'default-ext-test',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+			}));
+
+			const registered = chatAgentService.registeredAgents.get('default-ext-test');
+			assert.ok(registered);
+			assert.strictEqual(registered.data.extensionId.value, 'vscode.agent-host');
+			assert.strictEqual(registered.data.extensionDisplayName, 'Agent Host');
+		});
+
+		test('handler uses resolveWorkingDirectory callback', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'workdir-test',
+				sessionType: 'workdir-test',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				resolveWorkingDirectory: () => '/custom/working/dir',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, disposables);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
+			assert.strictEqual(agentHostService.createSessionCalls[0].workingDirectory, '/custom/working/dir');
+		});
+
+		test('list controller includes description in items', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const controller = disposables.add(instantiationService.createInstance(
+				AgentHostSessionListController, 'remote-test', 'copilot', agentHostService, 'My Remote Host'));
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'sess-1'), startTime: 1000, modifiedTime: 2000, summary: 'Test session' });
+			await controller.refresh(CancellationToken.None);
+
+			assert.strictEqual(controller.items.length, 1);
+			assert.strictEqual(controller.items[0].description, 'My Remote Host');
+		});
+
+		test('list controller omits description when undefined', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const controller = disposables.add(instantiationService.createInstance(
+				AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined));
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'sess-2'), startTime: 1000, modifiedTime: 2000, summary: 'Test' });
+			await controller.refresh(CancellationToken.None);
+
+			assert.strictEqual(controller.items.length, 1);
+			assert.strictEqual(controller.items[0].description, undefined);
+		});
+
+		test('handler works with any IAgentConnection, not just IAgentHostService', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+
+			// Create handler with agentHostService as IAgentConnection (not IAgentHostService)
+			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'connection-test',
+				sessionType: 'connection-test',
+				fullName: 'Connection Test',
+				description: 'test',
+				connection: agentHostService,
+			}));
+
+			// Verify it registered an agent
+			assert.ok(chatAgentService.registeredAgents.has('connection-test'));
+
+			// Verify it can run a turn through the IAgentConnection path
+			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, disposables, {
+				message: 'Test message',
+			});
+
+			fire({ type: 'session/delta', session, turnId, content: 'Response' } as ISessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+
+			// Turn dispatched via connection.dispatchAction
+			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+			assert.strictEqual((agentHostService.dispatchedActions[0].action as ITurnStartedAction).userMessage.text, 'Test message');
 		});
 	});
 });

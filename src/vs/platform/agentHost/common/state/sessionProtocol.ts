@@ -128,6 +128,10 @@ export interface ICreateSessionParams {
 export interface IDisposeSessionParams {
 	readonly session: URI;
 }
+
+export interface ISetAuthTokenParams {
+	readonly token: string;
+}
 // Result: void (null)
 
 // listSessions: no params
