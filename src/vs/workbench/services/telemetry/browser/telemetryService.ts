@@ -20,6 +20,7 @@ import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
 import { resolveWorkbenchCommonProperties } from './workbenchCommonProperties.js';
 import { experimentsEnabled } from '../common/workbenchTelemetryUtils.js';
+import { IRequestService, NO_FETCH_TELEMETRY } from '../../../../platform/request/common/request.js';
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
@@ -42,7 +43,8 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		@IStorageService storageService: IStorageService,
 		@IProductService productService: IProductService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IMeteredConnectionService meteredConnectionService: IMeteredConnectionService
+		@IMeteredConnectionService meteredConnectionService: IMeteredConnectionService,
+		@IRequestService requestService: IRequestService
 	) {
 		super();
 
@@ -53,6 +55,29 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			if (e.affectsConfiguration(TELEMETRY_SETTING_ID)) {
 				this.impl = this.initializeService(environmentService, loggerService, configurationService, storageService, productService, remoteAgentService, meteredConnectionService);
 			}
+		}));
+
+		this._register(requestService.onDidCompleteRequest(e => {
+			if (e.callSite === NO_FETCH_TELEMETRY) {
+				return;
+			}
+			type FetchCallClassification = {
+				owner: 'lramos15';
+				comment: 'Tracks fetch requests made through the request service';
+				callSite: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The call site that initiated the request.' };
+				latency: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds for the request to complete.' };
+				statusCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'HTTP status code of the response.' };
+			};
+			type FetchCallEvent = {
+				callSite: string;
+				latency: number;
+				statusCode: number | undefined;
+			};
+			this.publicLog2<FetchCallEvent, FetchCallClassification>('fetchCall', {
+				callSite: e.callSite,
+				latency: e.latency,
+				statusCode: e.statusCode,
+			});
 		}));
 	}
 

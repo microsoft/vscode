@@ -25,12 +25,16 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import * as nls from '../../../../nls.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
+import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { getSessionForResource } from './agentFeedbackEditorUtils.js';
-import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
-import { getResourceEditorComments, getSessionEditorComments, groupNearbySessionEditorComments, ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
+import { ICodeReviewService, IPRReviewState } from '../../codeReview/browser/codeReviewService.js';
+import { getSessionEditorComments, groupNearbySessionEditorComments, ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Widget that displays agent feedback comments for a group of nearby feedback items.
@@ -44,7 +48,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private readonly _domNode: HTMLElement;
 	private readonly _headerNode: HTMLElement;
 	private readonly _titleNode: HTMLElement;
-	private readonly _dismissButton: HTMLElement;
 	private readonly _toggleButton: HTMLElement;
 	private readonly _bodyNode: HTMLElement;
 	private readonly _itemElements = new Map<string, HTMLElement>();
@@ -63,6 +66,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		private readonly _sessionResource: URI,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 
@@ -87,12 +91,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		this._toggleButton = $('div.agent-feedback-widget-toggle');
 		this._updateToggleButton();
 		this._headerNode.appendChild(this._toggleButton);
-
-		// Dismiss button
-		this._dismissButton = $('div.agent-feedback-widget-dismiss');
-		this._dismissButton.appendChild(renderIcon(Codicon.close));
-		this._dismissButton.title = nls.localize('dismiss', "Dismiss");
-		this._headerNode.appendChild(this._dismissButton);
 
 		this._domNode.appendChild(this._headerNode);
 
@@ -128,11 +126,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			this._toggleExpanded();
 		}));
 
-		// Dismiss button click
-		this._eventStore.add(addDisposableListener(this._dismissButton, 'click', (e) => {
-			e.stopPropagation();
-			this._dismiss();
-		}));
 	}
 
 	private _toggleExpanded(): void {
@@ -140,12 +133,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			this.collapse();
 		} else {
 			this.expand();
-		}
-	}
-
-	private _dismiss(): void {
-		for (const comment of this._commentItems) {
-			this._removeComment(comment);
 		}
 	}
 
@@ -206,7 +193,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 				actionBar.push(new Action(
 					'agentFeedback.widget.convert',
 					nls.localize('convertComment', "Convert to Agent Feedback"),
-					ThemeIcon.asClassName(Codicon.comment),
+					ThemeIcon.asClassName(Codicon.check),
 					true,
 					() => this._convertToAgentFeedback(comment),
 				), { icon: true, label: false });
@@ -221,8 +208,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			itemHeader.appendChild(actionBarContainer);
 			item.appendChild(itemHeader);
 
-			const text = $('span.agent-feedback-widget-text');
-			text.textContent = comment.text;
+			const text = $('div.agent-feedback-widget-text');
+			const rendered = this._markdownRendererService.render(new MarkdownString(comment.text));
+			this._eventStore.add(rendered);
+			text.appendChild(rendered.element);
 			item.appendChild(text);
 
 			if (comment.suggestion?.edits.length) {
@@ -251,6 +240,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	}
 
 	private _getTypeLabel(comment: ISessionEditorComment): string {
+		if (comment.source === SessionEditorCommentSource.PRReview) {
+			return nls.localize('prReviewComment', "PR Review");
+		}
+
 		if (comment.source === SessionEditorCommentSource.CodeReview) {
 			return comment.suggestion
 				? nls.localize('reviewSuggestion', "Review Suggestion")
@@ -288,6 +281,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	}
 
 	private _removeComment(comment: ISessionEditorComment): void {
+		if (comment.source === SessionEditorCommentSource.PRReview) {
+			this._codeReviewService.resolvePRReviewThread(this._sessionResource!, comment.sourceId);
+			return;
+		}
 		if (comment.source === SessionEditorCommentSource.CodeReview) {
 			this._codeReviewService.removeComment(this._sessionResource, comment.sourceId);
 			return;
@@ -505,6 +502,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -533,7 +531,10 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 				return;
 			}
 
-			this._rebuildWidgets(this._codeReviewService.getReviewState(this._sessionResource).read(reader));
+			this._rebuildWidgets(
+				this._codeReviewService.getReviewState(this._sessionResource).read(reader),
+				this._codeReviewService.getPRReviewState(this._sessionResource).read(reader),
+			);
 			this._handleNavigation();
 		}));
 	}
@@ -547,7 +548,10 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 		this._sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._agentSessionsService);
 	}
 
-	private _rebuildWidgets(reviewState = this._sessionResource ? this._codeReviewService.getReviewState(this._sessionResource).get() : undefined): void {
+	private _rebuildWidgets(
+		reviewState = this._sessionResource ? this._codeReviewService.getReviewState(this._sessionResource).get() : undefined,
+		prReviewState: IPRReviewState | undefined = this._sessionResource ? this._codeReviewService.getPRReviewState(this._sessionResource).get() : undefined,
+	): void {
 		this._clearWidgets();
 
 		if (!this._sessionResource || !reviewState) {
@@ -563,8 +567,9 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			this._sessionResource,
 			this._agentFeedbackService.getFeedback(this._sessionResource),
 			reviewState,
+			prReviewState,
 		);
-		const fileComments = getResourceEditorComments(model.uri, comments);
+		const fileComments = this._getCommentsForModel(model.uri, comments);
 		if (fileComments.length === 0) {
 			return;
 		}
@@ -572,11 +577,56 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 		const groups = groupNearbySessionEditorComments(fileComments, 5);
 
 		for (const group of groups) {
-			const widget = new AgentFeedbackEditorWidget(this._editor, group, this._sessionResource, this._agentFeedbackService, this._codeReviewService);
+			const widget = this._instantiationService.createInstance(AgentFeedbackEditorWidget, this._editor, group, this._sessionResource);
 			this._widgets.push(widget);
 
 			widget.layout(group[0].range.startLineNumber);
 		}
+	}
+
+	private _getCommentsForModel(resourceUri: URI, comments: readonly ISessionEditorComment[]): readonly ISessionEditorComment[] {
+		const change = this._getSessionChangeForResource(resourceUri);
+		if (!change) {
+			return comments.filter(comment => isEqual(comment.resourceUri, resourceUri));
+		}
+
+		if (!this._isCurrentOrModifiedResource(change, resourceUri)) {
+			return [];
+		}
+
+		return comments.filter(comment => comment.resourceUri.fsPath === resourceUri.fsPath);
+	}
+
+	private _getSessionChangeForResource(resourceUri: URI): IChatSessionFileChange | IChatSessionFileChange2 | undefined {
+		if (!this._sessionResource) {
+			return undefined;
+		}
+
+		const changes = this._agentSessionsService.getSession(this._sessionResource)?.changes;
+		if (!(changes instanceof Array)) {
+			return undefined;
+		}
+
+		return changes.find(change => this._changeMatchesFsPath(change, resourceUri));
+	}
+
+	private _changeMatchesFsPath(change: IChatSessionFileChange | IChatSessionFileChange2, resourceUri: URI): boolean {
+		if (isIChatSessionFileChange2(change)) {
+			return change.uri.fsPath === resourceUri.fsPath
+				|| change.modifiedUri?.fsPath === resourceUri.fsPath
+				|| change.originalUri?.fsPath === resourceUri.fsPath;
+		}
+
+		return change.modifiedUri.fsPath === resourceUri.fsPath
+			|| change.originalUri?.fsPath === resourceUri.fsPath;
+	}
+
+	private _isCurrentOrModifiedResource(change: IChatSessionFileChange | IChatSessionFileChange2, resourceUri: URI): boolean {
+		if (isIChatSessionFileChange2(change)) {
+			return isEqual(change.uri, resourceUri) || (change.modifiedUri ? isEqual(change.modifiedUri, resourceUri) : false);
+		}
+
+		return isEqual(change.modifiedUri, resourceUri);
 	}
 
 	private _handleNavigation(): void {
@@ -593,6 +643,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			this._sessionResource,
 			this._agentFeedbackService.getFeedback(this._sessionResource),
 			this._codeReviewService.getReviewState(this._sessionResource).get(),
+			this._codeReviewService.getPRReviewState(this._sessionResource).get(),
 		);
 		const bearing = this._agentFeedbackService.getNavigationBearing(this._sessionResource, comments);
 		if (bearing.activeIdx < 0) {
@@ -604,7 +655,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			return;
 		}
 
-		if (!isEqual(activeFeedback.resourceUri, model.uri)) {
+		if (this._getCommentsForModel(model.uri, [activeFeedback]).length === 0) {
 			for (const widget of this._widgets) {
 				widget.collapse();
 			}

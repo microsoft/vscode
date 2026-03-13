@@ -10,7 +10,7 @@ import * as cp from 'child_process';
 import { fileURLToPath } from 'url';
 import which from 'which';
 import { EventEmitter } from 'events';
-import * as filetype from 'file-type';
+import { fileTypeFromBuffer } from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import type { Commit as ApiCommit, Ref, Branch, Remote, LogOptions, Change, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree } from './api/git';
@@ -1691,7 +1691,7 @@ export class Repository {
 		}
 
 		if (!isText) {
-			const result = await filetype.fromBuffer(buffer);
+			const result = await fileTypeFromBuffer(buffer);
 
 			if (!result) {
 				return { mimetype: 'application/octet-stream' };
@@ -2424,7 +2424,7 @@ export class Repository {
 		await this.exec(args, spawnOptions);
 	}
 
-	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
+	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<boolean> {
 		const args = ['pull'];
 
 		if (options.tags) {
@@ -2450,10 +2450,11 @@ export class Repository {
 		}
 
 		try {
-			await this.exec(args, {
+			const result = await this.exec(args, {
 				cancellationToken: options.cancellationToken,
 				env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
 			});
+			return !/Already up to date/i.test(result.stdout);
 		} catch (err) {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
 				err.gitErrorCode = GitErrorCodes.Conflict;

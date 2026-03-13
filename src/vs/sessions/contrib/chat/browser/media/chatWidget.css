@@ -232,6 +232,29 @@
 	padding: 0 3px;
 }
 
+.sessions-chat-attachment-pill .monaco-icon-label {
+	gap: 4px;
+}
+
+.sessions-chat-attachment-pill .monaco-icon-label::before {
+	height: auto;
+	padding: 0 0 0 2px;
+	line-height: 100% !important;
+	align-self: center;
+}
+
+.sessions-chat-attachment-pill .monaco-icon-label .monaco-icon-label-container {
+	display: flex;
+}
+
+.sessions-chat-attachment-pill .monaco-icon-label .monaco-icon-label-container .monaco-highlighted-label {
+	display: inline-flex;
+	align-items: center;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
 .sessions-chat-attachment-remove {
 	display: flex;
 	align-items: center;

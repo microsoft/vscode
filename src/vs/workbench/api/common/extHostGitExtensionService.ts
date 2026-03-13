@@ -11,7 +11,7 @@ import { ExtensionIdentifier } from '../../../platform/extensions/common/extensi
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostExtensionService } from './extHostExtensionService.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
-import { ExtHostGitExtensionShape, GitBranchDto, GitChangeDto, GitDiffChangeDto, GitRefDto, GitRefQueryDto, GitRefTypeDto, GitRepositoryStateDto, GitUpstreamRefDto, MainContext, MainThreadGitExtensionShape } from './extHost.protocol.js';
+import { ExtHostGitExtensionShape, GitBaseRefDto, GitBranchDto, GitChangeDto, GitDiffChangeDto, GitRefDto, GitRefQueryDto, GitRefTypeDto, GitRepositoryStateDto, GitUpstreamRefDto, MainContext, MainThreadGitExtensionShape } from './extHost.protocol.js';
 import { ResourceMap } from '../../../base/common/map.js';
 
 const GIT_EXTENSION_ID = 'vscode.git';
@@ -31,6 +31,7 @@ function toGitBranchDto(branch: Branch): GitBranchDto {
 		commit: branch.commit,
 		type: toGitRefTypeDto(branch.type),
 		remote: branch.remote,
+		base: branch.base,
 		upstream: branch.upstream ? toGitUpstreamRefDto(branch.upstream) : undefined,
 		ahead: branch.ahead,
 		behind: branch.behind,
@@ -81,16 +82,6 @@ function toGitChangeDto(change: Change): GitChangeDto {
 	}
 }
 
-function toGitRepositoryStateDto(state: RepositoryState): GitRepositoryStateDto {
-	return {
-		HEAD: state.HEAD ? toGitBranchDto(state.HEAD) : undefined,
-		mergeChanges: state.mergeChanges.map(toGitChangeDto),
-		indexChanges: state.indexChanges.map(toGitChangeDto),
-		workingTreeChanges: state.workingTreeChanges.map(toGitChangeDto),
-		untrackedChanges: state.untrackedChanges.map(toGitChangeDto),
-	};
-}
-
 interface DiffChange extends Change {
 	readonly insertions: number;
 	readonly deletions: number;
@@ -101,8 +92,10 @@ interface Repository {
 	readonly state: RepositoryState;
 
 	status(): Promise<void>;
+	getBranchBase(name: string): Promise<Branch | undefined>;
 	getRefs(query: GitRefQuery, token?: vscode.CancellationToken): Promise<GitRef[]>;
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]>;
+	isBranchProtected(branch?: Branch): boolean;
 }
 
 interface Change {
@@ -122,9 +115,15 @@ interface RepositoryState {
 }
 
 interface Branch extends GitRef {
+	readonly base?: BaseRef;
 	readonly upstream?: UpstreamRef;
 	readonly ahead?: number;
 	readonly behind?: number;
+}
+
+interface BaseRef {
+	readonly name: string;
+	readonly isProtected: boolean;
 }
 
 interface UpstreamRef {
@@ -208,11 +207,8 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 
 		const existingHandle = this._repositoryByUri.get(repository.rootUri);
 		if (existingHandle !== undefined) {
-			return {
-				handle: existingHandle,
-				rootUri: repository.rootUri,
-				state: toGitRepositoryStateDto(repository.state),
-			};
+			const state = await this._getRepositoryState(repository);
+			return { handle: existingHandle, rootUri: repository.rootUri, state };
 		}
 
 		let repositoryState = repository.state;
@@ -236,11 +232,8 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 			this._proxy.$onDidChangeRepository(handle);
 		}));
 
-		return {
-			handle,
-			rootUri: repository.rootUri,
-			state: toGitRepositoryStateDto(repository.state),
-		};
+		const state = await this._getRepositoryState(repository);
+		return { handle, rootUri: repository.rootUri, state };
 	}
 
 	async $getRefs(handle: number, query: GitRefQueryDto, token?: vscode.CancellationToken): Promise<GitRefDto[]> {
@@ -282,7 +275,37 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 			return undefined;
 		}
 
-		return toGitRepositoryStateDto(repository.state);
+		return this._getRepositoryState(repository);
+	}
+
+	private async _getRepositoryState(repository: Repository): Promise<GitRepositoryStateDto> {
+		const state = repository.state;
+
+		// Base branch
+		const base = await this._getBranchBase(repository);
+
+		return {
+			HEAD: state.HEAD ? toGitBranchDto({ ...state.HEAD, base }) : undefined,
+			mergeChanges: state.mergeChanges.map(toGitChangeDto),
+			indexChanges: state.indexChanges.map(toGitChangeDto),
+			workingTreeChanges: state.workingTreeChanges.map(toGitChangeDto),
+			untrackedChanges: state.untrackedChanges.map(toGitChangeDto),
+		};
+	}
+
+	private async _getBranchBase(repository: Repository): Promise<GitBaseRefDto | undefined> {
+		const state = repository.state;
+		if (!state.HEAD?.name) {
+			return undefined;
+		}
+
+		const baseBranch = await repository.getBranchBase(state.HEAD.name);
+		if (!baseBranch?.name) {
+			return undefined;
+		}
+
+		const isProtected = repository.isBranchProtected(baseBranch);
+		return { name: baseBranch.name, isProtected };
 	}
 
 	async $diffBetweenWithStats(handle: number, ref1: string, ref2: string, path?: string): Promise<GitDiffChangeDto[]> {

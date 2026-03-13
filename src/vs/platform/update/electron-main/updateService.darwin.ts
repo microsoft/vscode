@@ -165,14 +165,15 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		this.logService.trace('update#checkForUpdateNoDownload - checking update server', { url, headers });
 
 		try {
-			const context = await this.requestService.request({ url, headers }, CancellationToken.None);
+			const context = await this.requestService.request({ url, headers, callSite: 'updateService.darwin.checkForUpdates' }, CancellationToken.None);
 			const statusCode = context.res.statusCode;
 			this.logService.trace('update#checkForUpdateNoDownload - response', { statusCode });
 
 			const update = await asJson<IUpdate>(context);
 			if (!update || !update.url || !update.version || !update.productVersion) {
 				this.logService.trace('update#checkForUpdateNoDownload - no update available');
-				this.setState(State.Idle(UpdateType.Archive));
+				const notAvailable = this.state.type === StateType.CheckingForUpdates && this.state.explicit;
+				this.setState(State.Idle(UpdateType.Archive, undefined, notAvailable || undefined));
 			} else {
 				this.logService.trace('update#checkForUpdateNoDownload - update available', { version: update.version, productVersion: update.productVersion });
 				this.setState(State.AvailableForDownload(update, canInstall));
@@ -211,7 +212,8 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
-		this.setState(State.Idle(UpdateType.Archive));
+		const notAvailable = this.state.explicit;
+		this.setState(State.Idle(UpdateType.Archive, undefined, notAvailable || undefined));
 	}
 
 	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {

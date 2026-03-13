@@ -67,6 +67,7 @@ import { IChatService } from '../../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../../common/chatDebugService.js';
 import { createDebugEventsAttachment } from '../../../chatDebug/chatDebugAttachment.js';
 import { getPromptFileType } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { getChatSessionType } from '../../../../common/model/chatUri.js';
 
 /**
  * Regex matching a slash command word (e.g. `/foo`). Uses `\p{L}` for Unicode
@@ -108,7 +109,7 @@ class SlashCommandCompletions extends Disposable {
 					}
 					const sessionResource = widget.viewModel.model.sessionResource;
 					const ctx = sessionResource && chatService.getChatSessionFromInternalUri(sessionResource);
-					customAgentTarget = (ctx ? chatSessionsService.getCustomAgentTargetForSessionType(ctx.chatSessionType) : undefined) ?? Target.Undefined;
+					customAgentTarget = (ctx ? chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource)) : undefined) ?? Target.Undefined;
 				}
 
 				const range = computeCompletionRanges(model, position, SlashCommandWord);
@@ -262,7 +263,8 @@ class SlashCommandCompletions extends Disposable {
 						}
 						return true;
 					})
-					.filter(c => c.parsedPromptFile?.header?.userInvocable !== false);
+					.filter(c => c.parsedPromptFile?.header?.userInvocable !== false)
+					.filter(c => !c.when || widget.scopedContextKeyService.contextMatchesRules(c.when));
 				if (userInvocableCommands.length === 0) {
 					return null;
 				}

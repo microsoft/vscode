@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CodeReviewStateKind, ICodeReviewState } from '../../../codeReview/browser/codeReviewService.js';
+import { CodeReviewStateKind, ICodeReviewState, IPRReviewState, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
 import { getResourceEditorComments, getSessionEditorComments, groupNearbySessionEditorComments, hasAgentFeedbackComments, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
 
 type ICodeReviewResultState = Extract<ICodeReviewState, { kind: CodeReviewStateKind.Result }>;
@@ -94,5 +94,51 @@ suite('SessionEditorComments', () => {
 		assert.strictEqual(hasAgentFeedbackComments(comments), true);
 		assert.deepStrictEqual(getResourceEditorComments(fileA, comments).map(comment => comment.source), [SessionEditorCommentSource.AgentFeedback]);
 		assert.deepStrictEqual(getResourceEditorComments(fileB, comments).map(comment => comment.source), [SessionEditorCommentSource.CodeReview]);
+	});
+
+	test('includes PR review comments when prReviewState is loaded', () => {
+		const prState: IPRReviewState = {
+			kind: PRReviewStateKind.Loaded,
+			comments: [
+				{ id: 'pr-thread-1', uri: fileA, range: new Range(5, 1, 5, 1), body: 'Please fix this', author: 'reviewer' },
+				{ id: 'pr-thread-2', uri: fileB, range: new Range(1, 1, 1, 1), body: 'Looks wrong', author: 'reviewer' },
+			],
+		};
+
+		const comments = getSessionEditorComments(session, [], reviewState([]), prState);
+		assert.strictEqual(comments.length, 2);
+		assert.deepStrictEqual(comments.map(c => `${c.resourceUri.path}:${c.range.startLineNumber}:${c.source}`), [
+			'/a.ts:5:prReview',
+			'/b.ts:1:prReview',
+		]);
+		assert.strictEqual(comments[0].canConvertToAgentFeedback, true);
+	});
+
+	test('merges PR review comments with other sources sorted correctly', () => {
+		const prState: IPRReviewState = {
+			kind: PRReviewStateKind.Loaded,
+			comments: [
+				{ id: 'pr-thread-1', uri: fileA, range: new Range(7, 1, 7, 1), body: 'PR comment', author: 'reviewer' },
+			],
+		};
+
+		const comments = getSessionEditorComments(session, [
+			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(3, 1, 3, 1), sessionResource: session },
+		], reviewState([
+			{ id: 'review-a', uri: fileA, range: new Range(10, 1, 10, 1), body: 'review', kind: 'issue', severity: 'warning' },
+		]), prState);
+
+		assert.strictEqual(comments.length, 3);
+		assert.deepStrictEqual(comments.map(c => `${c.range.startLineNumber}:${c.source}`), [
+			'3:agentFeedback',
+			'7:prReview',
+			'10:codeReview',
+		]);
+	});
+
+	test('omits PR review comments when prReviewState is not loaded', () => {
+		const prState: IPRReviewState = { kind: PRReviewStateKind.None };
+		const comments = getSessionEditorComments(session, [], reviewState([]), prState);
+		assert.strictEqual(comments.length, 0);
 	});
 });

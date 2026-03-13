@@ -356,7 +356,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		);
 		store.add(connection);
 
-		const message = 'error: failed to open file `/home/dileepy/.cache/uv/sdists-v9/.git`: Read-only file system (os error 30)';
+		const message = 'error: failed to open file `/test-for-sandbox/.git`: Read-only file system (os error 30)';
 		const sandboxBlock = Event.toPromise(connection.onPotentialSandboxBlock);
 		const startPromise = connection.start({});
 
@@ -366,7 +366,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		assert.deepStrictEqual(await sandboxBlock, {
 			kind: 'filesystem',
 			message,
-			path: '/home/dileepy/.cache/uv/sdists-v9/.git',
+			path: '/test-for-sandbox/.git',
 		});
 
 		await startPromise;
@@ -393,7 +393,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		);
 		store.add(connection);
 
-		const message = 'error: failed to open file "/home/dileepy/.cache/uv/sdists-v9/.git": Read-only file system (os error 30)';
+		const message = 'error: failed to open file `/test-for-sandbox/.testfile`: Read-only file system (os error 30)';
 		const sandboxBlock = Event.toPromise(connection.onPotentialSandboxBlock);
 		const startPromise = connection.start({});
 
@@ -403,7 +403,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		assert.deepStrictEqual(await sandboxBlock, {
 			kind: 'filesystem',
 			message,
-			path: '/home/dileepy/.cache/uv/sdists-v9/.git',
+			path: '/test-for-sandbox/.testfile',
 		});
 
 		await startPromise;
@@ -430,7 +430,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		);
 		store.add(connection);
 
-		const message = 'error: Read-only file system (os error 30) at path "/home/dileepy/.cache/uv/.tmpo3offa"';
+		const message = 'error: Read-only file system (os error 30) at path "/test-for-sandbox/.testfile"';
 		const sandboxBlock = Event.toPromise(connection.onPotentialSandboxBlock);
 		const startPromise = connection.start({});
 
@@ -440,7 +440,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		assert.deepStrictEqual(await sandboxBlock, {
 			kind: 'filesystem',
 			message,
-			path: '/home/dileepy/.cache/uv/.tmpo3offa',
+			path: '/test-for-sandbox/.testfile',
 		});
 
 		await startPromise;

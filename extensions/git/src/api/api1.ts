@@ -355,6 +355,10 @@ export class ApiRepository implements Repository {
 	generateRandomBranchName(): Promise<string | undefined> {
 		return this.#repository.generateRandomBranchName();
 	}
+
+	isBranchProtected(branch?: Branch): boolean {
+		return this.#repository.isBranchProtected(branch);
+	}
 }
 
 export class ApiGit implements Git {
