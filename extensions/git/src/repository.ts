@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import picomatch from 'picomatch';
-import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, ExcludeSettingOptions, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit } from 'vscode';
+import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, CustomExecution, Disposable, Event, EventEmitter, ExcludeSettingOptions, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProcessExecution, ProgressLocation, ProgressOptions, RelativePattern, scm, ShellExecution, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, Task, TaskRunOn, tasks, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
 import type { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, LogOptions, Ref, Remote, RepositoryKind } from './api/git';
@@ -1892,13 +1892,39 @@ export class Repository implements Disposable {
 				this.globalState.update(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`, newWorktreeRoot);
 			}
 
-			// Copy worktree include files. We explicitly do not await this
-			// since we don't want to block the worktree creation on the
-			// copy operation.
-			this._copyWorktreeIncludeFiles(worktreePath!);
+			this._setupWorktree(worktreePath!);
 
 			return worktreePath!;
 		});
+	}
+
+	private async _setupWorktree(worktreePath: string): Promise<void> {
+		// Copy worktree include files and wait for the copy to complete
+		// before running any worktree-created tasks.
+		await this._copyWorktreeIncludeFiles(worktreePath);
+
+		await this._runWorktreeCreatedTasks(worktreePath);
+	}
+
+	private async _runWorktreeCreatedTasks(worktreePath: string): Promise<void> {
+		try {
+			const allTasks = await tasks.fetchTasks();
+			const worktreeTasks = allTasks.filter(task => task.runOptions.runOn === TaskRunOn.WorktreeCreated);
+
+			for (const task of worktreeTasks) {
+				const worktreeTask = retargetTaskToWorktree(task, worktreePath);
+				if (!worktreeTask) {
+					this.logger.warn(`[Repository][_runWorktreeCreatedTasks] Skipped task '${task.name}' because it could not be retargeted to worktree '${worktreePath}'.`);
+					continue;
+				}
+
+				tasks.executeTask(worktreeTask).then(undefined, err => {
+					this.logger.warn(`[Repository][_runWorktreeCreatedTasks] Failed to execute worktree-created task '${task.name}' for '${worktreePath}': ${err}`);
+				});
+			}
+		} catch (err) {
+			this.logger.warn(`[Repository][_runWorktreeCreatedTasks] Failed to execute worktree-created tasks for '${worktreePath}': ${err}`);
+		}
 	}
 
 	private async _getWorktreeIncludePaths(): Promise<Set<string>> {
@@ -3348,4 +3374,57 @@ export class Repository implements Disposable {
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}
+}
+
+function retargetTaskToWorktree(task: Task, worktreePath: string): Task | undefined {
+	const execution = retargetTaskExecution(task.execution, worktreePath);
+	if (!execution) {
+		return undefined;
+	}
+
+	const worktreeFolder: WorkspaceFolder = {
+		uri: Uri.file(worktreePath),
+		name: path.basename(worktreePath),
+		index: workspace.workspaceFolders?.length ?? 0
+	};
+
+	const worktreeTask = new Task({ ...task.definition }, worktreeFolder, task.name, task.source, execution, task.problemMatchers);
+	worktreeTask.detail = task.detail;
+	worktreeTask.group = task.group;
+	worktreeTask.isBackground = task.isBackground;
+	worktreeTask.presentationOptions = { ...task.presentationOptions };
+	worktreeTask.runOptions = { ...task.runOptions };
+
+	return worktreeTask;
+}
+
+function retargetTaskExecution(execution: ProcessExecution | ShellExecution | CustomExecution | undefined, worktreePath: string): ProcessExecution | ShellExecution | CustomExecution | undefined {
+	if (!execution) {
+		return undefined;
+	}
+
+	if (execution instanceof ProcessExecution) {
+		return new ProcessExecution(execution.process, execution.args, {
+			...execution.options,
+			cwd: worktreePath
+		});
+	}
+
+	if (execution instanceof ShellExecution) {
+		if (execution.commandLine !== undefined) {
+			return new ShellExecution(execution.commandLine, {
+				...execution.options,
+				cwd: worktreePath
+			});
+		}
+
+		if (execution.command !== undefined) {
+			return new ShellExecution(execution.command, execution.args ?? [], {
+				...execution.options,
+				cwd: worktreePath
+			});
+		}
+	}
+
+	return execution;
 }

@@ -164,7 +164,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private toolInvocations: (IChatToolInvocation | IChatToolInvocationSerialized)[] = [];
 	private allThinkingParts: IChatThinkingPart[] = [];
 	private hookCount: number = 0;
-	private singleItemInfo: { element: HTMLElement; originalParent: HTMLElement; originalNextSibling: Node | null } | undefined;
+	private singleItemInfo: { element: HTMLElement; originalParent: HTMLElement; originalNextSibling: Node | null; toolInvocation?: IChatToolInvocation | IChatToolInvocationSerialized } | undefined;
 	private lazyItems: ILazyItem[] = [];
 	private hasExpandedOnce: boolean = false;
 	private workingSpinnerElement: HTMLElement | undefined;
@@ -320,6 +320,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			// Materialize lazy items when first expanded
 			if (isExpanded && !this.hasExpandedOnce && this.lazyItems.length > 0) {
 				this.hasExpandedOnce = true;
+				// Flush pending removals so that completed hidden tools are removed from lazyItems before materialization
+				this.processPendingRemovals();
 				for (const item of this.lazyItems) {
 					this.materializeLazyItem(item);
 				}
@@ -450,20 +452,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
-	// try to schedule scroll
+	// Schedule a batched scroll dimension update for the next animation frame.
+	// All calls during a single frame (from updateThinking, MutationObserver, etc.)
+	// are coalesced into one layout read, avoiding forced synchronous layouts
+	// during tree splice operations.
 	private syncDimensionsAndScheduleScroll(): void {
-		if (this.autoScrollEnabled && this.scrollableElement) {
-			this.isUpdatingDimensions = true;
-			try {
-				this.updateScrollDimensions();
-				this.scrollToBottom();
-			} finally {
-				this.isUpdatingDimensions = false;
-			}
-			return;
-		}
-
-		// debounce animation
 		if (this.pendingScrollDisposable) {
 			return;
 		}
@@ -474,21 +467,24 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 			this.isUpdatingDimensions = true;
 			try {
-				this.updateScrollDimensions();
+				const contentHeight = this.updateScrollDimensions();
+				if (this.autoScrollEnabled && contentHeight !== undefined) {
+					this.scrollToBottom(contentHeight);
+				}
 			} finally {
 				this.isUpdatingDimensions = false;
 			}
 		});
 	}
 
-	private updateScrollDimensions(): void {
+	private updateScrollDimensions(): number | undefined {
 		if (!this.scrollableElement) {
-			return;
+			return undefined;
 		}
 
 		const isCollapsed = this.domNode.classList.contains('chat-used-context-collapsed');
 		if (!isCollapsed) {
-			return;
+			return undefined;
 		}
 
 		const contentHeight = this.wrapper.scrollHeight;
@@ -504,14 +500,15 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		// Re-evaluate hover feedback as content grows past the max height,
 		// reusing the already-measured contentHeight to avoid an extra layout read.
 		this.updateDropdownClickability(contentHeight);
+
+		return contentHeight;
 	}
 
-	private scrollToBottom(): void {
+	private scrollToBottom(contentHeight: number): void {
 		if (!this.scrollableElement) {
 			return;
 		}
 
-		const contentHeight = this.wrapper.scrollHeight;
 		const viewportHeight = Math.min(contentHeight, THINKING_SCROLL_MAX_HEIGHT);
 
 		if (contentHeight > viewportHeight) {
@@ -754,6 +751,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.workingSpinnerElement = undefined;
 			this.workingSpinnerLabel = undefined;
 		}
+
+		// Clear the attached-to-thinking flag on all tool invocations
+		for (const toolInvocation of this.toolInvocations) {
+			toolInvocation.isAttachedToThinking = false;
+		}
 	}
 
 	public finalizeTitleIfDefault(): void {
@@ -804,23 +806,27 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		// case where we only have one item (tool or edit) in the thinking container and no thinking parts, we want to move it back to its original position
-		if (this.appendedItemCount === 1 && this.currentThinkingValue.trim() === '') {
+		if (this.toolInvocationCount === 1 && this.hookCount === 0 && this.currentThinkingValue.trim() === '') {
 			// If singleItemInfo wasn't set (item was lazy/deferred), materialize it now
 			if (!this.singleItemInfo) {
 				const lazyItem = this.lazyItems.find(item => item.kind === 'tool' && item.originalParent);
 				if (lazyItem && lazyItem.kind === 'tool') {
+					const toolInvocation = lazyItem.toolInvocationOrMarkdown && (lazyItem.toolInvocationOrMarkdown.kind === 'toolInvocation' || lazyItem.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? lazyItem.toolInvocationOrMarkdown : undefined;
 					const result = lazyItem.lazy.value;
 					this.singleItemInfo = {
 						element: result.domNode,
 						originalParent: lazyItem.originalParent!,
-						originalNextSibling: this.domNode
+						originalNextSibling: this.domNode,
+						toolInvocation
 					};
 					if (result.disposable) {
 						this._register(result.disposable);
 					}
 				}
 			}
-			if (this.singleItemInfo && this.restoreSingleItemToOriginalPosition()) {
+			// Only restore if the tool is complete so the progress spinner is resolved
+			const toolIsComplete = !this.singleItemInfo?.toolInvocation || IChatToolInvocation.isComplete(this.singleItemInfo.toolInvocation);
+			if (toolIsComplete && this.singleItemInfo && this.restoreSingleItemToOriginalPosition()) {
 				return;
 			}
 		}
@@ -1027,7 +1033,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			return false;
 		}
 
-		const { element, originalParent, originalNextSibling } = this.singleItemInfo;
+		const { element, originalParent, originalNextSibling, toolInvocation } = this.singleItemInfo;
 
 		// don't restore it to original position - it contains multiple rendered elements
 		if (element.childElementCount > 1) {
@@ -1039,6 +1045,10 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			originalParent.insertBefore(element, originalNextSibling);
 		} else {
 			originalParent.appendChild(element);
+		}
+
+		if (toolInvocation) {
+			toolInvocation.isAttachedToThinking = false;
 		}
 
 		hide(this.domNode);
@@ -1138,6 +1148,11 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.toolInvocationCount--;
 		}
 
+		// Clear the attached-to-thinking flag on the removed tool invocation
+		if (removedItem.kind === 'tool' && removedItem.toolInvocationOrMarkdown && (removedItem.toolInvocationOrMarkdown.kind === 'toolInvocation' || removedItem.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized')) {
+			removedItem.toolInvocationOrMarkdown.isAttachedToThinking = false;
+		}
+
 		const toolInvocationsIndex = this.toolInvocations.findIndex(t =>
 			(t.kind === 'toolInvocation' || t.kind === 'toolInvocationSerialized') && t.toolId === toolInvocationId
 		);
@@ -1198,6 +1213,10 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			item.toolInvocationOrMarkdown.toolCallId === toolCallId
 		);
 		if (lazyIndex !== -1) {
+			const removedLazyItem = this.lazyItems[lazyIndex];
+			if (removedLazyItem.kind === 'tool' && removedLazyItem.toolInvocationOrMarkdown && (removedLazyItem.toolInvocationOrMarkdown.kind === 'toolInvocation' || removedLazyItem.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized')) {
+				removedLazyItem.toolInvocationOrMarkdown.isAttachedToThinking = false;
+			}
 			this.lazyItems.splice(lazyIndex, 1);
 		}
 
@@ -1214,7 +1233,6 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		if (titleIndex !== -1) {
 			this.extractedTitles.splice(titleIndex, 1);
 		}
-
 		this.updateDropdownClickability();
 		this._onDidChangeHeight.fire();
 	}
@@ -1298,6 +1316,11 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 					if (currentState.type === IChatToolInvocation.StateKind.Completed ||
 						currentState.type === IChatToolInvocation.StateKind.Cancelled) {
+						// Remove tools that should be hidden now or after completion.
+						if (toolInvocationOrMarkdown.presentation === 'hidden' || toolInvocationOrMarkdown.presentation === 'hiddenAfterComplete') {
+							this.pendingRemovals.push({ toolCallId: toolInvocationOrMarkdown.toolCallId, toolLabel: currentToolLabel });
+							this.schedulePendingRemovalsFlush();
+						}
 						isComplete = true;
 						return;
 					}
@@ -1373,11 +1396,13 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 
 		// Save the first item info for potential restoration later
-		if (this.appendedItemCount === 1 && originalParent) {
+		if (this.toolInvocationCount === 1 && this.hookCount === 0 && originalParent) {
+			const toolInvocation = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown : undefined;
 			this.singleItemInfo = {
 				element: content,
 				originalParent,
-				originalNextSibling: this.domNode
+				originalNextSibling: this.domNode,
+				toolInvocation
 			};
 		} else {
 			this.singleItemInfo = undefined;

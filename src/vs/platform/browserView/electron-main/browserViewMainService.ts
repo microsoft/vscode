@@ -328,6 +328,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).clearStorage();
 	}
 
+	async setBrowserZoomIndex(id: string, zoomIndex: number): Promise<void> {
+		return this._getBrowserView(id).setBrowserZoomIndex(zoomIndex);
+	}
+
 	async clearGlobalStorage(): Promise<void> {
 		const browserSession = BrowserSession.getOrCreateGlobal();
 		await browserSession.electronSession.clearData();

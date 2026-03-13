@@ -334,7 +334,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.logService.trace('update#isLatestVersion() - checking update server', { url, headers });
 
 		try {
-			const context = await this.requestService.request({ url, headers }, token);
+			const context = await this.requestService.request({ url, headers, callSite: 'updateService.isLatestVersion' }, token);
 			const statusCode = context.res.statusCode;
 			this.logService.trace('update#isLatestVersion() - response', { statusCode });
 			// The update server replies with 204 (No Content) when no
