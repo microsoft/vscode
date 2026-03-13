@@ -372,20 +372,3 @@ Verify it's gone:
 # Confirm no process is listening on the debug port
 lsof -i :9224  # should return nothing
 ```
-
-## Quick Test: Send a Chat Message via Agent Host
-
-There's a helper script that automates the full flow — launch Code OSS, switch to agent host mode, send a message, and print the response:
-
-```bash
-# From the repo root:
-./src/vs/platform/agentHost/test/node/createAndSendMessageAsLocalAgent.sh "Hello, what can you do?"
-
-# Options:
-#   --port <N>       CDP port (default: 9224)
-#   --timeout <N>    Response wait in seconds (default: 30)
-#   --no-kill        Keep Code OSS running after
-#   --skip-launch    Connect to already-running instance
-```
-
-This uses the JS mouse-event focus + `press`-per-key approach internally, handles session target switching, and cleans up on exit.
