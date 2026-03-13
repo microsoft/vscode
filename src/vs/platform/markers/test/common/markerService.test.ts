@@ -212,6 +212,30 @@ suite('Marker Service', () => {
 		assert.strictEqual(marker[0].code, '0');
 	});
 
+	test('modelVersionId is preserved on IMarker when present in IMarkerData', () => {
+		service = new markerService.MarkerService();
+		const resource = URI.parse('file:///path/file.ts');
+
+		// Test with modelVersionId present
+		const dataWithVersion: IMarkerData = {
+			...randomMarkerData(),
+			modelVersionId: 42
+		};
+		service.changeOne('owner', resource, [dataWithVersion]);
+
+		const markersWithVersion = service.read({ resource });
+		assert.strictEqual(markersWithVersion.length, 1);
+		assert.strictEqual(markersWithVersion[0].modelVersionId, 42);
+
+		// Test without modelVersionId (should be undefined)
+		const dataWithoutVersion: IMarkerData = randomMarkerData();
+		service.changeOne('owner', resource, [dataWithoutVersion]);
+
+		const markersWithoutVersion = service.read({ resource });
+		assert.strictEqual(markersWithoutVersion.length, 1);
+		assert.strictEqual(markersWithoutVersion[0].modelVersionId, undefined);
+	});
+
 	test('resource filter hides markers for the filtered resource', () => {
 		service = new markerService.MarkerService();
 		const resource1 = URI.parse('file:///path/file1.cs');

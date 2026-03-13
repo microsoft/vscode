@@ -36,7 +36,8 @@ export const enum AccessibilityWorkbenchSettingId {
 	DimUnfocusedOpacity = 'accessibility.dimUnfocused.opacity',
 	HideAccessibleView = 'accessibility.hideAccessibleView',
 	AccessibleViewCloseOnKeyPress = 'accessibility.accessibleView.closeOnKeyPress',
-	VerboseChatProgressUpdates = 'accessibility.verboseChatProgressUpdates'
+	VerboseChatProgressUpdates = 'accessibility.verboseChatProgressUpdates',
+	ShowChatCheckmarks = 'accessibility.chat.showCheckmarks'
 }
 
 export const enum ViewDimUnfocusedOpacityProperties {
@@ -65,7 +66,8 @@ export const enum AccessibilityVerbositySettingId {
 	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
 	Debug = 'accessibility.verbosity.debug',
 	Walkthrough = 'accessibility.verbosity.walkthrough',
-	SourceControl = 'accessibility.verbosity.sourceControl'
+	SourceControl = 'accessibility.verbosity.sourceControl',
+	Find = 'accessibility.verbosity.find'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -197,6 +199,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.SourceControl]: {
 			description: localize('verbosity.scm', 'Provide information about how to access the source control accessibility help menu when the input is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.Find]: {
+			description: localize('verbosity.find', 'Provide information about how to access the find accessibility help menu when the find input is focused.'),
 			...baseVerbosityProperty
 		},
 		'accessibility.signalOptions.volume': {
@@ -858,6 +864,12 @@ export function registerAccessibilityConfiguration() {
 				'type': 'boolean',
 				'default': true,
 				'markdownDescription': localize('accessibility.verboseChatProgressUpdates', "Controls whether verbose progress announcements should be made when a chat request is in progress, including information like searched text for <search term> with X results, created file <file_name>, or read file <file path>.")
+			},
+			[AccessibilityWorkbenchSettingId.ShowChatCheckmarks]: {
+				'type': 'boolean',
+				'default': false,
+				'tags': ['accessibility'],
+				'markdownDescription': localize('accessibility.chat.showCheckmarks', "Controls whether checkmark icons are shown on completed tool calls and other collapsible items in chat responses.")
 			}
 		}
 	});

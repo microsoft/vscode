@@ -13,7 +13,8 @@ declare module 'vscode' {
 	export interface ProvideLanguageModelChatResponseOptions {
 
 		/**
-		 * What extension initiated the request to the language model
+		 * What extension initiated the request to the language model, or
+		 * `undefined` if the request was initiated by other functionality in the editor.
 		 */
 		readonly requestInitiator: string;
 	}
@@ -33,10 +34,21 @@ declare module 'vscode' {
 		requiresAuthorization?: true | { label: string };
 
 		/**
+		 * A multiplier indicating how many requests this model counts towards a quota.
+		 * For example, "2x" means each request counts twice.
+		 */
+		readonly multiplier?: string;
+
+		/**
+		 * A numeric form of the `multiplier` label
+		 */
+		readonly multiplierNumeric?: number;
+
+		/**
 		 * Whether or not this will be selected by default in the model picker
 		 * NOT BEING FINALIZED
 		 */
-		readonly isDefault?: boolean;
+		readonly isDefault?: boolean | { [K in ChatLocation]?: boolean };
 
 		/**
 		 * Whether or not the model will show up in the model picker immediately upon being made known via {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}.
@@ -54,6 +66,15 @@ declare module 'vscode' {
 		readonly category?: { label: string; order: number };
 
 		readonly statusIcon?: ThemeIcon;
+
+		/**
+		 * When set, this model is only shown in the model picker for the specified chat session type.
+		 * Models with this property are excluded from the general model picker and only appear
+		 * when the user is in a session matching this type.
+		 *
+		 * The value must match a `type` declared in a `chatSessions` extension contribution.
+		 */
+		readonly targetChatSessionType?: string;
 	}
 
 	export interface LanguageModelChatCapabilities {
@@ -78,6 +99,20 @@ declare module 'vscode' {
 	export type LanguageModelResponsePart2 = LanguageModelResponsePart | LanguageModelDataPart | LanguageModelThinkingPart;
 
 	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
+		provideLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
 		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Thenable<void>;
+	}
+
+	/**
+	 * The list of options passed into {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}
+	 */
+	export interface PrepareLanguageModelChatModelOptions {
+		/**
+		 * Configuration for the model. This is only present if the provider has declared that it requires configuration via the `configuration` property.
+		 * The object adheres to the schema that the extension provided during declaration.
+		 */
+		readonly configuration?: {
+			readonly [key: string]: any;
+		};
 	}
 }

@@ -23,7 +23,7 @@ export async function getSurroundableSnippets(snippetsService: ISnippetsService,
 	model.tokenization.tokenizeIfCheap(lineNumber);
 	const languageId = model.getLanguageIdAtPosition(lineNumber, column);
 
-	const allSnippets = await snippetsService.getSnippets(languageId, { includeNoPrefixSnippets: true, includeDisabledSnippets });
+	const allSnippets = await snippetsService.getSnippets(languageId, model.uri, { includeNoPrefixSnippets: true, includeDisabledSnippets });
 	return allSnippets.filter(snippet => snippet.usesSelection);
 }
 
@@ -54,12 +54,13 @@ export class SurroundWithSnippetEditorAction extends SnippetEditorAction {
 		const snippetsService = accessor.get(ISnippetsService);
 		const clipboardService = accessor.get(IClipboardService);
 
-		const snippets = await getSurroundableSnippets(snippetsService, editor.getModel(), editor.getPosition(), true);
+		const model = editor.getModel();
+		const snippets = await getSurroundableSnippets(snippetsService, model, editor.getPosition(), true);
 		if (!snippets.length) {
 			return;
 		}
 
-		const snippet = await instaService.invokeFunction(pickSnippet, snippets);
+		const snippet = await instaService.invokeFunction(pickSnippet, snippets, model.uri);
 		if (!snippet) {
 			return;
 		}

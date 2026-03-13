@@ -18,6 +18,8 @@ import { IWorkbenchExtensionManagementService } from '../../../../services/exten
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatSessionRecommendation } from '../../../../../base/common/product.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 
 const INSTALL_CONTEXT_PREFIX = 'chat.installRecommendationAvailable';
 
@@ -34,7 +36,6 @@ export class ChatAgentRecommendation extends Disposable implements IWorkbenchCon
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
-
 		const recommendations = this.productService.chatSessionRecommendations;
 		if (!recommendations?.length || !this.extensionGalleryService.isEnabled()) {
 			return;
@@ -44,17 +45,17 @@ export class ChatAgentRecommendation extends Disposable implements IWorkbenchCon
 			this.registerRecommendation(recommendation);
 		}
 
-		this.refreshInstallAvailability();
-
 		const refresh = () => this.refreshInstallAvailability();
 		this._register(this.extensionManagementService.onProfileAwareDidInstallExtensions(refresh));
 		this._register(this.extensionManagementService.onProfileAwareDidUninstallExtension(refresh));
 		this._register(this.extensionManagementService.onDidChangeProfile(refresh));
+
+		this.refreshInstallAvailability();
 	}
 
 	private registerRecommendation(recommendation: IChatSessionRecommendation): void {
 		const extensionKey = ExtensionIdentifier.toKey(recommendation.extensionId);
-		const commandId = `chat.installRecommendation.${extensionKey}`;
+		const commandId = `chat.installRecommendation.${extensionKey}.${recommendation.name}`;
 		const availabilityContextId = `${INSTALL_CONTEXT_PREFIX}.${extensionKey}`;
 		const availabilityContext = new RawContextKey<boolean>(availabilityContextId, false).bindTo(this.contextKeyService);
 		this.availabilityContextKeys.set(extensionKey, availabilityContext);
@@ -70,18 +71,7 @@ export class ChatAgentRecommendation extends Disposable implements IWorkbenchCon
 					f1: false,
 					category: CHAT_CATEGORY,
 					icon: Codicon.extensions,
-					precondition: ContextKeyExpr.equals(availabilityContextId, true),
 					menu: [
-						{
-							id: MenuId.AgentSessionsInstallMenu,
-							group: '0_install',
-							when: ContextKeyExpr.equals(availabilityContextId, true)
-						},
-						{
-							id: MenuId.AgentSessionsViewTitle,
-							group: 'navigation@98',
-							when: ContextKeyExpr.equals(availabilityContextId, true)
-						},
 						{
 							id: MenuId.ChatNewMenu,
 							group: '4_recommendations',
@@ -94,13 +84,13 @@ export class ChatAgentRecommendation extends Disposable implements IWorkbenchCon
 			override async run(accessor: ServicesAccessor): Promise<void> {
 				const commandService = accessor.get(ICommandService);
 				const productService = accessor.get(IProductService);
+				const chatService = accessor.get(IChatService);
 
 				const installPreReleaseVersion = productService.quality !== 'stable';
 				await commandService.executeCommand('workbench.extensions.installExtension', recommendation.extensionId, {
 					installPreReleaseVersion
 				});
-
-				await runPostInstallCommand(commandService, recommendation.postInstallCommand);
+				await runPostInstallCommand(commandService, chatService, recommendation.postInstallCommand);
 			}
 		}));
 	}
@@ -132,13 +122,12 @@ export class ChatAgentRecommendation extends Disposable implements IWorkbenchCon
 	}
 }
 
-async function runPostInstallCommand(commandService: ICommandService, commandId: string | undefined): Promise<void> {
+async function runPostInstallCommand(commandService: ICommandService, chatService: IChatService, commandId: string | undefined): Promise<void> {
 	if (!commandId) {
 		return;
 	}
-
 	await waitForCommandRegistration(commandId);
-
+	await chatService.activateDefaultAgent(ChatAgentLocation.Chat);
 	try {
 		await commandService.executeCommand(commandId);
 	} catch {

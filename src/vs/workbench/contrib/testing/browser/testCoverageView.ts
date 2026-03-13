@@ -63,7 +63,7 @@ const enum CoverageSortOrder {
 }
 
 export class TestCoverageView extends ViewPane {
-	private readonly tree = new MutableDisposable<TestCoverageTree>();
+	private readonly tree = this._register(new MutableDisposable<TestCoverageTree>());
 	public readonly sortOrder = observableValue('sortOrder', CoverageSortOrder.Location);
 
 	constructor(

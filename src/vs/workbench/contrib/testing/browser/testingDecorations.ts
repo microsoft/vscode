@@ -126,7 +126,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	declare public _serviceBrand: undefined;
 
 	private generation = 0;
-	private readonly changeEmitter = new Emitter<void>();
+	private readonly changeEmitter = this._register(new Emitter<void>());
 	private readonly decorationCache = new ResourceMap<{
 		/** The document version at which ranges have been updated, requiring rerendering */
 		rangeUpdateVersionId?: number;
@@ -459,7 +459,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				}
 			}
 		}));
-		this._register(Event.accumulate(this.editor.onDidChangeModelContent, 0, this._store)(evts => {
+		this._register(Event.accumulate(this.editor.onDidChangeModelContent, 0, undefined, this._store)(evts => {
 			const model = editor.getModel();
 			if (!this._currentUri || !model) {
 				return;

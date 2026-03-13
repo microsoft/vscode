@@ -1,0 +1,436 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+@property --animation-angle {
+	syntax: '<angle>';
+	inherits: false;
+	initial-value: 135deg;
+}
+
+@property --animation-opacity {
+	syntax: '<percentage>';
+	inherits: false;
+	initial-value: 0%;
+}
+
+@keyframes browser-shared-border-spin {
+	from {
+		--animation-angle: 135deg;
+	}
+	to {
+		--animation-angle: 495deg;
+	}
+}
+
+.browser-root {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+
+	.browser-toolbar {
+		display: flex;
+		align-items: center;
+		padding: 6px 8px;
+		background-color: var(--vscode-editor-background);
+		flex-shrink: 0;
+		gap: 8px;
+	}
+
+	.browser-nav-toolbar,
+	.browser-actions-toolbar {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+
+		.actions-container {
+			gap: 4px;
+		}
+	}
+
+	.browser-actions-toolbar {
+		margin-right: 4px;
+	}
+
+	.browser-url-container {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		background-color: var(--vscode-input-background);
+		border: 1px solid var(--vscode-input-border);
+		border-radius: var(--vscode-cornerRadius-small);
+
+		&:has(.browser-url-input:focus) {
+			border-color: var(--vscode-focusBorder);
+		}
+	}
+
+	.browser-url-input {
+		flex: 1;
+		padding: 4px 8px;
+		background-color: transparent;
+		color: var(--vscode-input-foreground);
+		border: none;
+		border-radius: var(--vscode-cornerRadius-small);
+		outline: none !important;
+		font-size: 13px;
+	}
+
+	.browser-share-toggle-container {
+		display: flex;
+		align-items: center;
+		margin: 2px 4px;
+		flex-shrink: 0;
+
+		.browser-share-toggle {
+			padding: 2px 4px;
+			border-radius: var(--vscode-cornerRadius-small);
+			border-width: 0;
+			color: var(--vscode-descriptionForeground);
+			white-space: nowrap;
+			gap: 4px;
+			outline: none !important;
+
+			&:focus-visible {
+				outline: 1px solid var(--vscode-focusBorder) !important;
+				outline-offset: 0px !important;
+			}
+
+			.codicon {
+				margin: 0;
+			}
+
+			&:hover {
+				background-color: var(--vscode-toolbar-hoverBackground) !important;
+				color: var(--vscode-foreground);
+			}
+
+			&.checked {
+				background: linear-gradient(135deg in lab,
+					color-mix(in srgb, #51a2ff 25%, transparent),
+					color-mix(in srgb, #4af0c0 25%, transparent),
+					color-mix(in srgb, #b44aff 25%, transparent)
+				) !important;
+				color: var(--vscode-foreground);
+
+				&:hover {
+					background: linear-gradient(135deg in lab,
+						color-mix(in srgb, #51a2ff 35%, transparent),
+						color-mix(in srgb, #4af0c0 35%, transparent),
+						color-mix(in srgb, #b44aff 35%, transparent)
+					) !important;
+				}
+			}
+		}
+	}
+
+	.browser-container-wrapper {
+		flex: 1;
+		min-height: 0;
+		position: relative;
+		margin-top: 1px;
+	}
+
+	.browser-container {
+		/*
+		 * Snap dimensions to multiples of 1/zoomFactor CSS pixels so that
+		 * width*zoomFactor and height*zoomFactor are always integers. This
+		 * avoids sub-pixel mismatches between the WebContentsView
+		 * (whose bounds are rounded to integer DIPs) and this CSS container,
+		 * which would cause visible shifts when swapping between the live
+		 * view and the placeholder screenshot.
+		 */
+		width: round(down, 100% - 8px, calc(1px / var(--zoom-factor, 1)));
+		height: round(down, 100% - 4px, calc(1px / var(--zoom-factor, 1)));
+		margin: 0 auto;
+		overflow: visible;
+		border-radius: var(--vscode-cornerRadius-medium);
+		position: relative;
+		outline: none !important;
+		z-index: 0; /* Important: creates a new stacking context for the gradient border trick */
+
+		&::before {
+			content: '';
+			position: absolute;
+			--animation-angle: 135deg;
+			--animation-opacity: 0%;
+			top: -1px;
+			left: -1px;
+			right: -1px;
+			bottom: -1px;
+			z-index: -2;
+			border-radius: var(--vscode-cornerRadius-medium);
+			background: conic-gradient(from var(--animation-angle),
+				color-mix(in srgb, #b44aff var(--animation-opacity), var(--vscode-browser-border, transparent)),
+				color-mix(in srgb, #4af0c0 var(--animation-opacity), var(--vscode-browser-border, transparent)),
+				color-mix(in srgb, #51a2ff var(--animation-opacity), var(--vscode-browser-border, transparent)),
+				color-mix(in srgb, #4af0c0 var(--animation-opacity), var(--vscode-browser-border, transparent)),
+				color-mix(in srgb, #b44aff var(--animation-opacity), var(--vscode-browser-border, transparent))
+			);
+			pointer-events: none;
+		}
+
+		&.shared::before {
+			top: -3px;
+			left: -3px;
+			right: -3px;
+			bottom: -3px;
+			--animation-angle: 495deg;
+			--animation-opacity: 100%;
+		}
+
+		&.animate::before {
+			transition: top 350ms cubic-bezier(0.2, 0, 0, 1),
+				left 350ms cubic-bezier(0.2, 0, 0, 1),
+				right 350ms cubic-bezier(0.2, 0, 0, 1),
+				bottom 350ms cubic-bezier(0.2, 0, 0, 1),
+				--animation-opacity 350ms cubic-bezier(0.2, 0, 0, 1);
+		}
+
+		&.shared.animate::before {
+			animation: browser-shared-border-spin 1500ms cubic-bezier(0, 0.2, 0, 1) 1 forwards,
+				browser-shared-border-spin 45s linear 1500ms infinite;
+		}
+
+		&::after {
+			content: '';
+			position: absolute;
+			top: 1px;
+			left: 1px;
+			right: 1px;
+			bottom: 1px;
+			z-index: -1;
+			border-radius: var(--vscode-cornerRadius-medium);
+			background-color: var(--vscode-editor-background);
+			pointer-events: none;
+		}
+	}
+
+	.browser-placeholder-contents {
+		width: 100%;
+		height: 100%;
+		position: relative;
+		overflow: hidden;
+		border-radius: var(--vscode-cornerRadius-medium);
+	}
+
+	.browser-placeholder-screenshot {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background-image: none;
+		background-size: contain;
+		background-repeat: no-repeat;
+	}
+
+	.browser-overlay-paused {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		pointer-events: none;
+		color: var(--vscode-foreground);
+		background-color: color-mix(in srgb, var(--vscode-editor-background) 15%, transparent);
+		opacity: 0;
+		visibility: hidden;
+		transition: opacity 200ms ease-in;
+
+		&.visible {
+			opacity: 1;
+			visibility: visible;
+		}
+
+		&.show-message {
+			background-color: color-mix(in srgb, var(--vscode-editor-background) 60%, transparent);
+		}
+	}
+
+	.browser-overlay-paused-message {
+		padding: 20px 40px;
+		border-radius: 4px;
+		border: 1px solid var(--vscode-editorWidget-border);
+		background-color: var(--vscode-editor-background);
+		box-shadow: var(--vscode-shadow-lg);
+		max-width: 80%;
+		text-align: center;
+		display: none;
+	}
+
+	.browser-overlay-paused.show-message .browser-overlay-paused-message {
+		display: block;
+	}
+
+	.browser-overlay-paused-heading {
+		font-size: 18px;
+		font-weight: 600;
+		margin-bottom: 8px;
+	}
+
+	.browser-overlay-paused-detail {
+		font-size: 14px;
+		color: var(--vscode-descriptionForeground);
+	}
+
+	.browser-error-container {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		flex: 1;
+		display: flex;
+		align-items: flex-start;
+		justify-content: flex-start;
+		padding: 80px 40px;
+		margin: 0 2px 2px;
+		background-color: var(--vscode-editor-background);
+	}
+
+	.browser-error-content {
+		max-width: 600px;
+		width: 100%;
+	}
+
+	.browser-error-title {
+		font-size: 18px;
+		font-weight: 600;
+		color: var(--vscode-errorForeground);
+		margin-bottom: 20px;
+	}
+
+	.browser-error-detail {
+		margin-bottom: 12px;
+		line-height: 1.6;
+		color: var(--vscode-foreground);
+
+		strong {
+			font-weight: 600;
+		}
+
+		code {
+			background-color: var(--vscode-textCodeBlock-background);
+			padding: 2px 6px;
+			border-radius: 3px;
+			font-family: var(--monaco-monospace-font);
+			font-size: 12px;
+		}
+	}
+
+	.browser-find-widget-wrapper {
+		flex-shrink: 0;
+		position: relative;
+		z-index: 10;
+		overflow: hidden;
+
+		&.find-visible {
+			border-bottom: 1px solid var(--vscode-widget-border);
+		}
+
+		/* Override SimpleFindWidget absolute positioning to flow in layout */
+		.simple-find-part-wrapper {
+			position: relative;
+			top: 0;
+			right: 0;
+			padding: 0;
+			margin-left: auto;
+		}
+
+		.simple-find-part {
+			border-radius: 0;
+			border: none;
+			top: 0 !important;
+			padding: 2px 8px 6px 12px;
+			transition: none;
+			background: none !important;
+
+			&:not(.visible) {
+				display: none;
+			}
+
+			.monaco-sash {
+				width: 2px !important;
+				height: calc(100% - 4px);
+				border-radius: var(--vscode-cornerRadius-circle);
+
+				&::before {
+					width: var(--vscode-sash-hover-size);
+					left: calc(50% - (var(--vscode-sash-hover-size) / 2));
+					border-radius: var(--vscode-cornerRadius-circle);
+				}
+			}
+
+			/* Hide whole word and regex toggles */
+			.codicon-whole-word,
+			.codicon-regex {
+				display: none;
+			}
+			/* Adjust input width to account for fewer toggles */
+			.input {
+				width: calc(100% - 16px) !important;
+			}
+		}
+	}
+
+	.browser-welcome-container {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background-color: var(--vscode-editor-background);
+
+		.browser-welcome-content {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			padding: 12px;
+		}
+
+		.browser-welcome-icon {
+			min-height: 40px;
+
+			.codicon {
+				font-size: 40px;
+				margin-bottom: 24px;
+				color: var(--vscode-descriptionForeground);
+			}
+		}
+
+		.browser-welcome-title {
+			font-size: 13px;
+			font-weight: 600;
+			color: var(--vscode-foreground);
+			margin-top: 5px;
+			text-align: center;
+			line-height: normal;
+			padding: 0 8px;
+		}
+
+		.browser-welcome-subtitle {
+			font-size: 12px;
+			position: relative;
+			text-align: center;
+			max-width: 280px;
+			padding: 0 20px;
+			margin: 8px auto 0;
+			color: var(--vscode-descriptionForeground);
+
+			p {
+				margin-top: 8px;
+				margin-bottom: 8px;
+			}
+		}
+
+	}
+}

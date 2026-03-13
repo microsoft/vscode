@@ -17,6 +17,11 @@ export interface IWebContentExtractorOptions {
 	 * 'false' by default.
 	 */
 	followRedirects?: boolean;
+
+	/**
+	 * List of trusted domain patterns for redirect validation.
+	 */
+	trustedDomains?: string[];
 }
 
 export type WebContentExtractResult =

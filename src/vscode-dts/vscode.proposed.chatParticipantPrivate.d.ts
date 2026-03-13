@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 11
+// version: 15
 
 declare module 'vscode' {
 
@@ -61,9 +61,16 @@ declare module 'vscode' {
 		readonly attempt: number;
 
 		/**
-		 * The session identifier for this chat request
+		 * The session identifier for this chat request.
+		 *
+		 * @deprecated Use {@link chatSessionResource} instead.
 		 */
 		readonly sessionId: string;
+
+		/**
+		 * The resource URI for the chat session this request belongs to.
+		 */
+		readonly sessionResource: Uri;
 
 		/**
 		 * If automatic command detection is enabled.
@@ -93,7 +100,33 @@ declare module 'vscode' {
 		 */
 		readonly editedFileEvents?: ChatRequestEditedFileEvent[];
 
-		readonly isSubagent?: boolean;
+		/**
+		 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
+		 * Pass this to tool invocations when calling tools from within a subagent context.
+		 */
+		readonly subAgentInvocationId?: string;
+
+		/**
+		 * Display name of the subagent that is invoking this request.
+		 */
+		readonly subAgentName?: string;
+
+		/**
+		 * The request ID of the parent request that invoked this subagent.
+		 */
+		readonly parentRequestId?: string;
+
+		/**
+		 * The permission level for tool auto-approval in this request.
+		 * - `'autoApprove'`: Auto-approve all tool calls and retry on errors.
+		 * - `'autopilot'`: Everything autoApprove does plus continues until the task is done.
+		 */
+		readonly permissionLevel?: string;
+
+		/**
+		 * Whether any hooks are enabled for this request.
+		 */
+		readonly hasHooksEnabled: boolean;
 	}
 
 	export enum ChatRequestEditedFileEventKind {
@@ -111,6 +144,10 @@ declare module 'vscode' {
 	 * ChatRequestTurn + private additions. Note- at runtime this is the SAME as ChatRequestTurn and instanceof is safe.
 	 */
 	export class ChatRequestTurn2 {
+		/**
+		 * The id of the chat request. Used to identity an interaction with any of the chat surfaces.
+		 */
+		readonly id?: string;
 		/**
 		 * The prompt as entered by the user.
 		 *
@@ -147,9 +184,14 @@ declare module 'vscode' {
 		readonly editedFileEvents?: ChatRequestEditedFileEvent[];
 
 		/**
+		 * The identifier of the language model that was used for this request, if known.
+		 */
+		readonly modelId?: string;
+
+		/**
 		 * @hidden
 		 */
-		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined);
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined);
 	}
 
 	export class ChatResponseTurn2 {
@@ -228,15 +270,27 @@ declare module 'vscode' {
 		provideFileIgnored(uri: Uri, token: CancellationToken): ProviderResult<boolean>;
 	}
 
+	export type PreToolUsePermissionDecision = 'allow' | 'deny' | 'ask';
+
 	export interface LanguageModelToolInvocationOptions<T> {
 		chatRequestId?: string;
-		chatSessionId?: string;
+		chatSessionResource?: Uri;
 		chatInteractionId?: string;
 		terminalCommand?: string;
 		/**
-		 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
+		 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
 		 */
-		fromSubAgent?: boolean;
+		subAgentInvocationId?: string;
+		/**
+		 * Pre-tool-use hook result, if the hook was already executed by the caller.
+		 * When provided, the tools service will skip executing its own preToolUse hook
+		 * and use this result for permission decisions and input modifications instead.
+		 */
+		preToolUseResult?: {
+			permissionDecision?: PreToolUsePermissionDecision;
+			permissionDecisionReason?: string;
+			updatedInput?: object;
+		};
 	}
 
 	export interface LanguageModelToolInvocationPrepareOptions<T> {
@@ -245,8 +299,12 @@ declare module 'vscode' {
 		 */
 		input: T;
 		chatRequestId?: string;
-		chatSessionId?: string;
+		chatSessionResource?: Uri;
 		chatInteractionId?: string;
+		/**
+		 * If set, tells the tool that it should include confirmation messages.
+		 */
+		forceConfirmationReason?: string;
 	}
 
 	export interface PreparedToolInvocation {
@@ -285,6 +343,19 @@ declare module 'vscode' {
 		export const onDidDisposeChatSession: Event<string>;
 	}
 
+	export namespace window {
+		/**
+		 * The resource URI of the currently active chat panel session,
+		 * or `undefined` if there is no active chat panel session.
+		 */
+		export const activeChatPanelSessionResource: Uri | undefined;
+
+		/**
+		 * An event that fires when the active chat panel session resource changes.
+		 */
+		export const onDidChangeActiveChatPanelSessionResource: Event<Uri | undefined>;
+	}
+
 	// #endregion
 
 	// #region ChatErrorDetailsWithConfirmation
@@ -320,63 +391,22 @@ declare module 'vscode' {
 
 	// #endregion
 
-	// #region CustomAgentsProvider
+	// #region Steering
 
-	/**
-	 * Represents a custom agent resource file (e.g., .agent.md or .prompt.md) available for a repository.
-	 */
-	export interface CustomAgentResource {
+	export interface ChatContext {
 		/**
-		 * The unique identifier/name of the custom agent resource.
+		 * Set to `true` by the editor to request the language model gracefully
+		 * stop after its next opportunity. When set, it's likely that the editor
+		 * will immediately follow up with a new request in the same conversation.
 		 */
-		readonly name: string;
-
-		/**
-		 * A description of what the custom agent resource does.
-		 */
-		readonly description: string;
+		readonly yieldRequested: boolean;
 
 		/**
-		 * The URI to the agent or prompt resource file.
+		 * The resource URI identifying the chat session this context belongs to.
+		 * Available when the context is provided for title generation, summarization,
+		 * or other session-scoped operations. Extracted from the session's history entries.
 		 */
-		readonly uri: Uri;
-
-		/**
-		 * Indicates whether the custom agent resource is editable. Defaults to false.
-		 */
-		readonly isEditable?: boolean;
-	}
-
-	/**
-	 * Options for querying custom agents.
-	 */
-	export interface CustomAgentQueryOptions { }
-
-	/**
-	 * A provider that supplies custom agent resources (from .agent.md and .prompt.md files) for repositories.
-	 */
-	export interface CustomAgentsProvider {
-		/**
-		 * An optional event to signal that custom agents have changed.
-		 */
-		readonly onDidChangeCustomAgents?: Event<void>;
-
-		/**
-		 * Provide the list of custom agent resources available for a given repository.
-		 * @param options Optional query parameters.
-		 * @param token A cancellation token.
-		 * @returns An array of custom agent resources or a promise that resolves to such.
-		 */
-		provideCustomAgents(options: CustomAgentQueryOptions, token: CancellationToken): ProviderResult<CustomAgentResource[]>;
-	}
-
-	export namespace chat {
-		/**
-		 * Register a provider for custom agents.
-		 * @param provider The custom agents provider.
-		 * @returns A disposable that unregisters the provider when disposed.
-		 */
-		export function registerCustomAgentsProvider(provider: CustomAgentsProvider): Disposable;
+		readonly sessionResource?: Uri;
 	}
 
 	// #endregion

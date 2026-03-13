@@ -149,6 +149,34 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+/* Provider Options */
+
+.chat-status-bar-entry-tooltip .suggest-option-selection {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 0 0 0;
+}
+
+.chat-status-bar-entry-tooltip .suggest-option-selection .suggest-option-text {
+	flex: 1;
+}
+
+.chat-status-bar-entry-tooltip .suggest-option-selection .suggest-option-action-bar {
+	margin-left: auto;
+}
+
+.chat-status-bar-entry-tooltip .model-selection .model-action-bar .action-label,
+.chat-status-bar-entry-tooltip .suggest-option-selection .suggest-option-action-bar .action-label {
+	height: 12px;
+	line-height: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .suggest-option-selection .suggest-option-action-bar .codicon {
+	color: var(--vscode-descriptionForeground);
+}
+
 /* Snoozing */
 
 .chat-status-bar-entry-tooltip .snooze-completions {

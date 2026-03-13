@@ -65,7 +65,9 @@ mocha.run(failures => {
 ###################################################################
 #                                                                 #
 # Logs are attached as build artefact and can be downloaded       #
-# from the build Summary page (Summary -> Artifacts)              #
+# from the build Summary page:                                    #
+# - click on "Summary" in the top left corner                     #
+# - scroll all the way down to "Artifacts"                        #
 #                                                                 #
 # Please also scan through attached crash logs in case the        #
 # failure was caused by a native crash.                           #

@@ -81,6 +81,7 @@ export interface IFolderQuery<U extends UriComponents = URI> {
 	folderName?: string;
 	excludePattern?: ExcludeGlobPattern<U>[];
 	includePattern?: glob.IExpression;
+	ignoreGlobCase?: boolean;
 	fileEncoding?: string;
 	disregardIgnoreFiles?: boolean;
 	disregardGlobalIgnoreFiles?: boolean;
@@ -97,6 +98,7 @@ export interface ICommonQueryProps<U extends UriComponents> {
 	// Note that this will override any ignore files if applicable.
 	includePattern?: glob.IExpression;
 	excludePattern?: glob.IExpression;
+	ignoreGlobCase?: boolean;
 	extraFileResources?: U[];
 
 	onlyOpenEditors?: boolean;
@@ -505,12 +507,13 @@ export function getExcludes(configuration: ISearchConfiguration, includeSearchEx
 }
 
 export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: string): boolean {
-	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath)) {
+	const globOptions = queryProps.ignoreGlobCase ? { ignoreCase: true } : undefined;
+	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath, globOptions)) {
 		return false;
 	}
 
 	if (queryProps.includePattern || queryProps.usingSearchPaths) {
-		if (queryProps.includePattern && glob.match(queryProps.includePattern, fsPath)) {
+		if (queryProps.includePattern && glob.match(queryProps.includePattern, fsPath, globOptions)) {
 			return true;
 		}
 
@@ -518,9 +521,9 @@ export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: 
 		if (queryProps.usingSearchPaths) {
 			return !!queryProps.folderQueries && queryProps.folderQueries.some(fq => {
 				const searchPath = fq.folder.fsPath;
-				if (extpath.isEqualOrParent(fsPath, searchPath)) {
+				if (extpath.isEqualOrParent(fsPath, searchPath, queryProps.ignoreGlobCase)) {
 					const relPath = paths.relative(searchPath, fsPath);
-					return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
+					return !fq.includePattern || !!glob.match(fq.includePattern, relPath, globOptions);
 				} else {
 					return false;
 				}
@@ -708,6 +711,8 @@ export class QueryGlobTester {
 	private _parsedIncludeExpression: glob.ParsedExpression | null = null;
 
 	constructor(config: ISearchQuery, folderQuery: IFolderQuery) {
+		const globOptions = config.ignoreGlobCase || folderQuery.ignoreGlobCase ? { ignoreCase: true } : undefined;
+
 		// todo: try to incorporate folderQuery.excludePattern.folder if available
 		this._excludeExpression = folderQuery.excludePattern?.map(excludePattern => {
 			return {
@@ -721,7 +726,7 @@ export class QueryGlobTester {
 			this._excludeExpression = [config.excludePattern || {}];
 		}
 
-		this._parsedExcludeExpression = this._excludeExpression.map(e => glob.parse(e));
+		this._parsedExcludeExpression = this._excludeExpression.map(e => glob.parse(e, globOptions));
 
 		// Empty includeExpression means include nothing, so no {} shortcuts
 		let includeExpression: glob.IExpression | undefined = config.includePattern;
@@ -737,7 +742,7 @@ export class QueryGlobTester {
 		}
 
 		if (includeExpression) {
-			this._parsedIncludeExpression = glob.parse(includeExpression);
+			this._parsedIncludeExpression = glob.parse(includeExpression, globOptions);
 		}
 	}
 

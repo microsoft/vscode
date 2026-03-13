@@ -30,7 +30,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { widgetBorder, widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
+import { widgetBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { getTitleBarStyle, TitlebarStyle } from '../../../../platform/window/common/window.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -258,9 +258,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 		if (this.$el) {
 			this.$el.style.backgroundColor = this.getColor(debugToolBarBackground) || '';
-
-			const widgetShadowColor = this.getColor(widgetShadow);
-			this.$el.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
 
 			const contrastBorderColor = this.getColor(widgetBorder);
 			const borderColor = this.getColor(debugToolBarBorder);
