@@ -10,7 +10,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IProtocolMessage } from '../common/state/sessionProtocol.js';
+import { JSON_RPC_PARSE_ERROR, type IProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { protocolReplacer, protocolReviver } from '../common/state/jsonSerialization.js';
 
@@ -58,7 +58,7 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 				const message = JSON.parse(text, protocolReviver) as IProtocolMessage;
 				this._onMessage.fire(message);
 			} catch {
-				// Malformed message — drop. No logger available at transport level.
+				this.send({ jsonrpc: '2.0', id: null!, error: { code: JSON_RPC_PARSE_ERROR, message: 'Parse error' } });
 			}
 		});
 

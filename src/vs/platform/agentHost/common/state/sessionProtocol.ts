@@ -76,6 +76,7 @@ export function isJsonRpcResponse(msg: IProtocolMessage): msg is IJsonRpcRespons
 
 // ---- JSON-RPC error codes ---------------------------------------------------
 
+export const JSON_RPC_PARSE_ERROR = -32700;
 export const JSON_RPC_INTERNAL_ERROR = -32603;
 
 // ---- Shared data types ------------------------------------------------------

@@ -13,6 +13,7 @@ import { protocolReplacer, protocolReviver } from '../../common/state/jsonSerial
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
+	JSON_RPC_PARSE_ERROR,
 	type IActionBroadcastParams,
 	type IFetchTurnsResult,
 	type IJsonRpcErrorResponse,
@@ -138,6 +139,31 @@ class TestProtocolClient {
 	/** Return all received notifications matching a predicate. */
 	receivedNotifications(predicate?: (n: IProtocolNotification) => boolean): IProtocolNotification[] {
 		return predicate ? this._notifications.filter(predicate) : [...this._notifications];
+	}
+
+	/** Send a raw string over the WebSocket without JSON serialization. */
+	sendRaw(data: string): void {
+		this._ws.send(data);
+	}
+
+	/** Wait for the next raw message from the server. */
+	waitForRawMessage(timeoutMs = 5000): Promise<unknown> {
+		return new Promise((resolve, reject) => {
+			const timer = setTimeout(() => {
+				cleanup();
+				reject(new Error(`Timeout waiting for raw message (${timeoutMs}ms)`));
+			}, timeoutMs);
+			const onMsg = (data: Buffer | string) => {
+				cleanup();
+				const text = typeof data === 'string' ? data : data.toString('utf-8');
+				resolve(JSON.parse(text));
+			};
+			const cleanup = () => {
+				clearTimeout(timer);
+				this._ws.removeListener('message', onMsg);
+			};
+			this._ws.on('message', onMsg);
+		});
 	}
 
 	close(): void {
@@ -635,5 +661,22 @@ suite('Protocol WebSocket E2E', function () {
 		const snapshot = await client.call<IStateSnapshot>('subscribe', { resource: sessionUri });
 		const state = snapshot.state as ISessionState;
 		assert.strictEqual(state.summary.model, 'new-mock-model');
+	});
+
+	test('malformed JSON message returns parse error', async function () {
+		this.timeout(10_000);
+
+		const raw = new TestProtocolClient(server.port);
+		await raw.connect();
+
+		const responsePromise = raw.waitForRawMessage();
+		raw.sendRaw('this is not valid json{{{');
+
+		const response = await responsePromise as IJsonRpcErrorResponse;
+		assert.strictEqual(response.jsonrpc, '2.0');
+		assert.strictEqual(response.id, null);
+		assert.strictEqual(response.error.code, JSON_RPC_PARSE_ERROR);
+
+		raw.close();
 	});
 });
