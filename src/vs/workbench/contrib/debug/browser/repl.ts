@@ -717,7 +717,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		}));
 		// Make sure to select the session if debugging is already active
 		this.selectSession();
-		this.styleElement = domStylesheetsJs.createStyleSheet(this.container);
+		this.styleElement = domStylesheetsJs.createStyleSheet(this.container, undefined, this._store);
 		this.onDidStyleChange();
 	}
 

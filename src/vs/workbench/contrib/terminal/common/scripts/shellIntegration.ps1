@@ -78,7 +78,6 @@ if (-not $env:VSCODE_PYTHON_AUTOACTIVATE_GUARD) {
 	$env:VSCODE_PYTHON_AUTOACTIVATE_GUARD = '1'
 	if ($env:VSCODE_PYTHON_PWSH_ACTIVATE -and $env:TERM_PROGRAM -eq 'vscode') {
 		$activateScript = $env:VSCODE_PYTHON_PWSH_ACTIVATE
-		Remove-Item Env:VSCODE_PYTHON_PWSH_ACTIVATE
 
 		try {
 			Invoke-Expression $activateScript
@@ -89,6 +88,8 @@ if (-not $env:VSCODE_PYTHON_AUTOACTIVATE_GUARD) {
 			Write-Host "`e[0m`e[7m * `e[0;103m VS Code Python powershell activation failed with exit code $($activationError.Exception.Message) `e[0m"
 		}
 	}
+	# Remove any leftover Python activation env vars.
+	Get-ChildItem Env:VSCODE_PYTHON_*_ACTIVATE | Remove-Item -ErrorAction SilentlyContinue
 }
 
 function Global:__VSCode-Escape-Value([string]$value) {
@@ -175,13 +176,29 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 }
 
 if ($Global:__VSCodeState.IsA11yMode -eq "1") {
-	if (-not (Get-Module -Name PSReadLine)) {
-		$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-		$specialPsrlPath = Join-Path $scriptRoot 'psreadline'
-		Import-Module $specialPsrlPath
+	# Check if the loaded PSReadLine already supports EnableScreenReaderMode
+	$hasScreenReaderParam = (Get-Module -Name PSReadLine) -and (Get-Command Set-PSReadLineOption).Parameters.ContainsKey('EnableScreenReaderMode')
+
+	if (-not $hasScreenReaderParam) {
+		# The loaded PSReadLine lacks EnableScreenReaderMode (only available in 2.4.4-beta4+).
+		# PowerShell 7.0+ skips autoloading PSReadLine when the OS reports a screen reader active.
+		# When only VS Code's accessibility mode is enabled (no OS screen reader),
+		# it's still loaded and must be removed to load our bundled copy.
 		if (Get-Module -Name PSReadLine) {
-			Set-PSReadLineOption -EnableScreenReaderMode
+			Remove-Module PSReadLine -Force
 		}
+
+		# Import VS Code's bundled PSReadLine 2.4.3 which has EnableScreenReaderMode
+		$specialPsrlPath = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'psreadline'
+		if (Test-Path $specialPsrlPath) {
+			Import-Module $specialPsrlPath
+		}
+
+		$hasScreenReaderParam = (Get-Module -Name PSReadLine) -and (Get-Command Set-PSReadLineOption).Parameters.ContainsKey('EnableScreenReaderMode')
+	}
+
+	if ($hasScreenReaderParam) {
+		Set-PSReadLineOption -EnableScreenReaderMode
 	}
 }
 
@@ -259,4 +276,13 @@ function Set-MappedKeyHandlers {
 
 if ($Global:__VSCodeState.HasPSReadLine) {
 	Set-MappedKeyHandlers
+
+	# Prevent AI-executed commands from polluting shell history
+	if ($env:VSCODE_PREVENT_SHELL_HISTORY -eq "1") {
+		Set-PSReadLineOption -AddToHistoryHandler {
+			param([string]$line)
+			return $false
+		}
+		$env:VSCODE_PREVENT_SHELL_HISTORY = $null
+	}
 }

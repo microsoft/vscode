@@ -10,7 +10,7 @@
   "private": true,
   "scripts": {
     "compile": "npm run copy-driver-definition && node ../../node_modules/typescript/bin/tsc",
-    "watch": "npm-run-all -lp watch-driver-definition watch-tsc",
+    "watch": "npm-run-all2 -lp watch-driver-definition watch-tsc",
     "watch-tsc": "node ../../node_modules/typescript/bin/tsc --watch --preserveWatchOutput",
     "copy-driver-definition": "node tools/copy-driver-definition.js",
     "watch-driver-definition": "nodemon --watch ../../src/vs/workbench/services/driver/common/driver.ts tools/copy-driver-definition.js",
@@ -18,6 +18,7 @@
     "prepublishOnly": "npm run copy-package-version"
   },
   "dependencies": {
+    "axe-core": "^4.10.2",
     "ncp": "^2.0.0",
     "tmp": "0.2.4",
     "tree-kill": "1.2.2",
@@ -29,6 +30,6 @@
     "@types/tmp": "0.2.2",
     "cpx2": "3.0.0",
     "nodemon": "^3.1.9",
-    "npm-run-all": "^4.1.5"
+    "npm-run-all2": "^8.0.4"
   }
 }

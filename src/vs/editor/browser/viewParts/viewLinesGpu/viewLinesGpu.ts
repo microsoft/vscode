@@ -50,6 +50,12 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	private _lastViewportData?: ViewportData;
 	private _lastViewLineOptions?: ViewLineOptions;
 
+	/**
+	 * Tracks the maximum line width seen so far for horizontal scrollbar sizing.
+	 * This is needed because GPU-rendered lines don't have DOM nodes to measure.
+	 */
+	private _maxLineWidth: number = 0;
+
 	private _device!: GPUDevice;
 	private _renderPassDescriptor!: GPURenderPassDescriptor;
 	private _renderPassColorAttachment!: GPURenderPassColorAttachment;
@@ -424,14 +430,21 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this._refreshGlyphRasterizer();
+		this._maxLineWidth = 0;
 		return true;
 	}
 	override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean { return true; }
 	override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean { return true; }
-	override onFlushed(e: viewEvents.ViewFlushedEvent): boolean { return true; }
+	override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		this._maxLineWidth = 0;
+		return true;
+	}
 
 	override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean { return true; }
-	override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean { return true; }
+	override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		this._maxLineWidth = 0;
+		return true;
+	}
 	override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean { return true; }
 	override onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean { return true; }
 	override onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean { return true; }
@@ -500,6 +513,75 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		this._lastViewportData = viewportData;
 		this._lastViewLineOptions = options;
+
+		// Update max line width for horizontal scrollbar
+		this._updateMaxLineWidth(viewportData, options);
+	}
+
+	/**
+	 * Update the max line width based on GPU-rendered lines.
+	 * This is needed because GPU-rendered lines don't have DOM nodes to measure.
+	 */
+	private _updateMaxLineWidth(viewportData: ViewportData, viewLineOptions: ViewLineOptions): void {
+		const dpr = getActiveWindow().devicePixelRatio;
+		let localMaxLineWidth = 0;
+
+		for (let lineNumber = viewportData.startLineNumber; lineNumber <= viewportData.endLineNumber; lineNumber++) {
+			if (!this._viewGpuContext.canRender(viewLineOptions, viewportData, lineNumber)) {
+				continue;
+			}
+
+			const lineData = viewportData.getViewLineRenderingData(lineNumber);
+			const lineWidth = this._computeLineWidth(lineData, viewLineOptions, dpr);
+			localMaxLineWidth = Math.max(localMaxLineWidth, lineWidth);
+		}
+
+		// Only update if we found a larger width (use ceil to match DOM behavior)
+		const iLineWidth = Math.ceil(localMaxLineWidth);
+		if (iLineWidth > this._maxLineWidth) {
+			this._maxLineWidth = iLineWidth;
+			this._context.viewModel.viewLayout.setMaxLineWidth(this._maxLineWidth);
+		}
+	}
+
+	/**
+	 * Compute the width of a line in CSS pixels.
+	 */
+	private _computeLineWidth(lineData: ViewLineRenderingData, viewLineOptions: ViewLineOptions, dpr: number): number {
+		const content = lineData.content;
+		let contentSegmenter: IContentSegmenter | undefined;
+		if (!(lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations)) {
+			contentSegmenter = createContentSegmenter(lineData, viewLineOptions);
+		}
+
+		let width = 0;
+		let tabXOffset = 0;
+
+		for (let x = 0; x < content.length; x++) {
+			let chars: string;
+			if (lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations) {
+				chars = content.charAt(x);
+			} else {
+				const segment = contentSegmenter!.getSegmentAtIndex(x);
+				if (segment === undefined) {
+					continue;
+				}
+				chars = segment;
+			}
+
+			if (chars === '\t') {
+				const offsetBefore = x + tabXOffset;
+				tabXOffset = CursorColumns.nextRenderTabStop(x + tabXOffset, lineData.tabSize);
+				width += viewLineOptions.spaceWidth * (tabXOffset - offsetBefore);
+				tabXOffset -= x + 1;
+			} else if (lineData.isBasicASCII && viewLineOptions.useMonospaceOptimizations) {
+				width += viewLineOptions.spaceWidth;
+			} else {
+				width += this._renderStrategy.value!.glyphRasterizer.getTextMetrics(chars).width / dpr;
+			}
+		}
+
+		return width;
 	}
 
 	linesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
@@ -654,7 +736,8 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		const lineRange = this._visibleRangesForLineRange(lineNumber, 1, lineData.maxColumn);
 		const lastRange = lineRange?.ranges.at(-1);
 		if (lastRange) {
-			return lastRange.width;
+			// Total line width is the left offset plus width of the last range
+			return lastRange.left + lastRange.width;
 		}
 
 		return undefined;

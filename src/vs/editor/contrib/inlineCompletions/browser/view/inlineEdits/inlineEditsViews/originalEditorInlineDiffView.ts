@@ -17,12 +17,13 @@ import { EndOfLinePreference, IModelDeltaDecoration, InjectedTextCursorStops, IT
 import { ModelDecorationOptions } from '../../../../../../common/model/textModel.js';
 import { IInlineEditsView, InlineEditClickEvent } from '../inlineEditsViewInterface.js';
 import { classNames } from '../utils/utils.js';
+import { InlineCompletionEditorType } from '../../../model/provideInlineCompletions.js';
 
 export interface IOriginalEditorInlineDiffViewState {
 	diff: DetailedLineRangeMapping[];
 	modifiedText: AbstractText;
 	mode: 'insertionInline' | 'sideBySide' | 'deletion' | 'lineReplacement';
-	isInDiffEditor: boolean;
+	editorType: InlineCompletionEditorType;
 
 	modifiedCodeEditor: ICodeEditor;
 }
@@ -209,7 +210,7 @@ export class OriginalEditorInlineDiffView extends Disposable implements IInlineE
 				}
 			}
 
-			if (diff.isInDiffEditor) {
+			if (diff.editorType === InlineCompletionEditorType.DiffEditor) {
 				for (const m of diff.diff) {
 					if (!m.original.isEmpty) {
 						originalDecorations.push({

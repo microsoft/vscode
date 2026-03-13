@@ -331,7 +331,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 
 		if (!isUserDataProfileTemplate(profileTemplate)) {
-			throw new Error(localize('invalid profile content', "This profile is not valid."));
+			return null;
 		}
 
 		if (options?.name) {
@@ -432,7 +432,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			}
 		}
 
-		const context = await this.requestService.request({ type: 'GET', url: resource.toString(true) }, CancellationToken.None);
+		const context = await this.requestService.request({ type: 'GET', url: resource.toString(true), callSite: 'userDataProfileImportExportService.resolveContent' }, CancellationToken.None);
 		if (context.res.statusCode === 200) {
 			return await asText(context);
 		} else {

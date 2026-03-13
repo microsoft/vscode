@@ -28,7 +28,7 @@ export class LineDecoration {
 		);
 	}
 
-	public static equalsArr(a: LineDecoration[], b: LineDecoration[]): boolean {
+	public static equalsArr(a: readonly LineDecoration[], b: readonly LineDecoration[]): boolean {
 		const aLen = a.length;
 		const bLen = b.length;
 		if (aLen !== bLen) {

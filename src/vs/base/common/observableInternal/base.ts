@@ -148,6 +148,10 @@ export interface IObserver {
 	handleChange<T, TChange>(observable: IObservableWithChange<T, TChange>, change: TChange): void;
 }
 
+/**
+ * A reader allows code to track what it depends on, so the caller knows when the computed value or produced side-effect is no longer valid.
+ * Use `derived(reader => ...)` to turn code that needs a reader into an observable value.
+*/
 export interface IReader {
 	/**
 	 * Reads the value of an observable and subscribes to it.

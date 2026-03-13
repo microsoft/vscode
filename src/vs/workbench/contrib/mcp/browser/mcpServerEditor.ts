@@ -38,7 +38,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMcpServerContainer, IMcpServerEditorOptions, IMcpWorkbenchService, IWorkbenchMcpServer, McpServerContainers, McpServerInstallState } from '../common/mcpTypes.js';
 import { StarredWidget, McpServerIconWidget, McpServerStatusWidget, McpServerWidget, onClick, PublisherWidget, McpServerScopeBadgeWidget, LicenseWidget } from './mcpServerWidgets.js';
-import { ButtonWithDropDownExtensionAction, ButtonWithDropdownExtensionActionViewItem, DropDownAction, InstallAction, InstallingLabelAction, InstallInRemoteAction, InstallInWorkspaceAction, ManageMcpServerAction, McpServerStatusAction, UninstallAction } from './mcpServerActions.js';
+import { ButtonWithDropDownExtensionAction, ButtonWithDropdownExtensionActionViewItem, DisableMcpDropDownAction, DropDownAction, EnableMcpDropDownAction, InstallAction, InstallingLabelAction, InstallInRemoteAction, InstallInWorkspaceAction, ManageMcpServerAction, McpServerStatusAction, UninstallAction } from './mcpServerActions.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { ILocalMcpServer, IGalleryMcpServerConfiguration, IMcpServerPackage, IMcpServerKeyValueInput, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -251,6 +251,8 @@ export class McpServerEditor extends EditorPane {
 					this.instantiationService.createInstance(InstallInRemoteAction, false)
 				]
 			]),
+			this.instantiationService.createInstance(EnableMcpDropDownAction),
+			this.instantiationService.createInstance(DisableMcpDropDownAction),
 			this.instantiationService.createInstance(ManageMcpServerAction, true),
 		];
 
@@ -622,7 +624,7 @@ export class McpServerEditor extends EditorPane {
 
 	private async openDetails(extension: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const details = append(template.content, $('.details'));
-		const readmeContainer = append(details, $('.readme-container'));
+		const readmeContainer = append(details, $('.content-container'));
 		const additionalDetailsContainer = append(details, $('.additional-details-container'));
 
 		const layout = () => details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);
@@ -652,7 +654,7 @@ export class McpServerEditor extends EditorPane {
 	private async openManifestWithAdditionalDetails(mcpServer: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const details = append(template.content, $('.details'));
 
-		const readmeContainer = append(details, $('.readme-container'));
+		const readmeContainer = append(details, $('.content-container'));
 		const additionalDetailsContainer = append(details, $('.additional-details-container'));
 
 		const layout = () => details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);

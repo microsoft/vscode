@@ -8,14 +8,14 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IAttachSessionEvent, ICloseSessionEvent, IExtensionHostDebugService, IOpenExtensionWindowResult, IReloadSessionEvent, ITerminateSessionEvent } from './extensionHostDebug.js';
 
-export class ExtensionHostDebugBroadcastChannel<TContext> implements IServerChannel<TContext> {
+export class ExtensionHostDebugBroadcastChannel<TContext> extends Disposable implements IServerChannel<TContext> {
 
 	static readonly ChannelName = 'extensionhostdebugservice';
 
-	private readonly _onCloseEmitter = new Emitter<ICloseSessionEvent>();
-	private readonly _onReloadEmitter = new Emitter<IReloadSessionEvent>();
-	private readonly _onTerminateEmitter = new Emitter<ITerminateSessionEvent>();
-	private readonly _onAttachEmitter = new Emitter<IAttachSessionEvent>();
+	private readonly _onCloseEmitter = this._register(new Emitter<ICloseSessionEvent>());
+	private readonly _onReloadEmitter = this._register(new Emitter<IReloadSessionEvent>());
+	private readonly _onTerminateEmitter = this._register(new Emitter<ITerminateSessionEvent>());
+	private readonly _onAttachEmitter = this._register(new Emitter<IAttachSessionEvent>());
 
 	call(ctx: TContext, command: string, arg?: any): Promise<any> {
 		switch (command) {

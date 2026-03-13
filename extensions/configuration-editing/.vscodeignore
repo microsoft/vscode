@@ -1,9 +1,8 @@
 test/**
 src/**
-tsconfig.json
+tsconfig*.json
 out/**
-extension.webpack.config.js
-extension-browser.webpack.config.js
+esbuild*
 package-lock.json
 build/**
 schemas/devContainer.codespaces.schema.json

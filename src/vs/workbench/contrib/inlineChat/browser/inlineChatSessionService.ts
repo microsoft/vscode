@@ -2,37 +2,24 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../editor/common/core/position.js';
-import { IRange } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
-import { IValidEditOperation } from '../../../../editor/common/model.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../../chat/browser/chat.js';
-import { IChatEditingSession } from '../../chat/common/chatEditingService.js';
-import { IChatModel, IChatModelInputState, IChatRequestModel } from '../../chat/common/chatModel.js';
-import { IChatService } from '../../chat/common/chatService.js';
-import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { Session, StashedSession } from './inlineChatSession.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { IChatEditingSession } from '../../chat/common/editing/chatEditingService.js';
+import { IChatModel, IChatModelInputState, IChatRequestModel } from '../../chat/common/model/chatModel.js';
+import { IChatService } from '../../chat/common/chatService/chatService.js';
+import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
 
-export interface ISessionKeyComputer {
-	getComparisonKey(editor: ICodeEditor, uri: URI): string;
-}
 
 export const IInlineChatSessionService = createDecorator<IInlineChatSessionService>('IInlineChatSessionService');
 
-export interface IInlineChatSessionEvent {
-	readonly editor: ICodeEditor;
-	readonly session: Session;
-}
-
-export interface IInlineChatSessionEndEvent extends IInlineChatSessionEvent {
-	readonly endedByExternalCause: boolean;
-}
+export type InlineChatSessionTerminationState = string | IMarkdownString;
 
 export interface IInlineChatSession2 {
 	readonly initialPosition: Position;
@@ -40,6 +27,8 @@ export interface IInlineChatSession2 {
 	readonly uri: URI;
 	readonly chatModel: IChatModel;
 	readonly editingSession: IChatEditingSession;
+	readonly terminationState: IObservable<InlineChatSessionTerminationState | undefined>;
+	setTerminationState(state: InlineChatSessionTerminationState | undefined): void;
 	dispose(): void;
 }
 
@@ -47,30 +36,13 @@ export interface IInlineChatSessionService {
 	_serviceBrand: undefined;
 
 	readonly onWillStartSession: Event<IActiveCodeEditor>;
-	readonly onDidMoveSession: Event<IInlineChatSessionEvent>;
-	readonly onDidStashSession: Event<IInlineChatSessionEvent>;
-	readonly onDidEndSession: Event<IInlineChatSessionEndEvent>;
-
-	createSession(editor: IActiveCodeEditor, options: { wholeRange?: IRange; session?: Session; headless?: boolean }, token: CancellationToken): Promise<Session | undefined>;
-
-	moveSession(session: Session, newEditor: ICodeEditor): void;
-
-	getCodeEditor(session: Session): ICodeEditor;
-
-	getSession(editor: ICodeEditor, uri: URI): Session | undefined;
-
-	releaseSession(session: Session): void;
-
-	stashSession(session: Session, editor: ICodeEditor, undoCancelEdits: IValidEditOperation[]): StashedSession;
-
-	registerSessionKeyComputer(scheme: string, value: ISessionKeyComputer): IDisposable;
+	readonly onDidChangeSessions: Event<this>;
 
 	dispose(): void;
 
-	createSession2(editor: ICodeEditor, uri: URI, token: CancellationToken): Promise<IInlineChatSession2>;
-	getSession2(uri: URI): IInlineChatSession2 | undefined;
+	createSession(editor: ICodeEditor): IInlineChatSession2;
+	getSessionByTextModel(uri: URI): IInlineChatSession2 | undefined;
 	getSessionBySessionUri(uri: URI): IInlineChatSession2 | undefined;
-	readonly onDidChangeSessions: Event<this>;
 }
 
 export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | undefined, resend: boolean) {
@@ -105,13 +77,38 @@ export async function askInPanelChat(accessor: ServicesAccessor, request: IChatR
 		return;
 	}
 
-	const newModelRef = chatService.startSession(ChatAgentLocation.Chat);
+	const newModelRef = chatService.startNewLocalSession(ChatAgentLocation.Chat);
 	const newModel = newModelRef.object;
 
-	newModel.inputModel.setState({ ...state });
+	newModel.inputModel.setState({
+		...state,
+		mode: { id: 'agent', kind: ChatModeKind.Agent }
+	});
 
-	const widget = await widgetService.openSession(newModelRef.object.sessionResource, ChatViewPaneTarget);
+	const widget = await widgetService.openSession(newModelRef.object.sessionResource);
 
 	newModelRef.dispose(); // can be freed after opening because the widget also holds a reference
 	widget?.acceptInput(request.message.text);
+}
+
+export async function continueInPanelChat(accessor: ServicesAccessor, session: IInlineChatSession2): Promise<void> {
+	const request = session.chatModel.getRequests().at(-1);
+	if (!request) {
+		return;
+	}
+
+	await askInPanelChat(accessor, request, session.chatModel.inputModel.state.get());
+	session.dispose();
+}
+
+export function rephraseInlineChat(accessor: ServicesAccessor, session: IInlineChatSession2): string | undefined {
+	const request = session.chatModel.getRequests().at(-1);
+	if (!request) {
+		return undefined;
+	}
+
+	accessor.get(IChatService).removeRequest(session.chatModel.sessionResource, request.id);
+	session.chatModel.inputModel.setState({ inputText: request.message.text });
+	session.setTerminationState(undefined);
+	return request.message.text;
 }
