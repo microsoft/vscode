@@ -20,7 +20,7 @@ import { ChatProgressSubPart } from '../chatProgressContentPart.js';
 import { ChatResourceGroupWidget } from '../chatResourceGroupWidget.js';
 import { IChatCollapsibleIODataPart } from '../chatToolInputOutputContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
-import { extractImagesFromToolInvocation } from '../../../../common/chatImageExtraction.js';
+import { extractImagesFromToolInvocationOutputDetails } from '../../../../common/chatImageExtraction.js';
 import { TerminalToolAutoExpand } from './terminalToolAutoExpand.js';
 import { ChatCollapsibleContentPart } from '../chatCollapsibleContentPart.js';
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
@@ -449,7 +449,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	 */
 	private _renderImagePills(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext, innerContainer: HTMLElement): void {
 		const renderImages = () => {
-			const extracted = extractImagesFromToolInvocation(toolInvocation, context.element.sessionResource);
+			const extracted = extractImagesFromToolInvocationOutputDetails(toolInvocation, context.element.sessionResource);
 			const imageParts: IChatCollapsibleIODataPart[] = extracted.map(img => ({
 				kind: 'data',
 				value: img.data.buffer,

@@ -36,15 +36,17 @@ export interface IChatExtractedImageCollection {
  */
 export async function extractImagesFromChatResponse(
 	response: IChatResponseViewModel,
-	readFile?: (uri: URI) => Promise<VSBuffer>,
+	readFile: (uri: URI) => Promise<VSBuffer>,
 ): Promise<IChatExtractedImageCollection> {
 	const allImages: IChatExtractedImage[] = [];
 
 	for (const item of response.response.value) {
 		if (item.kind === 'toolInvocation' || item.kind === 'toolInvocationSerialized') {
-			const images = extractImagesFromToolInvocation(item, response.sessionResource);
+			const images = extractImagesFromToolInvocationOutputDetails(item, response.sessionResource);
 			allImages.push(...images);
-		} else if (item.kind === 'inlineReference' && readFile) {
+			const messageImages = await extractImagesFromToolInvocationMessages(item, readFile);
+			allImages.push(...messageImages);
+		} else if (item.kind === 'inlineReference') {
 			const image = await extractImageFromInlineReference(item, readFile);
 			if (image) {
 				allImages.push(image);
@@ -63,7 +65,7 @@ export async function extractImagesFromChatResponse(
 	};
 }
 
-export function extractImagesFromToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, sessionResource: URI): IChatExtractedImage[] {
+export function extractImagesFromToolInvocationOutputDetails(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, sessionResource: URI): IChatExtractedImage[] {
 	const images: IChatExtractedImage[] = [];
 
 	const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
@@ -103,6 +105,42 @@ export function extractImagesFromToolInvocation(toolInvocation: IChatToolInvocat
 		}
 	}
 
+	return images;
+}
+
+export async function extractImagesFromToolInvocationMessages(
+	toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
+	readFile: (uri: URI) => Promise<VSBuffer>
+): Promise<IChatExtractedImage[]> {
+	const message = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
+	if (!message || typeof message === 'string' || !message.uris || Object.keys(message.uris).length === 0) {
+		return [];
+	}
+
+	// Prefer past tense message for caption, but fall back to invocation message if past tense not yet available (e.g. for streaming responses)
+	const images: IChatExtractedImage[] = [];
+	for (const uriComponents of Object.values(message.uris)) {
+		const uri = URI.revive(uriComponents);
+		const mimeType = getMediaMime(uri.path);
+		if (mimeType?.startsWith('image/')) {
+			let data: VSBuffer;
+			try {
+				data = await readFile(uri);
+			} catch {
+				continue;
+			}
+			const name = uri.path.split('/').pop() ?? 'image';
+			images.push({
+				id: uri.toString(),
+				uri,
+				name,
+				mimeType,
+				data,
+				source: localize('chatImageExtraction.toolSource', "Tool: {0}", toolInvocation.toolId),
+				caption: message.value,
+			});
+		}
+	}
 	return images;
 }
 
