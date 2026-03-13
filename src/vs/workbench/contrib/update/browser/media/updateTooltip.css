@@ -68,11 +68,13 @@
 	margin-top: -2px;
 }
 
-.update-tooltip .product-version:hover .copy-version-button {
+.update-tooltip .product-version:hover .copy-version-button,
+.update-tooltip .product-version:focus-within .copy-version-button {
 	opacity: 1;
 }
 
-.update-tooltip .copy-version-button:hover {
+.update-tooltip .copy-version-button:hover,
+.update-tooltip .copy-version-button:focus-visible {
 	color: var(--vscode-foreground);
 }
 

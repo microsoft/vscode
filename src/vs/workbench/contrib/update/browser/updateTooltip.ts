@@ -22,7 +22,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asTextOrError, IRequestService } from '../../../../platform/request/common/request.js';
 import { AvailableForDownload, Disabled, DisablementReason, Downloaded, Downloading, Idle, IUpdate, Overwriting, Ready, State, StateType, Updating } from '../../../../platform/update/common/update.js';
-import { computeDownloadSpeed, computeDownloadTimeRemaining, computeProgressPercent, formatBytes, formatDate, formatTimeRemaining, tryParseDate, tryParseVersion } from '../common/updateUtils.js';
+import { computeDownloadSpeed, computeDownloadTimeRemaining, computeProgressPercent, formatBytes, formatDate, formatTimeRemaining, getUpdateInfoUrl, tryParseDate } from '../common/updateUtils.js';
 import './media/updateTooltip.css';
 
 /**
@@ -379,12 +379,9 @@ export class UpdateTooltip extends Disposable {
 
 		let text = null;
 		try {
-			const parsed = tryParseVersion(this.productService.version);
-			if (parsed) {
-				const url = `https://code.visualstudio.com/raw/v${parsed.major}_${parsed.minor}_update.md`;
-				const context = await this.requestService.request({ url }, CancellationToken.None);
-				text = await asTextOrError(context);
-			}
+			const url = getUpdateInfoUrl(this.productService.version);
+			const context = await this.requestService.request({ url, callSite: 'updateTooltip' }, CancellationToken.None);
+			text = await asTextOrError(context);
 		} catch { }
 
 		if (!text) {
@@ -462,7 +459,9 @@ export class UpdateTooltip extends Disposable {
 		const copyButton = dom.append(row, dom.$('a.copy-version-button'));
 		copyButton.setAttribute('role', 'button');
 		copyButton.setAttribute('tabindex', '0');
-		copyButton.title = localize('updateTooltip.copyVersion', "Copy");
+		const title = localize('updateTooltip.copyVersion', "Copy");
+		copyButton.title = title;
+		copyButton.setAttribute('aria-label', title);
 
 		const copyIcon = dom.append(copyButton, dom.$('.copy-icon'));
 		copyIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.copy));
