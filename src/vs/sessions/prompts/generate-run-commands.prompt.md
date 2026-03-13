@@ -13,7 +13,6 @@ A run command is a `tasks.json` task with:
 
 ```json
 {
-  "version": "2.0.0",
   "tasks": [
     {
       "label": "Install dependencies",
@@ -46,6 +45,6 @@ A run command is a `tasks.json` task with:
 
 ## Writing the file
 
-Always write to `.vscode/tasks.json` in the workspace root. If the file already exists, merge — do not overwrite unrelated tasks. Set `"version": "2.0.0"` if not already present.
+Always write to `.vscode/tasks.json` in the workspace root. If the file already exists, merge — do not overwrite unrelated tasks.
 
 After writing, briefly confirm what was added and how to trigger it from the Run button.
