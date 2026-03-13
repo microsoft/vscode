@@ -12,6 +12,8 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { TestProfileService } from '../../common/testProfileService.js';
 import { ITestRunProfile, TestRunProfileBitset } from '../../common/testTypes.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IMainThreadTestController } from '../../common/testService.js';
 
 suite('Workbench - TestProfileService', () => {
 	let t: TestProfileService;
@@ -46,7 +48,7 @@ suite('Workbench - TestProfileService', () => {
 			...profile,
 		};
 
-		t.addProfile({ id: 'ctrlId' } as any, p);
+		t.addProfile(upcastPartial<IMainThreadTestController>({ id: 'ctrlId' }), p);
 		return p;
 	};
 

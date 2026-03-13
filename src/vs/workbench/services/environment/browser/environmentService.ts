@@ -70,7 +70,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 			const result: [string, string][] = [];
 			for (const entry of logLevelFromPayload.split(',')) {
 				const matches = EXTENSION_IDENTIFIER_WITH_LOG_REGEX.exec(entry);
-				if (matches && matches[1] && matches[2]) {
+				if (matches?.[1] && matches[2]) {
 					result.push([matches[1], matches[2]]);
 				}
 			}
@@ -237,6 +237,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get disableTelemetry(): boolean { return false; }
 
 	@memoize
+	get disableExperiments(): boolean { return false; }
+
+	@memoize
 	get verbose(): boolean { return this.payload?.get('verbose') === 'true'; }
 
 	@memoize
@@ -250,6 +253,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get disableWorkspaceTrust(): boolean { return !this.options.enableWorkspaceTrust; }
+
+	@memoize
+	get isSessionsWindow(): boolean { return this.payload?.get('isSessionsWindow') === 'true'; }
 
 	@memoize
 	get profile(): string | undefined { return this.payload?.get('profile'); }
@@ -315,6 +321,13 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 						break;
 					case 'inspect-extensions':
 						extensionHostDebugEnvironment.params.port = parseInt(value);
+						break;
+					case 'extensionEnvironment':
+						try {
+							extensionHostDebugEnvironment.params.env = JSON.parse(value);
+						} catch (error) {
+							onUnexpectedError(error);
+						}
 						break;
 					case 'enableProposedApi':
 						extensionHostDebugEnvironment.extensionEnabledProposedApi = [];

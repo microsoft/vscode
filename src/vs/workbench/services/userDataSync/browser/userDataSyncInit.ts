@@ -38,7 +38,7 @@ import { ISecretStorageService } from '../../../../platform/secrets/common/secre
 
 export class UserDataSyncInitializer implements IUserDataInitializer {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly initialized: SyncResource[] = [];
 	private readonly initializationFinished = new Barrier();

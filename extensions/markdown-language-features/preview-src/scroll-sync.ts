@@ -9,18 +9,32 @@ const codeLineClass = 'code-line';
 
 
 export class CodeLineElement {
-	private readonly _detailParentElements: readonly HTMLDetailsElement[];
+	readonly #detailParentElements: readonly HTMLDetailsElement[];
 
 	constructor(
 		readonly element: HTMLElement,
 		readonly line: number,
 		readonly codeElement?: HTMLElement,
 	) {
-		this._detailParentElements = Array.from(getParentsWithTagName<HTMLDetailsElement>(element, 'DETAILS'));
+		this.#detailParentElements = Array.from(getParentsWithTagName<HTMLDetailsElement>(element, 'DETAILS'));
 	}
 
 	get isVisible(): boolean {
-		return !this._detailParentElements.some(x => !x.open);
+		if (this.#detailParentElements.some(x => !x.open)) {
+			return false;
+		}
+
+		const style = window.getComputedStyle(this.element);
+		if (style.display === 'none' || style.visibility === 'hidden') {
+			return false;
+		}
+
+		const bounds = this.element.getBoundingClientRect();
+		if (bounds.height === 0 || bounds.width === 0) {
+			return false;
+		}
+
+		return true;
 	}
 }
 
@@ -156,7 +170,6 @@ export function scrollToRevealSourceLine(line: number, documentVersion: number, 
 		const progressInElement = line - Math.floor(line);
 		scrollTo = previousTop + (rect.height * progressInElement);
 	}
-	scrollTo = Math.abs(scrollTo) < 1 ? Math.sign(scrollTo) : scrollTo;
 	window.scroll(window.scrollX, Math.max(1, window.scrollY + scrollTo));
 }
 

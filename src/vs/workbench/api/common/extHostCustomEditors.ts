@@ -104,8 +104,10 @@ class CustomDocumentStore {
 		return entry;
 	}
 
-	public delete(viewType: string, document: vscode.CustomDocument) {
-		const key = this.key(viewType, document.uri);
+	public delete(viewType: string, resource: vscode.Uri) {
+		// Use the resource parameter directly instead of document.uri, because the document's
+		// URI may have changed (e.g., after SaveAs from untitled to a file path).
+		const key = this.key(viewType, resource);
 		this._documents.delete(key);
 	}
 
@@ -242,7 +244,9 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 
 		const revivedResource = URI.revive(resource);
 		const { document } = this.getCustomDocumentEntry(viewType, revivedResource);
-		this._documents.delete(viewType, document);
+		// Pass the resource we used to look up the document, not document.uri,
+		// because the document's URI may have changed (e.g., after SaveAs).
+		this._documents.delete(viewType, revivedResource);
 		document.dispose();
 	}
 

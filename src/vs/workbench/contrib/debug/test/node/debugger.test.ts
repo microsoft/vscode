@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { join, normalize } from '../../../../../base/common/path.js';
 import * as platform from '../../../../../base/common/platform.js';
-import { IDebugAdapterExecutable, IConfig, IDebugSession, IAdapterManager } from '../../common/debug.js';
+import { IDebugAdapterExecutable, IConfig, IDebugSession, IAdapterManager, IDebuggerContribution } from '../../common/debug.js';
 import { Debugger } from '../../common/debugger.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -15,12 +15,11 @@ import { TestTextResourcePropertiesService } from '../../../../../editor/test/co
 import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from '../../../../../platform/extensions/common/extensions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
-
 suite('Debug - Debugger', () => {
 	let _debugger: Debugger;
 
 	const extensionFolderPath = '/a/b/c/';
-	const debuggerContribution = {
+	const debuggerContribution: IDebuggerContribution = {
 		type: 'mock',
 		label: 'Mock Debug',
 		program: './out/mock/mockDebug.js',
@@ -144,7 +143,7 @@ suite('Debug - Debugger', () => {
 	const testResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
 
 	setup(() => {
-		_debugger = new Debugger(adapterManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!, undefined!, undefined!);
+		_debugger = new Debugger(adapterManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!, undefined!, undefined!, undefined!);
 	});
 
 	teardown(() => {
@@ -157,7 +156,7 @@ suite('Debug - Debugger', () => {
 
 		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor0], 'mock');
 
-		assert.strictEqual(ae!.command, join(extensionFolderPath, debuggerContribution.program));
+		assert.strictEqual(ae!.command, join(extensionFolderPath, debuggerContribution.program!));
 		assert.deepStrictEqual(ae!.args, debuggerContribution.args);
 	});
 

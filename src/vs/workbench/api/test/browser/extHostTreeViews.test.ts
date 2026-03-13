@@ -204,7 +204,7 @@ suite('ExtHostTreeView', function () {
 			});
 	});
 
-	test('error is thrown if id is not unique', (done) => {
+	test('duplicate id across siblings is handled gracefully', (done) => {
 		tree['a'] = {
 			'aa': {},
 		};
@@ -212,7 +212,6 @@ suite('ExtHostTreeView', function () {
 			'aa': {},
 			'ba': {}
 		};
-		let caughtExpectedError = false;
 		store.add(target.onRefresh.event(() => {
 			testObject.$getChildren('testNodeWithIdTreeProvider')
 				.then(elements => {
@@ -220,12 +219,52 @@ suite('ExtHostTreeView', function () {
 					assert.deepStrictEqual(actuals, ['1/a', '1/b']);
 					return testObject.$getChildren('testNodeWithIdTreeProvider', ['1/a'])
 						.then(() => testObject.$getChildren('testNodeWithIdTreeProvider', ['1/b']))
-						.then(() => assert.fail('Should fail with duplicate id'))
-						.catch(() => caughtExpectedError = true)
-						.finally(() => caughtExpectedError ? done() : assert.fail('Expected duplicate id error not thrown.'));
-				});
+						.then(elements => {
+							// Children of 'b' should include both 'aa' and 'ba'
+							const children = unBatchChildren(elements)?.map(e => e.handle);
+							assert.deepStrictEqual(children, ['1/aa', '1/ba']);
+							done();
+						});
+				}).catch(done);
 		}));
 		onDidChangeTreeNode.fire(undefined);
+	});
+
+	test('different element instances with same id are replaced gracefully', async () => {
+		// Simulates the race condition: two concurrent getChildren calls return
+		// different element objects that map to the same tree item ID. The second
+		// call should replace the first's registration without error.
+		let callCount = 0;
+		const element1 = { key: 'x' };
+		const element2 = { key: 'x' };
+
+		const treeView = testObject.createTreeView('testRaceProvider', {
+			treeDataProvider: {
+				getChildren: (): { key: string }[] => {
+					callCount++;
+					// Return a different object instance each time
+					return callCount === 1 ? [element1] : [element2];
+				},
+				getTreeItem: (element: { key: string }): TreeItem => {
+					return { label: { label: element.key }, id: 'same-id', collapsibleState: TreeItemCollapsibleState.None };
+				},
+				onDidChangeTreeData: onDidChangeTreeNode.event,
+			}
+		}, extensionsDescription);
+
+		store.add(treeView);
+
+		// First fetch — registers element1 with id 'same-id'
+		const first = await testObject.$getChildren('testRaceProvider');
+		const firstChildren = unBatchChildren(first);
+		assert.strictEqual(firstChildren?.length, 1);
+		assert.strictEqual(firstChildren![0].handle, '1/same-id');
+
+		// Second fetch — different element instance, same id. Should not throw.
+		const second = await testObject.$getChildren('testRaceProvider');
+		const secondChildren = unBatchChildren(second);
+		assert.strictEqual(secondChildren?.length, 1);
+		assert.strictEqual(secondChildren![0].handle, '1/same-id');
 	});
 
 	test('refresh root', function (done) {
@@ -499,6 +538,30 @@ suite('ExtHostTreeView', function () {
 			});
 	});
 
+	test('dispose and re-register tree view', async () => {
+		const disposeTreeSpy = sinon.spy(target, '$disposeTree');
+		const registerSpy = sinon.spy(target, '$registerTreeViewDataProvider');
+
+		// Create, dispose, and re-register a tree view with the same id
+		const treeView1 = testObject.createTreeView('reRegisterTreeProvider', { treeDataProvider: aNodeTreeDataProvider() }, extensionsDescription);
+		treeView1.dispose();
+		const treeView2 = testObject.createTreeView('reRegisterTreeProvider', { treeDataProvider: aNodeTreeDataProvider() }, extensionsDescription);
+
+		// Let all pending microtasks (the async dispose) settle
+		await new Promise<void>(r => setTimeout(r, 0));
+
+		// The new view should work — $getChildren should return results, not reject
+		const elements = await testObject.$getChildren('reRegisterTreeProvider');
+		assert.deepStrictEqual(unBatchChildren(elements)?.map(e => e.handle), ['0/0:a', '0/0:b']);
+
+		// $registerTreeViewDataProvider should have been called twice (once per createTreeView)
+		assert.strictEqual(registerSpy.callCount, 2);
+		// $disposeTree should NOT have been called — the old async dispose should detect it was replaced
+		assert.strictEqual(disposeTreeSpy.callCount, 0);
+
+		treeView2.dispose();
+	});
+
 	test('reveal will throw an error if getParent is not implemented', () => {
 		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aNodeTreeDataProvider() }, extensionsDescription);
 		return treeView.reveal({ key: 'a' })
@@ -768,7 +831,7 @@ suite('ExtHostTreeView', function () {
 	function getTreeItem(key: string, highlights?: [number, number][]): TreeItem {
 		const treeElement = getTreeElement(key);
 		return {
-			label: <any>{ label: labels[key] || key, highlights },
+			label: { label: labels[key] || key, highlights },
 			collapsibleState: treeElement && Object.keys(treeElement).length ? TreeItemCollapsibleState.Collapsed : TreeItemCollapsibleState.None
 		};
 	}

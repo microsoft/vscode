@@ -23,7 +23,7 @@ class ExtHostEditSessionIdentityCreateParticipant implements IEditSessionIdentit
 	}
 
 	async participate(workspaceFolder: WorkspaceFolder, token: CancellationToken): Promise<void> {
-		const p = new Promise<any>((resolve, reject) => {
+		const p = new Promise<void>((resolve, reject) => {
 
 			setTimeout(
 				() => reject(new Error(localize('timeout.onWillCreateEditSessionIdentity', "Aborted onWillCreateEditSessionIdentity-event after 10000ms"))),

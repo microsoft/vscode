@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
-import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
-import { ExplorerItem } from '../../common/explorerModel.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
-import { ITreeNode, IAsyncDataSource, ITreeFilter, TreeFilterResult } from '../../../../../base/browser/ui/tree/tree.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { TestFileService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { NullFilesConfigurationService } from '../../../../test/common/workbenchTestServices.js';
-import { ExplorerFindProvider, FilesFilter } from '../../browser/views/explorerViewer.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IWorkbenchCompressibleAsyncDataTreeOptions, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
-import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
-import { FuzzyScore } from '../../../../../base/common/filters.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IFileMatch, IFileQuery, ISearchComplete, ISearchService } from '../../../../services/search/common/search.js';
-import { URI } from '../../../../../base/common/uri.js';
 import assert from 'assert';
-import { IExplorerService } from '../../browser/files.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { TreeFindMatchType, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
+import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
+import { ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
+import { IAsyncDataSource, ITreeFilter, ITreeNode, TreeFilterResult } from '../../../../../base/browser/ui/tree/tree.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { FuzzyScore } from '../../../../../base/common/filters.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IWorkbenchCompressibleAsyncDataTreeOptions, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
+import { IFileMatch, IFileQuery, ISearchComplete, ISearchService } from '../../../../services/search/common/search.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
+import { IExplorerService } from '../../browser/files.js';
+import { ExplorerFindProvider, FilesFilter } from '../../browser/views/explorerViewer.js';
+import { ExplorerItem } from '../../common/explorerModel.js';
 
 function find(element: ExplorerItem, id: string): ExplorerItem | undefined {
 	if (element.name === id) {

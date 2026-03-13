@@ -127,6 +127,7 @@ suite('Decorators', () => {
 		assert.strictEqual(foo.answer, 42);
 
 		try {
+			// eslint-disable-next-line local/code-no-any-casts
 			(foo as any)['$memoize$answer'] = 1337;
 			assert(false);
 		} catch (e) {

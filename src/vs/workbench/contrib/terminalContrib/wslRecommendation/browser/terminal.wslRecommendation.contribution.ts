@@ -66,7 +66,6 @@ export class TerminalWslRecommendationContribution extends Disposable implements
 					}
 				],
 				{
-					sticky: true,
 					priority: NotificationPriority.OPTIONAL,
 					neverShowAgain: { id: 'terminalConfigHelper/launchRecommendationsIgnore', scope: NeverShowAgainScope.APPLICATION },
 					onCancel: () => { }

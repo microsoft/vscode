@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { readUnifiedConfig, unifiedConfigSection } from '../utils/configuration';
 import { Command } from './commandManager';
+
+export const tsNativeExtensionId = 'typescriptteam.native-preview';
 
 export class EnableTsgoCommand implements Command {
 	public readonly id = 'typescript.experimental.enableTsgo';
@@ -27,7 +30,7 @@ export class DisableTsgoCommand implements Command {
  * @param enable Whether to enable or disable TypeScript Go
  */
 async function updateTsgoSetting(enable: boolean): Promise<void> {
-	const tsgoExtension = vscode.extensions.getExtension('typescript.typescript-lsp');
+	const tsgoExtension = vscode.extensions.getExtension(tsNativeExtensionId);
 	// Error if the TypeScript Go extension is not installed with a button to open the GitHub repo
 	if (!tsgoExtension) {
 		const selection = await vscode.window.showErrorMessage(
@@ -43,18 +46,19 @@ async function updateTsgoSetting(enable: boolean): Promise<void> {
 		}
 	}
 
-	const tsConfig = vscode.workspace.getConfiguration('typescript');
-	const currentValue = tsConfig.get<boolean>('experimental.useTsgo', false);
+	const currentValue = readUnifiedConfig<boolean>('experimental.useTsgo', false, { fallbackSection: 'typescript' });
 	if (currentValue === enable) {
 		return;
 	}
 
 	// Determine the target scope for the configuration update
 	let target = vscode.ConfigurationTarget.Global;
-	const inspect = tsConfig.inspect<boolean>('experimental.useTsgo');
-	if (inspect?.workspaceValue !== undefined) {
+	const unifiedConfig = vscode.workspace.getConfiguration(unifiedConfigSection);
+	const inspect = unifiedConfig.inspect<boolean>('experimental.useTsgo');
+	const legacyInspect = vscode.workspace.getConfiguration('typescript').inspect<boolean>('experimental.useTsgo');
+	if (inspect?.workspaceValue !== undefined || legacyInspect?.workspaceValue !== undefined) {
 		target = vscode.ConfigurationTarget.Workspace;
-	} else if (inspect?.workspaceFolderValue !== undefined) {
+	} else if (inspect?.workspaceFolderValue !== undefined || legacyInspect?.workspaceFolderValue !== undefined) {
 		target = vscode.ConfigurationTarget.WorkspaceFolder;
 	} else {
 		// If setting is not defined yet, use the same scope as typescript-go.executablePath
@@ -68,7 +72,5 @@ async function updateTsgoSetting(enable: boolean): Promise<void> {
 		}
 	}
 
-	// Update the setting, restart the extension host, and enable the TypeScript Go extension
-	await tsConfig.update('experimental.useTsgo', enable, target);
-	await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
+	await unifiedConfig.update('experimental.useTsgo', enable, target);
 }

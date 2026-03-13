@@ -59,6 +59,10 @@
 	box-shadow: var(--vscode-scrollbar-shadow) 6px 0 6px -6px inset;
 }
 
+.monaco-scrollable-element > .scrollbar {
+	background: var(--vscode-scrollbar-background);
+}
+
 .monaco-scrollable-element > .scrollbar > .slider {
 	background: var(--vscode-scrollbarSlider-background);
 }

@@ -222,4 +222,24 @@ suite('CodeEditorWidget', () => {
 		});
 	});
 
+	test('getBottomForLineNumber should handle invalid line numbers gracefully', () => {
+		withTestCodeEditor('line1\nline2\nline3', {}, (editor, viewModel) => {
+			// Test with lineNumber greater than line count
+			const result1 = editor.getBottomForLineNumber(100);
+			assert.ok(result1 >= 0, 'Should return a valid position for out-of-bounds line number');
+
+			// Test with lineNumber less than 1
+			const result2 = editor.getBottomForLineNumber(0);
+			assert.ok(result2 >= 0, 'Should return a valid position for line number 0');
+
+			// Test with negative lineNumber
+			const result3 = editor.getBottomForLineNumber(-5);
+			assert.ok(result3 >= 0, 'Should return a valid position for negative line number');
+
+			// Test with valid lineNumber should still work
+			const result4 = editor.getBottomForLineNumber(2);
+			assert.ok(result4 > 0, 'Should return a valid position for valid line number');
+		});
+	});
+
 });

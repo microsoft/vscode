@@ -108,22 +108,20 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 			_corruptedFile: languagePackCorruptMarkerFile
 		};
 
-		if (await Promises.exists(commitLanguagePackCachePath)) {
+		if (await Promises.exists(languagePackMessagesFile)) {
 			touch(commitLanguagePackCachePath).catch(() => { }); // We don't wait for this. No big harm if we can't touch
 			mark('code/didGenerateNls');
 			return result;
 		}
 
 		const [
-			,
 			nlsDefaultKeys,
 			nlsDefaultMessages,
 			nlsPackdata
 		]:
-			[unknown, Array<[string, string[]]>, string[], { contents: Record<string, Record<string, string>> }]
-			//               ^moduleId ^nlsKeys                               ^moduleId      ^nlsKey ^nlsValue
+			[Array<[string, string[]]>, string[], { contents: Record<string, Record<string, string>> }]
+			//      ^moduleId ^nlsKeys                               ^moduleId      ^nlsKey ^nlsValue
 			= await Promise.all([
-				promises.mkdir(commitLanguagePackCachePath, { recursive: true }),
 				promises.readFile(join(nlsMetadataPath, 'nls.keys.json'), 'utf-8').then(content => JSON.parse(content)),
 				promises.readFile(join(nlsMetadataPath, 'nls.messages.json'), 'utf-8').then(content => JSON.parse(content)),
 				promises.readFile(mainLanguagePackPath, 'utf-8').then(content => JSON.parse(content)),
@@ -144,6 +142,8 @@ export async function resolveNLSConfiguration({ userLocale, osLocale, userDataPa
 				nlsIndex++;
 			}
 		}
+
+		await promises.mkdir(commitLanguagePackCachePath, { recursive: true });
 
 		await Promise.all([
 			promises.writeFile(languagePackMessagesFile, JSON.stringify(nlsResult), 'utf-8'),

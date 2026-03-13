@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { IME } from '../../../base/common/ime.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { Keybinding, ResolvedChord, ResolvedKeybinding, SingleModifierChord } from '../../../base/common/keybindings.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 
 import { ICommandService } from '../../commands/common/commands.js';
@@ -89,7 +89,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	public abstract resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
 	public abstract resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
 	public abstract resolveUserBinding(userBinding: string): ResolvedKeybinding[];
-	public abstract registerSchemaContribution(contribution: KeybindingsSchemaContribution): void;
+	public abstract registerSchemaContribution(contribution: KeybindingsSchemaContribution): IDisposable;
 	public abstract _dumpDebugInfo(): string;
 	public abstract _dumpDebugInfoJSON(): string;
 
@@ -399,6 +399,20 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			return true;
 		}
 		return false;
+	}
+
+	public appendKeybinding(label: string, commandId: string | undefined | null, context?: IContextKeyService, enforceContextCheck?: boolean): string {
+		if (commandId) {
+			const keybindingLabel = this.lookupKeybinding(commandId, context, enforceContextCheck)?.getLabel();
+			if (keybindingLabel) {
+				return nls.localize(
+					{ key: 'keybindingLabel', comment: ['UI element label', 'A keybinding label'] },
+					"{0} ({1})",
+					label,
+					keybindingLabel);
+			}
+		}
+		return label;
 	}
 }
 

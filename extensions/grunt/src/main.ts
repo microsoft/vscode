@@ -120,7 +120,7 @@ class FolderDetector {
 	}
 
 	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
-		const taskDefinition = <any>_task.definition;
+		const taskDefinition = _task.definition;
 		const gruntTask = taskDefinition.task;
 		if (gruntTask) {
 			const options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };

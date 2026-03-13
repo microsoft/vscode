@@ -7,9 +7,9 @@ import * as eslint from 'eslint';
 import { TSESTree } from '@typescript-eslint/utils';
 import * as path from 'path';
 import minimatch from 'minimatch';
-import { createImportRuleListener } from './utils';
+import { createImportRuleListener } from './utils.ts';
 
-const REPO_ROOT = path.normalize(path.join(__dirname, '../'));
+const REPO_ROOT = path.normalize(path.join(import.meta.dirname, '../'));
 
 interface ConditionalPattern {
 	when?: 'hasBrowser' | 'hasNode' | 'hasElectron' | 'test';
@@ -18,7 +18,7 @@ interface ConditionalPattern {
 
 interface RawImportPatternsConfig {
 	target: string;
-	layer?: 'common' | 'worker' | 'browser' | 'electron-sandbox' | 'node' | 'electron-utility' | 'electron-main';
+	layer?: 'common' | 'worker' | 'browser' | 'electron-browser' | 'node' | 'electron-utility' | 'electron-main';
 	test?: boolean;
 	restrictions: string | (string | ConditionalPattern)[];
 }
@@ -31,7 +31,7 @@ interface LayerAllowRule {
 type RawOption = RawImportPatternsConfig | LayerAllowRule;
 
 function isLayerAllowRule(option: RawOption): option is LayerAllowRule {
-	return !!((<LayerAllowRule>option).when && (<LayerAllowRule>option).allow);
+	return !!((option as LayerAllowRule).when && (option as LayerAllowRule).allow);
 }
 
 interface ImportPatternsConfig {
@@ -39,7 +39,7 @@ interface ImportPatternsConfig {
 	restrictions: string[];
 }
 
-export = new class implements eslint.Rule.RuleModule {
+export default new class implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
@@ -55,7 +55,7 @@ export = new class implements eslint.Rule.RuleModule {
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		const options = <RawOption[]>context.options;
+		const options = context.options as RawOption[];
 		const configs = this._processOptions(options);
 		const relativeFilename = getRelativeFilename(context);
 
@@ -80,7 +80,7 @@ export = new class implements eslint.Rule.RuleModule {
 			return this._optionsCache.get(options)!;
 		}
 
-		type Layer = 'common' | 'worker' | 'browser' | 'electron-sandbox' | 'node' | 'electron-utility' | 'electron-main';
+		type Layer = 'common' | 'worker' | 'browser' | 'electron-browser' | 'node' | 'electron-utility' | 'electron-main';
 
 		interface ILayerRule {
 			layer: Layer;
@@ -98,7 +98,7 @@ export = new class implements eslint.Rule.RuleModule {
 			{ layer: 'common', deps: orSegment(['common']) },
 			{ layer: 'worker', deps: orSegment(['common', 'worker']) },
 			{ layer: 'browser', deps: orSegment(['common', 'browser']), isBrowser: true },
-			{ layer: 'electron-sandbox', deps: orSegment(['common', 'browser', 'electron-sandbox']), isBrowser: true },
+			{ layer: 'electron-browser', deps: orSegment(['common', 'browser', 'electron-browser']), isBrowser: true },
 			{ layer: 'node', deps: orSegment(['common', 'node']), isNode: true },
 			{ layer: 'electron-utility', deps: orSegment(['common', 'node', 'electron-utility']), isNode: true, isElectron: true },
 			{ layer: 'electron-main', deps: orSegment(['common', 'node', 'electron-utility', 'electron-main']), isNode: true, isElectron: true },
@@ -217,7 +217,7 @@ export = new class implements eslint.Rule.RuleModule {
 					configs.push(testConfig);
 				}
 			} else {
-				configs.push({ target, restrictions: <string[]>restrictions.filter(r => typeof r === 'string') });
+				configs.push({ target, restrictions: restrictions.filter(r => typeof r === 'string') as string[] });
 			}
 		}
 		this._optionsCache.set(options, configs);

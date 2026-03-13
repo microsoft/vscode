@@ -27,7 +27,7 @@ export interface DOMEventMap extends HTMLElementEventMap, DocumentEventMap, Wind
 
 export class DomEmitter<K extends keyof DOMEventMap> implements IDisposable {
 
-	private emitter: Emitter<DOMEventMap[K]>;
+	private readonly emitter: Emitter<DOMEventMap[K]>;
 
 	get event(): BaseEvent<DOMEventMap[K]> {
 		return this.emitter.event;

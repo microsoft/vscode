@@ -10,7 +10,6 @@ export const enum ExtensionGalleryResourceType {
 	ExtensionQueryService = 'ExtensionQueryService',
 	ExtensionLatestVersionUri = 'ExtensionLatestVersionUriTemplate',
 	ExtensionStatisticsUri = 'ExtensionStatisticsUriTemplate',
-	WebExtensionStatisticsUri = 'WebExtensionStatisticsUriTemplate',
 	PublisherViewUri = 'PublisherViewUriTemplate',
 	ExtensionDetailsViewUri = 'ExtensionDetailsViewUriTemplate',
 	ExtensionRatingViewUri = 'ExtensionRatingViewUriTemplate',
@@ -65,13 +64,21 @@ export interface IExtensionGalleryManifest {
 	};
 }
 
+export const enum ExtensionGalleryManifestStatus {
+	Available = 'available',
+	RequiresSignIn = 'requiresSignIn',
+	AccessDenied = 'accessDenied',
+	Unavailable = 'unavailable'
+}
+
 export const IExtensionGalleryManifestService = createDecorator<IExtensionGalleryManifestService>('IExtensionGalleryManifestService');
 
 export interface IExtensionGalleryManifestService {
 	readonly _serviceBrand: undefined;
 
+	readonly extensionGalleryManifestStatus: ExtensionGalleryManifestStatus;
+	readonly onDidChangeExtensionGalleryManifestStatus: Event<ExtensionGalleryManifestStatus>;
 	readonly onDidChangeExtensionGalleryManifest: Event<IExtensionGalleryManifest | null>;
-	isEnabled(): boolean;
 	getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null>;
 }
 

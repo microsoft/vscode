@@ -24,6 +24,7 @@ function getMockTheme(type: ColorScheme): IColorTheme {
 		defines: () => true,
 		getTokenStyleMetadata: () => undefined,
 		tokenColorMap: [],
+		tokenFontMap: [],
 		semanticHighlighting: false
 	};
 	return theme;

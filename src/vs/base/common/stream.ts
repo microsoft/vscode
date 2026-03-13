@@ -331,14 +331,14 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 	on(event: 'data', callback: (data: T) => void): void;
 	on(event: 'error', callback: (err: Error) => void): void;
 	on(event: 'end', callback: () => void): void;
-	on(event: 'data' | 'error' | 'end', callback: (arg0?: any) => void): void {
+	on(event: 'data' | 'error' | 'end', callback: ((data: T) => void) | ((err: Error) => void) | (() => void)): void {
 		if (this.state.destroyed) {
 			return;
 		}
 
 		switch (event) {
 			case 'data':
-				this.listeners.data.push(callback);
+				this.listeners.data.push(callback as (data: T) => void);
 
 				// switch into flowing mode as soon as the first 'data'
 				// listener is added and we are not yet in flowing mode
@@ -347,7 +347,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 				break;
 
 			case 'end':
-				this.listeners.end.push(callback);
+				this.listeners.end.push(callback as () => void);
 
 				// emit 'end' event directly if we are flowing
 				// and the end has already been reached
@@ -360,7 +360,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 				break;
 
 			case 'error':
-				this.listeners.error.push(callback);
+				this.listeners.error.push(callback as (err: Error) => void);
 
 				// emit buffered 'error' events unless done already
 				// now that we know that we have at least one listener

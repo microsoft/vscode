@@ -24,7 +24,7 @@ import { VIEWPANE_FILTER_ACTION } from './parts/views/viewPane.js';
 import { IBoundarySashes } from '../../base/browser/ui/sash/sash.js';
 import { IBaseActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 
-export abstract class PaneComposite extends Composite implements IPaneComposite {
+export abstract class PaneComposite<MementoType extends object = object> extends Composite<MementoType> implements IPaneComposite {
 
 	private viewPaneContainer?: ViewPaneContainer;
 
@@ -193,6 +193,7 @@ export const Extensions = {
 	Viewlets: 'workbench.contributions.viewlets',
 	Panels: 'workbench.contributions.panels',
 	Auxiliary: 'workbench.contributions.auxiliary',
+	ChatBar: 'workbench.contributions.chatbar',
 };
 
 export class PaneCompositeRegistry extends CompositeRegistry<PaneComposite> {
@@ -229,3 +230,4 @@ export class PaneCompositeRegistry extends CompositeRegistry<PaneComposite> {
 Registry.add(Extensions.Viewlets, new PaneCompositeRegistry());
 Registry.add(Extensions.Panels, new PaneCompositeRegistry());
 Registry.add(Extensions.Auxiliary, new PaneCompositeRegistry());
+Registry.add(Extensions.ChatBar, new PaneCompositeRegistry());

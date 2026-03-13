@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { MenuWorkbenchToolBar, HiddenItemStrategy } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -13,7 +14,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { CellEditState, INotebookEditor } from '../../../../notebook/browser/notebookBrowser.js';
 import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
 import { CellKind } from '../../../../notebook/common/notebookCommon.js';
-import { IModifiedFileEntryChangeHunk } from '../../../common/chatEditingService.js';
+import { IModifiedFileEntryChangeHunk } from '../../../common/editing/chatEditingService.js';
 import { ICellDiffInfo } from './notebookCellChanges.js';
 
 
@@ -120,6 +121,16 @@ export class OverlayToolbarDecorator extends Disposable {
 						}
 					} satisfies IModifiedFileEntryChangeHunk,
 				},
+				actionViewItemProvider: (action, options) => {
+					if (!action.class) {
+						return new class extends ActionViewItem {
+							constructor() {
+								super(undefined, action, { ...options, keybindingNotRenderedWithLabel: true /* hide keybinding for actions without icon */, icon: false, label: true });
+							}
+						};
+					}
+					return undefined;
+				}
 			});
 
 			this.overlayDisposables.add(toolbarWidget);

@@ -29,5 +29,11 @@ suite('Lazy', () => {
 		assert.throws(() => value.value, /\b1\b/);
 	});
 
+	test('Should throw when accessing lazy value in initializer', () => {
+		const value = new Lazy<string>((): string => { return value.value; });
+
+		assert.throws(() => value.value, /Cannot read the value of a lazy that is being initialized/);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

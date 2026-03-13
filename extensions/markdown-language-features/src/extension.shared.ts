@@ -21,6 +21,7 @@ import { ExtensionContentSecurityPolicyArbiter } from './preview/security';
 import { loadDefaultTelemetryReporter } from './telemetryReporter';
 import { MdLinkOpener } from './util/openDocumentLink';
 import { registerUpdatePastedLinks } from './languageFeatures/updateLinksOnPaste';
+import { markdownLanguageIds } from './util/file';
 
 export function activateShared(
 	context: vscode.ExtensionContext,
@@ -54,7 +55,7 @@ function registerMarkdownLanguageFeatures(
 	commandManager: CommandManager,
 	parser: IMdParser,
 ): vscode.Disposable {
-	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
+	const selector: vscode.DocumentSelector = markdownLanguageIds;
 	return vscode.Disposable.from(
 		// Language features
 		registerDiagnosticSupport(selector, commandManager),

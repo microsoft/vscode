@@ -161,7 +161,9 @@ suite('NotebookKernel', function () {
 
 		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
 
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (<any>kernel).id = 'dd');
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.throws(() => (<any>kernel).notebookType = 'dd');
 
 		assert.ok(kernel);

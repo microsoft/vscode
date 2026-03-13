@@ -8,7 +8,7 @@ import { GettingStartedInputSerializer, GettingStartedPage, inWelcomeContext } f
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -19,8 +19,8 @@ import { IWalkthroughsService } from './gettingStartedService.js';
 import { GettingStartedEditorOptions, GettingStartedInput } from './gettingStartedInput.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
@@ -28,11 +28,12 @@ import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from '../../..
 import { IExtensionManagementServerService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { StartupPageEditorResolverContribution, StartupPageRunnerContribution } from './startupPage.js';
-import { ExtensionsInput } from '../../extensions/common/extensionsInput.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { GettingStartedAccessibleView } from './gettingStartedAccessibleView.js';
+import { AgentSessionsWelcomePage } from '../../welcomeAgentSessions/browser/agentSessionsWelcome.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 
 export * as icons from './gettingStartedIcons.js';
 
@@ -59,92 +60,55 @@ registerAction2(class extends Action2 {
 		walkthroughID: string | { category: string; step: string } | undefined,
 		optionsOrToSide: { toSide?: boolean; inactive?: boolean } | boolean | undefined
 	) {
-		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const instantiationService = accessor.get(IInstantiationService);
 		const editorService = accessor.get(IEditorService);
 		const commandService = accessor.get(ICommandService);
+		const configurationService = accessor.get(IConfigurationService);
+		const chatEntitlementService = accessor.get(IChatEntitlementService);
 
 		const toSide = typeof optionsOrToSide === 'object' ? optionsOrToSide.toSide : optionsOrToSide;
 		const inactive = typeof optionsOrToSide === 'object' ? optionsOrToSide.inactive : false;
+		const activeEditor = editorService.activeEditor;
 
-		if (walkthroughID) {
-			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
-			let selectedStep: string | undefined;
-			if (typeof walkthroughID === 'object' && 'category' in walkthroughID && 'step' in walkthroughID) {
-				selectedStep = `${walkthroughID.category}#${walkthroughID.step}`;
-			} else {
-				selectedStep = undefined;
-			}
+		// If no specific walkthrough is requested and agent sessions welcome is preferred, open that instead
+		if (!walkthroughID && !chatEntitlementService.sentiment.hidden && configurationService.getValue<string>('workbench.startupEditor') === 'agentSessionsWelcomePage') {
+			commandService.executeCommand(AgentSessionsWelcomePage.COMMAND_ID);
+			return;
+		} else {
+			if (walkthroughID) {
+				const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
+				let selectedStep: string | undefined;
+				if (typeof walkthroughID === 'object' && 'category' in walkthroughID && 'step' in walkthroughID) {
+					selectedStep = `${walkthroughID.category}#${walkthroughID.step}`;
+				} else {
+					selectedStep = undefined;
+				}
 
-			// We're trying to open the welcome page from the Help menu
-			if (!selectedCategory && !selectedStep) {
-				editorService.openEditor({
-					resource: GettingStartedInput.RESOURCE,
-					options: { preserveFocus: toSide ?? false, inactive, forceReload: true }
-				}, toSide ? SIDE_GROUP : undefined);
-				return;
-			}
-
-			// Try first to select the walkthrough on an active welcome page with no selected walkthrough
-			for (const group of editorGroupsService.groups) {
-				if (group.activeEditor instanceof GettingStartedInput) {
-					const activeEditor = group.activeEditor as GettingStartedInput;
+				// If the walkthrough is already open just reveal the step
+				if (selectedStep && activeEditor instanceof GettingStartedInput && activeEditor.selectedCategory === selectedCategory) {
 					activeEditor.showWelcome = false;
-					if (activeEditor.selectedCategory && activeEditor.selectedStep) {
-						// currently in a walkthrough.
-						return;
-					}
-					(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
+					commandService.executeCommand('walkthroughs.selectStep', selectedStep);
 					return;
 				}
-			}
 
-			// Otherwise, try to find a welcome input somewhere with no selected walkthrough, and open it to this one.
-			const result = editorService.findEditors({ typeId: GettingStartedInput.ID, editorId: undefined, resource: GettingStartedInput.RESOURCE });
-			for (const { editor, groupId } of result) {
-				if (editor instanceof GettingStartedInput) {
-					const group = editorGroupsService.getGroup(groupId);
-					if (!editor.selectedCategory && group) {
-						editor.selectedCategory = selectedCategory;
-						editor.selectedStep = selectedStep;
-						editor.showWelcome = false;
-						group.openEditor(editor, { revealIfOpened: true, inactive });
-						return;
-					}
+				let options: GettingStartedEditorOptions;
+				if (selectedCategory) {
+					// Otherwise open the walkthrough editor with the selected category and step
+					options = { selectedCategory, selectedStep, showWelcome: false, preserveFocus: toSide ?? false, inactive };
+				} else {
+					// Open Welcome page
+					options = { selectedCategory, selectedStep, showWelcome: true, preserveFocus: toSide ?? false, inactive };
 				}
-			}
-
-			const activeEditor = editorService.activeEditor;
-			// If the walkthrough is already open just reveal the step
-			if (selectedStep && activeEditor instanceof GettingStartedInput && activeEditor.selectedCategory === selectedCategory) {
-				activeEditor.showWelcome = false;
-				commandService.executeCommand('walkthroughs.selectStep', selectedStep);
-				return;
-			}
-
-			// If it's the extension install page then lets replace it with the getting started page
-			if (activeEditor instanceof ExtensionsInput) {
-				const activeGroup = editorGroupsService.activeGroup;
-				activeGroup.replaceEditors([{
-					editor: activeEditor,
-					replacement: instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: false })
-				}]);
-			} else {
-				// else open respecting toSide
-				const options: GettingStartedEditorOptions = { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: false, preserveFocus: toSide ?? false, inactive };
 				editorService.openEditor({
 					resource: GettingStartedInput.RESOURCE,
 					options
-				}, toSide ? SIDE_GROUP : undefined).then((editor) => {
-					(editor as GettingStartedPage)?.makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
-				});
+				}, toSide ? SIDE_GROUP : undefined);
 
+			} else {
+				editorService.openEditor({
+					resource: GettingStartedInput.RESOURCE,
+					options: { preserveFocus: toSide ?? false, inactive }
+				}, toSide ? SIDE_GROUP : undefined);
 			}
-		} else {
-			editorService.openEditor({
-				resource: GettingStartedInput.RESOURCE,
-				options: { preserveFocus: toSide ?? false, inactive }
-			}, toSide ? SIDE_GROUP : undefined);
 		}
 	}
 });
@@ -295,27 +259,6 @@ registerAction2(class extends Action2 {
 	}
 });
 
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'welcome.showNewWelcome',
-			title: localize2('welcome.showNewWelcome', 'Open New Welcome Experience'),
-			f1: true,
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const editorService = accessor.get(IEditorService);
-		const options: GettingStartedEditorOptions = { selectedCategory: 'NewWelcomeExperience', forceReload: true, showTelemetryNotice: true };
-
-		editorService.openEditor({
-			resource: GettingStartedInput.RESOURCE,
-			options
-		});
-	}
-});
-
 CommandsRegistry.registerCommand({
 	id: 'welcome.newWorkspaceChat',
 	handler: (accessor, stepID: string) => {
@@ -374,7 +317,7 @@ configurationRegistry.registerConfiguration({
 		'workbench.startupEditor': {
 			'scope': ConfigurationScope.RESOURCE,
 			'type': 'string',
-			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench', 'terminal'],
+			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench', 'terminal', 'agentSessionsWelcomePage'],
 			'enumDescriptions': [
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page, with content to aid in getting started with VS Code and extensions."),
@@ -382,9 +325,11 @@ configurationRegistry.registerConfiguration({
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled text file (only applies when opening an empty window)."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.terminal' }, "Open a new terminal in the editor area."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.agentSessionsWelcomePage' }, "Open the Agent Sessions Welcome page. Will override the workbench secondary side bar visibility settings."),
 			],
 			'default': 'welcomePage',
-			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
+			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session."),
+			'experiment': { mode: 'auto' }
 		},
 		'workbench.welcomePage.preferReducedMotion': {
 			scope: ConfigurationScope.APPLICATION,

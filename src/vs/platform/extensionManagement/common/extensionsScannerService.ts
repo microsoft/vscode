@@ -352,6 +352,14 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 
 	private dedupExtensions(system: IScannedExtension[] | undefined, user: IScannedExtension[] | undefined, development: IScannedExtension[] | undefined, targetPlatform: TargetPlatform, pickLatest: boolean): IScannedExtension[] {
 		const pick = (existing: IScannedExtension, extension: IScannedExtension, isDevelopment: boolean): boolean => {
+			if (!isDevelopment) {
+				if (existing.metadata?.isApplicationScoped && !extension.metadata?.isApplicationScoped) {
+					return false;
+				}
+				if (!existing.metadata?.isApplicationScoped && extension.metadata?.isApplicationScoped) {
+					return true;
+				}
+			}
 			if (existing.isValid && !extension.isValid) {
 				return false;
 			}
@@ -950,7 +958,9 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 			const extensionCacheData: IExtensionCacheData = JSON.parse(cacheRawContents.value.toString());
 			return { result: extensionCacheData.result, input: revive(extensionCacheData.input) };
 		} catch (error) {
-			this.logService.debug('Error while reading the extension cache file:', cacheFile.path, getErrorMessage(error));
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.debug('Error while reading the extension cache file:', cacheFile.path, getErrorMessage(error));
+			}
 		}
 		return null;
 	}

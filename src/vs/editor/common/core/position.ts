@@ -167,11 +167,11 @@ export class Position {
 	/**
 	 * Test if `obj` is an `IPosition`.
 	 */
-	public static isIPosition(obj: any): obj is IPosition {
+	public static isIPosition(obj: unknown): obj is IPosition {
 		return (
-			obj
-			&& (typeof obj.lineNumber === 'number')
-			&& (typeof obj.column === 'number')
+			!!obj
+			&& (typeof (obj as IPosition).lineNumber === 'number')
+			&& (typeof (obj as IPosition).column === 'number')
 		);
 	}
 

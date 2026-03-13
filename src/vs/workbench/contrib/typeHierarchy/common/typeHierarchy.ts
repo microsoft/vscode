@@ -156,7 +156,7 @@ CommandsRegistry.registerCommand('_executePrepareTypeHierarchy', async (accessor
 	}
 });
 
-function isTypeHierarchyItemDto(obj: any): obj is TypeHierarchyItem {
+function isTypeHierarchyItemDto(obj: unknown): obj is TypeHierarchyItem {
 	const item = obj as TypeHierarchyItem;
 	return typeof obj === 'object'
 		&& typeof item.name === 'string'

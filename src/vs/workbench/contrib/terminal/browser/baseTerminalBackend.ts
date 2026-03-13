@@ -6,6 +6,7 @@
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isNumber, isObject } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ICrossVersionSerializedTerminalState, IPtyHostController, ISerializedTerminalState, ITerminalLogService } from '../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -105,20 +106,27 @@ export abstract class BaseTerminalBackend extends Disposable {
 		if (serializedState === undefined) {
 			return undefined;
 		}
-		const parsedUnknown = JSON.parse(serializedState);
-		if (!('version' in parsedUnknown) || !('state' in parsedUnknown) || !Array.isArray(parsedUnknown.state)) {
-			this._logService.warn('Could not revive serialized processes, wrong format', parsedUnknown);
+		const crossVersionState = JSON.parse(serializedState) as unknown;
+		if (!isCrossVersionSerializedTerminalState(crossVersionState)) {
+			this._logService.warn('Could not revive serialized processes, wrong format', crossVersionState);
 			return undefined;
 		}
-		const parsedCrossVersion = parsedUnknown as ICrossVersionSerializedTerminalState;
-		if (parsedCrossVersion.version !== 1) {
-			this._logService.warn(`Could not revive serialized processes, wrong version "${parsedCrossVersion.version}"`, parsedCrossVersion);
+		if (crossVersionState.version !== 1) {
+			this._logService.warn(`Could not revive serialized processes, wrong version "${crossVersionState.version}"`, crossVersionState);
 			return undefined;
 		}
-		return parsedCrossVersion.state as ISerializedTerminalState[];
+		return crossVersionState.state as ISerializedTerminalState[];
 	}
 
 	protected _getWorkspaceId(): string {
 		return this._workspaceContextService.getWorkspace().id;
 	}
+}
+
+function isCrossVersionSerializedTerminalState(obj: unknown): obj is ICrossVersionSerializedTerminalState {
+	return (
+		isObject(obj) &&
+		'version' in obj && isNumber(obj.version) &&
+		'state' in obj && Array.isArray(obj.state)
+	);
 }

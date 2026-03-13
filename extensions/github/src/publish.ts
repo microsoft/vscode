@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { API as GitAPI, Repository } from './typings/git.js';
+import type { API as GitAPI, Repository } from './typings/git.d.ts';
 import { getOctokit } from './auth.js';
 import { TextEncoder } from 'util';
 import { basename } from 'path';
@@ -99,8 +99,13 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		if (repo) {
 			try {
 				quickpick.busy = true;
-				await octokit.repos.get({ owner, repo: repo });
-				quickpick.items = [{ label: `$(error) GitHub repository already exists`, description: `$(github) ${owner}/${repo}`, alwaysShow: true }];
+				const fullName = `${owner}/${repo}`;
+				const result = await octokit.repos.get({ owner, repo: repo });
+				if (result.data.full_name.toLowerCase() !== fullName.toLowerCase()) {
+					// Repository has moved permanently due to it being renamed
+					break;
+				}
+				quickpick.items = [{ label: `$(error) GitHub repository already exists`, description: `$(github) ${fullName}`, alwaysShow: true }];
 			} catch {
 				break;
 			} finally {

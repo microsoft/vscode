@@ -51,7 +51,7 @@ suite('terminalUri', () => {
 			strictEqual(
 				getInstanceFromResource([
 					{ resource: getTerminalUri('workspace', 2, 'title') }
-				], getTerminalUri('workspace', 1)),
+				], getTerminalUri('workspace', 1, 'title')),
 				undefined
 			);
 		});
@@ -62,7 +62,7 @@ suite('terminalUri', () => {
 					{ resource: getTerminalUri('workspace', 1, 'title') },
 					instance,
 					{ resource: getTerminalUri('workspace', 3, 'title') }
-				], getTerminalUri('workspace', 2)),
+				], getTerminalUri('workspace', 2, 'title')),
 				instance
 			);
 		});

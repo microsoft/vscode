@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const ttPolicy = (typeof window !== 'undefined') ?
-	window.trustedTypes?.createPolicy('notebookRenderer', {
-		createHTML: value => value,
-		createScript: value => value,
+	(window as Window & { trustedTypes?: any }).trustedTypes?.createPolicy('notebookRenderer', {
+		createHTML: (value: string) => value,
+		createScript: (value: string) => value,
 	}) : undefined;

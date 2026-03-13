@@ -58,6 +58,7 @@ export interface IDialogOptions {
 	readonly disableCloseAction?: boolean;
 	readonly disableCloseButton?: boolean;
 	readonly disableDefaultAction?: boolean;
+	readonly onVisibilityChange?: (window: Window, visible: boolean) => void;
 	readonly buttonStyles: IButtonStyles;
 	readonly checkboxStyles: ICheckboxStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
@@ -136,6 +137,7 @@ export class Dialog extends Disposable {
 			const customFooter = this.footerContainer.appendChild($('#monaco-dialog-footer.dialog-footer'));
 			this.options.renderFooter(customFooter);
 
+			// eslint-disable-next-line no-restricted-syntax
 			for (const el of this.footerContainer.querySelectorAll('a')) {
 				el.tabIndex = 0;
 			}
@@ -177,6 +179,7 @@ export class Dialog extends Disposable {
 			const customBody = this.messageContainer.appendChild($('#monaco-dialog-message-body.dialog-message-body'));
 			this.options.renderBody(customBody);
 
+			// eslint-disable-next-line no-restricted-syntax
 			for (const el of this.messageContainer.querySelectorAll('a')) {
 				el.tabIndex = 0;
 			}
@@ -378,6 +381,7 @@ export class Dialog extends Disposable {
 					let focusedIndex = -1;
 
 					if (this.messageContainer) {
+						// eslint-disable-next-line no-restricted-syntax
 						const links = this.messageContainer.querySelectorAll('a');
 						for (const link of links) {
 							focusableElements.push(link);
@@ -422,6 +426,7 @@ export class Dialog extends Disposable {
 					}
 
 					if (this.footerContainer) {
+						// eslint-disable-next-line no-restricted-syntax
 						const links = this.footerContainer.querySelectorAll('a');
 						for (const link of links) {
 							focusableElements.push(link);
@@ -532,6 +537,10 @@ export class Dialog extends Disposable {
 			this.element.setAttribute('aria-describedby', 'monaco-dialog-icon monaco-dialog-message-text monaco-dialog-message-detail monaco-dialog-message-body monaco-dialog-footer');
 			show(this.element);
 
+			// Notify visibility change
+			this.options.onVisibilityChange?.(window, true);
+			this._register(toDisposable(() => this.options.onVisibilityChange?.(window, false)));
+
 			// Focus first element (input or button)
 			if (this.inputs.length > 0) {
 				this.inputs[0].focus();
@@ -562,6 +571,7 @@ export class Dialog extends Disposable {
 		this.element.style.border = border;
 
 		if (linkFgColor) {
+			// eslint-disable-next-line no-restricted-syntax
 			for (const el of [...this.messageContainer.getElementsByTagName('a'), ...this.footerContainer?.getElementsByTagName('a') ?? []]) {
 				el.style.color = linkFgColor;
 			}

@@ -4,32 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { memoize } from '../utils/memoize';
+import { Lazy } from '../utils/lazy';
 
 export class Logger {
 
-	@memoize
-	private get output(): vscode.LogOutputChannel {
+	private readonly output = new Lazy<vscode.LogOutputChannel>(() => {
 		return vscode.window.createOutputChannel('TypeScript', { log: true });
-	}
+	});
 
 	public get logLevel(): vscode.LogLevel {
-		return this.output.logLevel;
+		return this.output.value.logLevel;
 	}
 
-	public info(message: string, ...args: any[]): void {
-		this.output.info(message, ...args);
+	public info(message: string, ...args: unknown[]): void {
+		this.output.value.info(message, ...args);
 	}
 
-	public trace(message: string, ...args: any[]): void {
-		this.output.trace(message, ...args);
+	public trace(message: string, ...args: unknown[]): void {
+		this.output.value.trace(message, ...args);
 	}
 
-	public error(message: string, data?: any): void {
+	public error(message: string, data?: unknown): void {
 		// See https://github.com/microsoft/TypeScript/issues/10496
-		if (data && data.message === 'No content available.') {
+		if (data && (data as { message?: string }).message === 'No content available.') {
 			return;
 		}
-		this.output.error(message, ...(data ? [data] : []));
+		this.output.value.error(message, ...(data ? [data] : []));
 	}
 }

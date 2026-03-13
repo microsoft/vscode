@@ -33,7 +33,7 @@ suite('Custom Editor Label Service', () => {
 		return [customLabelService, configService, instantiationService.createInstance(TestServiceAccessor)];
 	}
 
-	async function updatePattern(configService: TestConfigurationService, value: any): Promise<void> {
+	async function updatePattern(configService: TestConfigurationService, value: unknown): Promise<void> {
 		await configService.setUserConfiguration(CustomEditorLabelService.SETTING_ID_PATTERNS, value);
 		configService.onDidChangeConfigurationEmitter.fire({
 			affectsConfiguration: (key: string) => key === CustomEditorLabelService.SETTING_ID_PATTERNS,

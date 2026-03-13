@@ -94,35 +94,20 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 	});
 
 	function withSplitLinesCollection(text: string, callback: (model: TextModel, linesCollection: ViewModelLinesFromProjectedModel) => void): void {
-		const config = new TestConfiguration({});
-		const wrappingInfo = config.options.get(EditorOption.wrappingInfo);
-		const fontInfo = config.options.get(EditorOption.fontInfo);
+		const config = new TestConfiguration({ wrappingStrategy: 'simple' });
 		const wordWrapBreakAfterCharacters = config.options.get(EditorOption.wordWrapBreakAfterCharacters);
 		const wordWrapBreakBeforeCharacters = config.options.get(EditorOption.wordWrapBreakBeforeCharacters);
-		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
-		const wordBreak = config.options.get(EditorOption.wordBreak);
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
-		const model = createTextModel([
-			'int main() {',
-			'\tprintf("Hello world!");',
-			'}',
-			'int main() {',
-			'\tprintf("Hello world!");',
-			'}',
-		].join('\n'));
+		const model = createTextModel(text);
 
 		const linesCollection = new ViewModelLinesFromProjectedModel(
 			1,
 			model,
 			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
-			fontInfo,
-			model.getOptions().tabSize,
-			'simple',
-			wrappingInfo.wrappingColumn,
-			wrappingIndent,
-			wordBreak
+			config.options,
+			model.getOptions().tabSize
 		);
 
 		callback(model, linesCollection);
@@ -351,7 +336,7 @@ suite('SplitLinesCollection', () => {
 						tokens[i].value << MetadataConsts.FOREGROUND_OFFSET
 					);
 				}
-				return new languages.EncodedTokenizationResult(result, state);
+				return new languages.EncodedTokenizationResult(result, [], state);
 			}
 		};
 		const LANGUAGE_ID = 'modelModeTest1';
@@ -439,7 +424,7 @@ suite('SplitLinesCollection', () => {
 	}
 
 	test('getViewLinesData - no wrapping', () => {
-		withSplitLinesCollection(model, 'off', 0, (splitLinesCollection) => {
+		withSplitLinesCollection(model, 'off', 0, false, (splitLinesCollection) => {
 			assert.strictEqual(splitLinesCollection.getViewLineCount(), 8);
 			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
 			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), true);
@@ -573,7 +558,7 @@ suite('SplitLinesCollection', () => {
 	});
 
 	test('getViewLinesData - with wrapping', () => {
-		withSplitLinesCollection(model, 'wordWrapColumn', 30, (splitLinesCollection) => {
+		withSplitLinesCollection(model, 'wordWrapColumn', 30, false, (splitLinesCollection) => {
 			assert.strictEqual(splitLinesCollection.getViewLineCount(), 12);
 			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
 			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), true);
@@ -758,7 +743,7 @@ suite('SplitLinesCollection', () => {
 			}
 		}]);
 
-		withSplitLinesCollection(model, 'wordWrapColumn', 30, (splitLinesCollection) => {
+		withSplitLinesCollection(model, 'wordWrapColumn', 30, false, (splitLinesCollection) => {
 			assert.strictEqual(splitLinesCollection.getViewLineCount(), 14);
 
 			assert.strictEqual(splitLinesCollection.getViewLineMaxColumn(1), 24);
@@ -920,8 +905,8 @@ suite('SplitLinesCollection', () => {
 			assert.deepStrictEqual(
 				data.map((d) => ({
 					inlineDecorations: d.inlineDecorations?.map((d) => ({
-						startOffset: d.startOffset,
-						endOffset: d.endOffset,
+						startOffset: d.range.startColumn - 1,
+						endOffset: d.range.endColumn - 1,
 					})),
 				})),
 				[
@@ -944,18 +929,15 @@ suite('SplitLinesCollection', () => {
 		});
 	});
 
-	function withSplitLinesCollection(model: TextModel, wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded', wordWrapColumn: number, callback: (splitLinesCollection: ViewModelLinesFromProjectedModel) => void): void {
+	function withSplitLinesCollection(model: TextModel, wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded', wordWrapColumn: number, wrapOnEscapedLineFeeds: boolean, callback: (splitLinesCollection: ViewModelLinesFromProjectedModel) => void): void {
 		const configuration = new TestConfiguration({
 			wordWrap: wordWrap,
 			wordWrapColumn: wordWrapColumn,
-			wrappingIndent: 'indent'
+			wrappingIndent: 'indent',
+			wrappingStrategy: 'simple'
 		});
-		const wrappingInfo = configuration.options.get(EditorOption.wrappingInfo);
-		const fontInfo = configuration.options.get(EditorOption.fontInfo);
 		const wordWrapBreakAfterCharacters = configuration.options.get(EditorOption.wordWrapBreakAfterCharacters);
 		const wordWrapBreakBeforeCharacters = configuration.options.get(EditorOption.wordWrapBreakBeforeCharacters);
-		const wrappingIndent = configuration.options.get(EditorOption.wrappingIndent);
-		const wordBreak = configuration.options.get(EditorOption.wordBreak);
 
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
@@ -964,12 +946,8 @@ suite('SplitLinesCollection', () => {
 			model,
 			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
-			fontInfo,
-			model.getOptions().tabSize,
-			'simple',
-			wrappingInfo.wrappingColumn,
-			wrappingIndent,
-			wordBreak
+			configuration.options,
+			model.getOptions().tabSize
 		);
 
 		callback(linesCollection);

@@ -2,13 +2,15 @@
   "name": "markdown",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
     "vscode": "^1.20.0"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {
@@ -20,13 +22,20 @@
         "extensions": [
           ".md",
           ".mkd",
+          ".mkdn",
           ".mdwn",
           ".mdown",
           ".markdown",
           ".markdn",
           ".mdtxt",
           ".mdtext",
+          ".litcoffee",
+          ".ron",
+          ".ronn",
           ".workbook"
+        ],
+        "filenamePatterns": [
+          "**/.cursor/**/*.mdc"
         ],
         "configuration": "./language-configuration.json"
       }
@@ -65,9 +74,11 @@
           "meta.embedded.block.go": "go",
           "meta.embedded.block.groovy": "groovy",
           "meta.embedded.block.pug": "jade",
+          "meta.embedded.block.ignore": "ignore",
           "meta.embedded.block.javascript": "javascript",
           "meta.embedded.block.json": "json",
           "meta.embedded.block.jsonc": "jsonc",
+          "meta.embedded.block.jsonl": "jsonl",
           "meta.embedded.block.latex": "latex",
           "meta.embedded.block.less": "less",
           "meta.embedded.block.objc": "objc",
@@ -75,6 +86,7 @@
           "meta.embedded.block.perl6": "perl6",
           "meta.embedded.block.powershell": "powershell",
           "meta.embedded.block.python": "python",
+          "meta.embedded.block.restructuredtext": "restructuredtext",
           "meta.embedded.block.rust": "rust",
           "meta.embedded.block.scala": "scala",
           "meta.embedded.block.shellscript": "shellscript",

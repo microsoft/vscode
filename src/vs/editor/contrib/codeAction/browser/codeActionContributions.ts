@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorContributionInstantiation, registerEditorAction, registerEditorCommand, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { editorConfigurationBaseNode } from '../../../common/config/editorConfigurationSchema.js';
 import { AutoFixAction, CodeActionCommand, FixAllAction, OrganizeImportsAction, QuickFixAction, RefactorAction, SourceAction } from './codeActionCommands.js';
 import { CodeActionController } from './codeActionController.js';
@@ -14,7 +15,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 
 registerEditorContribution(CodeActionController.ID, CodeActionController, EditorContributionInstantiation.Eventually);
 registerEditorContribution(LightBulbWidget.ID, LightBulbWidget, EditorContributionInstantiation.Lazy);
-registerEditorAction(QuickFixAction);
+registerAction2(QuickFixAction);
 registerEditorAction(RefactorAction);
 registerEditorAction(SourceAction);
 registerEditorAction(OrganizeImportsAction);
