@@ -15,8 +15,16 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ImageCarouselEditor } from './imageCarouselEditor.js';
 import { ImageCarouselEditorInput } from './imageCarouselEditorInput.js';
-import { IImageCarouselCollection } from './imageCarouselTypes.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICarouselImage, IImageCarouselCollection } from './imageCarouselTypes.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ExplorerFolderContext } from '../../files/common/files.js';
+import { IExplorerService } from '../../files/browser/files.js';
+import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { getMediaMime } from '../../../../base/common/mime.js';
+import { URI } from '../../../../base/common/uri.js';
+import { basename, dirname } from '../../../../base/common/resources.js';
 
 // --- Editor Pane Registration ---
 
@@ -122,3 +130,144 @@ class OpenImageInCarouselAction extends Action2 {
 }
 
 registerAction2(OpenImageInCarouselAction);
+
+// --- Explorer Context Menu Integration ---
+
+const IMAGE_EXTENSION_REGEX = /^\.(png|jpe?g|jpe|gif|webp|svg|bmp|ico|tiff?|tga|psd)$/i;
+
+function isImageResource(uri: URI): boolean {
+	const mimeType = getMediaMime(uri.path);
+	return !!mimeType && mimeType.startsWith('image/');
+}
+
+async function collectImageFilesFromFolder(fileService: IFileService, folderUri: URI): Promise<URI[]> {
+	const stat = await fileService.resolve(folderUri);
+	const imageUris: URI[] = [];
+	if (stat.children) {
+		for (const child of stat.children) {
+			if (!child.isDirectory && isImageResource(child.resource)) {
+				imageUris.push(child.resource);
+			}
+		}
+	}
+	return imageUris;
+}
+
+async function readImageFiles(fileService: IFileService, uris: URI[]): Promise<ICarouselImage[]> {
+	const images: ICarouselImage[] = [];
+	for (const uri of uris) {
+		try {
+			const content = await fileService.readFile(uri);
+			const mimeType = getMediaMime(uri.path) ?? 'image/png';
+			images.push({
+				id: generateUuid(),
+				name: basename(uri),
+				mimeType,
+				data: content.value,
+				uri,
+			});
+		} catch {
+			// Skip files that cannot be read
+		}
+	}
+	return images;
+}
+
+class OpenImagesInCarouselFromExplorerAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.openImagesInCarousel',
+			title: localize2('openImagesInCarousel', "Open Images in Carousel"),
+			f1: false,
+			menu: [{
+				id: MenuId.ExplorerContext,
+				group: 'navigation',
+				order: 25,
+				when: ContextKeyExpr.or(
+					ExplorerFolderContext,
+					ContextKeyExpr.regex(ResourceContextKey.Extension.key, IMAGE_EXTENSION_REGEX),
+				),
+			}],
+		});
+	}
+
+	async run(accessor: ServicesAccessor, resource?: URI): Promise<void> {
+		const explorerService = accessor.get(IExplorerService);
+		const fileService = accessor.get(IFileService);
+		const editorService = accessor.get(IEditorService);
+
+		const context = explorerService.getContext(true);
+		if (context.length === 0) {
+			return;
+		}
+
+		let imageUris: URI[] = [];
+		let startUri: URI | undefined;
+
+		const hasSingleImageFile = context.length === 1 && !context[0].isDirectory && isImageResource(context[0].resource);
+
+		if (hasSingleImageFile) {
+			// Single image: show all sibling images in the same folder with
+			// the selected image focused
+			startUri = context[0].resource;
+			const parentUri = dirname(context[0].resource);
+			imageUris = await collectImageFilesFromFolder(fileService, parentUri);
+		} else {
+			// Multiple items or a folder: collect images from selection,
+			// deduplicating in case a folder and its children are both selected
+			const seen = new Set<string>();
+			for (const item of context) {
+				if (item.isDirectory) {
+					const folderImages = await collectImageFilesFromFolder(fileService, item.resource);
+					for (const uri of folderImages) {
+						const key = uri.toString();
+						if (!seen.has(key)) {
+							seen.add(key);
+							imageUris.push(uri);
+						}
+					}
+				} else if (isImageResource(item.resource)) {
+					const key = item.resource.toString();
+					if (!seen.has(key)) {
+						seen.add(key);
+						imageUris.push(item.resource);
+						if (!startUri) {
+							startUri = item.resource;
+						}
+					}
+				}
+			}
+		}
+
+		if (imageUris.length === 0) {
+			return;
+		}
+
+		const images = await readImageFiles(fileService, imageUris);
+		if (images.length === 0) {
+			return;
+		}
+
+		let startIndex = 0;
+		if (startUri) {
+			const idx = images.findIndex(img => img.uri?.toString() === startUri!.toString());
+			if (idx >= 0) {
+				startIndex = idx;
+			}
+		}
+
+		const collection: IImageCarouselCollection = {
+			id: generateUuid(),
+			title: localize('imageCarousel.explorerTitle', "Image Carousel"),
+			sections: [{
+				title: '',
+				images,
+			}],
+		};
+
+		const input = new ImageCarouselEditorInput(collection, startIndex);
+		await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
+	}
+}
+
+registerAction2(OpenImagesInCarouselFromExplorerAction);
