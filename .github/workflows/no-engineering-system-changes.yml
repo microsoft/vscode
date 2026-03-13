@@ -27,7 +27,7 @@ jobs:
         run: |
           # Allow the vs-code-engineering bot ONLY when package.json is the
           # sole changed file and the diff exclusively touches the "distro" field.
-          ONLY_PKG=$(cat $HOME/files.json | jq -e '. == ["package.json"]' 2>/dev/null && echo true || echo false)
+          ONLY_PKG=$(jq -e '. == ["package.json"]' "$HOME/files.json" > /dev/null 2>&1 && echo true || echo false)
           if [[ "$ONLY_PKG" != "true" ]]; then
             echo "Bot modified files beyond package.json — not allowed"
             echo "allowed=false" >> $GITHUB_OUTPUT
@@ -40,7 +40,7 @@ jobs:
             exit 0
           }
           CHANGED_LINES=$(echo "$DIFF" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | wc -l)
-          DISTRO_LINES=$(echo "$DIFF" | grep -cE '^[+-]\s*"distro"\s*:' || true)
+          DISTRO_LINES=$(echo "$DIFF" | grep -cE '^[+-][[:space:]]*"distro"[[:space:]]*:' || true)
 
           if [[ "$CHANGED_LINES" -eq 2 && "$DISTRO_LINES" -eq 2 ]]; then
             echo "Distro-only update by bot — allowing"
