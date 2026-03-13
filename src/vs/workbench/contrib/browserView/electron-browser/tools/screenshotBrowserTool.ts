@@ -106,10 +106,6 @@ export class ScreenshotBrowserTool implements IToolImpl {
 					},
 				},
 			],
-			toolResultDetails: {
-				input: JSON.stringify(params, undefined, 2),
-				output: { type: 'data', mimeType: 'image/jpeg', value: screenshot },
-			},
 		};
 	}
 }
