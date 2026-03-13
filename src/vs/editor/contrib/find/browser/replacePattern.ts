@@ -49,7 +49,7 @@ export class ReplacePattern {
 		}
 	}
 
-	public buildReplaceString(matches: string[] | null, preserveCase?: boolean): string {
+	public buildReplaceString(matches: string[] | null, preserveCase?: boolean, groups?: { [key: string]: string } | null): string {
 		if (this._state.kind === ReplacePatternKind.StaticValue) {
 			if (preserveCase) {
 				return buildReplaceStringWithCasePreserved(matches, this._state.staticValue);
@@ -67,8 +67,16 @@ export class ReplacePattern {
 				continue;
 			}
 
-			// match index ReplacePiece
-			let match: string = ReplacePattern._substitute(piece.matchIndex, matches);
+			// Get the match value from either matchIndex or groupName
+			let match: string;
+			if (piece.groupName !== null) {
+				// named group ReplacePiece
+				match = ReplacePattern._substituteNamedGroup(piece.groupName, groups);
+			} else {
+				// match index ReplacePiece
+				match = ReplacePattern._substitute(piece.matchIndex, matches);
+			}
+
 			if (piece.caseOps !== null && piece.caseOps.length > 0) {
 				const repl: string[] = [];
 				const lenOps: number = piece.caseOps.length;
@@ -125,6 +133,14 @@ export class ReplacePattern {
 		}
 		return '$' + remainder;
 	}
+
+	private static _substituteNamedGroup(groupName: string, groups: { [key: string]: string } | null | undefined): string {
+		if (!groups) {
+			return '';
+		}
+		const value = groups[groupName];
+		return value ?? '';
+	}
 }
 
 /**
@@ -133,24 +149,30 @@ export class ReplacePattern {
 export class ReplacePiece {
 
 	public static staticValue(value: string): ReplacePiece {
-		return new ReplacePiece(value, -1, null);
+		return new ReplacePiece(value, -1, null, null);
 	}
 
 	public static matchIndex(index: number): ReplacePiece {
-		return new ReplacePiece(null, index, null);
+		return new ReplacePiece(null, index, null, null);
 	}
 
 	public static caseOps(index: number, caseOps: string[]): ReplacePiece {
-		return new ReplacePiece(null, index, caseOps);
+		return new ReplacePiece(null, index, caseOps, null);
+	}
+
+	public static namedGroup(name: string, caseOps: string[]): ReplacePiece {
+		return new ReplacePiece(null, -1, caseOps, name);
 	}
 
 	public readonly staticValue: string | null;
 	public readonly matchIndex: number;
 	public readonly caseOps: string[] | null;
+	public readonly groupName: string | null;
 
-	private constructor(staticValue: string | null, matchIndex: number, caseOps: string[] | null) {
+	private constructor(staticValue: string | null, matchIndex: number, caseOps: string[] | null, groupName: string | null) {
 		this.staticValue = staticValue;
 		this.matchIndex = matchIndex;
+		this.groupName = groupName;
 		if (!caseOps || caseOps.length === 0) {
 			this.caseOps = null;
 		} else {
@@ -201,6 +223,14 @@ class ReplacePieceBuilder {
 		this._lastCharIndex = toCharIndex;
 	}
 
+	public emitNamedGroup(name: string, toCharIndex: number, caseOps: string[]): void {
+		if (this._currentStaticPiece.length !== 0) {
+			this._result[this._resultLen++] = ReplacePiece.staticValue(this._currentStaticPiece);
+			this._currentStaticPiece = '';
+		}
+		this._result[this._resultLen++] = ReplacePiece.namedGroup(name, caseOps);
+		this._lastCharIndex = toCharIndex;
+	}
 
 	public finalize(): ReplacePattern {
 		this.emitUnchanged(this._source.length);
@@ -223,6 +253,7 @@ class ReplacePieceBuilder {
  * $$			=> inserts a "$".
  * $& and $0	=> inserts the matched substring.
  * $n			=> Where n is a non-negative integer lesser than 100, inserts the nth parenthesized submatch string
+ * ${name}		=> inserts the named capture group value
  * everything else stays untouched
  *
  * Also see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace#Specifying_a_string_as_a_parameter
@@ -340,8 +371,46 @@ export function parseReplaceString(replaceString: string): ReplacePattern {
 				caseOps.length = 0;
 				continue;
 			}
+
+			if (nextChCode === CharCode.OpenCurlyBrace) {
+				// ${name} - named capture group reference
+				const closeBraceIndex = replaceString.indexOf('}', i + 1);
+				if (closeBraceIndex !== -1) {
+					const groupName = replaceString.substring(i + 1, closeBraceIndex);
+					if (groupName.length > 0 && isValidIdentifier(groupName)) {
+						result.emitUnchanged(i - 1);
+						result.emitNamedGroup(groupName, closeBraceIndex + 1, caseOps);
+						caseOps.length = 0;
+						i = closeBraceIndex; // move past the closing brace
+						continue;
+					}
+				}
+				// Invalid or empty name, treat as literal
+			}
 		}
 	}
 
 	return result.finalize();
+}
+
+function isValidIdentifier(str: string): boolean {
+	// Valid identifier: starts with a letter or underscore, contains only letters, digits, underscores
+	if (str.length === 0) {
+		return false;
+	}
+	const firstCh = str.charCodeAt(0);
+	// First char must be letter (a-z, A-Z) or underscore
+	const isLetter = (firstCh >= CharCode.a && firstCh <= CharCode.z) || (firstCh >= CharCode.A && firstCh <= CharCode.Z);
+	if (!isLetter && firstCh !== CharCode.Underline) {
+		return false;
+	}
+	// Rest can be letter, digit, or underscore
+	for (let i = 1; i < str.length; i++) {
+		const ch = str.charCodeAt(i);
+		const isLetterOrDigit = (ch >= CharCode.a && ch <= CharCode.z) || (ch >= CharCode.A && ch <= CharCode.Z) || (ch >= CharCode.Digit0 && ch <= CharCode.Digit9);
+		if (!isLetterOrDigit && ch !== CharCode.Underline) {
+			return false;
+		}
+	}
+	return true;
 }
