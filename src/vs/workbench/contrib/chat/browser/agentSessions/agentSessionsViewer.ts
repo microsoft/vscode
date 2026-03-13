@@ -329,7 +329,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		}
 
 		if (session.status === AgentSessionStatus.NeedsInput) {
-			return Codicon.report;
+			return Codicon.warning;
 		}
 
 		if (session.status === AgentSessionStatus.Failed) {

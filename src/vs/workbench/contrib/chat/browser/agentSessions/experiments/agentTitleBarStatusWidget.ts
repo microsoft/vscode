@@ -6,12 +6,15 @@
 import './media/agenttitlebarstatuswidget.css';
 import { $, addDisposableListener, EventType, getWindow, isHTMLElement, reset } from '../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event as EventUtils } from '../../../../../../base/common/event.js';
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
+import { AgentSessionHoverWidget } from '../agentSessionHoverWidget.js';
 import { AgentStatusMode, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
@@ -20,7 +23,7 @@ import { UNIFIED_QUICK_ACCESS_ACTION_ID } from './unifiedQuickAccessActions.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 import { AgentSessionStatus, IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction, Separator, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
+import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../services/environment/browser/environmentService.js';
@@ -31,10 +34,9 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { openSession } from '../agentSessionsOpener.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
-import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { createActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { FocusAgentSessionsAction } from '../agentSessionsActions.js';
@@ -117,11 +119,14 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	// TODO: This is imperfect. Targetted fix for vscode#290863. We should revisit storing filter state per-window to avoid this
 	private _badgeFilterAppliedByThisWindow: 'unread' | 'inProgress' | null = null;
 
+	/** Tracks sessions whose attention animation has already been shown */
+	private readonly _animatedSessionIds = new Set<string>();
+
+	/** Reusable hover widget for session preview - kept alive across hovers on the same session */
+	private readonly _sessionHover = this._register(new MutableDisposable<AgentSessionHoverWidget>());
+
 	/** Reusable menu for CommandCenterCenter items (e.g., debug toolbar) */
 	private readonly _commandCenterMenu;
-
-	/** Menu for ChatTitleBarMenu items (same as chat controls dropdown) */
-	private readonly _chatTitleBarMenu;
 
 	constructor(
 		action: IAction,
@@ -149,9 +154,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Create menu for CommandCenterCenter to get items like debug toolbar
 		this._commandCenterMenu = this._register(this.menuService.createMenu(MenuId.CommandCenterCenter, this.contextKeyService));
-
-		// Create menu for ChatTitleBarMenu to show in sparkle section dropdown
-		this._chatTitleBarMenu = this._register(this.menuService.createMenu(MenuId.ChatTitleBarMenu, this.contextKeyService));
 
 		// Re-render when control mode or session info changes
 		this._register(this.agentTitleBarStatusService.onDidChangeMode(() => {
@@ -406,6 +408,10 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		this._firstFocusableElement = pill;
 		this._container.appendChild(pill);
 
+		// When agent status is also enabled, use compact mode (no icon, left-aligned label)
+		const isCompactMode = this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
+		pill.classList.toggle('compact-mode', isCompactMode);
+
 		// Left icon container (sparkle by default, report+count when attention needed, search on hover)
 		const leftIcon = $('span.agent-status-left-icon');
 		if (hasAttentionNeeded) {
@@ -418,53 +424,38 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		} else {
 			reset(leftIcon, renderIcon(Codicon.searchSparkle));
 		}
-		pill.appendChild(leftIcon);
+		if (!isCompactMode) {
+			pill.appendChild(leftIcon);
+		}
 
-		// Label (workspace name by default, placeholder on hover)
-		// Show attention progress or default label
+		// Input area wrapper - hover only activates here, not on badge sections
+		const inputArea = $('div.agent-status-input-area');
+		pill.appendChild(inputArea);
+
+		// Label - always shows workspace name
 		const label = $('span.agent-status-label');
-		const { session: attentionSession, progress: progressText } = this._getSessionNeedingAttention(attentionNeededSessions);
+		const { session: attentionSession } = this._getSessionNeedingAttention(attentionNeededSessions);
 		this._displayedSession = attentionSession;
 
-		const defaultLabel = progressText ?? this._getLabel();
-
-		if (progressText) {
-			label.classList.add('has-progress');
-		}
-
-		const hoverLabel = localize('askAnythingPlaceholder', "Ask anything or describe what to build");
+		const defaultLabel = this._getLabel();
 
 		label.textContent = defaultLabel;
-		pill.appendChild(label);
+		inputArea.appendChild(label);
 
-		// Send icon (hidden by default, shown on hover - only when not showing attention message)
-		const sendIcon = $('span.agent-status-send');
-		reset(sendIcon, renderIcon(Codicon.send));
-		sendIcon.classList.add('hidden');
-		pill.appendChild(sendIcon);
+		// Hover behavior - reset icon state but keep workspace name
+		disposables.add(addDisposableListener(inputArea, EventType.MOUSE_ENTER, () => {
+			reset(leftIcon, renderIcon(Codicon.searchSparkle));
+			leftIcon.classList.remove('has-attention');
+			label.classList.remove('has-progress');
+		}));
 
-		// Hover behavior - swap icon and label (only when showing default state).
-		// When progressText is defined (e.g. sessions need attention), keep the attention/progress
-		// message visible and do not replace it with the generic placeholder on hover.
-		if (!progressText) {
-			disposables.add(addDisposableListener(pill, EventType.MOUSE_ENTER, () => {
-				reset(leftIcon, renderIcon(Codicon.searchSparkle));
-				leftIcon.classList.remove('has-attention');
-				label.textContent = hoverLabel;
-				label.classList.remove('has-progress');
-				sendIcon.classList.remove('hidden');
-			}));
+		disposables.add(addDisposableListener(inputArea, EventType.MOUSE_LEAVE, () => {
+			reset(leftIcon, renderIcon(Codicon.searchSparkle));
+		}));
 
-			disposables.add(addDisposableListener(pill, EventType.MOUSE_LEAVE, () => {
-				reset(leftIcon, renderIcon(Codicon.searchSparkle));
-				label.textContent = defaultLabel;
-				sendIcon.classList.add('hidden');
-			}));
-		}
-
-		// Setup hover tooltip
+		// Setup hover tooltip on input area only
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
-		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, pill, () => {
+		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, inputArea, () => {
 			if (this._displayedSession) {
 				return localize('openSessionTooltip', "Open session: {0}", this._displayedSession.label);
 			}
@@ -490,9 +481,10 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			}
 		}));
 
-		// Status badge (separate rectangle on right) - only when Agent Status is enabled
+		// Status badge - only when Agent Status is enabled
+		// In compact mode, render inline within the pill instead of as a separate badge
 		if (this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true) {
-			this._renderStatusBadge(disposables, activeSessions, unreadSessions, attentionNeededSessions);
+			this._renderStatusBadge(disposables, activeSessions, unreadSessions, attentionNeededSessions, isCompactMode ? pill : undefined);
 		}
 	}
 
@@ -715,7 +707,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	 * Shows split UI with sparkle icon on left, then unread, needs-input, and active indicators.
 	 * Always renders the sparkle icon section.
 	 */
-	private _renderStatusBadge(disposables: DisposableStore, activeSessions: IAgentSession[], unreadSessions: IAgentSession[], attentionNeededSessions: IAgentSession[]): void {
+	private _renderStatusBadge(disposables: DisposableStore, activeSessions: IAgentSession[], unreadSessions: IAgentSession[], attentionNeededSessions: IAgentSession[], inlineContainer?: HTMLElement): void {
 		if (!this._container) {
 			return;
 		}
@@ -727,19 +719,22 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Auto-clear filter if the filtered category becomes empty if this window applied it
 		this._clearFilterIfCategoryEmpty(hasUnreadSessions, hasActiveSessions);
 
-		const badge = $('div.agent-status-badge');
-		this._container.appendChild(badge);
+		// When inlineContainer is provided, render sections directly into it (compact mode)
+		// Otherwise, create a separate badge container
+		let badge: HTMLElement;
+		if (inlineContainer) {
+			badge = inlineContainer;
+		} else {
+			badge = $('div.agent-status-badge');
+			this._container.appendChild(badge);
+		}
 
-		// Sparkle dropdown button section (always visible on left) - proper button with dropdown menu
+		// Sparkle dropdown button section (chat entrypoint) - proper button with dropdown menu
 		const sparkleContainer = $('span.agent-status-badge-section.sparkle');
 		sparkleContainer.tabIndex = 0;
 		if (!this._firstFocusableElement) {
 			this._firstFocusableElement = sparkleContainer;
 		}
-		badge.appendChild(sparkleContainer);
-
-		// Get menu actions for dropdown with proper group separators
-		const menuActions: IAction[] = Separator.join(...this._chatTitleBarMenu.getActions({ shouldForwardArgs: true }).map(([, actions]) => actions));
 
 		// Determine primary action based on entitlement state
 		// Special case 1: User is signed out (needs to sign in)
@@ -766,31 +761,24 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			}
 		}
 
-		// Create primary action
-		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
-			id: primaryActionId,
-			title: primaryActionTitle,
-			icon: primaryActionIcon,
-		}, undefined, undefined, undefined, undefined);
+		// Create primary action button (no dropdown)
+		const sparkleButton = $('span.agent-status-sparkle-button');
+		sparkleButton.setAttribute('role', 'button');
+		sparkleButton.setAttribute('aria-label', primaryActionTitle);
+		sparkleButton.tabIndex = 0;
+		reset(sparkleButton, renderIcon(primaryActionIcon));
+		sparkleContainer.appendChild(sparkleButton);
 
-		// Create dropdown action (empty label prevents default tooltip - we have our own hover)
-		const dropdownAction = toAction({
-			id: 'agentStatus.sparkle.dropdown',
-			label: localize('agentStatus.sparkle.dropdown', "More Actions"),
-			run() { }
-		});
+		// Click handler
+		disposables.add(addDisposableListener(sparkleButton, EventType.CLICK, (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.commandService.executeCommand(primaryActionId);
+		}));
 
-		// Create the dropdown with primary action button
-		const sparkleDropdown = this.instantiationService.createInstance(
-			DropdownWithPrimaryActionViewItem,
-			primaryAction,
-			dropdownAction,
-			menuActions,
-			'agent-status-sparkle-dropdown',
-			{ skipTelemetry: true }
-		);
-		sparkleDropdown.render(sparkleContainer);
-		disposables.add(sparkleDropdown);
+		// Setup hover tooltip for sparkle button
+		const sparkleHoverDelegate = getDefaultHoverDelegate('mouse');
+		disposables.add(this.hoverService.setupManagedHover(sparkleHoverDelegate, sparkleButton, primaryActionTitle));
 
 		// Add keyboard handler for Enter/Space on the sparkle container
 		disposables.add(addDisposableListener(sparkleContainer, EventType.KEY_DOWN, (e) => {
@@ -798,11 +786,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				e.preventDefault();
 				e.stopPropagation();
 				this.commandService.executeCommand(primaryActionId);
-			} else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-				// Open dropdown menu with arrow keys
-				e.preventDefault();
-				e.stopPropagation();
-				sparkleDropdown.showDropdown();
 			}
 		}));
 
@@ -812,10 +795,203 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Only show status indicators if chat.viewSessions.enabled is true
 		const viewSessionsEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled) !== false;
 
+		// When both unified agents bar and agent status are enabled, show status indicators
+		// before the sparkle button: [needs attention/in progress, unread, sparkle]
+		// Otherwise, keep original order: [sparkle, unread, in progress/needs attention]
+		const unifiedAgentsBarEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
+		const agentStatusEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
+		const reverseOrder = unifiedAgentsBarEnabled && agentStatusEnabled;
+
+		if (!reverseOrder) {
+			// Original order: sparkle first
+			badge.appendChild(sparkleContainer);
+		}
+
+		// Build status sections but don't append yet - we need to control order
+		let attentionSection: HTMLElement | undefined;
+		let inProgressSection: HTMLElement | undefined;
+		let unreadSection: HTMLElement | undefined;
+
+		// Compute in-progress-only count (active sessions that are NOT needs-input)
+		const inProgressOnlySessions = activeSessions.filter(s => !attentionNeededSessions.includes(s));
+		const hasInProgressOnly = inProgressOnlySessions.length > 0;
+
+		// Needs-attention section (report icon + cycling count/description)
+		if (viewSessionsEnabled && hasAttentionNeeded) {
+			const { isFilteredToInProgress } = this._getCurrentFilterState();
+			attentionSection = $('span.agent-status-badge-section.active.needs-input');
+			if (isFilteredToInProgress) {
+				attentionSection.classList.add('filtered');
+			}
+			attentionSection.setAttribute('role', 'button');
+			attentionSection.tabIndex = 0;
+			const statusIcon = $('span.agent-status-icon');
+			reset(statusIcon, renderIcon(Codicon.report));
+			attentionSection.appendChild(statusIcon);
+
+			// Get the attention description for cycling
+			const { progress: attentionProgress } = this._getSessionNeedingAttention(attentionNeededSessions);
+			const countText = String(attentionNeededSessions.length);
+
+			// Text container with cycling animation between count and description
+			const textContainer = $('span.agent-status-attention-text');
+			attentionSection.appendChild(textContainer);
+
+			// Only run the animation once per session
+			const { session: animationSession } = this._getSessionNeedingAttention(attentionNeededSessions);
+			const sessionKey = animationSession?.resource.toString();
+			const shouldAnimate = attentionProgress && sessionKey && !this._animatedSessionIds.has(sessionKey);
+
+			if (shouldAnimate) {
+				// Create two elements for expansion animation
+				const countSpan = $('span.agent-status-cycle-count');
+				countSpan.textContent = countText;
+				const descSpan = $('span.agent-status-cycle-desc');
+				descSpan.textContent = attentionProgress;
+
+				textContainer.appendChild(countSpan);
+				textContainer.appendChild(descSpan);
+
+				const showDesc = () => textContainer.classList.add('show-desc');
+				const hideDesc = () => textContainer.classList.remove('show-desc');
+
+				let disposed = false;
+				let isAnimationShowing = true;
+
+				// Show description immediately, collapse after 6s, never show again
+				this._animatedSessionIds.add(sessionKey);
+				showDesc();
+				const hideTimer = setTimeout(() => {
+					if (disposed) { return; }
+					isAnimationShowing = false;
+					hideDesc();
+				}, 6000);
+				disposables.add({ dispose: () => { disposed = true; clearTimeout(hideTimer); } });
+
+				// On hover: only keep description visible if the animation is currently showing it
+				disposables.add(addDisposableListener(attentionSection, EventType.MOUSE_ENTER, () => {
+					if (isAnimationShowing) {
+						showDesc();
+					}
+				}));
+				disposables.add(addDisposableListener(attentionSection, EventType.MOUSE_LEAVE, () => {
+					if (isAnimationShowing) {
+						hideDesc();
+					}
+				}));
+			} else {
+				// Animation already shown or no description - just show count
+				textContainer.textContent = countText;
+			}
+
+			// Hover: show session preview widget (same as sessions list hover)
+			const mostRecentAttentionSession = attentionNeededSessions.length > 0
+				? [...attentionNeededSessions].sort((a, b) => {
+					const timeA = a.timing.lastRequestStarted ?? a.timing.created;
+					const timeB = b.timing.lastRequestStarted ?? b.timing.created;
+					return timeB - timeA;
+				})[0]
+				: undefined;
+
+			const buildSessionHoverContent = () => {
+				if (!mostRecentAttentionSession) {
+					return {
+						content: attentionNeededSessions.length === 1
+							? localize('needsInputSessionsTooltip1', "{0} session needs input", attentionNeededSessions.length)
+							: localize('needsInputSessionsTooltip', "{0} sessions need input", attentionNeededSessions.length),
+						style: HoverStyle.Pointer as const,
+						position: { hoverPosition: HoverPosition.BELOW as const },
+					};
+				}
+
+				// Reuse hover widget if same session, otherwise create new
+				if (this._sessionHover.value?.session.resource.toString() !== mostRecentAttentionSession.resource.toString()) {
+					this._sessionHover.value = this.instantiationService.createInstance(AgentSessionHoverWidget, mostRecentAttentionSession);
+				}
+
+				const widget = this._sessionHover.value;
+				return {
+					id: `agent.status.hover.${mostRecentAttentionSession.resource.toString()}`,
+					content: widget.domNode,
+					style: HoverStyle.Pointer as const,
+					onDidShow: () => widget.onRendered(),
+					position: { hoverPosition: HoverPosition.BELOW as const },
+				};
+			};
+
+			// Delayed hover on mouse over
+			disposables.add(this.hoverService.setupDelayedHover(attentionSection, () => buildSessionHoverContent(), { groupId: 'agent.status', reducedDelay: true }));
+
+			// Click: show sticky hover + toggle active background
+			const showStickyHover = (focus?: boolean) => {
+				attentionSection!.classList.add('clicked');
+				const hoverContent = buildSessionHoverContent();
+				const hover = this.hoverService.showInstantHover({
+					...hoverContent,
+					target: attentionSection!,
+					persistence: { hideOnHover: false, sticky: true },
+				}, focus);
+				if (hover) {
+					disposables.add(hover);
+					const removeClicked = () => attentionSection!.classList.remove('clicked');
+					hover.isDisposed ? removeClicked() : disposables.add({ dispose: removeClicked });
+				}
+			};
+
+			disposables.add(addDisposableListener(attentionSection, EventType.CLICK, (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				showStickyHover();
+			}));
+			disposables.add(addDisposableListener(attentionSection, EventType.KEY_DOWN, (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					e.stopPropagation();
+					showStickyHover(true);
+				}
+			}));
+		}
+
+		// In-progress section (spinner icon + count) - shows sessions that are running but don't need input
+		if (viewSessionsEnabled && hasInProgressOnly) {
+			const { isFilteredToInProgress } = this._getCurrentFilterState();
+			inProgressSection = $('span.agent-status-badge-section.active');
+			if (isFilteredToInProgress) {
+				inProgressSection.classList.add('filtered');
+			}
+			inProgressSection.setAttribute('role', 'button');
+			inProgressSection.tabIndex = 0;
+			const statusIcon = $('span.agent-status-icon');
+			reset(statusIcon, renderIcon(Codicon.sessionInProgress));
+			inProgressSection.appendChild(statusIcon);
+			const statusCount = $('span.agent-status-text');
+			statusCount.textContent = String(inProgressOnlySessions.length);
+			inProgressSection.appendChild(statusCount);
+
+			// Click handler - filter to in-progress sessions
+			disposables.add(addDisposableListener(inProgressSection, EventType.CLICK, (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				this._openSessionsWithFilter('inProgress');
+			}));
+			disposables.add(addDisposableListener(inProgressSection, EventType.KEY_DOWN, (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					e.stopPropagation();
+					this._openSessionsWithFilter('inProgress');
+				}
+			}));
+
+			const activeTooltip = inProgressOnlySessions.length === 1
+				? localize('activeSessionsTooltip1', "{0} session in progress", inProgressOnlySessions.length)
+				: localize('activeSessionsTooltip', "{0} sessions in progress", inProgressOnlySessions.length);
+			disposables.add(this.hoverService.setupManagedHover(hoverDelegate, inProgressSection, activeTooltip));
+		}
+
 		// Unread section (blue dot + count)
 		if (viewSessionsEnabled && hasUnreadSessions && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 			const { isFilteredToUnread } = this._getCurrentFilterState();
-			const unreadSection = $('span.agent-status-badge-section.unread');
+			unreadSection = $('span.agent-status-badge-section.unread');
 			if (isFilteredToUnread) {
 				unreadSection.classList.add('filtered');
 			}
@@ -827,7 +1003,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			const unreadCount = $('span.agent-status-text');
 			unreadCount.textContent = String(unreadSessions.length);
 			unreadSection.appendChild(unreadCount);
-			badge.appendChild(unreadSection);
 
 			// Click handler - filter to unread sessions
 			disposables.add(addDisposableListener(unreadSection, EventType.CLICK, (e) => {
@@ -850,52 +1025,18 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			disposables.add(this.hoverService.setupManagedHover(hoverDelegate, unreadSection, unreadTooltip));
 		}
 
-		// In-progress/Needs-input section - shows "needs input" state when any session needs attention,
-		// otherwise shows "in progress" state. This is a single section that transforms based on state.
-		if (viewSessionsEnabled && hasActiveSessions) {
-			const { isFilteredToInProgress } = this._getCurrentFilterState();
-			const activeSection = $('span.agent-status-badge-section.active');
-			if (hasAttentionNeeded) {
-				activeSection.classList.add('needs-input');
-			}
-			if (isFilteredToInProgress) {
-				activeSection.classList.add('filtered');
-			}
-			activeSection.setAttribute('role', 'button');
-			activeSection.tabIndex = 0;
-			const statusIcon = $('span.agent-status-icon');
-			// Show report icon when needs input, otherwise session-in-progress icon
-			reset(statusIcon, renderIcon(hasAttentionNeeded ? Codicon.report : Codicon.sessionInProgress));
-			activeSection.appendChild(statusIcon);
-			const statusCount = $('span.agent-status-text');
-			// Show needs-input count when attention needed, otherwise total active count
-			statusCount.textContent = String(hasAttentionNeeded ? attentionNeededSessions.length : activeSessions.length);
-			activeSection.appendChild(statusCount);
-			badge.appendChild(activeSection);
-
-			// Click handler - filter to in-progress sessions
-			disposables.add(addDisposableListener(activeSection, EventType.CLICK, (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-				this._openSessionsWithFilter('inProgress');
-			}));
-			disposables.add(addDisposableListener(activeSection, EventType.KEY_DOWN, (e) => {
-				if (e.key === 'Enter' || e.key === ' ') {
-					e.preventDefault();
-					e.stopPropagation();
-					this._openSessionsWithFilter('inProgress');
-				}
-			}));
-
-			// Hover tooltip - different message based on state
-			const activeTooltip = hasAttentionNeeded
-				? (attentionNeededSessions.length === 1
-					? localize('needsInputSessionsTooltip1', "{0} session needs input", attentionNeededSessions.length)
-					: localize('needsInputSessionsTooltip', "{0} sessions need input", attentionNeededSessions.length))
-				: (activeSessions.length === 1
-					? localize('activeSessionsTooltip1', "{0} session in progress", activeSessions.length)
-					: localize('activeSessionsTooltip', "{0} sessions in progress", activeSessions.length));
-			disposables.add(this.hoverService.setupManagedHover(hoverDelegate, activeSection, activeTooltip));
+		// Append status sections in the correct order
+		if (reverseOrder) {
+			// [needs attention, in progress, unread, sparkle]
+			if (attentionSection) { badge.appendChild(attentionSection); }
+			if (inProgressSection) { badge.appendChild(inProgressSection); }
+			if (unreadSection) { badge.appendChild(unreadSection); }
+			badge.appendChild(sparkleContainer);
+		} else {
+			// Original: [sparkle (already appended), unread, in progress, needs attention]
+			if (unreadSection) { badge.appendChild(unreadSection); }
+			if (inProgressSection) { badge.appendChild(inProgressSection); }
+			if (attentionSection) { badge.appendChild(attentionSection); }
 		}
 
 	}

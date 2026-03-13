@@ -129,7 +129,7 @@ export enum ChatAgentLocation {
 	 * Leaving the values alone as they are in stored data so we don't have to normalize them.
 	 */
 	Chat = 'panel',
-	Terminal = 'terminal',
+	canTerminal = 'terminal',
 	Notebook = 'notebook',
 	/**
 	 * EditorInline means inline chat in a text editor.
