@@ -9,7 +9,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { dirname, posix, win32 } from '../../../base/common/path.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../environment/common/environment.js';
-import { ISandboxHelperService, type SandboxRuntimeConfig as DirectSandboxRuntimeConfig } from './SandboxHelper.js';
+import { ISandboxHelperService, type SandboxRuntimeConfig } from './SandboxHelper.js';
 import { type ISandboxPermissionRequest } from '../common/sandboxHelperIpc.js';
 
 export class SandboxHelperService extends Disposable implements ISandboxHelperService {
@@ -45,7 +45,7 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 		await SandboxManager.reset();
 	}
 
-	async wrapWithSandbox(runtimeConfig: DirectSandboxRuntimeConfig, command: string): Promise<string> {
+	async wrapWithSandbox(runtimeConfig: SandboxRuntimeConfig, command: string): Promise<string> {
 		const normalizedRuntimeConfig = {
 			network: {
 				allowedDomains: runtimeConfig.network?.allowedDomains?.length ? [...runtimeConfig.network.allowedDomains] : ['microsoft.com'],
@@ -100,12 +100,8 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 		return currentPath ? `${currentPath}:${rgDir}` : rgDir;
 	}
 
-	private _quoteShellArgument(value: string): string {
-		return `'${value.replace(/'/g, `'\\''`)}'`;
-	}
-
 	private _toEnvironmentAssignment(name: string, value: string): string {
-		return `${name}=${this._quoteShellArgument(value)}`;
+		return `${name}="${value}"`;
 	}
 
 	private _pathJoin(...segments: string[]): string {
