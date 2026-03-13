@@ -1074,6 +1074,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			);
 			this._newSessionListener.clear();
 			this._contextAttachments.clear();
+			this._editor.getModel()?.setValue('');
 		} catch (e) {
 			this.logService.error('Failed to send request:', e);
 		}
