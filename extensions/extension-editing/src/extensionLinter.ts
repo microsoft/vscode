@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { URL } from 'url';
 
 import { parseTree, findNodeAtLocation, Node as JsonNode, getNodeValue } from 'jsonc-parser';
-import * as MarkdownItType from 'markdown-it';
+import type MarkdownIt from 'markdown-it';
 
 import { commands, languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env, l10n } from 'vscode';
 import { INormalizedVersion, normalizeVersion, parseVersion } from './extensionEngineValidation';
@@ -44,7 +44,7 @@ enum Context {
 }
 
 interface TokenAndPosition {
-	token: MarkdownItType.Token;
+	token: MarkdownIt.Token;
 	begin: number;
 	end: number;
 }
@@ -67,7 +67,7 @@ export class ExtensionLinter {
 	private packageJsonQ = new Set<TextDocument>();
 	private readmeQ = new Set<TextDocument>();
 	private timer: NodeJS.Timeout | undefined;
-	private markdownIt: MarkdownItType.MarkdownIt | undefined;
+	private markdownIt: MarkdownIt | undefined;
 	private parse5: typeof import('parse5') | undefined;
 
 	constructor() {
@@ -292,7 +292,7 @@ export class ExtensionLinter {
 				this.markdownIt = new ((await import('markdown-it')).default);
 			}
 			const tokens = this.markdownIt.parse(text, {});
-			const tokensAndPositions: TokenAndPosition[] = (function toTokensAndPositions(this: ExtensionLinter, tokens: MarkdownItType.Token[], begin = 0, end = text.length): TokenAndPosition[] {
+			const tokensAndPositions: TokenAndPosition[] = (function toTokensAndPositions(this: ExtensionLinter, tokens: MarkdownIt.Token[], begin = 0, end = text.length): TokenAndPosition[] {
 				const tokensAndPositions = tokens.map<TokenAndPosition>(token => {
 					if (token.map) {
 						const tokenBegin = document.offsetAt(new Position(token.map[0], 0));
@@ -313,7 +313,7 @@ export class ExtensionLinter {
 				});
 				return tokensAndPositions.concat(
 					...tokensAndPositions.filter(tnp => tnp.token.children && tnp.token.children.length)
-						.map(tnp => toTokensAndPositions.call(this, tnp.token.children, tnp.begin, tnp.end))
+						.map(tnp => toTokensAndPositions.call(this, tnp.token.children ?? [], tnp.begin, tnp.end))
 				);
 			}).call(this, tokens);
 
@@ -373,7 +373,7 @@ export class ExtensionLinter {
 		}
 	}
 
-	private locateToken(text: string, begin: number, end: number, token: MarkdownItType.Token, content: string | null) {
+	private locateToken(text: string, begin: number, end: number, token: MarkdownIt.Token, content: string | null) {
 		if (content) {
 			const tokenBegin = text.indexOf(content, begin);
 			if (tokenBegin !== -1) {

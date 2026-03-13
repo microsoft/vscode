@@ -19,7 +19,7 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelFontChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, LineInjectedText, ModelFontChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
 import { IModelContentChange } from './model/mirrorTextModel.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
@@ -857,6 +857,12 @@ export interface ITextModel {
 	getLineContent(lineNumber: number): string;
 
 	/**
+	 * Get the line injected text for a certain line.
+	 * @internal
+	 */
+	getLineInjectedText(lineNumber: number, ownerId?: number): LineInjectedText[];
+
+	/**
 	 * Get the text length for a certain line.
 	 */
 	getLineLength(lineNumber: number): number;
@@ -1181,6 +1187,13 @@ export interface ITextModel {
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
 	 */
 	getCustomLineHeightsDecorations(ownerId?: number): IModelDecoration[];
+
+	/**
+	 * Gets all the decorations that contain custom line heights.
+	 * @param range The range to search in
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 */
+	getCustomLineHeightsDecorationsInRange(range: Range, ownerId?: number): IModelDecoration[];
 
 	/**
 	 * @internal

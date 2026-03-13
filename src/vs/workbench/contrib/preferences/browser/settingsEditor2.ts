@@ -44,7 +44,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { asCssVariable, asCssVariableWithDefault, badgeBackground, badgeForeground, contrastBorder, editorForeground, inputBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, editorForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -93,13 +93,8 @@ export function createGroupIterator(group: SettingsTreeGroupElement): Iterable<I
 
 const $ = DOM.$;
 
-interface IFocusEventFromScroll extends KeyboardEvent {
-	fromScroll: true;
-}
-
 const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 const SEARCH_TOC_BEHAVIOR_KEY = 'workbench.settings.settingsSearchTocBehavior';
-const SCROLL_BEHAVIOR_KEY = 'workbench.settings.scrollBehavior';
 
 const SHOW_AI_RESULTS_ENABLED_LABEL = localize('showAiResultsEnabled', "Show AI-recommended results");
 const SHOW_AI_RESULTS_DISABLED_LABEL = localize('showAiResultsDisabled', "No AI results available at this time...");
@@ -148,6 +143,7 @@ export class SettingsEditor2 extends EditorPane {
 		`@${FEATURE_SETTING_TAG}remote`,
 		`@${FEATURE_SETTING_TAG}timeline`,
 		`@${FEATURE_SETTING_TAG}notebook`,
+		`@${FEATURE_SETTING_TAG}chat`,
 		`@${POLICY_SETTING_TAG}`
 	];
 
@@ -787,15 +783,8 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}));
 
-		const headerRightControlsContainer = DOM.append(headerControlsContainer, $('.settings-right-controls'));
-
-		const openSettingsJsonContainer = DOM.append(headerRightControlsContainer, $('.open-settings-json'));
-		const openSettingsJsonButton = this._register(new Button(openSettingsJsonContainer, { secondary: true, title: true, ...defaultButtonStyles }));
-		openSettingsJsonButton.label = localize('openSettingsJson', "Edit as JSON");
-		this._register(openSettingsJsonButton.onDidClick(() => this.openSettingsFile()));
-
 		if (this.userDataSyncWorkbenchService.enabled && this.userDataSyncEnablementService.canToggleEnablement()) {
-			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, this.window, headerRightControlsContainer));
+			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, this.window, headerControlsContainer));
 			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => {
 				this.lastSyncedLabel = lastSyncedLabel;
 				this.updateInputAriaLabel();
@@ -805,9 +794,6 @@ export class SettingsEditor2 extends EditorPane {
 		this.controlsElement = DOM.append(this.searchContainer, DOM.$('.search-container-widgets'));
 
 		this.countElement = DOM.append(this.controlsElement, DOM.$('.settings-count-widget.monaco-count-badge.long'));
-		this.countElement.style.backgroundColor = asCssVariable(badgeBackground);
-		this.countElement.style.color = asCssVariable(badgeForeground);
-		this.countElement.style.border = `1px solid ${asCssVariableWithDefault(contrastBorder, asCssVariable(inputBackground))}`;
 
 		this.searchInputActionBar = this._register(new ActionBar(this.controlsElement, {
 			actionViewItemProvider: (action, options) => {
@@ -918,11 +904,15 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		if (!recursed && (!targetElement || revealFailed)) {
-			// We'll call this event handler again after clearing the search query,
-			// so that more settings show up in the list.
-			const p = this.triggerSearch('', true);
+			// Search for the target setting by ID so it becomes visible,
+			// even if it's an advanced setting that would be hidden with an empty query.
+			const idQuery = `@id:${evt.targetKey}`;
+			// Set the widget value first, then cancel the debounced search it triggers,
+			// so that only the direct triggerSearch call below runs.
+			this.searchWidget.setValue(idQuery);
+			this.searchInputDelayer.cancel();
+			const p = this.triggerSearch(idQuery, true);
 			p.then(() => {
-				this.searchWidget.setValue('');
 				this.onDidClickSetting(evt, true);
 			});
 		}
@@ -1058,64 +1048,14 @@ export class SettingsEditor2 extends EditorPane {
 
 			this.tocFocusedElement = element;
 			this.tocTree.setSelection(element ? [element] : []);
-			const scrollBehavior = this.configurationService.getValue<'paginated' | 'continuous'>(SCROLL_BEHAVIOR_KEY);
-			if (this.searchResultModel || scrollBehavior === 'paginated') {
-				// In search mode or paginated mode, filter to show only the selected category
-				if (this.viewState.categoryFilter !== element) {
-					this.viewState.categoryFilter = element ?? undefined;
-					// Force render in this case, because
-					// onDidClickSetting relies on the updated view.
-					this.renderTree(undefined, true);
-					this.settingsTree.scrollTop = 0;
-				}
-			} else {
-				// In continuous mode, clear any category filter that may have been set in paginated mode
-				if (this.viewState.categoryFilter) {
-					this.viewState.categoryFilter = undefined;
-					this.renderTree(undefined, true);
-				}
-				if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
-					let targetElement = element;
-					// Searches equivalent old Object currently living in the Tree nodes.
-					if (!this.settingsTree.hasElement(targetElement)) {
-						if (element instanceof SettingsTreeGroupElement) {
-							const targetId = element.id;
 
-							const findInViewNodes = (nodes: any[]): SettingsTreeGroupElement | undefined => {
-								for (const node of nodes) {
-									if (node.element instanceof SettingsTreeGroupElement && node.element.id === targetId) {
-										return node.element;
-									}
-									if (node.children && node.children.length > 0) {
-										const found = findInViewNodes(node.children);
-										if (found) {
-											return found;
-										}
-									}
-								}
-								return undefined;
-							};
-
-							try {
-								const rootNode = this.settingsTree.getNode(null);
-								if (rootNode && rootNode.children) {
-									const foundOldElement = findInViewNodes(rootNode.children);
-									if (foundOldElement) {
-										// Now we don't reveal the New Object, reveal the Old Object"
-										targetElement = foundOldElement;
-									}
-								}
-							} catch (err) {
-								// Tree might be in an invalid state, ignore
-							}
-						}
-					}
-
-					if (this.settingsTree.hasElement(targetElement)) {
-						this.settingsTree.reveal(targetElement, 0);
-						this.settingsTree.setFocus([targetElement]);
-					}
-				}
+			// Filter to show only the selected category
+			if (this.viewState.categoryFilter !== element) {
+				this.viewState.categoryFilter = element ?? undefined;
+				// Force render in this case, because
+				// onDidClickSetting relies on the updated view.
+				this.renderTree(undefined, true);
+				this.settingsTree.scrollTop = 0;
 			}
 		}));
 
@@ -1262,74 +1202,6 @@ export class SettingsEditor2 extends EditorPane {
 
 	private updateTreeScrollSync(): void {
 		this.settingRenderers.cancelSuggesters();
-		if (this.searchResultModel) {
-			return;
-		}
-
-		// In paginated mode, we don't sync scroll position since categories are filtered
-		const scrollBehavior = this.configurationService.getValue<'paginated' | 'continuous'>(SCROLL_BEHAVIOR_KEY);
-		if (scrollBehavior === 'paginated') {
-			return;
-		}
-
-		if (!this.tocTreeModel) {
-			return;
-		}
-
-		const elementToSync = this.settingsTree.firstVisibleElement;
-		const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
-			elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
-				null;
-
-		// It's possible for this to be called when the TOC and settings tree are out of sync - e.g. when the settings tree has deferred a refresh because
-		// it is focused. So, bail if element doesn't exist in the TOC.
-		let nodeExists = true;
-		try { this.tocTree.getNode(element); } catch (e) { nodeExists = false; }
-		if (!nodeExists) {
-			return;
-		}
-
-		if (element && this.tocTree.getSelection()[0] !== element) {
-			const ancestors = this.getAncestors(element);
-			ancestors.forEach(e => this.tocTree.expand(<SettingsTreeGroupElement>e));
-
-			this.tocTree.reveal(element);
-			const elementTop = this.tocTree.getRelativeTop(element);
-			if (typeof elementTop !== 'number') {
-				return;
-			}
-
-			this.tocTree.collapseAll();
-
-			ancestors.forEach(e => this.tocTree.expand(<SettingsTreeGroupElement>e));
-			if (elementTop < 0 || elementTop > 1) {
-				this.tocTree.reveal(element);
-			} else {
-				this.tocTree.reveal(element, elementTop);
-			}
-
-			this.tocTree.expand(element);
-
-			this.tocTree.setSelection([element]);
-
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			(<IFocusEventFromScroll>fakeKeyboardEvent).fromScroll = true;
-			this.tocTree.setFocus([element], fakeKeyboardEvent);
-		}
-	}
-
-	private getAncestors(element: SettingsTreeElement): SettingsTreeElement[] {
-		const ancestors: SettingsTreeElement[] = [];
-
-		while (element.parent) {
-			if (element.parent.id !== 'root') {
-				ancestors.push(element.parent);
-			}
-
-			element = element.parent;
-		}
-
-		return ancestors.reverse();
 	}
 
 	private updateChangedSetting(key: string, value: unknown, manualReset: boolean, languageFilter: string | undefined, scope: ConfigurationScope | undefined): Promise<void> {
@@ -1709,17 +1581,14 @@ export class SettingsEditor2 extends EditorPane {
 			} else {
 				this.refreshTOCTree();
 
-				// In paginated mode, set initial category to the first one (Commonly Used)
-				const scrollBehavior = this.configurationService.getValue<'paginated' | 'continuous'>(SCROLL_BEHAVIOR_KEY);
-				if (scrollBehavior === 'paginated') {
-					const rootChildren = this.settingsTreeModel.value.root.children;
-					if (Array.isArray(rootChildren) && rootChildren.length > 0) {
-						const firstCategory = rootChildren[0];
-						if (firstCategory instanceof SettingsTreeGroupElement) {
-							this.viewState.categoryFilter = firstCategory;
-							this.tocTree.setFocus([firstCategory]);
-							this.tocTree.setSelection([firstCategory]);
-						}
+				// Set initial category to the first one (Commonly Used)
+				const rootChildren = this.settingsTreeModel.value.root.children;
+				if (Array.isArray(rootChildren) && rootChildren.length > 0) {
+					const firstCategory = rootChildren[0];
+					if (firstCategory instanceof SettingsTreeGroupElement) {
+						this.viewState.categoryFilter = firstCategory;
+						this.tocTree.setFocus([firstCategory]);
+						this.tocTree.setSelection([firstCategory]);
 					}
 				}
 
@@ -2287,9 +2156,10 @@ class SyncControls extends Disposable {
 	) {
 		super();
 
-		const turnOnSyncButtonContainer = DOM.append(container, $('.turn-on-sync'));
+		const headerRightControlsContainer = DOM.append(container, $('.settings-right-controls'));
+		const turnOnSyncButtonContainer = DOM.append(headerRightControlsContainer, $('.turn-on-sync'));
 		this.turnOnSyncButton = this._register(new Button(turnOnSyncButtonContainer, { title: true, ...defaultButtonStyles }));
-		this.lastSyncedLabel = DOM.append(container, $('.last-synced-label'));
+		this.lastSyncedLabel = DOM.append(headerRightControlsContainer, $('.last-synced-label'));
 		DOM.hide(this.lastSyncedLabel);
 
 		this.turnOnSyncButton.enabled = true;

@@ -443,10 +443,10 @@ export class InlineCompletionsModel extends Disposable {
 			}
 		}
 
-		const itemToPreserveCandidate = this.selectedInlineCompletion.read(undefined) ?? this._inlineCompletionItems.read(undefined)?.inlineEdit;
+		const itemToPreserveCandidate = this.selectedInlineCompletion.read(undefined) ?? this._inlineSuggestionItems.read(undefined)?.inlineEdit;
 		const itemToPreserve = changeSummary.preserveCurrentCompletion || itemToPreserveCandidate?.forwardStable
 			? itemToPreserveCandidate : undefined;
-		const userJumpedToActiveCompletion = this._jumpedToId.map(jumpedTo => !!jumpedTo && jumpedTo === this._inlineCompletionItems.read(undefined)?.inlineEdit?.semanticId);
+		const userJumpedToActiveCompletion = this._jumpedToId.map(jumpedTo => !!jumpedTo && jumpedTo === this._inlineSuggestionItems.read(undefined)?.inlineEdit?.semanticId);
 
 		const providers = changeSummary.provider
 			? { providers: [changeSummary.provider], label: 'single:' + changeSummary.provider.providerId?.toString() }
@@ -518,7 +518,7 @@ export class InlineCompletionsModel extends Disposable {
 		});
 	}
 
-	private readonly _inlineCompletionItems = derivedOpts({ owner: this }, reader => {
+	private readonly _inlineSuggestionItems = derivedOpts({ owner: this }, reader => {
 		const c = this._source.inlineCompletions.read(reader);
 		if (!c) { return undefined; }
 		const cursorPosition = this.primaryPosition.read(reader);
@@ -545,14 +545,14 @@ export class InlineCompletionsModel extends Disposable {
 		};
 	});
 
-	private readonly _filteredInlineCompletionItems = derivedOpts({ owner: this, equalsFn: arrayEqualsC() }, reader => {
-		const c = this._inlineCompletionItems.read(reader);
+	private readonly _inlineCompletionItems = derivedOpts({ owner: this, equalsFn: arrayEqualsC() }, reader => {
+		const c = this._inlineSuggestionItems.read(reader);
 		return c?.inlineCompletions ?? [];
 	});
 
 	public readonly selectedInlineCompletionIndex = derived<number>(this, (reader) => {
 		const selectedInlineCompletionId = this._selectedInlineCompletionId.read(reader);
-		const filteredCompletions = this._filteredInlineCompletionItems.read(reader);
+		const filteredCompletions = this._inlineCompletionItems.read(reader);
 		const idx = this._selectedInlineCompletionId === undefined ? -1
 			: filteredCompletions.findIndex(v => v.semanticId === selectedInlineCompletionId);
 		if (idx === -1) {
@@ -564,7 +564,7 @@ export class InlineCompletionsModel extends Disposable {
 	});
 
 	public readonly selectedInlineCompletion = derived<InlineCompletionItem | undefined>(this, (reader) => {
-		const filteredCompletions = this._filteredInlineCompletionItems.read(reader);
+		const filteredCompletions = this._inlineCompletionItems.read(reader);
 		const idx = this.selectedInlineCompletionIndex.read(reader);
 		return filteredCompletions[idx];
 	});
@@ -577,7 +577,7 @@ export class InlineCompletionsModel extends Disposable {
 
 	public readonly inlineCompletionsCount = derived<number | undefined>(this, reader => {
 		if (this.lastTriggerKind.read(reader) === InlineCompletionTriggerKind.Explicit) {
-			return this._filteredInlineCompletionItems.read(reader).length;
+			return this._inlineCompletionItems.read(reader).length;
 		} else {
 			return undefined;
 		}
@@ -637,7 +637,7 @@ export class InlineCompletionsModel extends Disposable {
 			return undefined;
 		}
 
-		const item = this._inlineCompletionItems.read(reader);
+		const item = this._inlineSuggestionItems.read(reader);
 		const inlineEditResult = item?.inlineEdit;
 		if (inlineEditResult) {
 			if (this._hasVisiblePeekWidgets.read(reader)) {
@@ -870,7 +870,7 @@ export class InlineCompletionsModel extends Disposable {
 	private async _deltaSelectedInlineCompletionIndex(delta: 1 | -1): Promise<void> {
 		await this.triggerExplicitly();
 
-		const completions = this._filteredInlineCompletionItems.get() || [];
+		const completions = this._inlineCompletionItems.get() || [];
 		if (completions.length > 0) {
 			const newIdx = (this.selectedInlineCompletionIndex.get() + delta + completions.length) % completions.length;
 			this._selectedInlineCompletionId.set(completions[newIdx].semanticId, undefined);

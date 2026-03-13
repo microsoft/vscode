@@ -2,7 +2,7 @@
   "name": "emmet",
   "displayName": "Emmet",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -474,8 +474,14 @@
     }
   },
   "scripts": {
-    "watch": "gulp watch-extension:emmet",
     "compile": "gulp compile-extension:emmet",
+    "watch": "gulp watch-extension:emmet",
+    "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
+    "bundle-web": "node ./esbuild.browser.mts",
+    "typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit",
+    "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
+    "watch-bundle-web": "node ./esbuild.browser.mts --watch",
+    "watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch",
     "deps": "npm install @vscode/emmet-helper"
   },
   "devDependencies": {

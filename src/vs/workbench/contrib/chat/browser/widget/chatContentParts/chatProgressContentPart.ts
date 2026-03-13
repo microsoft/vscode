@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append } from '../../../../../../base/browser/dom.js';
+import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { stripIcons } from '../../../../../../base/common/iconLabels.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../../../nls.js';
 import { IChatProgressMessage, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
@@ -33,6 +34,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	private readonly showSpinner: boolean;
 	private readonly isHidden: boolean;
 	private readonly renderedMessage = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly _fileWidgetStore = this._register(new DisposableStore());
 	private currentContent: IMarkdownString;
 
 	constructor(
@@ -43,6 +45,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		forceShowMessage: boolean | undefined,
 		icon: ThemeIcon | undefined,
 		private readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized | undefined,
+		shimmer: boolean | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -59,19 +62,25 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			return;
 		}
 
-		if (this.showSpinner && !this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
-			// TODO@roblourens is this the right place for this?
+		if (this.showSpinner && this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
 			// this step is in progress, communicate it to SR users
-			alert(progress.content.value);
+			alert(stripIcons(renderAsPlaintext(progress.content)));
 		}
-		const codicon = icon ? icon : this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin') : Codicon.check;
+		const isLoadingIcon = icon && ThemeIcon.isEqual(icon, ThemeIcon.modify(Codicon.loading, 'spin'));
+		// Even if callers request shimmer, only the active (spinner-visible) progress row should animate.
+		const useShimmer = (shimmer ?? (!icon || isLoadingIcon)) && this.showSpinner;
+		// if we have shimmer, don't show spinner
+		const codicon = useShimmer ? Codicon.check : (icon ?? (this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin') : Codicon.check));
 		const result = this.chatContentMarkdownRenderer.render(progress.content);
 		result.element.classList.add('progress-step');
-		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._fileWidgetStore);
 
 		const tooltip: IMarkdownString | undefined = this.createApprovalMessage();
 		const progressPart = this._register(instantiationService.createInstance(ChatProgressSubPart, result.element, codicon, tooltip));
 		this.domNode = progressPart.domNode;
+		if (useShimmer) {
+			this.domNode.classList.add('shimmer-progress');
+		}
 		this.renderedMessage.value = result;
 	}
 
@@ -83,7 +92,8 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		// Render the new message
 		const result = this._register(this.chatContentMarkdownRenderer.render(content));
 		result.element.classList.add('progress-step');
-		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+		this._fileWidgetStore.clear();
+		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._fileWidgetStore);
 
 		// Replace the old message container with the new one
 		if (this.renderedMessage.value) {
@@ -142,6 +152,10 @@ export class ChatProgressSubPart extends Disposable {
 				content: tooltip,
 				style: HoverStyle.Pointer,
 			}));
+			this._register(hoverService.setupDelayedHover(messageElement, {
+				content: tooltip,
+				style: HoverStyle.Pointer,
+			}));
 		}
 		append(this.domNode, iconElement);
 
@@ -162,10 +176,9 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 	) {
 		const progressMessage: IChatProgressMessage = {
 			kind: 'progressMessage',
-			content: new MarkdownString().appendText(localize('workingMessage', "Working..."))
+			content: new MarkdownString().appendText(localize('workingMessage', "Working"))
 		};
-		super(progressMessage, chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, instantiationService, chatMarkdownAnchorService, configurationService);
-		this.domNode.classList.add('working-progress');
+		super(progressMessage, chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, true, instantiationService, chatMarkdownAnchorService, configurationService);
 		this._register(languageModelToolsService.onDidPrepareToolCallBecomeUnresponsive(e => {
 			if (isEqual(context.element.sessionResource, e.sessionResource)) {
 				this.updateMessage(new MarkdownString(localize('toolCallUnresponsive', "Waiting for tool '{0}' to respond...", e.toolData.displayName)));

@@ -11,7 +11,7 @@ When a proposed API is changed in a non-backwards-compatible way, the version nu
 // version: 1
 ```
 
-No semver, just a basic incrementing integer. The corresponding version number in the extension's package.json must be incremented to match (you could remind the user of this if you don't have access to the extension code yourself).
+No semver, just a basic incrementing integer. See existing examples in `vscode.proposed.chatParticipantPrivate.d.ts` (version 12), `vscode.proposed.chatProvider.d.ts` (version 4), and other chat/languageModel proposals. The corresponding version number in the extension's package.json must be incremented to match (you could remind the user of this if you don't have access to the extension code yourself).
 
 An example of a non-backwards-compatible change is removing a non-optional property or changing the type to one that is incompatible with the previous type.
 

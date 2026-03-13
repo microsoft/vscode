@@ -12,7 +12,7 @@ import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fromGitUri } from './uri';
-import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher, PostCommitCommandsProvider, BranchProtectionProvider, SourceControlHistoryItemDetailsProvider } from './api/git';
+import type { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher, PostCommitCommandsProvider, BranchProtectionProvider, SourceControlHistoryItemDetailsProvider } from './api/git';
 import { Askpass } from './askpass';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
@@ -1112,6 +1112,11 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	private async isRepositoryOutsideWorkspace(repositoryPath: string): Promise<boolean> {
 		// Allow opening repositories in the empty workspace
 		if (workspace.workspaceFolders === undefined) {
+			return false;
+		}
+
+		// Allow opening repositories in the agent session workspace
+		if (workspace.isAgentSessionsWorkspace) {
 			return false;
 		}
 

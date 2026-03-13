@@ -13,7 +13,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { TerminalChatContextKeys } from './terminalChat.js';
-import { chatSessionResourceToId, LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
+import { LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
 import { isNumber, isString } from '../../../../../base/common/types.js';
 
 const enum StorageKeys {
@@ -178,11 +178,6 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	getChatSessionResourceForInstance(instance: ITerminalInstance): URI | undefined {
 		return this._chatSessionResourceByTerminalInstance.get(instance);
-	}
-
-	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined {
-		const resource = this._chatSessionResourceByTerminalInstance.get(instance);
-		return resource ? chatSessionResourceToId(resource) : undefined;
 	}
 
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean {

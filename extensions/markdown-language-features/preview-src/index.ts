@@ -23,11 +23,17 @@ let documentResource = settings.settings.source;
 
 const vscode = acquireVsCodeApi();
 
-// eslint-disable-next-line local/code-no-any-casts
-const originalState = vscode.getState() ?? {} as any;
-const state = {
+interface State {
+	scrollProgress?: number;
+	resource?: string;
+	line?: number;
+	fragment?: string;
+}
+
+const originalState: State = vscode.getState() ?? {};
+const state: State = {
 	...originalState,
-	...getData<any>('data-state')
+	...getData<Partial<State>>('data-state')
 };
 
 if (typeof originalState.scrollProgress !== 'undefined' && originalState?.resource !== state.resource) {
@@ -250,7 +256,6 @@ window.addEventListener('message', async event => {
 				}
 				newRoot.prepend(...styles);
 
-				// eslint-disable-next-line local/code-no-any-casts
 				morphdom(root, newRoot, {
 					childrenOnly: true,
 					onBeforeElUpdated: (fromEl: Element, toEl: Element) => {
@@ -287,7 +292,7 @@ window.addEventListener('message', async event => {
 							domEval(childNode);
 						}
 					}
-				} as any);
+				});
 			}
 
 			++documentVersion;
@@ -332,10 +337,10 @@ document.addEventListener('click', event => {
 		return;
 	}
 
-	let node: any = event.target;
+	let node = event.target as Element | null;
 	while (node) {
-		if (node.tagName && node.tagName === 'A' && node.href) {
-			if (node.getAttribute('href').startsWith('#')) {
+		if (node.tagName && node.tagName === 'A' && (node as HTMLAnchorElement).href) {
+			if (node.getAttribute('href')?.startsWith('#')) {
 				return;
 			}
 
@@ -343,13 +348,13 @@ document.addEventListener('click', event => {
 			if (!hrefText) {
 				hrefText = node.getAttribute('href');
 				// Pass through known schemes
-				if (passThroughLinkSchemes.some(scheme => hrefText.startsWith(scheme))) {
+				if (hrefText && passThroughLinkSchemes.some(scheme => hrefText!.startsWith(scheme))) {
 					return;
 				}
 			}
 
 			// If original link doesn't look like a url, delegate back to VS Code to resolve
-			if (!/^[a-z\-]+:/i.test(hrefText)) {
+			if (hrefText && !/^[a-z\-]+:/i.test(hrefText)) {
 				messaging.postMessage('openLink', { href: hrefText });
 				event.preventDefault();
 				event.stopPropagation();
@@ -358,7 +363,7 @@ document.addEventListener('click', event => {
 
 			return;
 		}
-		node = node.parentNode;
+		node = node.parentElement;
 	}
 }, true);
 
@@ -441,8 +446,7 @@ function domEval(el: Element): void {
 		for (const key of preservedScriptAttributes) {
 			const val = node.getAttribute?.(key);
 			if (val) {
-				// eslint-disable-next-line local/code-no-any-casts
-				scriptTag.setAttribute(key, val as any);
+				scriptTag.setAttribute(key, val);
 			}
 		}
 

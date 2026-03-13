@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { reverseOrder, compareBy, numberComparator, sumBy } from '../../../../../base/common/arrays.js';
-import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
+import { IntervalTimer } from '../../../../../base/common/async.js';
 import { toDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
 import { mapObservableArrayCached, derived, IObservable, observableSignal, runOnChange, autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -18,7 +18,7 @@ import { sumByCategory } from '../helpers/utils.js';
 import { ScmAdapter, ScmRepoAdapter } from './scmAdapter.js';
 import { IRandomService } from '../randomService.js';
 
-type EditTelemetryMode = 'longterm' | '5minWindow' | '20minFocusWindow';
+type EditTelemetryMode = 'longterm' | '10minFocusWindow' | '20minFocusWindow';
 type EditTelemetryTrigger = '10hours' | 'hashChange' | 'branchChange' | 'closed' | 'time';
 
 export class EditSourceTrackingImpl extends Disposable {
@@ -112,7 +112,7 @@ class TrackedDocumentInfo extends Disposable {
 		this._store.add(this._instantiationService.createInstance(EditTelemetryReportEditArcForChatOrInlineChatSender, _doc.documentWithAnnotations, this._repo));
 		this._store.add(this._instantiationService.createInstance(CreateSuggestionIdForChatOrInlineChatCaller, _doc.documentWithAnnotations));
 
-		// Wall-clock time based 5-minute window tracker
+		// Focus time based 10-minute window tracker
 		const resetSignal = observableSignal('resetSignal');
 
 		this.windowedTracker = derived((reader) => {
@@ -123,17 +123,17 @@ class TrackedDocumentInfo extends Disposable {
 			}
 			resetSignal.read(reader);
 
-			// Reset after 5 minutes of wall-clock time
-			reader.store.add(new TimeoutTimer(() => {
+			// Reset after 10 minutes of accumulated focus time
+			reader.store.add(this._userAttentionService.fireAfterGivenFocusTimePassed(10 * 60 * 1000, () => {
 				resetSignal.trigger(undefined);
-			}, 5 * 60 * 1000));
+			}));
 
 			const t = reader.store.add(new DocumentEditSourceTracker(docWithJustReason, undefined));
 			const startFocusTime = this._userAttentionService.totalFocusTimeMs;
 			const startTime = Date.now();
 			reader.store.add(toDisposable(async () => {
 				// send windowed document telemetry
-				this.sendTelemetry('5minWindow', 'time', t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
+				this.sendTelemetry('10minFocusWindow', 'time', t, this._userAttentionService.totalFocusTimeMs - startFocusTime, Date.now() - startTime);
 				t.dispose();
 			}));
 
@@ -217,9 +217,9 @@ class TrackedDocumentInfo extends Disposable {
 				totalModifiedCount: number;
 			}, {
 				owner: 'hediet';
-				comment: 'Provides detailed character count breakdown for individual edit sources (typing, paste, inline completions, NES, etc.) within a session. Reports the top 10-30 sources per session with granular metadata including extension IDs and model IDs for AI edits. Sessions are scoped to either 5-minute wall-clock time windows, 20-minute focus time windows for visible documents, or longer periods ending on branch changes, commits, or 10-hour intervals. Focus time is computed as the accumulated time where VS Code has focus and there was recent user activity (within the last minute). This event complements editSources.stats by providing source-specific details. @sentToGitHub';
+				comment: 'Provides detailed character count breakdown for individual edit sources (typing, paste, inline completions, NES, etc.) within a session. Reports the top 10-30 sources per session with granular metadata including extension IDs and model IDs for AI edits. Sessions are scoped to either 10-minute or 20-minute focus time windows for visible documents, or longer periods ending on branch changes, commits, or 10-hour intervals. Focus time is computed as the accumulated time where VS Code has focus and there was recent user activity (within the last minute). This event complements editSources.stats by providing source-specific details. @sentToGitHub';
 
-				mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Describes the session mode. Is either \'longterm\', \'5minWindow\', or \'20minFocusWindow\'.' };
+				mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Describes the session mode. Is either \'longterm\', \'10minFocusWindow\', or \'20minFocusWindow\'.' };
 				sourceKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A description of the source of the edit.' };
 
 				sourceKeyCleaned: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit with some properties (such as extensionId, extensionVersion and modelId) removed.' };
@@ -275,9 +275,9 @@ class TrackedDocumentInfo extends Disposable {
 			trigger: EditTelemetryTrigger;
 		}, {
 			owner: 'hediet';
-			comment: 'Aggregates character counts by edit source category (user typing, AI completions, NES, IDE actions, external changes) for each editing session. Sessions represent units of work and end when documents close, branches change, commits occur, or time limits are reached (5 minutes of wall-clock time, 20 minutes of focus time for visible documents, or 10 hours otherwise). Focus time is computed as accumulated 1-minute blocks where VS Code has focus and there was recent user activity. Tracks both total characters inserted and characters remaining at session end to measure retention. This high-level summary complements editSources.details which provides granular per-source breakdowns. @sentToGitHub';
+			comment: 'Aggregates character counts by edit source category (user typing, AI completions, NES, IDE actions, external changes) for each editing session. Sessions represent units of work and end when documents close, branches change, commits occur, or time limits are reached (10 or 20 minutes of focus time for visible documents, or 10 hours otherwise). Focus time is computed as accumulated 1-minute blocks where VS Code has focus and there was recent user activity. Tracks both total characters inserted and characters remaining at session end to measure retention. This high-level summary complements editSources.details which provides granular per-source breakdowns. @sentToGitHub';
 
-			mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'longterm, 5minWindow, or 20minFocusWindow' };
+			mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'longterm, 10minFocusWindow, or 20minFocusWindow' };
 			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
 			statsUuid: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The unique identifier for the telemetry event.' };
 

@@ -50,7 +50,7 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 			throw new Error('Workspace context provider not found');
 		}
 		const provider = entry.provider as vscode.ChatWorkspaceContextProvider;
-		const result = (await provider.provideChatContext(token)) ?? [];
+		const result = (await provider.provideWorkspaceChatContext?.(token)) ?? (await provider.provideChatContext?.(token)) ?? [];
 		return this._convertItems(handle, result);
 	}
 
@@ -63,7 +63,7 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 			throw new Error('Explicit context provider not found');
 		}
 		const provider = entry.provider as vscode.ChatExplicitContextProvider;
-		const result = (await provider.provideChatContext(token)) ?? [];
+		const result = (await provider.provideExplicitChatContext?.(token)) ?? (await provider.provideChatContext?.(token)) ?? [];
 		return this._convertItems(handle, result);
 	}
 
@@ -77,7 +77,7 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 		if (!extItem) {
 			throw new Error('Chat context item not found');
 		}
-		return this._doResolve(provider.resolveChatContext.bind(provider), context, extItem, token);
+		return this._doResolve((provider.resolveExplicitChatContext ?? provider.resolveChatContext)?.bind(provider), context, extItem, token);
 	}
 
 	// Resource context provider methods
@@ -89,7 +89,7 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 		}
 		const provider = entry.provider as vscode.ChatResourceContextProvider;
 
-		const result = await provider.provideChatContext({ resource: URI.revive(options.resource) }, token);
+		const result = (await provider.provideResourceChatContext?.({ resource: URI.revive(options.resource) }, token)) ?? (await provider.provideChatContext?.({ resource: URI.revive(options.resource) }, token));
 		if (!result) {
 			return undefined;
 		}
@@ -109,7 +109,7 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 			command: result.command ? { id: result.command.command } : undefined
 		};
 		if (options.withValue && !item.value) {
-			const resolved = await provider.resolveChatContext(result, token);
+			const resolved = await (provider.resolveResourceChatContext ?? provider.resolveChatContext)?.bind(provider)(result, token);
 			item.value = resolved?.value;
 			item.tooltip = resolved?.tooltip ? MarkdownString.from(resolved.tooltip) : item.tooltip;
 		}
@@ -127,7 +127,7 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 		if (!extItem) {
 			throw new Error('Chat context item not found');
 		}
-		return this._doResolve(provider.resolveChatContext.bind(provider), context, extItem, token);
+		return this._doResolve((provider.resolveResourceChatContext ?? provider.resolveChatContext)?.bind(provider), context, extItem, token);
 	}
 
 	// Command execution
@@ -209,7 +209,7 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 		if (provider.provideWorkspaceChatContext) {
 			const workspaceProvider: vscode.ChatWorkspaceContextProvider = {
 				onDidChangeWorkspaceChatContext: provider.onDidChangeWorkspaceChatContext,
-				provideChatContext: (token) => provider.provideWorkspaceChatContext!(token)
+				provideWorkspaceChatContext: (token) => provider.provideWorkspaceChatContext!(token)
 			};
 			disposables.push(this.registerChatWorkspaceContextProvider(id, workspaceProvider));
 		}
@@ -217,8 +217,8 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 		// Register explicit context provider if the provider supports it
 		if (provider.provideChatContextExplicit) {
 			const explicitProvider: vscode.ChatExplicitContextProvider = {
-				provideChatContext: (token) => provider.provideChatContextExplicit!(token),
-				resolveChatContext: provider.resolveChatContext
+				provideExplicitChatContext: (token) => provider.provideChatContextExplicit!(token),
+				resolveExplicitChatContext: provider.resolveChatContext
 					? (context, token) => provider.resolveChatContext!(context, token)
 					: (context) => context
 			};
@@ -228,8 +228,8 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 		// Register resource context provider if the provider supports it and has a selector
 		if (provider.provideChatContextForResource && selector) {
 			const resourceProvider: vscode.ChatResourceContextProvider = {
-				provideChatContext: (options, token) => provider.provideChatContextForResource!(options, token),
-				resolveChatContext: provider.resolveChatContext
+				provideResourceChatContext: (options, token) => provider.provideChatContextForResource!(options, token),
+				resolveResourceChatContext: provider.resolveChatContext
 					? (context, token) => provider.resolveChatContext!(context, token)
 					: (context) => context
 			};
@@ -315,7 +315,7 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 			return;
 		}
 		const provideWorkspaceContext = async () => {
-			const workspaceContexts = await provider.provideChatContext(CancellationToken.None);
+			const workspaceContexts = (await provider.provideWorkspaceChatContext?.(CancellationToken.None) ?? await provider.provideChatContext?.(CancellationToken.None));
 			const resolvedContexts = this._convertItems(handle, workspaceContexts ?? []);
 			return this._proxy.$updateWorkspaceContextItems(handle, resolvedContexts);
 		};
