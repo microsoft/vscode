@@ -139,6 +139,11 @@ export interface INotebookKernelService {
 	preselectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void;
 
 	/**
+	 * Set the kernel if there is a single preferred kernel so that the REPL can be started without needing selection
+	 */
+	preselectKernelForRepl(notebook: INotebookTextModelLike): void;
+
+	/**
 	 * Set a perference of a kernel for a certain notebook. Higher values win, `undefined` removes the preference
 	 */
 	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void;
