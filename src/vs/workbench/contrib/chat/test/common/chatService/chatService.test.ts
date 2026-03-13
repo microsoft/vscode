@@ -55,6 +55,8 @@ import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { MockChatSessionsService } from '../mockChatSessionsService.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -770,6 +772,73 @@ suite('ChatService', () => {
 		assert.ok(lastThree[0].includes('queued-1'));
 		assert.ok(lastThree[1].includes('queued-2'));
 		assert.ok(lastThree[2].includes('queued-3'));
+	});
+
+	test('sendRequest on untitled remote session propagates initialSessionOptions to new model', async () => {
+		const remoteScheme = 'remoteProvider';
+		const untitledResource = URI.from({ scheme: remoteScheme, path: '/untitled-test-session' });
+		const realResource = URI.from({ scheme: remoteScheme, path: '/real-session-123' });
+
+		// Set up the mock chat sessions service
+		const mockSessionsService = new MockChatSessionsService();
+
+		// Register a content provider so loadRemoteSession can resolve sessions
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(remoteScheme, {
+			provideChatSessionContent: (_resource: URI, _token: CancellationToken) => {
+				return Promise.resolve({
+					sessionResource: _resource,
+					history: [],
+					onWillDispose: Event.None,
+					dispose: () => { },
+				});
+			},
+		}));
+
+		// Set session options for the untitled resource
+		mockSessionsService.setSessionOption(untitledResource, 'model', 'claude-3.5-sonnet');
+		mockSessionsService.setSessionOption(untitledResource, 'repo', 'my-repo');
+
+		// Override createNewChatSessionItem to return a real resource
+		mockSessionsService.createNewChatSessionItem = async () => ({
+			resource: realResource,
+			label: 'Test Session',
+			timing: { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined },
+		});
+
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		// Register the remote agent
+		const remoteAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				return {};
+			},
+		};
+		testDisposables.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, remoteAgent));
+
+		const testService = createChatService();
+
+		// Load the untitled session to create the initial model
+		const untitledRef = await testService.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(untitledRef, 'Should load untitled session');
+		testDisposables.add(untitledRef);
+
+		// Send a request - this triggers the untitled → real session conversion
+		const response = await testService.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		// The new model (with real resource) should have initialSessionOptions set
+		const newModel = testService.getSession(realResource) as ChatModel;
+		assert.ok(newModel, 'New model should exist at the real resource');
+		assert.ok(newModel.contributedChatSession, 'New model should have contributedChatSession');
+		assert.deepStrictEqual(
+			newModel.contributedChatSession?.initialSessionOptions?.map(o => ({ optionId: o.optionId, value: o.value })),
+			[
+				{ optionId: 'model', value: 'claude-3.5-sonnet' },
+				{ optionId: 'repo', value: 'my-repo' },
+			]
+		);
 	});
 });
 
