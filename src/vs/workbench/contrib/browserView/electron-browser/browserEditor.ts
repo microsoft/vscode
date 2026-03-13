@@ -379,6 +379,9 @@ export class BrowserEditor extends EditorPane {
 			if (this._model) {
 				findWidget.setModel(this._model);
 			}
+			findWidget.onDidChangeHeight(() => {
+				this.layoutBrowserContainer();
+			});
 			return findWidget;
 		});
 		this._register(toDisposable(() => this._findWidget.rawValue?.dispose()));
