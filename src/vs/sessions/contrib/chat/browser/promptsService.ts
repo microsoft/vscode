@@ -117,18 +117,20 @@ export class AgenticPromptsService extends PromptsService {
 				const skillFileUri = joinPath(child.resource, SKILL_FILENAME);
 				try {
 					const parsed = await this.parseNew(skillFileUri, CancellationToken.None);
-					const name = parsed.header?.name;
-					const description = parsed.header?.description;
-					if (!name || !description) {
+					const rawName = parsed.header?.name;
+					const rawDescription = parsed.header?.description;
+					if (!rawName || !rawDescription) {
 						continue;
 					}
+					const name = sanitizeSkillText(rawName, 64);
+					const description = sanitizeSkillText(rawDescription, 1024);
 					const folderName = basename(child.resource);
 					if (name !== folderName) {
 						continue;
 					}
 					skills.push({
 						uri: skillFileUri,
-						storage: BUILTIN_STORAGE as unknown as PromptsStorage,
+						storage: BUILTIN_STORAGE as PromptsStorage,
 						name,
 						description,
 						disableModelInvocation: parsed.header?.disableModelInvocation === true,
@@ -158,7 +160,7 @@ export class AgenticPromptsService extends PromptsService {
 
 	/**
 	 * Override to include built-in skills, appending them with lowest priority.
-	 * User/workspace skills with the same name take precedence.
+	 * Skills from any other source (workspace, user, extension, internal) take precedence.
 	 */
 	public override async findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined> {
 		const baseResult = await super.findAgentSkills(token, sessionResource);
@@ -327,5 +329,14 @@ function getCliUserSubfolder(type: PromptsType): string | undefined {
 		case PromptsType.agent: return 'agents';
 		default: return undefined;
 	}
+}
+
+/**
+ * Strips XML tags and truncates to the given max length.
+ * Matches the sanitization applied by PromptsService for other skill sources.
+ */
+function sanitizeSkillText(text: string, maxLength: number): string {
+	const sanitized = text.replace(/<[^>]+>/g, '');
+	return sanitized.length > maxLength ? sanitized.substring(0, maxLength) : sanitized;
 }
 
