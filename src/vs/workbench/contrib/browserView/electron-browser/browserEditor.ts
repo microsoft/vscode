@@ -16,7 +16,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
-import { BrowserEditorInput } from './browserEditorInput.js';
+import { BrowserEditorInput } from '../common/browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -232,8 +232,6 @@ class BrowserNavigationBar extends Disposable {
 }
 
 export class BrowserEditor extends EditorPane {
-	static readonly ID = 'workbench.editor.browser';
-
 	private _overlayVisible = false;
 	private _editorVisible = false;
 	private _currentKeyDownEvent: IBrowserViewKeyDownEvent | undefined;
@@ -281,7 +279,7 @@ export class BrowserEditor extends EditorPane {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILayoutService private readonly layoutService: ILayoutService
 	) {
-		super(BrowserEditor.ID, group, telemetryService, themeService, storageService);
+		super(BrowserEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
 	}
 
 	protected override createEditor(parent: HTMLElement): void {

@@ -9,7 +9,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { BrowserEditor } from './browserEditor.js';
-import { BrowserEditorInput, BrowserEditorSerializer } from './browserEditorInput.js';
+import { BrowserEditorInput, BrowserEditorSerializer } from '../common/browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
@@ -44,7 +44,7 @@ import './tools/browserTools.contribution.js';
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		BrowserEditor,
-		BrowserEditor.ID,
+		BrowserEditorInput.EDITOR_ID,
 		localize('browser.editorLabel', "Browser")
 	),
 	[
