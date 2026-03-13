@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { encodeBase64 } from '../../../../../base/common/buffer.js';
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
@@ -109,7 +108,7 @@ export class ScreenshotBrowserTool implements IToolImpl {
 			],
 			toolResultDetails: {
 				input: JSON.stringify(params, undefined, 2),
-				output: [{ type: 'embed', value: encodeBase64(screenshot), mimeType: 'image/jpeg' }],
+				output: { type: 'data', mimeType: 'image/jpeg', value: screenshot },
 			},
 		};
 	}
