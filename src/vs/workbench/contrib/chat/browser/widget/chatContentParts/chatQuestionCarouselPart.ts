@@ -669,6 +669,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const inputResizeObserver = questionRenderStore.add(new dom.DisposableResizeObserver(() => scheduleLayoutInputScrollable()));
 		questionRenderStore.add(inputResizeObserver.observe(inputScrollableNode));
 		questionRenderStore.add(inputResizeObserver.observe(inputContainer));
+		questionRenderStore.add(dom.addDisposableListener(dom.getWindow(this.domNode), dom.EventType.RESIZE, () => scheduleLayoutInputScrollable()));
 		scheduleLayoutInputScrollable();
 		questionRenderStore.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
 			inputContainer.scrollTop = 0;
