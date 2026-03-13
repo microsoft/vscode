@@ -742,36 +742,26 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
 			: path.join(outputDir, versionedResourcesFolder, 'resources', 'app');
 
-		// After ASAR packaging, node_modules/ may be packed into node_modules.asar.
-		// On macOS, node_modules/ may still exist as a real directory on disk alongside
-		// the ASAR; on Windows it does not. Source binaries (node-pty, ripgrep) are in
-		// node_modules.asar.unpacked/ (native modules are always unpacked from ASAR).
+		// After ASAR packaging, native modules are unpacked into node_modules.asar.unpacked/.
 		// We write the copilot native deps into a real node_modules/@github/copilot/
-		// directory so the CLI subprocess can access them without ASAR patching.
-		const nodeModulesDir = path.join(appBase, 'node_modules');
+		// directory so the CLI subprocess can find them via plain filesystem access.
+		// (The CLI runs with ELECTRON_RUN_AS_NODE=1 which has ASAR support for JS,
+		// but native .node binaries must be real files on disk.)
 		const unpackedDir = path.join(appBase, 'node_modules.asar.unpacked');
-
-		// Find source binaries: prefer plain node_modules/, fall back to .asar.unpacked/
-		const nodePtySourcePlain = path.join(nodeModulesDir, 'node-pty', 'build', 'Release');
-		const nodePtySourceUnpacked = path.join(unpackedDir, 'node-pty', 'build', 'Release');
-		const nodePtySource = fs.existsSync(nodePtySourcePlain) ? nodePtySourcePlain : nodePtySourceUnpacked;
-
-		const rgBinary = platform === 'win32' ? 'rg.exe' : 'rg';
-		const ripgrepSourcePlain = path.join(nodeModulesDir, '@vscode', 'ripgrep', 'bin', rgBinary);
-		const ripgrepSourceUnpacked = path.join(unpackedDir, '@vscode', 'ripgrep', 'bin', rgBinary);
-		const ripgrepSource = fs.existsSync(ripgrepSourcePlain) ? ripgrepSourcePlain : ripgrepSourceUnpacked;
-
-		// Destination: always write to a real node_modules/ directory (not .asar.unpacked)
-		// so the copilot CLI subprocess can find them via plain filesystem access.
-		const copilotBase = path.join(nodeModulesDir, '@github', 'copilot');
+		const copilotBase = path.join(appBase, 'node_modules', '@github', 'copilot');
 		const platformArch = `${platform === 'win32' ? 'win32' : platform}-${arch}`;
+
+		// Source binaries from ASAR-unpacked
+		const nodePtySource = path.join(unpackedDir, 'node-pty', 'build', 'Release');
+		const rgBinary = platform === 'win32' ? 'rg.exe' : 'rg';
+		const ripgrepSource = path.join(unpackedDir, '@vscode', 'ripgrep', 'bin', rgBinary);
 
 		// Fail-fast: source binaries must exist on non-stable builds.
 		if (!fs.existsSync(nodePtySource)) {
-			throw new Error(`[copyCopilotNativeDeps] node-pty source not found at ${nodePtySourcePlain} or ${nodePtySourceUnpacked}`);
+			throw new Error(`[copyCopilotNativeDeps] node-pty source not found at ${nodePtySource}`);
 		}
 		if (!fs.existsSync(ripgrepSource)) {
-			throw new Error(`[copyCopilotNativeDeps] ripgrep source not found at ${ripgrepSourcePlain} or ${ripgrepSourceUnpacked}`);
+			throw new Error(`[copyCopilotNativeDeps] ripgrep source not found at ${ripgrepSource}`);
 		}
 
 		// Copy node-pty (pty.node + spawn-helper) into copilot prebuilds
