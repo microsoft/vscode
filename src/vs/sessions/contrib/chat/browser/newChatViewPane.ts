@@ -1219,11 +1219,14 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	prefillInput(text: string): void {
-		const model = this._editor?.getModel();
-		if (model) {
+		const editor = this._editor;
+		const model = editor?.getModel();
+		if (editor && model) {
 			model.setValue(text);
-			this._editor?.setPosition({ lineNumber: 1, column: text.length + 1 });
-			this._editor?.focus();
+			const lastLine = model.getLineCount();
+			const maxColumn = model.getLineMaxColumn(lastLine);
+			editor.setPosition({ lineNumber: lastLine, column: maxColumn });
+			editor.focus();
 		}
 	}
 
