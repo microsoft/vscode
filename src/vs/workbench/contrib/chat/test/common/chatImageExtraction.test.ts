@@ -227,6 +227,16 @@ suite('extractImagesFromChatResponse', () => {
 		assert.strictEqual(result.id, sessionResource.toString() + '_response-42');
 	});
 
+	test('skips inline reference when readFile fails', async () => {
+		const imageUri = URI.file('/photos/missing.png');
+		const inlineRef = makeInlineReference(imageUri, 'missing.png');
+		const failingReadFile = (_uri: URI) => Promise.reject(new Error('File not found'));
+
+		const response = makeResponse([inlineRef]);
+		const result = await extractImagesFromChatResponse(response, failingReadFile);
+		assert.strictEqual(result.images.length, 0);
+	});
+
 	test('extracts images from tool invocation message URIs', async () => {
 		const imageUri = URI.file('/screenshots/result.png');
 		const toolInvocation = makeToolInvocation({

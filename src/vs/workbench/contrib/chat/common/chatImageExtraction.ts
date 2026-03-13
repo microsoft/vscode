@@ -31,8 +31,8 @@ export interface IChatExtractedImageCollection {
 
 /**
  * Extract all images from a chat response's tool invocations and inline references.
- * When a {@link readFile} callback is provided, inline reference images (file URIs)
- * are also extracted; otherwise only tool invocation images are returned.
+ * Tool invocation images are extracted from output details and message URIs.
+ * Inline reference images (file URIs) are read via the provided {@link readFile} callback.
  */
 export async function extractImagesFromChatResponse(
 	response: IChatResponseViewModel,
@@ -112,12 +112,14 @@ export async function extractImagesFromToolInvocationMessages(
 	toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 	readFile: (uri: URI) => Promise<VSBuffer>
 ): Promise<IChatExtractedImage[]> {
+	// Use pastTenseMessage if available, otherwise fall back to invocationMessage.
+	// When pastTenseMessage exists it visually replaces invocationMessage in the UI,
+	// so we only look at its URIs — we don't fall back to invocationMessage URIs.
 	const message = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
 	if (!message || typeof message === 'string' || !message.uris || Object.keys(message.uris).length === 0) {
 		return [];
 	}
 
-	// Prefer past tense message for caption, but fall back to invocation message if past tense not yet available (e.g. for streaming responses)
 	const images: IChatExtractedImage[] = [];
 	for (const uriComponents of Object.values(message.uris)) {
 		const uri = URI.revive(uriComponents);
@@ -167,7 +169,12 @@ async function extractImageFromInlineReference(
 		return undefined;
 	}
 
-	const data = await readFile(refUri);
+	let data: VSBuffer;
+	try {
+		data = await readFile(refUri);
+	} catch {
+		return undefined;
+	}
 	const name = part.name ?? refUri.path.split('/').pop() ?? 'image';
 	return {
 		id: refUri.toString(),
