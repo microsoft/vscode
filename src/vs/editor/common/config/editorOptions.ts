@@ -238,7 +238,7 @@ export interface IEditorOptions {
 	overviewRulerBorder?: boolean;
 	/**
 	 * Whether or not overviewRuler is enabled.
-	 * Defaults to `true`.
+	 * Defaults to `'on'`.
 	 */
 	overviewRulerEnabled?: 'on' | 'off' | 'minimal';
 	/**
