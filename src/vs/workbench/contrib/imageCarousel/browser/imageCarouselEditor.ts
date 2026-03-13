@@ -209,7 +209,7 @@ export class ImageCarouselEditor extends EditorPane {
 	}
 
 	/**
-	 * Update only the changing parts: main image src, caption, counter, button states, thumbnail selection.
+	 * Update only the changing parts: main image src, caption, button states, thumbnail selection.
 	 * No DOM teardown/rebuild — eliminates the blank flash.
 	 */
 	private updateCurrentImage(): void {

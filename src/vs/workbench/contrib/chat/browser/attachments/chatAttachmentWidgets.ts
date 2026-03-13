@@ -483,7 +483,9 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			const sections: { title: string; images: IChatExtractedImage[] }[] = [];
 			let clickedGlobalIndex = -1;
 			let globalOffset = 0;
-			let collectionId: string | undefined;
+
+			// Use session-level ID so the same carousel is reused regardless of which image is clicked
+			const collectionId = widget.viewModel.sessionResource.toString() + '_carousel';
 
 			for (const response of responses) {
 				const extracted = extractImagesFromChatResponse(response);
@@ -496,7 +498,6 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 							: extracted.images.findIndex(img => img.data.equals(VSBuffer.wrap(data)));
 						if (localIndex !== -1) {
 							clickedGlobalIndex = globalOffset + localIndex;
-							collectionId = extracted.id;
 						}
 					}
 
@@ -504,7 +505,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 				}
 			}
 
-			if (clickedGlobalIndex !== -1 && collectionId && sections.length > 0) {
+			if (clickedGlobalIndex !== -1 && sections.length > 0) {
 				await this.commandService.executeCommand('workbench.action.chat.openImageInCarousel', {
 					collection: {
 						id: collectionId,

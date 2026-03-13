@@ -142,6 +142,7 @@
 	align-items: center;
 	gap: 6px;
 	overflow-x: auto;
+	justify-content: center;
 	justify-content: safe center;
 	padding: 0;
 	flex-shrink: 0;
