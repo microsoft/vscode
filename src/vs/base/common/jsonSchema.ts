@@ -87,6 +87,7 @@ export interface IJSONSchema {
 	suggestSortText?: string;
 	allowComments?: boolean;
 	allowTrailingCommas?: boolean;
+	secret?: boolean;
 }
 
 export interface IJSONSchemaMap {

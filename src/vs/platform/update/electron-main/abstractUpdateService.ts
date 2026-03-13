@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../base/common/async.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import * as os from 'os';
+import { IntervalTimer, timeout } from '../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { getWindowsReleaseSync } from '../../../base/node/windowsVersion.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService, LifecycleMainPhase } from '../../lifecycle/electron-main/lifecycleMainService.js';
@@ -14,8 +18,50 @@ import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
 
-export function createUpdateURL(platform: string, quality: string, productService: IProductService): string {
-	return `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
+export interface IUpdateURLOptions {
+	readonly background?: boolean;
+	readonly internalOrg?: string;
+}
+
+export function createUpdateURL(baseUpdateUrl: string, platform: string, quality: string, commit: string, options?: IUpdateURLOptions): string {
+	const url = new URL(`${baseUpdateUrl}/api/update/${platform}/${quality}/${commit}`);
+
+	if (options?.background) {
+		url.searchParams.set('bg', 'true');
+	}
+
+	url.searchParams.set('u', options?.internalOrg ?? 'none');
+
+	return url.toString();
+}
+
+/**
+ * Builds common headers for update requests, including those issued
+ * via Electron's auto-updater (e.g. setFeedURL({ url, headers })) and
+ * manual HTTP requests that bypass the auto-updater. The headers include
+ * OS version information which the update server uses for EOL detection.
+ *
+ * On macOS, the User-Agent includes the Darwin kernel version.
+ * On Windows, the User-Agent includes accurate Windows version from the registry.
+ */
+export function getUpdateRequestHeaders(productVersion: string): Record<string, string> | undefined {
+	if (isMacintosh) {
+		const darwinVersion = os.release();
+		return {
+			'User-Agent': `Code/${productVersion} Darwin/${darwinVersion}`
+		};
+	}
+
+	if (isWindows) {
+		const match = getWindowsReleaseSync().match(/^(\d+\.\d+)/);
+		if (match) {
+			return {
+				'User-Agent': `Code/${productVersion} Electron/${process.versions.electron} Windows NT ${match[1]}`
+			};
+		}
+	}
+
+	return undefined;
 }
 
 export type UpdateErrorClassification = {
@@ -28,9 +74,13 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	declare readonly _serviceBrand: undefined;
 
-	protected url: string | undefined;
+	protected quality: string | undefined;
 
 	private _state: State = State.Uninitialized;
+	protected _overwrite: boolean = false;
+	private _hasCheckedForOverwriteOnQuit: boolean = false;
+	private readonly overwriteUpdatesCheckInterval = new IntervalTimer();
+	private _internalOrg: string | undefined = undefined;
 
 	private readonly _onStateChange = new Emitter<State>();
 	readonly onStateChange: Event<State> = this._onStateChange.event;
@@ -43,6 +93,15 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.logService.info('update#setState', state.type);
 		this._state = state;
 		this._onStateChange.fire(state);
+
+		// Schedule 5-minute checks when in Ready state and overwrite is supported
+		if (this.supportsUpdateOverwrite) {
+			if (state.type === StateType.Ready) {
+				this.overwriteUpdatesCheckInterval.cancelAndSet(() => this.checkForOverwriteUpdates(), 5 * 60 * 1000);
+			} else {
+				this.overwriteUpdatesCheckInterval.cancel();
+			}
+		}
 	}
 
 	constructor(
@@ -51,7 +110,9 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@IEnvironmentMainService protected environmentMainService: IEnvironmentMainService,
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
-		@IProductService protected readonly productService: IProductService
+		@IProductService protected readonly productService: IProductService,
+		@IMeteredConnectionService protected readonly meteredConnectionService: IMeteredConnectionService,
+		protected readonly supportsUpdateOverwrite: boolean,
 	) {
 		lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen)
 			.finally(() => this.initialize());
@@ -81,27 +142,28 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		}
 
 		const updateMode = this.configurationService.getValue<'none' | 'manual' | 'start' | 'default'>('update.mode');
+		const updateModeInspection = this.configurationService.inspect<'none' | 'manual' | 'start' | 'default'>('update.mode');
+		const policyDisablesUpdates = updateModeInspection.policyValue !== undefined && !this.getProductQuality(updateModeInspection.policyValue);
 		const quality = this.getProductQuality(updateMode);
 
 		if (!quality) {
-			this.setState(State.Disabled(DisablementReason.ManuallyDisabled));
-			this.logService.info('update#ctor - updates are disabled by user preference');
+			if (policyDisablesUpdates) {
+				this.setState(State.Disabled(DisablementReason.Policy));
+				this.logService.info('update#ctor - updates are disabled by policy');
+			} else {
+				this.setState(State.Disabled(DisablementReason.ManuallyDisabled));
+				this.logService.info('update#ctor - updates are disabled by user preference');
+			}
 			return;
 		}
 
-		this.url = this.buildUpdateFeedUrl(quality);
-		if (!this.url) {
+		if (!this.buildUpdateFeedUrl(quality, this.productService.commit!)) {
 			this.setState(State.Disabled(DisablementReason.InvalidConfiguration));
 			this.logService.info('update#ctor - updates are disabled as the update URL is badly formed');
 			return;
 		}
 
-		// hidden setting
-		if (this.configurationService.getValue<boolean>('_update.prss')) {
-			const url = new URL(this.url);
-			url.searchParams.set('prss', 'true');
-			this.url = url.toString();
-		}
+		this.quality = quality;
 
 		this.setState(State.Idle(this.getUpdateType()));
 
@@ -146,10 +208,15 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.doCheckForUpdates(explicit);
 	}
 
-	async downloadUpdate(): Promise<void> {
+	async downloadUpdate(explicit: boolean): Promise<void> {
 		this.logService.trace('update#downloadUpdate, state = ', this.state.type);
 
 		if (this.state.type !== StateType.AvailableForDownload) {
+			return;
+		}
+
+		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+			this.logService.info('update#downloadUpdate - skipping download because connection is metered');
 			return;
 		}
 
@@ -174,11 +241,21 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
-	quitAndInstall(): Promise<void> {
+	async quitAndInstall(): Promise<void> {
 		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
-			return Promise.resolve(undefined);
+			return undefined;
+		}
+
+		if (this.supportsUpdateOverwrite && !this._hasCheckedForOverwriteOnQuit) {
+			this._hasCheckedForOverwriteOnQuit = true;
+			const didOverwrite = await this.checkForOverwriteUpdates(true);
+
+			if (didOverwrite) {
+				this.logService.info('update#quitAndInstall(): overwrite update detected, postponing quitAndInstall');
+				return;
+			}
 		}
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
@@ -196,22 +273,73 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		return Promise.resolve(undefined);
 	}
 
-	async isLatestVersion(): Promise<boolean | undefined> {
-		if (!this.url) {
+	private async checkForOverwriteUpdates(explicit: boolean = false): Promise<boolean> {
+		if (this._state.type !== StateType.Ready) {
+			return false;
+		}
+
+		const pendingUpdateCommit = this._state.update.version;
+
+		let isLatest: boolean | undefined;
+
+		try {
+			const cts = new CancellationTokenSource();
+			const timeoutPromise = timeout(2000).then(() => { cts.cancel(); return undefined; });
+			isLatest = await Promise.race([this.isLatestVersion(pendingUpdateCommit, cts.token), timeoutPromise]);
+			cts.dispose();
+		} catch (error) {
+			this.logService.warn('update#checkForOverwriteUpdates(): failed to check for updates, proceeding with restart');
+			this.logService.warn(error);
+			return false;
+		}
+
+		if (isLatest === false && this._state.type === StateType.Ready) {
+			this.logService.info('update#readyStateCheck: newer update available, restarting update machinery');
+
+			try {
+				await this.cancelPendingUpdate();
+			} catch (error) {
+				this.logService.error('update#checkForOverwriteUpdates(): failed to cancel pending update, aborting overwrite');
+				this.logService.error(error);
+				return false;
+			}
+
+			this._overwrite = true;
+			this.setState(State.Overwriting(this._state.update, explicit));
+			this.doCheckForUpdates(explicit, pendingUpdateCommit);
+			return true;
+		}
+
+		return false;
+	}
+
+	async isLatestVersion(commit?: string, token: CancellationToken = CancellationToken.None): Promise<boolean | undefined> {
+		if (!this.quality) {
 			return undefined;
 		}
 
 		const mode = this.configurationService.getValue<'none' | 'manual' | 'start' | 'default'>('update.mode');
 
 		if (mode === 'none') {
-			return false;
+			return undefined;
 		}
 
+		const url = this.buildUpdateFeedUrl(this.quality, commit ?? this.productService.commit!, { internalOrg: this.getInternalOrg() });
+
+		if (!url) {
+			return undefined;
+		}
+
+		const headers = getUpdateRequestHeaders(this.productService.version);
+		this.logService.trace('update#isLatestVersion() - checking update server', { url, headers });
+
 		try {
-			const context = await this.requestService.request({ url: this.url }, CancellationToken.None);
+			const context = await this.requestService.request({ url, headers, callSite: 'updateService.isLatestVersion' }, token);
+			const statusCode = context.res.statusCode;
+			this.logService.trace('update#isLatestVersion() - response', { statusCode });
 			// The update server replies with 204 (No Content) when no
 			// update is available - that's all we want to know.
-			return context.res.statusCode === 204;
+			return statusCode === 204;
 
 		} catch (error) {
 			this.logService.error('update#isLatestVersion(): failed to check for updates');
@@ -222,6 +350,19 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	async _applySpecificUpdate(packagePath: string): Promise<void> {
 		// noop
+	}
+
+	async setInternalOrg(internalOrg: string | undefined): Promise<void> {
+		if (this._internalOrg === internalOrg) {
+			return;
+		}
+
+		this.logService.info('update#setInternalOrg', internalOrg);
+		this._internalOrg = internalOrg;
+	}
+
+	protected getInternalOrg(): string | undefined {
+		return this._internalOrg;
 	}
 
 	protected getUpdateType(): UpdateType {
@@ -236,6 +377,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
-	protected abstract buildUpdateFeedUrl(quality: string): string | undefined;
-	protected abstract doCheckForUpdates(explicit: boolean): void;
+	protected async cancelPendingUpdate(): Promise<void> {
+		// noop
+	}
+
+	protected abstract buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined;
+	protected abstract doCheckForUpdates(explicit: boolean, pendingCommit?: string): void;
 }

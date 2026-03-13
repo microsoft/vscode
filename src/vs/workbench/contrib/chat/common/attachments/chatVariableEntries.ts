@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -15,7 +16,9 @@ import { MarkerSeverity, IMarker } from '../../../../../platform/markers/common/
 import { ISCMHistoryItem } from '../../../scm/common/history.js';
 import { IChatContentReference } from '../chatService/chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
-import { IToolData, ToolSet } from '../tools/languageModelToolsService.js';
+import { IToolData, IToolSet } from '../tools/languageModelToolsService.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { Mutable } from '../../../../../base/common/types.js';
 
 
 interface IBaseChatRequestVariableEntry {
@@ -38,6 +41,7 @@ interface IBaseChatRequestVariableEntry {
 
 export interface IGenericChatRequestVariableEntry extends IBaseChatRequestVariableEntry {
 	kind: 'generic';
+	tooltip?: IMarkdownString;
 }
 
 export interface IChatRequestDirectoryEntry extends IBaseChatRequestVariableEntry {
@@ -67,10 +71,17 @@ export type ChatRequestToolReferenceEntry = IChatRequestToolEntry | IChatRequest
 
 export interface StringChatContextValue {
 	value?: string;
-	name: string;
+	name?: string;
 	modelDescription?: string;
-	icon: ThemeIcon;
+	icon?: ThemeIcon;
 	uri: URI;
+	resourceUri?: URI;
+	tooltip?: IMarkdownString;
+	/**
+	 * Command ID to execute when this context item is clicked.
+	 */
+	readonly commandId?: string;
+	readonly handle: number;
 }
 
 export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
@@ -86,8 +97,15 @@ export interface IChatRequestStringVariableEntry extends IBaseChatRequestVariabl
 	readonly kind: 'string';
 	readonly value: string | undefined;
 	readonly modelDescription?: string;
-	readonly icon: ThemeIcon;
+	readonly icon?: ThemeIcon;
 	readonly uri: URI;
+	readonly resourceUri?: URI;
+	readonly tooltip?: IMarkdownString;
+	/**
+	 * Command ID to execute when this context item is clicked.
+	 */
+	readonly commandId?: string;
+	readonly handle: number;
 }
 
 export interface IChatRequestWorkspaceVariableEntry extends IBaseChatRequestVariableEntry {
@@ -204,8 +222,19 @@ export interface IDiagnosticVariableEntry extends IBaseChatRequestVariableEntry,
 	readonly kind: 'diagnostic';
 }
 
+export interface IElementAncestorData {
+	readonly tagName: string;
+	readonly id?: string;
+	readonly classNames?: string[];
+}
+
 export interface IElementVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'element';
+	readonly ancestors?: IElementAncestorData[];
+	readonly attributes?: Record<string, string>;
+	readonly computedStyles?: Record<string, string>;
+	readonly dimensions?: { readonly top: number; readonly left: number; readonly width: number; readonly height: number };
+	readonly innerText?: string;
 }
 
 export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry {
@@ -268,13 +297,34 @@ export interface IDebugVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly type?: string;
 }
 
+export interface IAgentFeedbackVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'agentFeedback';
+	readonly sessionResource: URI;
+	readonly feedbackItems: ReadonlyArray<{
+		readonly id: string;
+		readonly text: string;
+		readonly resourceUri: URI;
+		readonly range: IRange;
+		readonly codeSelection?: string;
+	}>;
+}
+
+export interface IChatRequestDebugEventsVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'debugEvents';
+	/** Timestamp when the debug events were snapshotted. */
+	readonly snapshotTime: number;
+	/** The session resource these debug events belong to. */
+	readonly sessionResource: URI;
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
-	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry;
+	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry | IAgentFeedbackVariableEntry
+	| IChatRequestDebugEventsVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -288,8 +338,44 @@ export namespace IChatRequestVariableEntry {
 				? entry.value.uri
 				: undefined;
 	}
-}
 
+	export function toExport(v: IChatRequestVariableEntry): IChatRequestVariableEntry {
+		if (v.value instanceof Uint8Array) {
+			// 'dup' here is needed otherwise TS complains about the narrowed `value` in a spread operation
+			const dup: Mutable<IChatRequestVariableEntry> = { ...v };
+			dup.value = { $base64: encodeBase64(VSBuffer.wrap(v.value)) };
+			return dup;
+		}
+
+		return v;
+	}
+
+	export function fromExport(v: IChatRequestVariableEntry): IChatRequestVariableEntry {
+		// Old variables format
+		// eslint-disable-next-line local/code-no-in-operator
+		if (v && 'values' in v && Array.isArray(v.values)) {
+			return {
+				kind: 'generic',
+				id: v.id ?? '',
+				name: v.name,
+				value: v.values[0]?.value,
+				range: v.range,
+				modelDescription: v.modelDescription,
+				references: v.references
+			};
+		} else {
+			// eslint-disable-next-line local/code-no-in-operator
+			if (v.value && typeof v.value === 'object' && '$base64' in v.value && typeof v.value.$base64 === 'string') {
+				// 'dup' here is needed otherwise TS complains about the narrowed `value` in a spread operation
+				const dup: Mutable<IChatRequestVariableEntry> = { ...v };
+				dup.value = decodeBase64(v.value.$base64).buffer;
+				return dup;
+			}
+
+			return v;
+		}
+	}
+}
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
@@ -305,6 +391,10 @@ export function isTerminalVariableEntry(obj: IChatRequestVariableEntry): obj is 
 
 export function isDebugVariableEntry(obj: IChatRequestVariableEntry): obj is IDebugVariableEntry {
 	return obj.kind === 'debugVariable';
+}
+
+export function isAgentFeedbackVariableEntry(obj: IChatRequestVariableEntry): obj is IAgentFeedbackVariableEntry {
+	return obj.kind === 'agentFeedback';
 }
 
 export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
@@ -369,24 +459,27 @@ export function isStringImplicitContextValue(value: unknown): value is StringCha
 		typeof asStringImplicitContextValue === 'object' &&
 		asStringImplicitContextValue !== null &&
 		(typeof asStringImplicitContextValue.value === 'string' || typeof asStringImplicitContextValue.value === 'undefined') &&
-		typeof asStringImplicitContextValue.name === 'string' &&
-		ThemeIcon.isThemeIcon(asStringImplicitContextValue.icon) &&
-		URI.isUri(asStringImplicitContextValue.uri)
+		(typeof asStringImplicitContextValue.name === 'string' || typeof asStringImplicitContextValue.name === 'undefined') &&
+		(asStringImplicitContextValue.resourceUri === undefined || URI.isUri(asStringImplicitContextValue.resourceUri)) &&
+		(typeof asStringImplicitContextValue.name === 'string' || URI.isUri(asStringImplicitContextValue.resourceUri)) &&
+		(asStringImplicitContextValue.icon === undefined || ThemeIcon.isThemeIcon(asStringImplicitContextValue.icon)) &&
+		URI.isUri(asStringImplicitContextValue.uri) &&
+		typeof asStringImplicitContextValue.handle === 'number'
 	);
 }
 
 export enum PromptFileVariableKind {
-	Instruction = 'vscode.prompt.instructions.root',
-	InstructionReference = `vscode.prompt.instructions`,
-	PromptFile = 'vscode.prompt.file'
+	Instruction = 'vscode.instructions.file.root',
+	InstructionReference = `vscode.instructions.file.reference`,
+	PromptFile = 'vscode.prompt.file',
 }
 
 /**
  * Utility to convert a {@link uri} to a chat variable entry.
  * The `id` of the chat variable can be one of the following:
  *
- * - `vscode.prompt.instructions__<URI>`: for all non-root prompt instructions references
- * - `vscode.prompt.instructions.root__<URI>`: for *root* prompt instructions references
+ * - `vscode.instructions.file.reference__<URI>`: for all non-root prompt instructions references
+ * - `vscode.instructions.file.root__<URI>`: for *root* prompt instructions references
  * - `vscode.prompt.file__<URI>`: for prompt file references
  *
  * @param uri A resource URI that points to a prompt instructions file.
@@ -407,13 +500,17 @@ export function toPromptFileVariableEntry(uri: URI, kind: PromptFileVariableKind
 	};
 }
 
+enum PromptTextVariableKind {
+	CustomizationsIndex = 'vscode.customizations.index',
+}
+
 export function toPromptTextVariableEntry(content: string, automaticallyAdded = false, toolReferences?: ChatRequestToolReferenceEntry[]): IPromptTextVariableEntry {
 	return {
-		id: `vscode.prompt.instructions.text`,
-		name: `prompt:instructionsList`,
+		id: PromptTextVariableKind.CustomizationsIndex,
+		name: `prompt:customizationsIndex`,
 		value: content,
 		kind: 'promptText',
-		modelDescription: 'Prompt instructions list',
+		modelDescription: 'Chat customizations index',
 		automaticallyAdded,
 		toolReferences
 	};
@@ -439,7 +536,7 @@ export function toToolVariableEntry(entry: IToolData, range?: IOffsetRange): ICh
 	};
 }
 
-export function toToolSetVariableEntry(entry: ToolSet, range?: IOffsetRange): IChatRequestToolSetEntry {
+export function toToolSetVariableEntry(entry: IToolSet, range?: IOffsetRange): IChatRequestToolSetEntry {
 	return {
 		kind: 'toolset',
 		id: entry.id,

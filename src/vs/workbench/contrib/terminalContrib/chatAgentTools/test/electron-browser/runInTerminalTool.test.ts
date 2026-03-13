@@ -32,6 +32,7 @@ import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
+import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPreparationContext, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -40,11 +41,14 @@ import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { TerminalChatService } from '../../../chat/browser/terminalChatService.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
+import { IAgentSession } from '../../../../chat/browser/agentSessions/agentSessionsModel.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
 
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
+	get sessionTerminalInstances() { return this._sessionTerminalInstances; }
 	get profileFetcher() { return this._profileFetcher; }
 
 	setBackendOs(os: OperatingSystem) {
@@ -62,6 +66,7 @@ suite('RunInTerminalTool', () => {
 	let workspaceContextService: TestContextService;
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 	let chatServiceDisposeEmitter: Emitter<{ sessionResource: URI[]; reason: 'cleared' }>;
+	let chatSessionArchivedEmitter: Emitter<IAgentSession>;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
@@ -75,8 +80,10 @@ suite('RunInTerminalTool', () => {
 		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
+		setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
 		chatServiceDisposeEmitter = new Emitter<{ sessionResource: URI[]; reason: 'cleared' }>();
+		chatSessionArchivedEmitter = new Emitter<IAgentSession>();
 
 		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
@@ -84,12 +91,27 @@ suite('RunInTerminalTool', () => {
 		}, store);
 
 		instantiationService.stub(IChatService, {
-			onDidDisposeSession: chatServiceDisposeEmitter.event
+			onDidDisposeSession: chatServiceDisposeEmitter.event,
+			getSession: () => undefined,
+		});
+		instantiationService.stub(IAgentSessionsService, {
+			onDidChangeSessionArchivedState: chatSessionArchivedEmitter.event,
+			model: {
+				onDidChangeSessionArchivedState: chatSessionArchivedEmitter.event,
+			} as IAgentSessionsService['model']
 		});
 		instantiationService.stub(ITerminalChatService, store.add(instantiationService.createInstance(TerminalChatService)));
 		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 		instantiationService.stub(IHistoryService, {
 			getLastActiveWorkspaceRoot: () => undefined
+		});
+		instantiationService.stub(ITerminalSandboxService, {
+			_serviceBrand: undefined,
+			isEnabled: async () => false,
+			wrapCommand: command => command,
+			getSandboxConfigPath: async () => undefined,
+			getTempDir: () => undefined,
+			setNeedsForceUpdateConfigFile: () => { }
 		});
 
 		const treeSitterLibraryService = store.add(instantiationService.createInstance(TreeSitterLibraryService));
@@ -143,6 +165,7 @@ suite('RunInTerminalTool', () => {
 			parameters: {
 				command: 'echo hello',
 				explanation: 'Print hello to the console',
+				goal: 'Print hello',
 				isBackground: false,
 				...params
 			} as IRunInTerminalInputParams
@@ -192,6 +215,7 @@ suite('RunInTerminalTool', () => {
 			'echo "abc"',
 			'echo \'abc\'',
 			'ls -la',
+			'dir',
 			'pwd',
 			'cat file.txt',
 			'head -n 10 file.txt',
@@ -226,6 +250,7 @@ suite('RunInTerminalTool', () => {
 			'Get-Date',
 			'Get-Random',
 			'Get-Location',
+			'Set-Location C:\\Users\\test',
 			'Write-Host "Hello"',
 			'Write-Output "Test"',
 			'Out-String',
@@ -250,10 +275,65 @@ suite('RunInTerminalTool', () => {
 			'rg -i --color=never "TODO" src/',
 			'sed "s/foo/bar/g"',
 			'sed -n "1,10p" file.txt',
+			'sed -n \'45,80p\' /foo/bar/Example.java',
+			'sed -n \'45,80p\' extensions/markdown-language-features/src/test/copyFile.test.ts',
 			'sort file.txt',
-			'tree directory'
+			'tree directory',
+
+			// od
+			'od somefile',
+			'od -A x somefile',
+
+			// xxd
+			'xxd',
+			'xxd somefile',
+			'xxd -l100 somefile',
+			'xxd -r somefile',
+			'xxd -rp somefile',
+
+			// docker readonly sub-commands
+			'docker ps',
+			'docker ps -a',
+			'docker images',
+			'docker info',
+			'docker version',
+			'docker inspect mycontainer',
+			'docker logs mycontainer',
+			'docker top mycontainer',
+			'docker stats',
+			'docker port mycontainer',
+			'docker diff mycontainer',
+			'docker search nginx',
+			'docker events',
+			'docker container ls',
+			'docker container ps',
+			'docker container inspect mycontainer',
+			'docker image ls',
+			'docker image history myimage',
+			'docker image inspect myimage',
+			'docker network ls',
+			'docker network inspect mynetwork',
+			'docker volume ls',
+			'docker volume inspect myvolume',
+			'docker context ls',
+			'docker context inspect mycontext',
+			'docker context show',
+			'docker system df',
+			'docker system info',
+			'docker compose ps',
+			'docker compose ls',
+			'docker compose top',
+			'docker compose logs',
+			'docker compose images',
+			'docker compose config',
+			'docker compose version',
+			'docker compose port',
+			'docker compose events',
 		];
 		const confirmationRequiredTestCases = [
+			// git log file output
+			'git log --output=log.txt',
+
 			// Dangerous file operations
 			'rm README.md',
 			'rmdir folder',
@@ -304,9 +384,6 @@ suite('RunInTerminalTool', () => {
 			'find . -fprint output.txt',
 			'rg --pre cat pattern .',
 			'rg --hostname-bin hostname pattern .',
-			'sed -i "s/foo/bar/g" file.txt',
-			'sed -i.bak "s/foo/bar/" file.txt',
-			'sed -Ibak "s/foo/bar/" file.txt',
 			'sed --in-place "s/foo/bar/" file.txt',
 			'sed -e "s/a/b/" file.txt',
 			'sed -f script.sed file.txt',
@@ -325,6 +402,21 @@ suite('RunInTerminalTool', () => {
 			'HTTP_PROXY=proxy:8080 wget https://example.com',
 			'VAR1=value1 VAR2=value2 echo test',
 			'A=1 B=2 C=3 ./script.sh',
+
+			// xxd with outfile or ambiguous args
+			'xxd infile outfile',
+			'xxd -l 100 somefile',
+
+			// docker write/execute sub-commands
+			'docker run nginx',
+			'docker exec mycontainer bash',
+			'docker rm mycontainer',
+			'docker rmi myimage',
+			'docker build .',
+			'docker push myimage',
+			'docker pull nginx',
+			'docker compose up',
+			'docker compose down',
 		];
 
 		suite.skip('auto approved', () => {
@@ -361,7 +453,8 @@ suite('RunInTerminalTool', () => {
 
 			const result = await executeToolTest({
 				command: 'rm file.txt',
-				explanation: 'Remove a file'
+				explanation: 'Remove a file',
+				goal: 'Remove a file'
 			});
 			assertConfirmationRequired(result, 'Run `bash` command?');
 		});
@@ -374,7 +467,8 @@ suite('RunInTerminalTool', () => {
 
 			const result = await executeToolTest({
 				command: 'rm dangerous-file.txt',
-				explanation: 'Remove a dangerous file'
+				explanation: 'Remove a dangerous file',
+				goal: 'Remove a dangerous file'
 			});
 			assertConfirmationRequired(result, 'Run `bash` command?');
 		});
@@ -387,9 +481,10 @@ suite('RunInTerminalTool', () => {
 			const result = await executeToolTest({
 				command: 'npm run watch',
 				explanation: 'Start watching for file changes',
+				goal: 'Start watching for file changes',
 				isBackground: true
 			});
-			assertConfirmationRequired(result, 'Run `bash` command? (background terminal)');
+			assertConfirmationRequired(result, 'Run `bash` command in background?');
 		});
 
 		test('should auto-approve background commands in allow list', async () => {
@@ -400,6 +495,7 @@ suite('RunInTerminalTool', () => {
 			const result = await executeToolTest({
 				command: 'npm run watch',
 				explanation: 'Start watching for file changes',
+				goal: 'Start watching for file changes',
 				isBackground: true
 			});
 			assertAutoApproved(result);
@@ -413,14 +509,14 @@ suite('RunInTerminalTool', () => {
 			const result = await executeToolTest({
 				command: 'npm run watch',
 				explanation: 'Start watching for file changes',
+				goal: 'Start watching for file changes',
 				isBackground: true
 			});
 			assertAutoApproved(result);
 
 			// Verify that auto-approve information is included
 			ok(result?.toolSpecificData, 'Expected toolSpecificData to be defined');
-			// eslint-disable-next-line local/code-no-any-casts
-			const terminalData = result!.toolSpecificData as any;
+			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
 			ok(terminalData.autoApproveInfo, 'Expected autoApproveInfo to be defined for auto-approved background command');
 			ok(terminalData.autoApproveInfo.value, 'Expected autoApproveInfo to have a value');
 			ok(terminalData.autoApproveInfo.value.includes('npm'), 'Expected autoApproveInfo to mention the approved rule');
@@ -461,7 +557,8 @@ suite('RunInTerminalTool', () => {
 
 			const result = await executeToolTest({
 				command: '',
-				explanation: 'Empty command'
+				explanation: 'Empty command',
+				goal: 'Empty command'
 			});
 			assertAutoApproved(result);
 		});
@@ -543,7 +640,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'npm run build',
-				explanation: 'Build the project'
+				explanation: 'Build the project',
+				goal: 'Build the project'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -565,7 +663,8 @@ suite('RunInTerminalTool', () => {
 		test('should generate custom actions for single word commands', async () => {
 			const result = await executeToolTest({
 				command: 'foo',
-				explanation: 'Run foo command'
+				explanation: 'Run foo command',
+				goal: 'Run foo command'
 			});
 
 			assertConfirmationRequired(result);
@@ -587,7 +686,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'npm run build',
-				explanation: 'Build the project'
+				explanation: 'Build the project',
+				goal: 'Build the project'
 			});
 
 			assertAutoApproved(result);
@@ -599,7 +699,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'npm run build',
-				explanation: 'Build the project'
+				explanation: 'Build the project',
+				goal: 'Build the project'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -613,7 +714,8 @@ suite('RunInTerminalTool', () => {
 		test('should handle && in command line labels with proper mnemonic escaping', async () => {
 			const result = await executeToolTest({
 				command: 'npm install && npm run build',
-				explanation: 'Install dependencies and build'
+				explanation: 'Install dependencies and build',
+				goal: 'Install dependencies and build'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -638,7 +740,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'foo | head -20',
-				explanation: 'Run foo command and show first 20 lines'
+				explanation: 'Run foo command and show first 20 lines',
+				goal: 'Run foo command and show first 20 lines'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -664,7 +767,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'foo | head -20',
-				explanation: 'Run foo command and show first 20 lines'
+				explanation: 'Run foo command and show first 20 lines',
+				goal: 'Run foo command and show first 20 lines'
 			});
 
 			assertAutoApproved(result);
@@ -677,7 +781,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'foo | head -20 && bar | tail -10',
-				explanation: 'Run multiple piped commands'
+				explanation: 'Run multiple piped commands',
+				goal: 'Run multiple piped commands'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -699,7 +804,8 @@ suite('RunInTerminalTool', () => {
 		test('should suggest subcommand for git commands', async () => {
 			const result = await executeToolTest({
 				command: 'git status',
-				explanation: 'Check git status'
+				explanation: 'Check git status',
+				goal: 'Check git status'
 			});
 
 			assertConfirmationRequired(result);
@@ -721,7 +827,8 @@ suite('RunInTerminalTool', () => {
 		test('should suggest subcommand for npm commands', async () => {
 			const result = await executeToolTest({
 				command: 'npm test',
-				explanation: 'Run npm tests'
+				explanation: 'Run npm tests',
+				goal: 'Run npm tests'
 			});
 
 			assertConfirmationRequired(result);
@@ -743,7 +850,8 @@ suite('RunInTerminalTool', () => {
 		test('should suggest 3-part subcommand for npm run commands', async () => {
 			const result = await executeToolTest({
 				command: 'npm run build',
-				explanation: 'Run build script'
+				explanation: 'Run build script',
+				goal: 'Run build script'
 			});
 
 			assertConfirmationRequired(result);
@@ -765,7 +873,8 @@ suite('RunInTerminalTool', () => {
 		test('should suggest 3-part subcommand for yarn run commands', async () => {
 			const result = await executeToolTest({
 				command: 'yarn run test',
-				explanation: 'Run test script'
+				explanation: 'Run test script',
+				goal: 'Run test script'
 			});
 
 			assertConfirmationRequired(result);
@@ -787,7 +896,8 @@ suite('RunInTerminalTool', () => {
 		test('should not suggest subcommand for commands with flags', async () => {
 			const result = await executeToolTest({
 				command: 'foo --foo --bar',
-				explanation: 'Run foo with flags'
+				explanation: 'Run foo with flags',
+				goal: 'Run foo with flags'
 			});
 
 			assertConfirmationRequired(result);
@@ -809,7 +919,8 @@ suite('RunInTerminalTool', () => {
 		test('should not suggest subcommand for npm run with flags', async () => {
 			const result = await executeToolTest({
 				command: 'npm run abc --some-flag',
-				explanation: 'Run npm run abc with flags'
+				explanation: 'Run npm run abc with flags',
+				goal: 'Run npm run abc with flags'
 			});
 
 			assertConfirmationRequired(result);
@@ -831,7 +942,8 @@ suite('RunInTerminalTool', () => {
 		test('should handle mixed npm run and other commands', async () => {
 			const result = await executeToolTest({
 				command: 'npm run build && git status',
-				explanation: 'Build and check status'
+				explanation: 'Build and check status',
+				goal: 'Build and check status'
 			});
 
 			assertConfirmationRequired(result);
@@ -853,7 +965,8 @@ suite('RunInTerminalTool', () => {
 		test('should suggest mixed subcommands and base commands', async () => {
 			const result = await executeToolTest({
 				command: 'git push && echo "done"',
-				explanation: 'Push and print done'
+				explanation: 'Push and print done',
+				goal: 'Push and print done'
 			});
 
 			assertConfirmationRequired(result);
@@ -875,7 +988,8 @@ suite('RunInTerminalTool', () => {
 		test('should suggest subcommands for multiple git commands', async () => {
 			const result = await executeToolTest({
 				command: 'git status && git log --oneline',
-				explanation: 'Check status and log'
+				explanation: 'Check status and log',
+				goal: 'Check status and log'
 			});
 
 			assertConfirmationRequired(result);
@@ -897,7 +1011,8 @@ suite('RunInTerminalTool', () => {
 		test('should suggest base command for non-subcommand tools', async () => {
 			const result = await executeToolTest({
 				command: 'foo bar',
-				explanation: 'Download from example.com'
+				explanation: 'Download from example.com',
+				goal: 'Download from example.com'
 			});
 
 			assertConfirmationRequired(result);
@@ -919,7 +1034,8 @@ suite('RunInTerminalTool', () => {
 		test('should handle single word commands from subcommand-aware tools', async () => {
 			const result = await executeToolTest({
 				command: 'git',
-				explanation: 'Run git command'
+				explanation: 'Run git command',
+				goal: 'Run git command'
 			});
 
 			assertConfirmationRequired(result);
@@ -933,7 +1049,8 @@ suite('RunInTerminalTool', () => {
 		test('should deduplicate identical subcommand suggestions', async () => {
 			const result = await executeToolTest({
 				command: 'npm test && npm test --verbose',
-				explanation: 'Run tests twice'
+				explanation: 'Run tests twice',
+				goal: 'Run tests twice'
 			});
 
 			assertConfirmationRequired(result);
@@ -955,7 +1072,8 @@ suite('RunInTerminalTool', () => {
 		test('should handle flags differently than subcommands for suggestion logic', async () => {
 			const result = await executeToolTest({
 				command: 'foo --version',
-				explanation: 'Check foo version'
+				explanation: 'Check foo version',
+				goal: 'Check foo version'
 			});
 
 			assertConfirmationRequired(result);
@@ -977,7 +1095,8 @@ suite('RunInTerminalTool', () => {
 		test('should not suggest overly permissive subcommand rules', async () => {
 			const result = await executeToolTest({
 				command: 'bash -c "echo hello"',
-				explanation: 'Run bash command'
+				explanation: 'Run bash command',
+				goal: 'Run bash command'
 			});
 
 			assertConfirmationRequired(result);
@@ -1031,66 +1150,197 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('chat session disposal cleanup', () => {
-		test('should dispose associated terminals when chat session is disposed', () => {
-			const sessionId = 'test-session-123';
-			// eslint-disable-next-line local/code-no-any-casts
-			const mockTerminal: ITerminalInstance = {
-				dispose: () => { /* Mock dispose */ },
-				processId: 12345
-			} as any;
-			let terminalDisposed = false;
-			mockTerminal.dispose = () => { terminalDisposed = true; };
+		const createMockTerminal = (processId: number): ITerminalInstance => ({
+			dispose: () => { /* Mock dispose */ },
+			processId
+		} as unknown as ITerminalInstance);
 
-			runInTerminalTool.sessionTerminalAssociations.set(sessionId, {
-				instance: mockTerminal,
-				shellIntegrationQuality: ShellIntegrationQuality.None
+		test('should restore all terminals into the session terminal map and dispose them when archived', () => {
+			const sessionId = 'test-session-restored-archive';
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+
+			let terminal1Disposed = false;
+			let terminal2Disposed = false;
+			const terminal1DisposedEmitter = new Emitter<void>();
+			const terminal2DisposedEmitter = new Emitter<void>();
+			const mockTerminal1 = {
+				dispose: () => {
+					terminal1Disposed = true;
+					terminal1DisposedEmitter.fire();
+				},
+				onDisposed: terminal1DisposedEmitter.event,
+				processId: 55555,
+			} as unknown as ITerminalInstance;
+			const mockTerminal2 = {
+				dispose: () => {
+					terminal2Disposed = true;
+					terminal2DisposedEmitter.fire();
+				},
+				onDisposed: terminal2DisposedEmitter.event,
+				processId: 66666,
+			} as unknown as ITerminalInstance;
+
+			storageService.store('chat.terminalSessions', JSON.stringify({
+				[mockTerminal1.processId!]: {
+					sessionId,
+					id: 'restored-1',
+					shellIntegrationQuality: ShellIntegrationQuality.None,
+					isBackground: true,
+				},
+				[mockTerminal2.processId!]: {
+					sessionId,
+					id: 'restored-2',
+					shellIntegrationQuality: ShellIntegrationQuality.None,
+					isBackground: false,
+				}
+			}), StorageScope.WORKSPACE, StorageTarget.USER);
+
+			instantiationService.stub(ITerminalService, {
+				onDidDisposeInstance: terminalServiceDisposeEmitter.event,
+				instances: [mockTerminal1, mockTerminal2],
+				setNextCommandId: async () => { }
 			});
 
-			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should exist before disposal');
+			const restoredRunInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+			const restoredSessionTerminals = restoredRunInTerminalTool.sessionTerminalInstances.get(sessionResource);
+			strictEqual(restoredSessionTerminals?.size, 2, 'Both restored terminals should be tracked for the session');
 
-			chatServiceDisposeEmitter.fire({ sessionResource: [LocalChatSessionUri.forSession(sessionId)], reason: 'cleared' });
+			chatSessionArchivedEmitter.fire({
+				resource: sessionResource,
+				isArchived: () => true,
+			} as unknown as IAgentSession);
 
-			strictEqual(terminalDisposed, true, 'Terminal should have been disposed');
-			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionId), 'Terminal association should be removed after disposal');
+			strictEqual(terminal1Disposed, true, 'Restored background terminal should have been disposed');
+			strictEqual(terminal2Disposed, true, 'Restored foreground terminal should have been disposed');
+			ok(!restoredRunInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Foreground terminal association should be removed after archive');
+			ok(!restoredRunInTerminalTool.sessionTerminalInstances.has(sessionResource), 'All restored terminals for the session should be removed after archive');
 		});
 
-		test('should not affect other sessions when one session is disposed', () => {
-			const sessionId1 = 'test-session-1';
-			const sessionId2 = 'test-session-2';
-			// eslint-disable-next-line local/code-no-any-casts
-			const mockTerminal1: ITerminalInstance = {
-				dispose: () => { /* Mock dispose */ },
-				processId: 12345
-			} as any;
-			// eslint-disable-next-line local/code-no-any-casts
-			const mockTerminal2: ITerminalInstance = {
-				dispose: () => { /* Mock dispose */ },
-				processId: 67890
-			} as any;
+		test('should dispose all terminals associated with a single chat session when archived', () => {
+			const sessionId = 'test-session-archive';
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			const mockTerminal1 = { dispose: () => { /* Mock dispose */ }, processId: 33333 } as unknown as ITerminalInstance;
+			const mockTerminal2 = { dispose: () => { /* Mock dispose */ }, processId: 44444 } as unknown as ITerminalInstance;
 
 			let terminal1Disposed = false;
 			let terminal2Disposed = false;
 			mockTerminal1.dispose = () => { terminal1Disposed = true; };
 			mockTerminal2.dispose = () => { terminal2Disposed = true; };
 
-			runInTerminalTool.sessionTerminalAssociations.set(sessionId1, {
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
+				instance: mockTerminal2,
+				shellIntegrationQuality: ShellIntegrationQuality.None
+			});
+			runInTerminalTool.sessionTerminalInstances.set(sessionResource, new Set([mockTerminal1, mockTerminal2]));
+
+			// Initialize lazy archive listener before firing the archive event.
+			const ensureArchivedSessionListener = (runInTerminalTool as unknown as Record<string, () => void>)['_ensureArchivedSessionListener'];
+			ensureArchivedSessionListener.call(runInTerminalTool);
+
+			chatSessionArchivedEmitter.fire({
+				resource: sessionResource,
+				isArchived: () => true,
+			} as unknown as IAgentSession);
+
+			strictEqual(terminal1Disposed, true, 'Terminal 1 should have been disposed');
+			strictEqual(terminal2Disposed, true, 'Terminal 2 should have been disposed');
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Terminal association should be removed after archive');
+			ok(!runInTerminalTool.sessionTerminalInstances.has(sessionResource), 'All tracked terminals for the session should be removed after archive');
+		});
+
+		test('should not access agent sessions model when initializing archive listener', () => {
+			let modelAccessed = false;
+			instantiationService.stub(IAgentSessionsService, {
+				onDidChangeSessionArchivedState: chatSessionArchivedEmitter.event,
+				get model() {
+					modelAccessed = true;
+					throw new Error('model should not be accessed when wiring archive listener');
+				},
+			} as unknown as IAgentSessionsService);
+
+			const noModelAccessRunInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
+			const ensureArchivedSessionListener = (noModelAccessRunInTerminalTool as unknown as Record<string, () => void>)['_ensureArchivedSessionListener'];
+			ensureArchivedSessionListener.call(noModelAccessRunInTerminalTool);
+
+			strictEqual(modelAccessed, false, 'Agent sessions model should not be accessed when initializing archive listener');
+		});
+
+		test('should dispose all terminals associated with a single chat session', () => {
+			const sessionId = 'test-session-multiple-terminals';
+			const mockTerminal1 = createMockTerminal(11111);
+			const mockTerminal2 = createMockTerminal(22222);
+
+			let terminal1Disposed = false;
+			let terminal2Disposed = false;
+			mockTerminal1.dispose = () => { terminal1Disposed = true; };
+			mockTerminal2.dispose = () => { terminal2Disposed = true; };
+
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
+				instance: mockTerminal2,
+				shellIntegrationQuality: ShellIntegrationQuality.None
+			});
+			runInTerminalTool.sessionTerminalInstances.set(sessionResource, new Set([mockTerminal1, mockTerminal2]));
+
+			chatServiceDisposeEmitter.fire({ sessionResource: [sessionResource], reason: 'cleared' });
+
+			strictEqual(terminal1Disposed, true, 'Terminal 1 should have been disposed');
+			strictEqual(terminal2Disposed, true, 'Terminal 2 should have been disposed');
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Terminal association should be removed after disposal');
+			ok(!runInTerminalTool.sessionTerminalInstances.has(sessionResource), 'All tracked terminals for the session should be removed after disposal');
+		});
+
+		test('should dispose associated terminals when chat session is disposed', () => {
+			const sessionId = 'test-session-123';
+			const mockTerminal = createMockTerminal(12345);
+			let terminalDisposed = false;
+			mockTerminal.dispose = () => { terminalDisposed = true; };
+
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
+				instance: mockTerminal,
+				shellIntegrationQuality: ShellIntegrationQuality.None
+			});
+
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Terminal association should exist before disposal');
+
+			chatServiceDisposeEmitter.fire({ sessionResource: [sessionResource], reason: 'cleared' });
+
+			strictEqual(terminalDisposed, true, 'Terminal should have been disposed');
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Terminal association should be removed after disposal');
+		});
+
+		test('should not affect other sessions when one session is disposed', () => {
+			const sessionId1 = 'test-session-1';
+			const sessionId2 = 'test-session-2';
+			const mockTerminal1 = createMockTerminal(12345);
+			const mockTerminal2 = createMockTerminal(67890);
+
+			let terminal1Disposed = false;
+			let terminal2Disposed = false;
+			mockTerminal1.dispose = () => { terminal1Disposed = true; };
+			mockTerminal2.dispose = () => { terminal2Disposed = true; };
+
+			const sessionResource1 = LocalChatSessionUri.forSession(sessionId1);
+			const sessionResource2 = LocalChatSessionUri.forSession(sessionId2);
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource1, {
 				instance: mockTerminal1,
 				shellIntegrationQuality: ShellIntegrationQuality.None
 			});
-			runInTerminalTool.sessionTerminalAssociations.set(sessionId2, {
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource2, {
 				instance: mockTerminal2,
 				shellIntegrationQuality: ShellIntegrationQuality.None
 			});
 
-			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId1), 'Session 1 terminal association should exist');
-			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId2), 'Session 2 terminal association should exist');
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource1), 'Session 1 terminal association should exist');
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource2), 'Session 2 terminal association should exist');
 
-			chatServiceDisposeEmitter.fire({ sessionResource: [LocalChatSessionUri.forSession(sessionId1)], reason: 'cleared' });
+			chatServiceDisposeEmitter.fire({ sessionResource: [sessionResource1], reason: 'cleared' });
 
 			strictEqual(terminal1Disposed, true, 'Terminal 1 should have been disposed');
 			strictEqual(terminal2Disposed, false, 'Terminal 2 should NOT have been disposed');
-			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionId1), 'Session 1 terminal association should be removed');
-			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId2), 'Session 2 terminal association should remain');
+			ok(!runInTerminalTool.sessionTerminalAssociations.has(sessionResource1), 'Session 1 terminal association should be removed');
+			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource2), 'Session 2 terminal association should remain');
 		});
 
 		test('should handle disposal of non-existent session gracefully', () => {
@@ -1166,30 +1416,89 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('session auto approval', () => {
-		test('should auto approve all commands when session has auto approval enabled', async () => {
+		setup(() => {
+			setAutoApprove({ rm: false });
+		});
+
+		test('should return policy denial details for denied commands when session has auto approval enabled', async () => {
 			const sessionId = 'test-session-123';
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
 			const terminalChatService = instantiationService.get(ITerminalChatService);
 
 			const context: IToolInvocationPreparationContext = {
 				parameters: {
 					command: 'rm dangerous-file.txt',
 					explanation: 'Remove a file',
+					goal: 'Remove a file',
 					isBackground: false
 				} as IRunInTerminalInputParams,
-				chatSessionId: sessionId
+				chatSessionResource: sessionResource
 			} as IToolInvocationPreparationContext;
 
 			let result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
 			assertConfirmationRequired(result);
 
-			terminalChatService.setChatSessionAutoApproval(sessionId, true);
+			terminalChatService.setChatSessionAutoApproval(sessionResource, true);
 
 			result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
 			assertAutoApproved(result);
 
 			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
-			ok(terminalData.autoApproveInfo, 'Expected autoApproveInfo to be defined');
-			ok(terminalData.autoApproveInfo.value.includes('Auto approved for this session'), 'Expected session approval message');
+			ok(terminalData.alternativeRecommendation, 'Expected policy denial alternative recommendation');
+			ok(terminalData.alternativeRecommendation.includes('POLICY_DENIED'), 'Expected policy denial marker');
+			ok(terminalData.alternativeRecommendation.includes('rm dangerous-file.txt'), 'Expected denied command details');
+		});
+
+		test('should still show confirmation when forceConfirmationReason is provided', async () => {
+			const sessionId = 'test-session-123-force';
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			const terminalChatService = instantiationService.get(ITerminalChatService);
+
+			terminalChatService.setChatSessionAutoApproval(sessionResource, true);
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'rm dangerous-file.txt',
+					explanation: 'Remove a file',
+					goal: 'Remove a file',
+					isBackground: false
+				} as IRunInTerminalInputParams,
+				chatSessionResource: sessionResource,
+				forceConfirmationReason: 'test'
+			} as IToolInvocationPreparationContext;
+
+			const result = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+			assertConfirmationRequired(result);
+		});
+
+		test('should circuit break repeated denied command attempts in auto approval sessions', async () => {
+			const sessionId = 'test-session-123-circuit-break';
+			const sessionResource = LocalChatSessionUri.forSession(sessionId);
+			const terminalChatService = instantiationService.get(ITerminalChatService);
+
+			terminalChatService.setChatSessionAutoApproval(sessionResource, true);
+
+			const context: IToolInvocationPreparationContext = {
+				parameters: {
+					command: 'rm dangerous-file.txt',
+					explanation: 'Remove a file',
+					goal: 'Remove a file',
+					isBackground: false
+				} as IRunInTerminalInputParams,
+				chatSessionResource: sessionResource
+			} as IToolInvocationPreparationContext;
+
+			const first = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+			const second = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+			const third = await runInTerminalTool.prepareToolInvocation(context, CancellationToken.None);
+
+			const firstData = first!.toolSpecificData as IChatTerminalToolInvocationData;
+			const secondData = second!.toolSpecificData as IChatTerminalToolInvocationData;
+			const thirdData = third!.toolSpecificData as IChatTerminalToolInvocationData;
+
+			ok(firstData.alternativeRecommendation?.includes('POLICY_DENIED'), 'Expected initial policy denial message');
+			ok(secondData.alternativeRecommendation?.includes('POLICY_DENIED'), 'Expected second policy denial message');
+			ok(thirdData.alternativeRecommendation?.includes('POLICY_DENIED_CIRCUIT_BREAKER'), 'Expected circuit breaker policy denial message');
 		});
 	});
 
@@ -1229,7 +1538,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'npm run build',
-				explanation: 'Build the project'
+				explanation: 'Build the project',
+				goal: 'Build the project'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -1245,7 +1555,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'rm -rf temp',
-				explanation: 'Remove temp folder'
+				explanation: 'Remove temp folder',
+				goal: 'Remove temp folder'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -1262,7 +1573,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'sudo rm -rf /',
-				explanation: 'Dangerous command'
+				explanation: 'Dangerous command',
+				goal: 'Dangerous command'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -1278,7 +1590,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'npm run build',
-				explanation: 'Build the project'
+				explanation: 'Build the project',
+				goal: 'Build the project'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -1296,7 +1609,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'npm run build',
-				explanation: 'Build the project'
+				explanation: 'Build the project',
+				goal: 'Build the project'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');

@@ -21,7 +21,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../../services/extensionManagement/common/extensionFeatures.js';
 import { isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from './languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource, ToolSet } from './languageModelToolsService.js';
 import { toolsParametersSchemaSchemaId } from './languageModelToolsParametersSchema.js';
 
 export interface IRawToolContribution {
@@ -196,7 +196,7 @@ function toToolKey(extensionIdentifier: ExtensionIdentifier, toolName: string) {
 	return `${extensionIdentifier.value}/${toolName}`;
 }
 
-function toToolSetKey(extensionIdentifier: ExtensionIdentifier, toolName: string) {
+export function toToolSetKey(extensionIdentifier: ExtensionIdentifier, toolName: string) {
 	return `toolset:${extensionIdentifier.value}/${toolName}`;
 }
 
@@ -326,10 +326,11 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 					}
 
 					const tools: IToolData[] = [];
-					const toolSets: ToolSet[] = [];
+					const toolSets: IToolSet[] = [];
+					const missingToolNames: string[] = [];
 
 					for (const toolName of toolSet.tools) {
-						const toolObj = languageModelToolsService.getToolByName(toolName, true);
+						const toolObj = languageModelToolsService.getToolByName(toolName);
 						if (toolObj) {
 							tools.push(toolObj);
 							continue;
@@ -339,7 +340,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 							toolSets.push(toolSetObj);
 							continue;
 						}
-						extension.collector.warn(`Tool set '${toolSet.name}' CANNOT find tool or tool set by name: ${toolName}`);
+						missingToolNames.push(toolName);
 					}
 
 					if (toolSets.length === 0 && tools.length === 0) {
@@ -372,6 +373,30 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						tools.forEach(tool => store.add(obj.addTool(tool, tx)));
 						toolSets.forEach(toolSet => store.add(obj.addToolSet(toolSet, tx)));
 					});
+
+					// Listen for late-registered tools that weren't available at contribution time
+					if (missingToolNames.length > 0) {
+						const pending = new Set(missingToolNames);
+						const listener = store.add(languageModelToolsService.onDidChangeTools(() => {
+							for (const toolName of pending) {
+								const toolObj = languageModelToolsService.getToolByName(toolName);
+								if (toolObj) {
+									store.add(obj.addTool(toolObj));
+									pending.delete(toolName);
+								} else {
+									const toolSetObj = languageModelToolsService.getToolSetByName(toolName);
+									if (toolSetObj) {
+										store.add(obj.addToolSet(toolSetObj));
+										pending.delete(toolName);
+									}
+								}
+							}
+							if (pending.size === 0) {
+								// done
+								store.delete(listener);
+							}
+						}));
+					}
 
 					this._registrationDisposables.set(toToolSetKey(extension.description.identifier, toolSet.name), store);
 				}

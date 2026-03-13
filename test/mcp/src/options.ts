@@ -12,7 +12,8 @@ export const opts = minimist(args, {
 		'stable-build',
 		'wait-time',
 		'test-repo',
-		'electronArgs'
+		'electronArgs',
+		'extensionDevelopmentPath'
 	],
 	boolean: [
 		'verbose',
@@ -36,4 +37,5 @@ export const opts = minimist(args, {
 	electronArgs?: string;
 	video?: boolean;
 	autostart?: boolean;
+	extensionDevelopmentPath?: string;
 };

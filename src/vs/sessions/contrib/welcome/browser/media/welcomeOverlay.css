@@ -1,0 +1,103 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Welcome Overlay (blocks the sessions window) ---- */
+
+.sessions-welcome-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 200;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-editor-background);
+	opacity: 1;
+	transition: opacity 200ms ease-out;
+}
+
+.sessions-welcome-overlay.sessions-welcome-overlay-dismissed {
+	opacity: 0;
+	pointer-events: none;
+}
+
+/* ---- Card (borderless, centered content) ---- */
+
+.sessions-welcome-card {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 20px;
+	text-align: center;
+}
+
+/* ---- Header ---- */
+
+.sessions-welcome-header {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 12px;
+}
+
+.sessions-welcome-header .sessions-welcome-icon .codicon {
+	font-size: 96px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-welcome-header h2 {
+	margin: 0;
+	font-size: 22px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.sessions-welcome-header .sessions-welcome-subtitle {
+	margin: 0;
+	font-size: 14px;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* ---- Action Area ---- */
+
+.sessions-welcome-action-area {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 10px;
+	width: 320px;
+}
+
+.sessions-welcome-action-area .monaco-button {
+	width: 100%;
+	padding: 10px 16px;
+	font-size: 14px;
+}
+
+/* ---- Spinner ---- */
+
+.sessions-welcome-spinner {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-welcome-spinner .codicon-loading {
+	animation: sessions-spin 1.5s linear infinite;
+}
+
+@keyframes sessions-spin {
+	to { transform: rotate(360deg); }
+}
+
+/* ---- Error ---- */
+
+.sessions-welcome-error {
+	margin: 0;
+	font-size: 12px;
+	color: var(--vscode-errorForeground);
+}

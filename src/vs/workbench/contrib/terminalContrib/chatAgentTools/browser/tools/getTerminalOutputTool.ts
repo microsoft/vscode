@@ -9,13 +9,14 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
+import { TerminalToolId } from './toolIds.js';
 
 export const GetTerminalOutputToolData: IToolData = {
-	id: 'get_terminal_output',
+	id: TerminalToolId.GetTerminalOutput,
 	toolReferenceName: 'getTerminalOutput',
 	legacyToolReferenceFullNames: ['runCommands/getTerminalOutput'],
 	displayName: localize('getTerminalOutputTool.displayName', 'Get Terminal Output'),
-	modelDescription: 'Get the output of a terminal command previously started with run_in_terminal',
+	modelDescription: `Get the output of a terminal command previously started with ${TerminalToolId.RunInTerminal}`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {

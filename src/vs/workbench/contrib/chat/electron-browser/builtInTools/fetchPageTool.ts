@@ -16,7 +16,6 @@ import { IWebContentExtractorService, WebContentExtractResult } from '../../../.
 import { detectEncodingFromBuffer } from '../../../../services/textfile/common/encoding.js';
 import { ITrustedDomainService } from '../../../url/browser/trustedDomainService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatImageMimeType } from '../../common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/builtinTools/tools.js';
@@ -218,15 +217,21 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		}
 
-		if (context.chatSessionId) {
-			const model = this._chatService.getSession(LocalChatSessionUri.forSession(context.chatSessionId));
+		let confirmationNotNeededReason: string | undefined;
+		if (context.chatSessionResource) {
+			const model = this._chatService.getSession(context.chatSessionResource);
 			const userMessages = model?.getRequests().map(r => r.message.text.toLowerCase());
+			let urlsMentionedInPrompt = false;
 			for (const uri of urlsNeedingConfirmation) {
 				// Normalize to lowercase and remove any trailing slash
 				const toToCheck = uri.toString(true).toLowerCase().replace(/\/$/, '');
 				if (userMessages?.some(m => m.includes(toToCheck))) {
 					urlsNeedingConfirmation.delete(uri);
+					urlsMentionedInPrompt = true;
 				}
+			}
+			if (urlsMentionedInPrompt && urlsNeedingConfirmation.size === 0) {
+				confirmationNotNeededReason = localize('fetchWebPage.urlMentionedInPrompt', 'Auto approved because URL was in prompt');
 			}
 		}
 
@@ -255,7 +260,8 @@ export class FetchWebPageTool implements IToolImpl {
 			message: confirmationMessage,
 			confirmResults: urlsNeedingConfirmation.size > 0,
 			allowAutoConfirm: true,
-			disclaimer: new MarkdownString('$(info) ' + localize('fetchWebPage.confirmationMessage.plural', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true })
+			disclaimer: new MarkdownString('$(info) ' + localize('fetchWebPage.confirmationMessage.plural', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true }),
+			confirmationNotNeededReason
 		};
 		return result;
 	}

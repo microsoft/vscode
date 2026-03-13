@@ -23,11 +23,46 @@ declare module 'vscode' {
 		/**
 		 * The chat session is currently in progress.
 		 */
-		InProgress = 2
+		InProgress = 2,
+
+		/**
+		 * The chat session needs user input (e.g. an unresolved confirmation).
+		 */
+		NeedsInput = 3
+	}
+
+	export namespace chat {
+		/**
+		 * Registers a new {@link ChatSessionItemProvider chat session item provider}.
+		 *
+		 * @deprecated Use {@linkcode createChatSessionItemController} instead.
+		 *
+		 * To use this, also make sure to also add `chatSessions` contribution in the `package.json`.
+		 *
+		 * @param chatSessionType The type of chat session the provider is for.
+		 * @param provider The provider to register.
+		 *
+		 * @returns A disposable that unregisters the provider when disposed.
+		 */
+		export function registerChatSessionItemProvider(chatSessionType: string, provider: ChatSessionItemProvider): Disposable;
+
+		/**
+		 * Creates a new {@link ChatSessionItemController chat session item controller} with the given unique identifier.
+		 *
+		 * To use this, also make sure to also add `chatSessions` contribution in the `package.json`.
+		 *
+		 * @param chatSessionType The type of chat session the provider is for.
+		 * @param refreshHandler The controller's {@link ChatSessionItemController.refreshHandler refresh handler}.
+		 *
+		 * @returns A new controller instance that can be used to manage chat session items for the given chat session type.
+		 */
+		export function createChatSessionItemController(chatSessionType: string, refreshHandler: ChatSessionItemControllerRefreshHandler): ChatSessionItemController;
 	}
 
 	/**
 	 * Provides a list of information about chat sessions.
+	 *
+	 * @deprecated Use {@linkcode ChatSessionItemController} instead.
 	 */
 	export interface ChatSessionItemProvider {
 		/**
@@ -49,36 +84,134 @@ declare module 'vscode' {
 		 */
 		readonly onDidCommitChatSessionItem: Event<{ original: ChatSessionItem /** untitled */; modified: ChatSessionItem /** newly created */ }>;
 
-		/**
-		 * DEPRECATED: Will be removed!
-		 * Creates a new chat session.
-		 *
-		 * @param options Options for the new session including an optional initial prompt and history
-		 * @param token A cancellation token
-		 * @returns Metadata for the chat session
-		 */
-		provideNewChatSessionItem?(options: {
-			/**
-			 * The chat request that initiated the session creation
-			 */
-			readonly request: ChatRequest;
-
-			/**
-			 * Additional metadata to use for session creation
-			 */
-			metadata?: any;
-		}, token: CancellationToken): ProviderResult<ChatSessionItem>;
-
 		// #endregion
 	}
 
+	/**
+	 * Extension callback invoked to refresh the collection of chat session items for a {@linkcode ChatSessionItemController}.
+	 */
+	export type ChatSessionItemControllerRefreshHandler = (token: CancellationToken) => Thenable<void>;
+
+	export interface ChatSessionItemControllerNewItemHandlerContext {
+		// TODO: Use a better type but for now decrease this down to just the prompt and command since that's all we currently need.
+		// The problem with ChatRequest is that it has a resourceUri which is not good for this code path.
+		readonly request: {
+			readonly prompt: string;
+			readonly command?: string;
+		};
+	}
+
+	/**
+	 * Extension callback invoked when a new chat session is started.
+	 */
+	export type ChatSessionItemControllerNewItemHandler = (context: ChatSessionItemControllerNewItemHandlerContext, token: CancellationToken) => Thenable<ChatSessionItem>;
+
+	/**
+	 * Manages chat sessions for a specific chat session type
+	 */
+	export interface ChatSessionItemController {
+		readonly id: string;
+
+		/**
+		 * Unregisters the controller, disposing of its associated chat session items.
+		 */
+		dispose(): void;
+
+		/**
+		 * Managed collection of chat session items
+		 */
+		readonly items: ChatSessionItemCollection;
+
+		/**
+		 * Creates a new managed chat session item that can be added to the collection.
+		 */
+		createChatSessionItem(resource: Uri, label: string): ChatSessionItem;
+
+		/**
+		 * Handler called to refresh the collection of chat session items.
+		 *
+		 * This is also called on first load to get the initial set of items.
+		 */
+		readonly refreshHandler: ChatSessionItemControllerRefreshHandler;
+
+		/**
+		 * Invoked when a new chat session is started.
+		 *
+		 * This allows the controller to initialize the chat session item with information from the initial request.
+		 *
+		 * The returned chat session is added to the collection and shown in the UI.
+		 */
+		newChatSessionItemHandler?: ChatSessionItemControllerNewItemHandler;
+
+		/**
+		 * Fired when an item's archived state changes.
+		 */
+		readonly onDidChangeChatSessionItemState: Event<ChatSessionItem>;
+	}
+
+	/**
+	 * A collection of chat session items. It provides operations for managing and iterating over the items.
+	 */
+	export interface ChatSessionItemCollection extends Iterable<readonly [id: Uri, chatSessionItem: ChatSessionItem]> {
+		/**
+		 * Gets the number of items in the collection.
+		 */
+		readonly size: number;
+
+		/**
+		 * Replaces the items stored by the collection.
+		 *
+		 * @param items Items to store. If two items have the same resource URI, the last one will be used.
+		 */
+		replace(items: readonly ChatSessionItem[]): void;
+
+		/**
+		 * Iterate over each entry in this collection.
+		 *
+		 * @param callback Function to execute for each entry.
+		 * @param thisArg The `this` context used when invoking the handler function.
+		 */
+		forEach(callback: (item: ChatSessionItem, collection: ChatSessionItemCollection) => unknown, thisArg?: any): void;
+
+		/**
+		 * Adds the chat session item to the collection. If an item with the same resource URI already
+		 * exists, it'll be replaced.
+		 *
+		 * @param item Item to add.
+		 */
+		add(item: ChatSessionItem): void;
+
+		/**
+		 * Removes a single chat session item from the collection.
+		 *
+		 * @param resource Item resource to delete.
+		 */
+		delete(resource: Uri): void;
+
+		/**
+		 * Efficiently gets a chat session item by resource, if it exists, in the collection.
+		 *
+		 * @param resource Item resource to get.
+		 *
+		 * @returns The found item or undefined if it does not exist.
+		 */
+		get(resource: Uri): ChatSessionItem | undefined;
+	}
+
+	/**
+	 * A chat session show in the UI.
+	 *
+	 * This should be created by calling a {@link ChatSessionItemController.createChatSessionItem createChatSessionItem}
+	 * method on the controller. The item can then be added to the controller's {@link ChatSessionItemController.items items collection}
+	 * to show it in the UI.
+	 */
 	export interface ChatSessionItem {
 		/**
 		 * The resource associated with the chat session.
 		 *
 		 * This is uniquely identifies the chat session and is used to open the chat session.
 		 */
-		resource: Uri;
+		readonly resource: Uri;
 
 		/**
 		 * Human readable name of the session shown in the UI
@@ -111,38 +244,57 @@ declare module 'vscode' {
 		tooltip?: string | MarkdownString;
 
 		/**
-		 * The times at which session started and ended
+		 * Whether the chat session has been archived.
+		 */
+		archived?: boolean;
+
+		/**
+		 * Timing information for the chat session
 		 */
 		timing?: {
 			/**
-			 * Session start timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+			 * Timestamp when the session was created in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 			 */
-			startTime: number;
+			readonly created: number;
+
+			/**
+			 * Timestamp when the most recent request started in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+			 *
+			 * Should be undefined if no requests have been made yet.
+			 */
+			readonly lastRequestStarted?: number;
+
+			/**
+			 * Timestamp when the most recent request completed in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+			 *
+			 * Should be undefined if the most recent request is still in progress or if no requests have been made yet.
+			 */
+			readonly lastRequestEnded?: number;
+
+			/**
+			 * Session start timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+			 * @deprecated Use `created` and `lastRequestStarted` instead.
+			 */
+			readonly startTime?: number;
+
 			/**
 			 * Session end timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+			 * @deprecated Use `lastRequestEnded` instead.
 			 */
-			endTime?: number;
+			readonly endTime?: number;
 		};
 
 		/**
 		 * Statistics about the chat session.
 		 */
-		changes?: readonly ChatSessionChangedFile[] | {
-			/**
-			 * Number of files edited during the session.
-			 */
-			files: number;
+		changes?: readonly ChatSessionChangedFile[] | readonly ChatSessionChangedFile2[];
 
-			/**
-			 * Number of insertions made during the session.
-			 */
-			insertions: number;
-
-			/**
-			 * Number of deletions made during the session.
-			 */
-			deletions: number;
-		};
+		/**
+		 * Arbitrary metadata for the chat session. Can be anything, but must be JSON-stringifyable.
+		 *
+		 * To update the metadata you must re-set this property.
+		 */
+		metadata?: { readonly [key: string]: any };
 	}
 
 	export class ChatSessionChangedFile {
@@ -169,7 +321,45 @@ declare module 'vscode' {
 		constructor(modifiedUri: Uri, insertions: number, deletions: number, originalUri?: Uri);
 	}
 
+	export class ChatSessionChangedFile2 {
+		/**
+		 * URI of the file.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * URI of the original file. Undefined if the file was created.
+		 */
+		readonly originalUri: Uri | undefined;
+
+		/**
+		 * URI of the modified file. Undefined if the file was deleted.
+		 */
+		readonly modifiedUri: Uri | undefined;
+
+		/**
+		 * Number of insertions made during the session.
+		 */
+		insertions: number;
+
+		/**
+		 * Number of deletions made during the session.
+		 */
+		deletions: number;
+
+		constructor(uri: Uri, originalUri: Uri | undefined, modifiedUri: Uri | undefined, insertions: number, deletions: number);
+	}
+
 	export interface ChatSession {
+		/**
+		 * An optional title for the chat session.
+		 *
+		 * When provided, this title is used as the display name for the session
+		 * (e.g. in the editor tab). When not provided, the title defaults to
+		 * the first user message in the session history.
+		 */
+		readonly title?: string;
+
 		/**
 		 * The full history of the session
 		 *
@@ -205,6 +395,7 @@ declare module 'vscode' {
 		 */
 		// TODO: Should we introduce our own type for `ChatRequestHandler` since not all field apply to chat sessions?
 		// TODO: Revisit this to align with code.
+		// TODO: pass in options?
 		readonly requestHandler: ChatRequestHandler | undefined;
 	}
 
@@ -270,9 +461,8 @@ declare module 'vscode' {
 
 		/**
 		 * Called as soon as you register (call me once)
-		 * @param token
 		 */
-		provideChatSessionProviderOptions?(token: CancellationToken): Thenable<ChatSessionProviderOptions> | ChatSessionProviderOptions;
+		provideChatSessionProviderOptions?(token: CancellationToken): Thenable<ChatSessionProviderOptions>;
 	}
 
 	export interface ChatSessionOptionUpdate {
@@ -288,18 +478,6 @@ declare module 'vscode' {
 	}
 
 	export namespace chat {
-		/**
-		 * Registers a new {@link ChatSessionItemProvider chat session item provider}.
-		 *
-		 * To use this, also make sure to also add `chatSessions` contribution in the `package.json`.
-		 *
-		 * @param chatSessionType The type of chat session the provider is for.
-		 * @param provider The provider to register.
-		 *
-		 * @returns A disposable that unregisters the provider when disposed.
-		 */
-		export function registerChatSessionItemProvider(chatSessionType: string, provider: ChatSessionItemProvider): Disposable;
-
 		/**
 		 * Registers a new {@link ChatSessionContentProvider chat session content provider}.
 		 *
@@ -317,7 +495,15 @@ declare module 'vscode' {
 
 	export interface ChatSessionContext {
 		readonly chatSessionItem: ChatSessionItem; // Maps to URI of chat session editor (could be 'untitled-1', etc..)
+
+		/** @deprecated This will be removed along with the concept of `untitled-` sessions.  */
 		readonly isUntitled: boolean;
+
+		/**
+		 * The initial option selections for the session, provided with the first request.
+		 * Contains the options the user selected (or defaults) before the session was created.
+		 */
+		readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
 	}
 
 	export interface ChatSessionCapabilities {
@@ -357,6 +543,12 @@ declare module 'vscode' {
 		 * An icon for the option item shown in UI.
 		 */
 		readonly icon?: ThemeIcon;
+
+		/**
+		 * Indicates if this option should be selected by default.
+		 * Only one item per option group should be marked as default.
+		 */
+		readonly default?: boolean;
 	}
 
 	/**
@@ -382,6 +574,44 @@ declare module 'vscode' {
 		 * The selectable items within this option group.
 		 */
 		readonly items: ChatSessionProviderOptionItem[];
+
+		/**
+		 * A context key expression that controls when this option group picker is visible.
+		 * When specified, the picker is only shown when the expression evaluates to true.
+		 * The expression can reference other option group values via `chatSessionOption.<groupId>`.
+		 *
+		 * Example: `"chatSessionOption.models == 'gpt-4'"` - only show this picker when
+		 * the 'models' option group has 'gpt-4' selected.
+		 */
+		readonly when?: string;
+
+		/**
+		 * When true, displays a searchable QuickPick with a "See more..." option.
+		 * Recommended for option groups with additional async items (e.g., repositories).
+		 */
+		readonly searchable?: boolean;
+
+		/**
+		 * An icon for the option group shown in UI.
+		 */
+		readonly icon?: ThemeIcon;
+
+		/**
+		 * Handler for dynamic search when `searchable` is true.
+		 * Called when the user types in the searchable QuickPick or clicks "See more..." to load additional items.
+		 *
+		 * @param query The search query entered by the user. Empty string for initial load.
+		 * @param token A cancellation token.
+		 * @returns Additional items to display in the searchable QuickPick.
+		 */
+		readonly onSearch?: (query: string, token: CancellationToken) => Thenable<ChatSessionProviderOptionItem[]>;
+
+		/**
+		 * Optional commands.
+		 *
+		 * These commands will be displayed at the bottom of the group.
+		 */
+		readonly commands?: Command[];
 	}
 
 	export interface ChatSessionProviderOptions {
@@ -389,6 +619,13 @@ declare module 'vscode' {
 		 * Provider-defined option groups (0-2 groups supported).
 		 * Examples: models picker, sub-agents picker, etc.
 		 */
-		optionGroups?: ChatSessionProviderOptionGroup[];
+		readonly optionGroups?: readonly ChatSessionProviderOptionGroup[];
+
+		/**
+		 * The set of default options used for new chat sessions, provided as key-value pairs.
+		 *
+		 * Keys correspond to option group IDs (e.g., 'models', 'subagents').
+		 */
+		readonly newSessionOptions?: Record<string, string | ChatSessionProviderOptionItem>;
 	}
 }

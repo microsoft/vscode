@@ -69,10 +69,8 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEdit
 				this.textHintContentWidget?.dispose();
 			}
 		}));
-		this._register(inlineChatSessionService.onDidEndSession(e => {
-			if (this.editor === e.editor) {
-				this.update();
-			}
+		this._register(inlineChatSessionService.onDidChangeSessions(() => {
+			this.update();
 		}));
 	}
 
@@ -92,7 +90,7 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEdit
 			return false;
 		}
 
-		if (this.inlineChatSessionService.getSession(this.editor, model.uri)) {
+		if (this.inlineChatSessionService.getSessionByTextModel(model.uri)) {
 			return false;
 		}
 

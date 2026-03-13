@@ -1180,12 +1180,12 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		const trustedPublishers = this.storageService.getObject<IStringDictionary<IPublisherInfo>>(TrustedPublishersStorageKey, StorageScope.APPLICATION, {});
 		if (Array.isArray(trustedPublishers)) {
 			this.storageService.remove(TrustedPublishersStorageKey, StorageScope.APPLICATION);
-			return {};
+			return Object.create(null);
 		}
 		return Object.keys(trustedPublishers).reduce<IStringDictionary<IPublisherInfo>>((result, publisher) => {
 			result[publisher.toLowerCase()] = trustedPublishers[publisher];
 			return result;
-		}, {});
+		}, Object.create(null));
 	}
 }
 
@@ -1212,10 +1212,10 @@ class WorkspaceExtensionsManagementService extends Disposable {
 	) {
 		super();
 
-		this._register(Event.debounce<FileChangesEvent, FileChangesEvent[]>(this.fileService.onDidFilesChange, (last, e) => {
+		this._register(Event.throttle<FileChangesEvent, FileChangesEvent[]>(this.fileService.onDidFilesChange, (last, e) => {
 			(last = last ?? []).push(e);
 			return last;
-		}, 1000)(events => {
+		}, 1000, false)(events => {
 			const changedInvalidExtensions = this.extensions.filter(extension => !extension.isValid && events.some(e => e.affects(extension.location)));
 			if (changedInvalidExtensions.length) {
 				this.checkExtensionsValidity(changedInvalidExtensions);

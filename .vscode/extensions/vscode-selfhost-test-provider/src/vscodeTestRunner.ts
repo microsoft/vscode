@@ -312,10 +312,10 @@ export class DarwinTestRunner extends PosixTestRunner {
 
 	/** @override */
 	protected override async binaryPath() {
-		const { nameLong } = await this.readProductJson();
+		const { nameLong, nameShort } = await this.readProductJson();
 		return path.join(
 			this.repoLocation.uri.fsPath,
-			`.build/electron/${nameLong}.app/Contents/MacOS/Electron`
+			`.build/electron/${nameLong}.app/Contents/MacOS/${nameShort}`
 		);
 	}
 }

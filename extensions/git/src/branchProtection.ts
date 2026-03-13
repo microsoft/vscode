@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, Event, EventEmitter, Uri, workspace } from 'vscode';
-import { BranchProtection, BranchProtectionProvider } from './api/git';
+import type { BranchProtection, BranchProtectionProvider } from './api/git';
 import { dispose, filterEvent } from './util';
 
 export interface IBranchProtectionProviderRegistry {

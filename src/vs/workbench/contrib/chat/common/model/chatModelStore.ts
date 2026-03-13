@@ -4,19 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
 import { ObservableMap } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IChatEditingSession } from '../editing/chatEditingService.js';
-import { ChatModel, IExportableChatData, ISerializableChatData, ISerializableChatModelInputState } from './chatModel.js';
 import { ChatAgentLocation } from '../constants.js';
+import { IChatEditingSession } from '../editing/chatEditingService.js';
+import { ChatModel, ISerializableChatModelInputState, ISerializedChatDataReference } from './chatModel.js';
 
 export interface IStartSessionProps {
-	readonly initialData?: IExportableChatData | ISerializableChatData;
+	readonly initialData?: ISerializedChatDataReference;
 	readonly location: ChatAgentLocation;
 	readonly sessionResource: URI;
-	readonly sessionId?: string;
 	readonly canUseTools: boolean;
 	readonly transferEditingSession?: IChatEditingSession;
 	readonly disableBackgroundKeepAlive?: boolean;
@@ -28,21 +27,34 @@ export interface ChatModelStoreDelegate {
 	willDisposeModel: (model: ChatModel) => Promise<void>;
 }
 
-export class ChatModelStore extends ReferenceCollection<ChatModel> implements IDisposable {
-	private readonly _store = new DisposableStore();
+export class ChatModelStore extends Disposable {
+	private readonly _refCollection: ReferenceCollection<ChatModel>;
 
 	private readonly _models = new ObservableMap<string, ChatModel>();
 	private readonly _modelsToDispose = new Set<string>();
 	private readonly _pendingDisposals = new Set<Promise<void>>();
 
-	private readonly _onDidDisposeModel = this._store.add(new Emitter<ChatModel>());
+	private readonly _onDidDisposeModel = this._register(new Emitter<ChatModel>());
 	public readonly onDidDisposeModel = this._onDidDisposeModel.event;
+
+	private readonly _onDidCreateModel = this._register(new Emitter<ChatModel>());
+	public readonly onDidCreateModel = this._onDidCreateModel.event;
 
 	constructor(
 		private readonly delegate: ChatModelStoreDelegate,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+
+		const self = this;
+		this._refCollection = new class extends ReferenceCollection<ChatModel> {
+			protected createReferencedObject(key: string, props?: IStartSessionProps): ChatModel {
+				return self.createReferencedObject(key, props);
+			}
+			protected destroyReferencedObject(key: string, object: ChatModel): void {
+				return self.destroyReferencedObject(key, object);
+			}
+		}();
 	}
 
 	public get observable() {
@@ -69,14 +81,14 @@ export class ChatModelStore extends ReferenceCollection<ChatModel> implements ID
 		if (!this._models.has(key)) {
 			return undefined;
 		}
-		return this.acquire(key);
+		return this._refCollection.acquire(key);
 	}
 
 	public acquireOrCreate(props: IStartSessionProps): IReference<ChatModel> {
-		return this.acquire(this.toKey(props.sessionResource), props);
+		return this._refCollection.acquire(this.toKey(props.sessionResource), props);
 	}
 
-	protected createReferencedObject(key: string, props?: IStartSessionProps): ChatModel {
+	private createReferencedObject(key: string, props?: IStartSessionProps): ChatModel {
 		this._modelsToDispose.delete(key);
 		const existingModel = this._models.get(key);
 		if (existingModel) {
@@ -93,10 +105,11 @@ export class ChatModelStore extends ReferenceCollection<ChatModel> implements ID
 			throw new Error(`Chat session key mismatch for ${key}`);
 		}
 		this._models.set(key, model);
+		this._onDidCreateModel.fire(model);
 		return model;
 	}
 
-	protected destroyReferencedObject(key: string, object: ChatModel): void {
+	private destroyReferencedObject(key: string, object: ChatModel): void {
 		this._modelsToDispose.add(key);
 		const promise = this.doDestroyReferencedObject(key, object);
 		this._pendingDisposals.add(promise);
@@ -132,8 +145,8 @@ export class ChatModelStore extends ReferenceCollection<ChatModel> implements ID
 		return uri.toString();
 	}
 
-	dispose(): void {
-		this._store.dispose();
+	override dispose(): void {
+		super.dispose();
 		this._models.forEach(model => model.dispose());
 	}
 }

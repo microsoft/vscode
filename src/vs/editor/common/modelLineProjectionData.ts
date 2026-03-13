@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertNever } from '../../base/common/assert.js';
-import { WrappingIndent } from './config/editorOptions.js';
-import { FontInfo } from './config/fontInfo.js';
+import { IComputedEditorOptions } from './config/editorOptions.js';
 import { Position } from './core/position.js';
 import { InjectedTextCursorStops, InjectedTextOptions, PositionAffinity } from './model.js';
 import { LineInjectedText } from './textModelEvents.js';
@@ -328,14 +327,19 @@ export class OutputPosition {
 	}
 }
 
+export interface ILineBreaksComputerContext {
+	getLineContent(lineNumber: number): string;
+	getLineInjectedText(lineNumber: number): LineInjectedText[] | null;
+}
+
 export interface ILineBreaksComputerFactory {
-	createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ILineBreaksComputer;
+	createLineBreaksComputer(context: ILineBreaksComputerContext, options: IComputedEditorOptions, tabSize: number): ILineBreaksComputer;
 }
 
 export interface ILineBreaksComputer {
 	/**
 	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
 	 */
-	addRequest(lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: ModelLineProjectionData | null): void;
+	addRequest(lineNumber: number, previousLineBreakData: ModelLineProjectionData | null): void;
 	finalize(): (ModelLineProjectionData | null)[];
 }

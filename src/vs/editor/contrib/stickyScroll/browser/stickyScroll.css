@@ -7,7 +7,7 @@
 	overflow: hidden;
 	border-bottom: 1px solid var(--vscode-editorStickyScroll-border);
 	width: 100%;
-	box-shadow: var(--vscode-editorStickyScroll-shadow) 0 4px 2px -2px;
+	box-shadow: var(--vscode-shadow-md);
 	z-index: 4;
 	right: initial !important;
 	margin-left: '0px';

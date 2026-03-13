@@ -6,19 +6,31 @@
 import { revive } from '../../../../../base/common/marshalling.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IOffsetRange, OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
-import { IRange } from '../../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from '../participants/chatAgents.js';
 import { IChatSlashData } from '../participants/chatSlashCommands.js';
 import { IChatRequestProblemsVariable, IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ChatAgentLocation } from '../constants.js';
 import { IToolData } from '../tools/languageModelToolsService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../attachments/chatVariableEntries.js';
+import { arrayEquals } from '../../../../../base/common/equals.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
 
 export interface IParsedChatRequest {
 	readonly parts: ReadonlyArray<IParsedChatRequestPart>;
 	readonly text: string;
+}
+
+export namespace IParsedChatRequest {
+	export function equals(a: IParsedChatRequest, b: IParsedChatRequest): boolean {
+		return a.text === b.text && arrayEquals(a.parts, b.parts, (p1, p2) =>
+			p1.kind === p2.kind &&
+			OffsetRange.equals(p1.range, p2.range) &&
+			Range.equalsRange(p1.editorRange, p2.editorRange) &&
+			p1.text === p2.text
+		);
+	}
 }
 
 export interface IParsedChatRequestPart {

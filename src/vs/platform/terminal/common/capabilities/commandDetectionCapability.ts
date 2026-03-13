@@ -84,7 +84,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	) {
 		super();
 		this._currentCommand = new PartialTerminalCommand(this._terminal);
-		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandStartChanged, this.onCommandExecuted, this._logService));
+		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandStartChanged, this.onCommandExecuted, this.onCommandFinished, this._logService));
 
 		// Pull command line from the buffer if it was not set explicitly
 		this._register(this.onCommandExecuted(command => {

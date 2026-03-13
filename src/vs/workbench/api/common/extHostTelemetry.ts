@@ -325,6 +325,7 @@ export class ExtHostTelemetryLogger {
 		} else {
 			this._sender = undefined;
 		}
+		this._onDidChangeEnableStates.dispose();
 	}
 }
 

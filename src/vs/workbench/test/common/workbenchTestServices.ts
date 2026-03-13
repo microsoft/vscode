@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
 import { Schemas } from '../../../base/common/network.js';
 import { observableValue } from '../../../base/common/observable.js';
 import { join } from '../../../base/common/path.js';
@@ -27,7 +27,7 @@ import { IProgress, IProgressStep } from '../../../platform/progress/common/prog
 import { InMemoryStorageService, WillSaveStateReason } from '../../../platform/storage/common/storage.js';
 import { toUserDataProfile } from '../../../platform/userDataProfile/common/userDataProfile.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, WorkbenchState, Workspace } from '../../../platform/workspace/common/workspace.js';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from '../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, ResourceTrustRequestOptions, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from '../../../platform/workspace/common/workspaceTrust.js';
 import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 import { GroupIdentifier, IRevertOptions, ISaveOptions, SaveReason } from '../../common/editor.js';
 import { EditorInput } from '../../common/editor/editorInput.js';
@@ -118,6 +118,10 @@ export class TestContextService implements IWorkspaceContextService {
 		}
 
 		return WorkbenchState.EMPTY;
+	}
+
+	hasWorkspaceData(): boolean {
+		return this.getWorkbenchState() !== WorkbenchState.EMPTY;
 	}
 
 	getCompleteWorkspace(): Promise<IWorkspace> {
@@ -376,7 +380,8 @@ export class TestWorkspaceTrustManagementService extends Disposable implements I
 
 
 	constructor(
-		private trusted: boolean = true
+		private trusted: boolean = true,
+		private trustedUris: ResourceSet = new ResourceSet()
 	) {
 		super();
 	}
@@ -402,11 +407,11 @@ export class TestWorkspaceTrustManagementService extends Disposable implements I
 	}
 
 	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
-		throw new Error('Method not implemented.');
+		return Promise.resolve({ trusted: this.trustedUris.has(uri), uri });
 	}
 
 	async setTrustedUris(folders: URI[]): Promise<void> {
-		throw new Error('Method not implemented.');
+		this.trustedUris = new ResourceSet(folders);
 	}
 
 	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
@@ -451,6 +456,9 @@ export class TestWorkspaceTrustRequestService extends Disposable implements IWor
 	private readonly _onDidInitiateOpenFilesTrustRequest = this._register(new Emitter<void>());
 	readonly onDidInitiateOpenFilesTrustRequest = this._onDidInitiateOpenFilesTrustRequest.event;
 
+	private readonly _onDidInitiateResourcesTrustRequest = this._register(new Emitter<ResourceTrustRequestOptions>());
+	readonly onDidInitiateResourcesTrustRequest = this._onDidInitiateResourcesTrustRequest.event;
+
 	private readonly _onDidInitiateWorkspaceTrustRequest = this._register(new Emitter<WorkspaceTrustRequestOptions>());
 	readonly onDidInitiateWorkspaceTrustRequest = this._onDidInitiateWorkspaceTrustRequest.event;
 
@@ -471,6 +479,14 @@ export class TestWorkspaceTrustRequestService extends Disposable implements IWor
 
 	async completeOpenFilesTrustRequest(result: WorkspaceTrustUriResponse, saveResponse: boolean): Promise<void> {
 		throw new Error('Method not implemented.');
+	}
+
+	async completeResourcesTrustRequest(uri: URI, result: WorkspaceTrustUriResponse): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	async requestResourcesTrust(options: ResourceTrustRequestOptions): Promise<boolean | undefined> {
+		return this._trusted;
 	}
 
 	cancelWorkspaceTrustRequest(): void {
@@ -773,6 +789,7 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	readonly organisations: undefined;
 	readonly isInternal = false;
 	readonly sku = undefined;
+	readonly copilotTrackingId = undefined;
 
 	readonly onDidChangeQuotaExceeded = Event.None;
 	readonly onDidChangeQuotaRemaining = Event.None;
@@ -793,6 +810,10 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	readonly anonymous = false;
 	onDidChangeAnonymous = Event.None;
 	readonly anonymousObs = observableValue({}, false);
+
+	markAnonymousRateLimited(): void { }
+
+	readonly previewFeaturesDisabled = false;
 }
 
 export class TestLifecycleService extends Disposable implements ILifecycleService {
