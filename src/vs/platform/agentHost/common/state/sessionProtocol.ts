@@ -7,12 +7,12 @@
 // See protocol.md for the full design.
 //
 // Client → Server messages are either:
-//   - Notifications (fire-and-forget): initialize, reconnect, unsubscribe, dispatchAction
-//   - Requests (expect a correlated response): subscribe, createSession, disposeSession,
-//     listSessions, fetchTurns, fetchContent
+//   - Notifications (fire-and-forget): unsubscribe, dispatchAction
+//   - Requests (expect a correlated response): initialize, reconnect, subscribe,
+//     createSession, disposeSession, listSessions, fetchTurns, fetchContent
 //
 // Server → Client messages are either:
-//   - Notifications (pushed to clients): serverHello, reconnectResponse, action, notification
+//   - Notifications (pushed to clients): action, notification
 //   - Responses (correlated to a client request by id)
 
 import { hasKey } from '../../../../base/common/types.js';
@@ -79,6 +79,24 @@ export function isJsonRpcResponse(msg: IProtocolMessage): msg is IJsonRpcRespons
 export const JSON_RPC_PARSE_ERROR = -32700;
 export const JSON_RPC_INTERNAL_ERROR = -32603;
 
+// ---- AHP application error codes -------------------------------------------
+
+export const AHP_SESSION_NOT_FOUND = -32001;
+export const AHP_PROVIDER_NOT_FOUND = -32002;
+export const AHP_SESSION_ALREADY_EXISTS = -32003;
+export const AHP_TURN_IN_PROGRESS = -32004;
+export const AHP_UNSUPPORTED_PROTOCOL_VERSION = -32005;
+export const AHP_CONTENT_NOT_FOUND = -32006;
+
+/**
+ * Error with a JSON-RPC error code for protocol-level failures.
+ */
+export class ProtocolError extends Error {
+	constructor(readonly code: number, message: string) {
+		super(message);
+	}
+}
+
 // ---- Shared data types ------------------------------------------------------
 
 /** State snapshot returned by subscribe and included in handshake/reconnect. */
@@ -90,18 +108,6 @@ export interface IStateSnapshot {
 
 // ---- Client → Server: Notification params -----------------------------------
 
-export interface IInitializeParams {
-	readonly protocolVersion: number;
-	readonly clientId: string;
-	readonly initialSubscriptions?: readonly URI[];
-}
-
-export interface IReconnectParams {
-	readonly clientId: string;
-	readonly lastSeenServerSeq: number;
-	readonly subscriptions: readonly URI[];
-}
-
 export interface IUnsubscribeParams {
 	readonly resource: URI;
 }
@@ -112,6 +118,38 @@ export interface IDispatchActionParams {
 }
 
 // ---- Client → Server: Request params and results ----------------------------
+
+export interface IInitializeParams {
+	readonly protocolVersion: number;
+	readonly clientId: string;
+	readonly initialSubscriptions?: readonly URI[];
+}
+
+export interface IInitializeResult {
+	readonly protocolVersion: number;
+	readonly serverSeq: number;
+	readonly snapshots: readonly IStateSnapshot[];
+}
+
+export interface IReconnectParams {
+	readonly clientId: string;
+	readonly lastSeenServerSeq: number;
+	readonly subscriptions: readonly URI[];
+}
+
+export type IReconnectResult =
+	| IReconnectReplayResult
+	| IReconnectSnapshotResult;
+
+export interface IReconnectReplayResult {
+	readonly type: 'replay';
+	readonly actions: readonly IActionEnvelope[];
+}
+
+export interface IReconnectSnapshotResult {
+	readonly type: 'snapshot';
+	readonly snapshots: readonly IStateSnapshot[];
+}
 
 export interface ISubscribeParams {
 	readonly resource: URI;
@@ -142,15 +180,13 @@ export interface IListSessionsResult {
 
 export interface IFetchTurnsParams {
 	readonly session: URI;
-	readonly startTurn: number;
-	readonly count: number;
+	readonly before?: string;
+	readonly limit?: number;
 }
 
 export interface IFetchTurnsResult {
-	readonly session: URI;
-	readonly startTurn: number;
 	readonly turns: ISessionState['turns'];
-	readonly totalTurns: number;
+	readonly hasMore: boolean;
 }
 
 export interface IFetchContentParams {
@@ -158,23 +194,12 @@ export interface IFetchContentParams {
 }
 
 export interface IFetchContentResult {
-	readonly uri: URI;
-	readonly data: string; // base64-encoded for binary safety
+	readonly data: string;
+	readonly encoding: 'base64' | 'utf-8';
 	readonly mimeType?: string;
 }
 
 // ---- Server → Client: Notification params -----------------------------------
-
-export interface IServerHelloParams {
-	readonly protocolVersion: number;
-	readonly serverSeq: number;
-	readonly snapshots: readonly IStateSnapshot[];
-}
-
-export interface IReconnectResponseParams {
-	readonly serverSeq: number;
-	readonly snapshots: readonly IStateSnapshot[];
-}
 
 export interface IActionBroadcastParams {
 	readonly envelope: IActionEnvelope<IStateAction>;

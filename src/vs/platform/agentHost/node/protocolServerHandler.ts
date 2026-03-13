@@ -7,11 +7,14 @@ import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IActionEnvelope, INotification, isSessionAction } from '../common/state/sessionActions.js';
-import { isActionKnownToVersion, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
+import { isActionKnownToVersion, MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import {
 	isJsonRpcRequest,
 	isJsonRpcNotification,
 	JSON_RPC_INTERNAL_ERROR,
+	AHP_SESSION_NOT_FOUND,
+	AHP_UNSUPPORTED_PROTOCOL_VERSION,
+	ProtocolError,
 	type ICreateSessionParams,
 	type IDispatchActionParams,
 	type IDisposeSessionParams,
@@ -86,7 +89,23 @@ export class ProtocolServerHandler extends Disposable {
 		disposables.add(transport.onMessage(msg => {
 			if (isJsonRpcRequest(msg)) {
 				this._logService.trace(`[ProtocolServer] request: method=${msg.method} id=${msg.id}`);
-				// Request - expects a correlated response
+
+				// Handle initialize/reconnect as requests that set up the client
+				if (!client && (msg.method === 'initialize' || msg.method === 'reconnect')) {
+					try {
+						const result = msg.method === 'initialize'
+							? this._handleInitialize(msg.params as IInitializeParams, transport, disposables)
+							: this._handleReconnect(msg.params as IReconnectParams, transport, disposables);
+						client = result.client;
+						transport.send({ jsonrpc: '2.0', id: msg.id, result: result.response });
+					} catch (err) {
+						const code = err instanceof ProtocolError ? err.code : JSON_RPC_INTERNAL_ERROR;
+						const message = err instanceof Error ? err.message : String(err);
+						transport.send({ jsonrpc: '2.0', id: msg.id, error: { code, message } });
+					}
+					return;
+				}
+
 				if (!client) {
 					return;
 				}
@@ -95,12 +114,6 @@ export class ProtocolServerHandler extends Disposable {
 				this._logService.trace(`[ProtocolServer] notification: method=${msg.method}`);
 				// Notification — fire-and-forget
 				switch (msg.method) {
-					case 'initialize':
-						client = this._handleInitialize(msg.params as IInitializeParams, transport, disposables);
-						break;
-					case 'reconnect':
-						client = this._handleReconnect(msg.params as IReconnectParams, transport, disposables);
-						break;
 					case 'unsubscribe':
 						if (client) {
 							client.subscriptions.delete((msg.params as IUnsubscribeParams).resource.toString());
@@ -136,14 +149,21 @@ export class ProtocolServerHandler extends Disposable {
 		disposables.add(transport);
 	}
 
-	// ---- Notifications (fire-and-forget) ------------------------------------
+	// ---- Handshake handlers ----------------------------------------------------
 
 	private _handleInitialize(
 		params: IInitializeParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
-	): IConnectedClient {
+	): { client: IConnectedClient; response: unknown } {
 		this._logService.info(`[ProtocolServer] Initialize: clientId=${params.clientId}, version=${params.protocolVersion}`);
+
+		if (params.protocolVersion < MIN_PROTOCOL_VERSION) {
+			throw new ProtocolError(
+				AHP_UNSUPPORTED_PROTOCOL_VERSION,
+				`Client protocol version ${params.protocolVersion} is below minimum ${MIN_PROTOCOL_VERSION}`,
+			);
+		}
 
 		const client: IConnectedClient = {
 			clientId: params.clientId,
@@ -165,20 +185,21 @@ export class ProtocolServerHandler extends Disposable {
 			}
 		}
 
-		this._sendNotification(transport, 'serverHello', {
-			protocolVersion: PROTOCOL_VERSION,
-			serverSeq: this._stateManager.serverSeq,
-			snapshots,
-		});
-
-		return client;
+		return {
+			client,
+			response: {
+				protocolVersion: PROTOCOL_VERSION,
+				serverSeq: this._stateManager.serverSeq,
+				snapshots,
+			},
+		};
 	}
 
 	private _handleReconnect(
 		params: IReconnectParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
-	): IConnectedClient {
+	): { client: IConnectedClient; response: unknown } {
 		this._logService.info(`[ProtocolServer] Reconnect: clientId=${params.clientId}, lastSeenSeq=${params.lastSeenServerSeq}`);
 
 		const client: IConnectedClient = {
@@ -194,16 +215,18 @@ export class ProtocolServerHandler extends Disposable {
 		const canReplay = params.lastSeenServerSeq >= oldestBuffered;
 
 		if (canReplay) {
+			const actions: IActionEnvelope[] = [];
 			for (const sub of params.subscriptions) {
 				client.subscriptions.add(sub.toString());
 			}
 			for (const envelope of this._replayBuffer) {
 				if (envelope.serverSeq > params.lastSeenServerSeq) {
 					if (this._isRelevantToClient(client, envelope)) {
-						this._sendNotification(transport, 'action', { envelope });
+						actions.push(envelope);
 					}
 				}
 			}
+			return { client, response: { type: 'replay', actions } };
 		} else {
 			const snapshots: IStateSnapshot[] = [];
 			for (const sub of params.subscriptions) {
@@ -214,13 +237,8 @@ export class ProtocolServerHandler extends Disposable {
 					client.subscriptions.add(resource.toString());
 				}
 			}
-			this._sendNotification(transport, 'reconnectResponse', {
-				serverSeq: this._stateManager.serverSeq,
-				snapshots,
-			});
+			return { client, response: { type: 'snapshot', snapshots } };
 		}
-
-		return client;
 	}
 
 	// ---- Requests (expect a response) ---------------------------------------
@@ -231,13 +249,14 @@ export class ProtocolServerHandler extends Disposable {
 			client.transport.send({ jsonrpc: '2.0', id, result: result ?? null });
 		}).catch(err => {
 			this._logService.error(`[ProtocolServer] Request '${method}' failed`, err);
+			const code = err instanceof ProtocolError ? err.code : JSON_RPC_INTERNAL_ERROR;
 			const message = err instanceof Error && err.stack
 				? err.stack
 				: String(err?.message ?? err);
 			client.transport.send({
 				jsonrpc: '2.0',
 				id,
-				error: { code: JSON_RPC_INTERNAL_ERROR, message },
+				error: { code, message },
 			});
 		});
 	}
@@ -269,22 +288,24 @@ export class ProtocolServerHandler extends Disposable {
 				const p = params as IFetchTurnsParams;
 				const session = URI.revive(p.session);
 				const state = this._stateManager.getSessionState(session);
-				if (state) {
-					const turns = state.turns;
-					const start = Math.max(0, p.startTurn);
-					const end = Math.min(turns.length, start + p.count);
-					return {
-						session,
-						startTurn: start,
-						turns: turns.slice(start, end),
-						totalTurns: turns.length,
-					};
+				if (!state) {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session.toString()}`);
 				}
+				const turns = state.turns;
+				const limit = Math.min(p.limit ?? 50, 100);
+
+				let endIndex = turns.length;
+				if (p.before) {
+					const idx = turns.findIndex(t => t.id === p.before);
+					if (idx !== -1) {
+						endIndex = idx;
+					}
+				}
+
+				const startIndex = Math.max(0, endIndex - limit);
 				return {
-					session,
-					startTurn: p.startTurn,
-					turns: [],
-					totalTurns: 0,
+					turns: turns.slice(startIndex, endIndex),
+					hasMore: startIndex > 0,
 				};
 			}
 			default:
@@ -293,11 +314,6 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	// ---- Broadcasting -------------------------------------------------------
-
-	private _sendNotification(transport: IProtocolTransport, method: string, params: unknown): void {
-		this._logService.trace(`[ProtocolServer] Sending notification: ${method}`);
-		transport.send({ jsonrpc: '2.0', method, params });
-	}
 
 	private _broadcastAction(envelope: IActionEnvelope): void {
 		this._logService.trace(`[ProtocolServer] Broadcasting action: ${envelope.action.type}`);

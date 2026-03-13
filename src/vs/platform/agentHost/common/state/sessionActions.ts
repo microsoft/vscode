@@ -44,10 +44,11 @@ export interface IActionEnvelope<A extends IStateAction = IStateAction> {
 	 */
 	readonly origin: IActionOrigin | undefined;
 	/**
-	 * Set to `true` when the server rejected the command that produced this
-	 * action. The client should revert its optimistic prediction.
+	 * When present, indicates the server rejected the action. The client
+	 * should revert its optimistic prediction. Contains a human-readable
+	 * explanation (e.g. `"no active turn to cancel"`).
 	 */
-	readonly rejected?: true;
+	readonly rejectionReason?: string;
 }
 
 export interface IActionOrigin {

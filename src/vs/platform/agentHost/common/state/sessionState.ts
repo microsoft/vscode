@@ -138,8 +138,8 @@ export interface IActiveTurn {
 	readonly userMessage: IUserMessage;
 	readonly streamingText: string;
 	readonly responseParts: readonly IResponsePart[];
-	readonly toolCalls: ReadonlyMap<string, IToolCallState>;
-	readonly pendingPermissions: ReadonlyMap<string, IPermissionRequest>;
+	readonly toolCalls: Readonly<Record<string, IToolCallState>>;
+	readonly pendingPermissions: Readonly<Record<string, IPermissionRequest>>;
 	readonly reasoning: string;
 	readonly usage: IUsageInfo | undefined;
 }
@@ -281,8 +281,8 @@ export function createActiveTurn(id: string, userMessage: IUserMessage): IActive
 		userMessage,
 		streamingText: '',
 		responseParts: [],
-		toolCalls: new Map(),
-		pendingPermissions: new Map(),
+		toolCalls: {},
+		pendingPermissions: {},
 		reasoning: '',
 		usage: undefined,
 	};

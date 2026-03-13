@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { ISessionAction } from '../../common/state/sessionActions.js';
-import { isJsonRpcNotification, isJsonRpcResponse, type ICreateSessionParams, type IProtocolMessage, type IProtocolNotification, type IServerHelloParams, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcResponse, type ICreateSessionParams, type IInitializeResult, type IProtocolMessage, type IProtocolNotification, type IReconnectResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -117,7 +117,7 @@ suite('ProtocolServerHandler', () => {
 	function connectClient(clientId: string, initialSubscriptions?: readonly URI[]): MockProtocolTransport {
 		const transport = new MockProtocolTransport();
 		server.simulateConnection(transport);
-		transport.simulateMessage(notification('initialize', {
+		transport.simulateMessage(request(1, 'initialize', {
 			protocolVersion: PROTOCOL_VERSION,
 			clientId,
 			initialSubscriptions,
@@ -144,14 +144,14 @@ suite('ProtocolServerHandler', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('handshake sends serverHello notification', () => {
+	test('handshake returns initialize response', () => {
 		const transport = connectClient('client-1');
 
-		const hello = findNotification(transport.sent, 'serverHello');
-		assert.ok(hello, 'should have sent serverHello');
-		const params = hello.params as IServerHelloParams;
-		assert.strictEqual(params.protocolVersion, PROTOCOL_VERSION);
-		assert.strictEqual(params.serverSeq, stateManager.serverSeq);
+		const resp = findResponse(transport.sent, 1);
+		assert.ok(resp, 'should have sent initialize response');
+		const result = (resp as { result: IInitializeResult }).result;
+		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
+		assert.strictEqual(result.serverSeq, stateManager.serverSeq);
 	});
 
 	test('handshake with initialSubscriptions returns snapshots', () => {
@@ -159,11 +159,11 @@ suite('ProtocolServerHandler', () => {
 
 		const transport = connectClient('client-1', [sessionUri]);
 
-		const hello = findNotification(transport.sent, 'serverHello');
-		assert.ok(hello);
-		const params = hello.params as IServerHelloParams;
-		assert.strictEqual(params.snapshots.length, 1);
-		assert.strictEqual(params.snapshots[0].resource.toString(), sessionUri.toString());
+		const resp = findResponse(transport.sent, 1);
+		assert.ok(resp);
+		const result = (resp as { result: IInitializeResult }).result;
+		assert.strictEqual(result.snapshots.length, 1);
+		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
 	});
 
 	test('subscribe request returns snapshot', async () => {
@@ -249,8 +249,8 @@ suite('ProtocolServerHandler', () => {
 		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
 
 		const transport1 = connectClient('client-r', [sessionUri]);
-		const hello = findNotification(transport1.sent, 'serverHello');
-		const helloSeq = (hello!.params as IServerHelloParams).serverSeq;
+		const resp = findResponse(transport1.sent, 1);
+		const initSeq = (resp as { result: IInitializeResult }).result.serverSeq;
 		transport1.simulateClose();
 
 		stateManager.dispatchServerAction({ type: 'session/titleChanged', session: sessionUri, title: 'Title A' });
@@ -258,14 +258,19 @@ suite('ProtocolServerHandler', () => {
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
-		transport2.simulateMessage(notification('reconnect', {
+		transport2.simulateMessage(request(1, 'reconnect', {
 			clientId: 'client-r',
-			lastSeenServerSeq: helloSeq,
+			lastSeenServerSeq: initSeq,
 			subscriptions: [sessionUri],
 		}));
 
-		const replayed = findNotifications(transport2.sent, 'action');
-		assert.strictEqual(replayed.length, 2);
+		const reconnectResp = findResponse(transport2.sent, 1);
+		assert.ok(reconnectResp, 'should have sent reconnect response');
+		const result = (reconnectResp as { result: IReconnectResult }).result;
+		assert.strictEqual(result.type, 'replay');
+		if (result.type === 'replay') {
+			assert.strictEqual(result.actions.length, 2);
+		}
 	});
 
 	test('reconnect sends fresh snapshots when gap too large', () => {
@@ -281,16 +286,19 @@ suite('ProtocolServerHandler', () => {
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
-		transport2.simulateMessage(notification('reconnect', {
+		transport2.simulateMessage(request(1, 'reconnect', {
 			clientId: 'client-g',
 			lastSeenServerSeq: 0,
 			subscriptions: [sessionUri],
 		}));
 
-		const reconnectResp = findNotification(transport2.sent, 'reconnectResponse');
-		assert.ok(reconnectResp, 'should receive a reconnectResponse');
-		const params = reconnectResp!.params as { snapshots: IStateSnapshot[] };
-		assert.ok(params.snapshots.length > 0, 'should contain snapshots');
+		const reconnectResp = findResponse(transport2.sent, 1);
+		assert.ok(reconnectResp, 'should have sent reconnect response');
+		const result = (reconnectResp as { result: IReconnectResult }).result;
+		assert.strictEqual(result.type, 'snapshot');
+		if (result.type === 'snapshot') {
+			assert.ok(result.snapshots.length > 0, 'should contain snapshots');
+		}
 	});
 
 	test('client disconnect cleans up', () => {

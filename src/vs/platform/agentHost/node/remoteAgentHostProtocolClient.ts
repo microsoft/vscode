@@ -75,27 +75,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	async connect(): Promise<void> {
 		await this._transport.connect();
 
-		// Send initialize notification
-		this._sendNotification('initialize', {
+		// Send initialize request and await the response
+		const result = await this._sendRequest('initialize', {
 			protocolVersion: PROTOCOL_VERSION,
 			clientId: this._clientId,
-		});
-
-		// Wait for serverHello notification
-		await new Promise<void>((resolve, reject) => {
-			const listener = this._transport.onMessage(msg => {
-				if (isJsonRpcNotification(msg) && msg.method === 'serverHello') {
-					listener.dispose();
-					const params = msg.params as { serverSeq: number };
-					this._serverSeq = params.serverSeq;
-					resolve();
-				}
-			});
-			this._register(this._transport.onClose(() => {
-				listener.dispose();
-				reject(new Error('Connection closed during handshake'));
-			}));
-		});
+		}) as { serverSeq: number };
+		this._serverSeq = result.serverSeq;
 	}
 
 	/**

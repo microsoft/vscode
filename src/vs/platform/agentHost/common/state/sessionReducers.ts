@@ -20,7 +20,6 @@ import {
 	type IErrorInfo,
 	type IRootState,
 	type ISessionState,
-	type IToolCallState,
 	type ITurn,
 	createActiveTurn,
 	SessionLifecycle,
@@ -100,50 +99,49 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
 			}
-			const toolCalls = new Map(state.activeTurn.toolCalls);
-			toolCalls.set(action.toolCall.toolCallId, action.toolCall);
 			return {
 				...state,
-				activeTurn: { ...state.activeTurn, toolCalls },
+				activeTurn: {
+					...state.activeTurn,
+					toolCalls: { ...state.activeTurn.toolCalls, [action.toolCall.toolCallId]: action.toolCall },
+				},
 			};
 		}
 		case 'session/toolComplete': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
 			}
-			const toolCall = state.activeTurn.toolCalls.get(action.toolCallId);
+			const toolCall = state.activeTurn.toolCalls[action.toolCallId];
 			if (!toolCall) {
 				return state;
 			}
-			const toolCalls = new Map(state.activeTurn.toolCalls);
-			toolCalls.set(action.toolCallId, {
-				...toolCall,
-				status: action.result.success ? ToolCallStatus.Completed : ToolCallStatus.Failed,
-				pastTenseMessage: action.result.pastTenseMessage,
-				toolOutput: action.result.toolOutput,
-				error: action.result.error,
-			});
 			return {
 				...state,
-				activeTurn: { ...state.activeTurn, toolCalls },
+				activeTurn: {
+					...state.activeTurn,
+					toolCalls: {
+						...state.activeTurn.toolCalls,
+						[action.toolCallId]: {
+							...toolCall,
+							status: action.result.success ? ToolCallStatus.Completed : ToolCallStatus.Failed,
+							pastTenseMessage: action.result.pastTenseMessage,
+							toolOutput: action.result.toolOutput,
+							error: action.result.error,
+						},
+					},
+				},
 			};
 		}
 		case 'session/permissionRequest': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
 			}
-			const pendingPermissions = new Map(state.activeTurn.pendingPermissions);
-			pendingPermissions.set(action.request.requestId, action.request);
-			let toolCalls: ReadonlyMap<string, IToolCallState> = state.activeTurn.toolCalls;
+			const pendingPermissions = { ...state.activeTurn.pendingPermissions, [action.request.requestId]: action.request };
+			let toolCalls = state.activeTurn.toolCalls;
 			if (action.request.toolCallId) {
-				const toolCall = toolCalls.get(action.request.toolCallId);
+				const toolCall = toolCalls[action.request.toolCallId];
 				if (toolCall) {
-					const mutable = new Map(toolCalls);
-					mutable.set(action.request.toolCallId, {
-						...toolCall,
-						status: ToolCallStatus.PendingPermission,
-					});
-					toolCalls = mutable;
+					toolCalls = { ...toolCalls, [action.request.toolCallId]: { ...toolCall, status: ToolCallStatus.PendingPermission } };
 				}
 			}
 			return {
@@ -155,21 +153,21 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
 				return state;
 			}
-			const pendingPermissions = new Map(state.activeTurn.pendingPermissions);
-			const resolved = pendingPermissions.get(action.requestId);
-			pendingPermissions.delete(action.requestId);
-			let toolCalls: ReadonlyMap<string, IToolCallState> = state.activeTurn.toolCalls;
+			const resolved = state.activeTurn.pendingPermissions[action.requestId];
+			const { [action.requestId]: _, ...pendingPermissions } = state.activeTurn.pendingPermissions;
+			let toolCalls = state.activeTurn.toolCalls;
 			if (resolved?.toolCallId) {
-				const toolCall = toolCalls.get(resolved.toolCallId);
+				const toolCall = toolCalls[resolved.toolCallId];
 				if (toolCall && toolCall.status === ToolCallStatus.PendingPermission) {
-					const mutable = new Map(toolCalls);
-					mutable.set(resolved.toolCallId, {
-						...toolCall,
-						status: action.approved ? ToolCallStatus.Running : ToolCallStatus.Cancelled,
-						confirmed: action.approved ? 'user-action' : 'denied',
-						cancellationReason: action.approved ? undefined : 'denied',
-					});
-					toolCalls = mutable;
+					toolCalls = {
+						...toolCalls,
+						[resolved.toolCallId]: {
+							...toolCall,
+							status: action.approved ? ToolCallStatus.Running : ToolCallStatus.Cancelled,
+							confirmed: action.approved ? 'user-action' : 'denied',
+							cancellationReason: action.approved ? undefined : 'denied',
+						},
+					};
 				}
 			}
 			return {
@@ -237,7 +235,7 @@ function finalizeTurn(state: ISessionState, turnId: string, turnState: TurnState
 	const active = state.activeTurn;
 
 	const completedToolCalls: ICompletedToolCall[] = [];
-	for (const tc of active.toolCalls.values()) {
+	for (const tc of Object.values(active.toolCalls)) {
 		completedToolCalls.push({
 			toolCallId: tc.toolCallId,
 			toolName: tc.toolName,

@@ -351,7 +351,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 
 			// Handle tool calls — create/finalize ChatToolInvocations
-			for (const [toolCallId, tc] of activeTurn.toolCalls) {
+			for (const [toolCallId, tc] of Object.entries(activeTurn.toolCalls)) {
 				const existing = activeToolInvocations.get(toolCallId);
 				if (!existing) {
 					if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.PendingPermission) {
@@ -366,7 +366,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 
 			// Handle permission requests
-			for (const [requestId, perm] of activeTurn.pendingPermissions) {
+			for (const [requestId, perm] of Object.entries(activeTurn.pendingPermissions)) {
 				if (activePermissions.has(requestId)) {
 					continue;
 				}

@@ -7,9 +7,9 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, IAgentAttachment, IAgent } from '../common/agentService.js';
+import { AgentProvider, IAgent, IAgentAttachment } from '../common/agentService.js';
 import type { ISessionAction } from '../common/state/sessionActions.js';
-import type { ICreateSessionParams } from '../common/state/sessionProtocol.js';
+import { ICreateSessionParams, AHP_PROVIDER_NOT_FOUND, ProtocolError } from '../common/state/sessionProtocol.js';
 import {
 	ISessionModelInfo,
 	SessionStatus, type ISessionSummary
@@ -168,11 +168,11 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 	async handleCreateSession(command: ICreateSessionParams): Promise<URI> {
 		const provider = command.provider as AgentProvider | undefined;
 		if (!provider) {
-			throw new Error('No provider specified for session creation');
+			throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, 'No provider specified for session creation');
 		}
 		const agent = this._options.agents.get().find(a => a.id === provider);
 		if (!agent) {
-			throw new Error(`No agent registered for provider: ${provider}`);
+			throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, `No agent registered for provider: ${provider}`);
 		}
 		const session = await agent.createSession({
 			provider,

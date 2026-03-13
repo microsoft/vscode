@@ -80,8 +80,8 @@ export interface IV1_ActiveTurn {
 	readonly userMessage: IV1_UserMessage;
 	readonly streamingText: string;
 	readonly responseParts: readonly IV1_ResponsePart[];
-	readonly toolCalls: ReadonlyMap<string, IV1_ToolCallState>;
-	readonly pendingPermissions: ReadonlyMap<string, IV1_PermissionRequest>;
+	readonly toolCalls: Readonly<Record<string, IV1_ToolCallState>>;
+	readonly pendingPermissions: Readonly<Record<string, IV1_PermissionRequest>>;
 	readonly reasoning: string;
 	readonly usage: IV1_UsageInfo | undefined;
 }
@@ -166,6 +166,11 @@ interface IV1_SessionActionBase {
 export interface IV1_AgentsChangedAction {
 	readonly type: 'root/agentsChanged';
 	readonly agents: readonly IV1_AgentInfo[];
+}
+
+export interface IV1_ActiveSessionsChangedAction {
+	readonly type: 'root/activeSessionsChanged';
+	readonly activeSessions: number;
 }
 
 export interface IV1_SessionReadyAction extends IV1_SessionActionBase {
