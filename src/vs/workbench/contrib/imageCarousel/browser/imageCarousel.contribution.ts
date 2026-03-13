@@ -6,7 +6,6 @@
 import './media/imageCarousel.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
@@ -14,16 +13,10 @@ import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../
 import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { IChatWidgetService } from '../../chat/browser/chat.js';
-import { IChatResponseViewModel, isResponseVM } from '../../chat/common/model/chatViewModel.js';
 import { ImageCarouselEditor } from './imageCarouselEditor.js';
 import { ImageCarouselEditorInput } from './imageCarouselEditorInput.js';
-import { IImageCarouselService, ImageCarouselService } from './imageCarouselService.js';
+import { IImageCarouselCollection } from './imageCarouselTypes.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-
-// --- Service Registration ---
-
-registerSingleton(IImageCarouselService, ImageCarouselService, InstantiationType.Delayed);
 
 // --- Editor Pane Registration ---
 
@@ -57,6 +50,33 @@ class ImageCarouselEditorInputSerializer implements IEditorSerializer {
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
 	.registerEditorSerializer(ImageCarouselEditorInput.ID, ImageCarouselEditorInputSerializer);
 
+// --- Args Types ---
+
+interface IOpenCarouselCollectionArgs {
+	readonly collection: IImageCarouselCollection;
+	readonly startIndex: number;
+}
+
+interface IOpenCarouselSingleImageArgs {
+	readonly name: string;
+	readonly mimeType: string;
+	readonly data: Uint8Array;
+	readonly title?: string;
+}
+
+function isCollectionArgs(args: unknown): args is IOpenCarouselCollectionArgs {
+	return typeof args === 'object' && args !== null
+		&& typeof (args as IOpenCarouselCollectionArgs).collection === 'object'
+		&& typeof (args as IOpenCarouselCollectionArgs).startIndex === 'number';
+}
+
+function isSingleImageArgs(args: unknown): args is IOpenCarouselSingleImageArgs {
+	return typeof args === 'object' && args !== null
+		&& typeof (args as IOpenCarouselSingleImageArgs).name === 'string'
+		&& typeof (args as IOpenCarouselSingleImageArgs).mimeType === 'string'
+		&& (args as IOpenCarouselSingleImageArgs).data instanceof Uint8Array;
+}
+
 // --- Actions ---
 
 class OpenImageInCarouselAction extends Action2 {
@@ -68,45 +88,35 @@ class OpenImageInCarouselAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, args: { name: string; mimeType: string; data: Uint8Array }): Promise<void> {
+	async run(accessor: ServicesAccessor, args?: unknown): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const carouselService = accessor.get(IImageCarouselService);
 
-		const clickedData = VSBuffer.wrap(args.data);
+		let collection: IImageCarouselCollection;
+		let startIndex: number;
 
-		// Try to find all images from the focused chat widget's responses
-		const widget = chatWidgetService.lastFocusedWidget;
-		if (widget?.viewModel) {
-			const responses = widget.viewModel.getItems().filter((item): item is IChatResponseViewModel => isResponseVM(item));
-			// Search responses in reverse to find the one containing the clicked image
-			for (let i = responses.length - 1; i >= 0; i--) {
-				const collection = await carouselService.extractImagesFromResponse(responses[i]);
-				if (collection && collection.images.length > 0) {
-					// Only use this collection if it actually contains the clicked image
-					const startIndex = collection.images.findIndex(img => img.data.equals(clickedData));
-					if (startIndex !== -1) {
-						const input = new ImageCarouselEditorInput(collection, startIndex);
-						await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
-						return;
-					}
-				}
-			}
+		if (isCollectionArgs(args)) {
+			collection = args.collection;
+			startIndex = args.startIndex;
+		} else if (isSingleImageArgs(args)) {
+			collection = {
+				id: generateUuid(),
+				title: args.title ?? localize('imageCarousel.title', "Image Carousel"),
+				sections: [{
+					title: '',
+					images: [{
+						id: generateUuid(),
+						name: args.name,
+						mimeType: args.mimeType,
+						data: VSBuffer.wrap(args.data),
+					}],
+				}],
+			};
+			startIndex = 0;
+		} else {
+			return;
 		}
 
-		// Fallback: open just the single clicked image
-		const collection = {
-			id: generateUuid(),
-			title: localize('imageCarousel.title', "Image Carousel"),
-			images: [{
-				id: generateUuid(),
-				name: args.name,
-				mimeType: args.mimeType,
-				data: VSBuffer.wrap(args.data),
-			}],
-		};
-
-		const input = new ImageCarouselEditorInput(collection);
+		const input = new ImageCarouselEditorInput(collection, startIndex);
 		await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
 	}
 }
