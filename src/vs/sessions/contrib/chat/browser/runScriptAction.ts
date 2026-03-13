@@ -34,6 +34,7 @@ export const RunScriptDropdownMenuId = MenuId.for('AgentSessionsRunScriptDropdow
 const RUN_SCRIPT_ACTION_ID = 'workbench.action.agentSessions.runScript';
 const RUN_SCRIPT_ACTION_PRIMARY_ID = 'workbench.action.agentSessions.runScriptPrimary';
 const CONFIGURE_DEFAULT_RUN_ACTION_ID = 'workbench.action.agentSessions.configureDefaultRunAction';
+const GENERATE_RUN_ACTION_ID = 'workbench.action.agentSessions.generateRunAction';
 function getTaskDisplayLabel(task: ITaskEntry): string {
 	if (task.label && task.label.length > 0) {
 		return task.label;
@@ -217,16 +218,40 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					}
 				}
 			}));
+
+			// Generate new action via Copilot (only shown when there is an active session)
+			reader.store.add(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: GENERATE_RUN_ACTION_ID,
+						title: localize2('generateRunAction', "Generate New Action..."),
+						category: SessionsCategories.Sessions,
+						precondition: IsActiveSessionBackgroundProviderContext,
+						menu: [{
+							id: RunScriptDropdownMenuId,
+							group: tasks.length === 0 ? 'navigation' : '1_configure',
+							order: 1
+						}]
+					});
+				}
+
+				async run(): Promise<void> {
+					await that._chatService.sendRequest(session.resource, '/add-run-action', { location: ChatAgentLocation.Chat });
+				}
+			}));
 		}));
 	}
 
 	private async _showConfigureQuickPick(session: IActiveSessionItem): Promise<ITaskEntry | undefined> {
 		const nonSessionTasks = await this._sessionsConfigService.getNonSessionTasks(session);
+		if (nonSessionTasks.length === 0) {
+			// No existing tasks, go straight to custom command input
+			return this._showCustomCommandInput(session);
+		}
 
 		interface ITaskPickItem extends IQuickPickItem {
 			readonly task?: ITaskEntry;
 			readonly source?: TaskStorageTarget;
-			readonly askCopilot?: true;
 		}
 
 		const items: (ITaskPickItem | IQuickPickSeparator)[] = [];
@@ -235,11 +260,6 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		items.push({
 			label: localize('enterCustomCommand', "Enter Custom Command..."),
 			description: localize('enterCustomCommandDesc', "Create a new shell task"),
-		});
-		items.push({
-			label: localize('generateNewRunAction', "Generate New Action..."),
-			description: localize('generateNewRunActionDesc', "Let Copilot help you add a run action"),
-			askCopilot: true,
 		});
 
 		if (nonSessionTasks.length > 0) {
@@ -263,10 +283,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		}
 
 		const pickedItem = picked as ITaskPickItem;
-		if (pickedItem.askCopilot) {
-			await this._chatService.sendRequest(session.resource, '/add-run-action', { location: ChatAgentLocation.Chat });
-			return undefined;
-		} else if (pickedItem.task) {
+		if (pickedItem.task) {
 			return this._showCustomCommandInput(session, { task: pickedItem.task, target: pickedItem.source ?? 'workspace' });
 		} else {
 			// Custom command path
