@@ -11,10 +11,7 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
-import { ChatResponseResource } from '../../../../common/model/chatModel.js';
-import { isToolResultInputOutputDetails } from '../../../../common/tools/languageModelToolsService.js';
 import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
-import { getExtensionForMimeType } from '../../../../../../../base/common/mime.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
 import { ChatQueryTitlePart } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
@@ -23,6 +20,7 @@ import { ChatProgressSubPart } from '../chatProgressContentPart.js';
 import { ChatResourceGroupWidget } from '../chatResourceGroupWidget.js';
 import { IChatCollapsibleIODataPart } from '../chatToolInputOutputContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { extractImagesFromToolInvocation } from '../../../../common/chatImageExtraction.js';
 import { TerminalToolAutoExpand } from './terminalToolAutoExpand.js';
 import { ChatCollapsibleContentPart } from '../chatCollapsibleContentPart.js';
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
@@ -446,46 +444,40 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	/**
 	 * Renders image attachment pills below the terminal output when the tool
-	 * result contains image data parts.
+	 * result contains image data parts. For collapsible wrappers, the single
+	 * widget is reparented between inside/outside based on expanded state.
 	 */
 	private _renderImagePills(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext, innerContainer: HTMLElement): void {
-		const createImageParts = (): IChatCollapsibleIODataPart[] => {
-			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
-			if (!isToolResultInputOutputDetails(resultDetails)) {
-				return [];
-			}
-
-			const imageParts: IChatCollapsibleIODataPart[] = [];
-			for (let i = 0; i < resultDetails.output.length; i++) {
-				const o = resultDetails.output[i];
-				if (o.type === 'embed' && o.mimeType?.startsWith('image/') && !o.isText) {
-					const ext = getExtensionForMimeType(o.mimeType);
-					const permalinkBasename = ext ? `file${ext}` : 'file.bin';
-					const permalinkUri = ChatResponseResource.createUri(context.element.sessionResource, toolInvocation.toolCallId, i, permalinkBasename);
-					imageParts.push({ kind: 'data', base64Value: o.value, mimeType: o.mimeType, uri: permalinkUri });
-				}
-			}
-			return imageParts;
-		};
-
 		const renderImages = () => {
-			const imageParts = createImageParts();
+			const extracted = extractImagesFromToolInvocation(toolInvocation, context.element.sessionResource);
+			const imageParts: IChatCollapsibleIODataPart[] = extracted.map(img => ({
+				kind: 'data',
+				value: img.data.buffer,
+				mimeType: img.mimeType,
+				uri: img.uri,
+			}));
 			if (imageParts.length === 0) {
 				return;
 			}
 
+			const widget = this._register(this._instantiationService.createInstance(ChatResourceGroupWidget, imageParts));
 
-			const innerWidget = this._register(this._instantiationService.createInstance(ChatResourceGroupWidget, imageParts));
-			innerContainer.appendChild(innerWidget.domNode);
 			if (this._thinkingCollapsibleWrapper) {
-				const outerWidget = this._register(this._instantiationService.createInstance(ChatResourceGroupWidget, imageParts));
-				outerWidget.domNode.classList.add('chat-terminal-collapsed-image-pills');
-				this._thinkingCollapsibleWrapper.domNode.appendChild(outerWidget.domNode);
-
+				// Reparent the single widget between inner (expanded) and outer (collapsed)
+				const wrapper = this._thinkingCollapsibleWrapper;
+				const placeWidget = (expanded: boolean) => {
+					if (expanded) {
+						innerContainer.appendChild(widget.domNode);
+					} else {
+						wrapper.domNode.appendChild(widget.domNode);
+					}
+				};
+				placeWidget(wrapper.expanded.get());
 				this._register(autorun(reader => {
-					const expanded = this._thinkingCollapsibleWrapper!.expanded.read(reader);
-					outerWidget.domNode.style.display = expanded ? 'none' : '';
+					placeWidget(wrapper.expanded.read(reader));
 				}));
+			} else {
+				innerContainer.appendChild(widget.domNode);
 			}
 		};
 
