@@ -160,64 +160,43 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		// OS X & Linux
 		else {
-			function calculateLinuxCpuUsage() {
-
-				// Flatten rootItem to get a list of all VSCode processes
-				let processes = [rootItem];
-				const pids: number[] = [];
-				while (processes.length) {
-					const process = processes.shift();
-					if (process) {
-						pids.push(process.pid);
-						if (process.children) {
-							processes = processes.concat(process.children);
-						}
-					}
-				}
-
-				// The cpu usage value reported by `ps` is the average over the process
-				// lifetime. Compute usage over the interval between consecutive calls
-				// by reading /proc directly.
-				try {
-					const totalCpuTime = readTotalCpuTime();
-					const processTimes = new Map<number, number>();
-					for (const pid of pids) {
-						processTimes.set(pid, readProcessCpuTime(pid));
-					}
-
-					if (previousCpuInfo) {
-						const totalDelta = totalCpuTime - previousCpuInfo.totalCpuTime;
-						if (totalDelta > 0) {
-							for (const pid of pids) {
-								const processInfo = map.get(pid);
-								if (processInfo) {
-									const prevTime = previousCpuInfo.processTimes.get(pid) ?? 0;
-									const currTime = processTimes.get(pid) ?? 0;
-									const processDelta = currTime - prevTime;
-									processInfo.load = Math.round((100 * processDelta) / totalDelta);
-								}
-							}
-						}
-					}
-					// First call — no previous data, keep lifetime average values
-
-					previousCpuInfo = { totalCpuTime, processTimes };
-				} catch {
-					// If /proc reads fail, keep the ps-reported values
-				}
-
-				if (!rootItem) {
-					reject(new Error(`Root process ${rootPid} not found`));
-					return;
-				}
-
-				resolve(rootItem);
-			}
-
 			if (isLinux) {
 				try {
 					readProcessesFromProc(addToTree);
-					calculateLinuxCpuUsage();
+
+					if (!rootItem) {
+						reject(new Error(`Root process ${rootPid} not found`));
+						return;
+					}
+
+					// Snapshot CPU times, wait briefly, then snapshot again to
+					// compute interval-based CPU usage instead of lifetime averages.
+					const pids = [...map.keys()];
+					const totalBefore = readTotalCpuTime();
+					const processBefore = new Map<number, number>();
+					for (const pid of pids) {
+						processBefore.set(pid, readProcessCpuTime(pid));
+					}
+
+					setTimeout(() => {
+						try {
+							const totalAfter = readTotalCpuTime();
+							const totalDelta = totalAfter - totalBefore;
+							if (totalDelta > 0) {
+								for (const pid of pids) {
+									const processInfo = map.get(pid);
+									if (processInfo) {
+										const before = processBefore.get(pid) ?? 0;
+										const after = readProcessCpuTime(pid);
+										processInfo.load = Math.round((100 * (after - before)) / totalDelta);
+									}
+								}
+							}
+						} catch {
+							// If /proc reads fail, keep the values from readProcessesFromProc
+						}
+						resolve(rootItem!);
+					}, 500);
 				} catch (e) {
 					reject(e);
 				}
@@ -301,8 +280,6 @@ function readProcessesFromProc(addToTree: (pid: number, ppid: number, cmd: strin
 		}
 	}
 }
-
-let previousCpuInfo: { totalCpuTime: number; processTimes: Map<number, number> } | undefined;
 
 function readTotalCpuTime(): number {
 	const stat = readFileSync('/proc/stat', 'utf8');
