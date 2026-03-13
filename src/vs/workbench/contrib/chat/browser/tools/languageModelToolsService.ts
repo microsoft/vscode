@@ -993,7 +993,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private toolResultHasImages(toolResult: IToolResult): boolean {
-		return toolResult.content.some(part => part.kind === 'data' && part.value.mimeType.startsWith('image/'));
+		return toolResult.content.some(part => part.kind === 'data' && part.value.mimeType?.startsWith('image/'));
 	}
 
 	private formatToolInput(dto: IToolInvocation): string {
