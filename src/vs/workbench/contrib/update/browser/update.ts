@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from '../../../../nls.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import severity from '../../../../base/common/severity.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -32,10 +33,13 @@ import { Event } from '../../../../base/common/event.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
+import { IBannerService } from '../../../services/banner/browser/bannerService.js';
 import { IVersion, preprocessError, tryParseVersion } from '../common/updateUtils.js';
+import { getWindowsArm64DownloadUrl } from '../../../../platform/update/common/updateWindows.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
+const WINDOWS_ARM64_ARCHITECTURE_MISMATCH_BANNER_ID = 'update.architectureMismatch';
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -223,6 +227,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IDialogService private readonly dialogService: IDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IActivityService private readonly activityService: IActivityService,
+		@IBannerService private readonly bannerService: IBannerService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -267,6 +272,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 	private async onUpdateStateChange(state: UpdateState): Promise<void> {
 		this.updateStateContextKey.set(state.type);
+		this.updateArchitectureMismatchBanner(state);
 
 		switch (state.type) {
 			case StateType.Disabled:
@@ -341,6 +347,29 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		}
 
 		this.state = state;
+	}
+
+	private updateArchitectureMismatchBanner(state: UpdateState): void {
+		if (state.type !== StateType.Disabled || state.reason !== DisablementReason.RunningX64OnArm64) {
+			this.bannerService.hide(WINDOWS_ARM64_ARCHITECTURE_MISMATCH_BANNER_ID);
+			return;
+		}
+
+		const downloadUrl = getWindowsArm64DownloadUrl(this.productService);
+
+		this.bannerService.show({
+			id: WINDOWS_ARM64_ARCHITECTURE_MISMATCH_BANNER_ID,
+			icon: Codicon.warning,
+			message: nls.localize(
+				'update.architectureMismatch.banner',
+				"You are running the x64 build of {0} on ARM64 Windows. Updates are disabled for this installation. Install the ARM64 build to receive updates again.",
+				this.productService.nameLong
+			),
+			actions: downloadUrl ? [{
+				label: nls.localize('update.architectureMismatch.banner.action', "Download ARM64 Build"),
+				href: downloadUrl
+			}] : undefined
+		});
 	}
 
 	private onError(error: string): void {

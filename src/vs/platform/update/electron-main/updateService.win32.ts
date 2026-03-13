@@ -32,6 +32,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
+import { shouldDisableUpdatesForWindowsX64OnArm64 } from '../common/updateWindows.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
 import { INodeProcess } from '../../../base/common/platform.js';
 
@@ -127,6 +128,17 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const osRelease = await getWindowsRelease();
 		const osNodeRelease = release();
 		this.telemetryService.publicLog2<WindowsUpdateInitEvent, WindowsUpdateInitClassification>('windowsUpdateInit', { osRelease, osNodeRelease });
+
+		const runningX64OnArm64 = shouldDisableUpdatesForWindowsX64OnArm64(
+			process.arch,
+			process.arch === 'x64' && await this.nativeHostMainService.isRunningUnderARM64Translation(undefined)
+		);
+
+		if (runningX64OnArm64) {
+			this.setState(State.Disabled(DisablementReason.RunningX64OnArm64));
+			this.logService.info('update#ctor - updates are disabled because the x64 build is running under ARM64 translation on Windows');
+			return;
+		}
 
 		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
 			this.setState(State.Disabled(DisablementReason.RunningAsAdmin));
