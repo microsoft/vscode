@@ -357,6 +357,7 @@ function hasChildProcessesFromProc(pid: number, ignoreNames?: string[]): boolean
 
 	const hasIgnoreList = ignoreNames && ignoreNames.length > 0;
 	let childCount = 0;
+	let singleChildEntry: string | undefined;
 
 	for (const entry of entries) {
 		if (!/^\d+$/.test(entry)) {
@@ -369,11 +370,13 @@ function hasChildProcessesFromProc(pid: number, ignoreNames?: string[]): boolean
 			// fields[1] is ppid (after state at fields[0])
 			if (parseInt(fields[1]) === pid) {
 				if (!hasIgnoreList) {
-					return true; // Found a child, no filtering needed
+					return true;
 				}
 				childCount++;
-				if (childCount > 1) {
-					return true; // Multiple children, at least one is non-ignored
+				if (childCount === 1) {
+					singleChildEntry = entry;
+				} else if (childCount > 1) {
+					return true;
 				}
 			}
 		} catch {
@@ -386,30 +389,15 @@ function hasChildProcessesFromProc(pid: number, ignoreNames?: string[]): boolean
 	}
 
 	// Exactly one child — check if it should be ignored
-	// Re-scan to find it and read its cmdline
-	for (const entry of entries) {
-		if (!/^\d+$/.test(entry)) {
-			continue;
-		}
+	let cmd = '';
+	if (singleChildEntry) {
 		try {
-			const stat = readFileSync(`/proc/${entry}/stat`, 'utf8');
-			const closeParen = stat.lastIndexOf(')');
-			const fields = stat.substring(closeParen + 2).split(' ');
-			if (parseInt(fields[1]) === pid) {
-				let cmd = '';
-				try {
-					cmd = readFileSync(`/proc/${entry}/cmdline`, 'utf8').replace(/\0/g, ' ').trim();
-				} catch {
-					// Process may have exited
-				}
-				return !shouldIgnoreProcess(cmd, ignoreNames!);
-			}
+			cmd = readFileSync(`/proc/${singleChildEntry}/cmdline`, 'utf8').replace(/\0/g, ' ').trim();
 		} catch {
 			// Process may have exited
 		}
 	}
-
-	return false;
+	return !shouldIgnoreProcess(cmd, ignoreNames!);
 }
 
 function hasChildProcessesDarwin(pid: number, ignoreNames?: string[]): Promise<boolean> {
