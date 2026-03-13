@@ -37,7 +37,7 @@ import { PromptsStorage } from '../../common/promptSyntax/service/promptsService
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IFileService, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -252,16 +252,21 @@ registerAction2(class extends Action2 {
 		});
 
 		if (confirmation.confirmed) {
-			const telemetryService = accessor.get(ITelemetryService);
-			telemetryService.publicLog2<CustomizationEditorDeleteItemEvent, CustomizationEditorDeleteItemClassification>('chatCustomizationEditor.deleteItem', {
-				promptType: promptType ?? '',
-				storage: storage ?? '',
-			});
+			try {
+				const telemetryService = accessor.get(ITelemetryService);
+				telemetryService.publicLog2<CustomizationEditorDeleteItemEvent, CustomizationEditorDeleteItemClassification>('chatCustomizationEditor.deleteItem', {
+					promptType: promptType ?? '',
+					storage: storage ?? '',
+				});
+			} catch {
+				// Telemetry must not block deletion
+			}
 
 			// For skills, delete the parent folder (e.g. .github/skills/my-skill/)
 			// since each skill is a folder containing SKILL.md.
 			const deleteTarget = isSkill ? dirname(uri) : uri;
-			await fileService.del(deleteTarget, { useTrash: true, recursive: isSkill });
+			const useTrash = fileService.hasCapability(deleteTarget, FileSystemProviderCapabilities.Trash);
+			await fileService.del(deleteTarget, { useTrash, recursive: isSkill });
 
 			// Commit the deletion to git (sessions: main repo + worktree)
 			if (storage === PromptsStorage.local) {
