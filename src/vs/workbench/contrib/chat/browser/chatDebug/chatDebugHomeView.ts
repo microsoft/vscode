@@ -43,6 +43,12 @@ export class ChatDebugHomeView extends Disposable {
 		super();
 		this.container = DOM.append(parent, $('.chat-debug-home'));
 		this.scrollContent = DOM.append(this.container, $('div.chat-debug-home-content'));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ChatAgentDebugLogEnabled)) {
+				this.render();
+			}
+		}));
 	}
 
 	show(): void {
