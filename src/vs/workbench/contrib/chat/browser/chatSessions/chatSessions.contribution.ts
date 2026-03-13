@@ -234,6 +234,9 @@ class ContributedChatSessionData extends Disposable {
 	public getOption(optionId: string): string | IChatSessionProviderOptionItem | undefined {
 		return this._optionsCache.get(optionId);
 	}
+	public getAllOptions(): IterableIterator<[string, string | IChatSessionProviderOptionItem]> {
+		return this._optionsCache.entries();
+	}
 	public setOption(optionId: string, value: string | IChatSessionProviderOptionItem): void {
 		this._optionsCache.set(optionId, value);
 	}
@@ -1071,6 +1074,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public hasAnySessionOptions(sessionResource: URI): boolean {
 		const session = this._sessions.get(this._resolveResource(sessionResource));
 		return !!session && !!session.options && Object.keys(session.options).length > 0;
+	}
+
+	public getSessionOptions(sessionResource: URI): Map<string, string> | undefined {
+		const session = this._sessions.get(this._resolveResource(sessionResource));
+		if (!session) {
+			return undefined;
+		}
+		const result = new Map<string, string>();
+		for (const [key, value] of session.getAllOptions()) {
+			result.set(key, typeof value === 'string' ? value : value.id);
+		}
+		return result.size > 0 ? result : undefined;
 	}
 
 	public getSessionOption(sessionResource: URI, optionId: string): string | IChatSessionProviderOptionItem | undefined {

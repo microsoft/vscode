@@ -274,6 +274,7 @@ export interface IChatSessionsService {
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
 	hasAnySessionOptions(sessionResource: URI): boolean;
+	getSessionOptions(sessionResource: URI): Map<string, string> | undefined;
 	getSessionOption(sessionResource: URI, optionId: string): string | IChatSessionProviderOptionItem | undefined;
 	setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean;
 

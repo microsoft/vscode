@@ -42,11 +42,11 @@ import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, 
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
 import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatSendResultSent, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatQuestionAnswers, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
-import { IChatSessionsService } from '../chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
-import { chatSessionResourceToId, LocalChatSessionUri } from '../model/chatUri.js';
+import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
@@ -602,7 +602,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 
-		const chatSessionType = sessionResource.scheme;
+		const chatSessionType = getChatSessionType(sessionResource);
 
 		// Contributed sessions do not use UI tools
 		const modelRef = this._sessionModels.acquireOrCreate({
@@ -805,9 +805,45 @@ export class ChatService extends Disposable implements IChatService {
 			return { kind: 'rejected', reason: 'Empty message' };
 		}
 
-		const model = this._sessionModels.get(sessionResource);
+		let model = this._sessionModels.get(sessionResource);
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionResource}`);
+		}
+
+		let newSessionResource: URI | undefined;
+
+		// Workaround for the contributed chat sessions
+		//
+		// Internally blank widgets uses special sessions with an untitled- path. We do not want these leaking out
+		// to the rest of code. Instead use `createNewChatSessionItem` to make sure the session gets properly initialized with a real resource before processing the first request.
+		if (!model.hasRequests && isUntitledChatSession(sessionResource) && getChatSessionType(sessionResource) !== localChatSessionType) {
+
+			const parsedRequest = this.parseChatRequest(sessionResource, request, options?.location ?? model.initialLocation, options);
+			const commandPart = parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
+			const requestText = getPromptText(parsedRequest).message;
+			const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text }, CancellationToken.None);
+			if (newItem) {
+
+				// Update the model's contributed session with the resolved resource
+				// so subsequent requests don't re-invoke newChatSessionItemHandler
+				// and getChatSessionFromInternalUri returns the real resource.
+				const sessionOptions = this.chatSessionService.getSessionOptions(sessionResource);
+				model?.setContributedChatSession({
+					chatSessionResource: sessionResource,
+					initialSessionOptions: sessionOptions ? [...sessionOptions].map(([optionId, value]) => ({ optionId, value })) : undefined,
+				});
+
+				model = (await this.loadRemoteSession(newItem.resource, model.initialLocation, CancellationToken.None))?.object as ChatModel | undefined;
+				if (!model) {
+					throw new Error(`Failed to load session for resource: ${newItem.resource}`);
+				}
+
+				// Register alias so session-option lookups work with the new resource
+				this.chatSessionService.registerSessionResourceAlias(sessionResource, newItem.resource);
+
+				sessionResource = newItem.resource;
+				newSessionResource = newItem.resource;
+			}
 		}
 
 		const hasPendingRequest = this._pendingRequests.has(sessionResource);
@@ -847,6 +883,7 @@ export class ChatService extends Disposable implements IChatService {
 		// This method is only returning whether the request was accepted - don't block on the actual request
 		return {
 			kind: 'sent',
+			newSessionResource,
 			data: {
 				...this._sendRequestAsync(model, sessionResource, parsedRequest, attempt, !options?.noCommandDetection, silentAgent ?? defaultAgent, location, options),
 				agent,
