@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -11,10 +12,14 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isUUID } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
+import { AGENT_DEBUG_LOG_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 
 const $ = DOM.$;
 
@@ -32,10 +37,18 @@ export class ChatDebugHomeView extends Disposable {
 		@IChatService private readonly chatService: IChatService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
 		this.container = DOM.append(parent, $('.chat-debug-home'));
 		this.scrollContent = DOM.append(this.container, $('div.chat-debug-home-content'));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AGENT_DEBUG_LOG_ENABLED_SETTING)) {
+				this.render();
+			}
+		}));
 	}
 
 	show(): void {
@@ -52,6 +65,21 @@ export class ChatDebugHomeView extends Disposable {
 		this.renderDisposables.clear();
 
 		DOM.append(this.scrollContent, $('h2.chat-debug-home-title', undefined, localize('chatDebug.title', "Agent Debug Logs")));
+
+		const isEnabled = this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING);
+		if (!isEnabled) {
+			DOM.append(this.scrollContent, $('p.chat-debug-home-subtitle', undefined,
+				localize('chatDebug.disabled', "Enable to view debug logs and investigate chat issues with /troubleshoot.")
+			));
+
+			const enableButton = this.renderDisposables.add(new Button(this.scrollContent, { ...defaultButtonStyles, secondary: true }));
+			enableButton.element.style.width = 'auto';
+			enableButton.label = localize('chatDebug.openSetting', "Enable in Settings");
+			this.renderDisposables.add(enableButton.onDidClick(() => {
+				this.preferencesService.openSettings({ jsonEditor: false, query: AGENT_DEBUG_LOG_ENABLED_SETTING });
+			}));
+			return;
+		}
 
 		// Determine the active session resource
 		const activeWidget = this.chatWidgetService.lastFocusedWidget;
