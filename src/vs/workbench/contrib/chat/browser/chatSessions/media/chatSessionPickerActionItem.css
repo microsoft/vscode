@@ -37,3 +37,17 @@
 		margin-left: 2px;
 	}
 }
+
+/* Locked state styling - matches disabled action item styling */
+.monaco-action-bar .action-item.locked .chat-session-option-picker {
+	color: var(--vscode-disabledForeground);
+	cursor: default;
+}
+
+.monaco-action-bar .action-item.locked .chat-session-option-picker .codicon {
+	color: var(--vscode-disabledForeground);
+}
+
+.monaco-action-bar .action-item.locked {
+	pointer-events: none;
+}

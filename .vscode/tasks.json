@@ -3,8 +3,38 @@
 	"tasks": [
 		{
 			"type": "npm",
+			"script": "watch-client-transpiled",
+			"label": "Core - Transpile",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never",
+				"group": "buildWatchers",
+				"close": false
+			},
+			"problemMatcher": {
+				"owner": "esbuild",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"relative",
+					"${workspaceFolder}/src"
+				],
+				"pattern": {
+					"regexp": "^(.+?):(\\d+):(\\d+): ERROR: (.+)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"message": 4
+				},
+				"background": {
+					"beginsPattern": "Starting transpilation\\.\\.\\.",
+					"endsPattern": "Finished transpilation with"
+				}
+			}
+		},
+		{
+			"type": "npm",
 			"script": "watch-clientd",
-			"label": "Core - Build",
+			"label": "Core - Typecheck",
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never",
@@ -24,7 +54,7 @@
 					"message": 3
 				},
 				"background": {
-					"beginsPattern": "Starting compilation...",
+					"beginsPattern": "Starting compilation\\.\\.\\.",
 					"endsPattern": "Finished compilation with"
 				}
 			}
@@ -43,10 +73,11 @@
 				"owner": "typescript",
 				"applyTo": "closedDocuments",
 				"fileLocation": [
-					"absolute"
+					"relative",
+					"${workspaceFolder}"
 				],
 				"pattern": {
-					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"regexp": "\\] ([^(]+)\\((\\d+,\\d+)\\): (.*)$",
 					"file": 1,
 					"location": 2,
 					"message": 3
@@ -60,7 +91,8 @@
 		{
 			"label": "VS Code - Build",
 			"dependsOn": [
-				"Core - Build",
+				"Core - Transpile",
+				"Core - Typecheck",
 				"Ext - Build"
 			],
 			"group": {
@@ -71,8 +103,20 @@
 		},
 		{
 			"type": "npm",
+			"script": "kill-watch-client-transpiled",
+			"label": "Kill Core - Transpile",
+			"group": "build",
+			"presentation": {
+				"reveal": "never",
+				"group": "buildKillers",
+				"close": true
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"type": "npm",
 			"script": "kill-watch-clientd",
-			"label": "Kill Core - Build",
+			"label": "Kill Core - Typecheck",
 			"group": "build",
 			"presentation": {
 				"reveal": "never",
@@ -96,7 +140,8 @@
 		{
 			"label": "Kill VS Code - Build",
 			"dependsOn": [
-				"Kill Core - Build",
+				"Kill Core - Transpile",
+				"Kill Core - Typecheck",
 				"Kill Ext - Build"
 			],
 			"group": "build",
@@ -180,6 +225,31 @@
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Run Dev Sessions",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"args": [
+				"--sessions"
+			],
+			"problemMatcher": []
+		},
+		{
+			"label": "Run and Compile Dev Sessions",
+			"type": "shell",
+			"command": "npm run transpile-client && ./scripts/code.sh",
+			"windows": {
+				"command": "npm run transpile-client && .\\scripts\\code.bat"
+			},
+			"args": [
+				"--sessions"
+			],
+			"inSessions": true,
 			"problemMatcher": []
 		},
 		{
@@ -286,6 +356,23 @@
 				"cwd": "./build/vite/"
 			},
 			"isBackground": true,
+			"problemMatcher": {
+				"owner": "vite",
+				"fileLocation": "absolute",
+				"pattern": {
+					"regexp": "^(.+?):(\\d+):(\\d+):\\s+(error|warning)\\s+(.*)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"severity": 4,
+					"message": 5
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*VITE.*",
+					"endsPattern": "(Local|Network):.*"
+				}
+			}
 		},
 		{
 			"label": "Launch MCP Server",
@@ -295,6 +382,39 @@
 			"problemMatcher": [
 				"$tsc"
 			]
+		},
+		{
+			"label": "Launch Component Explorer",
+			"type": "shell",
+			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "component-explorer",
+				"fileLocation": "absolute",
+				"pattern": {
+					"regexp": "^\\s*at\\s+(.+?):(\\d+):(\\d+)\\s*$",
+					"file": 1,
+					"line": 2,
+					"column": 3
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*Setting up sessions.*",
+					"endsPattern": "Redirection server listening on.*"
+				}
+			}
+		},
+		{
+			"label": "Install & Compile",
+			"type": "shell",
+			"command": "npm install && npm run compile",
+			"windows": {
+				"command": "cmd /d /c \"npm install && npm run compile\""
+			},
+			"inSessions": true,
+			"runOptions": {
+				"runOn": "worktreeCreated"
+			}
 		}
 	]
 }

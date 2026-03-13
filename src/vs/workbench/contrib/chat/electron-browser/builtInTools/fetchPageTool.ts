@@ -16,7 +16,6 @@ import { IWebContentExtractorService, WebContentExtractResult } from '../../../.
 import { detectEncodingFromBuffer } from '../../../../services/textfile/common/encoding.js';
 import { ITrustedDomainService } from '../../../url/browser/trustedDomainService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatImageMimeType } from '../../common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/builtinTools/tools.js';
@@ -219,8 +218,8 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 
 		let confirmationNotNeededReason: string | undefined;
-		if (context.chatSessionId) {
-			const model = this._chatService.getSession(LocalChatSessionUri.forSession(context.chatSessionId));
+		if (context.chatSessionResource) {
+			const model = this._chatService.getSession(context.chatSessionResource);
 			const userMessages = model?.getRequests().map(r => r.message.text.toLowerCase());
 			let urlsMentionedInPrompt = false;
 			for (const uri of urlsNeedingConfirmation) {

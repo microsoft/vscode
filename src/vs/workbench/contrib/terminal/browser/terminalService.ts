@@ -256,7 +256,8 @@ export class TerminalService extends Disposable implements ITerminalService {
 				await this.createContributedTerminalProfile(result.config.extensionIdentifier, result.config.id, {
 					icon: result.config.options?.icon,
 					color: result.config.options?.color,
-					location: !!(keyMods?.alt && activeInstance) ? { splitActiveTerminal: true } : defaultLocation
+					location: !!(keyMods?.alt && activeInstance) ? { splitActiveTerminal: true } : defaultLocation,
+					titleTemplate: result.config.titleTemplate,
 				});
 				return;
 			} else if (result.config && hasKey(result.config, { profileName: true })) {
@@ -1032,6 +1033,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 				color: contributedProfile.color,
 				location,
 				cwd: shellLaunchConfig.cwd,
+				titleTemplate: contributedProfile.titleTemplate,
 			});
 			const instanceHost = resolvedLocation === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 			// TODO@meganrogge: This returns undefined in the remote & web smoke tests but the function
@@ -1218,6 +1220,10 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	private _evaluateLocalCwd(shellLaunchConfig: IShellLaunchConfig) {
+		if (this._environmentService.isSessionsWindow) {
+			return;
+		}
+
 		// Add welcome message and title annotation for local terminals launched within remote or
 		// virtual workspaces
 		if (!isString(shellLaunchConfig.cwd) && shellLaunchConfig.cwd?.scheme === Schemas.file) {
@@ -1229,6 +1235,45 @@ export class TerminalService extends Disposable implements ITerminalService {
 				shellLaunchConfig.type = 'Local';
 			}
 		}
+	}
+
+	moveToBackground(instance: ITerminalInstance): void {
+		// Already backgrounded
+		if (this._backgroundedTerminalInstances.some(bg => bg.instance === instance)) {
+			return;
+		}
+
+		// Remove from its current location (panel group or editor)
+		if (instance.target === TerminalLocation.Editor) {
+			this._terminalEditorService.detachInstance(instance);
+		} else {
+			const group = this._terminalGroupService.getGroupForInstance(instance);
+			if (!group) {
+				return;
+			}
+			group.removeInstance(instance);
+		}
+
+		instance.detachFromElement();
+
+		// Track in background
+		this._backgroundedTerminalInstances.push({ instance, terminalLocationOptions: instance.target === TerminalLocation.Editor ? { viewColumn: ACTIVE_GROUP } : undefined });
+		this._backgroundedTerminalDisposables.set(instance.instanceId, [
+			instance.onDisposed(instance => {
+				const idx = this._backgroundedTerminalInstances.findIndex(bg => bg.instance === instance);
+				if (idx !== -1) {
+					this._backgroundedTerminalInstances.splice(idx, 1);
+				}
+				const disposables = this._backgroundedTerminalDisposables.get(instance.instanceId);
+				if (disposables) {
+					dispose(disposables);
+				}
+				this._backgroundedTerminalDisposables.delete(instance.instanceId);
+				this._onDidDisposeInstance.fire(instance);
+			})
+		]);
+
+		this._onDidChangeInstances.fire();
 	}
 
 	public async showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): Promise<void> {

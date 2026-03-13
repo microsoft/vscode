@@ -28,7 +28,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { GroupIdentifier } from '../../../common/editor.js';
 import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
 import type { ICurrentPartialCommand } from '../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
-import type { IXtermCore } from './xterm-private.js';
+import type { IXtermCore, IBufferSet } from './xterm-private.js';
 import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -164,13 +164,6 @@ export interface ITerminalChatService {
 	 * @returns The chat session resource if found, undefined otherwise
 	 */
 	getChatSessionResourceForInstance(instance: ITerminalInstance): URI | undefined;
-	/**
-	 * @deprecated Use getChatSessionResourceForInstance instead
-	 * Returns the chat session ID for a given terminal instance, if it has been registered.
-	 * @param instance The terminal instance to look up
-	 * @returns The chat session ID if found, undefined otherwise
-	 */
-	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined;
 
 	/**
 	 * Check if a terminal is a background terminal (tool-driven terminal that may be hidden from
@@ -239,6 +232,18 @@ export interface ITerminalChatService {
 	 * @returns A record of all session-scoped auto-approve rules for the session
 	 */
 	getSessionAutoApproveRules(chatSessionResource: URI): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>;
+
+	/**
+	 * Signal that a foreground terminal tool invocation should continue in the background.
+	 * This causes the tool to return its current output immediately while the terminal keeps running.
+	 * @param terminalToolSessionId The tool session ID to continue in background
+	 */
+	continueInBackground(terminalToolSessionId: string): void;
+
+	/**
+	 * Event fired when a terminal tool invocation should continue in the background.
+	 */
+	readonly onDidContinueInBackground: Event<string>;
 }
 
 /**
@@ -419,6 +424,11 @@ export interface IDetachedTerminalInstance extends IDisposable, IBaseTerminalIns
 	readonly xterm: IDetachedXtermTerminal;
 
 	/**
+	 * Event fired when data is received from the terminal.
+	 */
+	onData: Event<string>;
+
+	/**
 	 * Attached the terminal to the given element. This should be preferred over
 	 * calling {@link IXtermTerminal.attachToElement} so that extra DOM elements
 	 * for contributions are initialized.
@@ -510,6 +520,12 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * @param forceSaveState Used when the window is shutting down and we need to reveal and save hideFromUser terminals
 	 */
 	showBackgroundTerminal(instance: ITerminalInstance, suppressSetActive?: boolean): Promise<void>;
+	/**
+	 * Moves a visible terminal instance to the background. The terminal process
+	 * remains alive but the instance is removed from its group/editor and tracked
+	 * internally so it can later be shown again via {@link showBackgroundTerminal}.
+	 */
+	moveToBackground(instance: ITerminalInstance): void;
 	revealActiveTerminal(preserveFocus?: boolean): Promise<void>;
 	moveToEditor(source: ITerminalInstance, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): void;
 	moveIntoNewEditor(source: ITerminalInstance): void;
@@ -817,6 +833,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly fixedCols?: number;
 	readonly fixedRows?: number;
 	readonly domElement: HTMLElement;
+	readonly isVisible: boolean;
 	readonly icon?: TerminalIcon;
 	readonly color?: string;
 	readonly reconnectionProperties?: IReconnectionProperties;
@@ -1378,11 +1395,11 @@ export interface IXtermTerminal extends IDisposable {
 
 	/**
 	 * Gets the content between two markers as VT sequences.
-	 * @param startMarker The marker to start from.
-	 * @param endMarker The marker to end at.
+	 * @param startMarker The marker to start from. When not provided, will start from 0.
+	 * @param endMarker The marker to end at. When not provided, will end at the last line.
 	 * @param skipLastLine Whether the last line should be skipped (e.g. when it's the prompt line)
 	 */
-	getRangeAsVT(startMarker: IXtermMarker, endMarker?: IXtermMarker, skipLastLine?: boolean): Promise<string>;
+	getRangeAsVT(startMarker?: IXtermMarker, endMarker?: IXtermMarker, skipLastLine?: boolean): Promise<string>;
 
 	/**
 	 * Gets whether there's any terminal selection.
@@ -1483,6 +1500,22 @@ export interface IDetachedXtermTerminal extends IXtermTerminal {
 	 * Resizes the terminal.
 	 */
 	resize(columns: number, rows: number): void;
+
+	/**
+	 * Performs a full reset (RIS) of the terminal, clearing all content
+	 * and resetting cursor position to the origin.
+	 */
+	reset(): void;
+
+	/**
+	 * Access to the terminal buffer for reading cursor position and content.
+	 */
+	readonly buffer: IBufferSet;
+
+	/**
+	 * The number of columns in the terminal.
+	 */
+	readonly cols: number;
 }
 
 export interface IInternalXtermTerminal {

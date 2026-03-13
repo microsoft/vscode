@@ -10,10 +10,11 @@ import * as cp from 'child_process';
 import { fileURLToPath } from 'url';
 import which from 'which';
 import { EventEmitter } from 'events';
-import * as filetype from 'file-type';
+import { fileTypeFromBuffer } from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
-import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree } from './api/git';
+import type { Commit as ApiCommit, Ref, Branch, Remote, LogOptions, Change, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree } from './api/git';
+import { RefType, ForcePushMode, GitErrorCodes, Status } from './api/git.constants';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -29,6 +30,7 @@ export interface IDotGit {
 	readonly path: string;
 	readonly commonPath?: string;
 	readonly superProjectPath?: string;
+	readonly isBare: boolean;
 }
 
 export interface IFileStatus {
@@ -376,6 +378,7 @@ const STASH_FORMAT = '%H%n%P%n%gd%n%gs%n%at%n%ct';
 
 export interface ICloneOptions {
 	readonly parentPath: string;
+	readonly targetName?: string;
 	readonly progress: Progress<{ increment: number }>;
 	readonly recursive?: boolean;
 	readonly ref?: string;
@@ -431,14 +434,16 @@ export class Git {
 	}
 
 	async clone(url: string, options: ICloneOptions, cancellationToken?: CancellationToken): Promise<string> {
-		const baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
+		const baseFolderName = options.targetName || decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
 		let folderName = baseFolderName;
 		let folderPath = path.join(options.parentPath, folderName);
 		let count = 1;
 
-		while (count < 20 && await new Promise(c => exists(folderPath, c))) {
-			folderName = `${baseFolderName}-${count++}`;
-			folderPath = path.join(options.parentPath, folderName);
+		if (!options.targetName) {
+			while (count < 20 && await new Promise(c => exists(folderPath, c))) {
+				folderName = `${baseFolderName}-${count++}`;
+				folderPath = path.join(options.parentPath, folderName);
+			}
 		}
 
 		await mkdirp(options.parentPath);
@@ -575,7 +580,12 @@ export class Git {
 			commonDotGitPath = path.normalize(commonDotGitPath);
 		}
 
+		const raw = await fs.readFile(path.join(commonDotGitPath ?? dotGitPath, 'config'), 'utf8');
+		const coreSections = GitConfigParser.parse(raw).find(s => s.name === 'core');
+		const isBare = coreSections?.properties['bare'] === 'true';
+
 		return {
+			isBare,
 			path: dotGitPath,
 			commonPath: commonDotGitPath !== dotGitPath ? commonDotGitPath : undefined,
 			superProjectPath: superProjectPath ? path.normalize(superProjectPath) : undefined
@@ -742,6 +752,11 @@ export interface CommitShortStat {
 	readonly deletions: number;
 }
 
+export interface CoAuthor {
+	readonly name: string;
+	readonly email: string;
+}
+
 export interface Commit {
 	hash: string;
 	message: string;
@@ -752,6 +767,7 @@ export interface Commit {
 	commitDate?: Date;
 	refNames: string[];
 	shortStat?: CommitShortStat;
+	coAuthors?: CoAuthor[];
 }
 
 export interface RefQuery extends ApiRefQuery {
@@ -945,11 +961,30 @@ export function parseGitCommits(data: string): Commit[] {
 			authorEmail: ` ${authorEmail}`.substr(1),
 			commitDate: new Date(Number(commitDate) * 1000),
 			refNames: refNames.split(',').map(s => s.trim()),
-			shortStat: shortStat ? parseGitDiffShortStat(shortStat) : undefined
+			shortStat: shortStat ? parseGitDiffShortStat(shortStat) : undefined,
+			coAuthors: parseCoAuthors(message)
 		});
 	} while (true);
 
 	return commits;
+}
+
+const coAuthorRegex = /^Co-authored-by:\s*(.+?)\s*<([^>]+)>\s*$/gim;
+
+export function parseCoAuthors(message: string): CoAuthor[] {
+	const coAuthors: CoAuthor[] = [];
+	let match;
+
+	coAuthorRegex.lastIndex = 0;
+	while ((match = coAuthorRegex.exec(message)) !== null) {
+		const name = match[1].trim();
+		const email = match[2].trim();
+		if (name && email) {
+			coAuthors.push({ name, email });
+		}
+	}
+
+	return coAuthors;
 }
 
 const diffShortStatRegex = /(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/;
@@ -1042,7 +1077,7 @@ function parseGitChanges(repositoryRoot: string, raw: string): Change[] {
 
 		let uri = originalUri;
 		let renameUri = originalUri;
-		let status = Status.UNTRACKED;
+		let status: Status = Status.UNTRACKED;
 
 		// Copy or Rename status comes with a number (ex: 'R100').
 		// We don't need the number, we use only first character of the status.
@@ -1107,7 +1142,7 @@ function parseGitChangesRaw(repositoryRoot: string, raw: string): DiffChange[] {
 
 			let uri = originalUri;
 			let renameUri = originalUri;
-			let status = Status.UNTRACKED;
+			let status: Status = Status.UNTRACKED;
 
 			switch (change[0]) {
 				case 'A':
@@ -1656,7 +1691,7 @@ export class Repository {
 		}
 
 		if (!isText) {
-			const result = await filetype.fromBuffer(buffer);
+			const result = await fileTypeFromBuffer(buffer);
 
 			if (!result) {
 				return { mimetype: 'application/octet-stream' };
@@ -1673,11 +1708,19 @@ export class Repository {
 		}
 	}
 
-	async apply(patch: string, reverse?: boolean): Promise<void> {
+	async apply(patch: string, options?: { reverse?: boolean; threeWay?: boolean; allowEmpty?: boolean }): Promise<void> {
 		const args = ['apply', patch];
 
-		if (reverse) {
-			args.push('-R');
+		if (options?.allowEmpty) {
+			args.push('--allow-empty');
+		}
+
+		if (options?.reverse) {
+			args.push('--reverse');
+		}
+
+		if (options?.threeWay) {
+			args.push('--3way');
 		}
 
 		try {
@@ -2059,8 +2102,12 @@ export class Repository {
 			args.push('--signoff');
 		}
 
-		if (opts.signCommit) {
-			args.push('-S');
+		if (opts.signCommit !== undefined) {
+			if (opts.signCommit) {
+				args.push('-S');
+			} else {
+				args.push('--no-gpg-sign');
+			}
 		}
 
 		if (opts.empty) {
@@ -2377,7 +2424,7 @@ export class Repository {
 		await this.exec(args, spawnOptions);
 	}
 
-	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
+	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<boolean> {
 		const args = ['pull'];
 
 		if (options.tags) {
@@ -2403,10 +2450,11 @@ export class Repository {
 		}
 
 		try {
-			await this.exec(args, {
+			const result = await this.exec(args, {
 				cancellationToken: options.cancellationToken,
 				env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
 			});
+			return !/Already up to date/i.test(result.stdout);
 		} catch (err) {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
 				err.gitErrorCode = GitErrorCodes.Conflict;
@@ -2952,11 +3000,29 @@ export class Repository {
 	}
 
 	private async getWorktreesFS(): Promise<Worktree[]> {
+		const result: Worktree[] = [];
+		const mainRepositoryPath = this.dotGit.commonPath ?? this.dotGit.path;
+
 		try {
+			if (!this.dotGit.isBare) {
+				// Add main worktree for a non-bare repository
+				const headPath = path.join(mainRepositoryPath, 'HEAD');
+				const headContent = (await fs.readFile(headPath, 'utf8')).trim();
+
+				const mainRepositoryWorktreeName = path.basename(path.dirname(mainRepositoryPath));
+
+				result.push({
+					name: mainRepositoryWorktreeName,
+					path: path.dirname(mainRepositoryPath),
+					ref: headContent.replace(/^ref: /, ''),
+					detached: !headContent.startsWith('ref: '),
+					main: true
+				} satisfies Worktree);
+			}
+
 			// List all worktree folder names
-			const worktreesPath = path.join(this.dotGit.commonPath ?? this.dotGit.path, 'worktrees');
+			const worktreesPath = path.join(mainRepositoryPath, 'worktrees');
 			const dirents = await fs.readdir(worktreesPath, { withFileTypes: true });
-			const result: Worktree[] = [];
 
 			for (const dirent of dirents) {
 				if (!dirent.isDirectory()) {
@@ -2977,7 +3043,8 @@ export class Repository {
 						// Remove 'ref: ' prefix
 						ref: headContent.replace(/^ref: /, ''),
 						// Detached if HEAD does not start with 'ref: '
-						detached: !headContent.startsWith('ref: ')
+						detached: !headContent.startsWith('ref: '),
+						main: false
 					});
 				} catch (err) {
 					if (/ENOENT/.test(err.message)) {
@@ -2992,7 +3059,7 @@ export class Repository {
 		}
 		catch (err) {
 			if (/ENOENT/.test(err.message) || /ENOTDIR/.test(err.message)) {
-				return [];
+				return result;
 			}
 
 			throw err;

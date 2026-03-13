@@ -25,7 +25,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { TextReplacement, TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { TextLength } from '../../../../common/core/text/textLength.js';
 import { ScrollType } from '../../../../common/editorCommon.js';
-import { InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionTriggerKind, PartialAcceptTriggerKind, InlineCompletionsProvider, InlineCompletionCommand } from '../../../../common/languages.js';
+import { IInlineCompletionChangeHint, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionTriggerKind, PartialAcceptTriggerKind, InlineCompletionsProvider, InlineCompletionCommand } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { EndOfLinePreference, IModelDeltaDecoration, ITextModel } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
@@ -53,6 +53,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { getInlineCompletionsController } from '../controller/common.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -61,7 +62,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _forceUpdateExplicitlySignal = observableSignal(this);
 	private readonly _noDelaySignal = observableSignal(this);
 
-	private readonly _fetchSpecificProviderSignal = observableSignal<InlineCompletionsProvider | undefined>(this);
+	private readonly _fetchSpecificProviderSignal = observableSignal<{ provider: InlineCompletionsProvider; changeHint?: IInlineCompletionChangeHint } | undefined>(this);
 
 	// We use a semantic id to keep the same inline completion selected even if the provider reorders the completions.
 	private readonly _selectedInlineCompletionId = observableValue<string | undefined>(this, undefined);
@@ -81,7 +82,7 @@ export class InlineCompletionsModel extends Disposable {
 	});
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
 
-	private readonly _onDidAccept = new Emitter<void>();
+	private readonly _onDidAccept = this._register(new Emitter<void>());
 	public readonly onDidAccept = this._onDidAccept.event;
 
 	private readonly _editorObs;
@@ -215,7 +216,7 @@ export class InlineCompletionsModel extends Disposable {
 				return;
 			}
 
-			store.add(provider.onDidChangeInlineCompletions(() => {
+			store.add(provider.onDidChangeInlineCompletions(changeHint => {
 				if (!this._enabled.get()) {
 					return;
 				}
@@ -240,7 +241,7 @@ export class InlineCompletionsModel extends Disposable {
 				}
 
 				transaction(tx => {
-					this._fetchSpecificProviderSignal.trigger(tx, provider);
+					this._fetchSpecificProviderSignal.trigger(tx, { provider, changeHint: changeHint ?? undefined });
 					this.trigger(tx);
 				});
 
@@ -334,6 +335,7 @@ export class InlineCompletionsModel extends Disposable {
 				onlyRequestInlineEdits: false,
 				shouldDebounce: true,
 				provider: undefined as InlineCompletionsProvider | undefined,
+				changeHint: undefined as IInlineCompletionChangeHint | undefined,
 				textChange: false,
 				changeReason: '',
 			}),
@@ -354,11 +356,13 @@ export class InlineCompletionsModel extends Disposable {
 				} else if (ctx.didChange(this._onlyRequestInlineEditsSignal)) {
 					changeSummary.onlyRequestInlineEdits = true;
 				} else if (ctx.didChange(this._fetchSpecificProviderSignal)) {
-					changeSummary.provider = ctx.change;
+					changeSummary.provider = ctx.change?.provider;
+					changeSummary.changeHint = ctx.change?.changeHint;
 				}
 				return true;
 			},
 		},
+
 	}, (reader, changeSummary) => {
 		this._source.clearOperationOnTextModelChange.read(reader); // Make sure the clear operation runs before the fetch operation
 		this._noDelaySignal.read(reader);
@@ -424,6 +428,7 @@ export class InlineCompletionsModel extends Disposable {
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
 			requestIssuedDateTime: requestInfo.startTime,
 			earliestShownDateTime: requestInfo.startTime + (changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit || this.inAcceptFlow.read(undefined) ? 0 : this._minShowDelay.read(undefined)),
+			changeHint: changeSummary.changeHint,
 		};
 
 		if (context.triggerKind === InlineCompletionTriggerKind.Automatic && changeSummary.textChange) {
@@ -438,10 +443,10 @@ export class InlineCompletionsModel extends Disposable {
 			}
 		}
 
-		const itemToPreserveCandidate = this.selectedInlineCompletion.read(undefined) ?? this._inlineCompletionItems.read(undefined)?.inlineEdit;
+		const itemToPreserveCandidate = this.selectedInlineCompletion.read(undefined) ?? this._inlineSuggestionItems.read(undefined)?.inlineEdit;
 		const itemToPreserve = changeSummary.preserveCurrentCompletion || itemToPreserveCandidate?.forwardStable
 			? itemToPreserveCandidate : undefined;
-		const userJumpedToActiveCompletion = this._jumpedToId.map(jumpedTo => !!jumpedTo && jumpedTo === this._inlineCompletionItems.read(undefined)?.inlineEdit?.semanticId);
+		const userJumpedToActiveCompletion = this._jumpedToId.map(jumpedTo => !!jumpedTo && jumpedTo === this._inlineSuggestionItems.read(undefined)?.inlineEdit?.semanticId);
 
 		const providers = changeSummary.provider
 			? { providers: [changeSummary.provider], label: 'single:' + changeSummary.provider.providerId?.toString() }
@@ -474,7 +479,7 @@ export class InlineCompletionsModel extends Disposable {
 		return availableProviders;
 	}
 
-	public async trigger(tx?: ITransaction, options: { onlyFetchInlineEdits?: boolean; noDelay?: boolean; provider?: InlineCompletionsProvider; explicit?: boolean } = {}): Promise<void> {
+	public async trigger(tx?: ITransaction, options: { onlyFetchInlineEdits?: boolean; noDelay?: boolean; provider?: InlineCompletionsProvider; explicit?: boolean; changeHint?: IInlineCompletionChangeHint } = {}): Promise<void> {
 		subtransaction(tx, tx => {
 			if (options.onlyFetchInlineEdits) {
 				this._onlyRequestInlineEditsSignal.trigger(tx);
@@ -489,7 +494,7 @@ export class InlineCompletionsModel extends Disposable {
 				this._forceUpdateExplicitlySignal.trigger(tx);
 			}
 			if (options.provider) {
-				this._fetchSpecificProviderSignal.trigger(tx, options.provider);
+				this._fetchSpecificProviderSignal.trigger(tx, { provider: options.provider, changeHint: options.changeHint });
 			}
 		});
 		await this._fetchInlineCompletionsPromise.get();
@@ -513,7 +518,7 @@ export class InlineCompletionsModel extends Disposable {
 		});
 	}
 
-	private readonly _inlineCompletionItems = derivedOpts({ owner: this }, reader => {
+	private readonly _inlineSuggestionItems = derivedOpts({ owner: this }, reader => {
 		const c = this._source.inlineCompletions.read(reader);
 		if (!c) { return undefined; }
 		const cursorPosition = this.primaryPosition.read(reader);
@@ -540,14 +545,14 @@ export class InlineCompletionsModel extends Disposable {
 		};
 	});
 
-	private readonly _filteredInlineCompletionItems = derivedOpts({ owner: this, equalsFn: arrayEqualsC() }, reader => {
-		const c = this._inlineCompletionItems.read(reader);
+	private readonly _inlineCompletionItems = derivedOpts({ owner: this, equalsFn: arrayEqualsC() }, reader => {
+		const c = this._inlineSuggestionItems.read(reader);
 		return c?.inlineCompletions ?? [];
 	});
 
 	public readonly selectedInlineCompletionIndex = derived<number>(this, (reader) => {
 		const selectedInlineCompletionId = this._selectedInlineCompletionId.read(reader);
-		const filteredCompletions = this._filteredInlineCompletionItems.read(reader);
+		const filteredCompletions = this._inlineCompletionItems.read(reader);
 		const idx = this._selectedInlineCompletionId === undefined ? -1
 			: filteredCompletions.findIndex(v => v.semanticId === selectedInlineCompletionId);
 		if (idx === -1) {
@@ -559,7 +564,7 @@ export class InlineCompletionsModel extends Disposable {
 	});
 
 	public readonly selectedInlineCompletion = derived<InlineCompletionItem | undefined>(this, (reader) => {
-		const filteredCompletions = this._filteredInlineCompletionItems.read(reader);
+		const filteredCompletions = this._inlineCompletionItems.read(reader);
 		const idx = this.selectedInlineCompletionIndex.read(reader);
 		return filteredCompletions[idx];
 	});
@@ -572,7 +577,7 @@ export class InlineCompletionsModel extends Disposable {
 
 	public readonly inlineCompletionsCount = derived<number | undefined>(this, reader => {
 		if (this.lastTriggerKind.read(reader) === InlineCompletionTriggerKind.Explicit) {
-			return this._filteredInlineCompletionItems.read(reader).length;
+			return this._inlineCompletionItems.read(reader).length;
 		} else {
 			return undefined;
 		}
@@ -632,7 +637,7 @@ export class InlineCompletionsModel extends Disposable {
 			return undefined;
 		}
 
-		const item = this._inlineCompletionItems.read(reader);
+		const item = this._inlineSuggestionItems.read(reader);
 		const inlineEditResult = item?.inlineEdit;
 		if (inlineEditResult) {
 			if (this._hasVisiblePeekWidgets.read(reader)) {
@@ -642,9 +647,12 @@ export class InlineCompletionsModel extends Disposable {
 			const stringEdit = inlineEditResult.action?.kind === 'edit' ? inlineEditResult.action.stringEdit : undefined;
 			const replacements = stringEdit ? TextEdit.fromStringEdit(stringEdit, new TextModelText(this.textModel)).replacements : [];
 
-			const nextEditUri = (item.inlineEdit?.command?.id === 'vscode.open' || item.inlineEdit?.command?.id === '_workbench.open') &&
+			let nextEditUri = (item.inlineEdit?.command?.id === 'vscode.open' || item.inlineEdit?.command?.id === '_workbench.open') &&
 				// eslint-disable-next-line local/code-no-any-casts
 				item.inlineEdit?.command.arguments?.length ? URI.from(<any>item.inlineEdit?.command.arguments[0]) : undefined;
+			if (!inlineEditResult.originalTextRef.targets(this.textModel)) {
+				nextEditUri = inlineEditResult.originalTextRef.uri;
+			}
 			return { kind: 'inlineEdit', inlineSuggestion: inlineEditResult, edits: replacements, cursorAtInlineEdit, nextEditUri };
 		}
 
@@ -862,7 +870,7 @@ export class InlineCompletionsModel extends Disposable {
 	private async _deltaSelectedInlineCompletionIndex(delta: 1 | -1): Promise<void> {
 		await this.triggerExplicitly();
 
-		const completions = this._filteredInlineCompletionItems.get() || [];
+		const completions = this._inlineCompletionItems.get() || [];
 		if (completions.length > 0) {
 			const newIdx = (this.selectedInlineCompletionIndex.get() + delta + completions.length) % completions.length;
 			this._selectedInlineCompletionId.set(completions[newIdx].semanticId, undefined);
@@ -922,7 +930,18 @@ export class InlineCompletionsModel extends Disposable {
 		try {
 			let followUpTrigger = false;
 			editor.pushUndoStop();
-			if (isNextEditUri) {
+
+			if (!completion.originalTextRef.targets(this.textModel)) {
+				// The edit targets a different document, open it and transplant the completion
+				const targetEditor = await this._codeEditorService.openCodeEditor({ resource: completion.originalTextRef.uri }, this._editor);
+				if (targetEditor) {
+					const controller = getInlineCompletionsController(targetEditor);
+					const m = controller?.model.get();
+					targetEditor.focus();
+					m?.transplantCompletion(completion);
+					targetEditor.revealLineInCenter(completion.targetRange.startLineNumber);
+				}
+			} else if (isNextEditUri) {
 				// Do nothing
 			} else if (completion.action?.kind === 'edit') {
 				const action = completion.action;
@@ -1136,6 +1155,13 @@ export class InlineCompletionsModel extends Disposable {
 		if (!s) { return; }
 
 		const suggestion = s.inlineSuggestion;
+
+		if (!suggestion.originalTextRef.targets(this.textModel)) {
+			this.accept(this._editor);
+			return;
+		}
+
+
 		suggestion.addRef();
 		try {
 			transaction(tx => {
@@ -1170,6 +1196,20 @@ export class InlineCompletionsModel extends Disposable {
 
 	public async handleInlineSuggestionShown(inlineCompletion: InlineSuggestionItem, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, timeWhenShown: number): Promise<void> {
 		await inlineCompletion.reportInlineEditShown(this._commandService, viewKind, viewData, this.textModel, timeWhenShown);
+	}
+
+	/**
+	 * Transplants an inline completion from another model to this one.
+	 * Used for cross-file inline edits.
+	 */
+	public transplantCompletion(item: InlineSuggestionItem): void {
+		item.addRef();
+		transaction(tx => {
+			this._source.seedWithCompletion(item, tx);
+			this._isActive.set(true, tx);
+			this._inAcceptFlow.set(true, tx);
+			this.dontRefetchSignal.trigger(tx);
+		});
 	}
 }
 
@@ -1276,8 +1316,8 @@ export function isSuggestionInViewport(editor: ICodeEditor, suggestion: InlineSu
 }
 
 function skuFromAccount(account: IDefaultAccount | null): InlineSuggestSku | undefined {
-	if (account?.access_type_sku && account?.copilot_plan) {
-		return { type: account.access_type_sku, plan: account.copilot_plan };
+	if (account?.entitlementsData?.access_type_sku && account?.entitlementsData?.copilot_plan) {
+		return { type: account.entitlementsData.access_type_sku, plan: account.entitlementsData.copilot_plan };
 	}
 	return undefined;
 }

@@ -24,7 +24,7 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 import { IRawToolSetContribution } from '../../common/tools/languageModelToolsContribution.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Codicon, getAllCodicons } from '../../../../../base/common/codicons.js';
@@ -146,7 +146,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			lifecycleService.when(LifecyclePhase.Restored)
 		]).then(() => this._initToolSets());
 
-		const toolsObs = observableFromEvent(this, _languageModelToolsService.onDidChangeTools, () => Array.from(_languageModelToolsService.getTools()));
+		const toolsObs = observableFromEvent(this, _languageModelToolsService.onDidChangeTools, () => Array.from(_languageModelToolsService.getAllToolsIncludingDisabled()));
 		const store = this._store.add(new DisposableStore());
 
 		this._store.add(autorun(r => {
@@ -268,7 +268,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 				for (const [name, value] of data.entries) {
 
 					const tools: IToolData[] = [];
-					const toolSets: ToolSet[] = [];
+					const toolSets: IToolSet[] = [];
 					value.tools.forEach(name => {
 						const tool = this._languageModelToolsService.getToolByName(name);
 						if (tool) {
@@ -341,7 +341,7 @@ export class ConfigureToolSets extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const textFileService = accessor.get(ITextFileService);
 
-		const picks: ((IQuickPickItem & { toolset?: ToolSet }) | IQuickPickSeparator)[] = [];
+		const picks: ((IQuickPickItem & { toolset?: IToolSet }) | IQuickPickSeparator)[] = [];
 
 		picks.push({
 			label: localize('chat.configureToolSets.add', 'Create new tool sets file...'),

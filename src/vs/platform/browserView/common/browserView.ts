@@ -5,6 +5,31 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+
+const commandPrefix = 'workbench.action.browser';
+export enum BrowserViewCommandId {
+	Open = `${commandPrefix}.open`,
+	NewTab = `${commandPrefix}.newTab`,
+	GoBack = `${commandPrefix}.goBack`,
+	GoForward = `${commandPrefix}.goForward`,
+	Reload = `${commandPrefix}.reload`,
+	HardReload = `${commandPrefix}.hardReload`,
+	FocusUrlInput = `${commandPrefix}.focusUrlInput`,
+	AddElementToChat = `${commandPrefix}.addElementToChat`,
+	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
+	ToggleDevTools = `${commandPrefix}.toggleDevTools`,
+	OpenExternal = `${commandPrefix}.openExternal`,
+	ClearGlobalStorage = `${commandPrefix}.clearGlobalStorage`,
+	ClearWorkspaceStorage = `${commandPrefix}.clearWorkspaceStorage`,
+	ClearEphemeralStorage = `${commandPrefix}.clearEphemeralStorage`,
+	OpenSettings = `${commandPrefix}.openSettings`,
+	ShowFind = `${commandPrefix}.showFind`,
+	HideFind = `${commandPrefix}.hideFind`,
+	FindNext = `${commandPrefix}.findNext`,
+	FindPrevious = `${commandPrefix}.findPrevious`,
+}
 
 export interface IBrowserViewBounds {
 	windowId: number;
@@ -13,6 +38,7 @@ export interface IBrowserViewBounds {
 	width: number;
 	height: number;
 	zoomFactor: number;
+	cornerRadius: number;
 }
 
 export interface IBrowserViewCaptureScreenshotOptions {
@@ -26,15 +52,19 @@ export interface IBrowserViewState {
 	canGoBack: boolean;
 	canGoForward: boolean;
 	loading: boolean;
+	focused: boolean;
+	visible: boolean;
 	isDevToolsOpen: boolean;
 	lastScreenshot: VSBuffer | undefined;
 	lastFavicon: string | undefined;
 	lastError: IBrowserViewLoadError | undefined;
 	storageScope: BrowserViewStorageScope;
+	browserZoomIndex: number;
 }
 
 export interface IBrowserViewNavigationEvent {
 	url: string;
+	title: string;
 	canGoBack: boolean;
 	canGoForward: boolean;
 }
@@ -52,6 +82,10 @@ export interface IBrowserViewLoadError {
 
 export interface IBrowserViewFocusEvent {
 	focused: boolean;
+}
+
+export interface IBrowserViewVisibilityEvent {
+	visible: boolean;
 }
 
 export interface IBrowserViewDevToolsStateEvent {
@@ -74,13 +108,32 @@ export interface IBrowserViewTitleChangeEvent {
 }
 
 export interface IBrowserViewFaviconChangeEvent {
-	favicon: string;
+	favicon: string | undefined;
 }
 
+export enum BrowserNewPageLocation {
+	Foreground = 'foreground',
+	Background = 'background',
+	NewWindow = 'newWindow'
+}
 export interface IBrowserViewNewPageRequest {
-	url: string;
-	name?: string;
-	background: boolean;
+	resource: URI;
+	location: BrowserNewPageLocation;
+	// Only applicable if location is NewWindow
+	position?: { x?: number; y?: number; width?: number; height?: number };
+}
+
+export interface IBrowserViewFindInPageOptions {
+	recompute?: boolean;
+	forward?: boolean;
+	matchCase?: boolean;
+}
+
+export interface IBrowserViewFindInPageResult {
+	activeMatchOrdinal: number;
+	matches: number;
+	selectionArea?: { x: number; y: number; width: number; height: number };
+	finalUpdate: boolean;
 }
 
 export enum BrowserViewStorageScope {
@@ -91,6 +144,21 @@ export enum BrowserViewStorageScope {
 
 export const ipcBrowserViewChannelName = 'browserView';
 
+/**
+ * Discrete zoom levels matching Edge/Chrome.
+ * Note: When those browsers say "33%" and "67%" zoom, they really mean 33.33...% and 66.66...%
+ */
+export const browserZoomFactors = [0.25, 1 / 3, 0.5, 2 / 3, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5] as const;
+export const browserZoomDefaultIndex = browserZoomFactors.indexOf(1);
+export function browserZoomLabel(zoomFactor: number): string {
+	return localize('browserZoomPercent', "{0}%", Math.round(zoomFactor * 100));
+}
+
+/**
+ * This should match the isolated world ID defined in `preload-browserView.ts`.
+ */
+export const browserViewIsolatedWorldId = 999;
+
 export interface IBrowserViewService {
 	/**
 	 * Dynamic events that return an Event for a specific browser view ID.
@@ -98,11 +166,13 @@ export interface IBrowserViewService {
 	onDynamicDidNavigate(id: string): Event<IBrowserViewNavigationEvent>;
 	onDynamicDidChangeLoadingState(id: string): Event<IBrowserViewLoadingEvent>;
 	onDynamicDidChangeFocus(id: string): Event<IBrowserViewFocusEvent>;
+	onDynamicDidChangeVisibility(id: string): Event<IBrowserViewVisibilityEvent>;
 	onDynamicDidChangeDevToolsState(id: string): Event<IBrowserViewDevToolsStateEvent>;
 	onDynamicDidKeyCommand(id: string): Event<IBrowserViewKeyDownEvent>;
 	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;
 	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
 	onDynamicDidRequestNewPage(id: string): Event<IBrowserViewNewPageRequest>;
+	onDynamicDidFindInPage(id: string): Event<IBrowserViewFindInPageResult>;
 	onDynamicDidClose(id: string): Event<void>;
 
 	/**
@@ -118,6 +188,14 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	destroyBrowserView(id: string): Promise<void>;
+
+	/**
+	 * Get the state of an existing browser view by ID, or throw if it doesn't exist
+	 * @param id The browser view identifier
+	 * @return The state of the browser view for the given ID
+	 * @throws If no browser view exists for the given ID
+	 */
+	getState(id: string): Promise<IBrowserViewState>;
 
 	/**
 	 * Update the bounds of a browser view
@@ -161,8 +239,9 @@ export interface IBrowserViewService {
 	/**
 	 * Reload the current page
 	 * @param id The browser view identifier
+	 * @param hard Whether to do a hard reload (bypassing cache)
 	 */
-	reload(id: string): Promise<void>;
+	reload(id: string, hard?: boolean): Promise<void>;
 
 	/**
 	 * Toggle developer tools for the browser view.
@@ -204,6 +283,29 @@ export interface IBrowserViewService {
 	focus(id: string): Promise<void>;
 
 	/**
+	 * Find text in the browser view's page
+	 * @param id The browser view identifier
+	 * @param text The text to search for
+	 * @param options Find options (forward direction, find next)
+	 */
+	findInPage(id: string, text: string, options?: IBrowserViewFindInPageOptions): Promise<void>;
+
+	/**
+	 * Stop the find in page session
+	 * @param id The browser view identifier
+	 * @param keepSelection Whether to keep the current selection
+	 */
+	stopFindInPage(id: string, keepSelection?: boolean): Promise<void>;
+
+	/**
+	 * Get the currently selected text in the browser view.
+	 * Returns immediately with empty string if the page is still loading.
+	 * @param id The browser view identifier
+	 * @returns The selected text, or empty string if no selection or page is loading
+	 */
+	getSelectedText(id: string): Promise<string>;
+
+	/**
 	 * Clear all storage data for the global browser session
 	 */
 	clearGlobalStorage(): Promise<void>;
@@ -213,4 +315,19 @@ export interface IBrowserViewService {
 	 * @param workspaceId The workspace identifier
 	 */
 	clearWorkspaceStorage(workspaceId: string): Promise<void>;
+
+	/**
+	 * Clear storage data for a specific browser view
+	 * @param id The browser view identifier
+	 */
+	clearStorage(id: string): Promise<void>;
+
+	/** Set the browser zoom index (independent from VS Code zoom). */
+	setBrowserZoomIndex(id: string, zoomIndex: number): Promise<void>;
+
+	/**
+	 * Update the keybinding accelerators used in browser view context menus.
+	 * @param keybindings A map of command ID to accelerator label
+	 */
+	updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void>;
 }

@@ -5,8 +5,9 @@
 
 import assert from 'assert';
 import fs from 'fs';
+import path from 'path';
 import { Page } from 'playwright';
-import { TestContext } from './context';
+import { TestContext } from './context.js';
 
 /**
  * UI Test helper class to perform common UI actions and verifications.
@@ -16,7 +17,14 @@ export class UITest {
 	private _workspaceDir: string | undefined;
 	private _userDataDir: string | undefined;
 
-	constructor(private readonly context: TestContext) {
+	constructor(
+		protected readonly context: TestContext,
+		dataDir?: string
+	) {
+		if (dataDir) {
+			this._extensionsDir = path.join(dataDir, 'extensions');
+			this._userDataDir = path.join(dataDir, 'user-data');
+		}
 	}
 
 	/**
@@ -44,9 +52,14 @@ export class UITest {
 	 * Run the UI test actions.
 	 */
 	public async run(page: Page) {
-		await this.dismissWorkspaceTrustDialog(page);
-		await this.createTextFile(page);
-		await this.installExtension(page);
+		try {
+			await this.dismissWorkspaceTrustDialog(page);
+			await this.createTextFile(page);
+			await this.installExtension(page);
+		} catch (error) {
+			await this.context.captureScreenshot(page);
+			throw error;
+		}
 	}
 
 	/**
@@ -72,9 +85,11 @@ export class UITest {
 	private async runCommand(page: Page, command: string) {
 		this.context.log(`Running command: ${command}`);
 		await page.keyboard.press('F1');
-		await page.getByPlaceholder(/^Type the name of a command/).fill(`>${command}`);
-		await page.locator('span.monaco-highlighted-label', { hasText: new RegExp(`^${command}$`) }).click();
-		await page.waitForTimeout(500);
+		const input = page.getByPlaceholder(/^Type the name of a command/);
+		await input.fill(`>${command}`);
+		const item = page.locator('span.monaco-highlighted-label', { hasText: new RegExp(`^${command}$`) });
+		await item.click();
+		await input.waitFor({ state: 'hidden' });
 	}
 
 	/**
@@ -94,20 +109,19 @@ export class UITest {
 		await page.getByText(/Start typing/).focus();
 
 		this.context.log('Typing some content into the file');
-		await page.keyboard.type('Hello, World!');
+		await page.keyboard.type('Hello, World!', { delay: 100 });
 
 		await this.runCommand(page, 'File: Save');
-		await page.waitForTimeout(1000);
 	}
 
 	/**
 	 * Verify that the text file was created with the expected content.
 	 */
-	private verifyTextFileCreated() {
+	protected verifyTextFileCreated() {
 		this.context.log('Verifying file contents');
 		const filePath = `${this.workspaceDir}/helloWorld.txt`;
 		const fileContents = fs.readFileSync(filePath, 'utf-8');
-		assert.strictEqual(fileContents, 'Hello, World!');
+		assert.strictEqual(fileContents, 'Hello, World!', 'File contents do not match expected value');
 	}
 
 	/**
@@ -118,23 +132,46 @@ export class UITest {
 
 		this.context.log('Typing extension name to search for');
 		await page.getByText('Search Extensions in Marketplace').focus();
-		await page.keyboard.type('GitHub Pull Requests');
+		await page.keyboard.type('GitHub Pull Requests', { delay: 50 });
+
+		this.context.log('Waiting for extension to appear in search results');
+		const extensionItem = page.locator('.extension-list-item').getByText(/^GitHub Pull Requests$/);
+		const messageContainer = page.locator('.extensions-viewlet .message-container:not(.hidden)').first();
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const result = await Promise.race([
+				extensionItem.waitFor().then(() => 'found' as const),
+				messageContainer.waitFor().then(() => 'message' as const),
+			]);
+
+			if (result === 'found') {
+				break;
+			}
+
+			const message = await messageContainer.locator('.message').innerText();
+			this.context.log(`Marketplace message: ${message} (attempt ${attempt + 1}/3), clicking Refresh`);
+			await page.getByRole('button', { name: 'Refresh' }).click();
+			await messageContainer.waitFor({ state: 'hidden', timeout: 30_000 });
+		}
+
+		await extensionItem.waitFor();
 
 		this.context.log('Clicking Install on the first extension in the list');
-		await page.locator('.extension-list-item').getByText(/^GitHub Pull Requests$/).waitFor();
-		await page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first().click();
+		const installButton = page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first();
+		await installButton.waitFor();
+		await installButton.click();
 
 		this.context.log('Waiting for extension to be installed');
-		await page.locator('.extension-action:not(.disabled)', { hasText: /Uninstall/ }).waitFor();
+		await page.getByRole('button', { name: 'Uninstall' }).first().waitFor({ timeout: 5 * 60_000 });
 	}
 
 	/**
 	 * Verify that the GitHub Pull Requests extension is installed.
 	 */
-	private verifyExtensionInstalled() {
+	protected verifyExtensionInstalled() {
 		this.context.log('Verifying extension is installed');
 		const extensions = fs.readdirSync(this.extensionsDir);
 		const hasExtension = extensions.some(ext => ext.startsWith('github.vscode-pull-request-github'));
-		assert.strictEqual(hasExtension, true);
+		assert.strictEqual(hasExtension, true, 'GitHub Pull Requests extension is not installed');
 	}
 }

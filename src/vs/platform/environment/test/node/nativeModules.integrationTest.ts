@@ -50,9 +50,9 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(result, testErrorMessage('native-keymap'));
 	});
 
-	test('native-watchdog', async () => {
-		const watchDog = await import('native-watchdog');
-		assert.ok(typeof watchDog.start === 'function', testErrorMessage('native-watchdog'));
+	test('@vscode/native-watchdog', async () => {
+		const watchDog = await import('@vscode/native-watchdog');
+		assert.ok(typeof watchDog.start === 'function', testErrorMessage('@vscode/native-watchdog'));
 	});
 
 	test('@vscode/sudo-prompt', async () => {

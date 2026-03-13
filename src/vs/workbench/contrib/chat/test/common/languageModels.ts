@@ -7,8 +7,10 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { IChatMessage, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel } from '../../common/languageModels.js';
+import { IChatMessage, IModelsControlManifest, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelProviderDescriptor, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel } from '../../common/languageModels.js';
+import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
 
 export class NullLanguageModelsService implements ILanguageModelsService {
 	_serviceBrand: undefined;
@@ -17,13 +19,18 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 		return Disposable.None;
 	}
 
+	deltaLanguageModelChatProviderDescriptors(added: IUserFriendlyLanguageModel[], removed: IUserFriendlyLanguageModel[]): void {
+	}
+
 	onDidChangeLanguageModels = Event.None;
+	onDidChangeLanguageModelVendors = Event.None;
+	onDidChangeModelsControlManifest = Event.None;
 
 	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void {
 		return;
 	}
 
-	getVendors(): IUserFriendlyLanguageModel[] {
+	getVendors(): ILanguageModelProviderDescriptor[] {
 		return [];
 	}
 
@@ -32,6 +39,10 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 	}
 
 	lookupLanguageModel(identifier: string): ILanguageModelChatMetadata | undefined {
+		return undefined;
+	}
+
+	lookupLanguageModelByQualifiedName(qualifiedName: string) {
 		return undefined;
 	}
 
@@ -47,7 +58,7 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 		return;
 	}
 
-	async fetchLanguageModelGroups(vendor: string): Promise<ILanguageModelsGroup[]> {
+	getLanguageModelGroups(vendor: string): ILanguageModelsGroup[] {
 		return [];
 	}
 
@@ -56,7 +67,7 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	sendChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse> {
+	sendChatRequest(identifier: string, from: ExtensionIdentifier | undefined, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -71,4 +82,22 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 	async addLanguageModelsProviderGroup(name: string, vendorId: string, configuration: IStringDictionary<unknown> | undefined): Promise<void> {
 
 	}
+
+	async removeLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
+	async migrateLanguageModelsProviderGroup(languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void> { }
+
+	getRecentlyUsedModelIds(): string[] {
+		return [];
+	}
+
+	addToRecentlyUsedList(): void { }
+	clearRecentlyUsedList(): void { }
+
+	getModelsControlManifest(): IModelsControlManifest {
+		return { free: {}, paid: {} };
+	}
+
+	restrictedChatParticipants = observableValue('restrictedChatParticipants', Object.create(null));
 }

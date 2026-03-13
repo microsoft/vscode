@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -13,6 +14,7 @@ export interface IAgentSessionsService {
 	readonly _serviceBrand: undefined;
 
 	readonly model: IAgentSessionsModel;
+	readonly onDidChangeSessionArchivedState: Event<IAgentSession>;
 
 	getSession(resource: URI): IAgentSession | undefined;
 }
@@ -20,11 +22,14 @@ export interface IAgentSessionsService {
 export class AgentSessionsService extends Disposable implements IAgentSessionsService {
 
 	declare readonly _serviceBrand: undefined;
+	private readonly _onDidChangeSessionArchivedState = this._register(new Emitter<IAgentSession>());
+	readonly onDidChangeSessionArchivedState = this._onDidChangeSessionArchivedState.event;
 
 	private _model: IAgentSessionsModel | undefined;
 	get model(): IAgentSessionsModel {
 		if (!this._model) {
 			this._model = this._register(this.instantiationService.createInstance(AgentSessionsModel));
+			this._register(this._model.onDidChangeSessionArchivedState(session => this._onDidChangeSessionArchivedState.fire(session)));
 			this._model.resolve(undefined /* all providers */);
 		}
 

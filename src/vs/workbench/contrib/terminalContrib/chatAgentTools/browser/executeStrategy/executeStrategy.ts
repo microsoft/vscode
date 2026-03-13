@@ -6,11 +6,11 @@
 import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import type { Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
-export interface ITerminalExecuteStrategy {
+export interface ITerminalExecuteStrategy extends IDisposable {
 	readonly type: 'rich' | 'basic' | 'none';
 	/**
 	 * Executes a command line and gets a result designed to be passed directly to an LLM. The

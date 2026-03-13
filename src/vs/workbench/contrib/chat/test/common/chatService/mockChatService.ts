@@ -4,145 +4,207 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from '../../../common/model/chatModel.js';
-import { IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
-import { IChatCompleteResponse, IChatDetail, IChatModelReference, IChatProgress, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatDetail, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
+import { IChatModel, IChatRequestModel, IExportableChatData, ISerializableChatData } from '../../../common/model/chatModel.js';
 
 export class MockChatService implements IChatService {
-	chatModels: IObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
+	private readonly _chatModels: ISettableObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
+	readonly chatModels = this._chatModels;
 	requestInProgressObs = observableValue('name', false);
-	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
 	editingSessions = [];
-	transferredSessionResource: URI | undefined;
-	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }> = Event.None;
+	transferredSessionResource = undefined;
+	readonly onDidSubmitRequest = Event.None;
+	readonly onDidCreateModel = Event.None;
 
-	private sessions = new ResourceMap<IChatModel>();
+	private readonly sessions = new ResourceMap<IChatModel>();
+	private liveSessionItems: IChatDetail[] = [];
+	private historySessionItems: IChatDetail[] = [];
+
+	private readonly _onDidDisposeSession = new Emitter<{ sessionResource: URI[]; reason: 'cleared' }>();
+	readonly onDidDisposeSession = this._onDidDisposeSession.event;
+
+	fireDidDisposeSession(sessionResource: URI[]): void {
+		this._onDidDisposeSession.fire({ sessionResource, reason: 'cleared' });
+	}
 
 	setSaveModelsEnabled(enabled: boolean): void {
 
 	}
-	isEnabled(location: ChatAgentLocation): boolean {
-		throw new Error('Method not implemented.');
+
+	processPendingRequests(sessionResource: URI): void {
+
 	}
-	hasSessions(): boolean {
-		throw new Error('Method not implemented.');
+
+	setLiveSessionItems(items: IChatDetail[]): void {
+		this.liveSessionItems = items;
 	}
-	getProviderInfos(): IChatProviderInfo[] {
-		throw new Error('Method not implemented.');
+
+	setHistorySessionItems(items: IChatDetail[]): void {
+		this.historySessionItems = items;
 	}
-	startSession(location: ChatAgentLocation, options?: IChatSessionStartOptions): IChatModelReference {
-		throw new Error('Method not implemented.');
-	}
+
 	addSession(session: IChatModel): void {
 		this.sessions.set(session.sessionResource, session);
+		// Update the chatModels observable
+		this._chatModels.set([...this.sessions.values()], undefined);
 	}
+
+	removeSession(sessionResource: URI): void {
+		this.sessions.delete(sessionResource);
+		// Update the chatModels observable
+		this._chatModels.set([...this.sessions.values()], undefined);
+	}
+
+	isEnabled(_location: ChatAgentLocation): boolean {
+		return true;
+	}
+
+	hasSessions(): boolean {
+		return this.sessions.size > 0;
+	}
+
+	getProviderInfos() {
+		return [];
+	}
+
+	startNewLocalSession(_location: ChatAgentLocation, _options?: IChatSessionStartOptions): IChatModelReference {
+		throw new Error('Method not implemented.');
+	}
+
 	getSession(sessionResource: URI): IChatModel | undefined {
-		// eslint-disable-next-line local/code-no-dangerous-type-assertions
-		return this.sessions.get(sessionResource) ?? {} as IChatModel;
+		return this.sessions.get(sessionResource);
 	}
-	async getOrRestoreSession(sessionResource: URI): Promise<IChatModelReference | undefined> {
-		throw new Error('Method not implemented.');
-	}
-	getSessionTitle(sessionResource: URI): string | undefined {
-		throw new Error('Method not implemented.');
-	}
-	loadSessionFromContent(data: ISerializableChatData): IChatModelReference | undefined {
-		throw new Error('Method not implemented.');
-	}
-	loadSessionForResource(resource: URI, position: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined> {
-		throw new Error('Method not implemented.');
-	}
-	getActiveSessionReference(sessionResource: URI): IChatModelReference | undefined {
+
+	getLatestRequest(): IChatRequestModel | undefined {
 		return undefined;
 	}
-	setTitle(sessionResource: URI, title: string): void {
-		throw new Error('Method not implemented.');
-	}
-	appendProgress(request: IChatRequestModel, progress: IChatProgress): void {
 
-	}
-	/**
-	 * Returns whether the request was accepted.
-	 */
-	sendRequest(sessionResource: URI, message: string): Promise<IChatSendRequestData | undefined> {
+	acquireOrRestoreSession(_sessionResource: URI): Promise<IChatModelReference | undefined> {
 		throw new Error('Method not implemented.');
 	}
-	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions | undefined): Promise<void> {
+
+	getSessionTitle(_sessionResource: URI): string | undefined {
+		return undefined;
+	}
+
+	loadSessionFromData(data: IExportableChatData | ISerializableChatData): IChatModelReference {
 		throw new Error('Method not implemented.');
 	}
-	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void> {
+
+	acquireOrLoadSession(_resource: URI, _position: ChatAgentLocation, _token: CancellationToken): Promise<IChatModelReference | undefined> {
 		throw new Error('Method not implemented.');
 	}
-	removeRequest(sessionResource: URI, requestId: string): Promise<void> {
+
+	acquireExistingSession(_sessionResource: URI): IChatModelReference | undefined {
+		return undefined;
+	}
+
+	setSessionTitle(_sessionResource: URI, _title: string): void { }
+
+	appendProgress(_request: IChatRequestModel, _progress: IChatProgress): void { }
+
+	sendRequest(_sessionResource: URI, _message: string): Promise<ChatSendResult> {
 		throw new Error('Method not implemented.');
 	}
-	cancelCurrentRequestForSession(sessionResource: URI): void {
+
+	resendRequest(_request: IChatRequestModel, _options?: IChatSendRequestOptions): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	addCompleteRequest(sessionResource: URI, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void {
+
+	adoptRequest(_sessionResource: URI, _request: IChatRequestModel): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
+
+	removeRequest(_sessionResource: URI, _requestId: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	async cancelCurrentRequestForSession(_sessionResource: URI, _source?: string): Promise<void> { }
+
+	setYieldRequested(_sessionResource: URI): void { }
+
+	removePendingRequest(_sessionResource: URI, _requestId: string): void { }
+
+	setPendingRequests(_sessionResource: URI, _requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void { }
+
+	addCompleteRequest(): void { }
+
 	async getLocalSessionHistory(): Promise<IChatDetail[]> {
-		throw new Error('Method not implemented.');
-	}
-	async clearAllHistoryEntries() {
-		throw new Error('Method not implemented.');
-	}
-	async removeHistoryEntry(resource: URI) {
-		throw new Error('Method not implemented.');
+		return this.historySessionItems;
 	}
 
-	readonly onDidPerformUserAction: Event<IChatUserActionEvent> = undefined!;
-	notifyUserAction(event: IChatUserActionEvent): void {
-		throw new Error('Method not implemented.');
-	}
-	readonly onDidDisposeSession: Event<{ sessionResource: URI[]; reason: 'cleared' }> = undefined!;
+	async clearAllHistoryEntries(): Promise<void> { }
 
-	async transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
+	async removeHistoryEntry(_resource: URI): Promise<void> { }
 
-	setChatSessionTitle(sessionResource: URI, title: string): void {
-		throw new Error('Method not implemented.');
-	}
+	readonly onDidPerformUserAction = Event.None;
 
-	isEditingLocation(location: ChatAgentLocation): boolean {
-		throw new Error('Method not implemented.');
+	notifyUserAction(_event: IChatUserActionEvent): void { }
+
+	readonly onDidReceiveQuestionCarouselAnswer = Event.None;
+
+	notifyQuestionCarouselAnswer(_requestId: string, _resolveId: string, _answers: Record<string, unknown> | undefined): void { }
+
+	async transferChatSession(): Promise<void> { }
+
+	setChatSessionTitle(): void { }
+
+	isEditingLocation(_location: ChatAgentLocation): boolean {
+		return false;
 	}
 
 	getChatStorageFolder(): URI {
-		throw new Error('Method not implemented.');
+		return URI.file('/tmp');
 	}
 
-	logChatIndex(): void {
-		throw new Error('Method not implemented.');
+	logChatIndex(): void { }
+
+	activateDefaultAgent(_location: ChatAgentLocation): Promise<void> {
+		return Promise.resolve();
 	}
 
-	activateDefaultAgent(location: ChatAgentLocation): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-
-	getChatSessionFromInternalUri(sessionResource: URI): IChatSessionContext | undefined {
-		throw new Error('Method not implemented.');
+	getChatSessionFromInternalUri(_sessionResource: URI): IChatSessionContext | undefined {
+		return undefined;
 	}
 
 	async getLiveSessionItems(): Promise<IChatDetail[]> {
-		throw new Error('Method not implemented.');
+		return this.liveSessionItems;
 	}
-	getHistorySessionItems(): Promise<IChatDetail[]> {
-		throw new Error('Method not implemented.');
+
+	async getHistorySessionItems(): Promise<IChatDetail[]> {
+		return this.historySessionItems;
 	}
 
 	waitForModelDisposals(): Promise<void> {
-		throw new Error('Method not implemented.');
+		return Promise.resolve();
 	}
+
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
 		throw new Error('Method not implemented.');
+	}
+
+
+	private onChange?: (sessionResource: URI) => void;
+
+	registerChatModelChangeListeners(chatSessionType: string, onChange: (sessionResource: URI) => void): IDisposable {
+		// Store the emitter so tests can trigger it
+		this.onChange = onChange;
+		return {
+			dispose: () => {
+				this.onChange = undefined;
+			}
+		};
+	}
+
+	// Helper method for tests to trigger progress events
+	triggerProgressEvent(sessionResource: URI): void {
+		this.onChange?.(sessionResource);
 	}
 }
