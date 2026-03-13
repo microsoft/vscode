@@ -34,6 +34,7 @@ import { IAccessibilityInformation } from '../../../platform/accessibility/commo
 import { ILocalizedString } from '../../../platform/action/common/action.js';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from '../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope } from '../../../platform/configuration/common/configurationRegistry.js';
+import { IEditorOptions } from '../../../platform/editor/common/editor.js';
 import { IExtensionIdWithVersion } from '../../../platform/extensionManagement/common/extensionStorage.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import * as files from '../../../platform/files/common/files.js';
@@ -99,6 +100,7 @@ import { IExtHostDocumentSaveDelegate } from './extHostDocumentData.js';
 import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
 import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { CDPEvent, CDPRequest, CDPResponse } from '../../../platform/browserView/common/cdp/types.js';
 
 export type IconPathDto =
 	| UriComponents
@@ -1349,6 +1351,30 @@ export interface ExtHostSpeechShape {
 
 	$createKeywordRecognitionSession(handle: number, session: number): Promise<void>;
 	$cancelKeywordRecognitionSession(session: number): Promise<void>;
+}
+
+export interface BrowserTabDto {
+	id: string;
+	url: string;
+	title: string;
+	favicon: string | undefined;
+}
+
+export interface MainThreadBrowsersShape extends IDisposable {
+	$openBrowserTab(url: string, viewColumn?: EditorGroupColumn, options?: IEditorOptions): Promise<BrowserTabDto>;
+	$closeBrowserTab(browserId: string): Promise<void>;
+	$startCDPSession(sessionId: string, browserId: string): Promise<void>;
+	$closeCDPSession(sessionId: string): Promise<void>;
+	$sendCDPMessage(sessionId: string, message: CDPRequest): Promise<void>;
+}
+
+export interface ExtHostBrowsersShape {
+	$onDidOpenBrowserTab(browser: BrowserTabDto): void;
+	$onDidCloseBrowserTab(browserId: string): void;
+	$onDidChangeActiveBrowserTab(browser: BrowserTabDto | undefined): void;
+	$onDidChangeBrowserTabState(browserId: string, data: BrowserTabDto): void;
+	$onCDPSessionMessage(sessionId: string, message: CDPResponse | CDPEvent): void;
+	$onCDPSessionClosed(sessionId: string): void;
 }
 
 export interface MainThreadLanguageModelsShape extends IDisposable {
@@ -3587,7 +3613,6 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$unregisterChatSessionItemController(controllerHandle: number): void;
 	$updateChatSessionItems(controllerHandle: number, change: IChatSessionItemsChange): Promise<void>;
 	$addOrUpdateChatSessionItem(controllerHandle: number, item: Dto<IChatSessionItem>): Promise<void>;
-	$onDidChangeChatSessionItems(controllerHandle: number): void;
 	$onDidCommitChatSessionItem(controllerHandle: number, original: UriComponents, modified: UriComponents): void;
 	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string): void;
 	$unregisterChatSessionContentProvider(handle: number): void;
@@ -3766,6 +3791,7 @@ export const MainContext = {
 	MainThreadChatOutputRenderer: createProxyIdentifier<MainThreadChatOutputRendererShape>('MainThreadChatOutputRenderer'),
 	MainThreadChatContext: createProxyIdentifier<MainThreadChatContextShape>('MainThreadChatContext'),
 	MainThreadChatDebug: createProxyIdentifier<MainThreadChatDebugShape>('MainThreadChatDebug'),
+	MainThreadBrowsers: createProxyIdentifier<MainThreadBrowsersShape>('MainThreadBrowsers'),
 };
 
 export const ExtHostContext = {
@@ -3846,4 +3872,5 @@ export const ExtHostContext = {
 	ExtHostDataChannels: createProxyIdentifier<ExtHostDataChannelsShape>('ExtHostDataChannels'),
 	ExtHostChatSessions: createProxyIdentifier<ExtHostChatSessionsShape>('ExtHostChatSessions'),
 	ExtHostGitExtension: createProxyIdentifier<ExtHostGitExtensionShape>('ExtHostGitExtension'),
+	ExtHostBrowsers: createProxyIdentifier<ExtHostBrowsersShape>('ExtHostBrowsers'),
 };

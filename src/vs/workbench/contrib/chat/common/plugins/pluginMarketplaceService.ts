@@ -427,7 +427,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			}
 			const url = `https://raw.githubusercontent.com/${repo}/main/${def.path}`;
 			try {
-				const context = await this._requestService.request({ type: 'GET', url }, token);
+				const context = await this._requestService.request({ type: 'GET', url, callSite: 'pluginMarketplaceService.fetchPluginList' }, token);
 				const statusCode = context.res.statusCode;
 				if (statusCode !== 200) {
 					repoMayBePrivate &&= statusCode !== undefined && statusCode >= 400 && statusCode < 500;

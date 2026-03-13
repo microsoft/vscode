@@ -373,7 +373,7 @@ export class AgentPluginEditor extends EditorPane {
 				rawUrl = `https://raw.githubusercontent.com/${githubBlobMatch.groups['owner']}/${githubBlobMatch.groups['repo']}/${githubBlobMatch.groups['rest']}`;
 			}
 			try {
-				const context = await this.requestService.request({ type: 'GET', url: rawUrl }, token);
+				const context = await this.requestService.request({ type: 'GET', url: rawUrl, callSite: 'agentPluginEditor.fetchReadme' }, token);
 				const text = await asText(context);
 				return text ?? '';
 			} catch {

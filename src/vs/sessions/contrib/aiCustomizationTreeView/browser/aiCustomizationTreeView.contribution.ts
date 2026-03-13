@@ -14,6 +14,9 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 
 //#region Utilities
 
@@ -79,7 +82,65 @@ registerAction2(class extends Action2 {
 	}
 });
 
+// Delete file action
+const DELETE_AI_CUSTOMIZATION_FILE_ID = 'aiCustomization.deleteFile';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: DELETE_AI_CUSTOMIZATION_FILE_ID,
+			title: localize2('delete', "Delete"),
+			icon: Codicon.trash,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: URIContext): Promise<void> {
+		const fileService = accessor.get(IFileService);
+		const dialogService = accessor.get(IDialogService);
+		const uri = extractURI(context);
+		const name = typeof context === 'object' && !URI.isUri(context) ? (context as { name?: string }).name ?? '' : '';
+
+		if (uri.scheme !== 'file') {
+			return;
+		}
+
+		const confirmation = await dialogService.confirm({
+			message: localize('confirmDelete', "Are you sure you want to delete '{0}'?", name || uri.path),
+			primaryButton: localize('delete', "Delete"),
+		});
+
+		if (confirmation.confirmed) {
+			await fileService.del(uri, { useTrash: true, recursive: true });
+		}
+	}
+});
+
+// Copy path action
+const COPY_AI_CUSTOMIZATION_PATH_ID = 'aiCustomization.copyPath';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: COPY_AI_CUSTOMIZATION_PATH_ID,
+			title: localize2('copyPath', "Copy Path"),
+			icon: Codicon.clippy,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: URIContext): Promise<void> {
+		const clipboardService = accessor.get(IClipboardService);
+		const uri = extractURI(context);
+		const textToCopy = uri.scheme === 'file' ? uri.fsPath : uri.toString(true);
+		await clipboardService.writeText(textToCopy);
+	}
+});
+
 // Register context menu items
+
+// Inline hover actions (shown as icon buttons on hover)
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+	command: { id: DELETE_AI_CUSTOMIZATION_FILE_ID, title: localize('delete', "Delete"), icon: Codicon.trash },
+	group: 'inline',
+	order: 10,
+});
+
+// Context menu items (shown on right-click)
 MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	command: { id: OPEN_AI_CUSTOMIZATION_FILE_ID, title: localize('open', "Open") },
 	group: '1_open',
@@ -91,6 +152,18 @@ MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 	group: '2_run',
 	order: 1,
 	when: ContextKeyExpr.equals(AICustomizationItemTypeContextKey.key, PromptsType.prompt),
+});
+
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+	command: { id: COPY_AI_CUSTOMIZATION_PATH_ID, title: localize('copyPath', "Copy Path") },
+	group: '3_modify',
+	order: 1,
+});
+
+MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
+	command: { id: DELETE_AI_CUSTOMIZATION_FILE_ID, title: localize('delete', "Delete") },
+	group: '3_modify',
+	order: 10,
 });
 
 //#endregion

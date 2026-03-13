@@ -1288,6 +1288,8 @@ export interface ChatSendResultRejected {
 export interface ChatSendResultSent {
 	readonly kind: 'sent';
 	readonly data: IChatSendRequestData;
+	/** Set when the session was replaced by a new one (e.g. untitled -> real contributed session). */
+	readonly newSessionResource?: URI;
 }
 
 export interface ChatSendResultQueued {
@@ -1501,7 +1503,7 @@ export interface IChatService {
 	readonly onDidReceiveQuestionCarouselAnswer: Event<{ requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }>;
 	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: IChatQuestionAnswers | undefined): void;
 
-	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI[]; readonly reason: 'cleared' }>;
+	readonly onDidDisposeSession: Event<{ readonly sessionResource: readonly URI[]; readonly reason: 'cleared' }>;
 
 	transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void>;
 
@@ -1512,7 +1514,7 @@ export interface IChatService {
 	/**
 	 * @deprecated
 	 */
-	registerChatModelChangeListeners(chatSessionType: string, onChange: () => void): IDisposable;
+	registerChatModelChangeListeners(chatSessionType: string, onChange: (chatSessionResource: URI) => void): IDisposable;
 
 	/**
 	 * For tests only!

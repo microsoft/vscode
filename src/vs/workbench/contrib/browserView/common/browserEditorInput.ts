@@ -18,7 +18,6 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IBrowserViewWorkbenchService, IBrowserViewModel } from '../common/browserView.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
-import { BrowserEditor } from './browserEditor.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 
@@ -48,6 +47,7 @@ export interface IBrowserEditorInputData {
 
 export class BrowserEditorInput extends EditorInput {
 	static readonly ID = 'workbench.editorinputs.browser';
+	static readonly EDITOR_ID = 'workbench.editor.browser';
 	private static readonly DEFAULT_LABEL = localize('browser.editorLabel', "Browser");
 
 	private readonly _id: string;
@@ -82,6 +82,16 @@ export class BrowserEditorInput extends EditorInput {
 
 	get id() {
 		return this._id;
+	}
+
+	get url(): string | undefined {
+		// Use model URL if available, otherwise fall back to initial data
+		return this._model ? this._model.url : this._initialData.url;
+	}
+
+	get favicon(): string | undefined {
+		// Use model favicon if available, otherwise fall back to initial data
+		return this._model ? this._model.favicon : this._initialData.favicon;
 	}
 
 	override async resolve(): Promise<IBrowserViewModel> {
@@ -122,7 +132,7 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override get editorId(): string {
-		return BrowserEditor.ID;
+		return BrowserEditorInput.EDITOR_ID;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -182,8 +192,7 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override getDescription(): string | undefined {
-		// Use model URL if available, otherwise fall back to initial data
-		return this._model ? this._model.url : this._initialData.url;
+		return this.url;
 	}
 
 	override canReopen(): boolean {

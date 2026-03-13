@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatDetail, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
@@ -22,7 +23,7 @@ export class MockChatService implements IChatService {
 	readonly onDidSubmitRequest = Event.None;
 	readonly onDidCreateModel = Event.None;
 
-	private sessions = new Map<string, IChatModel>();
+	private readonly sessions = new ResourceMap<IChatModel>();
 	private liveSessionItems: IChatDetail[] = [];
 	private historySessionItems: IChatDetail[] = [];
 
@@ -50,13 +51,13 @@ export class MockChatService implements IChatService {
 	}
 
 	addSession(session: IChatModel): void {
-		this.sessions.set(session.sessionResource.toString(), session);
+		this.sessions.set(session.sessionResource, session);
 		// Update the chatModels observable
 		this._chatModels.set([...this.sessions.values()], undefined);
 	}
 
 	removeSession(sessionResource: URI): void {
-		this.sessions.delete(sessionResource.toString());
+		this.sessions.delete(sessionResource);
 		// Update the chatModels observable
 		this._chatModels.set([...this.sessions.values()], undefined);
 	}
@@ -78,7 +79,7 @@ export class MockChatService implements IChatService {
 	}
 
 	getSession(sessionResource: URI): IChatModel | undefined {
-		return this.sessions.get(sessionResource.toString());
+		return this.sessions.get(sessionResource);
 	}
 
 	getLatestRequest(): IChatRequestModel | undefined {
@@ -190,9 +191,9 @@ export class MockChatService implements IChatService {
 	}
 
 
-	private onChange?: () => void;
+	private onChange?: (sessionResource: URI) => void;
 
-	registerChatModelChangeListeners(chatSessionType: string, onChange: () => void): IDisposable {
+	registerChatModelChangeListeners(chatSessionType: string, onChange: (sessionResource: URI) => void): IDisposable {
 		// Store the emitter so tests can trigger it
 		this.onChange = onChange;
 		return {
@@ -203,9 +204,7 @@ export class MockChatService implements IChatService {
 	}
 
 	// Helper method for tests to trigger progress events
-	triggerProgressEvent(): void {
-		if (this.onChange) {
-			this.onChange();
-		}
+	triggerProgressEvent(sessionResource: URI): void {
+		this.onChange?.(sessionResource);
 	}
 }
