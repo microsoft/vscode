@@ -382,16 +382,26 @@ export interface IAgentService {
 	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void;
 }
 
+/**
+ * A concrete connection to an agent host - local utility process or remote
+ * WebSocket. Extends the core protocol surface with a `clientId` used for
+ * write-ahead reconciliation. Both {@link IAgentHostService} (local) and
+ * per-connection objects from {@link IRemoteAgentHostService} (remote)
+ * satisfy this contract.
+ */
+export interface IAgentConnection extends IAgentService {
+	/** Unique identifier for this client connection, used as the origin in action envelopes. */
+	readonly clientId: string;
+}
+
 export const IAgentHostService = createDecorator<IAgentHostService>('agentHostService');
 
 /**
  * The local wrapper around the agent host process (manages lifecycle, restart,
  * exposes the proxied service). Consumed by the main process and workbench.
  */
-export interface IAgentHostService extends IAgentService {
+export interface IAgentHostService extends IAgentConnection {
 
-	/** Unique identifier for this client window, used as the origin in action envelopes. */
-	readonly clientId: string;
 	readonly onAgentHostExit: Event<number>;
 	readonly onAgentHostStart: Event<void>;
 

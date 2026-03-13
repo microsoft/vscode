@@ -8,22 +8,17 @@
 // and maintains connections, reconnecting as the setting changes.
 
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
-import { URI } from '../../../base/common/uri.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 
-import type { IAgentCreateSessionConfig, IAgentSessionMetadata } from '../common/agentService.js';
-import type { ISessionAction } from '../common/state/sessionActions.js';
-import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
+import type { IAgentConnection } from '../common/agentService.js';
 import {
 	IRemoteAgentHostService,
 	RemoteAgentHostsSettingId,
-	type IRemoteActionEnvelope,
-	type IRemoteAgentHostConnection,
+	type IRemoteAgentHostConnectionInfo,
 	type IRemoteAgentHostEntry,
-	type IRemoteNotification,
 } from '../common/remoteAgentHostService.js';
 import { RemoteAgentHostProtocolClient } from './remoteAgentHostProtocolClient.js';
 
@@ -31,16 +26,12 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidAction = this._register(new Emitter<IRemoteActionEnvelope>());
-	readonly onDidAction = this._onDidAction.event;
-
-	private readonly _onDidNotification = this._register(new Emitter<IRemoteNotification>());
-	readonly onDidNotification = this._onDidNotification.event;
-
 	private readonly _onDidChangeConnections = this._register(new Emitter<void>());
 	readonly onDidChangeConnections = this._onDidChangeConnections.event;
 
-	private readonly _clients = this._register(new DisposableMap<string, RemoteAgentHostProtocolClient>());
+	/** Per-address disposable stores that own the client + its event listeners. */
+	private readonly _connections = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly _clients = new Map<string, RemoteAgentHostProtocolClient>();
 	private readonly _names = new Map<string, string>();
 
 	constructor(
@@ -61,57 +52,22 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		this._reconcileConnections();
 	}
 
-	get connections(): readonly IRemoteAgentHostConnection[] {
-		const result: IRemoteAgentHostConnection[] = [];
+	get connections(): readonly IRemoteAgentHostConnectionInfo[] {
+		const result: IRemoteAgentHostConnectionInfo[] = [];
 		for (const [address, client] of this._clients) {
 			result.push({ address, name: this._names.get(address) ?? address, clientId: client.clientId });
 		}
 		return result;
 	}
 
-	getClientId(address: string): string | undefined {
-		return this._clients.get(address)?.clientId;
+	getConnection(address: string): IAgentConnection | undefined {
+		return this._clients.get(address);
 	}
 
-	async subscribe(address: string, resource: URI): Promise<IStateSnapshot> {
-		const client = this._getClient(address);
-		return client.subscribe(resource);
-	}
-
-	unsubscribe(address: string, resource: URI): void {
-		this._clients.get(address)?.unsubscribe(resource);
-	}
-
-	setAuthToken(address: string, token: string): void {
-		const client = this._getClient(address);
-		client.setAuthToken(token);
-	}
-
-	dispatchAction(address: string, action: ISessionAction, clientId: string, clientSeq: number): void {
-		const client = this._getClient(address);
-		client.dispatchAction(action, clientId, clientSeq);
-	}
-
-	async createSession(address: string, config?: IAgentCreateSessionConfig): Promise<URI> {
-		const client = this._getClient(address);
-		return client.createSession(config);
-	}
-
-	disposeSession(address: string, session: URI): void {
-		this._clients.get(address)?.disposeSession(session);
-	}
-
-	async listSessions(address: string): Promise<readonly IAgentSessionMetadata[]> {
-		const client = this._getClient(address);
-		return client.listSessions();
-	}
-
-	private _getClient(address: string): RemoteAgentHostProtocolClient {
-		const client = this._clients.get(address);
-		if (!client) {
-			throw new Error(`No connection to remote agent host at ${address}`);
-		}
-		return client;
+	private _removeConnection(address: string): void {
+		this._clients.delete(address);
+		this._connections.deleteAndDispose(address);
+		this._onDidChangeConnections.fire();
 	}
 
 	private _reconcileConnections(): void {
@@ -128,8 +84,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		for (const address of this._clients.keys()) {
 			if (!desired.has(address)) {
 				this._logService.info(`[RemoteAgentHost] Disconnecting from ${address}`);
-				this._clients.deleteAndDispose(address);
-				this._onDidChangeConnections.fire();
+				this._removeConnection(address);
 			}
 		}
 
@@ -142,23 +97,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	private _connectTo(address: string): void {
-		const client = this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address);
+		const store = new DisposableStore();
+		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address));
 		this._clients.set(address, client);
+		this._connections.set(address, store);
 
-		// Forward events tagged with the remote address
-		client.onDidAction(envelope => {
-			this._onDidAction.fire({ ...envelope, remoteAddress: address });
-		});
-
-		client.onDidNotification(notification => {
-			this._onDidNotification.fire({ remoteAddress: address, notification });
-		});
-
-		client.onDidClose(() => {
+		store.add(client.onDidClose(() => {
 			this._logService.warn(`[RemoteAgentHost] Connection closed: ${address}`);
-			this._clients.deleteAndDispose(address);
-			this._onDidChangeConnections.fire();
-		});
+			this._removeConnection(address);
+		}));
 
 		this._logService.info(`[RemoteAgentHost] Connecting to ${address}`);
 		client.connect().then(() => {
@@ -166,7 +113,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._onDidChangeConnections.fire();
 		}).catch(err => {
 			this._logService.error(`[RemoteAgentHost] Failed to connect to ${address}`, err);
-			this._clients.deleteAndDispose(address);
+			this._removeConnection(address);
 		});
 	}
 }

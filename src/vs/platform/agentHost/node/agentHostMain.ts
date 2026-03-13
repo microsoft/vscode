@@ -117,7 +117,7 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 			agentService.dispatchAction(action, 'ws-server', 0);
 		},
 		async handleCreateSession(command) {
-			await agentService.createSession({
+			return agentService.createSession({
 				provider: command.provider as AgentProvider | undefined,
 				model: command.model,
 				workingDirectory: command.workingDirectory,
@@ -136,6 +136,9 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 				createdAt: s.startTime,
 				modifiedAt: s.modifiedTime,
 			}));
+		},
+		handleSetAuthToken(token) {
+			agentService.setAuthToken(token);
 		},
 	};
 

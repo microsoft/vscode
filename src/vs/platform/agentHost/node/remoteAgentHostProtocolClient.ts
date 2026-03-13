@@ -14,7 +14,7 @@ import { URI } from '../../../base/common/uri.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { hasKey } from '../../../base/common/types.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentCreateSessionConfig, IAgentSessionMetadata } from '../common/agentService.js';
+import type { IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata } from '../common/agentService.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
 import { isJsonRpcNotification, isJsonRpcResponse, type IListSessionsResult, type IProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
@@ -25,8 +25,13 @@ import { WebSocketClientTransport } from './webSocketClientTransport.js';
  * A protocol-level client for a single remote agent host connection.
  * Manages the WebSocket transport, handshake, subscriptions, action dispatch,
  * and command/response correlation.
+ *
+ * Implements {@link IAgentConnection} so consumers can program against
+ * a single interface regardless of whether the agent host is local or remote.
  */
-export class RemoteAgentHostProtocolClient extends Disposable {
+export class RemoteAgentHostProtocolClient extends Disposable implements IAgentConnection {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _clientId = generateUuid();
 	private readonly _transport: WebSocketClientTransport;
@@ -129,21 +134,42 @@ export class RemoteAgentHostProtocolClient extends Disposable {
 	/**
 	 * Push a GitHub auth token to the remote agent host.
 	 */
-	setAuthToken(token: string): void {
+	async setAuthToken(token: string): Promise<void> {
 		this._sendNotification('setAuthToken', { token });
+	}
+
+	/**
+	 * Refresh the model list from all providers on the remote host.
+	 */
+	async refreshModels(): Promise<void> {
+		await this._sendRequest('refreshModels');
+	}
+
+	/**
+	 * Discover available agent backends from the remote host.
+	 */
+	async listAgents(): Promise<IAgentDescriptor[]> {
+		return await this._sendRequest('listAgents') as IAgentDescriptor[];
+	}
+
+	/**
+	 * Gracefully shut down all sessions on the remote host.
+	 */
+	async shutdown(): Promise<void> {
+		await this._sendRequest('shutdown');
 	}
 
 	/**
 	 * Dispose a session on the remote agent host.
 	 */
-	disposeSession(session: URI): void {
-		this._sendRequest('disposeSession', { session });
+	async disposeSession(session: URI): Promise<void> {
+		await this._sendRequest('disposeSession', { session });
 	}
 
 	/**
 	 * List all sessions from the remote agent host.
 	 */
-	async listSessions(): Promise<readonly IAgentSessionMetadata[]> {
+	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		const result = await this._sendRequest('listSessions') as IListSessionsResult;
 		return result.sessions.map((s: ISessionSummary) => ({
 			session: s.resource,
