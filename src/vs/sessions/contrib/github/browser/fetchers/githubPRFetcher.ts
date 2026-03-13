@@ -162,14 +162,15 @@ export class GitHubPRFetcher {
 		const data = await this._apiClient.request<IGitHubPRResponse>(
 			'GET',
 			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}`,
+			'githubApi.getPullRequest'
 		);
 		return mapPullRequest(data);
 	}
 
 	async getMergeability(owner: string, repo: string, prNumber: number): Promise<IGitHubPullRequestMergeability> {
 		const [pr, reviews] = await Promise.all([
-			this._apiClient.request<IGitHubPRResponse>('GET', `/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}`),
-			this._apiClient.request<readonly IGitHubReviewResponse[]>('GET', `/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/reviews`),
+			this._apiClient.request<IGitHubPRResponse>('GET', `/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}`, 'githubApi.getMergeability.pr'),
+			this._apiClient.request<readonly IGitHubReviewResponse[]>('GET', `/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/reviews`, 'githubApi.getMergeability.reviews'),
 		]);
 
 		const blockers: IMergeBlocker[] = [];
@@ -218,6 +219,7 @@ export class GitHubPRFetcher {
 	async getReviewThreads(owner: string, repo: string, prNumber: number): Promise<IGitHubPRReviewThread[]> {
 		const data = await this._apiClient.graphql<IGitHubGraphQLPullRequestReviewThreadsResponse>(
 			GET_REVIEW_THREADS_QUERY,
+			'githubApi.getReviewThreads',
 			{ owner, repo, prNumber },
 		);
 
@@ -239,6 +241,7 @@ export class GitHubPRFetcher {
 		const data = await this._apiClient.request<IGitHubReviewCommentResponse>(
 			'POST',
 			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/comments`,
+			'githubApi.postReviewComment',
 			{ body, in_reply_to: inReplyTo },
 		);
 		return mapReviewComment(data);
@@ -253,6 +256,7 @@ export class GitHubPRFetcher {
 		const data = await this._apiClient.request<IGitHubIssueCommentResponse>(
 			'POST',
 			`/repos/${e(owner)}/${e(repo)}/issues/${prNumber}/comments`,
+			'githubApi.postIssueComment',
 			{ body },
 		);
 		return {
@@ -271,6 +275,7 @@ export class GitHubPRFetcher {
 	async resolveThread(_owner: string, _repo: string, threadId: string): Promise<void> {
 		const data = await this._apiClient.graphql<IGitHubGraphQLResolveReviewThreadResponse>(
 			RESOLVE_REVIEW_THREAD_MUTATION,
+			'githubApi.resolveThread',
 			{ threadId },
 		);
 

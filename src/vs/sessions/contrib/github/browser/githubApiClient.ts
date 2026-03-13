@@ -50,16 +50,17 @@ export class GitHubApiClient extends Disposable {
 		super();
 	}
 
-	async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-		return this._request<T>(method, `${GITHUB_API_BASE}${path}`, path, 'application/vnd.github.v3+json', body);
+	async request<T>(method: string, path: string, callSite: string, body?: unknown): Promise<T> {
+		return this._request<T>(method, `${GITHUB_API_BASE}${path}`, path, 'application/vnd.github.v3+json', callSite, body);
 	}
 
-	async graphql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
+	async graphql<T>(query: string, callSite: string, variables?: Record<string, unknown>): Promise<T> {
 		const response = await this._request<IGitHubGraphQLResponse<T>>(
 			'POST',
 			GITHUB_GRAPHQL_ENDPOINT,
 			'/graphql',
 			'application/vnd.github+json',
+			callSite,
 			{ query, variables },
 		);
 
@@ -78,7 +79,7 @@ export class GitHubApiClient extends Disposable {
 		return response.data;
 	}
 
-	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, body?: unknown): Promise<T> {
+	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, body?: unknown): Promise<T> {
 		const token = await this._getAuthToken();
 
 		this._logService.trace(`${LOG_PREFIX} ${method} ${pathForLogging}`);
@@ -93,6 +94,7 @@ export class GitHubApiClient extends Disposable {
 				...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
 			},
 			data: body !== undefined ? JSON.stringify(body) : undefined,
+			callSite
 		}, CancellationToken.None);
 
 		const rateLimitRemaining = parseRateLimitHeader(response.res.headers?.['x-ratelimit-remaining']);

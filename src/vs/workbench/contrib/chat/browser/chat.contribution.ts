@@ -486,7 +486,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			description: nls.localize('chat.imageCarousel.enabled', "Controls whether clicking an image attachment in chat opens the image carousel viewer."),
 			type: 'boolean',
-			tags: ['preview']
+			tags: ['experimental']
 		},
 		'chat.undoRequests.restoreInput': {
 			default: true,
