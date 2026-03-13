@@ -424,13 +424,65 @@ suite('ChatModel', () => {
 			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
 		));
 
-		// Each request with todoList data hydrates inline, so the last call wins
-		assert.ok(setTodosCalls.length >= 1, 'Should hydrate at least once');
-		assert.deepStrictEqual(setTodosCalls[setTodosCalls.length - 1].todos, [
+		// Each request with todoList data hydrates per-request, so two calls are expected
+		assert.strictEqual(setTodosCalls.length, 2, 'Should hydrate once per request containing todo data');
+		assert.deepStrictEqual(setTodosCalls[0].todos, [
+			{ id: 1, title: 'Task 1', status: 'not-started' },
+			{ id: 2, title: 'Task 2', status: 'not-started' },
+			{ id: 3, title: 'Task 3', status: 'not-started' },
+		], 'First hydration should use the older (not-started) state');
+		assert.deepStrictEqual(setTodosCalls[1].todos, [
 			{ id: 1, title: 'Task 1', status: 'completed' },
 			{ id: 2, title: 'Task 2', status: 'completed' },
 			{ id: 3, title: 'Task 3', status: 'completed' },
-		], 'Final hydration should use the latest (completed) todo state');
+		], 'Second hydration should use the latest (completed) state');
+	});
+
+	test('acceptResponseProgress hydrates todo list from serialized tool invocations at runtime', () => {
+		const setTodosCalls: { todos: IChatTodo[] }[] = [];
+		instantiationService.stub(IChatTodoListService, {
+			_serviceBrand: undefined,
+			onDidUpdateTodos: Event.None,
+			getTodos: () => [],
+			setTodos: (_sessionResource: URI, todos: IChatTodo[]) => { setTodosCalls.push({ todos: [...todos] }); },
+			migrateTodos: () => { },
+		});
+
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			undefined,
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+
+		const request = model.addRequest({ text: 'create todo list', parts: [] }, { variables: [] }, 0);
+
+		const todoProgress: IChatToolInvocationSerialized = {
+			kind: 'toolInvocationSerialized',
+			toolCallId: 'call-runtime-1',
+			toolId: 'manage_todo_list',
+			invocationMessage: 'Updating TODO list',
+			originMessage: undefined,
+			pastTenseMessage: 'Created TODO list',
+			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+			isComplete: true,
+			presentation: undefined,
+			source: undefined,
+			toolSpecificData: {
+				kind: 'todoList',
+				todoList: [
+					{ id: '1', title: 'Task A', status: 'not-started' },
+					{ id: '2', title: 'Task B', status: 'in-progress' },
+				]
+			},
+		};
+
+		model.acceptResponseProgress(request, todoProgress);
+
+		assert.strictEqual(setTodosCalls.length, 1, 'Should hydrate once from runtime progress');
+		assert.deepStrictEqual(setTodosCalls[0].todos, [
+			{ id: 1, title: 'Task A', status: 'not-started' },
+			{ id: 2, title: 'Task B', status: 'in-progress' },
+		]);
 	});
 
 	test('modeInfo roundtrips through serialization', async () => {

@@ -33,7 +33,7 @@ import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, 
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
 import { ToolDataSource, IToolData } from '../tools/languageModelToolsService.js';
-import { IChatTodoListService } from '../tools/chatTodoListService.js';
+import { IChatTodo, IChatTodoListService } from '../tools/chatTodoListService.js';
 import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../languageModels.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from '../participants/chatAgents.js';
@@ -2354,7 +2354,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				}
 			}
 			if (lastTodoList) {
-				this.chatTodoListService.setTodos(this._sessionResource, lastTodoList.map((t, i) => ({ id: Number(t.id) || i + 1, title: t.title, status: t.status })));
+				this.chatTodoListService.setTodos(this._sessionResource, deserializeTodoList(lastTodoList));
 			}
 
 			request.response = new ChatResponseModel({
@@ -2595,8 +2595,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			// invocation arrives (e.g. from a background agent that did
 			// not run invoke() locally).
 			if (progress.kind === 'toolInvocationSerialized' && progress.toolSpecificData?.kind === 'todoList') {
-				const todoList = progress.toolSpecificData.todoList;
-				this.chatTodoListService.setTodos(this._sessionResource, todoList.map((t, i) => ({ id: Number(t.id) || i + 1, title: t.title, status: t.status })));
+				this.chatTodoListService.setTodos(this._sessionResource, deserializeTodoList(progress.toolSpecificData.todoList));
 			}
 		}
 	}
@@ -2835,4 +2834,12 @@ export namespace ChatResponseResource {
 			index: Number(index),
 		};
 	}
+}
+
+/**
+ * Converts serialized todoList entries (string IDs) into {@link IChatTodo}
+ * objects (numeric IDs) suitable for {@link IChatTodoListService.setTodos}.
+ */
+function deserializeTodoList(todoList: IChatTodoListContent['todoList']): IChatTodo[] {
+	return todoList.map((t, i) => ({ id: Number(t.id) || i + 1, title: t.title, status: t.status }));
 }
