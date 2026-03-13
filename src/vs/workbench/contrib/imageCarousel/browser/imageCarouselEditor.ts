@@ -168,15 +168,10 @@ export class ImageCarouselEditor extends EditorPane {
 		let flatIndex = 0;
 		for (let s = 0; s < this._sections.length; s++) {
 			const section = this._sections[s];
-			const sectionEl = h('div.thumbnail-section@root', [
-				h('div.thumbnail-section-title@title'),
-				h('div.thumbnail-section-images@images'),
-			]);
 
-			if (section.title && this._sections.length > 1) {
-				sectionEl.title.textContent = section.title;
-			} else {
-				sectionEl.title.style.display = 'none';
+			// Add separator between sections (not before the first)
+			if (s > 0 && this._sections.length > 1) {
+				this._elements.sectionsContainer.appendChild(h('div.thumbnail-separator').root);
 			}
 
 			for (let i = 0; i < section.images.length; i++) {
@@ -201,12 +196,10 @@ export class ImageCarouselEditor extends EditorPane {
 					this.updateCurrentImage();
 				}));
 
-				sectionEl.images.appendChild(btn);
+				this._elements.sectionsContainer.appendChild(btn);
 				this._thumbnailElements.push(btn);
 				flatIndex++;
 			}
-
-			this._elements.sectionsContainer.appendChild(sectionEl.root);
 		}
 
 		this._container.appendChild(elements.root);
@@ -254,9 +247,24 @@ export class ImageCarouselEditor extends EditorPane {
 			thumbnail.classList.toggle('active', isActive);
 			if (isActive) {
 				thumbnail.setAttribute('aria-current', 'page');
+				// Scroll only the thumbnail strip, not the entire editor
+				const container = this._elements.sectionsContainer;
+				const containerRect = container.getBoundingClientRect();
+				const thumbRect = thumbnail.getBoundingClientRect();
+				if (thumbRect.left < containerRect.left) {
+					container.scrollLeft += thumbRect.left - containerRect.left;
+				} else if (thumbRect.right > containerRect.right) {
+					container.scrollLeft += thumbRect.right - containerRect.right;
+				}
 			} else {
 				thumbnail.removeAttribute('aria-current');
 			}
+		}
+
+		// Update editor title to reflect current section
+		if (this.input instanceof ImageCarouselEditorInput) {
+			const currentSection = this._sections[entry.sectionIndex];
+			this.input.setName(currentSection.title || this.input.collection.title);
 		}
 	}
 

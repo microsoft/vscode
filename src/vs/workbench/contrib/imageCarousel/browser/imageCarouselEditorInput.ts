@@ -13,6 +13,7 @@ export class ImageCarouselEditorInput extends EditorInput {
 	static readonly ID = 'workbench.input.imageCarousel';
 
 	private _resource: URI;
+	private _name: string;
 
 	constructor(
 		public readonly collection: IImageCarouselCollection,
@@ -23,6 +24,7 @@ export class ImageCarouselEditorInput extends EditorInput {
 			scheme: Schemas.vscodeImageCarousel,
 			path: `/${encodeURIComponent(collection.id)}`,
 		});
+		this._name = collection.title;
 	}
 
 	get typeId(): string {
@@ -34,7 +36,14 @@ export class ImageCarouselEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return this.collection.title;
+		return this._name;
+	}
+
+	setName(name: string): void {
+		if (this._name !== name) {
+			this._name = name;
+			this._onDidChangeLabel.fire();
+		}
 	}
 
 	override matches(other: EditorInput | IUntypedEditorInput): boolean {

@@ -26,6 +26,7 @@
 	height: 100%;
 	padding: 12px;
 	gap: 8px;
+	overflow: hidden;
 }
 
 .image-carousel-editor .slideshow-container:focus,
@@ -117,6 +118,8 @@
 	gap: 2px;
 	padding: 4px 0 8px;
 	flex-shrink: 0;
+	min-width: 0;
+	max-width: 100%;
 }
 
 /* Extra gap before thumbnails */
@@ -132,31 +135,34 @@
 	padding: 0 24px;
 }
 
-/* Sections container */
+/* Sections container — flat horizontal thumbnail strip */
 .image-carousel-editor .sections-container {
 	display: flex;
-	flex-direction: column;
-	gap: 8px;
-	overflow-y: auto;
-	padding: 0;
-	flex-shrink: 0;
-}
-
-/* Section */
-.image-carousel-editor .thumbnail-section-title {
-	color: var(--vscode-descriptionForeground);
-	font-size: 11px;
-	font-weight: 600;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
-	padding: 0 4px 2px;
-}
-
-.image-carousel-editor .thumbnail-section-images {
-	display: flex;
+	flex-direction: row;
+	align-items: center;
 	gap: 6px;
 	overflow-x: auto;
 	justify-content: center;
+	justify-content: safe center;
+	padding: 0;
+	flex-shrink: 0;
+	min-width: 0;
+	max-width: 100%;
+	scrollbar-width: none;
+}
+
+.image-carousel-editor .sections-container::-webkit-scrollbar {
+	display: none;
+}
+
+/* Subtle separator between sections */
+.image-carousel-editor .thumbnail-separator {
+	width: 1px;
+	height: 24px;
+	background: var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	opacity: 0.4;
+	flex-shrink: 0;
+	margin: 0 6px;
 }
 
 .image-carousel-editor .thumbnail {

@@ -27,6 +27,7 @@ import { GroupDirection, GroupsOrder, IModalEditorPart, GroupActivationReason } 
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext } from '../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, Verbosity } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ResourceLabel } from '../../labels.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
@@ -284,7 +285,9 @@ export class ModalEditorPart {
 
 		// Create label
 		const label = disposables.add(scopedInstantiationService.createInstance(ResourceLabel, titleElement, {}));
-		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => {
+		const labelChangeDisposable = disposables.add(new MutableDisposable());
+		let trackedEditor: EditorInput | undefined;
+		const updateLabel = () => {
 			const activeEditor = editorPart.activeGroup.activeEditor;
 			if (activeEditor) {
 				const { labelFormat } = editorPart.partOptions;
@@ -300,10 +303,19 @@ export class ModalEditorPart {
 						extraClasses: activeEditor.getLabelExtraClasses(),
 					}
 				);
+
+				// Only (re)subscribe when the active editor changes, not on every label update
+				if (trackedEditor !== activeEditor) {
+					trackedEditor = activeEditor;
+					labelChangeDisposable.value = activeEditor.onDidChangeLabel(() => updateLabel());
+				}
 			} else {
 				label.element.clear();
+				trackedEditor = undefined;
+				labelChangeDisposable.clear();
 			}
-		}));
+		};
+		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, updateLabel));
 
 		// Handle double-click on header to toggle maximize
 		disposables.add(addDisposableListener(headerElement, EventType.DBLCLICK, e => {
