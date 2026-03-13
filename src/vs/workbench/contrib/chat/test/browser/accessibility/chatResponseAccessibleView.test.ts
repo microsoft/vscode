@@ -544,7 +544,7 @@ suite('ChatResponseAccessibleView', () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const storageService = store.add(new TestStorageService());
 
-			const location: Location = {
+			const fileLocation: Location = {
 				uri: URI.file('/src/app/main.ts'),
 				range: new Range(42, 1, 42, 20)
 			};
@@ -553,7 +553,7 @@ suite('ChatResponseAccessibleView', () => {
 				response: {
 					value: [
 						{ kind: 'markdownContent', content: new MarkdownString('Error at ') },
-						{ kind: 'inlineReference', inlineReference: location, name: 'main.ts' }
+						{ kind: 'inlineReference', inlineReference: fileLocation, name: 'main.ts' }
 					]
 				},
 				model: { onDidChange: Event.None },
