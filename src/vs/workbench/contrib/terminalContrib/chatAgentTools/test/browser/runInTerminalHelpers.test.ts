@@ -301,6 +301,11 @@ suite('normalizeTerminalCommandForDisplay', () => {
 		strictEqual(normalizeTerminalCommandForDisplay(input), 'git rev-parse \'stash@{0}\' && echo "done"');
 	});
 
+	test('normalizes escaped forward slashes', () => {
+		const input = 'echo \\/Users\\/me\\/project';
+		strictEqual(normalizeTerminalCommandForDisplay(input), 'echo /Users/me/project');
+	});
+
 	test('preserves non-quote escapes', () => {
 		const input = 'echo path\\ with\\ spaces';
 		strictEqual(normalizeTerminalCommandForDisplay(input), input);
