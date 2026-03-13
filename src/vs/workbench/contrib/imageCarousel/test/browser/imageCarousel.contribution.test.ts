@@ -9,7 +9,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { NullFilesConfigurationService } from '../../../../test/common/workbenchTestServices.js';
+import { NullFilesConfigurationService, createFileStat } from '../../../../test/common/workbenchTestServices.js';
 import { IExplorerService } from '../../../files/browser/files.js';
 import { ExplorerItem } from '../../../files/common/explorerModel.js';
 import { IFileService, IFileStat, IFileContent } from '../../../../../platform/files/common/files.js';
@@ -17,6 +17,7 @@ import { IEditorService, MODAL_GROUP } from '../../../../services/editor/common/
 import { ImageCarouselEditorInput } from '../../browser/imageCarouselEditorInput.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
 // Importing the contribution registers the actions
 import '../../browser/imageCarousel.contribution.js';
@@ -38,21 +39,6 @@ function createExplorerItem(
 	);
 }
 
-function createFileStat(resource: URI, isDirectory: boolean, children?: IFileStat[]): IFileStat {
-	return {
-		resource,
-		name: resource.path.split('/').pop()!,
-		isFile: !isDirectory,
-		isDirectory,
-		isSymbolicLink: false,
-		mtime: 0,
-		ctime: 0,
-		size: 100,
-		etag: '',
-		children,
-	};
-}
-
 suite('OpenImagesInCarouselFromExplorerAction', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -60,10 +46,12 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 	let configService: TestConfigurationService;
 	let openedInputs: { input: ImageCarouselEditorInput; group: typeof MODAL_GROUP }[];
 	let infoMessages: string[];
+	let errorMessages: string[];
 
 	setup(() => {
 		openedInputs = [];
 		infoMessages = [];
+		errorMessages = [];
 		configService = new TestConfigurationService();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 	});
@@ -106,6 +94,9 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		instantiationService.stub(INotificationService, 'info', (message: string) => {
 			infoMessages.push(message);
 		});
+		instantiationService.stub(INotificationService, 'error', (message: string) => {
+			errorMessages.push(message);
+		});
 	}
 
 	test('single image file opens carousel with sibling images', async () => {
@@ -119,11 +110,11 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 
 		const resolveMap = new Map<string, IFileStat>();
 		resolveMap.set('/workspace/images', createFileStat(
-			URI.file('/workspace/images'), true, [
-			createFileStat(URI.file('/workspace/images/photo.png'), false),
-			createFileStat(URI.file('/workspace/images/other.jpg'), false),
-			createFileStat(URI.file('/workspace/images/readme.txt'), false),
-			createFileStat(URI.file('/workspace/images/subfolder'), true),
+			URI.file('/workspace/images'), false, false, true, false, [
+			{ resource: URI.file('/workspace/images/photo.png') },
+			{ resource: URI.file('/workspace/images/other.jpg') },
+			{ resource: URI.file('/workspace/images/readme.txt') },
+			{ resource: URI.file('/workspace/images/subfolder'), isDirectory: true, isFile: false },
 		]
 		));
 
@@ -148,11 +139,12 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 
 		const images = input.collection.sections[0].images;
 		assert.strictEqual(images.length, 2, 'Should include 2 image siblings (png + jpg), not txt');
-		assert.strictEqual(images[0].name, 'photo.png');
-		assert.strictEqual(images[1].name, 'other.jpg');
+		// Images are sorted by basename: other.jpg before photo.png
+		assert.strictEqual(images[0].name, 'other.jpg');
+		assert.strictEqual(images[1].name, 'photo.png');
 
-		// Start index should be the selected image (photo.png = index 0)
-		assert.strictEqual(input.startIndex, 0);
+		// Start index should be the selected image (photo.png = index 1 after sorting)
+		assert.strictEqual(input.startIndex, 1);
 	});
 
 	test('folder opens carousel with all contained images', async () => {
@@ -164,10 +156,10 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 
 		const resolveMap = new Map<string, IFileStat>();
 		resolveMap.set('/workspace/images', createFileStat(
-			URI.file('/workspace/images'), true, [
-			createFileStat(URI.file('/workspace/images/anim.gif'), false),
-			createFileStat(URI.file('/workspace/images/photo.webp'), false),
-			createFileStat(URI.file('/workspace/images/script.js'), false),
+			URI.file('/workspace/images'), false, false, true, false, [
+			{ resource: URI.file('/workspace/images/anim.gif') },
+			{ resource: URI.file('/workspace/images/photo.webp') },
+			{ resource: URI.file('/workspace/images/script.js') },
 		]
 		));
 
@@ -231,10 +223,10 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		const folderUri = URI.file('/workspace/photos');
 		const resolveMap = new Map<string, IFileStat>();
 		resolveMap.set('/workspace/photos', createFileStat(
-			folderUri, true, [
-			createFileStat(URI.file('/workspace/photos/sunset.png'), false),
-			createFileStat(URI.file('/workspace/photos/mountain.jpg'), false),
-			createFileStat(URI.file('/workspace/photos/notes.txt'), false),
+			folderUri, false, false, true, false, [
+			{ resource: URI.file('/workspace/photos/sunset.png') },
+			{ resource: URI.file('/workspace/photos/mountain.jpg') },
+			{ resource: URI.file('/workspace/photos/notes.txt') },
 		]
 		));
 
@@ -261,17 +253,23 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 	test('empty selection without resource falls back to first workspace folder', async () => {
 		const pngData = VSBuffer.fromString('fake-png');
 
-		// TestWorkspace root is /testWorkspace (or C:\testWorkspace on Windows)
+		// Derive the workspace root from IWorkspaceContextService so the test
+		// works on all platforms (the path differs on Windows vs Unix).
+		const contextService = instantiationService.get(IWorkspaceContextService);
+		const wsRoot = contextService.getWorkspace().folders[0].uri;
+		const logoUri = URI.joinPath(wsRoot, 'logo.png');
+		const readmeUri = URI.joinPath(wsRoot, 'readme.md');
+
 		const resolveMap = new Map<string, IFileStat>();
-		resolveMap.set('/testWorkspace', createFileStat(
-			URI.file('/testWorkspace'), true, [
-			createFileStat(URI.file('/testWorkspace/logo.png'), false),
-			createFileStat(URI.file('/testWorkspace/readme.md'), false),
+		resolveMap.set(wsRoot.path, createFileStat(
+			wsRoot, false, false, true, false, [
+			{ resource: logoUri },
+			{ resource: readmeUri },
 		]
 		));
 
 		const fileContents = new Map<string, VSBuffer>();
-		fileContents.set('/testWorkspace/logo.png', pngData);
+		fileContents.set(logoUri.path, pngData);
 
 		stubFileService(resolveMap, fileContents);
 		stubExplorerService([]);
@@ -294,8 +292,8 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		const folderUri = URI.file('/workspace/docs');
 		const resolveMap = new Map<string, IFileStat>();
 		resolveMap.set('/workspace/docs', createFileStat(
-			folderUri, true, [
-			createFileStat(URI.file('/workspace/docs/readme.md'), false),
+			folderUri, false, false, true, false, [
+			{ resource: URI.file('/workspace/docs/readme.md') },
 		]
 		));
 
@@ -320,9 +318,9 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 
 		const resolveMap = new Map<string, IFileStat>();
 		resolveMap.set('/workspace/docs', createFileStat(
-			URI.file('/workspace/docs'), true, [
-			createFileStat(URI.file('/workspace/docs/readme.md'), false),
-			createFileStat(URI.file('/workspace/docs/notes.txt'), false),
+			URI.file('/workspace/docs'), false, false, true, false, [
+			{ resource: URI.file('/workspace/docs/readme.md') },
+			{ resource: URI.file('/workspace/docs/notes.txt') },
 		]
 		));
 
@@ -339,5 +337,54 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 
 		assert.strictEqual(openedInputs.length, 0, 'Should not open carousel when folder has no images');
 		assert.strictEqual(infoMessages.length, 1, 'Should show notification about no images');
+	});
+
+	test('folder read error shows error notification', async () => {
+		const fileService = instantiationService.get(IFileService);
+		const folderItem = createExplorerItem('/workspace/restricted', true, fileService, configService);
+
+		// resolve throws to simulate a permission error
+		const resolveMap = new Map<string, IFileStat>();
+		stubFileService(resolveMap, new Map());
+		stubExplorerService([folderItem]);
+		stubEditorService();
+		stubNotificationService();
+
+		const { CommandsRegistry } = await import('../../../../../platform/commands/common/commands.js');
+		const command = CommandsRegistry.getCommand('workbench.action.openImagesInCarousel');
+		assert.ok(command);
+
+		await instantiationService.invokeFunction(command.handler);
+
+		assert.strictEqual(openedInputs.length, 0, 'Should not open carousel on folder read error');
+		assert.strictEqual(errorMessages.length, 1, 'Should show error notification');
+		assert.strictEqual(infoMessages.length, 0, 'Should not show info notification');
+	});
+
+	test('all image reads failing shows error notification', async () => {
+		const folderUri = URI.file('/workspace/broken');
+
+		const resolveMap = new Map<string, IFileStat>();
+		resolveMap.set('/workspace/broken', createFileStat(
+			folderUri, false, false, true, false, [
+			{ resource: URI.file('/workspace/broken/corrupt.png') },
+			{ resource: URI.file('/workspace/broken/missing.jpg') },
+		]
+		));
+
+		// No file contents → all readFile calls will fail
+		stubFileService(resolveMap, new Map());
+		stubExplorerService([]);
+		stubEditorService();
+		stubNotificationService();
+
+		const { CommandsRegistry } = await import('../../../../../platform/commands/common/commands.js');
+		const command = CommandsRegistry.getCommand('workbench.action.openImagesInCarousel');
+		assert.ok(command);
+
+		await instantiationService.invokeFunction(command.handler, folderUri);
+
+		assert.strictEqual(openedInputs.length, 0, 'Should not open carousel when all reads fail');
+		assert.strictEqual(errorMessages.length, 1, 'Should show error notification for read failures');
 	});
 });

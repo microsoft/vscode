@@ -29,6 +29,7 @@ import { ResourceSet } from '../../../../base/common/map.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Limiter } from '../../../../base/common/async.js';
 
 // --- Configuration ---
 
@@ -159,7 +160,7 @@ registerAction2(OpenImageInCarouselAction);
  * of truth with `base/common/mime.ts`.
  */
 const IMAGE_EXTENSION_REGEX = (function () {
-	const candidates = ['png', 'jpg', 'jpeg', 'jpe', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tif', 'tiff', 'tga', 'psd'];
+	const candidates = ['png', 'jpg', 'jpeg', 'jpe', 'gif', 'webp', 'svg', 'bmp', 'ico'];
 	const imageExts = candidates.filter(ext => getMediaMime(`f.${ext}`)?.startsWith('image/'));
 	return new RegExp(`^\\.(${imageExts.join('|')})$`, 'i');
 })();
@@ -170,40 +171,39 @@ function isImageResource(uri: URI): boolean {
 }
 
 async function collectImageFilesFromFolder(fileService: IFileService, folderUri: URI): Promise<URI[]> {
-	try {
-		const stat = await fileService.resolve(folderUri);
-		const imageUris: URI[] = [];
-		if (stat.children) {
-			for (const child of stat.children) {
-				if (child.isFile && isImageResource(child.resource)) {
-					imageUris.push(child.resource);
-				}
+	const stat = await fileService.resolve(folderUri);
+	const imageUris: URI[] = [];
+	if (stat.children) {
+		for (const child of stat.children) {
+			if (child.isFile && isImageResource(child.resource)) {
+				imageUris.push(child.resource);
 			}
 		}
-		return imageUris;
-	} catch {
-		// Folder may not exist or be inaccessible (e.g. permission denied)
-		return [];
 	}
+	imageUris.sort((a, b) => basename(a).localeCompare(basename(b)));
+	return imageUris;
 }
 
 async function readImageFiles(fileService: IFileService, uris: URI[]): Promise<ICarouselImage[]> {
-	const results = await Promise.allSettled(
-		uris.map(async (uri): Promise<ICarouselImage> => {
-			const content = await fileService.readFile(uri);
-			const mimeType = getMediaMime(uri.path) ?? 'image/png';
-			return {
-				id: generateUuid(),
-				name: basename(uri),
-				mimeType,
-				data: content.value,
-				uri,
-			};
-		})
+	const limiter = new Limiter<ICarouselImage | undefined>(10);
+	const results = await Promise.all(
+		uris.map(uri => limiter.queue(async () => {
+			try {
+				const content = await fileService.readFile(uri);
+				const mimeType = getMediaMime(uri.path) ?? 'image/png';
+				return {
+					id: generateUuid(),
+					name: basename(uri),
+					mimeType,
+					data: content.value,
+					uri,
+				};
+			} catch {
+				return undefined;
+			}
+		}))
 	);
-	return results
-		.filter((r): r is PromiseFulfilledResult<ICarouselImage> => r.status === 'fulfilled')
-		.map(r => r.value);
+	return results.filter((r): r is ICarouselImage => r !== undefined);
 }
 
 class OpenImagesInCarouselFromExplorerAction extends Action2 {
@@ -239,56 +239,61 @@ class OpenImagesInCarouselFromExplorerAction extends Action2 {
 		let imageUris: URI[] = [];
 		let startUri: URI | undefined;
 
-		if (context.length === 0) {
-			// Empty-space right-click: the explorer passes the workspace root
-			// as the resource argument. Fall back to the first workspace folder
-			// when no resource is available.
-			let folderUri: URI | undefined;
-			if (URI.isUri(resource)) {
-				folderUri = resource;
-			} else {
-				const folders = contextService.getWorkspace().folders;
-				if (folders.length > 0) {
-					folderUri = folders[0].uri;
+		try {
+			if (context.length === 0) {
+				// Empty-space right-click: the explorer passes the workspace root
+				// as the resource argument. Fall back to the first workspace folder
+				// when no resource is available.
+				let folderUri: URI | undefined;
+				if (URI.isUri(resource)) {
+					folderUri = resource;
+				} else {
+					const folders = contextService.getWorkspace().folders;
+					if (folders.length > 0) {
+						folderUri = folders[0].uri;
+					}
 				}
-			}
 
-			if (folderUri) {
-				imageUris = await collectImageFilesFromFolder(fileService, folderUri);
-			}
-		} else {
-			const hasSingleImageFile = context.length === 1 && !context[0].isDirectory && isImageResource(context[0].resource);
-
-			if (hasSingleImageFile) {
-				// Single image: show all sibling images in the same folder with
-				// the selected image focused
-				startUri = context[0].resource;
-				const parentUri = dirname(context[0].resource);
-				imageUris = await collectImageFilesFromFolder(fileService, parentUri);
+				if (folderUri) {
+					imageUris = await collectImageFilesFromFolder(fileService, folderUri);
+				}
 			} else {
-				// Multiple items or a folder: collect images from selection,
-				// deduplicating in case a folder and its children are both selected
-				const seen = new ResourceSet();
-				for (const item of context) {
-					if (item.isDirectory) {
-						const folderImages = await collectImageFilesFromFolder(fileService, item.resource);
-						for (const uri of folderImages) {
-							if (!seen.has(uri)) {
-								seen.add(uri);
-								imageUris.push(uri);
+				const hasSingleImageFile = context.length === 1 && !context[0].isDirectory && isImageResource(context[0].resource);
+
+				if (hasSingleImageFile) {
+					// Single image: show all sibling images in the same folder with
+					// the selected image focused
+					startUri = context[0].resource;
+					const parentUri = dirname(context[0].resource);
+					imageUris = await collectImageFilesFromFolder(fileService, parentUri);
+				} else {
+					// Multiple items or a folder: collect images from selection,
+					// deduplicating in case a folder and its children are both selected
+					const seen = new ResourceSet();
+					for (const item of context) {
+						if (item.isDirectory) {
+							const folderImages = await collectImageFilesFromFolder(fileService, item.resource);
+							for (const uri of folderImages) {
+								if (!seen.has(uri)) {
+									seen.add(uri);
+									imageUris.push(uri);
+								}
 							}
-						}
-					} else if (isImageResource(item.resource)) {
-						if (!seen.has(item.resource)) {
-							seen.add(item.resource);
-							imageUris.push(item.resource);
-							if (!startUri) {
-								startUri = item.resource;
+						} else if (isImageResource(item.resource)) {
+							if (!seen.has(item.resource)) {
+								seen.add(item.resource);
+								imageUris.push(item.resource);
+								if (!startUri) {
+									startUri = item.resource;
+								}
 							}
 						}
 					}
 				}
 			}
+		} catch {
+			notificationService.error(localize('folderReadError', "Could not read folder contents."));
+			return;
 		}
 
 		if (imageUris.length === 0) {
@@ -298,6 +303,7 @@ class OpenImagesInCarouselFromExplorerAction extends Action2 {
 
 		const images = await readImageFiles(fileService, imageUris);
 		if (images.length === 0) {
+			notificationService.error(localize('imageReadError', "Could not read the selected images."));
 			return;
 		}
 
