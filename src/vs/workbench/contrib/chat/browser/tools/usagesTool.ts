@@ -11,7 +11,7 @@ import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { relativePath } from '../../../../../base/common/resources.js';
+import { isEqual, relativePath } from '../../../../../base/common/resources.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Location, LocationLink } from '../../../../../editor/common/languages.js';
@@ -297,7 +297,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 	}
 
 	private _overlaps(a: LocationLink, b: LocationLink): boolean {
-		if (a.uri.toString() !== b.uri.toString()) {
+		if (!isEqual(a.uri, b.uri)) {
 			return false;
 		}
 		return Range.areIntersectingOrTouching(a.range, b.range);
