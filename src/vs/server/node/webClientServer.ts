@@ -206,7 +206,8 @@ export class WebClientServer {
 		const context = await this._requestService.request({
 			type: 'GET',
 			url: uri.toString(true),
-			headers
+			headers,
+			callSite: 'webClientServer.fetchAndWriteFile'
 		}, CancellationToken.None);
 
 		const status = context.res.statusCode || 500;

@@ -54,6 +54,7 @@ export interface IActiveSessionItem {
 	readonly repository: URI | undefined;
 	readonly worktree: URI | undefined;
 	readonly worktreeBranchName: string | undefined;
+	readonly worktreeBaseBranchProtected: boolean | undefined;
 	readonly providerType: string;
 }
 
@@ -205,10 +206,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	private getRepositoryFromMetadata(session: IAgentSession): [URI | undefined, URI | undefined, string | undefined] {
+	private getRepositoryFromMetadata(session: IAgentSession): [URI | undefined, URI | undefined, string | undefined, boolean | undefined] {
 		const metadata = session.metadata;
 		if (!metadata) {
-			return [undefined, undefined, undefined];
+			return [undefined, undefined, undefined, undefined];
 		}
 
 		if (session.providerType === AgentSessionProviders.Cloud) {
@@ -219,12 +220,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				authority: 'github',
 				path: `/${metadata.owner}/${metadata.name}/${encodeURIComponent(branch)}`
 			});
-			return [repositoryUri, undefined, undefined];
+			return [repositoryUri, undefined, undefined, undefined];
 		}
 
 		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
 		if (workingDirectoryPath) {
-			return [URI.file(workingDirectoryPath), undefined, undefined];
+			return [URI.file(workingDirectoryPath), undefined, undefined, undefined];
 		}
 
 		const repositoryPath = metadata?.repositoryPath as string | undefined;
@@ -234,11 +235,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const worktreePathUri = typeof worktreePath === 'string' ? URI.file(worktreePath) : undefined;
 
 		const worktreeBranchName = metadata?.branchName as string | undefined;
+		const worktreeBaseBranchProtected = metadata?.baseBranchProtected as boolean | undefined;
 
 		return [
 			URI.isUri(repositoryPathUri) ? repositoryPathUri : undefined,
 			URI.isUri(worktreePathUri) ? worktreePathUri : undefined,
-			worktreeBranchName];
+			worktreeBranchName,
+			worktreeBaseBranchProtected];
 	}
 
 	getActiveSession(): IActiveSessionItem | undefined {
@@ -460,7 +463,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (session) {
 			if (isAgentSession(session)) {
 				this.lastSelectedSession = session.resource;
-				const [repository, worktree, worktreeBranchName] = this.getRepositoryFromMetadata(session);
+				const [repository, worktree, worktreeBranchName, worktreeBaseBranchProtected] = this.getRepositoryFromMetadata(session);
 				activeSessionItem = {
 					isUntitled: false,
 					label: session.label,
@@ -468,6 +471,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					repository: repository,
 					worktree,
 					worktreeBranchName: worktreeBranchName,
+					worktreeBaseBranchProtected: worktreeBaseBranchProtected === true,
 					providerType: session.providerType,
 				};
 			} else {
@@ -478,6 +482,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					repository: session.repoUri,
 					worktree: undefined,
 					worktreeBranchName: undefined,
+					worktreeBaseBranchProtected: undefined,
 					providerType: session.target,
 				};
 				this._newActiveSessionDisposables.clear();
@@ -490,6 +495,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 							repository: session.repoUri,
 							worktree: undefined,
 							worktreeBranchName: undefined,
+							worktreeBaseBranchProtected: undefined,
 							providerType: session.target,
 						});
 					}
@@ -529,7 +535,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			a.repository?.toString() === b.repository?.toString() &&
 			a.worktree?.toString() === b.worktree?.toString() &&
 			a.worktreeBranchName === b.worktreeBranchName &&
-			a.providerType === b.providerType
+			a.providerType === b.providerType &&
+			a.worktreeBaseBranchProtected === b.worktreeBaseBranchProtected
 		);
 	}
 
@@ -605,8 +612,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			repository,
 			worktree,
 			worktreeBranchName: undefined,
+			worktreeBaseBranchProtected: undefined,
 			providerType: agentSession.providerType,
-		});
+		} satisfies IActiveSessionItem);
 	}
 
 	resolveSessionFileUri(sessionResource: URI, relativePath: string): URI | undefined {

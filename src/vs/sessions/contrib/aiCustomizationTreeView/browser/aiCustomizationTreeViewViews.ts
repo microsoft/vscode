@@ -5,6 +5,7 @@
 
 import './media/aiCustomizationTreeView.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -12,7 +13,7 @@ import { basename, dirname } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -149,6 +150,9 @@ interface IFileTemplateData {
 	readonly container: HTMLElement;
 	readonly icon: HTMLElement;
 	readonly name: HTMLElement;
+	readonly actionBar: ActionBar;
+	readonly elementDisposables: DisposableStore;
+	readonly templateDisposables: DisposableStore;
 }
 
 class AICustomizationCategoryRenderer implements ITreeRenderer<IAICustomizationTypeItem | IAICustomizationLinkItem, FuzzyScore, ICategoryTemplateData> {
@@ -189,15 +193,29 @@ class AICustomizationGroupRenderer implements ITreeRenderer<IAICustomizationGrou
 class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileItem, FuzzyScore, IFileTemplateData> {
 	readonly templateId = 'file';
 
+	constructor(
+		private readonly menuService: IMenuService,
+		private readonly contextKeyService: IContextKeyService,
+		private readonly instantiationService: IInstantiationService,
+	) { }
+
 	renderTemplate(container: HTMLElement): IFileTemplateData {
 		const element = dom.append(container, dom.$('.ai-customization-tree-item'));
 		const icon = dom.append(element, dom.$('.icon'));
 		const name = dom.append(element, dom.$('.name'));
-		return { container: element, icon, name };
+		const actionsContainer = dom.append(element, dom.$('.actions'));
+
+		const templateDisposables = new DisposableStore();
+		const actionBar = templateDisposables.add(new ActionBar(actionsContainer, {
+			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
+		}));
+
+		return { container: element, icon, name, actionBar, elementDisposables: new DisposableStore(), templateDisposables };
 	}
 
 	renderElement(node: ITreeNode<IAICustomizationFileItem, FuzzyScore>, _index: number, templateData: IFileTemplateData): void {
 		const item = node.element;
+		templateData.elementDisposables.clear();
 
 		// Set icon based on prompt type
 		let icon: ThemeIcon;
@@ -225,9 +243,45 @@ class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileI
 		// Set tooltip with name and description
 		const tooltip = item.description ? `${item.name} - ${item.description}` : item.name;
 		templateData.container.title = tooltip;
+
+		// Build context for menu actions
+		const context = {
+			uri: item.uri.toString(),
+			name: item.name,
+			promptType: item.promptType,
+			storage: item.storage,
+		};
+
+		// Create scoped context key service with item type for when-clause filtering
+		const overlay = this.contextKeyService.createOverlay([
+			[AICustomizationItemTypeContextKey.key, item.promptType],
+		]);
+
+		// Create menu and extract inline actions
+		const menu = templateData.elementDisposables.add(
+			this.menuService.createMenu(AICustomizationItemMenuId, overlay)
+		);
+
+		const updateActions = () => {
+			const actions = menu.getActions({ arg: context, shouldForwardArgs: true });
+			const { primary } = getContextMenuActions(actions, 'inline');
+			templateData.actionBar.clear();
+			templateData.actionBar.push(primary, { icon: true, label: false });
+		};
+		updateActions();
+		templateData.elementDisposables.add(menu.onDidChange(updateActions));
+
+		templateData.actionBar.context = context;
 	}
 
-	disposeTemplate(_templateData: IFileTemplateData): void { }
+	disposeElement(_node: ITreeNode<IAICustomizationFileItem, FuzzyScore>, _index: number, templateData: IFileTemplateData): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeTemplate(templateData: IFileTemplateData): void {
+		templateData.templateDisposables.dispose();
+		templateData.elementDisposables.dispose();
+	}
 }
 
 /**
@@ -575,7 +629,7 @@ export class AICustomizationViewPane extends ViewPane {
 			[
 				new AICustomizationCategoryRenderer(),
 				new AICustomizationGroupRenderer(),
-				new AICustomizationFileRenderer(),
+				new AICustomizationFileRenderer(this.menuService, this.contextKeyService, this.instantiationService),
 			],
 			this.dataSource,
 			{

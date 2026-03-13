@@ -52,6 +52,7 @@ export function connectProxyResolver(
 		getProxySupport: () => getExtHostConfigValue<ProxySupportSetting>(configProvider, isRemote, 'http.proxySupport') || 'off',
 		getNoProxyConfig: () => getExtHostConfigValue<string[]>(configProvider, isRemote, 'http.noProxy') || [],
 		isAdditionalFetchSupportEnabled: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.fetchAdditionalSupport', true),
+		isWebSocketPatchEnabled: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.webSocketAdditionalSupport', true),
 		addCertificatesV1: () => certSettingV1(configProvider, isRemote),
 		addCertificatesV2: () => certSettingV2(configProvider, isRemote),
 		loadSystemCertificatesFromNode: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', systemCertificatesNodeDefault),
@@ -122,6 +123,7 @@ export function connectProxyResolver(
 	target.resolveProxyURL = resolveProxyURL;
 
 	patchGlobalFetch(params, configProvider, mainThreadTelemetry, initData, resolveProxyURL, disposables);
+	patchGlobalWebSocket(params, resolveProxyURL);
 
 	const lookup = createPatchedModules(params, resolveProxyWithRequest);
 	return configureModuleLoading(extensionService, lookup);
@@ -201,6 +203,16 @@ function patchGlobalFetch(params: ProxyAgentParams, configProvider: ExtHostConfi
 			monitorResponseProperties(mainThreadTelemetry, response, urlString);
 			return response;
 		};
+	}
+}
+
+function patchGlobalWebSocket(params: ProxyAgentParams, resolveProxyURL: (url: string) => Promise<string | undefined>) {
+	// eslint-disable-next-line local/code-no-any-casts
+	if (!(globalThis as any).__vscodeOriginalWebSocket) {
+		const originalWebSocket = globalThis.WebSocket;
+		// eslint-disable-next-line local/code-no-any-casts
+		(globalThis as any).__vscodeOriginalWebSocket = originalWebSocket;
+		globalThis.WebSocket = proxyAgent.createWebSocketPatch(params, originalWebSocket, resolveProxyURL);
 	}
 }
 

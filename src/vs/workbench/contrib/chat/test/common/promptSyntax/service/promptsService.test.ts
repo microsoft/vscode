@@ -53,7 +53,7 @@ import { ChatModeKind } from '../../../../common/constants.js';
 import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyService, IContextKeyChangeEvent } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 
 suite('PromptsService', () => {
@@ -80,7 +80,7 @@ suite('PromptsService', () => {
 		testConfigService.setUserConfiguration(PromptsConfig.USE_NESTED_AGENT_MD, false);
 		testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_REFERENCED_INSTRUCTIONS, true);
 		testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
-		testConfigService.setUserConfiguration(PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS, false);
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, false);
 		testConfigService.setUserConfiguration(PromptsConfig.INSTRUCTIONS_LOCATION_KEY, { [INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.PROMPT_LOCATIONS_KEY, { [PROMPT_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.MODE_LOCATION_KEY, { [LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true });
@@ -169,6 +169,7 @@ suite('PromptsService', () => {
 		instaService.stub(IContextKeyService, new MockContextKeyService());
 
 		workspaceTrustService = disposables.add(new TestWorkspaceTrustManagementService());
+		workspaceTrustService.getUriTrustInfo = (uri: URI) => Promise.resolve({ trusted: true, uri });
 		instaService.stub(IWorkspaceTrustManagementService, workspaceTrustService);
 
 		testPluginsObservable = observableValue<readonly IAgentPlugin[]>('testPlugins', []);
@@ -2049,6 +2050,156 @@ suite('PromptsService', () => {
 		});
 	});
 
+	suite('listPromptFiles - parent repo folder', () => {
+		test('should find prompts, instructions, and agents in a parent repo folder', async () => {
+			const parentFolder = '/repos/collect-prompt-parent-test';
+			const rootFolder = `${parentFolder}/repo`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				// .git in parent marks it as a repo root
+				{
+					path: `${parentFolder}/.git/HEAD`,
+					contents: ['ref: refs/heads/main'],
+				},
+				// Applying instruction in parent
+				{
+					path: `${parentFolder}/.github/instructions/typescript.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Parent TypeScript instructions\'',
+						'applyTo: "**/*.ts"',
+						'---',
+						'Parent TypeScript coding standards',
+					]
+				},
+				// Prompt file in parent
+				{
+					path: `${parentFolder}/.github/prompts/help.prompt.md`,
+					contents: [
+						'---',
+						'description: \'Parent help prompt\'',
+						'---',
+						'Help the user with their question',
+					]
+				},
+				// Agent file in parent
+				{
+					path: `${parentFolder}/.github/agents/reviewer.agent.md`,
+					contents: [
+						'---',
+						'description: \'Parent code reviewer agent\'',
+						'---',
+						'You are a code reviewer',
+					]
+				},
+				{
+					path: `${rootFolder}/src/file.ts`,
+					contents: ['console.log("test");'],
+				},
+			]);
+
+			testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, false);
+
+			// With parent search disabled, should not find parent files
+			let promptFiles = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+			let agentFiles = await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+			let instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+
+			assert.ok(!promptFiles.some(f => f.uri.path.includes(parentFolder)), 'Should not find parent prompt files when parent search is disabled');
+			assert.ok(!agentFiles.some(f => f.uri.path.includes(parentFolder)), 'Should not find parent agent files when parent search is disabled');
+			assert.ok(!instructionFiles.some(f => f.uri.path.includes(parentFolder)), 'Should not find parent instruction files when parent search is disabled');
+
+			// With parent search enabled, should find parent files
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+
+			promptFiles = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+			agentFiles = await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+			instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+
+			const promptPaths = promptFiles.map(f => f.uri.path);
+			const agentPaths = agentFiles.map(f => f.uri.path);
+			const instructionPaths = instructionFiles.map(f => f.uri.path);
+
+			assert.ok(promptPaths.includes(`${parentFolder}/.github/prompts/help.prompt.md`), 'Should find parent prompt file when parent search is enabled');
+			assert.ok(agentPaths.includes(`${parentFolder}/.github/agents/reviewer.agent.md`), 'Should find parent agent file when parent search is enabled');
+			assert.ok(instructionPaths.includes(`${parentFolder}/.github/instructions/typescript.instructions.md`), 'Should find parent instruction file when parent search is enabled');
+		});
+
+		test('should not find files in an untrusted parent repo folder', async () => {
+			const parentFolder = '/repos/untrusted-parent-test';
+			const rootFolder = `${parentFolder}/repo`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				// .git in parent marks it as a repo root
+				{
+					path: `${parentFolder}/.git/HEAD`,
+					contents: ['ref: refs/heads/main'],
+				},
+				// Applying instruction in parent
+				{
+					path: `${parentFolder}/.github/instructions/typescript.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Parent TypeScript instructions\'',
+						'applyTo: "**/*.ts"',
+						'---',
+						'Parent TypeScript coding standards',
+					]
+				},
+				// Prompt file in parent
+				{
+					path: `${parentFolder}/.github/prompts/help.prompt.md`,
+					contents: [
+						'---',
+						'description: \'Parent help prompt\'',
+						'---',
+						'Help the user with their question',
+					]
+				},
+				// Agent file in parent
+				{
+					path: `${parentFolder}/.github/agents/reviewer.agent.md`,
+					contents: [
+						'---',
+						'description: \'Parent code reviewer agent\'',
+						'---',
+						'You are a code reviewer',
+					]
+				},
+				{
+					path: `${rootFolder}/src/file.ts`,
+					contents: ['console.log("test");'],
+				},
+			]);
+
+			testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+
+			// Mark the parent repo root as untrusted
+			workspaceTrustService.getUriTrustInfo = (uri: URI) => {
+				if (uri.path === parentFolder) {
+					return Promise.resolve({ trusted: false, uri });
+				}
+				return Promise.resolve({ trusted: true, uri });
+			};
+
+			const promptFiles = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+			const agentFiles = await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+
+			assert.ok(!promptFiles.some(f => f.uri.path.includes(parentFolder)), 'Should not find parent prompt files when parent repo is untrusted');
+			assert.ok(!agentFiles.some(f => f.uri.path.includes(parentFolder)), 'Should not find parent agent files when parent repo is untrusted');
+			assert.ok(!instructionFiles.some(f => f.uri.path.includes(parentFolder)), 'Should not find parent instruction files when parent repo is untrusted');
+		});
+	});
+
 	test('Instructions provider', async () => {
 		const instructionUri = URI.parse('file://extensions/my-extension/myInstruction.instructions.md');
 		const extension = {
@@ -3533,6 +3684,7 @@ suite('PromptsService', () => {
 			const commands = observableValue<readonly IAgentPluginCommand[]>('testPluginCommands', []);
 			const skills = observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', []);
 			const agents = observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', []);
+			const instructions = observableValue<readonly IAgentPluginInstruction[]>('testPluginInstructions', []);
 			const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('testPluginMcpServerDefinitions', []);
 
 			return {
@@ -3545,6 +3697,7 @@ suite('PromptsService', () => {
 					commands,
 					skills,
 					agents,
+					instructions,
 					mcpServerDefinitions,
 				},
 				hooks,
@@ -3702,6 +3855,112 @@ suite('PromptsService', () => {
 			await workspaceTrustService.setWorkspaceTrust(false);
 			const result = await service.getHooks(CancellationToken.None);
 			assert.strictEqual(result, undefined, 'Expected undefined hooks when workspace is untrusted, even with plugin hooks');
+		});
+	});
+
+	suite('plugin instructions', () => {
+		function createPluginWithInstructions(
+			path: string,
+			initialInstructions: readonly IAgentPluginInstruction[],
+		): { plugin: IAgentPlugin; instructions: ISettableObservable<readonly IAgentPluginInstruction[]> } {
+			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
+			const hooks = observableValue<readonly IAgentPluginHook[]>('testPluginHooks', []);
+			const commands = observableValue<readonly IAgentPluginCommand[]>('testPluginCommands', []);
+			const skills = observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', []);
+			const agents = observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', []);
+			const instructions = observableValue<readonly IAgentPluginInstruction[]>('testPluginInstructions', initialInstructions);
+			const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('testPluginMcpServerDefinitions', []);
+
+			return {
+				plugin: {
+					uri: URI.file(path),
+					label: basename(URI.file(path)),
+					enablement,
+					remove: () => { },
+					hooks,
+					commands,
+					skills,
+					agents,
+					instructions,
+					mcpServerDefinitions,
+				},
+				instructions,
+			};
+		}
+
+		test('lists plugin instructions via listPromptFiles', async function () {
+			const ruleUri = URI.file('/plugins/test-plugin/rules/prefer-const.mdc');
+			const { plugin } = createPluginWithInstructions('/plugins/test-plugin', [
+				{ uri: ruleUri, name: 'prefer-const' },
+			]);
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const result = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const pluginInstruction = result.find(p => p.uri.toString() === ruleUri.toString());
+			assert.ok(pluginInstruction, 'Plugin instruction should appear in listPromptFiles');
+			assert.strictEqual(pluginInstruction!.storage, PromptsStorage.plugin);
+		});
+
+		test('updates listed instructions when plugin instructions change', async function () {
+			const ruleUri1 = URI.file('/plugins/test-plugin/rules/rule-a.mdc');
+			const ruleUri2 = URI.file('/plugins/test-plugin/rules/rule-b.mdc');
+			const { plugin, instructions } = createPluginWithInstructions('/plugins/test-plugin', [
+				{ uri: ruleUri1, name: 'rule-a' },
+			]);
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const before = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const beforePlugin = before.filter(p => p.storage === PromptsStorage.plugin);
+			assert.strictEqual(beforePlugin.length, 1);
+
+			const eventFired = new Promise<void>(resolve => {
+				const disposable = service.onDidChangeInstructions(() => {
+					disposable.dispose();
+					resolve();
+				});
+			});
+
+			instructions.set([
+				{ uri: ruleUri1, name: 'rule-a' },
+				{ uri: ruleUri2, name: 'rule-b' },
+			], undefined);
+
+			await eventFired;
+
+			const after = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const afterPlugin = after.filter(p => p.storage === PromptsStorage.plugin);
+			assert.strictEqual(afterPlugin.length, 2);
+		});
+
+		test('removes instructions when plugin is removed', async function () {
+			const ruleUri = URI.file('/plugins/test-plugin/rules/rule-a.mdc');
+			const { plugin } = createPluginWithInstructions('/plugins/test-plugin', [
+				{ uri: ruleUri, name: 'rule-a' },
+			]);
+
+			testPluginsObservable.set([plugin], undefined);
+			const withPlugin = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			assert.ok(withPlugin.some(p => p.storage === PromptsStorage.plugin));
+
+			testPluginsObservable.set([], undefined);
+			const withoutPlugin = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			assert.ok(!withoutPlugin.some(p => p.storage === PromptsStorage.plugin));
+		});
+
+		test('namespaces plugin instruction names with plugin folder', async function () {
+			const ruleUri = URI.file('/plugins/deploy-tools/rules/lint-check.mdc');
+			const { plugin } = createPluginWithInstructions('/plugins/deploy-tools', [
+				{ uri: ruleUri, name: 'lint-check' },
+			]);
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const result = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const pluginInstruction = result.find(p => p.uri.toString() === ruleUri.toString());
+			assert.ok(pluginInstruction, 'Plugin instruction should be listed');
+			assert.strictEqual(pluginInstruction!.name, 'deploy-tools:lint-check');
 		});
 	});
 });
