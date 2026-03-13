@@ -721,7 +721,7 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
  * new system dependency requirements.
  *
  * node-pty: `prebuilds/{platform}-{arch}/` (pty.node + spawn-helper)
- * ripgrep:  `sdk/ripgrep/bin/{platform}-{arch}/` (rg binary)
+ * ripgrep:  `ripgrep/bin/{platform}-{arch}/` (rg binary)
  */
 function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFolderName: string) {
 	const outputDir = path.join(path.dirname(root), destinationFolderName);
@@ -743,10 +743,10 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 			console.log(`[copyCopilotNativeDeps] Copied node-pty to ${copilotPrebuildsDir}`);
 		}
 
-		// Copy ripgrep (rg binary) into copilot sdk/ripgrep
+		// Copy ripgrep (rg binary) into copilot ripgrep
 		const rgBinary = platform === 'win32' ? 'rg.exe' : 'rg';
 		const ripgrepSource = path.join(appBase, 'node_modules', '@vscode', 'ripgrep', 'bin', rgBinary);
-		const copilotRipgrepDir = path.join(appBase, 'node_modules', '@github', 'copilot', 'sdk', 'ripgrep', 'bin', platformArch);
+		const copilotRipgrepDir = path.join(appBase, 'node_modules', '@github', 'copilot', 'ripgrep', 'bin', platformArch);
 
 		if (fs.existsSync(ripgrepSource)) {
 			fs.mkdirSync(copilotRipgrepDir, { recursive: true });
