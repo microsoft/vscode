@@ -84,14 +84,15 @@ export class ProtocolServerHandler extends Disposable {
 		let client: IConnectedClient | undefined;
 
 		disposables.add(transport.onMessage(msg => {
-			process.stderr.write(`[ProtocolServer] onMessage: ${JSON.stringify(msg).substring(0, 500)}\n`);
 			if (isJsonRpcRequest(msg)) {
-				// Request — expects a correlated response
+				this._logService.trace(`[ProtocolServer] request: method=${msg.method} id=${msg.id}`);
+				// Request - expects a correlated response
 				if (!client) {
 					return;
 				}
 				this._handleRequest(client, msg.method, msg.params, msg.id);
 			} else if (isJsonRpcNotification(msg)) {
+				this._logService.trace(`[ProtocolServer] notification: method=${msg.method}`);
 				// Notification — fire-and-forget
 				switch (msg.method) {
 					case 'initialize':
@@ -108,7 +109,7 @@ export class ProtocolServerHandler extends Disposable {
 					case 'dispatchAction':
 						if (client) {
 							const params = msg.params as IDispatchActionParams;
-							process.stderr.write(`[ProtocolServer] dispatchAction: ${JSON.stringify(params.action.type)}\n`);
+							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(params.action.type)}`);
 							const origin = { clientId: client.clientId, clientSeq: params.clientSeq };
 							this._stateManager.dispatchClientAction(params.action, origin);
 							this._sideEffectHandler.handleAction(params.action);
@@ -225,9 +226,8 @@ export class ProtocolServerHandler extends Disposable {
 	// ---- Requests (expect a response) ---------------------------------------
 
 	private _handleRequest(client: IConnectedClient, method: string, params: unknown, id: number): void {
-		process.stderr.write(`[ProtocolServer] Request: method=${method} id=${id} params=${JSON.stringify(params ?? null).substring(0, 200)}\n`);
 		this._handleRequestAsync(client, method, params).then(result => {
-			process.stderr.write(`[ProtocolServer] Request '${method}' id=${id} succeeded\n`);
+			this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} succeeded`);
 			client.transport.send({ jsonrpc: '2.0', id, result: result ?? null });
 		}).catch(err => {
 			this._logService.error(`[ProtocolServer] Request '${method}' failed`, err);
@@ -295,12 +295,12 @@ export class ProtocolServerHandler extends Disposable {
 	// ---- Broadcasting -------------------------------------------------------
 
 	private _sendNotification(transport: IProtocolTransport, method: string, params: unknown): void {
-		process.stderr.write(`[ProtocolServer] Sending notification: ${method}\n`);
+		this._logService.trace(`[ProtocolServer] Sending notification: ${method}`);
 		transport.send({ jsonrpc: '2.0', method, params });
 	}
 
 	private _broadcastAction(envelope: IActionEnvelope): void {
-		process.stderr.write(`[ProtocolServer] Broadcasting action: ${envelope.action.type}\n`);
+		this._logService.trace(`[ProtocolServer] Broadcasting action: ${envelope.action.type}`);
 		const msg: IProtocolMessage = { jsonrpc: '2.0', method: 'action', params: { envelope } };
 		for (const client of this._clients.values()) {
 			if (this._isRelevantToClient(client, envelope)) {

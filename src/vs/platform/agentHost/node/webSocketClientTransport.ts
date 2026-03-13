@@ -4,39 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 // WebSocket client transport for connecting to remote agent host processes.
-// Uses JSON serialization with URI revival, matching the server-side transport.
+// Uses shared JSON serialization with URI revival (see jsonSerialization.ts).
 
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { URI } from '../../../base/common/uri.js';
 import type { IProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolTransport } from '../common/state/sessionTransport.js';
-
-// ---- JSON serialization helpers ---------------------------------------------
-// These must match the server-side helpers in webSocketTransport.ts exactly.
-
-function uriReplacer(_key: string, value: unknown): unknown {
-	if (value instanceof URI) {
-		return value.toJSON();
-	}
-	if (value instanceof Map) {
-		return { $type: 'Map', entries: [...value.entries()] };
-	}
-	return value;
-}
-
-function uriReviver(_key: string, value: unknown): unknown {
-	if (value && typeof value === 'object') {
-		const obj = value as Record<string, unknown>;
-		if (obj.$mid === 1) {
-			return URI.revive(value as URI);
-		}
-		if (obj.$type === 'Map' && Array.isArray(obj.entries)) {
-			return new Map(obj.entries as [unknown, unknown][]);
-		}
-	}
-	return value;
-}
+import { protocolReplacer, protocolReviver } from '../common/state/jsonSerialization.js';
 
 // ---- Client transport -------------------------------------------------------
 
@@ -114,7 +88,7 @@ export class WebSocketClientTransport extends Disposable implements IProtocolTra
 			ws.addEventListener('message', (event: MessageEvent) => {
 				try {
 					const text = typeof event.data === 'string' ? event.data : '';
-					const message = JSON.parse(text, uriReviver) as IProtocolMessage;
+					const message = JSON.parse(text, protocolReviver) as IProtocolMessage;
 					this._onMessage.fire(message);
 				} catch {
 					// Malformed message - drop.
@@ -134,7 +108,7 @@ export class WebSocketClientTransport extends Disposable implements IProtocolTra
 
 	send(message: IProtocolMessage): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify(message, uriReplacer));
+			this._ws.send(JSON.stringify(message, protocolReplacer));
 		}
 	}
 

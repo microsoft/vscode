@@ -61,10 +61,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async setAuthToken(token: string): Promise<void> {
-		process.stderr.write(`[CopilotAgent] setAuthToken called (${token.substring(0, 4)}...)\n`);
 		const tokenChanged = this._githubToken !== token;
 		this._githubToken = token;
-		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'} (${token.substring(0, 4)}...)`);
+		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'}`);
 		if (tokenChanged && this._client && this._sessions.size === 0) {
 			this._logService.info('[Copilot] Restarting CopilotClient with new token');
 			const client = this._client;
@@ -84,7 +83,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return this._clientStarting;
 		}
 		this._clientStarting = (async () => {
-			process.stderr.write(`[CopilotAgent] Starting CopilotClient... ${this._githubToken ? '(with token)' : '(no token)'}\n`);
+			this._logService.info(`[Copilot] Starting CopilotClient... ${this._githubToken ? '(with token)' : '(no token)'}`);
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
@@ -118,7 +117,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				cliPath,
 			});
 			await client.start();
-			process.stderr.write('[CopilotAgent] CopilotClient started successfully\n');
 			this._logService.info('[Copilot] CopilotClient started successfully');
 			this._client = client;
 			this._clientStarting = undefined;
@@ -164,7 +162,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
-		process.stderr.write(`[CopilotAgent] createSession model=${config?.model ?? '(default)'}\n`);
 		this._logService.info(`[Copilot] Creating session... ${config?.model ? `model=${config.model}` : ''}`);
 		const client = await this._ensureClient();
 		const raw = await client.createSession({
@@ -186,7 +183,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void> {
 		const sessionId = AgentSession.id(session);
-		process.stderr.write(`[CopilotAgent] sendMessage sessionId=${sessionId} prompt="${prompt.substring(0, 50)}"\n`);
 		this._logService.info(`[Copilot:${sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId);
 		this._logService.info(`[Copilot:${sessionId}] Found session wrapper, calling session.send()...`);
@@ -202,7 +198,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		await entry.session.send({ prompt, attachments: sdkAttachments });
-		process.stderr.write(`[CopilotAgent] session.send() returned for ${sessionId}\n`);
 		this._logService.info(`[Copilot:${sessionId}] session.send() returned`);
 	}
 

@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { URI } from '../../../../base/common/uri.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
+import { protocolReplacer, protocolReviver } from '../../common/state/jsonSerialization.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
@@ -25,31 +26,6 @@ import {
 } from '../../common/state/sessionProtocol.js';
 import type { IDeltaAction, ISessionAddedNotification, ISessionRemovedNotification, IUsageAction } from '../../common/state/sessionActions.js';
 import type { ISessionState } from '../../common/state/sessionState.js';
-
-// ---- JSON serialization helpers (mirror webSocketTransport.ts) --------------
-
-function uriReplacer(_key: string, value: unknown): unknown {
-	if (value instanceof URI) {
-		return value.toJSON();
-	}
-	if (value instanceof Map) {
-		return { $type: 'Map', entries: [...value.entries()] };
-	}
-	return value;
-}
-
-function uriReviver(_key: string, value: unknown): unknown {
-	if (value && typeof value === 'object') {
-		const obj = value as Record<string, unknown>;
-		if (obj.$mid === 1) {
-			return URI.revive(value as URI);
-		}
-		if (obj.$type === 'Map' && Array.isArray(obj.entries)) {
-			return new Map(obj.entries as [unknown, unknown][]);
-		}
-	}
-	return value;
-}
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
@@ -74,7 +50,7 @@ class TestProtocolClient {
 			this._ws.on('open', () => {
 				this._ws.on('message', (data: Buffer | string) => {
 					const text = typeof data === 'string' ? data : data.toString('utf-8');
-					const msg = JSON.parse(text, uriReviver);
+					const msg = JSON.parse(text, protocolReviver);
 					this._handleMessage(msg);
 				});
 				resolve();
@@ -113,14 +89,14 @@ class TestProtocolClient {
 	/** Send a JSON-RPC notification (fire-and-forget). */
 	notify(method: string, params?: unknown): void {
 		const msg: IProtocolMessage = { jsonrpc: '2.0', method, params };
-		this._ws.send(JSON.stringify(msg, uriReplacer));
+		this._ws.send(JSON.stringify(msg, protocolReplacer));
 	}
 
 	/** Send a JSON-RPC request and await the response. */
 	call<T>(method: string, params?: unknown, timeoutMs = 5000): Promise<T> {
 		const id = this._nextId++;
 		const msg: IProtocolMessage = { jsonrpc: '2.0', id, method, params };
-		this._ws.send(JSON.stringify(msg, uriReplacer));
+		this._ws.send(JSON.stringify(msg, protocolReplacer));
 
 		return new Promise<T>((resolve, reject) => {
 			const timer = setTimeout(() => {
