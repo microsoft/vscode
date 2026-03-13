@@ -742,34 +742,30 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
 			: path.join(outputDir, versionedResourcesFolder, 'resources', 'app');
 
-		// After ASAR packaging, native modules are unpacked into node_modules.asar.unpacked/.
-		// We write the copilot native deps into a real node_modules/@github/copilot/
-		// directory so the CLI subprocess can find them via plain filesystem access.
-		// (The CLI runs with ELECTRON_RUN_AS_NODE=1 which has ASAR support for JS,
-		// but native .node binaries must be real files on disk.)
+		// Native modules may live in node_modules/ (Windows versioned builds) or
+		// node_modules.asar.unpacked/ (macOS/Linux after ASAR packaging). Check both.
+		// We write the copilot native deps into node_modules/@github/copilot/ so the
+		// CLI subprocess can find them via plain filesystem access.
+		const nodeModulesDir = path.join(appBase, 'node_modules');
 		const unpackedDir = path.join(appBase, 'node_modules.asar.unpacked');
-		const copilotBase = path.join(appBase, 'node_modules', '@github', 'copilot');
+		const copilotBase = path.join(nodeModulesDir, '@github', 'copilot');
 		const platformArch = `${platform === 'win32' ? 'win32' : platform}-${arch}`;
 
-		// Source binaries from ASAR-unpacked
-		const nodePtySource = path.join(unpackedDir, 'node-pty', 'build', 'Release');
+		// Source binaries: prefer node_modules/ (Windows), fall back to .asar.unpacked/ (macOS/Linux)
+		const nodePtyPlain = path.join(nodeModulesDir, 'node-pty', 'build', 'Release');
+		const nodePtyUnpacked = path.join(unpackedDir, 'node-pty', 'build', 'Release');
+		const nodePtySource = fs.existsSync(nodePtyPlain) ? nodePtyPlain : nodePtyUnpacked;
 		const rgBinary = platform === 'win32' ? 'rg.exe' : 'rg';
-		const ripgrepSource = path.join(unpackedDir, '@vscode', 'ripgrep', 'bin', rgBinary);
-
-		// Diagnostic: find where node-pty and ripgrep actually live
-		console.log(`[copyCopilotNativeDeps] appBase: ${appBase}`);
-		console.log(`[copyCopilotNativeDeps] outputDir: ${outputDir}`);
-		const ptyFiles = await glob('**/node-pty/**/*.node', { cwd: outputDir });
-		console.log(`[copyCopilotNativeDeps] pty.node locations: ${JSON.stringify(ptyFiles)}`);
-		const rgFiles = await glob('**/rg.exe', { cwd: outputDir });
-		console.log(`[copyCopilotNativeDeps] rg.exe locations: ${JSON.stringify(rgFiles)}`);
+		const ripgrepPlain = path.join(nodeModulesDir, '@vscode', 'ripgrep', 'bin', rgBinary);
+		const ripgrepUnpacked = path.join(unpackedDir, '@vscode', 'ripgrep', 'bin', rgBinary);
+		const ripgrepSource = fs.existsSync(ripgrepPlain) ? ripgrepPlain : ripgrepUnpacked;
 
 		// Fail-fast: source binaries must exist on non-stable builds.
 		if (!fs.existsSync(nodePtySource)) {
-			throw new Error(`[copyCopilotNativeDeps] node-pty source not found at ${nodePtySource}`);
+			throw new Error(`[copyCopilotNativeDeps] node-pty source not found at ${nodePtyPlain} or ${nodePtyUnpacked}`);
 		}
 		if (!fs.existsSync(ripgrepSource)) {
-			throw new Error(`[copyCopilotNativeDeps] ripgrep source not found at ${ripgrepSource}`);
+			throw new Error(`[copyCopilotNativeDeps] ripgrep source not found at ${ripgrepPlain} or ${ripgrepUnpacked}`);
 		}
 
 		// Copy node-pty (pty.node + spawn-helper) into copilot prebuilds
