@@ -405,7 +405,7 @@
 			}
 		},
 		{
-			"label": "Install & Compile",
+			"label": "Install & Watch",
 			"type": "shell",
 			"command": "npm install && npm run watch",
 			"windows": {
