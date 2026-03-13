@@ -639,7 +639,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		// Cancel the in-flight request on the old session — fire and forget,
 		// we just need the CancellationToken cancelled so the agent stops.
 		if (inFlightRequest) {
-			this._chatService.cancelCurrentRequestForSession(originalResource);
+			void this._chatService.cancelCurrentRequestForSession(originalResource);
 		}
 
 		// Remove each remaining pending request from the original session
@@ -649,14 +649,14 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		// Re-send the cancelled in-flight request first (it was ahead of the queued ones)
 		if (inFlightRequest) {
-			this._chatService.sendRequest(modifiedResource, inFlightRequest.message.text, {
+			void this._chatService.sendRequest(modifiedResource, inFlightRequest.message.text, {
 				queue: ChatRequestQueueKind.Queued,
 			});
 		}
 
 		// Re-send remaining queued requests
 		for (const pending of pendingRequests) {
-			this._chatService.sendRequest(modifiedResource, pending.request.message.text, {
+			void this._chatService.sendRequest(modifiedResource, pending.request.message.text, {
 				...pending.sendOptions,
 				queue: pending.kind,
 			});
