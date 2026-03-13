@@ -23,13 +23,11 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 	}
 
 	async analyze(options: IOutputAnalyzerOptions): Promise<string | undefined> {
-		if ((await this._sandboxService.isEnabled())) {
-			await this._sandboxService.resetSandbox();
-		} else {
+		if (options.exitCode === undefined || options.exitCode === 0) {
 			return undefined;
 		}
 
-		if (options.exitCode === undefined || options.exitCode === 0) {
+		if (!(await this._sandboxService.isEnabled())) {
 			return undefined;
 		}
 

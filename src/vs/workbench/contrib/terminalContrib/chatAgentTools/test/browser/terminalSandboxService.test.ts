@@ -446,4 +446,26 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		await sandboxService.resetSandbox();
 		strictEqual(sandboxHelperService.resetSandboxCallCount, 1);
 	});
+
+	test('should reset sandbox when sandbox settings change', async () => {
+		store.add(instantiationService.createInstance(TerminalSandboxService));
+		strictEqual(sandboxHelperService.resetSandboxCallCount, 0);
+
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
+			allowedDomains: ['example.com'],
+			deniedDomains: [],
+			allowTrustedDomains: false
+		});
+
+		strictEqual(sandboxHelperService.resetSandboxCallCount, 1);
+	});
+
+	test('should not reset sandbox when unrelated settings change', async () => {
+		store.add(instantiationService.createInstance(TerminalSandboxService));
+		strictEqual(sandboxHelperService.resetSandboxCallCount, 0);
+
+		configurationService.setUserConfiguration('window.zoomLevel', 1);
+
+		strictEqual(sandboxHelperService.resetSandboxCallCount, 0);
+	});
 });

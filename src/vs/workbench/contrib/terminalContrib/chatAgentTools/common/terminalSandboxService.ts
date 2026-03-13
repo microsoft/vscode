@@ -6,7 +6,7 @@
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -65,6 +65,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	) {
 		super();
 		this._remoteEnvDetailsPromise = this._remoteAgentService.getEnvironment();
+		this._register(this._configurationService.onDidChangeConfiguration(e => this._handleSandboxConfigurationChange(e)));
 	}
 
 	public async isEnabled(): Promise<boolean> {
@@ -77,8 +78,13 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	}
 
 	public async wrapWithSandbox(runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string> {
-		const service = this._getSandboxHelperService();
-		return service.wrapWithSandbox(runtimeConfig, command);
+		try {
+			const service = this._getSandboxHelperService();
+			return service.wrapWithSandbox(runtimeConfig, command);
+		} catch (error) {
+			this._logService.error('TerminalSandboxService: Failed to wrap command with sandbox', error);
+			return command;
+		}
 	}
 
 	public async promptToAllowWritePath(path: string): Promise<boolean> {
@@ -150,6 +156,15 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		await service.resetSandbox();
 	}
 
+	private _handleSandboxConfigurationChange(e: IConfigurationChangeEvent): void {
+		if (!this._affectsSandboxConfiguration(e)) {
+			return;
+		}
+
+		this.resetSandbox().catch(error => {
+			this._logService.error('TerminalSandboxService: Failed to reset sandbox after configuration change', error);
+		});
+	}
 
 	private async _getSandboxSettings(): Promise<ISandboxRuntimeConfig | undefined> {
 		const networkSetting = this._configurationService.getValue<ITerminalSandboxNetworkSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
@@ -202,6 +217,13 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 	private _getSandboxConfigurationTarget(): ConfigurationTarget {
 		return this._remoteAgentService.getConnection() ? ConfigurationTarget.USER_REMOTE : ConfigurationTarget.USER;
+	}
+
+	private _affectsSandboxConfiguration(e: IConfigurationChangeEvent): boolean {
+		return e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled)
+			|| e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork)
+			|| e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem)
+			|| e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem);
 	}
 
 	private _getFileSystemSettingsKey(): string | undefined {
