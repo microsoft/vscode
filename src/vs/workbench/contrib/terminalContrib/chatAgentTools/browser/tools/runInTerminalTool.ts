@@ -250,7 +250,6 @@ export async function createRunInTerminalToolData(
 				'explanation',
 				'goal',
 				'isBackground',
-				'timeout',
 			]
 		}
 	};
