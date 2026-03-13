@@ -49,6 +49,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
@@ -751,6 +752,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
 		private readonly sorter: ITreeSorter<IAgentSession>,
+		private readonly logService?: ILogService,
 	) {
 		super();
 	}
@@ -884,6 +886,13 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			}
 
 			const repoName = this.getRepositoryName(session);
+			if (!repoName) {
+				this.logService?.warn('[AgentSessions] Could not determine repository name for session, categorizing as "Other"', {
+					resource: session.resource.toString(),
+					badge: session.badge ? (typeof session.badge === 'string' ? session.badge : session.badge.value) : undefined,
+					metadata: session.metadata,
+				});
+			}
 			const repoId = repoName || unknownKey;
 			const repoLabel = repoName || unknownLabel;
 
