@@ -145,7 +145,10 @@
 }
 
 /* Keep collapsed output fully hidden so it cannot contribute an extra border line. */
-.chat-terminal-output-container:not(.expanded) { display: none; }
+.chat-terminal-output-container.collapsed,
+.chat-terminal-output-container:not(.expanded) {
+	display: none;
+}
 
 .chat-terminal-content-part .chat-terminal-content-title.chat-terminal-content-title-no-bottom-radius {
 	border-bottom-left-radius: 0px;
