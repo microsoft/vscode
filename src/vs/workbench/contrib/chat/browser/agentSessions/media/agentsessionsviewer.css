@@ -214,7 +214,14 @@
 			}
 		}
 
-		.agent-session-title,
+		.agent-session-title {
+			/* push other items to the end */
+			flex: 1;
+			text-overflow: ellipsis;
+			overflow: hidden;
+			font-weight: 500;
+		}
+
 		.agent-session-description {
 			/* push other items to the end */
 			flex: 1;
