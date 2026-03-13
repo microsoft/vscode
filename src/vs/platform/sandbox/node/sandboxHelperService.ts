@@ -36,7 +36,6 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 		if (!resolver) {
 			throw new Error(`No pending sandbox permission request with id ${requestId}`);
 		}
-
 		this._pendingPermissionRequests.delete(requestId);
 		resolver(allowed);
 	}
@@ -48,6 +47,7 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 	async wrapWithSandbox(runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string> {
 		const normalizedRuntimeConfig = {
 			network: {
+				// adding at least one domain or else the sandbox doesnt do any proxy setup.
 				allowedDomains: runtimeConfig.network?.allowedDomains?.length ? [...runtimeConfig.network.allowedDomains] : ['microsoft.com'],
 				deniedDomains: [...(runtimeConfig.network?.deniedDomains ?? [])],
 				allowUnixSockets: runtimeConfig.network?.allowUnixSockets ? [...runtimeConfig.network.allowUnixSockets] : undefined,
