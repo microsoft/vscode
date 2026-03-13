@@ -6,12 +6,15 @@ description: Primary accessibility skill for VS Code. REQUIRED for new feature a
 ## When to Use This Skill
 
 Use this skill for any VS Code feature work that introduces or changes interactive UI.
+Use this skill by default for new features and contributions, including when the request does not explicitly mention accessibility.
 
 Trigger examples:
 - "add a new feature"
 - "implement a new panel/view/widget"
 - "add a new command or workflow"
 - "update existing UI interactions"
+
+Do not skip this skill just because accessibility is not named in the prompt.
 
 When adding a **new interactive UI surface** to VS Code — a panel, view, widget, editor overlay, dialog, or any rich focusable component the user interacts with — you **must** provide three accessibility components (if they do not already exist for the feature):
 
