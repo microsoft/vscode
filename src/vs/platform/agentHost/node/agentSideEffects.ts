@@ -165,7 +165,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		}
 	}
 
-	async handleCreateSession(command: ICreateSessionParams): Promise<void> {
+	async handleCreateSession(command: ICreateSessionParams): Promise<URI> {
 		const provider = command.provider as AgentProvider | undefined;
 		if (!provider) {
 			throw new Error('No provider specified for session creation');
@@ -189,6 +189,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		};
 		this._stateManager.createSession(summary);
 		this._stateManager.dispatchServerAction({ type: 'session/ready', session });
+		return session;
 	}
 
 	handleDisposeSession(session: URI): void {
@@ -214,6 +215,14 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			}
 		}
 		return allSessions;
+	}
+
+	handleSetAuthToken(token: string): void {
+		for (const agent of this._options.agents.get()) {
+			agent.setAuthToken(token).catch(err => {
+				this._logService.error('[AgentSideEffects] setAuthToken failed', err);
+			});
+		}
 	}
 
 	override dispose(): void {
