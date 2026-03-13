@@ -270,7 +270,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		}
 	}
 
-	public showTooltip() {
+	public showTooltip(focus = false) {
 		if (!this.content?.isConnected) {
 			this.showTooltipOnRender = true;
 			return;
@@ -288,7 +288,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			},
 			persistence: { sticky: true },
 			appearance: { showPointer: true, compact: true },
-		}, true);
+		}, focus);
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
@@ -307,7 +307,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 				this.commandService.executeCommand('update.restart');
 				break;
 			default:
-				this.showTooltip();
+				this.showTooltip(true);
 				break;
 		}
 	}
