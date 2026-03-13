@@ -51,6 +51,7 @@ export class ChatDebugDetailPanel extends Disposable {
 	private readonly contentContainer: HTMLElement;
 	private readonly scrollable: DomScrollableElement;
 	private readonly sash: Sash;
+	private headerElement: HTMLElement | undefined;
 	private readonly detailDisposables = this._register(new DisposableStore());
 	private currentDetailText: string = '';
 	private currentDetailEventId: string | undefined;
@@ -138,6 +139,7 @@ export class ChatDebugDetailPanel extends Disposable {
 
 		// Header with action buttons
 		const header = DOM.append(this.element, $('.chat-debug-detail-header'));
+		this.headerElement = header;
 		this.element.appendChild(this.scrollable.getDomNode());
 
 		const fullScreenButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.openInEditor', "Open in Editor"), title: localize('chatDebug.openInEditor', "Open in Editor") }));
@@ -172,7 +174,7 @@ export class ChatDebugDetailPanel extends Disposable {
 		} else if (resolved && resolved.kind === 'toolCall') {
 			this.currentDetailText = toolCallContentToPlainText(resolved);
 			const languageService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageService));
-			const { element: contentEl, disposables: contentDisposables } = await renderToolCallContent(resolved, languageService);
+			const { element: contentEl, disposables: contentDisposables } = await renderToolCallContent(resolved, languageService, this.clipboardService);
 			if (this.currentDetailEventId !== event.id) {
 				// Another event was selected while we were rendering
 				contentDisposables.dispose();
@@ -182,13 +184,18 @@ export class ChatDebugDetailPanel extends Disposable {
 			this.contentContainer.appendChild(contentEl);
 		} else if (resolved && resolved.kind === 'message') {
 			this.currentDetailText = resolvedMessageToPlainText(resolved);
-			const { element: contentEl, disposables: contentDisposables } = renderResolvedMessageContent(resolved);
+			const languageService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageService));
+			const { element: contentEl, disposables: contentDisposables } = await renderResolvedMessageContent(resolved, languageService, this.clipboardService);
+			if (this.currentDetailEventId !== event.id) {
+				contentDisposables.dispose();
+				return;
+			}
 			this.detailDisposables.add(contentDisposables);
 			this.contentContainer.appendChild(contentEl);
 		} else if (resolved && resolved.kind === 'modelTurn') {
 			this.currentDetailText = modelTurnContentToPlainText(resolved);
 			const languageService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageService));
-			const { element: contentEl, disposables: contentDisposables } = await renderModelTurnContent(resolved, languageService);
+			const { element: contentEl, disposables: contentDisposables } = await renderModelTurnContent(resolved, languageService, this.clipboardService);
 			if (this.currentDetailEventId !== event.id) {
 				// Another event was selected while we were rendering
 				contentDisposables.dispose();
@@ -198,12 +205,22 @@ export class ChatDebugDetailPanel extends Disposable {
 			this.contentContainer.appendChild(contentEl);
 		} else if (event.kind === 'userMessage') {
 			this.currentDetailText = messageEventToPlainText(event);
-			const { element: contentEl, disposables: contentDisposables } = renderUserMessageContent(event);
+			const languageService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageService));
+			const { element: contentEl, disposables: contentDisposables } = await renderUserMessageContent(event, languageService, this.clipboardService);
+			if (this.currentDetailEventId !== event.id) {
+				contentDisposables.dispose();
+				return;
+			}
 			this.detailDisposables.add(contentDisposables);
 			this.contentContainer.appendChild(contentEl);
 		} else if (event.kind === 'agentResponse') {
 			this.currentDetailText = messageEventToPlainText(event);
-			const { element: contentEl, disposables: contentDisposables } = renderAgentResponseContent(event);
+			const languageService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageService));
+			const { element: contentEl, disposables: contentDisposables } = await renderAgentResponseContent(event, languageService, this.clipboardService);
+			if (this.currentDetailEventId !== event.id) {
+				contentDisposables.dispose();
+				return;
+			}
 			this.detailDisposables.add(contentDisposables);
 			this.contentContainer.appendChild(contentEl);
 		} else {
@@ -217,7 +234,14 @@ export class ChatDebugDetailPanel extends Disposable {
 			pre.textContent = this.currentDetailText;
 		}
 
-		this.scrollable.scanDomNode();
+		// Compute height from the parent container and set explicit
+		// dimensions so the scrollable element can show proper scrollbars.
+		const parentHeight = this.element.parentElement?.clientHeight ?? 0;
+		if (parentHeight > 0) {
+			this.layout(parentHeight);
+		} else {
+			this.scrollable.scanDomNode();
+		}
 	}
 
 	get isVisible(): boolean {
@@ -228,6 +252,19 @@ export class ChatDebugDetailPanel extends Disposable {
 		this.firstFocusableElement?.focus();
 	}
 
+	/**
+	 * Set explicit dimensions on the scrollable element so the scrollbar
+	 * can compute its size. Call after the panel is shown and whenever
+	 * the available space changes.
+	 */
+	layout(height: number): void {
+		const headerHeight = this.headerElement?.offsetHeight ?? 0;
+		const scrollableHeight = Math.max(0, height - headerHeight);
+		this.contentContainer.style.height = `${scrollableHeight}px`;
+		this.scrollable.scanDomNode();
+		this.sash.layout();
+	}
+
 	layoutSash(): void {
 		this.sash.layout();
 	}
@@ -235,6 +272,7 @@ export class ChatDebugDetailPanel extends Disposable {
 	hide(): void {
 		this.currentDetailEventId = undefined;
 		this.firstFocusableElement = undefined;
+		this.headerElement = undefined;
 		DOM.hide(this.element);
 		this.sash.state = SashState.Disabled;
 		DOM.clearNode(this.element);

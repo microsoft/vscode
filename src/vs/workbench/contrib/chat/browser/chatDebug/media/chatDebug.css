@@ -461,10 +461,6 @@
 	opacity: 1;
 	background: var(--vscode-toolbar-hoverBackground);
 }
-.chat-debug-detail-content {
-	flex: 1;
-	min-height: 0;
-}
 .chat-debug-detail-panel pre {
 	margin: 0;
 	padding: 8px 16px;
@@ -642,7 +638,6 @@
 }
 .chat-debug-message-section-content-wrapper {
 	border-top: 1px solid var(--vscode-widget-border, transparent);
-	max-height: 300px;
 }
 .chat-debug-message-section-content {
 	margin: 0;
@@ -664,7 +659,8 @@
 }
 
 /* ---- File list: settings gear button ---- */
-.chat-debug-settings-gear.monaco-button {
+.chat-debug-settings-gear.monaco-button,
+.chat-debug-section-copy-btn.monaco-button {
 	flex-shrink: 0;
 	opacity: 0.7;
 	border-radius: 3px;
@@ -674,14 +670,17 @@
 	color: inherit;
 	min-width: auto;
 }
-.chat-debug-settings-gear.monaco-button:hover {
+.chat-debug-settings-gear.monaco-button:hover,
+.chat-debug-section-copy-btn.monaco-button:hover {
 	opacity: 1;
 	background: var(--vscode-toolbar-hoverBackground);
 }
-.chat-debug-settings-gear-header-passthrough {
+.chat-debug-settings-gear-header-passthrough,
+.chat-debug-section-copy-header-passthrough {
 	pointer-events: none;
 }
-.chat-debug-settings-gear-header-passthrough .chat-debug-settings-gear {
+.chat-debug-settings-gear-header-passthrough .chat-debug-settings-gear,
+.chat-debug-section-copy-header-passthrough .chat-debug-section-copy-btn {
 	pointer-events: auto;
 }
 

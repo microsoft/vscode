@@ -71,6 +71,7 @@ export function renderCollapsibleSection(parent: HTMLElement, section: IChatDebu
 		vertical: ScrollbarVisibility.Auto,
 	});
 	disposables.add(scrollable);
+	contentEl.style.maxHeight = '300px';
 
 	const wrapper = DOM.append(sectionEl, $('div.chat-debug-message-section-content-wrapper'));
 	wrapper.appendChild(scrollable.getDomNode());

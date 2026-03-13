@@ -6,6 +6,7 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { tokenizeToString } from '../../../../../editor/common/languages/textToHtmlTokenizer.js';
 import { IChatDebugEventModelTurnContent } from '../../common/chatDebugService.js';
@@ -18,7 +19,7 @@ const $ = DOM.$;
  * request metadata, token usage, and timing.
  * When JSON is detected in section content, renders it with syntax highlighting.
  */
-export async function renderModelTurnContent(content: IChatDebugEventModelTurnContent, languageService: ILanguageService): Promise<{ element: HTMLElement; disposables: DisposableStore }> {
+export async function renderModelTurnContent(content: IChatDebugEventModelTurnContent, languageService: ILanguageService, clipboardService?: IClipboardService): Promise<{ element: HTMLElement; disposables: DisposableStore }> {
 	const disposables = new DisposableStore();
 	const container = $('div.chat-debug-message-content');
 	container.tabIndex = 0;
@@ -84,7 +85,7 @@ export async function renderModelTurnContent(content: IChatDebugEventModelTurnCo
 			const tokenizedHtml = result.isJSON
 				? await tokenizeToString(languageService, plainText, 'json')
 				: undefined;
-			renderSection(sectionsContainer, section.name, plainText, tokenizedHtml, disposables);
+			renderSection(sectionsContainer, section.name, plainText, tokenizedHtml, disposables, false, clipboardService);
 		}
 	}
 

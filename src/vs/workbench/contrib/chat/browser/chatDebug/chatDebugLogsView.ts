@@ -338,6 +338,9 @@ export class ChatDebugLogsView extends Disposable {
 		} else {
 			this.list.layout(listHeight, listWidth);
 		}
+		if (this.detailPanel.isVisible) {
+			this.detailPanel.layout(listHeight);
+		}
 		this.detailPanel.layoutSash();
 	}
 
