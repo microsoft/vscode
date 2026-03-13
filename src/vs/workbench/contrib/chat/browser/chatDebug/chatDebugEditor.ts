@@ -46,7 +46,7 @@ type ChatDebugViewSwitchedEvent = {
 type ChatDebugViewSwitchedClassification = {
 	viewState: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view the user navigated to (home, overview, logs, flowchart).' };
 	owner: 'vijayu';
-	comment: 'Tracks which views users navigate to in the debug panel.';
+	comment: 'Tracks which views users navigate to in the Agent Debug Logs.';
 };
 
 export class ChatDebugEditor extends EditorPane {

@@ -579,6 +579,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 						options,
 					},
 				}], originalGroup);
+
+				// Re-send queued requests from the original session on the committed session
+				this._resendPendingRequests(originalResource, modifiedResource);
 				return;
 			}
 
@@ -599,9 +602,19 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				const ref = await this._chatService.acquireOrLoadSession(modifiedResource, ChatAgentLocation.Chat, CancellationToken.None);
 				ref?.dispose();
 			}
+
+			// Re-send queued requests from the original session on the committed session
+			this._resendPendingRequests(originalResource, modifiedResource);
 		} finally {
 			originalModel?.dispose();
 		}
+	}
+
+	/**
+	 * Re-sends pending and in-flight requests from the original session on the committed session.
+	 */
+	private _resendPendingRequests(originalResource: URI, modifiedResource: URI): void {
+		this._chatService.migrateRequests(originalResource, modifiedResource);
 	}
 
 	private async handleSessionModelOverrides(model: IChatModel, session: Dto<IChatSessionItem>): Promise<Dto<IChatSessionItem>> {
