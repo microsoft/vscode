@@ -984,12 +984,16 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private ensureToolDetails(dto: IToolInvocation, toolResult: IToolResult, toolData: IToolData): void {
-		if (!toolResult.toolResultDetails && toolData.alwaysDisplayInputOutput) {
+		if (!toolResult.toolResultDetails && (toolData.alwaysDisplayInputOutput || this.toolResultHasImages(toolResult))) {
 			toolResult.toolResultDetails = {
 				input: this.formatToolInput(dto),
 				output: this.toolResultToIO(toolResult),
 			};
 		}
+	}
+
+	private toolResultHasImages(toolResult: IToolResult): boolean {
+		return toolResult.content.some(part => part.kind === 'data' && part.value.mimeType?.startsWith('image/'));
 	}
 
 	private formatToolInput(dto: IToolInvocation): string {
