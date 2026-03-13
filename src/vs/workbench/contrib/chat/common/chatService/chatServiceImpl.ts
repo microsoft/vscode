@@ -823,13 +823,14 @@ export class ChatService extends Disposable implements IChatService {
 			const parsedRequest = this.parseChatRequest(sessionResource, request, options?.location ?? model.initialLocation, options);
 			const commandPart = parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
 			const requestText = getPromptText(parsedRequest).message;
-			const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text }, CancellationToken.None);
+
+			// Capture session options before loading the remote session,
+			// since the alias registration below may change the lookup.
+			const sessionOptions = this.chatSessionService.getSessionOptions(sessionResource);
+			const initialSessionOptions = sessionOptions ? [...sessionOptions].map(([optionId, value]) => ({ optionId, value })) : undefined;
+
+			const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions }, CancellationToken.None);
 			if (newItem) {
-
-				// Capture session options before loading the remote session,
-				// since the alias registration below may change the lookup.
-				const sessionOptions = this.chatSessionService.getSessionOptions(sessionResource);
-
 				model = (await this.loadRemoteSession(newItem.resource, model.initialLocation, CancellationToken.None))?.object as ChatModel | undefined;
 				if (!model) {
 					throw new Error(`Failed to load session for resource: ${newItem.resource}`);
