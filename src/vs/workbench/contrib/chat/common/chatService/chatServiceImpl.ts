@@ -1151,6 +1151,20 @@ export class ChatService extends Disposable implements IChatService {
 					}
 					completeResponseCreated();
 
+					// When the user follows up on "View in Chat Panel" (isCompleteAddedRequest) with a different agent,
+					// augment the outbound message with the previous response content so the current agent can explain it.
+					const MAX_ADDED_COMMENT_CONTEXT_LENGTH = 8000;
+					let requestToSend: IChatAgentRequest = requestProps;
+					const lastRequest = requests.length > 0 ? requests[requests.length - 1] : undefined;
+					if (lastRequest?.response && lastRequest.isCompleteAddedRequest && lastRequest.response.agent?.id !== agent.id) {
+						const commentText = lastRequest.response.response.toString();
+						const truncatedComment = commentText.length > MAX_ADDED_COMMENT_CONTEXT_LENGTH
+							? commentText.slice(0, MAX_ADDED_COMMENT_CONTEXT_LENGTH) + '…'
+							: commentText;
+						const augmentedMessage = localize('chat.crossAgentCommentContext', "The following comment was added to this chat by another participant. The user wants you to explain it.\n\n---\n{0}\n---\n\nPlease explain the comment above.", truncatedComment);
+						requestToSend = { ...requestProps, message: augmentedMessage };
+					}
+
 					// Check for disabled Claude Code hooks and notify the user once per workspace
 					const disabledClaudeHooksDismissedKey = 'chat.disabledClaudeHooks.notification';
 					if (!this.storageService.getBoolean(disabledClaudeHooksDismissedKey, StorageScope.WORKSPACE)) {
@@ -1169,9 +1183,9 @@ export class ChatService extends Disposable implements IChatService {
 						}
 					}
 
-					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
+					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestToSend, progressCallback, history, token);
 					rawResult = agentResult;
-					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, history, followupsCancelToken);
+					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestToSend, agentResult, history, followupsCancelToken);
 				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
 					if (commandPart.slashCommand.silent !== true) {
 						request = model.addRequest(parsedRequest, { variables: [] }, attempt, options?.modeInfo);
@@ -1436,9 +1450,11 @@ export class ChatService extends Disposable implements IChatService {
 				continue;
 			}
 
-			if (forAgentId !== request.response.agent?.id && !agent?.isDefault && !agent?.canAccessPreviousChatHistory) {
+			if (forAgentId !== request.response.agent?.id && !agent?.isDefault && !agent?.canAccessPreviousChatHistory && !request.isCompleteAddedRequest) {
 				// An agent only gets to see requests that were sent to this agent.
 				// The default agent (the undefined case), or agents with 'canAccessPreviousChatHistory', get to see all of them.
+				// Requests added via addCompleteRequest (isCompleteAddedRequest) are pre-populated context
+				// (e.g., review comments sent via "View in Chat Panel") and should be visible to all agents.
 				continue;
 			}
 
