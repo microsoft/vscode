@@ -9,8 +9,8 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { dirname, posix, win32 } from '../../../base/common/path.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../environment/common/environment.js';
-import { ISandboxHelperService, type SandboxRuntimeConfig } from './SandboxHelper.js';
-import { type ISandboxPermissionRequest } from '../common/sandboxHelperIpc.js';
+import { type ISandboxPermissionRequest, type ISandboxRuntimeConfig } from '../common/sandboxHelperIpc.js';
+import { ISandboxHelperService } from '../common/sandboxHelperService.js';
 
 export class SandboxHelperService extends Disposable implements ISandboxHelperService {
 	declare readonly _serviceBrand: undefined;
@@ -45,7 +45,7 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 		await SandboxManager.reset();
 	}
 
-	async wrapWithSandbox(runtimeConfig: SandboxRuntimeConfig, command: string): Promise<string> {
+	async wrapWithSandbox(runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string> {
 		const normalizedRuntimeConfig = {
 			network: {
 				allowedDomains: runtimeConfig.network?.allowedDomains?.length ? [...runtimeConfig.network.allowedDomains] : ['microsoft.com'],

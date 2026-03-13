@@ -87,7 +87,7 @@ import { IMcpGatewayService, McpGatewayChannelName } from '../../platform/mcp/co
 import { McpGatewayService } from '../../platform/mcp/node/mcpGatewayService.js';
 import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js';
 import { SandboxHelperChannelName } from '../../platform/sandbox/common/sandboxHelperIpc.js';
-import { ISandboxHelperService } from '../../platform/sandbox/node/SandboxHelper.js';
+import { ISandboxHelperService } from '../../platform/sandbox/common/sandboxHelperService.js';
 import { SandboxHelperChannel } from '../../platform/sandbox/node/sandboxHelperChannel.js';
 import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelperService.js';
 import { IExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifest.js';

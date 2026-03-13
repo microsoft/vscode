@@ -23,9 +23,8 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { IMainProcessService } from '../../../../../../platform/ipc/common/mainProcessService.js';
-import { IChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
-import { ISandboxPermissionRequest } from '../../../../../../platform/sandbox/common/sandboxHelperIpc.js';
+import { ISandboxPermissionRequest, ISandboxRuntimeConfig } from '../../../../../../platform/sandbox/common/sandboxHelperIpc.js';
+import { ISandboxHelperService } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { IWorkspaceContextService, IWorkspaceFolder, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 suite('TerminalSandboxService - allowTrustedDomains', () => {
@@ -110,42 +109,25 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		}
 	}
 
-	class MockMainProcessService implements IMainProcessService {
+	class MockSandboxHelperService implements ISandboxHelperService {
 		_serviceBrand: undefined;
 		private readonly _onDidRequestSandboxPermission = new Emitter<ISandboxPermissionRequest>();
+		readonly onDidRequestSandboxPermission = this._onDidRequestSandboxPermission.event;
 		private readonly _pendingPermissionResponses = new Map<string, (allowed: boolean) => void>();
 		resetSandboxCallCount = 0;
 
-		getChannel(_channelName: string): IChannel {
-			return {
-				call: async <T>(command: string, arg?: unknown) => {
-					const args = Array.isArray(arg) ? arg : [];
-					if (command === 'resetSandbox') {
-						this.resetSandboxCallCount++;
-						return undefined as T;
-					}
-					if (command === 'resolveSandboxPermissionRequest') {
-						const requestId = String(args[0] ?? '');
-						const allowed = Boolean(args[1]);
-						this._pendingPermissionResponses.get(requestId)?.(allowed);
-						this._pendingPermissionResponses.delete(requestId);
-						return undefined as T;
-					}
-					if (command === 'wrapWithSandbox') {
-						return `wrapped:${String(args[1] ?? '')}` as T;
-					}
-					throw new Error(`Unexpected command: ${command}`);
-				},
-				listen: <T>(event: string) => {
-					if (event === 'onDidRequestSandboxPermission') {
-						return this._onDidRequestSandboxPermission.event as Event<T>;
-					}
-					return Event.None;
-				},
-			};
+		async resetSandbox(): Promise<void> {
+			this.resetSandboxCallCount++;
 		}
 
-		registerChannel(): void { }
+		async resolveSandboxPermissionRequest(requestId: string, allowed: boolean): Promise<void> {
+			this._pendingPermissionResponses.get(requestId)?.(allowed);
+			this._pendingPermissionResponses.delete(requestId);
+		}
+
+		async wrapWithSandbox(_runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string> {
+			return `wrapped:${command}`;
+		}
 
 		fireSandboxPermissionRequest(request: ISandboxPermissionRequest): void {
 			this._onDidRequestSandboxPermission.fire(request);
@@ -194,7 +176,7 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		instantiationService.stub(IRemoteAgentService, new MockRemoteAgentService());
 		instantiationService.stub(ITrustedDomainService, trustedDomainService);
 		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
-		instantiationService.stub(IMainProcessService, new MockMainProcessService());
+		instantiationService.stub(ISandboxHelperService, new MockSandboxHelperService());
 		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
 			override async confirm() {
 				return { confirmed: true };
@@ -413,8 +395,8 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 	});
 
 	test('should route sandbox permission requests through terminal sandbox service', async () => {
-		const mainProcessService = new MockMainProcessService();
-		instantiationService.stub(IMainProcessService, mainProcessService);
+		const sandboxHelperService = new MockSandboxHelperService();
+		instantiationService.stub(ISandboxHelperService, sandboxHelperService);
 
 		const sandboxService = store.add(instantiationService.createInstance(TestTerminalSandboxService));
 		await sandboxService.wrapWithSandbox({
@@ -429,8 +411,8 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 			}
 		}, 'echo test');
 
-		const responsePromise = mainProcessService.waitForSandboxPermissionResponse('request-1');
-		mainProcessService.fireSandboxPermissionRequest({
+		const responsePromise = sandboxHelperService.waitForSandboxPermissionResponse('request-1');
+		sandboxHelperService.fireSandboxPermissionRequest({
 			requestId: 'request-1',
 			host: 'example.com',
 			port: 443,
@@ -443,8 +425,8 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 	});
 
 	test('should persist approved sandbox hosts to settings', async () => {
-		const mainProcessService = new MockMainProcessService();
-		instantiationService.stub(IMainProcessService, mainProcessService);
+		const sandboxHelperService = new MockSandboxHelperService();
+		instantiationService.stub(ISandboxHelperService, sandboxHelperService);
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
 			allowedDomains: ['existing.com'],
 			deniedDomains: ['example.com'],
@@ -464,8 +446,8 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 			}
 		}, 'echo test');
 
-		const responsePromise = mainProcessService.waitForSandboxPermissionResponse('request-2');
-		mainProcessService.fireSandboxPermissionRequest({
+		const responsePromise = sandboxHelperService.waitForSandboxPermissionResponse('request-2');
+		sandboxHelperService.fireSandboxPermissionRequest({
 			requestId: 'request-2',
 			host: 'example.com',
 			port: 443,
@@ -501,8 +483,8 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 	});
 
 	test('should reset sandbox before first wrap and after sandbox settings change', async () => {
-		const mainProcessService = new MockMainProcessService();
-		instantiationService.stub(IMainProcessService, mainProcessService);
+		const sandboxHelperService = new MockSandboxHelperService();
+		instantiationService.stub(ISandboxHelperService, sandboxHelperService);
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.wrapWithSandbox({
@@ -517,7 +499,7 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 			}
 		}, 'echo first');
 
-		strictEqual(mainProcessService.resetSandboxCallCount, 1);
+		strictEqual(sandboxHelperService.resetSandboxCallCount, 1);
 
 		await sandboxService.wrapWithSandbox({
 			network: {
@@ -531,7 +513,7 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 			}
 		}, 'echo second');
 
-		strictEqual(mainProcessService.resetSandboxCallCount, 1);
+		strictEqual(sandboxHelperService.resetSandboxCallCount, 1);
 
 		sandboxService.setNeedsForceUpdateConfigFile();
 
@@ -547,6 +529,6 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 			}
 		}, 'echo third');
 
-		strictEqual(mainProcessService.resetSandboxCallCount, 2);
+		strictEqual(sandboxHelperService.resetSandboxCallCount, 2);
 	});
 });

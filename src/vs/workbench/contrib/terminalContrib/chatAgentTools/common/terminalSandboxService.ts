@@ -13,12 +13,12 @@ import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService }
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IMainProcessService } from '../../../../../platform/ipc/common/mainProcessService.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { SandboxHelperChannelName, type ISandboxPermissionRequest, type ISandboxRuntimeConfig } from '../../../../../platform/sandbox/common/sandboxHelperIpc.js';
+import { ISandboxHelperService } from '../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxNetworkSettings } from './terminalSandbox.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfiguration.js';
@@ -71,10 +71,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IFileService private readonly _fileService: IFileService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@ISandboxHelperService private readonly _localSandboxHelperService: ISandboxHelperService,
 		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 	) {
 		super();
@@ -307,10 +307,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 	private _getSandboxHelperService(): ISandboxHelperChannel {
 		const connection = this._remoteAgentService.getConnection();
-		const channel = connection
-			? connection.getChannel(SandboxHelperChannelName)
-			: this._instantiationService.invokeFunction(accessor => accessor.get(IMainProcessService)).getChannel(SandboxHelperChannelName);
-		const service = ProxyChannel.toService<ISandboxHelperChannel>(channel);
+		const service = connection
+			? ProxyChannel.toService<ISandboxHelperChannel>(connection.getChannel(SandboxHelperChannelName))
+			: this._localSandboxHelperService;
 		const source = connection ? `remote:${connection.remoteAuthority}` : 'local';
 
 		if (this._sandboxHelperSource !== source) {

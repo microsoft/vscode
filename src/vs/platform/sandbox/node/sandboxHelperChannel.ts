@@ -6,7 +6,8 @@
 import { Event } from '../../../base/common/event.js';
 import { IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { RemoteAgentConnectionContext } from '../../remote/common/remoteAgentEnvironment.js';
-import { ISandboxHelperService, type SandboxRuntimeConfig } from './SandboxHelper.js';
+import { type ISandboxRuntimeConfig } from '../common/sandboxHelperIpc.js';
+import { ISandboxHelperService } from '../common/sandboxHelperService.js';
 
 export class SandboxHelperChannel implements IServerChannel<RemoteAgentConnectionContext> {
 
@@ -34,7 +35,7 @@ export class SandboxHelperChannel implements IServerChannel<RemoteAgentConnectio
 				return this.sandboxHelperService.resolveSandboxPermissionRequest(argsArray[0] as string, argsArray[1] as boolean) as T;
 			}
 			case 'wrapWithSandbox': {
-				return this.sandboxHelperService.wrapWithSandbox(argsArray[0] as SandboxRuntimeConfig, argsArray[1] as string) as T;
+				return this.sandboxHelperService.wrapWithSandbox(argsArray[0] as ISandboxRuntimeConfig, argsArray[1] as string) as T;
 			}
 		}
 

@@ -3,5 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { ISandboxHelperService } from '../common/sandboxHelperService.js';
-export { SandboxHelperChannelName } from '../common/sandboxHelperIpc.js';
+import { registerMainProcessRemoteService } from '../../ipc/electron-browser/services.js';
+import { SandboxHelperChannelName } from '../common/sandboxHelperIpc.js';
+import { ISandboxHelperService } from '../common/sandboxHelperService.js';
+
+registerMainProcessRemoteService(ISandboxHelperService, SandboxHelperChannelName);
