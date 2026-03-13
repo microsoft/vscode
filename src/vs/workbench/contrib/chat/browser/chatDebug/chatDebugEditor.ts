@@ -34,7 +34,7 @@ const $ = DOM.$;
 
 type ChatDebugPanelOpenedClassification = {
 	owner: 'vijayu';
-	comment: 'Event fired when the agent debug panel is opened';
+	comment: 'Event fired when the agent debug logs panel is opened';
 };
 
 type ChatDebugViewSwitchedEvent = {
@@ -44,7 +44,7 @@ type ChatDebugViewSwitchedEvent = {
 type ChatDebugViewSwitchedClassification = {
 	viewState: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view the user navigated to (home, overview, logs, flowchart).' };
 	owner: 'vijayu';
-	comment: 'Tracks which views users navigate to in the debug panel.';
+	comment: 'Tracks which views users navigate to in the Agent Debug Logs.';
 };
 
 export class ChatDebugEditor extends EditorPane {
@@ -172,7 +172,7 @@ export class ChatDebugEditor extends EditorPane {
 
 		this._register(this.chatService.onDidCreateModel(model => {
 			if (this.viewState === ViewState.Home) {
-				// Auto-navigate to the new session when the debug panel is
+				// Auto-navigate to the new session when the Agent Debug Logs is
 				// already open on the home view.  This avoids the user having to
 				// wait for the title to resolve and manually clicking the session.
 				this.navigateToSession(model.sessionResource);

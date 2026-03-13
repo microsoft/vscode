@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow } from '../../../browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName } from '../../../browser/agentSessions/agentSessionsViewer.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSessionSection } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
@@ -797,6 +797,80 @@ suite('AgentSessionsDataSource', () => {
 			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
 
 			assert.deepStrictEqual(result.map(s => s.label), ['vscode']);
+		});
+	});
+
+	suite('getRepositoryName', () => {
+
+		test('returns metadata.name when owner and name are present', () => {
+			const session = createMockSession({ id: '1', metadata: { owner: 'microsoft', name: 'vscode' } });
+			assert.strictEqual(getRepositoryName(session), 'vscode');
+		});
+
+		test('returns repo from repositoryNwo', () => {
+			const session = createMockSession({ id: '1', metadata: { repositoryNwo: 'microsoft/vscode' } });
+			assert.strictEqual(getRepositoryName(session), 'vscode');
+		});
+
+		test('returns repo from repository URL', () => {
+			const session = createMockSession({ id: '1', metadata: { repository: 'https://github.com/microsoft/vscode' } });
+			assert.strictEqual(getRepositoryName(session), 'vscode');
+		});
+
+		test('returns repo from repositoryPath basename', () => {
+			const session = createMockSession({ id: '1', metadata: { repositoryPath: '/Users/user/Projects/vscode' } });
+			assert.strictEqual(getRepositoryName(session), 'vscode');
+		});
+
+		test('returns parent repo name from worktree path', () => {
+			const session = createMockSession({ id: '1', metadata: { worktreePath: '/Users/user/Projects/vscode.worktrees/my-branch' } });
+			assert.strictEqual(getRepositoryName(session), 'vscode');
+		});
+
+		test('returns name from badge with $(repo) prefix', () => {
+			const session = createMockSession({ id: '1', badge: '$(repo) vscode' });
+			assert.strictEqual(getRepositoryName(session), 'vscode');
+		});
+
+		test('returns name from badge with $(folder) prefix', () => {
+			const session = createMockSession({ id: '1', badge: '$(folder) my-project' });
+			assert.strictEqual(getRepositoryName(session), 'my-project');
+		});
+
+		test('metadata repo name takes priority over badge name', () => {
+			const session = createMockSession({ id: '1', metadata: { owner: 'microsoft', name: 'vscode' }, badge: '$(folder) copilot-worktree-branch' });
+			assert.strictEqual(getRepositoryName(session), 'vscode');
+		});
+
+		test('returns undefined when no repo info is available', () => {
+			const session = createMockSession({ id: '1' });
+			assert.strictEqual(getRepositoryName(session), undefined);
+		});
+
+		test('badge name can differ from metadata repo name (worktree scenario)', () => {
+			// This is the key scenario: a session in a worktree where the badge shows
+			// the worktree folder name but the repo name (from metadata) is different.
+			// The renderer uses this to decide whether to hide the badge when grouped by repo.
+			const session = createMockSession({
+				id: '1',
+				metadata: { repositoryPath: '/Users/user/Projects/vscode' },
+				badge: '$(folder) copilot-worktree-2026-03-13T00-27-32',
+			});
+			assert.strictEqual(getRepositoryName(session), 'vscode');
+			// Badge text shows a different name than the repo — renderer should NOT hide it
+		});
+
+		test('archived session still returns repo name from metadata', () => {
+			// Archived sessions are grouped under "Archived", not under a repo section,
+			// so the renderer must keep their badge visible even when the badge name
+			// matches the repo name. getRepositoryName still resolves normally.
+			const session = createMockSession({
+				id: '1',
+				isArchived: true,
+				metadata: { repositoryPath: '/Users/user/Projects/vscode' },
+				badge: '$(repo) vscode',
+			});
+			assert.strictEqual(getRepositoryName(session), 'vscode');
 		});
 	});
 });

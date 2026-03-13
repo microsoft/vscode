@@ -14,7 +14,7 @@ import { IPromptDiscoveryInfo, IPromptsService } from '../common/promptSyntax/se
  *
  * This contribution listens for discovery events emitted by the prompts service
  * and forwards them as debug log entries. It also registers a resolve provider
- * so expanding a discovery event in the debug panel shows the full file list.
+ * so expanding a discovery event in the Agent Debug Logs shows the full file list.
  */
 export class PromptsDebugContribution extends Disposable implements IWorkbenchContribution {
 
@@ -81,7 +81,7 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 		}));
 
 		// Register a resolve provider so expanding a discovery event
-		// in the debug panel shows the full file list.
+		// in the Agent Debug Logs shows the full file list.
 		this._register(chatDebugService.registerProvider({
 			provideChatDebugLog: async () => undefined,
 			resolveChatDebugLogEvent: async (eventId) => {

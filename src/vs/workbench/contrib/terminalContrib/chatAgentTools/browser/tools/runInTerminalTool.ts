@@ -12,12 +12,14 @@ import { Event } from '../../../../../../base/common/event.js';
 import { escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { getMediaMime } from '../../../../../../base/common/mime.js';
 import { basename, posix, win32 } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -36,7 +38,7 @@ import type { ITerminalExecuteStrategy, ITerminalExecuteStrategyResult } from '.
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
+import { extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh, normalizeTerminalCommandForDisplay } from '../runInTerminalHelpers.js';
 import type { ICommandLinePresenter } from './commandLinePresenter/commandLinePresenter.js';
 import { NodeCommandLinePresenter } from './commandLinePresenter/nodeCommandLinePresenter.js';
 import { PythonCommandLinePresenter } from './commandLinePresenter/pythonCommandLinePresenter.js';
@@ -369,6 +371,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	constructor(
 		@IChatService protected readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -440,7 +443,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	async handleToolStream(context: IToolInvocationStreamContext, _token: CancellationToken): Promise<IStreamedToolInvocation | undefined> {
 		const partialInput = context.rawInput as Partial<IRunInTerminalInputParams> | undefined;
 		if (partialInput && typeof partialInput === 'object' && partialInput.command) {
-			const normalizedCommand = partialInput.command.replace(/\r\n|\r|\n/g, ' ');
+			const normalizedCommand = normalizeTerminalCommandForDisplay(partialInput.command).replace(/\r\n|\r|\n/g, ' ');
 			const truncatedCommand = normalizedCommand.length > 80
 				? normalizedCommand.substring(0, 77) + '...'
 				: normalizedCommand;
@@ -506,7 +509,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			commandLine: {
 				original: args.command,
 				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand,
-				forDisplay: forDisplayCommand,
+				forDisplay: forDisplayCommand ?? normalizeTerminalCommandForDisplay(rewrittenCommand ?? args.command),
 			},
 			cwd,
 			language,
@@ -606,7 +609,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		// Extract cd prefix for display - show directory in title, command suffix in editor
-		const commandToDisplay = (toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).trimStart();
+		const commandToDisplay = (toolSpecificData.commandLine.forDisplay ?? toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).trimStart();
 		const extractedCd = extractCdPrefix(commandToDisplay, shell, os);
 		let confirmationTitle: string;
 		if (extractedCd && cwd) {
@@ -700,7 +703,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			terminalCustomActions: customActions,
 		} : undefined;
 
-		const rawDisplayCommand = toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
+		const rawDisplayCommand = toolSpecificData.commandLine.forDisplay ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
 		const displayCommand = rawDisplayCommand.length > 80
 			? rawDisplayCommand.substring(0, 77) + '...'
 			: rawDisplayCommand;
@@ -1120,6 +1123,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const isError = exitCode !== undefined && exitCode !== 0;
 		const endCwd = await toolTerminal.instance.getCwdResource();
+
+		const imageContent = await this._extractImagesFromOutput(terminalResult, endCwd);
+
 		return {
 			toolResultMessage,
 			toolMetadata: {
@@ -1132,11 +1138,75 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				output: [{ type: 'embed', isText: true, value: terminalResult }],
 				isError: true
 			} : undefined,
-			content: [{
-				kind: 'text',
-				value: resultText.join(''),
-			}]
+			content: [
+				{
+					kind: 'text',
+					value: resultText.join(''),
+				},
+				...imageContent,
+			]
 		};
+	}
+
+	private static readonly _maxImageFileSize = 5 * 1024 * 1024;
+
+	/**
+	 * Scans terminal output for file paths that point to images and reads them.
+	 * Returns data content parts for any found images that exist on disk.
+	 */
+	private async _extractImagesFromOutput(output: string, cwd: URI | undefined): Promise<IToolResult['content']> {
+		const normalizedOutput = output.replace(/\r?\n/g, '');
+
+		// Match paths ending with image extensions. A leading / or \ is sufficient
+		// to identify a path segment; the full path up to the extension is captured.
+		const pathPattern = /(?:[^\s]*[\/\\][^\s]*\.(?:png|jpe?g|gif|webp|bmp))/gi;
+
+		const matches = new Set<string>();
+		for (const match of normalizedOutput.matchAll(pathPattern)) {
+			matches.add(match[0]);
+		}
+
+		if (matches.size === 0) {
+			return [];
+		}
+
+		const results: IToolResult['content'] = [];
+		for (const filePath of matches) {
+			try {
+				const mimeType = getMediaMime(filePath);
+				if (!mimeType || !mimeType.startsWith('image/')) {
+					continue;
+				}
+
+				// Resolve the URI - check for absolute path (Unix / or Windows drive letter)
+				let fileUri: URI;
+				if (/^\/|^[A-Za-z]:[\\\/]/.test(filePath)) {
+					fileUri = URI.file(filePath);
+				} else if (cwd) {
+					fileUri = URI.joinPath(cwd, filePath);
+				} else {
+					continue;
+				}
+
+				const stat = await this._fileService.stat(fileUri).catch(() => undefined);
+				if (!stat || stat.isDirectory || stat.size > RunInTerminalTool._maxImageFileSize) {
+					continue;
+				}
+
+				const fileContent = await this._fileService.readFile(fileUri);
+				results.push({
+					kind: 'data',
+					value: {
+						mimeType,
+						data: fileContent.value,
+					},
+				});
+			} catch {
+				// Ignore files that can't be read
+			}
+		}
+
+		return results;
 	}
 
 	private _handleTerminalVisibility(toolTerminal: IToolTerminal, chatSessionResource: URI) {

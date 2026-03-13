@@ -49,6 +49,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
@@ -277,12 +278,20 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return false;
 		}
 
-		// When grouped by repository, hide the badge if it only shows the repo name
-		// (since the section header already displays it)
-		if (this.options.isGroupedByRepository?.()) {
+		// When grouped by repository, hide the badge only if the name it shows
+		// matches the section header (i.e. the repository name for this session).
+		// Badges with a different name (e.g. worktree name) are still shown.
+		// Archived sessions always keep their badge since they are grouped under
+		// the "Archived" section, not a repository section.
+		if (this.options.isGroupedByRepository?.() && !session.element.isArchived()) {
 			const raw = typeof badge === 'string' ? badge : badge.value;
-			if (/^\$\((?:repo|folder|worktree)\)\s*.+/.test(raw)) {
-				return false;
+			const match = raw.match(/^\$\((?:repo|folder|worktree)\)\s*(.+)/);
+			if (match) {
+				const badgeName = match[1].trim();
+				const repoName = getRepositoryName(session.element);
+				if (badgeName === repoName) {
+					return false;
+				}
 			}
 		}
 
@@ -745,6 +754,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
 		private readonly sorter: ITreeSorter<IAgentSession>,
+		private readonly logService?: ILogService,
 	) {
 		super();
 	}
@@ -878,6 +888,9 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			}
 
 			const repoName = this.getRepositoryName(session);
+			if (!repoName) {
+				this.logService?.warn('[AgentSessions] Could not determine repository name for session, categorizing as "Other"', JSON.stringify(session));
+			}
 			const repoId = repoName || unknownKey;
 			const repoLabel = repoName || unknownLabel;
 
@@ -910,142 +923,151 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	}
 
 	private getRepositoryName(session: IAgentSession): string | undefined {
-		const metadata = session.metadata;
-		if (metadata) {
-			// Cloud sessions: metadata.owner + metadata.name
-			const owner = metadata.owner as string | undefined;
-			const name = metadata.name as string | undefined;
-			if (owner && name) {
-				return name;
-			}
+		return getRepositoryName(session);
+	}
+}
 
-			// repositoryNwo: "owner/repo"
-			const nwo = metadata.repositoryNwo as string | undefined;
-			if (nwo && nwo.includes('/')) {
-				return nwo.split('/').pop()!;
-			}
+/**
+ * Extracts the repository name for an agent session from its metadata or badge.
+ * Used for grouping sessions by repository and for determining whether a badge
+ * is redundant with the section header.
+ */
+export function getRepositoryName(session: IAgentSession): string | undefined {
+	const metadata = session.metadata;
+	if (metadata) {
+		// Cloud sessions: metadata.owner + metadata.name
+		const owner = metadata.owner as string | undefined;
+		const name = metadata.name as string | undefined;
+		if (owner && name) {
+			return name;
+		}
 
-			// repository: could be "owner/repo", a URL, or git@host:owner/repo.git
-			const repository = metadata.repository as string | undefined;
-			if (repository) {
-				const repoName = this.parseRepositoryName(repository);
-				if (repoName) {
-					return repoName;
-				}
-			}
+		// repositoryNwo: "owner/repo"
+		const nwo = metadata.repositoryNwo as string | undefined;
+		if (nwo && nwo.includes('/')) {
+			return nwo.split('/').pop()!;
+		}
 
-			// repositoryUrl: "https://github.com/owner/repo"
-			const repositoryUrl = metadata.repositoryUrl as string | undefined;
-			if (repositoryUrl) {
-				const repoName = this.parseRepositoryName(repositoryUrl);
-				if (repoName) {
-					return repoName;
-				}
-			}
-
-			// repositoryPath: extract repo name from the directory path basename
-			const repositoryPath = metadata.repositoryPath as string | undefined;
-			if (repositoryPath) {
-				const repoName = this.extractRepoNameFromPath(repositoryPath);
-				if (repoName) {
-					return repoName;
-				}
-			}
-
-			// worktreePath: extract repo name from the worktree path
-			const worktreePath = metadata.worktreePath as string | undefined;
-			if (worktreePath) {
-				const repoName = this.extractRepoNameFromPath(worktreePath);
-				if (repoName) {
-					return repoName;
-				}
-			}
-
-			// workingDirectoryPath: fallback to extract name from the working directory
-			const workingDirectoryPath = metadata.workingDirectoryPath as string | undefined;
-			if (workingDirectoryPath) {
-				const repoName = this.extractRepoNameFromPath(workingDirectoryPath);
-				if (repoName) {
-					return repoName;
-				}
+		// repository: could be "owner/repo", a URL, or git@host:owner/repo.git
+		const repository = metadata.repository as string | undefined;
+		if (repository) {
+			const repoName = parseRepositoryName(repository);
+			if (repoName) {
+				return repoName;
 			}
 		}
 
-		// Fallback: extract repo/folder name from badge
-		const badge = session.badge;
-		if (badge) {
-			const raw = typeof badge === 'string' ? badge : badge.value;
-			const badgeMatch = raw.match(/\$\((?:repo|folder|worktree)\)\s*(.+)/);
-			if (badgeMatch) {
-				return badgeMatch[1].trim();
+		// repositoryUrl: "https://github.com/owner/repo"
+		const repositoryUrl = metadata.repositoryUrl as string | undefined;
+		if (repositoryUrl) {
+			const repoName = parseRepositoryName(repositoryUrl);
+			if (repoName) {
+				return repoName;
 			}
 		}
 
-		return undefined;
+		// repositoryPath: extract repo name from the directory path basename
+		const repositoryPath = metadata.repositoryPath as string | undefined;
+		if (repositoryPath) {
+			const repoName = extractRepoNameFromPath(repositoryPath);
+			if (repoName) {
+				return repoName;
+			}
+		}
+
+		// worktreePath: extract repo name from the worktree path
+		const worktreePath = metadata.worktreePath as string | undefined;
+		if (worktreePath) {
+			const repoName = extractRepoNameFromPath(worktreePath);
+			if (repoName) {
+				return repoName;
+			}
+		}
+
+		// workingDirectoryPath: fallback to extract name from the working directory
+		const workingDirectoryPath = metadata.workingDirectoryPath as string | undefined;
+		if (workingDirectoryPath) {
+			const repoName = extractRepoNameFromPath(workingDirectoryPath);
+			if (repoName) {
+				return repoName;
+			}
+		}
 	}
 
-	/**
-	 * Parses a repository name from various formats: "owner/repo", URLs,
-	 * and git@host:owner/repo.git style references.
-	 */
-	private parseRepositoryName(value: string): string | undefined {
-		// Direct "owner/repo" style (no scheme, no git@ prefix)
-		if (value.includes('/') && !value.includes('://') && !value.startsWith('git@')) {
-			let repoSegment = value.split('/').filter(Boolean).pop();
+	// Fallback: extract repo/folder name from badge
+	const badge = session.badge;
+	if (badge) {
+		const raw = typeof badge === 'string' ? badge : badge.value;
+		const badgeMatch = raw.match(/\$\((?:repo|folder|worktree)\)\s*(.+)/);
+		if (badgeMatch) {
+			return badgeMatch[1].trim();
+		}
+	}
+
+	return undefined;
+}
+
+/**
+ * Parses a repository name from various formats: "owner/repo", URLs,
+ * and git@host:owner/repo.git style references.
+ */
+function parseRepositoryName(value: string): string | undefined {
+	// Direct "owner/repo" style (no scheme, no git@ prefix)
+	if (value.includes('/') && !value.includes('://') && !value.startsWith('git@')) {
+		let repoSegment = value.split('/').filter(Boolean).pop();
+		if (repoSegment?.endsWith('.git')) {
+			repoSegment = repoSegment.slice(0, -4);
+		}
+		return repoSegment || undefined;
+	}
+
+	// Standard URL formats (https://..., ssh://..., etc.)
+	try {
+		const url = new URL(value);
+		const parts = url.pathname.split('/').filter(Boolean);
+		if (parts.length >= 2) {
+			let repoSegment = parts[1];
+			if (repoSegment.endsWith('.git')) {
+				repoSegment = repoSegment.slice(0, -4);
+			}
+			return repoSegment || undefined;
+		}
+	} catch {
+		// not a standard URL
+	}
+
+	// git@host:owner/repo(.git) style URLs
+	if (value.startsWith('git@')) {
+		const colonIndex = value.indexOf(':');
+		if (colonIndex !== -1 && colonIndex < value.length - 1) {
+			const pathPart = value.substring(colonIndex + 1);
+			let repoSegment = pathPart.split('/').filter(Boolean).pop();
 			if (repoSegment?.endsWith('.git')) {
 				repoSegment = repoSegment.slice(0, -4);
 			}
 			return repoSegment || undefined;
 		}
-
-		// Standard URL formats (https://..., ssh://..., etc.)
-		try {
-			const url = new URL(value);
-			const parts = url.pathname.split('/').filter(Boolean);
-			if (parts.length >= 2) {
-				let repoSegment = parts[1];
-				if (repoSegment.endsWith('.git')) {
-					repoSegment = repoSegment.slice(0, -4);
-				}
-				return repoSegment || undefined;
-			}
-		} catch {
-			// not a standard URL
-		}
-
-		// git@host:owner/repo(.git) style URLs
-		if (value.startsWith('git@')) {
-			const colonIndex = value.indexOf(':');
-			if (colonIndex !== -1 && colonIndex < value.length - 1) {
-				const pathPart = value.substring(colonIndex + 1);
-				let repoSegment = pathPart.split('/').filter(Boolean).pop();
-				if (repoSegment?.endsWith('.git')) {
-					repoSegment = repoSegment.slice(0, -4);
-				}
-				return repoSegment || undefined;
-			}
-		}
-
-		return undefined;
 	}
 
-	/**
-	 * Extracts the repository name from a filesystem path, handling git worktree
-	 * conventions where paths follow `<repo>.worktrees/<worktree-name>`.
-	 */
-	private extractRepoNameFromPath(dirPath: string): string | undefined {
-		const segments = dirPath.split(/[/\\]/).filter(Boolean);
-		if (segments.length < 2) {
-			return segments[0];
-		}
+	return undefined;
+}
 
-		const parent = segments[segments.length - 2];
-		if (parent.endsWith('.worktrees')) {
-			return parent.slice(0, -'.worktrees'.length) || undefined;
-		}
-
-		return segments[segments.length - 1];
+/**
+ * Extracts the repository name from a filesystem path, handling git worktree
+ * conventions where paths follow `<repo>.worktrees/<worktree-name>`.
+ */
+function extractRepoNameFromPath(dirPath: string): string | undefined {
+	const segments = dirPath.split(/[/\\]/).filter(Boolean);
+	if (segments.length < 2) {
+		return segments[0];
 	}
+
+	const parent = segments[segments.length - 2];
+	if (parent.endsWith('.worktrees')) {
+		return parent.slice(0, -'.worktrees'.length) || undefined;
+	}
+
+	return segments[segments.length - 1];
 }
 
 export const AgentSessionSectionLabels = {
