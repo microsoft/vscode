@@ -154,16 +154,8 @@ registerAction2(OpenImageInCarouselAction);
 
 // --- Explorer Context Menu Integration ---
 
-/**
- * Image-extension regex built from {@link getMediaMime} so the declarative
- * `when`-clause and the runtime {@link isImageResource} share a single source
- * of truth with `base/common/mime.ts`.
- */
-const IMAGE_EXTENSION_REGEX = (function () {
-	const candidates = ['png', 'jpg', 'jpeg', 'jpe', 'gif', 'webp', 'svg', 'bmp', 'ico'];
-	const imageExts = candidates.filter(ext => getMediaMime(`f.${ext}`)?.startsWith('image/'));
-	return new RegExp(`^\\.(${imageExts.join('|')})$`, 'i');
-})();
+/** Supported image extensions for the carousel explorer context menu. */
+const IMAGE_EXTENSION_REGEX = /^\.(png|jpg|jpeg|jpe|gif|webp|svg|bmp|ico)$/i;
 
 function isImageResource(uri: URI): boolean {
 	return IMAGE_EXTENSION_REGEX.test(extname(uri));
