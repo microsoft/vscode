@@ -16,6 +16,7 @@ import { IFileService, IFileStat, IFileContent } from '../../../../../platform/f
 import { IEditorService, MODAL_GROUP } from '../../../../services/editor/common/editorService.js';
 import { ImageCarouselEditorInput } from '../../browser/imageCarouselEditorInput.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 
 // Importing the contribution registers the actions
 import '../../browser/imageCarousel.contribution.js';
@@ -58,9 +59,11 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 	let instantiationService: TestInstantiationService;
 	let configService: TestConfigurationService;
 	let openedInputs: { input: ImageCarouselEditorInput; group: typeof MODAL_GROUP }[];
+	let infoMessages: string[];
 
 	setup(() => {
 		openedInputs = [];
+		infoMessages = [];
 		configService = new TestConfigurationService();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 	});
@@ -96,6 +99,12 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 				disposables.add(input);
 			}
 			return undefined;
+		});
+	}
+
+	function stubNotificationService(): void {
+		instantiationService.stub(INotificationService, 'info', (message: string) => {
+			infoMessages.push(message);
 		});
 	}
 
@@ -215,7 +224,25 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		assert.strictEqual(images[1].name, 'b.svg');
 	});
 
-	test('empty selection does not open carousel', async () => {
+	test('empty selection with resource argument opens carousel from that folder', async () => {
+		const pngData = VSBuffer.fromString('fake-png');
+		const jpgData = VSBuffer.fromString('fake-jpg');
+
+		const folderUri = URI.file('/workspace/photos');
+		const resolveMap = new Map<string, IFileStat>();
+		resolveMap.set('/workspace/photos', createFileStat(
+			folderUri, true, [
+			createFileStat(URI.file('/workspace/photos/sunset.png'), false),
+			createFileStat(URI.file('/workspace/photos/mountain.jpg'), false),
+			createFileStat(URI.file('/workspace/photos/notes.txt'), false),
+		]
+		));
+
+		const fileContents = new Map<string, VSBuffer>();
+		fileContents.set('/workspace/photos/sunset.png', pngData);
+		fileContents.set('/workspace/photos/mountain.jpg', jpgData);
+
+		stubFileService(resolveMap, fileContents);
 		stubExplorerService([]);
 		stubEditorService();
 
@@ -223,12 +250,71 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		const command = CommandsRegistry.getCommand('workbench.action.openImagesInCarousel');
 		assert.ok(command);
 
-		await instantiationService.invokeFunction(command.handler);
+		// Pass the folder URI as the resource argument (as explorer does for empty-space click)
+		await instantiationService.invokeFunction(command.handler, folderUri);
 
-		assert.strictEqual(openedInputs.length, 0, 'Should not open carousel for empty selection');
+		assert.strictEqual(openedInputs.length, 1, 'Should open carousel using resource argument fallback');
+		const images = openedInputs[0].input.collection.sections[0].images;
+		assert.strictEqual(images.length, 2, 'Should include 2 images from the folder');
 	});
 
-	test('folder with no images does not open carousel', async () => {
+	test('empty selection without resource falls back to first workspace folder', async () => {
+		const pngData = VSBuffer.fromString('fake-png');
+
+		// TestWorkspace root is /testWorkspace (or C:\testWorkspace on Windows)
+		const resolveMap = new Map<string, IFileStat>();
+		resolveMap.set('/testWorkspace', createFileStat(
+			URI.file('/testWorkspace'), true, [
+			createFileStat(URI.file('/testWorkspace/logo.png'), false),
+			createFileStat(URI.file('/testWorkspace/readme.md'), false),
+		]
+		));
+
+		const fileContents = new Map<string, VSBuffer>();
+		fileContents.set('/testWorkspace/logo.png', pngData);
+
+		stubFileService(resolveMap, fileContents);
+		stubExplorerService([]);
+		stubEditorService();
+
+		const { CommandsRegistry } = await import('../../../../../platform/commands/common/commands.js');
+		const command = CommandsRegistry.getCommand('workbench.action.openImagesInCarousel');
+		assert.ok(command);
+
+		// No resource argument — should fall back to workspace root
+		await instantiationService.invokeFunction(command.handler);
+
+		assert.strictEqual(openedInputs.length, 1, 'Should open carousel using workspace root fallback');
+		const images = openedInputs[0].input.collection.sections[0].images;
+		assert.strictEqual(images.length, 1, 'Should include image from workspace root');
+		assert.strictEqual(images[0].name, 'logo.png');
+	});
+
+	test('empty selection with no images shows notification', async () => {
+		const folderUri = URI.file('/workspace/docs');
+		const resolveMap = new Map<string, IFileStat>();
+		resolveMap.set('/workspace/docs', createFileStat(
+			folderUri, true, [
+			createFileStat(URI.file('/workspace/docs/readme.md'), false),
+		]
+		));
+
+		stubFileService(resolveMap, new Map());
+		stubExplorerService([]);
+		stubEditorService();
+		stubNotificationService();
+
+		const { CommandsRegistry } = await import('../../../../../platform/commands/common/commands.js');
+		const command = CommandsRegistry.getCommand('workbench.action.openImagesInCarousel');
+		assert.ok(command);
+
+		await instantiationService.invokeFunction(command.handler, folderUri);
+
+		assert.strictEqual(openedInputs.length, 0, 'Should not open carousel when folder has no images');
+		assert.strictEqual(infoMessages.length, 1, 'Should show notification');
+	});
+
+	test('folder with no images shows notification', async () => {
 		const fileService = instantiationService.get(IFileService);
 		const folderItem = createExplorerItem('/workspace/docs', true, fileService, configService);
 
@@ -243,6 +329,7 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		stubFileService(resolveMap, new Map());
 		stubExplorerService([folderItem]);
 		stubEditorService();
+		stubNotificationService();
 
 		const { CommandsRegistry } = await import('../../../../../platform/commands/common/commands.js');
 		const command = CommandsRegistry.getCommand('workbench.action.openImagesInCarousel');
@@ -251,5 +338,6 @@ suite('OpenImagesInCarouselFromExplorerAction', () => {
 		await instantiationService.invokeFunction(command.handler);
 
 		assert.strictEqual(openedInputs.length, 0, 'Should not open carousel when folder has no images');
+		assert.strictEqual(infoMessages.length, 1, 'Should show notification about no images');
 	});
 });

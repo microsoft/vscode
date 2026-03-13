@@ -25,6 +25,8 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 
 // --- Editor Pane Registration ---
 
@@ -141,16 +143,21 @@ function isImageResource(uri: URI): boolean {
 }
 
 async function collectImageFilesFromFolder(fileService: IFileService, folderUri: URI): Promise<URI[]> {
-	const stat = await fileService.resolve(folderUri);
-	const imageUris: URI[] = [];
-	if (stat.children) {
-		for (const child of stat.children) {
-			if (!child.isDirectory && isImageResource(child.resource)) {
-				imageUris.push(child.resource);
+	try {
+		const stat = await fileService.resolve(folderUri);
+		const imageUris: URI[] = [];
+		if (stat.children) {
+			for (const child of stat.children) {
+				if (!child.isDirectory && isImageResource(child.resource)) {
+					imageUris.push(child.resource);
+				}
 			}
 		}
+		return imageUris;
+	} catch {
+		// Folder may not exist or be inaccessible (e.g. permission denied)
+		return [];
 	}
-	return imageUris;
 }
 
 async function readImageFiles(fileService: IFileService, uris: URI[]): Promise<ICarouselImage[]> {
@@ -195,44 +202,62 @@ class OpenImagesInCarouselFromExplorerAction extends Action2 {
 		const explorerService = accessor.get(IExplorerService);
 		const fileService = accessor.get(IFileService);
 		const editorService = accessor.get(IEditorService);
+		const notificationService = accessor.get(INotificationService);
+		const contextService = accessor.get(IWorkspaceContextService);
 
 		const context = explorerService.getContext(true);
-		if (context.length === 0) {
-			return;
-		}
 
 		let imageUris: URI[] = [];
 		let startUri: URI | undefined;
 
-		const hasSingleImageFile = context.length === 1 && !context[0].isDirectory && isImageResource(context[0].resource);
+		if (context.length === 0) {
+			// Empty-space right-click: the explorer passes the workspace root
+			// as the resource argument. Fall back to the first workspace folder
+			// when no resource is available.
+			let folderUri: URI | undefined;
+			if (URI.isUri(resource)) {
+				folderUri = resource;
+			} else {
+				const folders = contextService.getWorkspace().folders;
+				if (folders.length > 0) {
+					folderUri = folders[0].uri;
+				}
+			}
 
-		if (hasSingleImageFile) {
-			// Single image: show all sibling images in the same folder with
-			// the selected image focused
-			startUri = context[0].resource;
-			const parentUri = dirname(context[0].resource);
-			imageUris = await collectImageFilesFromFolder(fileService, parentUri);
+			if (folderUri) {
+				imageUris = await collectImageFilesFromFolder(fileService, folderUri);
+			}
 		} else {
-			// Multiple items or a folder: collect images from selection,
-			// deduplicating in case a folder and its children are both selected
-			const seen = new Set<string>();
-			for (const item of context) {
-				if (item.isDirectory) {
-					const folderImages = await collectImageFilesFromFolder(fileService, item.resource);
-					for (const uri of folderImages) {
-						const key = uri.toString();
+			const hasSingleImageFile = context.length === 1 && !context[0].isDirectory && isImageResource(context[0].resource);
+
+			if (hasSingleImageFile) {
+				// Single image: show all sibling images in the same folder with
+				// the selected image focused
+				startUri = context[0].resource;
+				const parentUri = dirname(context[0].resource);
+				imageUris = await collectImageFilesFromFolder(fileService, parentUri);
+			} else {
+				// Multiple items or a folder: collect images from selection,
+				// deduplicating in case a folder and its children are both selected
+				const seen = new Set<string>();
+				for (const item of context) {
+					if (item.isDirectory) {
+						const folderImages = await collectImageFilesFromFolder(fileService, item.resource);
+						for (const uri of folderImages) {
+							const key = uri.toString();
+							if (!seen.has(key)) {
+								seen.add(key);
+								imageUris.push(uri);
+							}
+						}
+					} else if (isImageResource(item.resource)) {
+						const key = item.resource.toString();
 						if (!seen.has(key)) {
 							seen.add(key);
-							imageUris.push(uri);
-						}
-					}
-				} else if (isImageResource(item.resource)) {
-					const key = item.resource.toString();
-					if (!seen.has(key)) {
-						seen.add(key);
-						imageUris.push(item.resource);
-						if (!startUri) {
-							startUri = item.resource;
+							imageUris.push(item.resource);
+							if (!startUri) {
+								startUri = item.resource;
+							}
 						}
 					}
 				}
@@ -240,6 +265,7 @@ class OpenImagesInCarouselFromExplorerAction extends Action2 {
 		}
 
 		if (imageUris.length === 0) {
+			notificationService.info(localize('noImagesFound', "No images found in this folder."));
 			return;
 		}
 
