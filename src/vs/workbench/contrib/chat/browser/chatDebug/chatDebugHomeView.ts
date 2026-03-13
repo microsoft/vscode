@@ -16,6 +16,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
+import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
@@ -57,19 +58,19 @@ export class ChatDebugHomeView extends Disposable {
 		DOM.clearNode(this.scrollContent);
 		this.renderDisposables.clear();
 
-		DOM.append(this.scrollContent, $('h2.chat-debug-home-title', undefined, localize('chatDebug.title', "Agent Debug Panel")));
+		DOM.append(this.scrollContent, $('h2.chat-debug-home-title', undefined, localize('chatDebug.title', "Agent Debug Logs")));
 
-		const isEnabled = this.configurationService.getValue<boolean>('github.copilot.agentDebugLog.enabled');
+		const isEnabled = this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING);
 		if (!isEnabled) {
 			DOM.append(this.scrollContent, $('p.chat-debug-home-subtitle', undefined,
-				localize('chatDebug.disabled', "Enable to view internal chat logs and ask agents questions about it via /troubleshoot. If already enabled, reload the window to apply.")
+				localize('chatDebug.disabled', "Enable to view debug logs and investigate chat issues with /troubleshoot.")
 			));
 
 			const enableButton = this.renderDisposables.add(new Button(this.scrollContent, { ...defaultButtonStyles, secondary: true }));
 			enableButton.element.style.width = 'auto';
 			enableButton.label = localize('chatDebug.openSetting', "Enable in Settings");
 			this.renderDisposables.add(enableButton.onDidClick(() => {
-				this.preferencesService.openSettings({ jsonEditor: false, query: '@id:github.copilot.agentDebugLog.enabled' });
+				this.preferencesService.openSettings({ jsonEditor: false, query: AGENT_DEBUG_LOG_ENABLED_SETTING });
 			}));
 			return;
 		}

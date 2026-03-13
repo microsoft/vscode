@@ -23,6 +23,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
+import { AGENT_DEBUG_LOG_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
 import { IChatWidgetService } from '../chat.js';
 import { ViewState, IChatDebugEditorOptions } from './chatDebugTypes.js';
 import { ChatDebugFilterState, registerFilterMenuItems } from './chatDebugFilters.js';
@@ -35,7 +36,7 @@ const $ = DOM.$;
 
 type ChatDebugPanelOpenedClassification = {
 	owner: 'vijayu';
-	comment: 'Event fired when the agent debug panel is opened';
+	comment: 'Event fired when the agent debug logs is opened';
 };
 
 type ChatDebugViewSwitchedEvent = {
@@ -173,7 +174,7 @@ export class ChatDebugEditor extends EditorPane {
 		}));
 
 		this._register(this.chatService.onDidCreateModel(model => {
-			if (this.viewState === ViewState.Home && this.configurationService.getValue<boolean>('github.copilot.agentDebugLog.enabled')) {
+			if (this.viewState === ViewState.Home && this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING)) {
 				// Auto-navigate to the new session when the debug panel is
 				// already open on the home view.  This avoids the user having to
 				// wait for the title to resolve and manually clicking the session.
@@ -310,7 +311,7 @@ export class ChatDebugEditor extends EditorPane {
 		if (visible) {
 			this.telemetryService.publicLog2<{}, ChatDebugPanelOpenedClassification>('chatDebugPanelOpened');
 			// If the feature flag is disabled, always reset to the home view
-			if (!this.configurationService.getValue<boolean>('github.copilot.agentDebugLog.enabled')) {
+			if (!this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING)) {
 				this.endActiveSession();
 				this.showView(ViewState.Home);
 				return;
@@ -325,7 +326,7 @@ export class ChatDebugEditor extends EditorPane {
 
 	private _applyNavigationOptions(options: IChatDebugEditorOptions): void {
 		// If the feature flag is disabled, always show the home view
-		if (!this.configurationService.getValue<boolean>('github.copilot.agentDebugLog.enabled')) {
+		if (!this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING)) {
 			this.endActiveSession();
 			this.showView(ViewState.Home);
 			return;
