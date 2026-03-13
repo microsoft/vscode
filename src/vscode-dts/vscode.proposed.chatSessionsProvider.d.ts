@@ -93,7 +93,14 @@ declare module 'vscode' {
 	export type ChatSessionItemControllerRefreshHandler = (token: CancellationToken) => Thenable<void>;
 
 	export interface ChatSessionItemControllerNewItemHandlerContext {
-		readonly request: ChatRequest;
+		// TODO: Use a better type but for now decrease this down to just the prompt and command since that's all we currently need.
+		// The problem with ChatRequest is that it has a resourceUri which is not good for this code path.
+		readonly request: {
+			readonly prompt: string;
+			readonly command?: string;
+		};
+
+		readonly sessionOptions: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
 	}
 
 	/**
@@ -442,10 +449,13 @@ declare module 'vscode' {
 		 *
 		 * @param resource The URI of the chat session to resolve.
 		 * @param token A cancellation token that can be used to cancel the operation.
+		 * @param context Additional context for the chat session.
 		 *
 		 * @return The {@link ChatSession chat session} associated with the given URI.
 		 */
-		provideChatSessionContent(resource: Uri, token: CancellationToken): Thenable<ChatSession> | ChatSession;
+		provideChatSessionContent(resource: Uri, token: CancellationToken, context: {
+			readonly sessionOptions: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
+		}): Thenable<ChatSession> | ChatSession;
 
 		/**
 		 * @param resource Identifier of the chat session being updated.

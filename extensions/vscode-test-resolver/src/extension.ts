@@ -211,12 +211,12 @@ export function activate(context: vscode.ExtensionContext) {
 				console.log('Connecting via a managed authority');
 				return Promise.resolve(new vscode.ManagedResolvedAuthority(async () => {
 					const remoteSocket = net.createConnection({ port: serverAddr.port });
-					const dataEmitter = new vscode.EventEmitter<Uint8Array>();
+					const dataEmitter = new vscode.EventEmitter<Uint8Array<ArrayBuffer>>();
 					const closeEmitter = new vscode.EventEmitter<Error | undefined>();
 					const endEmitter = new vscode.EventEmitter<void>();
 
 					await new Promise((res, rej) => {
-						remoteSocket.on('data', d => dataEmitter.fire(d))
+						remoteSocket.on('data', d => dataEmitter.fire(d as Uint8Array<ArrayBuffer>))
 							.on('error', err => { rej(); closeEmitter.fire(err); })
 							.on('close', () => endEmitter.fire())
 							.on('end', () => endEmitter.fire())

@@ -15,7 +15,7 @@ export const ResolveDebugEventDetailsToolData: IToolData = {
 	id: ResolveDebugEventDetailsToolId,
 	toolReferenceName: 'resolveDebugEventDetails',
 	displayName: localize('resolveDebugEventDetails.displayName', "Resolve Debug Event Details"),
-	when: ChatContextKeys.chatSessionHasAttachedDebugData,
+	when: ChatContextKeys.chatSessionHasDebugTools,
 	canBeReferencedInPrompt: false,
 	modelDescription: 'Resolves the full details for a specific chat debug event by its event ID. Use this tool to get detailed information about a debug event such as tool call input/output, model turn details, user message sections, or file lists. The event ID can be found in the debug event log summary provided in the conversation context.',
 	source: ToolDataSource.Internal,
@@ -39,7 +39,7 @@ function formatResolvedContent(content: IChatDebugResolvedEventContent): string 
 			const lines: string[] = [`File list (${content.discoveryType}):`];
 			if (content.sourceFolders) {
 				for (const folder of content.sourceFolders) {
-					lines.push(`  Source folder: ${folder.uri.toString()} (${folder.storage}, ${folder.fileCount} files${folder.exists ? '' : ', missing'})`);
+					lines.push(`  Source folder: ${folder.uri.toString()} (${folder.storage})`);
 				}
 			}
 			for (const file of content.files) {

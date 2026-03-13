@@ -23,7 +23,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { filter } from '../../../../../base/common/objects.js';
 import { autorun, derived, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { basename, extUri, isEqual } from '../../../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -53,7 +53,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
 import { IChatModel, IChatModelInputState, IChatResponseModel } from '../../common/model/chatModel.js';
-import { ChatMode, getModeNameForTelemetry, IChatModeService } from '../../common/chatModes.js';
+import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
@@ -286,6 +286,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		displayName: string;
 	};
 	private readonly _lockedToCodingAgentContextKey: IContextKey<boolean>;
+	private readonly _lockedCodingAgentIdContextKey: IContextKey<string>;
 	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
 	private readonly _sessionIsEmptyContextKey: IContextKey<boolean>;
 	private readonly _hasPendingRequestsContextKey: IContextKey<boolean>;
@@ -400,6 +401,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		super();
 
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
+		this._lockedCodingAgentIdContextKey = ChatContextKeys.lockedCodingAgentId.bindTo(this.contextKeyService);
 		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 		this._sessionIsEmptyContextKey = ChatContextKeys.chatSessionIsEmpty.bindTo(this.contextKeyService);
 		this._hasPendingRequestsContextKey = ChatContextKeys.hasPendingRequests.bindTo(this.contextKeyService);
@@ -673,8 +675,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
 		}));
-		this._register(this.chatSuggestNextWidget.onDidSelectPrompt(({ handoff, agentId }) => {
-			this.handleNextPromptSelection(handoff, agentId);
+		this._register(this.chatSuggestNextWidget.onDidSelectPrompt(({ handoff, agentId, withAutopilot }) => {
+			this.handleNextPromptSelection(handoff, agentId, withAutopilot);
 		}));
 
 		if (renderInputOnTop) {
@@ -1111,9 +1113,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined): IChatViewWelcomeContent {
 		if (this.isLockedToCodingAgent) {
 			// Check for provider-specific customizations from chat sessions service
-			const providerIcon = this._lockedAgent ? this.chatSessionsService.getIconForSessionType(this._lockedAgent.id) : undefined;
-			const providerTitle = this._lockedAgent ? this.chatSessionsService.getWelcomeTitleForSessionType(this._lockedAgent.id) : undefined;
-			const providerMessage = this._lockedAgent ? this.chatSessionsService.getWelcomeMessageForSessionType(this._lockedAgent.id) : undefined;
+			const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
+			const providerIcon = contribution?.icon;
+			const providerTitle = contribution?.welcomeTitle;
+			const providerMessage = contribution?.welcomeMessage;
 
 			// Fallback to default messages if provider doesn't specify
 			const message = providerMessage
@@ -1182,27 +1185,45 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const lastItem = items[items.length - 1];
 		const lastResponseComplete = lastItem && isResponseVM(lastItem) && lastItem.isComplete;
-		if (!lastResponseComplete) {
+		if (!lastResponseComplete || lastItem.isCanceled) {
+			this.chatSuggestNextWidget.hide();
 			return;
 		}
-		// Get the currently selected mode directly from the observable
-		// Note: We use currentModeObs instead of currentModeKind because currentModeKind returns
-		// the ChatModeKind enum (e.g., 'agent'), which doesn't distinguish between custom modes.
-		// Custom modes all have kind='agent' but different IDs.
-		const currentMode = this.input.currentModeObs.get();
-		const handoffs = currentMode?.handOffs?.get();
 
-		// Only show if: mode has handoffs AND chat has content AND not quick chat
-		const shouldShow = currentMode && handoffs && handoffs.length > 0;
+		// Derive handoffs from the mode that generated the last response, not the current UI selection.
+		// This ensures handoffs reflect what the response agent offers, regardless of mode picker state.
+		// Fall back to the current mode picker for old sessions where modeInfo was not persisted.
+		const modeInfo = lastItem.model.request?.modeInfo;
+		let responseMode: IChatMode | undefined;
+		if (modeInfo?.modeInstructions?.name) {
+			responseMode = this.chatModeService.findModeByName(modeInfo.modeInstructions.name);
+		} else if (modeInfo?.modeId) {
+			responseMode = this.chatModeService.findModeById(modeInfo.modeId);
+		} else {
+			responseMode = this.input.currentModeObs.get();
+		}
 
-		if (shouldShow) {
+		const handoffs = responseMode?.handOffs?.get();
+
+		if (responseMode && handoffs && handoffs.length > 0) {
+			// In Autopilot mode, automatically trigger the first auto-send handoff
+			// so the plan flows seamlessly into implementation without user interaction.
+			const permissionLevel = this.inputPart.currentModeInfo.permissionLevel;
+			if (permissionLevel === ChatPermissionLevel.Autopilot) {
+				const autoSendHandoff = handoffs.find(h => h.send);
+				if (autoSendHandoff) {
+					this.handleNextPromptSelection(autoSendHandoff);
+					return;
+				}
+			}
+
 			// Log telemetry only when widget transitions from hidden to visible
 			const wasHidden = this.chatSuggestNextWidget.domNode.style.display === 'none';
-			this.chatSuggestNextWidget.render(currentMode);
+			this.chatSuggestNextWidget.render(responseMode);
 
 			if (wasHidden) {
 				this.telemetryService.publicLog2<ChatHandoffWidgetShownEvent, ChatHandoffWidgetShownClassification>('chat.handoffWidgetShown', {
-					agent: getModeNameForTelemetry(currentMode),
+					agent: getModeNameForTelemetry(responseMode),
 					handoffCount: handoffs.length
 				});
 			}
@@ -1216,9 +1237,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private handleNextPromptSelection(handoff: IHandOff, agentId?: string): void {
+	private handleNextPromptSelection(handoff: IHandOff, agentId?: string, withAutopilot?: boolean): void {
 		// Hide the widget after selection
 		this.chatSuggestNextWidget.hide();
+
+		// If starting with Autopilot, set permission level before submitting
+		if (withAutopilot) {
+			this.inputPart.setPermissionLevel(ChatPermissionLevel.Autopilot);
+		}
 
 		const promptToUse = handoff.prompt;
 
@@ -1542,7 +1568,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				ChatContextKeys.currentlyEditing.bindTo(item.contextKeyService).set(true);
 			}
 
-			const isEditingSentRequest = currentElement.pendingKind === undefined ? ChatContextKeys.EditingRequestType.Sent : ChatContextKeys.EditingRequestType.QueueOrSteer;
+			const isEditingSentRequest = currentElement.pendingKind === undefined
+				? ChatContextKeys.EditingRequestType.Sent
+				: currentElement.pendingKind === ChatRequestQueueKind.Queued
+					? ChatContextKeys.EditingRequestType.Queue
+					: ChatContextKeys.EditingRequestType.Steer;
 			const isInput = this.configurationService.getValue<string>('chat.editRequests') === 'input';
 			this.inputPart?.setEditing(!!this.viewModel?.editing && isInput, isEditingSentRequest);
 
@@ -1937,7 +1967,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.setViewModel(this.viewModel);
 
 		if (this._lockedAgent) {
-			let placeholder = this.chatSessionsService.getInputPlaceholderForSessionType(this._lockedAgent.id);
+			let placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
 			if (!placeholder) {
 				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.id);
 			}
@@ -2002,6 +2032,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (e.kind === 'addRequest') {
 				this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, false);
 				this._sessionIsEmptyContextKey.set(false);
+				this.chatSuggestNextWidget.hide();
 			}
 			// Hide widget on request removal
 			if (e.kind === 'removeRequest') {
@@ -2032,6 +2063,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.listWidget.scrollToEnd();
 		}
 
+		this.renderChatSuggestNextWidget();
 		this.updateChatInputContext();
 		this.input.renderChatTodoListWidget(this.viewModel.sessionResource);
 	}
@@ -2082,6 +2114,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			displayName
 		};
 		this._lockedToCodingAgentContextKey.set(true);
+		this._lockedCodingAgentIdContextKey.set(agentId);
 		this.renderWelcomeViewContentIfNeeded();
 		// Update capabilities for the locked agent
 		const agent = this.chatAgentService.getAgent(agentId);
@@ -2096,6 +2129,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Clear all state related to locking
 		this._lockedAgent = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
+		this._lockedCodingAgentIdContextKey.set('');
 		this._updateAgentCapabilitiesContextKeys(undefined);
 
 		// Explicitly update the DOM to reflect unlocked state
@@ -2170,9 +2204,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const toolReferences = this.toolsService.toToolReferences(refs);
 		requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 
-		// remove the slash command from the input
-		requestInput.input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();
-
 		const promptPath = slashCommand.promptPath;
 		const promptRunEvent: ChatPromptRunEvent = {
 			storage: promptPath.storage,
@@ -2185,12 +2216,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.telemetryService.publicLog2<ChatPromptRunEvent, ChatPromptRunClassification>('chat.promptRun', promptRunEvent);
 
-		const input = requestInput.input.trim();
-		requestInput.input = `Follow instructions in [${basename(parseResult.uri)}](${parseResult.uri.toString()}).`;
-		if (input) {
-			// if the input is not empty, append it to the prompt
-			requestInput.input += `\n${input}`;
-		}
 		if (parseResult.header) {
 			await this._applyPromptMetadata(parseResult.header, requestInput);
 		}
@@ -2242,7 +2267,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.chatService.removePendingRequest(this.viewModel.sessionResource, editingRequestId);
 				options.queue ??= editingPendingRequest;
 			} else {
-				this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-editing');
+				await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-editing');
 				options.queue = undefined;
 			}
 
@@ -2262,7 +2287,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
 		if (model.requestNeedsInput.get() && !model.getPendingRequests().length) {
-			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-needsInput');
+			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-needsInput');
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
 		if (requestInProgress) {
@@ -2353,6 +2378,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._onDidSubmitAgent.fire({ agent: sent.data.agent, slashCommand: sent.data.slashCommand });
 		this.handleDelegationExitIfNeeded(this._lockedAgent, sent.data.agent);
+
+		// If the session was replaced (untitled -> real contributed session), swap the widget's model
+		if (sent.newSessionResource) {
+			const newModel = this.chatService.getSession(sent.newSessionResource);
+			if (newModel) {
+				this.setModel(newModel);
+			}
+		}
+
 		sent.data.responseCreatedPromise.then(() => {
 			// Only start accessibility progress once a real request/response model exists.
 			this.chatAccessibilityService.acceptRequest(submittedSessionResource);
@@ -2435,15 +2469,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
 		const sessionResource = this.viewModel?.sessionResource;
+		const capturedModeId = this.input.currentModeObs.get().id;
 		const userSelectedTools = this.input.selectedToolsModel.userSelectedTools;
 
 		let lastToolsSnapshot = userSelectedTools.get();
 
 		// When the widget has loaded a new session, return a snapshot of the tools for this session.
-		// Only sync with the tools model when this session is shown.
+		// Only sync with the tools model when this session is shown with the same mode.
 		const scopedTools = derived(reader => {
 			const activeSession = this._viewModelObs.read(reader)?.sessionResource;
-			if (isEqual(activeSession, sessionResource)) {
+			const currentModeId = this.input.currentModeObs.read(reader).id;
+			if (isEqual(activeSession, sessionResource) && currentModeId === capturedModeId) {
 				const tools = userSelectedTools.read(reader);
 				lastToolsSnapshot = tools;
 				return tools;

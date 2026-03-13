@@ -11,6 +11,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -22,6 +23,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
+import { AGENT_DEBUG_LOG_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
 import { IChatWidgetService } from '../chat.js';
 import { ViewState, IChatDebugEditorOptions } from './chatDebugTypes.js';
 import { ChatDebugFilterState, registerFilterMenuItems } from './chatDebugFilters.js';
@@ -34,7 +36,7 @@ const $ = DOM.$;
 
 type ChatDebugPanelOpenedClassification = {
 	owner: 'vijayu';
-	comment: 'Event fired when the agent debug panel is opened';
+	comment: 'Event fired when the agent debug logs panel is opened';
 };
 
 type ChatDebugViewSwitchedEvent = {
@@ -44,7 +46,7 @@ type ChatDebugViewSwitchedEvent = {
 type ChatDebugViewSwitchedClassification = {
 	viewState: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view the user navigated to (home, overview, logs, flowchart).' };
 	owner: 'vijayu';
-	comment: 'Tracks which views users navigate to in the debug panel.';
+	comment: 'Tracks which views users navigate to in the Agent Debug Logs.';
 };
 
 export class ChatDebugEditor extends EditorPane {
@@ -64,9 +66,6 @@ export class ChatDebugEditor extends EditorPane {
 
 	private readonly sessionModelListener = this._register(new MutableDisposable());
 	private readonly modelChangeListeners = this._register(new DisposableMap<string>());
-
-	/** Saved session resource so we can restore it after the editor is re-shown. */
-	private savedSessionResource: URI | undefined;
 
 	/**
 	 * Stops the streaming pipeline and clears cached events for the
@@ -91,6 +90,7 @@ export class ChatDebugEditor extends EditorPane {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(ChatDebugEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -174,8 +174,11 @@ export class ChatDebugEditor extends EditorPane {
 		}));
 
 		this._register(this.chatService.onDidCreateModel(model => {
-			if (this.viewState === ViewState.Home) {
-				this.homeView?.render();
+			if (this.viewState === ViewState.Home && this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING)) {
+				// Auto-navigate to the new session when the Agent Debug Logs is
+				// already open on the home view.  This avoids the user having to
+				// wait for the title to resolve and manually clicking the session.
+				this.navigateToSession(model.sessionResource);
 			}
 
 			// Track title changes per model, disposing the previous listener
@@ -307,44 +310,28 @@ export class ChatDebugEditor extends EditorPane {
 		super.setEditorVisible(visible);
 		if (visible) {
 			this.telemetryService.publicLog2<{}, ChatDebugPanelOpenedClassification>('chatDebugPanelOpened');
-			// Note: do NOT read this.options here. When the editor becomes
-			// visible via openEditor(), setEditorVisible fires before
-			// setOptions, so this.options still contains stale values from
-			// the previous openEditor() call. Navigation from new options
-			// is handled entirely by setOptions → _applyNavigationOptions.
-			// Here we only restore the previous state when the editor is
-			// re-shown without a new openEditor() call (e.g., tab switch).
-			if (this.viewState === ViewState.Home) {
-				const sessionResource = this.chatDebugService.activeSessionResource ?? this.savedSessionResource;
-				this.savedSessionResource = undefined;
-				if (sessionResource) {
-					this.navigateToSession(sessionResource, 'overview');
-				} else {
-					this.showView(ViewState.Home);
-				}
-			} else {
-				// Re-activate the streaming pipeline for the current session,
-				// restoring the saved session resource if the editor was temporarily hidden.
-				const sessionResource = this.chatDebugService.activeSessionResource ?? this.savedSessionResource;
-				this.savedSessionResource = undefined;
-				if (sessionResource) {
-					this.chatDebugService.activeSessionResource = sessionResource;
-					if (!this.chatDebugService.hasInvokedProviders(sessionResource)) {
-						this.chatDebugService.invokeProviders(sessionResource);
-					}
-				} else {
-					this.showView(ViewState.Home);
-				}
+			// If the feature flag is disabled, always reset to the home view
+			if (!this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING)) {
+				this.endActiveSession();
+				this.showView(ViewState.Home);
+				return;
 			}
-		} else {
-			// Remember the active session so we can restore when re-shown
-			this.savedSessionResource = this.chatDebugService.activeSessionResource;
-			// Stop the streaming pipeline when the editor is hidden
-			this.endActiveSession();
+			// Re-show the current view so it reloads events from scratch,
+			// ensuring correct ordering and no stale duplicates.
+			// Navigation from new openEditor() options is handled by
+			// setOptions → _applyNavigationOptions (fires after this).
+			this.showView(this.viewState);
 		}
 	}
 
 	private _applyNavigationOptions(options: IChatDebugEditorOptions): void {
+		// If the feature flag is disabled, always show the home view
+		if (!this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING)) {
+			this.endActiveSession();
+			this.showView(ViewState.Home);
+			return;
+		}
+
 		const { sessionResource, viewHint, filter } = options;
 		if (viewHint === 'logs' && sessionResource) {
 			this.navigateToSession(sessionResource, 'logs');

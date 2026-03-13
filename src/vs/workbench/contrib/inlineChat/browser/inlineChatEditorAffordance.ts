@@ -33,13 +33,12 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 
 class QuickFixActionViewItem extends MenuEntryActionViewItem {
 
-	readonly #lightBulbStore = this._store.add(new MutableDisposable<DisposableStore>());
-	readonly #editor: ICodeEditor;
-	#currentTitle: string | undefined;
+	private readonly _lightBulbStore = this._store.add(new MutableDisposable<DisposableStore>());
+	private _currentTitle: string | undefined;
 
 	constructor(
 		action: MenuItemAction,
-		editor: ICodeEditor,
+		private readonly _editor: ICodeEditor,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -56,7 +55,7 @@ class QuickFixActionViewItem extends MenuEntryActionViewItem {
 			elementGetter: () => HTMLElement | undefined = () => undefined;
 
 			override async run(...args: unknown[]): Promise<void> {
-				const controller = CodeActionController.get(editor);
+				const controller = CodeActionController.get(_editor);
 				const info = controller?.lightBulbState.get();
 				const element = this.elementGetter();
 				if (controller && info && element) {
@@ -68,27 +67,26 @@ class QuickFixActionViewItem extends MenuEntryActionViewItem {
 
 		super(wrappedAction, { draggable: false }, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
 
-		this.#editor = editor;
 		wrappedAction.elementGetter = () => this.element;
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		this.#updateFromLightBulb();
+		this._updateFromLightBulb();
 	}
 
 	protected override getTooltip(): string {
-		return this.#currentTitle ?? super.getTooltip();
+		return this._currentTitle ?? super.getTooltip();
 	}
 
-	#updateFromLightBulb(): void {
-		const controller = CodeActionController.get(this.#editor);
+	private _updateFromLightBulb(): void {
+		const controller = CodeActionController.get(this._editor);
 		if (!controller) {
 			return;
 		}
 
 		const store = new DisposableStore();
-		this.#lightBulbStore.value = store;
+		this._lightBulbStore.value = store;
 
 		store.add(autorun(reader => {
 			const info = controller.lightBulbState.read(reader);
@@ -101,7 +99,7 @@ class QuickFixActionViewItem extends MenuEntryActionViewItem {
 			}
 
 			// Update tooltip
-			this.#currentTitle = info?.title;
+			this._currentTitle = info?.title;
 			this.updateTooltip();
 		}));
 	}
@@ -109,7 +107,7 @@ class QuickFixActionViewItem extends MenuEntryActionViewItem {
 
 class LabelWithKeybindingActionViewItem extends MenuEntryActionViewItem {
 
-	readonly #kbLabel: string | undefined;
+	private readonly _kbLabel: string | undefined;
 
 	constructor(
 		action: MenuItemAction,
@@ -123,14 +121,14 @@ class LabelWithKeybindingActionViewItem extends MenuEntryActionViewItem {
 		super(action, { draggable: false }, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
 		this.options.label = true;
 		this.options.icon = false;
-		this.#kbLabel = keybindingService.lookupKeybinding(action.id)?.getLabel() ?? undefined;
+		this._kbLabel = keybindingService.lookupKeybinding(action.id)?.getLabel() ?? undefined;
 	}
 
 	protected override updateLabel(): void {
 		if (this.label) {
 			dom.reset(this.label,
 				this.action.label,
-				...(this.#kbLabel ? [dom.$('span.inline-chat-keybinding', undefined, this.#kbLabel)] : [])
+				...(this._kbLabel ? [dom.$('span.inline-chat-keybinding', undefined, this._kbLabel)] : [])
 			);
 		}
 	}
@@ -142,42 +140,38 @@ class LabelWithKeybindingActionViewItem extends MenuEntryActionViewItem {
  */
 export class InlineChatEditorAffordance extends Disposable implements IContentWidget {
 
-	static #idPool = 0;
+	private static _idPool = 0;
 
-	readonly #id = `inline-chat-content-widget-${InlineChatEditorAffordance.#idPool++}`;
-	readonly #domNode: HTMLElement;
-	#position: IContentWidgetPosition | null = null;
-	#isVisible = false;
+	private readonly _id = `inline-chat-content-widget-${InlineChatEditorAffordance._idPool++}`;
+	private readonly _domNode: HTMLElement;
+	private _position: IContentWidgetPosition | null = null;
+	private _isVisible = false;
 
-	readonly #onDidRunAction = this._store.add(new Emitter<string>());
-	readonly onDidRunAction: Event<string> = this.#onDidRunAction.event;
+	private readonly _onDidRunAction = this._store.add(new Emitter<string>());
+	readonly onDidRunAction: Event<string> = this._onDidRunAction.event;
 
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = false;
 
-	readonly #editor: ICodeEditor;
-
 	constructor(
-		editor: ICodeEditor,
+		private readonly _editor: ICodeEditor,
 		selection: IObservable<Selection | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this.#editor = editor;
-
 		// Create the widget DOM
-		this.#domNode = dom.$('.inline-chat-content-widget');
+		this._domNode = dom.$('.inline-chat-content-widget');
 
 		// Create toolbar with the inline chat start action
-		const toolbar = this._store.add(instantiationService.createInstance(MenuWorkbenchToolBar, this.#domNode, MenuId.InlineChatEditorAffordance, {
+		const toolbar = this._store.add(instantiationService.createInstance(MenuWorkbenchToolBar, this._domNode, MenuId.InlineChatEditorAffordance, {
 			telemetrySource: 'inlineChatEditorAffordance',
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { renderShortTitle: true },
 			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 			actionViewItemProvider: (action: IAction) => {
 				if (action instanceof MenuItemAction && action.id === quickFixCommandId) {
-					return instantiationService.createInstance(QuickFixActionViewItem, action, this.#editor);
+					return instantiationService.createInstance(QuickFixActionViewItem, action, this._editor);
 				}
 				if (action instanceof MenuItemAction && (action.id === ACTION_START || action.id === ACTION_ASK_IN_CHAT || action.id === 'inlineChat.fixDiagnostics')) {
 					return instantiationService.createInstance(LabelWithKeybindingActionViewItem, action);
@@ -186,37 +180,37 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 			}
 		}));
 		this._store.add(toolbar.actionRunner.onDidRun((e) => {
-			this.#onDidRunAction.fire(e.action.id);
-			this.#hide();
+			this._onDidRunAction.fire(e.action.id);
+			this._hide();
 		}));
 
 		this._store.add(autorun(r => {
 			const sel = selection.read(r);
 			if (sel) {
-				this.#show(sel);
+				this._show(sel);
 			} else {
-				this.#hide();
+				this._hide();
 			}
 		}));
 	}
 
-	#show(selection: Selection): void {
+	private _show(selection: Selection): void {
 
 		if (selection.isEmpty()) {
-			this.#showAtLineStart(selection.getPosition().lineNumber);
+			this._showAtLineStart(selection.getPosition().lineNumber);
 		} else {
-			this.#showAtSelection(selection);
+			this._showAtSelection(selection);
 		}
 
-		if (this.#isVisible) {
-			this.#editor.layoutContentWidget(this);
+		if (this._isVisible) {
+			this._editor.layoutContentWidget(this);
 		} else {
-			this.#editor.addContentWidget(this);
-			this.#isVisible = true;
+			this._editor.addContentWidget(this);
+			this._isVisible = true;
 		}
 	}
 
-	#showAtSelection(selection: Selection): void {
+	private _showAtSelection(selection: Selection): void {
 		const cursorPosition = selection.getPosition();
 		const direction = selection.getDirection();
 
@@ -224,20 +218,20 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 			? ContentWidgetPositionPreference.ABOVE
 			: ContentWidgetPositionPreference.BELOW;
 
-		this.#position = {
+		this._position = {
 			position: cursorPosition,
 			preference: [preference],
 		};
 	}
 
-	#showAtLineStart(lineNumber: number): void {
-		const model = this.#editor.getModel();
+	private _showAtLineStart(lineNumber: number): void {
+		const model = this._editor.getModel();
 		if (!model) {
 			return;
 		}
 
 		const tabSize = model.getOptions().tabSize;
-		const fontInfo = this.#editor.getOptions().get(EditorOption.fontInfo);
+		const fontInfo = this._editor.getOptions().get(EditorOption.fontInfo);
 		const lineContent = model.getLineContent(lineNumber);
 		const indent = computeIndentLevel(lineContent, tabSize);
 		const lineHasSpace = indent < 0 ? true : fontInfo.spaceWidth * indent > 22;
@@ -260,43 +254,43 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 
 		const effectiveColumnNumber = /^\S\s*$/.test(model.getLineContent(effectiveLineNumber)) ? 2 : 1;
 
-		this.#position = {
+		this._position = {
 			position: { lineNumber: effectiveLineNumber, column: effectiveColumnNumber },
 			preference: [ContentWidgetPositionPreference.EXACT],
 		};
 	}
 
-	#hide(): void {
-		if (this.#isVisible) {
-			this.#isVisible = false;
-			this.#editor.removeContentWidget(this);
+	private _hide(): void {
+		if (this._isVisible) {
+			this._isVisible = false;
+			this._editor.removeContentWidget(this);
 		}
 	}
 
 	getId(): string {
-		return this.#id;
+		return this._id;
 	}
 
 	getDomNode(): HTMLElement {
-		return this.#domNode;
+		return this._domNode;
 	}
 
 	getPosition(): IContentWidgetPosition | null {
-		return this.#position;
+		return this._position;
 	}
 
 	beforeRender(): IDimension | null {
-		const position = this.#editor.getPosition();
-		const lineHeight = position ? this.#editor.getLineHeightForPosition(position) : this.#editor.getOption(EditorOption.lineHeight);
+		const position = this._editor.getPosition();
+		const lineHeight = position ? this._editor.getLineHeightForPosition(position) : this._editor.getOption(EditorOption.lineHeight);
 
-		this.#domNode.style.setProperty('--vscode-inline-chat-affordance-height', `${lineHeight}px`);
+		this._domNode.style.setProperty('--vscode-inline-chat-affordance-height', `${lineHeight}px`);
 
 		return null;
 	}
 
 	override dispose(): void {
-		if (this.#isVisible) {
-			this.#editor.removeContentWidget(this);
+		if (this._isVisible) {
+			this._editor.removeContentWidget(this);
 		}
 		super.dispose();
 	}

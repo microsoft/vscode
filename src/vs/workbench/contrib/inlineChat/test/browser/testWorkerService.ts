@@ -20,49 +20,47 @@ import { DisposableStore, IDisposable } from '../../../../../base/common/lifecyc
 
 export class TestWorkerService extends mock<IEditorWorkerService>() implements IDisposable {
 
-	readonly #store = new DisposableStore();
-	readonly #worker = this.#store.add(new EditorWorker());
-	readonly #modelService: IModelService;
+	private readonly _store = new DisposableStore();
+	private readonly _worker = this._store.add(new EditorWorker());
 
-	constructor(@IModelService modelService: IModelService) {
+	constructor(@IModelService private readonly _modelService: IModelService) {
 		super();
-		this.#modelService = modelService;
 	}
 
 	dispose(): void {
-		this.#store.dispose();
+		this._store.dispose();
 	}
 	override async computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined, pretty?: boolean | undefined): Promise<TextEdit[] | undefined> {
 		return undefined;
 	}
 
 	override async computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null> {
-		await new Promise<void>(resolve => disposableTimeout(() => resolve(), 0, this.#store));
-		if (this.#store.isDisposed) {
+		await new Promise<void>(resolve => disposableTimeout(() => resolve(), 0, this._store));
+		if (this._store.isDisposed) {
 			return null;
 		}
 
-		const originalModel = this.#modelService.getModel(original);
-		const modifiedModel = this.#modelService.getModel(modified);
+		const originalModel = this._modelService.getModel(original);
+		const modifiedModel = this._modelService.getModel(modified);
 
 		assertType(originalModel);
 		assertType(modifiedModel);
 
-		this.#worker.$acceptNewModel({
+		this._worker.$acceptNewModel({
 			url: originalModel.uri.toString(),
 			versionId: originalModel.getVersionId(),
 			lines: originalModel.getLinesContent(),
 			EOL: originalModel.getEOL(),
 		});
 
-		this.#worker.$acceptNewModel({
+		this._worker.$acceptNewModel({
 			url: modifiedModel.uri.toString(),
 			versionId: modifiedModel.getVersionId(),
 			lines: modifiedModel.getLinesContent(),
 			EOL: modifiedModel.getEOL(),
 		});
 
-		const result = await this.#worker.$computeDiff(originalModel.uri.toString(), modifiedModel.uri.toString(), options, algorithm);
+		const result = await this._worker.$computeDiff(originalModel.uri.toString(), modifiedModel.uri.toString(), options, algorithm);
 		if (!result) {
 			return result;
 		}

@@ -8,7 +8,7 @@ import { FileAccess } from '../../../base/common/network.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex } from '../common/browserView.js';
 import { EVENT_KEY_CODE_MAP, KeyCode, KeyMod, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
@@ -46,6 +46,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	private _lastFavicon: string | undefined = undefined;
 	private _lastError: IBrowserViewLoadError | undefined = undefined;
 	private _lastUserGestureTimestamp: number = -Infinity;
+	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
 	private _debugger: BrowserViewDebugger;
 	private _window: ICodeWindow | IAuxiliaryWindow | undefined;
@@ -283,6 +284,12 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		webContents.on('did-navigate', fireNavigationEvent);
 		webContents.on('did-navigate-in-page', fireNavigationEvent);
 
+		// Chromium resets the zoom factor to its per-origin default (100%) when
+		// navigating to a new document. Re-apply our stored zoom to override it.
+		webContents.on('did-navigate', () => {
+			this._view.webContents.setZoomFactor(browserZoomFactors[this._browserZoomIndex]);
+		});
+
 		// Focus events
 		webContents.on('focus', () => {
 			this._onDidChangeFocus.fire({ focused: true });
@@ -374,7 +381,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			lastError: this._lastError,
 			certificateError: this.session.trust.getCertificateError(url),
 			storageScope: this.session.storageScope,
-			zoomFactor: webContents.getZoomFactor()
+			browserZoomIndex: this._browserZoomIndex
 		};
 	}
 
@@ -398,7 +405,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			}
 		}
 
-		this._view.webContents.setZoomFactor(bounds.zoomFactor);
 		this._view.setBorderRadius(Math.round(bounds.cornerRadius * bounds.zoomFactor));
 		this._view.setBounds({
 			x: Math.round(bounds.x * bounds.zoomFactor),
@@ -406,6 +412,12 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			width: Math.round(bounds.width * bounds.zoomFactor),
 			height: Math.round(bounds.height * bounds.zoomFactor)
 		});
+	}
+
+	setBrowserZoomIndex(zoomIndex: number): void {
+		this._browserZoomIndex = Math.max(0, Math.min(zoomIndex, browserZoomFactors.length - 1));
+		const browserZoomFactor = browserZoomFactors[this._browserZoomIndex];
+		this._view.webContents.setZoomFactor(browserZoomFactor);
 	}
 
 	/**
@@ -488,8 +500,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
 		const quality = options?.quality ?? 80;
 		const image = await this._view.webContents.capturePage(options?.rect, {
-			stayHidden: true,
-			stayAwake: true
+			stayHidden: true
 		});
 		const buffer = image.toJPEG(quality);
 		const screenshot = VSBuffer.wrap(buffer);
@@ -654,7 +665,9 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		this._onDidClose.fire();
 
 		// Clean up the view and all its event listeners
-		this._view.webContents.close({ waitForBeforeUnload: false });
+		if (!this._view.webContents.isDestroyed()) {
+			this._view.webContents.close({ waitForBeforeUnload: false });
+		}
 
 		super.dispose();
 	}
@@ -669,6 +682,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 		const isArrowKey = keyCode >= KeyCode.LeftArrow && keyCode <= KeyCode.DownArrow;
 		const isNonEditingKey =
+			keyCode === KeyCode.Enter ||
 			keyCode === KeyCode.Escape ||
 			keyCode >= KeyCode.F1 && keyCode <= KeyCode.F24 ||
 			keyCode >= KeyCode.AudioVolumeMute;

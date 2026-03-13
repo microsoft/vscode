@@ -15,7 +15,6 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 
 const STORAGE_KEY_LAST_FOLDER = 'agentSessions.lastPickedFolder';
@@ -53,7 +52,6 @@ export class FolderPicker extends Disposable {
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
@@ -114,7 +112,7 @@ export class FolderPicker extends Disposable {
 			return;
 		}
 
-		const currentFolderUri = this._selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
+		const currentFolderUri = this._selectedFolderUri;
 		const items = this._buildItems(currentFolderUri);
 		const showFilter = items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 
@@ -285,7 +283,7 @@ export class FolderPicker extends Disposable {
 		}
 
 		dom.clearNode(trigger);
-		const folderUri = this._selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
+		const folderUri = this._selectedFolderUri;
 		const label = folderUri ? basename(folderUri) : localize('pickFolder', "Pick Folder");
 
 		dom.append(trigger, renderIcon(Codicon.folder));

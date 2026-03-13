@@ -265,7 +265,13 @@
 
 /* Filter input */
 .action-widget .action-list-filter {
-	padding: 2px 2px 4px 2px
+	padding: 2px 2px 4px 2px;
+}
+
+.action-widget .action-list-filter-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
 }
 
 .action-widget .action-list-filter:first-child {
@@ -278,6 +284,7 @@
 
 .action-widget .action-list-filter-input {
 	width: 100%;
+	flex: 1;
 	box-sizing: border-box;
 	padding: 4px 8px;
 	border: 1px solid var(--vscode-input-border, transparent);
@@ -293,4 +300,13 @@
 
 .action-widget .action-list-filter-input::placeholder {
 	color: var(--vscode-input-placeholderForeground);
+}
+
+.action-widget .action-list-filter-actions .action-label {
+	padding: 3px;
+	border-radius: 3px;
+}
+
+.action-widget .action-list-filter-actions .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
