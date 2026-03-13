@@ -92,7 +92,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'update.titleBar': {
 			type: 'string',
-			enum: ['none', 'actionable', 'detailed'],
+			enum: ['none', 'actionable', 'detailed', 'always'],
 			default: 'none',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -101,7 +101,8 @@ configurationRegistry.registerConfiguration({
 			enumDescriptions: [
 				localize('titleBarNone', "The title bar entry is never shown."),
 				localize('titleBarActionable', "The title bar entry is shown when an action is required (e.g., download, install, or restart)."),
-				localize('titleBarDetailed', "The title bar entry is shown for all update states including progress.")
+				localize('titleBarDetailed', "The title bar entry is shown for progress and actionable update states, but not for idle or disabled states."),
+				localize('titleBarAlways', "The title bar entry is shown for all update states.")
 			]
 		}
 	}
