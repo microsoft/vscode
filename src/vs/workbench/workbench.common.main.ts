@@ -212,6 +212,7 @@ import './contrib/inlineChat/browser/inlineChat.contribution.js';
 import './contrib/mcp/browser/mcp.contribution.js';
 import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
+import './contrib/imageCarousel/browser/imageCarousel.contribution.js';
 
 // Interactive
 import './contrib/interactive/browser/interactive.contribution.js';
@@ -249,6 +250,9 @@ import './contrib/searchEditor/browser/searchEditor.contribution.js';
 
 // Sash
 import './contrib/sash/browser/sash.contribution.js';
+
+// Git
+import './contrib/git/browser/git.contributions.js';
 
 // SCM
 import './contrib/scm/browser/scm.contribution.js';

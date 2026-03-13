@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/releasenoteseditor.css';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { KeybindingParser } from '../../../../base/common/keybindingParser.js';
@@ -124,7 +124,7 @@ export class ReleaseNotesManager extends Disposable {
 				},
 				'releaseNotes',
 				title,
-				undefined,
+				Codicon.vscode,
 				{ group: ACTIVE_GROUP, preserveFocus: false });
 
 			const disposables = new DisposableStore();
@@ -222,7 +222,7 @@ export class ReleaseNotesManager extends Disposable {
 					const file = this._codeEditorService.getActiveCodeEditor()?.getModel()?.getValue();
 					text = file ? file.substring(file.indexOf('#')) : undefined;
 				} else {
-					text = await asTextOrError(await this._requestService.request({ url }, CancellationToken.None));
+					text = await asTextOrError(await this._requestService.request({ url, callSite: 'releaseNotesEditor.fetchReleaseNotes' }, CancellationToken.None));
 				}
 			} catch {
 				throw new Error('Failed to fetch release notes');
@@ -558,13 +558,12 @@ export class ReleaseNotesManager extends Disposable {
 						font-size: var(--vscode-font-size);
 						font-family: var(--vscode-font-family);
 						white-space: nowrap;
-						box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+						box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 						z-index: 100;
 						overflow: hidden;
 						display: flex;
 						align-items: center;
 						justify-content: center;
-						transition: border-radius 0.25s ease, padding 0.25s ease, width 0.25s ease;
 					}
 
 					#update-action-btn .icon {
@@ -587,16 +586,18 @@ export class ReleaseNotesManager extends Disposable {
 						max-width: 0;
 						opacity: 0;
 						margin-left: 0;
-						transition: max-width 0.25s ease, opacity 0.2s ease, margin-left 0.25s ease;
 					}
 
 					#update-action-btn:hover,
 					#update-action-btn.expanded {
 						background-color: var(--vscode-button-hoverBackground);
-						box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+						box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 						width: auto;
-						border-radius: 20px;
-						padding: 0 14px;
+						height: auto;
+						max-height: 40px;
+						border-radius: var(--vscode-cornerRadius-small);
+						padding: 6px 10px;
+						line-height: 16px;
 					}
 
 					#update-action-btn:hover .label,
@@ -608,6 +609,7 @@ export class ReleaseNotesManager extends Disposable {
 
 					#update-action-btn.expanded {
 						background-color: var(--vscode-button-background);
+						box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 					}
 
 					body.vscode-high-contrast #update-action-btn {

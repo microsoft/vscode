@@ -506,6 +506,114 @@ suite('Cursor move by blankline test', () => {
 	});
 });
 
+// Tests for 'foldedLine' unit: moves by model lines but treats each fold as a single step.
+// This is the semantics required by vim's j/k: move through visible lines, skip hidden ones.
+
+suite('Cursor move command - foldedLine unit', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function executeFoldTest(callback: (editor: ITestCodeEditor, viewModel: ViewModel) => void): void {
+		withTestCodeEditor([
+			'line1',
+			'line2',
+			'line3',
+			'line4',
+			'line5',
+		].join('\n'), {}, (editor, viewModel) => {
+			callback(editor, viewModel);
+		});
+	}
+
+	test('move down by foldedLine skips a fold below the cursor', () => {
+		executeFoldTest((editor, viewModel) => {
+			// Line 4 is hidden (folded under line 3 as header)
+			viewModel.setHiddenAreas([new Range(4, 1, 4, 1)]);
+			moveTo(viewModel, 2, 1);
+			// j from line 2 → line 3 (visible fold header)
+			moveDownByFoldedLine(viewModel);
+			cursorEqual(viewModel, 3, 1);
+			// j from line 3 (fold header) → line 4 is hidden, lands on line 5
+			moveDownByFoldedLine(viewModel);
+			cursorEqual(viewModel, 5, 1);
+		});
+	});
+
+	test('move up by foldedLine skips a fold above the cursor', () => {
+		executeFoldTest((editor, viewModel) => {
+			// Line 3 is hidden (folded under line 2 as header)
+			viewModel.setHiddenAreas([new Range(3, 1, 3, 1)]);
+			moveTo(viewModel, 4, 1);
+			// k from line 4: line 3 is hidden, lands on line 2 (fold header)
+			moveUpByFoldedLine(viewModel);
+			cursorEqual(viewModel, 2, 1);
+			// k from line 2 → line 1
+			moveUpByFoldedLine(viewModel);
+			cursorEqual(viewModel, 1, 1);
+		});
+	});
+
+	test('move down by foldedLine with count treats each fold as one step', () => {
+		executeFoldTest((editor, viewModel) => {
+			// Line 3 is hidden
+			viewModel.setHiddenAreas([new Range(3, 1, 3, 1)]);
+			moveTo(viewModel, 1, 1);
+			// 3j from line 1: step1→2, step2→3(hidden)→4, step3→5
+			moveDownByFoldedLine(viewModel, 3);
+			cursorEqual(viewModel, 5, 1);
+		});
+	});
+
+	test('move down by foldedLine skips a multi-line fold as one step', () => {
+		executeFoldTest((editor, viewModel) => {
+			// Lines 2-4 are hidden (folded under line 1 as header)
+			viewModel.setHiddenAreas([new Range(2, 1, 4, 1)]);
+			moveTo(viewModel, 1, 1);
+			// j from line 1: lines 2-4 are all hidden, lands directly on line 5
+			moveDownByFoldedLine(viewModel);
+			cursorEqual(viewModel, 5, 1);
+		});
+	});
+
+	test('move down by foldedLine at last line stays at last line', () => {
+		executeFoldTest((editor, viewModel) => {
+			moveTo(viewModel, 5, 1);
+			moveDownByFoldedLine(viewModel);
+			cursorEqual(viewModel, 5, 1);
+		});
+	});
+
+	test('move up by foldedLine at first line stays at first line', () => {
+		executeFoldTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 1);
+			moveUpByFoldedLine(viewModel);
+			cursorEqual(viewModel, 1, 1);
+		});
+	});
+
+	test('move down by foldedLine with count clamps to last visible line after fold', () => {
+		executeFoldTest((editor, viewModel) => {
+			// Lines 2-4 are hidden. Visible lines are 1 and 5.
+			viewModel.setHiddenAreas([new Range(2, 1, 4, 1)]);
+			moveTo(viewModel, 1, 1);
+			// 2j should land on line 5 and clamp there.
+			moveDownByFoldedLine(viewModel, 2);
+			cursorEqual(viewModel, 5, 1);
+		});
+	});
+
+	test('move up by foldedLine with count clamps to first visible line before fold', () => {
+		executeFoldTest((editor, viewModel) => {
+			// Lines 2-4 are hidden. Visible lines are 1 and 5.
+			viewModel.setHiddenAreas([new Range(2, 1, 4, 1)]);
+			moveTo(viewModel, 5, 1);
+			// 2k should land on line 1 and clamp there.
+			moveUpByFoldedLine(viewModel, 2);
+			cursorEqual(viewModel, 1, 1);
+		});
+	});
+});
+
 // Move command
 
 function move(viewModel: ViewModel, args: any) {
@@ -562,6 +670,14 @@ function moveDownByBlankLine(viewModel: ViewModel, select?: boolean) {
 
 function moveDownByModelLine(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
 	move(viewModel, { to: CursorMove.RawDirection.Down, value: noOfLines, select: select });
+}
+
+function moveDownByFoldedLine(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
+	move(viewModel, { to: CursorMove.RawDirection.Down, by: CursorMove.RawUnit.FoldedLine, value: noOfLines, select: select });
+}
+
+function moveUpByFoldedLine(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
+	move(viewModel, { to: CursorMove.RawDirection.Up, by: CursorMove.RawUnit.FoldedLine, value: noOfLines, select: select });
 }
 
 function moveToTop(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {

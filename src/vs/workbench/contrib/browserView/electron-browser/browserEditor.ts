@@ -6,9 +6,10 @@
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
 import { $, addDisposableListener, Dimension, EventType, IDomPosition, registerExternalFocusChecker } from '../../../../base/browser/dom.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -43,20 +44,36 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
-import { IBrowserTargetLocator, getDisplayNameFromOuterHTML } from '../../../../platform/browserElements/common/browserElements.js';
-import { logBrowserOpen } from './browserViewTelemetry.js';
+import { IElementAncestor, IElementData, IBrowserTargetLocator, getDisplayNameFromOuterHTML } from '../../../../platform/browserElements/common/browserElements.js';
+import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ChatConfiguration } from '../../chat/common/constants.js';
+import { Event } from '../../../../base/common/event.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', true, localize('browser.editorFocused', "Whether the browser editor is focused"));
 export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
 export const CONTEXT_BROWSER_HAS_URL = new RawContextKey<boolean>('browserHasUrl', false, localize('browser.hasUrl', "Whether the browser has a URL loaded"));
+export const CONTEXT_BROWSER_HAS_ERROR = new RawContextKey<boolean>('browserHasError', false, localize('browser.hasError', "Whether the browser has a load error"));
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
 export const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
+export const CONTEXT_BROWSER_CAN_ZOOM_IN = new RawContextKey<boolean>('browserCanZoomIn', true, localize('browser.canZoomIn', "Whether the browser can zoom in further"));
+export const CONTEXT_BROWSER_CAN_ZOOM_OUT = new RawContextKey<boolean>('browserCanZoomOut', true, localize('browser.canZoomOut', "Whether the browser can zoom out further"));
 
 // Re-export find widget context keys for use in actions
 export { CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE };
+
+const canShareBrowserWithAgentContext = ContextKeyExpr.and(
+	ChatContextKeys.enabled,
+	ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
+	ContextKeyExpr.has(`config.workbench.browser.enableChatTools`),
+)!;
+function watchForAgentSharingContextChanges(contextKeyService: IContextKeyService): Event<unknown> {
+	const agentSharingKeys = new Set(canShareBrowserWithAgentContext.keys());
+	return Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(agentSharingKeys));
+}
 
 /**
  * Get the original implementation of HTMLElement focus (without window auto-focusing)
@@ -66,12 +83,15 @@ const originalHtmlElementFocus = HTMLElement.prototype.focus;
 
 class BrowserNavigationBar extends Disposable {
 	private readonly _urlInput: HTMLInputElement;
+	private readonly _shareButton: Button;
+	private readonly _shareButtonContainer: HTMLElement;
 
 	constructor(
 		editor: BrowserEditor,
 		container: HTMLElement,
 		instantiationService: IInstantiationService,
-		scopedContextKeyService: IContextKeyService
+		scopedContextKeyService: IContextKeyService,
+		configurationService: IConfigurationService
 	) {
 		super();
 
@@ -103,10 +123,27 @@ class BrowserNavigationBar extends Disposable {
 			}
 		));
 
+		// URL input container (wraps input + share toggle)
+		const urlContainer = $('.browser-url-container');
+
 		// URL input
 		this._urlInput = $<HTMLInputElement>('input.browser-url-input');
 		this._urlInput.type = 'text';
 		this._urlInput.placeholder = localize('browser.urlPlaceholder', "Enter a URL");
+
+		// Share toggle button (inside URL bar, right side)
+		this._shareButtonContainer = $('.browser-share-toggle-container');
+		this._shareButton = this._register(new Button(this._shareButtonContainer, {
+			supportIcons: true,
+			title: localize('browser.shareWithAgent', "Share with Agent"),
+			small: true,
+			hoverDelegate
+		}));
+		this._shareButton.element.classList.add('browser-share-toggle');
+		this._shareButton.label = '$(agent)';
+
+		urlContainer.appendChild(this._urlInput);
+		urlContainer.appendChild(this._shareButtonContainer);
 
 		// Create actions toolbar (right side) with scoped context
 		const actionsContainer = $('.browser-actions-toolbar');
@@ -125,9 +162,9 @@ class BrowserNavigationBar extends Disposable {
 		navToolbar.context = editor;
 		actionsToolbar.context = editor;
 
-		// Assemble layout: nav | url | actions
+		// Assemble layout: nav | url container | actions
 		container.appendChild(navContainer);
-		container.appendChild(this._urlInput);
+		container.appendChild(urlContainer);
 		container.appendChild(actionsContainer);
 
 		// Setup URL input handler
@@ -144,6 +181,33 @@ class BrowserNavigationBar extends Disposable {
 		this._register(addDisposableListener(this._urlInput, EventType.FOCUS, () => {
 			this._urlInput.select();
 		}));
+
+		// Share toggle click handler
+		this._register(this._shareButton.onDidClick(() => {
+			editor.toggleShareWithAgent();
+		}));
+
+		// Show share button only when chat is enabled and browser tools are enabled
+		const updateShareButtonVisibility = () => {
+			this._shareButtonContainer.style.display = scopedContextKeyService.contextMatchesRules(canShareBrowserWithAgentContext) ? '' : 'none';
+		};
+		updateShareButtonVisibility();
+		this._register(watchForAgentSharingContextChanges(scopedContextKeyService)(() => {
+			updateShareButtonVisibility();
+		}));
+	}
+
+	/**
+	 * Update the share toggle visual state
+	 */
+	setShared(isShared: boolean): void {
+		this._shareButton.checked = isShared;
+		this._shareButton.label = isShared
+			? localize('browser.sharingWithAgent', "Sharing with Agent") + ' $(agent)'
+			: '$(agent)';
+		this._shareButton.setTitle(isShared
+			? localize('browser.unshareWithAgent', "Stop Sharing with Agent")
+			: localize('browser.shareWithAgent', "Share with Agent"));
 	}
 
 	/**
@@ -175,6 +239,7 @@ export class BrowserEditor extends EditorPane {
 	private _currentKeyDownEvent: IBrowserViewKeyDownEvent | undefined;
 
 	private _navigationBar!: BrowserNavigationBar;
+	private _browserContainerWrapper!: HTMLElement;
 	private _browserContainer!: HTMLElement;
 	private _placeholderScreenshot!: HTMLElement;
 	private _overlayPauseContainer!: HTMLElement;
@@ -188,13 +253,17 @@ export class BrowserEditor extends EditorPane {
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _storageScopeContext!: IContextKey<string>;
 	private _hasUrlContext!: IContextKey<boolean>;
+	private _hasErrorContext!: IContextKey<boolean>;
 	private _devToolsOpenContext!: IContextKey<boolean>;
 	private _elementSelectionActiveContext!: IContextKey<boolean>;
+	private _canZoomInContext!: IContextKey<boolean>;
+	private _canZoomOutContext!: IContextKey<boolean>;
 
 	private _model: IBrowserViewModel | undefined;
 	private readonly _inputDisposables = this._register(new DisposableStore());
 	private overlayManager: BrowserOverlayManager | undefined;
 	private _elementSelectionCts: CancellationTokenSource | undefined;
+	private _consoleSessionCts: CancellationTokenSource | undefined;
 	private _screenshotTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(
@@ -209,7 +278,8 @@ export class BrowserEditor extends EditorPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserElementsService private readonly browserElementsService: IBrowserElementsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILayoutService private readonly layoutService: ILayoutService
 	) {
 		super(BrowserEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -226,8 +296,11 @@ export class BrowserEditor extends EditorPane {
 		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
 		this._storageScopeContext = CONTEXT_BROWSER_STORAGE_SCOPE.bindTo(contextKeyService);
 		this._hasUrlContext = CONTEXT_BROWSER_HAS_URL.bindTo(contextKeyService);
+		this._hasErrorContext = CONTEXT_BROWSER_HAS_ERROR.bindTo(contextKeyService);
 		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
 		this._elementSelectionActiveContext = CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE.bindTo(contextKeyService);
+		this._canZoomInContext = CONTEXT_BROWSER_CAN_ZOOM_IN.bindTo(contextKeyService);
+		this._canZoomOutContext = CONTEXT_BROWSER_CAN_ZOOM_OUT.bindTo(contextKeyService);
 
 		// Currently this is always true since it is scoped to the editor container
 		CONTEXT_BROWSER_FOCUSED.bindTo(contextKeyService);
@@ -240,7 +313,7 @@ export class BrowserEditor extends EditorPane {
 		const toolbar = $('.browser-toolbar');
 
 		// Create navigation bar widget with scoped context
-		this._navigationBar = this._register(new BrowserNavigationBar(this, toolbar, this.instantiationService, contextKeyService));
+		this._navigationBar = this._register(new BrowserNavigationBar(this, toolbar, this.instantiationService, contextKeyService, this.configurationService));
 
 		root.appendChild(toolbar);
 
@@ -261,14 +334,23 @@ export class BrowserEditor extends EditorPane {
 		});
 		this._register(toDisposable(() => this._findWidget.rawValue?.dispose()));
 
+		// Create browser container wrapper (flex item that fills remaining space)
+		this._browserContainerWrapper = $('.browser-container-wrapper');
+		this._browserContainerWrapper.style.setProperty('--zoom-factor', String(getZoomFactor(this.window)));
+		root.appendChild(this._browserContainerWrapper);
+
 		// Create browser container (stub element for positioning)
 		this._browserContainer = $('.browser-container');
 		this._browserContainer.tabIndex = 0; // make focusable
-		root.appendChild(this._browserContainer);
+		this._browserContainerWrapper.appendChild(this._browserContainer);
+
+		// Create additional wrapper around placeholder contents for applying border radius clipping.
+		const placeholderContents = $('.browser-placeholder-contents');
+		this._browserContainer.appendChild(placeholderContents);
 
 		// Create placeholder screenshot (background placeholder when WebContentsView is hidden)
 		this._placeholderScreenshot = $('.browser-placeholder-screenshot');
-		this._browserContainer.appendChild(this._placeholderScreenshot);
+		placeholderContents.appendChild(this._placeholderScreenshot);
 
 		// Create overlay pause container (hidden by default via CSS)
 		this._overlayPauseContainer = $('.browser-overlay-paused');
@@ -278,16 +360,16 @@ export class BrowserEditor extends EditorPane {
 		overlayPauseMessage.appendChild(this._overlayPauseHeading);
 		overlayPauseMessage.appendChild(this._overlayPauseDetail);
 		this._overlayPauseContainer.appendChild(overlayPauseMessage);
-		this._browserContainer.appendChild(this._overlayPauseContainer);
+		placeholderContents.appendChild(this._overlayPauseContainer);
 
 		// Create error container (hidden by default)
 		this._errorContainer = $('.browser-error-container');
 		this._errorContainer.style.display = 'none';
-		this._browserContainer.appendChild(this._errorContainer);
+		placeholderContents.appendChild(this._errorContainer);
 
 		// Create welcome container (shown when no URL is loaded)
 		this._welcomeContainer = this.createWelcomeContainer();
-		this._browserContainer.appendChild(this._welcomeContainer);
+		placeholderContents.appendChild(this._welcomeContainer);
 
 		this._register(addDisposableListener(this._browserContainer, EventType.FOCUS, (event) => {
 			// When the browser container gets focus, make sure the browser view also gets focused.
@@ -304,12 +386,6 @@ export class BrowserEditor extends EditorPane {
 			hasFocus: this._model?.focused ?? false,
 			window: this._model?.focused ? this.window : undefined
 		})));
-
-		// Automatically call layoutBrowserContainer() when the browser container changes size.
-		// Be careful to use `ResizeObserver` from the target window to avoid cross-window issues.
-		const resizeObserver = new this.window.ResizeObserver(() => this.layoutBrowserContainer());
-		resizeObserver.observe(this._browserContainer);
-		this._register(toDisposable(() => resizeObserver.disconnect()));
 	}
 
 	override async setInput(input: BrowserEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -321,13 +397,16 @@ export class BrowserEditor extends EditorPane {
 		this._inputDisposables.clear();
 
 		// Resolve the browser view model from the input
-		this._model = await input.resolve();
+		const model = await input.resolve();
+		this._model = model;
 		if (token.isCancellationRequested || this.input !== input) {
 			return;
 		}
 
 		this._storageScopeContext.set(this._model.storageScope);
 		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
+		this.updateZoomContext();
+		this._updateSharingState(true);
 
 		// Update find widget with new model
 		this._findWidget.rawValue?.setModel(this._model);
@@ -337,20 +416,37 @@ export class BrowserEditor extends EditorPane {
 			this._model = undefined;
 		}));
 
+		// Listen for sharing state changes on the model
+		this._inputDisposables.add(this._model.onDidChangeSharedWithAgent(() => {
+			this._updateSharingState(false);
+		}));
+		this._inputDisposables.add(watchForAgentSharingContextChanges(this.contextKeyService)(() => {
+			this._updateSharingState(false);
+		}));
+
+		this._inputDisposables.add(this._model.onDidChangeZoom(() => {
+			this.updateZoomContext();
+		}));
+
 		// Initialize UI state and context keys from model
 		this.updateNavigationState({
 			url: this._model.url,
+			title: this._model.title,
 			canGoBack: this._model.canGoBack,
 			canGoForward: this._model.canGoForward
 		});
 		this.setBackgroundImage(this._model.screenshot);
 
-		if (context.newInGroup) {
-			if (this._model.url) {
-				this._browserContainer.focus();
-			} else {
-				this.focusUrlInput();
-			}
+		if (!options?.preserveFocus) {
+			setTimeout(() => {
+				if (this._model === model) {
+					if (this._model.url) {
+						this._browserContainer.focus();
+					} else {
+						this.focusUrlInput();
+					}
+				}
+			}, 0);
 		}
 
 		// Start / stop screenshots when the model visibility changes
@@ -367,6 +463,13 @@ export class BrowserEditor extends EditorPane {
 
 			// Update navigation bar and context keys from model
 			this.updateNavigationState(navEvent);
+
+			// Ensure a console session is active while a page URL is loaded.
+			if (navEvent.url) {
+				this.startConsoleSession();
+			} else {
+				this.stopConsoleSession();
+			}
 		}));
 
 		this._inputDisposables.add(this._model.onDidChangeLoadingState(() => {
@@ -413,17 +516,23 @@ export class BrowserEditor extends EditorPane {
 			this.checkOverlays();
 		}));
 
-		// Listen for zoom level changes and update browser view zoom factor
+		// Listen for workbench zoom level changes and update browser view placeholder screenshot's zoom factor
 		this._inputDisposables.add(onDidChangeZoomLevel(targetWindowId => {
 			if (targetWindowId === this.window.vscodeWindowId) {
-				this.layoutBrowserContainer();
+				// Update CSS variable for size calculations
+				this._browserContainerWrapper.style.setProperty('--zoom-factor', String(getZoomFactor(this.window)));
 			}
 		}));
 
 		this.updateErrorDisplay();
-		this.layoutBrowserContainer();
+		this.layout();
 		this.updateVisibility();
 		this.doScreenshot();
+
+		// Start console log capture session if a URL is loaded
+		if (this._model.url) {
+			this.startConsoleSession();
+		}
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
@@ -519,6 +628,7 @@ export class BrowserEditor extends EditorPane {
 		}
 
 		const error: IBrowserViewLoadError | undefined = this._model.error;
+		this._hasErrorContext.set(!!error);
 		if (error) {
 			// Update error content
 
@@ -561,6 +671,22 @@ export class BrowserEditor extends EditorPane {
 		return this._model?.url;
 	}
 
+	private _updateSharingState(isInitialState: boolean): void {
+		const sharingEnabled = this.contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext);
+		const isShared = sharingEnabled && !!this._model && this._model.sharedWithAgent;
+
+		this._browserContainer.classList.toggle('animate', !isInitialState);
+		this._browserContainer.classList.toggle('shared', isShared);
+		this._navigationBar.setShared(isShared);
+	}
+
+	toggleShareWithAgent(): void {
+		if (!this._model) {
+			return;
+		}
+		this._model.setSharedWithAgent(!this._model.sharedWithAgent);
+	}
+
 	async navigateToUrl(url: string): Promise<void> {
 		if (this._model) {
 			this.group.pinEditor(this.input); // pin editor on navigation
@@ -590,8 +716,8 @@ export class BrowserEditor extends EditorPane {
 		return this._model?.goForward();
 	}
 
-	async reload(): Promise<void> {
-		return this._model?.reload();
+	async reload(hard?: boolean): Promise<void> {
+		return this._model?.reload(hard);
 	}
 
 	async toggleDevTools(): Promise<void> {
@@ -602,12 +728,31 @@ export class BrowserEditor extends EditorPane {
 		return this._model?.clearStorage();
 	}
 
+	async zoomIn(): Promise<void> {
+		await this._model?.zoomIn();
+	}
+
+	async zoomOut(): Promise<void> {
+		await this._model?.zoomOut();
+	}
+
+	async resetZoom(): Promise<void> {
+		await this._model?.resetZoom();
+	}
+
+	private updateZoomContext(): void {
+		if (this._model) {
+			this._canZoomInContext.set(this._model.canZoomIn);
+			this._canZoomOutContext.set(this._model.canZoomOut);
+		}
+	}
+
 	/**
 	 * Show the find widget, optionally pre-populated with selected text from the browser view
 	 */
 	async showFind(): Promise<void> {
 		// Get selected text from the browser view to pre-populate the search box.
-		const selectedText = await this._model?.getSelectedText();
+		const selectedText = (await this._model?.getSelectedText())?.trim();
 
 		// Only use the selected text if it doesn't contain newlines (single line selection)
 		const textToReveal = selectedText && !/[\r\n]/.test(selectedText) ? selectedText : undefined;
@@ -688,46 +833,7 @@ export class BrowserEditor extends EditorPane {
 				throw new Error('Element data not found');
 			}
 
-			const bounds = elementData.bounds;
-			const toAttach: IChatRequestVariableEntry[] = [];
-
-			// Prepare HTML/CSS context
-			const displayName = getDisplayNameFromOuterHTML(elementData.outerHTML);
-			const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
-			let value = (attachCss ? 'Attached HTML and CSS Context' : 'Attached HTML Context') + '\n\n' + elementData.outerHTML;
-			if (attachCss) {
-				value += '\n\n' + elementData.computedStyle;
-			}
-
-			toAttach.push({
-				id: 'element-' + Date.now(),
-				name: displayName,
-				fullName: displayName,
-				value: value,
-				kind: 'element',
-				icon: ThemeIcon.fromId(Codicon.layout.id),
-			});
-
-			// Attach screenshot if enabled
-			const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
-			if (attachImages && this._model) {
-				const screenshotBuffer = await this._model.captureScreenshot({
-					quality: 90,
-					rect: bounds
-				});
-
-				toAttach.push({
-					id: 'element-screenshot-' + Date.now(),
-					name: 'Element Screenshot',
-					fullName: 'Element Screenshot',
-					kind: 'image',
-					value: screenshotBuffer.buffer
-				});
-			}
-
-			// Attach to chat widget
-			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
-			widget?.attachmentModel?.addContext(...toAttach);
+			const { attachCss, attachImages } = await this.attachElementDataToChat(elementData);
 
 			type IntegratedBrowserAddElementToChatAddedEvent = {
 				attachCss: boolean;
@@ -757,6 +863,228 @@ export class BrowserEditor extends EditorPane {
 				this._elementSelectionActiveContext.set(false);
 			}
 		}
+	}
+
+	/**
+	 * Grab the current console logs from the active console session and attach them to chat.
+	 */
+	async addConsoleLogsToChat(): Promise<void> {
+		const resourceUri = this.input?.resource;
+		if (!resourceUri) {
+			return;
+		}
+
+		const locator: IBrowserTargetLocator = { browserViewId: BrowserViewUri.getId(resourceUri) };
+
+		try {
+			const logs = await this.browserElementsService.getConsoleLogs(locator);
+			if (!logs) {
+				return;
+			}
+
+			const toAttach: IChatRequestVariableEntry[] = [];
+			toAttach.push({
+				id: 'console-logs-' + Date.now(),
+				name: localize('consoleLogs', 'Console Logs'),
+				fullName: localize('consoleLogs', 'Console Logs'),
+				value: logs,
+				modelDescription: 'Console logs captured from Integrated Browser.',
+				kind: 'element',
+				icon: ThemeIcon.fromId(Codicon.terminal.id),
+			});
+
+			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+			widget?.attachmentModel?.addContext(...toAttach);
+		} catch (error) {
+			this.logService.error('BrowserEditor.addConsoleLogsToChat: Failed to get console logs', error);
+		}
+	}
+
+	/**
+	 * Start a console session to capture logs from the browser view.
+	 */
+	private startConsoleSession(): void {
+		// Don't restart if already running
+		if (this._consoleSessionCts) {
+			return;
+		}
+
+		const resourceUri = this.input?.resource;
+		if (!resourceUri || !this._model?.url) {
+			return;
+		}
+
+		const cts = new CancellationTokenSource();
+		this._consoleSessionCts = cts;
+		const locator: IBrowserTargetLocator = { browserViewId: BrowserViewUri.getId(resourceUri) };
+
+		this.browserElementsService.startConsoleSession(cts.token, locator).catch(error => {
+			if (!cts.token.isCancellationRequested) {
+				this.logService.error('BrowserEditor: Failed to start console session', error);
+			}
+		});
+	}
+
+	/**
+	 * Stop the active console session.
+	 */
+	private stopConsoleSession(): void {
+		if (this._consoleSessionCts) {
+			this._consoleSessionCts.dispose(true);
+			this._consoleSessionCts = undefined;
+		}
+	}
+
+	private createElementContextValue(elementData: IElementData, displayName: string, attachCss: boolean): string {
+		const sections: string[] = [];
+		sections.push('Attached Element Context from Integrated Browser');
+		sections.push(`Element: ${displayName}`);
+
+		const htmlPath = this.formatElementPath(elementData.ancestors);
+		if (htmlPath) {
+			sections.push(`HTML Path:\n${htmlPath}`);
+		}
+
+		const attributeTable = this.formatElementMap(elementData.attributes);
+		if (attributeTable) {
+			sections.push(`Attributes:\n${attributeTable}`);
+		}
+
+		if (attachCss) {
+			const computedStyleTable = this.formatElementMap(elementData.computedStyles);
+			if (computedStyleTable) {
+				sections.push(`Computed Styles:\n${computedStyleTable}`);
+			}
+		}
+
+		if (elementData.dimensions) {
+			const { top, left, width, height } = elementData.dimensions;
+			sections.push(
+				`Dimensions:\n- top: ${Math.round(top)}px\n- left: ${Math.round(left)}px\n- width: ${Math.round(width)}px\n- height: ${Math.round(height)}px`
+			);
+		}
+
+		const innerText = elementData.innerText?.trim();
+		if (innerText) {
+			sections.push(`Inner Text:\n\`\`\`text\n${innerText}\n\`\`\``);
+		}
+
+		sections.push(`Outer HTML:\n\`\`\`html\n${elementData.outerHTML}\n\`\`\``);
+
+		if (attachCss) {
+			sections.push(`Full Computed CSS:\n\`\`\`css\n${elementData.computedStyle}\n\`\`\``);
+		}
+
+		return sections.join('\n\n');
+	}
+
+	private async attachElementDataToChat(elementData: IElementData): Promise<{ attachCss: boolean; attachImages: boolean }> {
+		const bounds = elementData.bounds;
+		const toAttach: IChatRequestVariableEntry[] = [];
+
+		const displayName = getDisplayNameFromOuterHTML(elementData.outerHTML);
+		const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
+		const value = this.createElementContextValue(elementData, displayName, attachCss);
+
+		toAttach.push({
+			id: 'element-' + Date.now(),
+			name: displayName,
+			fullName: displayName,
+			value: value,
+			modelDescription: attachCss
+				? 'Structured browser element context with HTML path, attributes, and computed styles.'
+				: 'Structured browser element context with HTML path and attributes.',
+			kind: 'element',
+			icon: ThemeIcon.fromId(Codicon.layout.id),
+			ancestors: elementData.ancestors,
+			attributes: elementData.attributes,
+			computedStyles: attachCss ? elementData.computedStyles : undefined,
+			dimensions: elementData.dimensions,
+			innerText: elementData.innerText,
+		});
+
+		const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
+		if (attachImages && this._model) {
+			const screenshotBuffer = await this._model.captureScreenshot({
+				quality: 90,
+				rect: bounds
+			});
+
+			toAttach.push({
+				id: 'element-screenshot-' + Date.now(),
+				name: 'Element Screenshot',
+				fullName: 'Element Screenshot',
+				kind: 'image',
+				value: screenshotBuffer.buffer
+			});
+		}
+
+		const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
+		widget?.attachmentModel?.addContext(...toAttach);
+
+		return { attachCss, attachImages };
+	}
+
+	private formatElementPath(ancestors: readonly IElementAncestor[] | undefined): string | undefined {
+		if (!ancestors || ancestors.length === 0) {
+			return undefined;
+		}
+
+		return ancestors
+			.map(ancestor => {
+				const classes = ancestor.classNames?.length ? `.${ancestor.classNames.join('.')}` : '';
+				const id = ancestor.id ? `#${ancestor.id}` : '';
+				return `${ancestor.tagName}${id}${classes}`;
+			})
+			.join(' > ');
+	}
+
+	private formatElementMap(entries: Readonly<Record<string, string>> | undefined): string | undefined {
+		if (!entries || Object.keys(entries).length === 0) {
+			return undefined;
+		}
+
+		const normalizedEntries = new Map(Object.entries(entries));
+		const lines: string[] = [];
+
+		const marginShorthand = this.createBoxShorthand(normalizedEntries, 'margin');
+		if (marginShorthand) {
+			lines.push(`- margin: ${marginShorthand}`);
+		}
+
+		const paddingShorthand = this.createBoxShorthand(normalizedEntries, 'padding');
+		if (paddingShorthand) {
+			lines.push(`- padding: ${paddingShorthand}`);
+		}
+
+		for (const [name, value] of Array.from(normalizedEntries.entries()).sort(([a], [b]) => a.localeCompare(b))) {
+			lines.push(`- ${name}: ${value}`);
+		}
+
+		return lines.join('\n');
+	}
+
+	private createBoxShorthand(entries: Map<string, string>, propertyName: 'margin' | 'padding'): string | undefined {
+		const topKey = `${propertyName}-top`;
+		const rightKey = `${propertyName}-right`;
+		const bottomKey = `${propertyName}-bottom`;
+		const leftKey = `${propertyName}-left`;
+
+		const top = entries.get(topKey);
+		const right = entries.get(rightKey);
+		const bottom = entries.get(bottomKey);
+		const left = entries.get(leftKey);
+
+		if (top === undefined || right === undefined || bottom === undefined || left === undefined) {
+			return undefined;
+		}
+
+		entries.delete(topKey);
+		entries.delete(rightKey);
+		entries.delete(bottomKey);
+		entries.delete(leftKey);
+
+		return `${top} ${right} ${bottom} ${left}`;
 	}
 
 	/**
@@ -854,6 +1182,34 @@ export class BrowserEditor extends EditorPane {
 		this._currentKeyDownEvent = keyEvent;
 
 		try {
+			const isEnterKey =
+				keyEvent.code === 'Enter' ||
+				keyEvent.code === 'NumpadEnter' ||
+				keyEvent.key === 'Enter' ||
+				keyEvent.key === 'Return';
+			if (this._elementSelectionCts && isEnterKey) {
+				const cts = this._elementSelectionCts;
+				const resourceUri = this.input?.resource;
+				if (!resourceUri) {
+					return;
+				}
+
+				const locator: IBrowserTargetLocator = { browserViewId: BrowserViewUri.getId(resourceUri) };
+				const { width, height } = this._browserContainer.getBoundingClientRect();
+				const elementData = await this.browserElementsService.getFocusedElementData({ x: 0, y: 0, width, height }, cts.token, locator);
+				if (!elementData) {
+					return;
+				}
+
+				await this.attachElementDataToChat(elementData);
+				cts.dispose();
+				if (this._elementSelectionCts === cts) {
+					this._elementSelectionCts = undefined;
+					this._elementSelectionActiveContext.set(false);
+				}
+				return;
+			}
+
 			const syntheticEvent = new KeyboardEvent('keydown', keyEvent);
 			const standardEvent = new StandardKeyboardEvent(syntheticEvent);
 
@@ -868,32 +1224,42 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	override layout(dimension: Dimension, _position?: IDomPosition): void {
+	override layout(dimension?: Dimension, _position?: IDomPosition): void {
 		// Layout find widget if it exists
-		this._findWidget.rawValue?.layout(dimension.width);
+		if (dimension && this._findWidget.rawValue) {
+			this._findWidget.rawValue.layout(dimension.width);
+		}
+
+		const whenContainerStylesLoaded = this.layoutService.whenContainerStylesLoaded(this.window);
+		if (whenContainerStylesLoaded) {
+			// In floating windows, we need to ensure that the
+			// container is ready for us to compute certain
+			// layout related properties.
+			whenContainerStylesLoaded.then(() => this.layoutBrowserContainer());
+		} else {
+			this.layoutBrowserContainer();
+		}
 	}
 
 	/**
-	 * This should be called whenever .browser-container changes in size, or when
-	 * there could be any elements, such as the command palette, overlapping with it.
-	 *
-	 * Note that we don't call layoutBrowserContainer() from layout() but instead rely on using a ResizeObserver and on
-	 * making direct calls to it. This is because we have seen cases where the getBoundingClientRect() values of
-	 * the .browser-container element are not correct during layout() calls, especially during "Move into New Window"
-	 * and "Copy into New Window" operations into a different monitor.
+	 * Recompute the layout of the browser container and update the model with the new bounds.
+	 * This should generally only be called via layout() to ensure that the container is ready and all necessary styles are loaded.
 	 */
-	layoutBrowserContainer(): void {
+	private layoutBrowserContainer(): void {
 		if (this._model) {
 			this.checkOverlays();
 
 			const containerRect = this._browserContainer.getBoundingClientRect();
+			const cornerRadius = this.window.getComputedStyle(this._browserContainer).borderTopLeftRadius ?? '0';
+
 			void this._model.layout({
 				windowId: this.group.windowId,
 				x: containerRect.left,
 				y: containerRect.top,
 				width: containerRect.width,
 				height: containerRect.height,
-				zoomFactor: getZoomFactor(this.window)
+				zoomFactor: getZoomFactor(this.window),
+				cornerRadius: parseFloat(cornerRadius)
 			});
 		}
 	}
@@ -906,6 +1272,9 @@ export class BrowserEditor extends EditorPane {
 			this._elementSelectionCts.dispose(true);
 			this._elementSelectionCts = undefined;
 		}
+
+		// Cancel any active console session
+		this.stopConsoleSession();
 
 		// Cancel any scheduled screenshots
 		this.cancelScheduledScreenshot();
@@ -920,9 +1289,12 @@ export class BrowserEditor extends EditorPane {
 		this._canGoBackContext.reset();
 		this._canGoForwardContext.reset();
 		this._hasUrlContext.reset();
+		this._hasErrorContext.reset();
 		this._storageScopeContext.reset();
 		this._devToolsOpenContext.reset();
 		this._elementSelectionActiveContext.reset();
+		this._canZoomInContext.reset();
+		this._canZoomOutContext.reset();
 
 		this._navigationBar.clear();
 		this.setBackgroundImage(undefined);

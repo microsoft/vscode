@@ -19,7 +19,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { AccessibilityVoiceSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ElicitationState, IChatElicitationRequest, IChatService } from '../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../common/model/chatViewModel.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { ChatConfiguration, ChatNotificationMode } from '../../common/constants.js';
 import { IChatAccessibilityService, IChatWidgetService } from '../chat.js';
 import { ChatWidget } from '../widget/chatWidget.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -91,7 +91,8 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	}
 
 	private async _showOSNotification(widget: ChatWidget, container: HTMLElement, responseContent: string): Promise<void> {
-		if (!this._configurationService.getValue(ChatConfiguration.NotifyWindowOnResponseReceived)) {
+		const mode = this._configurationService.getValue<ChatNotificationMode>(ChatConfiguration.NotifyWindowOnResponseReceived);
+		if (mode === ChatNotificationMode.Off) {
 			return;
 		}
 
@@ -100,7 +101,8 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			return;
 		}
 
-		if (targetWindow.document.hasFocus()) {
+		const isFocused = targetWindow.document.hasFocus();
+		if (mode !== ChatNotificationMode.Always && isFocused) {
 			return;
 		}
 
@@ -109,7 +111,10 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			return;
 		}
 
-		await this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
+		// Focus window in notify mode (flash taskbar/dock) if not already focused
+		if (!isFocused) {
+			await this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
+		}
 
 		// Dispose any previous unhandled notifications to avoid replacement/coalescing.
 		this.toasts.clearAndDisposeAll();

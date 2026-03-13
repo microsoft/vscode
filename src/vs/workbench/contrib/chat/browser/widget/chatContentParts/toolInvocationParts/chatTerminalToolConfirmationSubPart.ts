@@ -392,6 +392,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			const tooltip = this.keybindingService.appendKeybinding(tooltipDetail, actionId);
 			return { label, tooltip };
 		};
+
 		return [
 			{
 				...getLabelAndTooltip(localize('tool.allow', "Allow"), AcceptToolConfirmationActionId),

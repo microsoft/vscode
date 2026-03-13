@@ -16,10 +16,11 @@ import { IEnvironmentService } from '../../../../../platform/environment/common/
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ITerminalSandboxSettings } from './terminalSandbox.js';
+import { ITerminalSandboxNetworkSettings } from './terminalSandbox.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfiguration.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
+import { ITrustedDomainService } from '../../../url/common/trustedDomainService.js';
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
@@ -35,6 +36,7 @@ export interface ITerminalSandboxService {
 export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 	private _srtPath: string | undefined;
+	private _rgPath: string | undefined;
 	private _srtPathResolved = false;
 	private _execPath?: string;
 	private _sandboxConfigPath: string | undefined;
@@ -45,6 +47,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _remoteEnvDetails: IRemoteAgentEnvironment | null = null;
 	private _appRoot: string;
 	private _os: OperatingSystem = OS;
+	private _defaultWritePaths: string[] = ['~/.npm'];
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -52,6 +55,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 	) {
 		super();
 		this._appRoot = dirname(FileAccess.asFileUri('').path);
@@ -71,6 +75,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			) {
 				this.setNeedsForceUpdateConfigFile();
 			}
+		}));
+
+		this._register(this._trustedDomainService.onDidChangeTrustedDomains(() => {
+			this.setNeedsForceUpdateConfigFile();
 		}));
 	}
 
@@ -93,10 +101,13 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		if (!this._srtPath) {
 			throw new Error('Sandbox runtime path not resolved');
 		}
+		if (!this._rgPath) {
+			throw new Error('Ripgrep path not resolved');
+		}
 		// Use ELECTRON_RUN_AS_NODE=1 to make Electron executable behave as Node.js
 		// TMPDIR must be set as environment variable before the command
-		// Use -c to pass the command string directly (like sh -c), avoiding argument parsing issues
-		const wrappedCommand = `"${this._execPath}" "${this._srtPath}" TMPDIR=${this._tempDir.path} --settings "${this._sandboxConfigPath}" -c "${command}"`;
+		// Quote shell arguments so the wrapped command cannot break out of the outer shell.
+		const wrappedCommand = `PATH="$PATH:${dirname(this._rgPath)}" TMPDIR="${this._tempDir.path}" "${this._execPath}" "${this._srtPath}" --settings "${this._sandboxConfigPath}" -c ${this._quoteShellArgument(command)}`;
 		if (this._remoteEnvDetails) {
 			return `${wrappedCommand}`;
 		}
@@ -120,20 +131,23 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._sandboxConfigPath;
 	}
 
+	private _quoteShellArgument(value: string): string {
+		return `'${value.replace(/'/g, `'\\''`)}'`;
+	}
+
 	private async _resolveSrtPath(): Promise<void> {
 		if (this._srtPathResolved) {
 			return;
 		}
 		this._srtPathResolved = true;
 		const remoteEnv = this._remoteEnvDetails || await this._remoteEnvDetailsPromise;
-		if (!remoteEnv) {
-			// srt path is dist/cli.js inside the sandbox-runtime package.
-			this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
-			return;
+		if (remoteEnv) {
+
+			this._appRoot = remoteEnv.appRoot.path;
+			this._execPath = this._pathJoin(this._appRoot, 'node');
 		}
-		this._appRoot = remoteEnv.appRoot.path;
-		this._execPath = this._pathJoin(this._appRoot, 'node');
 		this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
+		this._rgPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg');
 	}
 
 	private async _createSandboxConfig(): Promise<string | undefined> {
@@ -142,22 +156,31 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			await this._initTempDir();
 		}
 		if (this._tempDir) {
-			const networkSetting = this._configurationService.getValue<ITerminalSandboxSettings['network']>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
+			const networkSetting = this._configurationService.getValue<ITerminalSandboxNetworkSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
 			const linuxFileSystemSetting = this._os === OperatingSystem.Linux
-				? this._configurationService.getValue<ITerminalSandboxSettings['filesystem']>(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ?? {}
+				? this._configurationService.getValue<{ denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }>(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ?? {}
 				: {};
 			const macFileSystemSetting = this._os === OperatingSystem.Macintosh
-				? this._configurationService.getValue<ITerminalSandboxSettings['filesystem']>(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem) ?? {}
+				? this._configurationService.getValue<{ denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }>(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem) ?? {}
 				: {};
 			const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
+			const defaultAllowWrite = [...this._defaultWritePaths];
+			const linuxAllowWrite = [...new Set([...(linuxFileSystemSetting.allowWrite ?? []), ...defaultAllowWrite])];
+			const macAllowWrite = [...new Set([...(macFileSystemSetting.allowWrite ?? []), ...defaultAllowWrite])];
+
+			let allowedDomains = networkSetting.allowedDomains ?? [];
+			if (networkSetting.allowTrustedDomains) {
+				allowedDomains = this._addTrustedDomainsToAllowedDomains(allowedDomains);
+			}
+
 			const sandboxSettings = {
 				network: {
-					allowedDomains: networkSetting.allowedDomains ?? [],
+					allowedDomains,
 					deniedDomains: networkSetting.deniedDomains ?? []
 				},
 				filesystem: {
 					denyRead: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyRead : linuxFileSystemSetting.denyRead,
-					allowWrite: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.allowWrite : linuxFileSystemSetting.allowWrite,
+					allowWrite: this._os === OperatingSystem.Macintosh ? macAllowWrite : linuxAllowWrite,
 					denyWrite: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyWrite : linuxFileSystemSetting.denyWrite,
 				}
 			};
@@ -184,9 +207,27 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				const environmentService = this._environmentService as IEnvironmentService & { tmpDir?: URI };
 				this._tempDir = environmentService.tmpDir;
 			}
+			if (this._tempDir) {
+				this._defaultWritePaths.push(this._tempDir.path);
+			}
 			if (!this._tempDir) {
 				this._logService.warn('TerminalSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
 			}
 		}
+	}
+
+	private _addTrustedDomainsToAllowedDomains(allowedDomains: string[]): string[] {
+		const allowedDomainsSet = new Set(allowedDomains);
+		for (const domain of this._trustedDomainService.trustedDomains) {
+			try {
+				const uri = new URL(domain);
+				allowedDomainsSet.add(uri.hostname);
+			} catch {
+				if (domain !== '*') {
+					allowedDomainsSet.add(domain);
+				}
+			}
+		}
+		return Array.from(allowedDomainsSet);
 	}
 }

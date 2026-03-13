@@ -18,6 +18,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ClassifiedEvent, StrictPropertyCheck, OmitMetadata, IGDPRProperty } from '../../../../platform/telemetry/common/gdprTypings.js';
 import { process } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { experimentsEnabled } from '../common/workbenchTelemetryUtils.js';
+import { IRequestService, NO_FETCH_TELEMETRY } from '../../../../platform/request/common/request.js';
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
@@ -38,7 +39,8 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		@IProductService productService: IProductService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IRequestService requestService: IRequestService
 	) {
 		super();
 
@@ -70,6 +72,29 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		}
 
 		this.sendErrorTelemetry = this.impl.sendErrorTelemetry;
+
+		this._register(requestService.onDidCompleteRequest(e => {
+			if (e.callSite === NO_FETCH_TELEMETRY) {
+				return;
+			}
+			type FetchCallClassification = {
+				owner: 'lramos15';
+				comment: 'Tracks fetch requests made through the request service';
+				callSite: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The call site that initiated the request.' };
+				latency: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds for the request to complete.' };
+				statusCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'HTTP status code of the response.' };
+			};
+			type FetchCallEvent = {
+				callSite: string;
+				latency: number;
+				statusCode: number | undefined;
+			};
+			this.publicLog2<FetchCallEvent, FetchCallClassification>('fetchCall', {
+				callSite: e.callSite,
+				latency: e.latency,
+				statusCode: e.statusCode,
+			});
+		}));
 	}
 
 	setExperimentProperty(name: string, value: string): void {

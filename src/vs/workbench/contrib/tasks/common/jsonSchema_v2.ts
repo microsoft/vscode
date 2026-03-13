@@ -56,6 +56,12 @@ const hide: IJSONSchema = {
 	default: true
 };
 
+const inSessions: IJSONSchema = {
+	type: 'boolean',
+	description: nls.localize('JsonSchema.inSessions', 'Show this task in the Agent Sessions run action dropdown'),
+	default: false
+};
+
 const taskIdentifier: IJSONSchema = {
 	type: 'object',
 	additionalProperties: true,
@@ -378,8 +384,8 @@ const runOptions: IJSONSchema = {
 		},
 		runOn: {
 			type: 'string',
-			enum: ['default', 'folderOpen'],
-			description: nls.localize('JsonSchema.tasks.runOn', 'Configures when the task should be run. If set to folderOpen, then the task will be run automatically when the folder is opened.'),
+			enum: ['default', 'folderOpen', 'worktreeCreated'],
+			description: nls.localize('JsonSchema.tasks.runOn', 'Configures when the task should be run. If set to folderOpen, then the task will be run automatically when the folder is opened. If set to worktreeCreated, then the task will be run automatically when an Agent Session worktree is created.'),
 			default: 'default'
 		},
 		instanceLimit: {
@@ -437,6 +443,7 @@ const taskConfiguration: IJSONSchema = {
 		presentation: Objects.deepClone(presentation),
 		icon: Objects.deepClone(icon),
 		hide: Objects.deepClone(hide),
+		inSessions: Objects.deepClone(inSessions),
 		options: options,
 		problemMatcher: {
 			$ref: '#/definitions/problemMatcherType',
@@ -510,6 +517,7 @@ taskDescriptionProperties.args = Objects.deepClone(args);
 taskDescriptionProperties.isShellCommand = Objects.deepClone(shellCommand);
 taskDescriptionProperties.dependsOn = dependsOn;
 taskDescriptionProperties.hide = Objects.deepClone(hide);
+taskDescriptionProperties.inSessions = Objects.deepClone(inSessions);
 taskDescriptionProperties.dependsOrder = dependsOrder;
 taskDescriptionProperties.identifier = Objects.deepClone(identifier);
 taskDescriptionProperties.type = Objects.deepClone(taskType);

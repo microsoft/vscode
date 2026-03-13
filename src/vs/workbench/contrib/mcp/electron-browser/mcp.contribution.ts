@@ -11,7 +11,10 @@ import { IMcpDevModeDebugging } from '../common/mcpDevMode.js';
 import { McpDevModeDebuggingNode } from './mcpDevModeDebuggingNode.js';
 import { NativeMcpDiscovery } from './nativeMpcDiscovery.js';
 import { WorkbenchMcpGatewayService } from './mcpGatewayService.js';
+import { McpGatewayToolBrokerContribution } from './mcpGatewayToolBrokerContribution.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 
 mcpDiscoveryRegistry.register(new SyncDescriptor(NativeMcpDiscovery));
 registerSingleton(IMcpDevModeDebugging, McpDevModeDebuggingNode, InstantiationType.Delayed);
 registerSingleton(IWorkbenchMcpGatewayService, WorkbenchMcpGatewayService, InstantiationType.Delayed);
+registerWorkbenchContribution2('mcpGatewayToolBrokerLocal', McpGatewayToolBrokerContribution, WorkbenchPhase.AfterRestored);

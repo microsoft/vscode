@@ -816,6 +816,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: readmeUrl,
+			callSite: 'mcpGalleryService.getReadme'
 		}, token);
 
 		const result = await asText(context);
@@ -951,6 +952,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		const context = await this.requestService.request({
 			type: 'GET',
 			url,
+			callSite: 'mcpGalleryService.queryMcpServers'
 		}, token);
 
 		const data = await asJson(context);
@@ -972,6 +974,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: mcpServerUrl,
+			callSite: 'mcpGalleryService.getMcpServer'
 		}, CancellationToken.None);
 
 		if (context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500) {

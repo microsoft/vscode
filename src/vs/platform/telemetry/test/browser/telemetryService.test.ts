@@ -57,7 +57,13 @@ class ErrorTestingSettings {
 	public randomUserFile: string = 'a/path/that/doe_snt/con-tain/code/names.js';
 	public anonymizedRandomUserFile: string = '<REDACTED: user-file-path>';
 	public nodeModulePathToRetain: string = 'node_modules/path/that/shouldbe/retained/names.js:14:15854';
+	public anonymizedNodeModulePath: string = '<REDACTED: user-file-path>/node_modules/path/that/shouldbe/retained/names.js:14:15854';
 	public nodeModuleAsarPathToRetain: string = 'node_modules.asar/path/that/shouldbe/retained/names.js:14:12354';
+	public anonymizedNodeModuleAsarPath: string = '<REDACTED: user-file-path>/node_modules.asar/path/that/shouldbe/retained/names.js:14:12354';
+	public fullNodeModulePath: string = '/Users/username/projects/vscode/node_modules/@xterm/xterm/lib/xterm.js:1:243732';
+	public anonymizedFullNodeModulePath: string = '<REDACTED: user-file-path>/node_modules/@xterm/xterm/lib/xterm.js:1:243732';
+	public fullNodeModuleAsarPath: string = '/Users/username/projects/vscode/node_modules.asar/@xterm/xterm/lib/xterm.js:1:376066';
+	public anonymizedFullNodeModuleAsarPath: string = '<REDACTED: user-file-path>/node_modules.asar/@xterm/xterm/lib/xterm.js:1:376066';
 	public extensionPathToRetain: string = '.vscode/extensions/ms-python.python-2024.0.1/out/extension.js:144:145516';
 	public fullExtensionPath: string = '/Users/username/.vscode/extensions/ms-python.python-2024.0.1/out/extension.js:144:145516';
 	public anonymizedExtensionPath: string = '<REDACTED: user-file-path>/.vscode/extensions/ms-python.python-2024.0.1/out/extension.js:144:145516';
@@ -90,6 +96,8 @@ class ErrorTestingSettings {
 		`    at t._handleMessage (${this.nodeModuleAsarPathToRetain})`,
 		`    at t._onmessage (/${this.nodeModulePathToRetain})`,
 		`    at t.onmessage (${this.nodeModulePathToRetain})`,
+		`    at get dimensions (${this.fullNodeModulePath})`,
+		`    at _._refreshCanvasDimensions (${this.fullNodeModuleAsarPath})`,
 		`    at uv.provideCodeActions (${this.fullExtensionPath})`,
 		`    at remote.handleConnection (${this.fullServerInsidersExtensionPath})`,
 		`    at git.getRepositoryState (${this.fullBuiltinExtensionPath})`,
@@ -468,10 +476,8 @@ suite('TelemetryService', () => {
 
 		assert.strictEqual(errorStub.callCount, 1);
 		// Test that important information remains but personal info does not
-		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModuleAsarPathToRetain), -1);
-		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModulePathToRetain), -1);
-		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModuleAsarPathToRetain), -1);
-		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModulePathToRetain), -1);
+		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(settings.anonymizedNodeModuleAsarPath), -1, 'bare node_modules.asar path');
+		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(settings.anonymizedNodeModulePath), -1, 'bare node_modules path');
 		assert.notStrictEqual(testAppender.events[0].data.msg.indexOf(settings.importantInfo), -1);
 		assert.strictEqual(testAppender.events[0].data.msg.indexOf(settings.personalInfo), -1);
 		assert.strictEqual(testAppender.events[0].data.msg.indexOf(settings.filePrefix), -1);
@@ -504,10 +510,12 @@ suite('TelemetryService', () => {
 			Errors.onUnexpectedError(dangerousPathWithImportantInfoError);
 			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
-			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModuleAsarPathToRetain), -1);
-			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModulePathToRetain), -1);
-			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModuleAsarPathToRetain), -1);
-			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModulePathToRetain), -1);
+			// All node_modules paths (bare and full) should preserve the node_modules/... suffix after redaction
+			const cs = testAppender.events[0].data.callstack;
+			assert.notStrictEqual(cs.indexOf(settings.anonymizedNodeModuleAsarPath), -1, 'bare node_modules.asar path');
+			assert.notStrictEqual(cs.indexOf(settings.anonymizedNodeModulePath), -1, 'bare node_modules path');
+			assert.notStrictEqual(cs.indexOf(settings.anonymizedFullNodeModulePath), -1, 'full node_modules path');
+			assert.notStrictEqual(cs.indexOf(settings.anonymizedFullNodeModuleAsarPath), -1, 'full node_modules.asar path');
 
 			errorTelemetry.dispose();
 			service.dispose();
