@@ -284,7 +284,8 @@ export class ModalEditorPart {
 
 		// Create label
 		const label = disposables.add(scopedInstantiationService.createInstance(ResourceLabel, titleElement, {}));
-		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => {
+		const labelChangeDisposable = disposables.add(new MutableDisposable());
+		const updateLabel = () => {
 			const activeEditor = editorPart.activeGroup.activeEditor;
 			if (activeEditor) {
 				const { labelFormat } = editorPart.partOptions;
@@ -300,10 +301,14 @@ export class ModalEditorPart {
 						extraClasses: activeEditor.getLabelExtraClasses(),
 					}
 				);
+
+				labelChangeDisposable.value = activeEditor.onDidChangeLabel(() => updateLabel());
 			} else {
 				label.element.clear();
+				labelChangeDisposable.clear();
 			}
-		}));
+		};
+		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, updateLabel));
 
 		// Handle double-click on header to toggle maximize
 		disposables.add(addDisposableListener(headerElement, EventType.DBLCLICK, e => {

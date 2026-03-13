@@ -73,7 +73,7 @@ import { IChatWidgetService } from '../chat.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { extractImagesFromChatResponse } from '../../common/chatImageExtraction.js';
+import { extractImagesFromChatResponse, IChatExtractedImage } from '../../common/chatImageExtraction.js';
 
 const commonHoverOptions: Partial<IHoverOptions> = {
 	style: HoverStyle.Pointer,
@@ -477,25 +477,43 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const widget = this.chatWidgetService.lastFocusedWidget;
 		if (widget?.viewModel) {
 			const responses = widget.viewModel.getItems().filter((item): item is IChatResponseViewModel => isResponseVM(item));
-			for (let i = responses.length - 1; i >= 0; i--) {
-				const extracted = extractImagesFromChatResponse(responses[i]);
+
+			// Collect all responses that have images, one section per response.
+			// The loop continues after finding the clicked image to gather all sections for the carousel.
+			const sections: { title: string; images: IChatExtractedImage[] }[] = [];
+			let clickedGlobalIndex = -1;
+			let globalOffset = 0;
+			let collectionId: string | undefined;
+
+			for (const response of responses) {
+				const extracted = extractImagesFromChatResponse(response);
 				if (extracted && extracted.images.length > 0) {
-					// Match by URI (unique per tool output) to avoid ambiguity with identical image content
-					const startIndex = referenceUri
-						? extracted.images.findIndex(img => isEqual(img.uri, referenceUri))
-						: extracted.images.findIndex(img => img.data.equals(VSBuffer.wrap(data)));
-					if (startIndex !== -1) {
-						await this.commandService.executeCommand('workbench.action.chat.openImageInCarousel', {
-							collection: {
-								id: extracted.id,
-								title: extracted.title,
-								sections: [{ title: '', images: extracted.images }],
-							},
-							startIndex,
-						});
-						return;
+					sections.push({ title: extracted.title, images: extracted.images });
+
+					if (clickedGlobalIndex === -1) {
+						const localIndex = referenceUri
+							? extracted.images.findIndex(img => isEqual(img.uri, referenceUri))
+							: extracted.images.findIndex(img => img.data.equals(VSBuffer.wrap(data)));
+						if (localIndex !== -1) {
+							clickedGlobalIndex = globalOffset + localIndex;
+							collectionId = extracted.id;
+						}
 					}
+
+					globalOffset += extracted.images.length;
 				}
+			}
+
+			if (clickedGlobalIndex !== -1 && collectionId && sections.length > 0) {
+				await this.commandService.executeCommand('workbench.action.chat.openImageInCarousel', {
+					collection: {
+						id: collectionId,
+						title: sections.length === 1 ? sections[0].title : localize('chat.imageCarousel.allImages', "Chat Images"),
+						sections,
+					},
+					startIndex: clickedGlobalIndex,
+				});
+				return;
 			}
 		}
 
