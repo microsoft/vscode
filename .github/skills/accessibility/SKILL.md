@@ -1,7 +1,19 @@
 ---
 name: accessibility
-description: Accessibility guidelines for VS Code features — covers accessibility help dialogs, accessible views, verbosity settings, accessibility signals, ARIA alerts/status announcements, keyboard navigation, and ARIA labels/roles. Applies to both new interactive UI surfaces and updates to existing features. Use when creating new UI or updating existing UI features.
+description: Primary accessibility skill for VS Code. REQUIRED for new feature and contribution work, and also applies to updates of existing UI. Covers accessibility help dialogs, accessible views, verbosity settings, signals, ARIA announcements, keyboard navigation, and ARIA labels/roles.
 ---
+
+## When to Use This Skill
+
+Use this skill for any VS Code feature work that introduces or changes interactive UI.
+
+Trigger examples:
+- "add a new feature"
+- "implement a new panel/view/widget"
+- "add a new command or workflow"
+- "update existing UI interactions"
+
+For new features and contributions, apply both this skill and the specialized `vscode-accessibility` skill.
 
 When adding a **new interactive UI surface** to VS Code — a panel, view, widget, editor overlay, dialog, or any rich focusable component the user interacts with — you **must** provide three accessibility components (if they do not already exist for the feature):
 
