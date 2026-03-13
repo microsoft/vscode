@@ -132,7 +132,6 @@
 	}
 }
 
-.chat-terminal-output-container.collapsed { display: none; }
 .chat-terminal-output-container {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-bottom-left-radius: var(--vscode-cornerRadius-medium);
@@ -144,6 +143,9 @@
 	max-width: 100%;
 	padding: 0;
 }
+
+/* Keep collapsed output fully hidden so it cannot contribute an extra border line. */
+.chat-terminal-output-container:not(.expanded) { display: none; }
 
 .chat-terminal-content-part .chat-terminal-content-title.chat-terminal-content-title-no-bottom-radius {
 	border-bottom-left-radius: 0px;
