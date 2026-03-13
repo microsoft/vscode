@@ -235,6 +235,9 @@
     },
     "serialize-javascript": "^7.0.3"
   },
+  "engines": {
+    "node": ">=22.15.1 <23"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
