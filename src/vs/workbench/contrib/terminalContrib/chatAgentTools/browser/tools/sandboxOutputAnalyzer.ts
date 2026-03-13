@@ -55,16 +55,26 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 	}
 
 	private _extractSandboxPath(line: string): string | undefined {
+		// Matches paths wrapped in square brackets, e.g. "[/tmp/file.txt]".
 		const bracketedPath = line.match(/\[(\/[^\]\r\n]+)\]/);
 		if (bracketedPath?.[1]) {
 			return bracketedPath[1].trim();
 		}
 
+		// Matches quoted absolute paths, e.g. "'/tmp/file.txt'" or '"/tmp/file.txt"'.
 		const quotedPath = line.match(/["'`](\/.+?)["'`]/);
 		if (quotedPath?.[1]) {
 			return quotedPath[1];
 		}
 
+		// Matches unquoted absolute paths followed by ": " message text, plain whitespace text,
+		// or end of line, e.g. "/home/user/file.txt: Warning..." or "/home/user/file.txt Warning...".
+		const inlinePath = line.match(/(\/[^\s:\r\n]+)(?=:\s|\s|$)/);
+		if (inlinePath?.[1]) {
+			return inlinePath[1].trim();
+		}
+
+		// Matches a trailing absolute path at the end of the line, e.g. "... open /tmp/file.txt".
 		const trailingPath = line.match(/(\/[\w.\-~/ ]+)$/);
 		return trailingPath?.[1]?.trim();
 	}

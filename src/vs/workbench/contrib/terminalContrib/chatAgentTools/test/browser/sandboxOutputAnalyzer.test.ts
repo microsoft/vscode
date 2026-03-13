@@ -100,4 +100,46 @@ suite('SandboxOutputAnalyzer', () => {
 		ok(/Command failed while running in sandboxed mode\./.test(result ?? ''));
 		ok(/allowWrite/.test(result ?? ''));
 	});
+
+	test('should extract an inline path followed by warning text', async () => {
+		const requestedPaths: string[] = [];
+		const analyzer = createAnalyzer({
+			sandboxService: {
+				promptToAllowWritePath: async path => {
+					requestedPaths.push(path);
+					return true;
+				}
+			}
+		});
+
+		const result = await analyzer.analyze({
+			exitCode: 1,
+			exitResult: 'Warning: Failed to create the file /home/testing/openai-api-docs.html:            Warning: Read-only file system',
+			commandLine: 'touch /home/testing/openai-api-docs.html'
+		});
+
+		strictEqual(requestedPaths[0], '/home/testing');
+		ok(/\/home\/testing/.test(result ?? ''));
+	});
+
+	test('should extract an inline path followed by plain text without a colon', async () => {
+		const requestedPaths: string[] = [];
+		const analyzer = createAnalyzer({
+			sandboxService: {
+				promptToAllowWritePath: async path => {
+					requestedPaths.push(path);
+					return true;
+				}
+			}
+		});
+
+		const result = await analyzer.analyze({
+			exitCode: 1,
+			exitResult: 'Warning: Failed to create the file /home/testing/openai-api-docs.html Warning Read-only file system',
+			commandLine: 'touch /home/testing/openai-api-docs.html'
+		});
+
+		strictEqual(requestedPaths[0], '/home/testing');
+		ok(/\/home\/testing/.test(result ?? ''));
+	});
 });
