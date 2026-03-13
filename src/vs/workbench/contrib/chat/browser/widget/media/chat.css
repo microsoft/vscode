@@ -131,28 +131,6 @@
 	}
 }
 
-@keyframes chat-edit-request-expand {
-	from {
-		width: var(--chat-edit-start-pct, 50%);
-		margin-left: calc(100% - var(--chat-edit-start-pct, 50%));
-	}
-
-	to {
-		width: 100%;
-		margin-left: 0;
-	}
-}
-
-@keyframes chat-edit-toolbar-fade-in {
-	from {
-		opacity: 0;
-	}
-
-	to {
-		opacity: 1;
-	}
-}
-
 @keyframes chat-input-top-widget-appear {
 	0% {
 		opacity: 0;
@@ -2381,8 +2359,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.interactive-session .checkpoint-file-changes-summary.chat-file-changes-collapsed .chat-summary-list,
-.interactive-session .chat-used-context.chat-used-context-collapsed .chat-used-context-list {
+.interactive-session .checkpoint-file-changes-summary.chat-file-changes-collapsed .chat-summary-list {
 	display: none;
 }
 
@@ -2391,6 +2368,31 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: column;
 	gap: 2px;
 	line-height: 1.5em;
+}
+
+.interactive-session .chat-used-context.chat-used-context-collapsed {
+	gap: 0;
+}
+
+.interactive-session .chat-used-context .chat-used-context-list {
+	transform: translateY(0);
+	transform-origin: top;
+	overflow: hidden;
+	pointer-events: auto;
+	transition: max-height 180ms cubic-bezier(0.2, 0, 0, 1), height 180ms cubic-bezier(0.2, 0, 0, 1), opacity 160ms ease, transform 180ms cubic-bezier(0.2, 0, 0, 1), margin 180ms cubic-bezier(0.2, 0, 0, 1), padding 180ms cubic-bezier(0.2, 0, 0, 1), border 180ms cubic-bezier(0.2, 0, 0, 1);
+	will-change: max-height, opacity, transform;
+}
+
+.interactive-session .interactive-item-container .chat-used-context.chat-used-context-collapsed .chat-used-context-list,
+.interactive-session .interactive-response .value .chat-used-context.chat-used-context-collapsed .chat-used-context-list {
+	max-height: 0;
+	height: 0;
+	opacity: 0;
+	transform: translateY(-6px);
+	pointer-events: none;
+	margin: 0;
+	padding: 0;
+	border: none;
 }
 
 .interactive-response-progress-tree,
@@ -3295,11 +3297,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .chat-edit-input-container {
 	width: 100%;
-	animation: 280ms chat-edit-request-expand cubic-bezier(0.2, 0, 0, 1);
-}
-
-.interactive-item-container .chat-edit-input-container .chat-secondary-toolbar {
-	animation: 150ms chat-edit-toolbar-fade-in ease-out 280ms both;
 }
 
 .chat-row-disabled-overlay,
@@ -3325,14 +3322,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	top: -50000px;
 	width: 1px;
 	height: 1px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-
-	.interactive-item-container .chat-edit-input-container,
-	.interactive-item-container .chat-edit-input-container .chat-secondary-toolbar {
-		animation: none;
-	}
 }
 
 

@@ -1578,24 +1578,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			if (!isInput) {
 				const rowContainer = item.rowContainer;
-
-				// Measure the bubble width before it gets hidden by the editing state
-				const markdownPart = item.value.firstElementChild;
-				const bubble = markdownPart?.firstElementChild as HTMLElement | null;
-				const bubbleWidth = bubble?.offsetWidth ?? 0;
-
 				this.inputContainer = dom.$('.chat-edit-input-container');
 				rowContainer.appendChild(this.inputContainer);
-
 				this.createInput(this.inputContainer);
-
-				// Set the bubble width percentage for the CSS expand animation
-				if (bubbleWidth > 0) {
-					const containerWidth = this.inputContainer.offsetWidth || rowContainer.offsetWidth;
-					// Cap at 95% so there's always a visible expand, even for max-width bubbles
-					const startPct = Math.min((bubbleWidth / containerWidth) * 100, 95);
-					this.inputContainer.style.setProperty('--chat-edit-start-pct', `${startPct}%`);
-				}
 				this.input.setChatMode(this.inputPart.currentModeObs.get().id);
 				this.input.setPermissionLevel(this.inputPart.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
 				this.input.setEditing(true, isEditingSentRequest);

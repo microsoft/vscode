@@ -917,7 +917,6 @@
 		"--background-dark",
 		"--background-light",
 		"--chat-editing-last-edit-shift",
-		"--chat-edit-start-pct",
 		"--chat-current-response-min-height",
 		"--inline-chat-frame-progress",
 		"--insert-border-color",
