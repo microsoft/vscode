@@ -25,7 +25,6 @@ suite('CommandLineSandboxRewriter', () => {
 			promptToAllowWritePath: async () => false,
 			wrapWithSandbox: async (_runtimeConfig, command) => command,
 			wrapCommand: command => Promise.resolve(command),
-			resetSandbox: async () => { },
 			...overrides
 		});
 	};

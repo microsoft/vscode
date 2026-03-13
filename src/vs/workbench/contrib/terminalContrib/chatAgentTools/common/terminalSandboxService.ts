@@ -36,7 +36,6 @@ export interface ITerminalSandboxService {
 	promptToAllowWritePath(path: string): Promise<boolean>;
 	wrapWithSandbox(runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string>;
 	wrapCommand(command: string): Promise<string>;
-	resetSandbox(): Promise<void>;
 }
 
 type ITerminalSandboxFilesystemSettings = {
@@ -151,7 +150,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this.wrapWithSandbox(sandboxSettings, command);
 	}
 
-	public async resetSandbox(): Promise<void> {
+	private async _resetSandbox(): Promise<void> {
 		const service = this._getSandboxHelperService();
 		await service.resetSandbox();
 	}
@@ -161,7 +160,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			return;
 		}
 
-		this.resetSandbox().catch(error => {
+		this._resetSandbox().catch(error => {
 			this._logService.error('TerminalSandboxService: Failed to reset sandbox after configuration change', error);
 		});
 	}

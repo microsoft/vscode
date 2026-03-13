@@ -111,7 +111,6 @@ suite('RunInTerminalTool', () => {
 			promptToAllowWritePath: async () => false,
 			wrapWithSandbox: async (_runtimeConfig, command) => command,
 			wrapCommand: command => Promise.resolve(command),
-			resetSandbox: async () => { }
 		});
 
 		const treeSitterLibraryService = store.add(instantiationService.createInstance(TreeSitterLibraryService));

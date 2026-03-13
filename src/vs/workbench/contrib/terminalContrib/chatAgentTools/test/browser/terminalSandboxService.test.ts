@@ -441,12 +441,6 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		ok(!updatedSettings?.denyWrite?.includes('/tmp/blocked.txt'));
 	});
 
-	test('should delegate resetSandbox to sandbox helper', async () => {
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		await sandboxService.resetSandbox();
-		strictEqual(sandboxHelperService.resetSandboxCallCount, 1);
-	});
-
 	test('should reset sandbox when sandbox settings change', async () => {
 		store.add(instantiationService.createInstance(TerminalSandboxService));
 		strictEqual(sandboxHelperService.resetSandboxCallCount, 0);

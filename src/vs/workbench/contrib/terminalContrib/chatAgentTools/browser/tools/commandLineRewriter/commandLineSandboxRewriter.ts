@@ -20,6 +20,10 @@ export class CommandLineSandboxRewriter extends Disposable implements ICommandLi
 		}
 
 		const wrappedCommand = await this._sandboxService.wrapCommand(options.commandLine);
+		if (wrappedCommand === options.commandLine) {
+			// If the sandbox service returns the same command, it means it didn't actually wrap it for some reason. In that case, we should return undefined to allow other rewriters to run, instead of returning a result that claims the command was rewritten but doesn't actually change anything.
+			return undefined;
+		}
 		return {
 			rewritten: wrappedCommand,
 			reasoning: 'Wrapped command for sandbox execution',

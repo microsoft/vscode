@@ -28,7 +28,6 @@ suite('SandboxOutputAnalyzer', () => {
 			promptToAllowWritePath: async () => false,
 			wrapWithSandbox: async (_runtimeConfig, command) => command,
 			wrapCommand: async command => command,
-			resetSandbox: async () => { },
 			...options.sandboxService,
 		});
 		return store.add(instantiationService.createInstance(SandboxOutputAnalyzer));
