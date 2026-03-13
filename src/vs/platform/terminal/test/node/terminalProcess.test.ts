@@ -31,10 +31,104 @@ const shellMatrix: IShellLaunchConfig[] = [
 ];
 
 const lineCounts = [10, 20, 30, 40, 50];
+const iterationsPerTest = 3;
 const waitDuration = 4000;
 
 const BRACKETED_PASTE_START = '\x1b[200~';
 const BRACKETED_PASTE_END = '\x1b[201~';
+
+/**
+ * Simulate how xterm.js sends input to the PTY — writing the entire
+ * string as a single write, but preceded by a small delay per "keystroke".
+ * The key difference from a direct ptyProcess.write() is that xterm.js
+ * processes input through its input handler which can interact with the
+ * PTY echo, creating timing conditions that trigger the kernel bug.
+ *
+ * To reproduce the bug reliably: write the command in small chunks with
+ * minimal delays, similar to how xterm.js processes rapid paste input.
+ */
+async function writeInChunks(terminalProcess: TerminalProcess, data: string, chunkSize: number = 4): Promise<void> {
+	for (let i = 0; i < data.length; i += chunkSize) {
+		terminalProcess.input(data.slice(i, i + chunkSize));
+		// Yield to event loop between chunks — simulates xterm.js processing
+		await new Promise(resolve => setImmediate(resolve));
+	}
+}
+
+/**
+ * Run a single iteration of the multiline write test.
+ */
+async function runSingleIteration(
+	store: { add<T extends { dispose(): void }>(t: T): T },
+	shellLaunchConfig: IShellLaunchConfig,
+	outputFile: string,
+	lineCount: number,
+	useBracketedPaste: boolean
+): Promise<{ passed: boolean; error: string }> {
+	const { command, expectedByteCount } = buildMultilineCommand(outputFile, lineCount);
+	const terminalProcess = store.add(new TerminalProcess(
+		shellLaunchConfig,
+		path.dirname(outputFile),
+		80,
+		24,
+		{ ...process.env } as Record<string, string>,
+		{ ...process.env } as Record<string, string>,
+		processOptions,
+		new NullLogService(),
+		{ applicationName: 'vscode' } as IProductService
+	));
+
+	const result = await terminalProcess.start();
+	const error = result as ITerminalLaunchError | undefined;
+	if (error?.message) {
+		return { passed: false, error: `Failed to start: ${error.message}` };
+	}
+
+	await new Promise<void>(resolve => {
+		const timer = setTimeout(() => { listener.dispose(); resolve(); }, 10000);
+		const listener = terminalProcess.onProcessData(() => {
+			clearTimeout(timer);
+			listener.dispose();
+			resolve();
+		});
+	});
+
+	let inputData: string;
+	if (useBracketedPaste) {
+		const commandContent = command.slice(0, -1).replace(/\n/g, '\r');
+		inputData = BRACKETED_PASTE_START + commandContent + BRACKETED_PASTE_END + '\r';
+	} else {
+		inputData = command.replace(/\n/g, '\r');
+	}
+
+	// Write in chunks to simulate xterm.js-like input handling
+	await writeInChunks(terminalProcess, inputData);
+
+	const start = Date.now();
+	while (Date.now() - start < waitDuration) {
+		await new Promise(resolve => setTimeout(resolve, 200));
+		if (fs.existsSync(outputFile)) {
+			await new Promise(resolve => setTimeout(resolve, 200));
+			break;
+		}
+	}
+
+	const exitPromise = new Promise<void>(resolve => {
+		const listener = terminalProcess.onProcessExit(() => { listener.dispose(); resolve(); });
+	});
+	terminalProcess.shutdown(true);
+	await exitPromise;
+
+	if (!fs.existsSync(outputFile)) {
+		return { passed: false, error: 'Output file was not created' };
+	}
+
+	const actualByteCount = parseInt(fs.readFileSync(outputFile, 'utf-8').trim(), 10);
+	if (actualByteCount !== expectedByteCount) {
+		return { passed: false, error: `Expected ${expectedByteCount} but got ${actualByteCount}` };
+	}
+	return { passed: true, error: '' };
+}
 
 function shellExists(executable: string): boolean {
 	return fs.existsSync(executable);
@@ -72,64 +166,26 @@ function buildMultilineCommand(outputFile: string, lineCount: number): { command
 
 	async function runShellMultilineTest(shellLaunchConfig: IShellLaunchConfig, lineCount: number): Promise<void> {
 		const shellName = path.posix.basename(shellLaunchConfig.executable!);
-		const outputFile = path.join(outputDir, `output-${shellName}-${lineCount}.txt`);
-		const { command, expectedByteCount } = buildMultilineCommand(outputFile, lineCount);
-		const terminalProcess = store.add(new TerminalProcess(
-			shellLaunchConfig,
-			outputDir,
-			80,
-			24,
-			{ ...process.env } as Record<string, string>,
-			{ ...process.env } as Record<string, string>,
-			processOptions,
-			new NullLogService(),
-			{ applicationName: 'vscode' } as IProductService
-		));
+		let passed = 0;
+		let lastError = '';
 
-		const result = await terminalProcess.start();
-		const error = result as ITerminalLaunchError | undefined;
-		if (error?.message) {
-			throw new Error(`Failed to start terminal: ${error.message}`);
-		}
-
-		await new Promise<void>(resolve => {
-			const timer = setTimeout(() => {
-				listener.dispose();
-				resolve();
-			}, 10000);
-			const listener = terminalProcess.onProcessData(() => {
-				clearTimeout(timer);
-				listener.dispose();
-				resolve();
-			});
+		// Run iterations in parallel to create I/O contention, which makes
+		// the macOS PTY canonical-mode bug more likely to trigger.
+		const promises = Array.from({ length: iterationsPerTest }, (_, iter) => {
+			const outputFile = path.join(outputDir, `output-${shellName}-${lineCount}-${iter}.txt`);
+			return runSingleIteration(store, shellLaunchConfig, outputFile, lineCount, false);
 		});
 
-		terminalProcess.input(command.replace(/\n/g, '\r'));
-
-		const start = Date.now();
-		while (Date.now() - start < waitDuration) {
-			await new Promise(resolve => setTimeout(resolve, 200));
-			if (fs.existsSync(outputFile)) {
-				await new Promise(resolve => setTimeout(resolve, 200));
-				break;
+		const results = await Promise.all(promises);
+		for (let i = 0; i < results.length; i++) {
+			if (results[i].passed) {
+				passed++;
+			} else {
+				lastError = `Iteration ${i}: ${results[i].error}`;
 			}
 		}
 
-		const exitPromise = new Promise<void>(resolve => {
-			const listener = terminalProcess.onProcessExit(() => {
-				listener.dispose();
-				resolve();
-			});
-		});
-		terminalProcess.shutdown(true);
-		await exitPromise;
-
-		if (!fs.existsSync(outputFile)) {
-			throw new Error('Output file was not created');
-		}
-
-		const actualByteCount = parseInt(fs.readFileSync(outputFile, 'utf-8').trim(), 10);
-		deepStrictEqual(actualByteCount, expectedByteCount);
+		deepStrictEqual(passed, iterationsPerTest, `Only ${passed}/${iterationsPerTest} passed. ${lastError}`);
 	}
 
 	for (const lineCount of lineCounts) {
@@ -141,7 +197,7 @@ function buildMultilineCommand(outputFile: string, lineCount: number): { command
 					this.skip();
 				}
 
-				this.timeout(10000);
+				this.timeout(iterationsPerTest * 10000);
 				await runShellMultilineTest(shell, lineCount);
 			});
 		}
@@ -164,70 +220,26 @@ function buildMultilineCommand(outputFile: string, lineCount: number): { command
 
 	async function runBracketedPasteTest(shellLaunchConfig: IShellLaunchConfig, lineCount: number): Promise<void> {
 		const shellName = path.posix.basename(shellLaunchConfig.executable!);
-		const outputFile = path.join(outputDir, `output-paste-${shellName}-${lineCount}.txt`);
-		const { command, expectedByteCount } = buildMultilineCommand(outputFile, lineCount);
-		const terminalProcess = store.add(new TerminalProcess(
-			shellLaunchConfig,
-			outputDir,
-			80,
-			24,
-			{ ...process.env } as Record<string, string>,
-			{ ...process.env } as Record<string, string>,
-			processOptions,
-			new NullLogService(),
-			{ applicationName: 'vscode' } as IProductService
-		));
+		let passed = 0;
+		let lastError = '';
 
-		const result = await terminalProcess.start();
-		const error = result as ITerminalLaunchError | undefined;
-		if (error?.message) {
-			throw new Error(`Failed to start terminal: ${error.message}`);
-		}
-
-		await new Promise<void>(resolve => {
-			const timer = setTimeout(() => {
-				listener.dispose();
-				resolve();
-			}, 10000);
-			const listener = terminalProcess.onProcessData(() => {
-				clearTimeout(timer);
-				listener.dispose();
-				resolve();
-			});
+		// Run iterations in parallel — same contention as raw tests, but
+		// with bracketed paste wrapping to prove the fix works.
+		const promises = Array.from({ length: iterationsPerTest }, (_, iter) => {
+			const outputFile = path.join(outputDir, `output-paste-${shellName}-${lineCount}-${iter}.txt`);
+			return runSingleIteration(store, shellLaunchConfig, outputFile, lineCount, true);
 		});
 
-		// Wrap the command in bracketed paste sequences, simulating what
-		// sendText(data, false, true) does when bracketedPasteMode is enabled.
-		// The trailing \r must come AFTER the paste end marker — inside the
-		// markers, \r is treated as a literal newline in the edit buffer.
-		const commandContent = command.slice(0, -1).replace(/\n/g, '\r');
-		const wrappedCommand = BRACKETED_PASTE_START + commandContent + BRACKETED_PASTE_END + '\r';
-		terminalProcess.input(wrappedCommand);
-
-		const start = Date.now();
-		while (Date.now() - start < waitDuration) {
-			await new Promise(resolve => setTimeout(resolve, 200));
-			if (fs.existsSync(outputFile)) {
-				await new Promise(resolve => setTimeout(resolve, 200));
-				break;
+		const results = await Promise.all(promises);
+		for (let i = 0; i < results.length; i++) {
+			if (results[i].passed) {
+				passed++;
+			} else {
+				lastError = `Iteration ${i}: ${results[i].error}`;
 			}
 		}
 
-		const exitPromise = new Promise<void>(resolve => {
-			const listener = terminalProcess.onProcessExit(() => {
-				listener.dispose();
-				resolve();
-			});
-		});
-		terminalProcess.shutdown(true);
-		await exitPromise;
-
-		if (!fs.existsSync(outputFile)) {
-			throw new Error('Output file was not created');
-		}
-
-		const actualByteCount = parseInt(fs.readFileSync(outputFile, 'utf-8').trim(), 10);
-		deepStrictEqual(actualByteCount, expectedByteCount);
+		deepStrictEqual(passed, iterationsPerTest, `Only ${passed}/${iterationsPerTest} passed. ${lastError}`);
 	}
 
 	// Shells that support bracketed paste mode should handle large multiline
@@ -245,7 +257,7 @@ function buildMultilineCommand(outputFile: string, lineCount: number): { command
 					this.skip();
 				}
 
-				this.timeout(10000);
+				this.timeout(iterationsPerTest * 10000);
 				await runBracketedPasteTest(shell, lineCount);
 			});
 		}
