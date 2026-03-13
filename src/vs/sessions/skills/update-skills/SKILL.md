@@ -2,6 +2,7 @@
 name: update-skills
 description: Create or update repository skills and instructions when major learnings are discovered during a session. Use when the user says "learn!", when a significant pattern or pitfall is identified, or when reusable domain knowledge should be captured for future sessions.
 ---
+<!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 
 # Update Skills & Instructions
 

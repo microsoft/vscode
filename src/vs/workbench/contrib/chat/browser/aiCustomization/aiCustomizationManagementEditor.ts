@@ -27,7 +27,7 @@ import { IListVirtualDelegate, IListRenderer } from '../../../../../base/browser
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { basename, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { registerColor } from '../../../../../platform/theme/common/colorRegistry.js';
 import { PANEL_BORDER } from '../../../../common/theme.js';
@@ -174,6 +174,7 @@ interface IBuiltinPromptSaveRequest {
 	readonly folder: URI;
 	readonly sourceUri: URI;
 	readonly content: string;
+	readonly promptType: PromptsType;
 	readonly projectRoot?: URI;
 }
 
@@ -1082,7 +1083,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateContentVisibility();
 
 		try {
-			if (storage === BUILTIN_STORAGE && promptType === PromptsType.prompt) {
+			if (storage === BUILTIN_STORAGE && (promptType === PromptsType.prompt || promptType === PromptsType.skill)) {
 				const session = await this.getOrCreateBuiltinEditingSession(uri);
 
 				if (!isEqual(this.currentEditingUri, uri)) {
@@ -1218,7 +1219,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private createBuiltinPromptSaveRequest(target: ISaveTargetQuickPickItem): IBuiltinPromptSaveRequest | undefined {
 		const sourceUri = this.currentEditingUri;
 		const promptType = this.currentEditingPromptType;
-		if (!sourceUri || this.currentEditingStorage !== BUILTIN_STORAGE || promptType !== PromptsType.prompt || !target.folder || target.target === 'cancel') {
+		if (!sourceUri || this.currentEditingStorage !== BUILTIN_STORAGE || (promptType !== PromptsType.prompt && promptType !== PromptsType.skill) || !target.folder || target.target === 'cancel') {
 			return;
 		}
 
@@ -1232,6 +1233,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			folder: target.folder,
 			sourceUri,
 			content: session.model.getValue(),
+			promptType,
 			projectRoot: target.target === 'workspace' ? this.workspaceService.getActiveProjectRoot() : undefined,
 		};
 	}
@@ -1254,8 +1256,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private async saveBuiltinPromptCopy(request: IBuiltinPromptSaveRequest): Promise<void> {
-		const targetUri = URI.joinPath(request.folder, basename(request.sourceUri));
-		await this.fileService.createFolder(request.folder);
+		let targetUri: URI;
+		if (request.promptType === PromptsType.skill) {
+			// Skills use {skillName}/SKILL.md directory structure
+			const skillFolderName = basename(dirname(request.sourceUri));
+			targetUri = URI.joinPath(request.folder, skillFolderName, basename(request.sourceUri));
+		} else {
+			targetUri = URI.joinPath(request.folder, basename(request.sourceUri));
+		}
+		await this.fileService.createFolder(dirname(targetUri));
 		await this.fileService.writeFile(targetUri, VSBuffer.fromString(request.content));
 		if (request.target === 'workspace' && request.projectRoot) {
 			await this.workspaceService.commitFiles(request.projectRoot, [targetUri]);
@@ -1271,8 +1280,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private async pickBuiltinPromptSaveTarget(): Promise<ISaveTargetQuickPickItem | undefined> {
 		const items: ISaveTargetQuickPickItem[] = [];
+		const promptType = this.currentEditingPromptType ?? PromptsType.prompt;
 
-		const workspaceFolder = resolveWorkspaceTargetDirectory(this.workspaceService, PromptsType.prompt);
+		const workspaceFolder = resolveWorkspaceTargetDirectory(this.workspaceService, promptType);
 		if (workspaceFolder) {
 			items.push({
 				label: localize('workspaceSaveTarget', "Workspace"),
@@ -1282,7 +1292,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			});
 		}
 
-		const userFolder = await resolveUserTargetDirectory(this.promptsService, PromptsType.prompt);
+		const userFolder = await resolveUserTargetDirectory(this.promptsService, promptType);
 		if (userFolder) {
 			items.push({
 				label: localize('userSaveTarget', "User"),
@@ -1299,7 +1309,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		return this.quickInputService.pick(items, {
 			canPickMany: false,
-			placeHolder: localize('saveBuiltinPromptCopyPlaceholder', "Select Workspace, User, or Cancel"),
+			placeHolder: localize('saveBuiltinCopyPlaceholder', "Select Workspace, User, or Cancel"),
 			matchOnDescription: true,
 		});
 	}
@@ -1336,10 +1346,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 				void this.saveBuiltinPromptCopy(saveRequest).then(() => {
 					void this.listWidget?.refresh();
 				}, error => {
-					console.error('Failed to save built-in prompt override:', error);
+					console.error('Failed to save built-in override:', error);
 					this.notificationService.warn(saveRequest.target === 'workspace'
-						? localize('saveBuiltinPromptCopyFailedWorkspace', "Could not save the prompt override to the workspace prompts.")
-						: localize('saveBuiltinPromptCopyFailedUser', "Could not save the prompt override to your user prompts."));
+						? localize('saveBuiltinCopyFailedWorkspace', "Could not save the override to the workspace.")
+						: localize('saveBuiltinCopyFailedUser', "Could not save the override to your user folder."));
 				});
 			}
 		} finally {
@@ -1357,17 +1367,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorActionButtonIcon.className = `codicon codicon-${shouldShowBuiltinSaveAction ? Codicon.save.id : Codicon.arrowLeft.id} editor-action-button-icon`;
 		this.editorActionButton.disabled = this.editorActionButtonInProgress;
 		this.editorActionButton.setAttribute('aria-label', shouldShowBuiltinSaveAction
-			? localize('savePromptCopyAndChooseLocation', "Save prompt override")
+			? localize('saveBuiltinCopyAndChooseLocation', "Save override")
 			: localize('backToList', "Back to list"));
 		this.editorActionButton.title = shouldShowBuiltinSaveAction
-			? localize('savePromptCopyAndChooseLocationTooltip', "Save prompt override (choose Workspace, User, or Cancel)")
+			? localize('saveBuiltinCopyAndChooseLocationTooltip', "Save override (choose Workspace, User, or Cancel)")
 			: localize('backToList', "Back to list");
 	}
 
 	private shouldShowBuiltinSaveAction(): boolean {
 		return this._editorContentChanged
 			&& this.currentEditingStorage === BUILTIN_STORAGE
-			&& this.currentEditingPromptType === PromptsType.prompt;
+			&& (this.currentEditingPromptType === PromptsType.prompt || this.currentEditingPromptType === PromptsType.skill);
 	}
 
 	private resetEditorSaveIndicator(): void {
