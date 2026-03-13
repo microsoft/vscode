@@ -1149,24 +1149,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private static readonly _maxImageFileSize = 5 * 1024 * 1024;
-	private static readonly _imageExtensions = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
 
 	/**
 	 * Scans terminal output for file paths that point to images and reads them.
 	 * Returns data content parts for any found images that exist on disk.
 	 */
 	private async _extractImagesFromOutput(output: string, cwd: URI | undefined): Promise<IToolResult['content']> {
-		const os = await this._osBackend;
-		const isWindows = os === OperatingSystem.Windows;
-		const pathModule = isWindows ? win32 : posix;
 		const normalizedOutput = output.replace(/\r?\n/g, '');
 
-		// Match absolute paths ending with image extensions.
-		// Unix: /path/to/image.png
-		// Windows: C:\path\to\image.png or C:/path/to/image.png
-		const pathPattern = isWindows
-			? /(?:[A-Za-z]:[\\\/](?:[^\s\\/:*?"<>|]+[\\\/])*[^\s\\/:*?"<>|]+\.(?:png|jpe?g|gif|webp|bmp))/gi
-			: /(?:\/(?:[^\s/]+\/)*[^\s/]+\.(?:png|jpe?g|gif|webp|bmp))/gi;
+		// Match paths ending with image extensions. A leading / or \ is sufficient
+		// to identify a path segment; the full path up to the extension is captured.
+		const pathPattern = /(?:[^\s]*[\/\\][^\s]*\.(?:png|jpe?g|gif|webp|bmp))/gi;
 
 		const matches = new Set<string>();
 		for (const match of normalizedOutput.matchAll(pathPattern)) {
@@ -1180,19 +1173,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const results: IToolResult['content'] = [];
 		for (const filePath of matches) {
 			try {
-				const ext = pathModule.extname(filePath).toLowerCase();
-				if (!RunInTerminalTool._imageExtensions.has(ext)) {
-					continue;
-				}
-
 				const mimeType = getMediaMime(filePath);
 				if (!mimeType || !mimeType.startsWith('image/')) {
 					continue;
 				}
 
-				// Resolve the URI - absolute paths can be converted directly
+				// Resolve the URI - check for absolute path (Unix / or Windows drive letter)
 				let fileUri: URI;
-				if (pathModule.isAbsolute(filePath)) {
+				if (/^\/|^[A-Za-z]:[\\\/]/.test(filePath)) {
 					fileUri = URI.file(filePath);
 				} else if (cwd) {
 					fileUri = URI.joinPath(cwd, filePath);
