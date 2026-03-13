@@ -369,6 +369,7 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	}
 
 	private _disposePtyHost(): void {
+		 		this._clearHeartbeatTimeouts();
 		this._proxy.shutdownAll();
 		this._connection.store.dispose();
 	}
