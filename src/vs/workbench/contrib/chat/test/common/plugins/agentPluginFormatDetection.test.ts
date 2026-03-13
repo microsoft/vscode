@@ -897,7 +897,7 @@ suite('AgentPlugin format detection', () => {
 		await waitForState(plugins[0].mcpServerDefinitions, d => d.length > 0);
 		const server = plugins[0].mcpServerDefinitions.get()[0];
 		assert.strictEqual(server.name, 'my-server');
-		const config = server.configuration as { command: string; args: string[]; cwd: string; env: Record<string, string> };
+		const config: any = server.configuration;
 		assert.ok(!config.command.includes('${PLUGIN_ROOT}'), `Expected PLUGIN_ROOT to be expanded in command, got: ${config.command}`);
 		assert.ok(!config.args[1].includes('${PLUGIN_ROOT}'), `Expected PLUGIN_ROOT to be expanded in args, got: ${config.args[1]}`);
 		assert.ok(!config.cwd.includes('${PLUGIN_ROOT}'), `Expected PLUGIN_ROOT to be expanded in cwd, got: ${config.cwd}`);
@@ -926,7 +926,7 @@ suite('AgentPlugin format detection', () => {
 
 		await waitForState(plugins[0].mcpServerDefinitions, d => d.length > 0);
 		const server = plugins[0].mcpServerDefinitions.get()[0];
-		const config = server.configuration as { command: string; args: string[]; env: Record<string, string> };
+		const config: any = server.configuration;
 		assert.ok(!config.command.includes('${CLAUDE_PLUGIN_ROOT}'), `Expected CLAUDE_PLUGIN_ROOT to be expanded in command, got: ${config.command}`);
 		assert.ok(!config.args[1].includes('${CLAUDE_PLUGIN_ROOT}'), `Expected CLAUDE_PLUGIN_ROOT to be expanded in args, got: ${config.args[1]}`);
 		assert.strictEqual(config.env['CLAUDE_PLUGIN_ROOT'], uri.fsPath, 'Expected CLAUDE_PLUGIN_ROOT env var to be set');
