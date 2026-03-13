@@ -818,6 +818,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* top padding is inside the editor widget */
 	width: 100%;
 	position: relative;
+}
+
+/* Prevent contents from covering border corners. Not applied in compact mode
+	because overflow:hidden creates a BFC that causes a ResizeObserver ↔ layout
+	feedback loop when toolbars share width with the editor. */
+.interactive-session .interactive-input-part:not(.compact) .chat-input-container {
 	/* Prevent contents from covering border corner */
 	overflow: hidden;
 }
@@ -1532,11 +1538,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-
-/* Hide the tools button when the toolbar is in collapsed state */
-.interactive-session .chat-input-toolbar:has(.hide-chevrons) .action-item:has(.codicon-settings) {
-	display: none;
-}
 
 /* Add context button icon sizing */
 .interactive-session .chat-input-toolbar .action-item:has(.codicon-add) .action-label {
@@ -2406,7 +2407,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	margin: 0 0 6px 0;
+	margin: 0 0 14px 0;
 	font-size: 13px;
 
 	/* Tool calls transition from a progress to a collapsible list part, which needs to have this top padding.

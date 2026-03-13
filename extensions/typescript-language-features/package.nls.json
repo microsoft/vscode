@@ -64,7 +64,7 @@
 	"format.semicolons.remove": "Remove unnecessary semicolons.",
 	"format.indentSwitchCase": "Indent case clauses in switch statements. Requires using TypeScript 5.1+ in the workspace.",
 	"format.enable": "Enable/disable the default JavaScript and TypeScript formatter.",
-	"configuration.format.enable.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.format.enable#` instead.",
+	"configuration.format.enable.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.format.enabled#` instead.",
 	"configuration.format.insertSpaceAfterCommaDelimiter.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.format.insertSpaceAfterCommaDelimiter#` instead.",
 	"configuration.format.insertSpaceAfterConstructor.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.format.insertSpaceAfterConstructor#` instead.",
 	"configuration.format.insertSpaceAfterSemicolonInForStatements.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.format.insertSpaceAfterSemicolonInForStatements#` instead.",

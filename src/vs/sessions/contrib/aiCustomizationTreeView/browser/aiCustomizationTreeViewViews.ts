@@ -5,6 +5,7 @@
 
 import './media/aiCustomizationTreeView.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -12,7 +13,7 @@ import { basename, dirname } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -27,9 +28,10 @@ import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IPromptsService, PromptsStorage, IAgentSkill, IPromptPath } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { agentIcon, extensionIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon, userIcon, workspaceIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, extensionIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon, userIcon, workspaceIcon, builtinIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { AICustomizationItemMenuId } from './aiCustomizationTreeView.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { AICustomizationPromptsStorage, BUILTIN_STORAGE } from '../../chat/common/builtinPromptsStorage.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
@@ -80,7 +82,7 @@ interface IAICustomizationGroupItem {
 	readonly type: 'group';
 	readonly id: string;
 	readonly label: string;
-	readonly storage: PromptsStorage;
+	readonly storage: AICustomizationPromptsStorage;
 	readonly promptType: PromptsType;
 	readonly icon: ThemeIcon;
 }
@@ -94,7 +96,7 @@ interface IAICustomizationFileItem {
 	readonly uri: URI;
 	readonly name: string;
 	readonly description?: string;
-	readonly storage: PromptsStorage;
+	readonly storage: AICustomizationPromptsStorage;
 	readonly promptType: PromptsType;
 }
 
@@ -148,6 +150,9 @@ interface IFileTemplateData {
 	readonly container: HTMLElement;
 	readonly icon: HTMLElement;
 	readonly name: HTMLElement;
+	readonly actionBar: ActionBar;
+	readonly elementDisposables: DisposableStore;
+	readonly templateDisposables: DisposableStore;
 }
 
 class AICustomizationCategoryRenderer implements ITreeRenderer<IAICustomizationTypeItem | IAICustomizationLinkItem, FuzzyScore, ICategoryTemplateData> {
@@ -188,15 +193,29 @@ class AICustomizationGroupRenderer implements ITreeRenderer<IAICustomizationGrou
 class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileItem, FuzzyScore, IFileTemplateData> {
 	readonly templateId = 'file';
 
+	constructor(
+		private readonly menuService: IMenuService,
+		private readonly contextKeyService: IContextKeyService,
+		private readonly instantiationService: IInstantiationService,
+	) { }
+
 	renderTemplate(container: HTMLElement): IFileTemplateData {
 		const element = dom.append(container, dom.$('.ai-customization-tree-item'));
 		const icon = dom.append(element, dom.$('.icon'));
 		const name = dom.append(element, dom.$('.name'));
-		return { container: element, icon, name };
+		const actionsContainer = dom.append(element, dom.$('.actions'));
+
+		const templateDisposables = new DisposableStore();
+		const actionBar = templateDisposables.add(new ActionBar(actionsContainer, {
+			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
+		}));
+
+		return { container: element, icon, name, actionBar, elementDisposables: new DisposableStore(), templateDisposables };
 	}
 
 	renderElement(node: ITreeNode<IAICustomizationFileItem, FuzzyScore>, _index: number, templateData: IFileTemplateData): void {
 		const item = node.element;
+		templateData.elementDisposables.clear();
 
 		// Set icon based on prompt type
 		let icon: ThemeIcon;
@@ -224,9 +243,45 @@ class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileI
 		// Set tooltip with name and description
 		const tooltip = item.description ? `${item.name} - ${item.description}` : item.name;
 		templateData.container.title = tooltip;
+
+		// Build context for menu actions
+		const context = {
+			uri: item.uri.toString(),
+			name: item.name,
+			promptType: item.promptType,
+			storage: item.storage,
+		};
+
+		// Create scoped context key service with item type for when-clause filtering
+		const overlay = this.contextKeyService.createOverlay([
+			[AICustomizationItemTypeContextKey.key, item.promptType],
+		]);
+
+		// Create menu and extract inline actions
+		const menu = templateData.elementDisposables.add(
+			this.menuService.createMenu(AICustomizationItemMenuId, overlay)
+		);
+
+		const updateActions = () => {
+			const actions = menu.getActions({ arg: context, shouldForwardArgs: true });
+			const { primary } = getContextMenuActions(actions, 'inline');
+			templateData.actionBar.clear();
+			templateData.actionBar.push(primary, { icon: true, label: false });
+		};
+		updateActions();
+		templateData.elementDisposables.add(menu.onDidChange(updateActions));
+
+		templateData.actionBar.context = context;
 	}
 
-	disposeTemplate(_templateData: IFileTemplateData): void { }
+	disposeElement(_node: ITreeNode<IAICustomizationFileItem, FuzzyScore>, _index: number, templateData: IFileTemplateData): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeTemplate(templateData: IFileTemplateData): void {
+		templateData.templateDisposables.dispose();
+		templateData.elementDisposables.dispose();
+	}
 }
 
 /**
@@ -234,7 +289,7 @@ class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileI
  */
 interface ICachedTypeData {
 	skills?: IAgentSkill[];
-	files?: Map<PromptsStorage, readonly IPromptPath[]>;
+	files?: Map<string, readonly IPromptPath[]>;
 }
 
 /**
@@ -375,11 +430,13 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			const workspaceItems = allItems.filter(item => item.storage === PromptsStorage.local);
 			const userItems = allItems.filter(item => item.storage === PromptsStorage.user);
 			const extensionItems = allItems.filter(item => item.storage === PromptsStorage.extension);
+			const builtinItems = allItems.filter(item => item.storage === BUILTIN_STORAGE);
 
-			cached.files = new Map<PromptsStorage, readonly IPromptPath[]>([
+			cached.files = new Map<string, readonly IPromptPath[]>([
 				[PromptsStorage.local, workspaceItems],
 				[PromptsStorage.user, userItems],
 				[PromptsStorage.extension, extensionItems],
+				[BUILTIN_STORAGE, builtinItems],
 			]);
 
 			const itemCount = allItems.length;
@@ -390,6 +447,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 		const workspaceItems = cached.files!.get(PromptsStorage.local) || [];
 		const userItems = cached.files!.get(PromptsStorage.user) || [];
 		const extensionItems = cached.files!.get(PromptsStorage.extension) || [];
+		const builtinItems = cached.files!.get(BUILTIN_STORAGE) || [];
 
 		if (workspaceItems.length > 0) {
 			groups.push(this.createGroupItem(promptType, PromptsStorage.local, workspaceItems.length));
@@ -400,6 +458,9 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 		if (extensionItems.length > 0) {
 			groups.push(this.createGroupItem(promptType, PromptsStorage.extension, extensionItems.length));
 		}
+		if (builtinItems.length > 0) {
+			groups.push(this.createGroupItem(promptType, BUILTIN_STORAGE, builtinItems.length));
+		}
 
 		return groups;
 	}
@@ -407,26 +468,29 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 	/**
 	 * Creates a group item with consistent structure.
 	 */
-	private createGroupItem(promptType: PromptsType, storage: PromptsStorage, count: number): IAICustomizationGroupItem {
-		const storageLabels: Record<PromptsStorage, string> = {
+	private createGroupItem(promptType: PromptsType, storage: AICustomizationPromptsStorage, count: number): IAICustomizationGroupItem {
+		const storageLabels: Record<string, string> = {
 			[PromptsStorage.local]: localize('workspaceWithCount', "Workspace ({0})", count),
 			[PromptsStorage.user]: localize('userWithCount', "User ({0})", count),
 			[PromptsStorage.extension]: localize('extensionsWithCount', "Extensions ({0})", count),
 			[PromptsStorage.plugin]: localize('pluginsWithCount', "Plugins ({0})", count),
+			[BUILTIN_STORAGE]: localize('builtinWithCount', "Built-in ({0})", count),
 		};
 
-		const storageIcons: Record<PromptsStorage, ThemeIcon> = {
+		const storageIcons: Record<string, ThemeIcon> = {
 			[PromptsStorage.local]: workspaceIcon,
 			[PromptsStorage.user]: userIcon,
 			[PromptsStorage.extension]: extensionIcon,
 			[PromptsStorage.plugin]: pluginIcon,
+			[BUILTIN_STORAGE]: builtinIcon,
 		};
 
-		const storageSuffixes: Record<PromptsStorage, string> = {
+		const storageSuffixes: Record<string, string> = {
 			[PromptsStorage.local]: 'workspace',
 			[PromptsStorage.user]: 'user',
 			[PromptsStorage.extension]: 'extensions',
 			[PromptsStorage.plugin]: 'plugins',
+			[BUILTIN_STORAGE]: 'builtin',
 		};
 
 		return {
@@ -443,7 +507,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 	 * Returns files for a specific storage/type combination from cache.
 	 * getStorageGroups must be called first to populate the cache.
 	 */
-	private async getFilesForStorageAndType(storage: PromptsStorage, promptType: PromptsType): Promise<IAICustomizationFileItem[]> {
+	private async getFilesForStorageAndType(storage: AICustomizationPromptsStorage, promptType: PromptsType): Promise<IAICustomizationFileItem[]> {
 		const cached = this.cache.get(promptType);
 
 		// For skills, use the cached skills data
@@ -565,7 +629,7 @@ export class AICustomizationViewPane extends ViewPane {
 			[
 				new AICustomizationCategoryRenderer(),
 				new AICustomizationGroupRenderer(),
-				new AICustomizationFileRenderer(),
+				new AICustomizationFileRenderer(this.menuService, this.contextKeyService, this.instantiationService),
 			],
 			this.dataSource,
 			{
@@ -602,7 +666,7 @@ export class AICustomizationViewPane extends ViewPane {
 		this.treeDisposables.add(this.tree.onDidOpen(async e => {
 			if (e.element && e.element.type === 'file') {
 				this.editorService.openEditor({
-					resource: e.element.uri
+					resource: e.element.uri,
 				});
 			} else if (e.element && e.element.type === 'link') {
 				const input = AICustomizationManagementEditorInput.getOrCreate();

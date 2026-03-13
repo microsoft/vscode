@@ -67,6 +67,17 @@
 	color: var(--vscode-button-foreground) !important;
 }
 
+/* Boxed hint style for embedded app update indicator — outlined, no fill */
+.account-widget-update .account-widget-update-button.account-widget-update-button-hint {
+	background-color: transparent !important;
+	color: var(--vscode-button-foreground) !important;
+	border: 1px solid var(--vscode-button-background) !important;
+}
+
+.account-widget-update .account-widget-update-button.account-widget-update-button-hint:hover {
+	background-color: color-mix(in srgb, var(--vscode-button-background) 20%, transparent) !important;
+}
+
 .monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button.account-widget-update-button-ready:hover {
 	background-color: var(--vscode-button-background) !important;
 }

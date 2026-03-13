@@ -313,11 +313,13 @@ export interface IChatRequestModeInfo {
 	isBuiltin: boolean;
 	modeInstructions: IChatRequestModeInstructions | undefined;
 	modeId: 'ask' | 'agent' | 'edit' | 'custom' | 'applyCodeBlock' | undefined;
+	modeName?: string;
 	applyCodeBlockSuggestionId: EditSuggestionId | undefined;
 	permissionLevel?: ChatPermissionLevel;
 }
 
 export interface IChatRequestModeInstructions {
+	readonly uri?: URI;
 	readonly name: string;
 	readonly content: string;
 	readonly toolReferences: readonly ChatRequestToolReferenceEntry[];
@@ -848,6 +850,7 @@ export class Response extends AbstractResponse implements IDisposable {
 					content: [],
 					toolResultMessage: progress.pastTenseMessage,
 					toolResultError: progress.errorMessage,
+					toolResultDetails: progress.resultDetails
 				});
 			}
 			if (progress.toolSpecificData !== undefined) {
@@ -884,6 +887,7 @@ export class Response extends AbstractResponse implements IDisposable {
 				content: [],
 				toolResultMessage: progress.pastTenseMessage,
 				toolResultError: progress.errorMessage,
+				toolResultDetails: progress.resultDetails
 			});
 			if (progress.toolSpecificData !== undefined) {
 				invocation.toolSpecificData = progress.toolSpecificData;
@@ -1447,6 +1451,7 @@ export interface ISerializableChatRequestData extends ISerializableChatResponseD
 	confirmation?: string;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	modelId?: string;
+	modeInfo?: IChatRequestModeInfo;
 }
 
 export interface ISerializableMarkdownInfo {
@@ -2313,6 +2318,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			confirmation: raw.confirmation,
 			editedFileEvents: raw.editedFileEvents,
 			modelId: raw.modelId,
+			modeInfo: raw.modeInfo,
 		});
 		request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any, local/code-no-any-casts
@@ -2655,6 +2661,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					confirmation: r.confirmation,
 					editedFileEvents: r.editedFileEvents,
 					modelId: r.modelId,
+					modeInfo: r.modeInfo,
 					...r.response?.toJSON(),
 				};
 			}),

@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -12,10 +15,11 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 
 suite('PluginMarketplaceService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -76,10 +80,39 @@ suite('PluginMarketplaceService', () => {
 		assert.deepStrictEqual(parsed.cacheSegments, []);
 	});
 
-	test('rejects non-shorthand marketplace entries without .git', () => {
-		assert.strictEqual(parseMarketplaceReference('https://example.com/org/repo'), undefined);
-		assert.strictEqual(parseMarketplaceReference('ssh://git@example.com/org/repo'), undefined);
+	test('accepts HTTPS and SSH marketplace entries without .git suffix', () => {
+		const https = parseMarketplaceReference('https://example.com/org/repo');
+		assert.ok(https);
+		assert.strictEqual(https?.kind, MarketplaceReferenceKind.GitUri);
+		assert.strictEqual(https?.canonicalId, 'git:example.com/org/repo.git');
+		assert.deepStrictEqual(https?.cacheSegments, ['example.com', 'org', 'repo']);
+
+		const ssh = parseMarketplaceReference('ssh://git@example.com/org/repo');
+		assert.ok(ssh);
+		assert.strictEqual(ssh?.kind, MarketplaceReferenceKind.GitUri);
+		assert.strictEqual(ssh?.canonicalId, 'git:git@example.com/org/repo.git');
+
+		// SCP-style (git@host:path) still requires .git because the colon-path syntax is
+		// unambiguous only for traditional git SSH URLs where .git is conventional.
 		assert.strictEqual(parseMarketplaceReference('git@example.com:org/repo'), undefined);
+	});
+
+	test('parses Azure DevOps HTTPS clone URLs without .git suffix', () => {
+		const parsed = parseMarketplaceReference('https://dev.azure.com/org/project/_git/repo');
+		assert.ok(parsed);
+		assert.strictEqual(parsed?.kind, MarketplaceReferenceKind.GitUri);
+		assert.strictEqual(parsed?.cloneUrl, 'https://dev.azure.com/org/project/_git/repo');
+		assert.strictEqual(parsed?.canonicalId, 'git:dev.azure.com/org/project/_git/repo.git');
+		assert.deepStrictEqual(parsed?.cacheSegments, ['dev.azure.com', 'org', 'project', '_git', 'repo']);
+	});
+
+	test('deduplicates Azure DevOps URLs with and without .git suffix', () => {
+		const parsed = parseMarketplaceReferences([
+			'https://dev.azure.com/org/project/_git/repo',
+			'https://dev.azure.com/org/project/_git/repo.git',
+		]);
+		assert.strictEqual(parsed.length, 1);
+		assert.strictEqual(parsed[0].canonicalId, 'git:dev.azure.com/org/project/_git/repo.git');
 	});
 
 	test('parses HTTPS URI with trailing slash after .git', () => {
@@ -130,6 +163,14 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}

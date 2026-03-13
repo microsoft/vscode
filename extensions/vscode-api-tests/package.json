@@ -7,6 +7,7 @@
   "enabledApiProposals": [
     "activeComment",
     "authSession",
+    "browser",
     "environmentPower",
     "chatParticipantPrivate",
     "chatPromptFiles",
@@ -71,6 +72,10 @@
       {
         "vendor": "test-lm-vendor",
         "displayName": "Test LM Vendor"
+      },
+      {
+        "vendor": "copilot",
+        "displayName": "Test Copilot LM Vendor"
       }
     ],
     "chatParticipants": [

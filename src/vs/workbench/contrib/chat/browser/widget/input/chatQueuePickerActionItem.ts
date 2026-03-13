@@ -62,7 +62,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 		this._primaryActionAction = this._register(new Action(
 			'chat.queuePickerPrimary',
 			isSteerDefault ? localize('chat.steerWithMessage', "Steer with Message") : localize('chat.queueMessage', "Add to Queue"),
-			ThemeIcon.asClassName(isSteerDefault ? Codicon.arrowRight : Codicon.add),
+			ThemeIcon.asClassName(isSteerDefault ? Codicon.arrowUp : Codicon.add),
 			!!contextKeyService.getContextKeyValue(ChatContextKeys.inputHasText.key),
 			() => this._runDefaultAction()
 		));
@@ -116,7 +116,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 		this._primaryActionAction.label = isSteer
 			? localize('chat.steerWithMessage', "Steer with Message")
 			: localize('chat.queueMessage', "Add to Queue");
-		this._primaryActionAction.class = ThemeIcon.asClassName(isSteer ? Codicon.arrowRight : Codicon.add);
+		this._primaryActionAction.class = ThemeIcon.asClassName(isSteer ? Codicon.arrowUp : Codicon.add);
 	}
 
 	private _runDefaultAction(): void {
@@ -198,7 +198,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 			tooltip: '',
 			enabled: true,
 			checked: isSteerDefault,
-			icon: Codicon.arrowRight,
+			icon: Codicon.arrowUp,
 			class: undefined,
 			hover: {
 				content: localize('chat.steerWithMessage.hover', "Send this message at the next opportunity, signaling the current request to yield. The current response will stop and the new message will be sent immediately."),
@@ -213,7 +213,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 			label: localize('chat.sendImmediately', "Stop and Send"),
 			tooltip: '',
 			enabled: true,
-			icon: Codicon.arrowUp,
+			icon: Codicon.arrowRight,
 			class: undefined,
 			hover: {
 				content: localize('chat.sendImmediately.hover', "Cancel the current request and send this message immediately."),

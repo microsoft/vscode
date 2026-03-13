@@ -9,6 +9,11 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultConfigurations([{
 	overrides: {
 		'chat.experimentalSessionsWindowOverride': true,
+		'chat.hookFilesLocations': {
+			'.claude/settings.local.json': false,
+			'.claude/settings.json': false,
+			'~/.claude/settings.json': false,
+		},
 		'chat.agent.maxRequests': 1000,
 		'chat.customizationsMenu.userStoragePath': '~/.copilot',
 		'chat.viewSessions.enabled': false,
@@ -29,6 +34,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'git.branchRandomName.enable': true,
 		'git.detectWorktrees': false,
 		'git.showProgress': false,
+
+		'github.copilot.enable': {
+			'markdown': true,
+			'plaintext': true,
+		},
 
 		'github.copilot.chat.claudeCode.enabled': true,
 		'github.copilot.chat.cli.branchSupport.enabled': true,

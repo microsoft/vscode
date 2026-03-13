@@ -176,7 +176,7 @@ export class SnapUpdateService extends AbstractUpdateService {
 			if (result) {
 				this.setState(State.Ready({ version: 'something' }, false, false));
 			} else {
-				this.setState(State.Idle(UpdateType.Snap));
+				this.setState(State.Idle(UpdateType.Snap, undefined, undefined));
 			}
 		}, err => {
 			this.logService.error(err);

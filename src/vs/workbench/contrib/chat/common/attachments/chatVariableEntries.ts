@@ -469,17 +469,17 @@ export function isStringImplicitContextValue(value: unknown): value is StringCha
 }
 
 export enum PromptFileVariableKind {
-	Instruction = 'vscode.prompt.instructions.root',
-	InstructionReference = `vscode.prompt.instructions`,
-	PromptFile = 'vscode.prompt.file'
+	Instruction = 'vscode.instructions.file.root',
+	InstructionReference = `vscode.instructions.file.reference`,
+	PromptFile = 'vscode.prompt.file',
 }
 
 /**
  * Utility to convert a {@link uri} to a chat variable entry.
  * The `id` of the chat variable can be one of the following:
  *
- * - `vscode.prompt.instructions__<URI>`: for all non-root prompt instructions references
- * - `vscode.prompt.instructions.root__<URI>`: for *root* prompt instructions references
+ * - `vscode.instructions.file.reference__<URI>`: for all non-root prompt instructions references
+ * - `vscode.instructions.file.root__<URI>`: for *root* prompt instructions references
  * - `vscode.prompt.file__<URI>`: for prompt file references
  *
  * @param uri A resource URI that points to a prompt instructions file.
@@ -500,13 +500,17 @@ export function toPromptFileVariableEntry(uri: URI, kind: PromptFileVariableKind
 	};
 }
 
+enum PromptTextVariableKind {
+	CustomizationsIndex = 'vscode.customizations.index',
+}
+
 export function toPromptTextVariableEntry(content: string, automaticallyAdded = false, toolReferences?: ChatRequestToolReferenceEntry[]): IPromptTextVariableEntry {
 	return {
-		id: `vscode.prompt.instructions.text`,
-		name: `prompt:instructionsList`,
+		id: PromptTextVariableKind.CustomizationsIndex,
+		name: `prompt:customizationsIndex`,
 		value: content,
 		kind: 'promptText',
-		modelDescription: 'Prompt instructions list',
+		modelDescription: 'Chat customizations index',
 		automaticallyAdded,
 		toolReferences
 	};

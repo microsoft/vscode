@@ -6,7 +6,7 @@
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ICDPTarget, CDPEvent, CDPError, CDPServerError, CDPMethodNotFoundError, CDPInvalidParamsError, ICDPConnection, CDPTargetInfo, ICDPBrowserTarget } from './types.js';
+import { ICDPTarget, CDPRequest, CDPResponse, CDPEvent, CDPError, CDPErrorCode, CDPServerError, CDPMethodNotFoundError, CDPInvalidParamsError, ICDPConnection, CDPTargetInfo, ICDPBrowserTarget } from './types.js';
 
 /**
  * CDP protocol handler for browser-level connections.
@@ -95,22 +95,29 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 		for (const target of this.browserTarget.getTargets()) {
 			void this._targets.register(target);
 		}
+
+		// Mirror typed events to the onMessage channel
+		this._register(this._onEvent.event(event => {
+			this._onMessage.fire(event);
+		}));
 	}
 
 	// #region Public API
 
-	// Events to external client (ICDPConnection)
+	// Events to external clients
 	private readonly _onEvent = this._register(new Emitter<CDPEvent>());
 	readonly onEvent: Event<CDPEvent> = this._onEvent.event;
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose: Event<void> = this._onClose.event;
+	private readonly _onMessage = this._register(new Emitter<CDPResponse | CDPEvent>());
+	readonly onMessage: Event<CDPResponse | CDPEvent> = this._onMessage.event;
 
 	/**
-	 * Send a CDP message and await the result.
+	 * Send a CDP command and await the result.
 	 * Browser-level handlers (Browser.*, Target.*) are checked first.
 	 * Other commands are routed to the page session identified by sessionId.
 	 */
-	async sendMessage(method: string, params: unknown = {}, sessionId?: string): Promise<unknown> {
+	async sendCommand(method: string, params: unknown = {}, sessionId?: string): Promise<unknown> {
 		try {
 			// Browser-level command handling
 			if (
@@ -131,7 +138,7 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 				throw new CDPServerError(`Session not found: ${sessionId}`);
 			}
 
-			const result = await connection.sendMessage(method, params);
+			const result = await connection.sendCommand(method, params);
 			return result ?? {};
 		} catch (error) {
 			if (error instanceof CDPError) {
@@ -139,6 +146,27 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 			}
 			throw new CDPServerError(error instanceof Error ? error.message : 'Unknown error');
 		}
+	}
+
+	/**
+	 * Accept a CDP request from a message-based transport (WebSocket, IPC, etc.), route it,
+	 * and deliver the response or error via {@link onMessage}.
+	 */
+	async sendMessage({ id, method, params, sessionId }: CDPRequest): Promise<void> {
+		return this.sendCommand(method, params, sessionId)
+			.then(result => {
+				this._onMessage.fire({ id, result, sessionId });
+			})
+			.catch((error: Error) => {
+				this._onMessage.fire({
+					id,
+					error: {
+						code: error instanceof CDPError ? error.code : CDPErrorCode.ServerError,
+						message: error.message || 'Unknown error'
+					},
+					sessionId
+				});
+			});
 	}
 
 	// #endregion
@@ -206,7 +234,7 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 	}
 
 	private async handleTargetGetTargets() {
-		return { targetInfos: this._targets.getAllInfos() };
+		return { targetInfos: Array.from(this._targets.getAllInfos()) };
 	}
 
 	private async handleTargetGetTargetInfo({ targetId }: { targetId?: string } = {}) {

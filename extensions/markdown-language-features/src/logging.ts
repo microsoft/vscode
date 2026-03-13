@@ -12,11 +12,11 @@ export interface ILogger {
 }
 
 export class VsCodeOutputLogger extends Disposable implements ILogger {
-	private _outputChannelValue?: vscode.LogOutputChannel;
+	#outputChannelValue?: vscode.LogOutputChannel;
 
-	private get _outputChannel() {
-		this._outputChannelValue ??= this._register(vscode.window.createOutputChannel('Markdown', { log: true }));
-		return this._outputChannelValue;
+	get #outputChannel() {
+		this.#outputChannelValue ??= this._register(vscode.window.createOutputChannel('Markdown', { log: true }));
+		return this.#outputChannelValue;
 	}
 
 	constructor() {
@@ -24,6 +24,6 @@ export class VsCodeOutputLogger extends Disposable implements ILogger {
 	}
 
 	public trace(title: string, message: string, data?: any): void {
-		this._outputChannel.trace(`${title}: ${message}`, ...(data ? [JSON.stringify(data, null, 4)] : []));
+		this.#outputChannel.trace(`${title}: ${message}`, ...(data ? [JSON.stringify(data, null, 4)] : []));
 	}
 }

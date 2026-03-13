@@ -194,7 +194,6 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			reg.defineInstance(IWorkspaceContextService, createMockWorkspaceContextService());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = observableValue<readonly never[]>('mockPlugins', []);
-				override readonly allPlugins = observableValue<readonly never[]>('mockAllPlugins', []);
 			}());
 			// Additional services needed by CustomizationLinkViewItem
 			reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {

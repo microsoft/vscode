@@ -126,6 +126,11 @@ export interface IChatDebugService extends IDisposable {
 	readonly onDidAddEvent: Event<IChatDebugEvent>;
 
 	/**
+	 * Fired when provider events are cleared for a session (before re-invoking providers).
+	 */
+	readonly onDidClearProviderEvents: Event<URI>;
+
+	/**
 	 * Log a generic event to the debug service.
 	 */
 	log(sessionResource: URI, name: string, details?: string, level?: ChatDebugLogLevel, options?: { id?: string; category?: string; parentEventId?: string }): void;
@@ -168,6 +173,11 @@ export interface IChatDebugService extends IDisposable {
 	registerProvider(provider: IChatDebugLogProvider): IDisposable;
 
 	/**
+	 * Check whether providers have already been invoked for a given session.
+	 */
+	hasInvokedProviders(sessionResource: URI): boolean;
+
+	/**
 	 * Invoke all registered providers for a given session resource.
 	 * Called when the Debug View is opened to fetch events from extensions.
 	 */
@@ -185,6 +195,49 @@ export interface IChatDebugService extends IDisposable {
 	 * Delegates to the registered provider's resolveChatDebugLogEvent.
 	 */
 	resolveEvent(eventId: string): Promise<IChatDebugResolvedEventContent | undefined>;
+
+	/**
+	/**
+	 * Export the debug log for a session via the registered provider.
+	 */
+	exportLog(sessionResource: URI): Promise<Uint8Array | undefined>;
+
+	/**
+	 * Import a previously exported debug log via the registered provider.
+	 * Returns the session URI for the imported data.
+	 */
+	importLog(data: Uint8Array): Promise<URI | undefined>;
+
+	/**
+	 * Returns true if the event was logged by VS Code core
+	 * (not sourced from an external provider).
+	 */
+	isCoreEvent(event: IChatDebugEvent): boolean;
+
+	/**
+	 * Store a human-readable title for an imported session.
+	 */
+	setImportedSessionTitle(sessionResource: URI, title: string): void;
+
+	/**
+	 * Get the stored title for an imported session, if available.
+	 */
+	getImportedSessionTitle(sessionResource: URI): string | undefined;
+
+	/**
+	 * Fired when debug data is attached to a session.
+	 */
+	readonly onDidAttachDebugData: Event<URI>;
+
+	/**
+	 * Mark a session as having debug data attached.
+	 */
+	markDebugDataAttached(sessionResource: URI): void;
+
+	/**
+	 * Check whether a session has had debug data attached.
+	 */
+	hasAttachedDebugData(sessionResource: URI): boolean;
 }
 
 /**
@@ -220,9 +273,6 @@ export interface IChatDebugFileEntry {
 export interface IChatDebugSourceFolderEntry {
 	readonly uri: URI;
 	readonly storage: string;
-	readonly exists: boolean;
-	readonly fileCount: number;
-	readonly errorMessage?: string;
 }
 
 /**
@@ -292,4 +342,6 @@ export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatD
 export interface IChatDebugLogProvider {
 	provideChatDebugLog(sessionResource: URI, token: CancellationToken): Promise<IChatDebugEvent[] | undefined>;
 	resolveChatDebugLogEvent?(eventId: string, token: CancellationToken): Promise<IChatDebugResolvedEventContent | undefined>;
+	provideChatDebugLogExport?(sessionResource: URI, token: CancellationToken): Promise<Uint8Array | undefined>;
+	resolveChatDebugLogImport?(data: Uint8Array, token: CancellationToken): Promise<URI | undefined>;
 }
