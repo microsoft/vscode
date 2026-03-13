@@ -28,11 +28,25 @@ type RemoteTunnelEnablementClassification = {
 	comment: 'Reporting when Remote Tunnel access is turned on or off';
 	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if Remote Tunnel Access is enabled or not' };
 	service?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if Remote Tunnel Access is installed as a service' };
+	tunnelName?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the tunnel being enabled or disabled' };
 };
 
 type RemoteTunnelEnablementEvent = {
 	enabled: boolean;
 	service: boolean;
+	tunnelName?: string;
+};
+
+type RemoteTunnelConnectedClassification = {
+	owner: 'aeschli';
+	comment: 'Reporting when a Remote Tunnel connection is established';
+	tunnelName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the connected tunnel' };
+	isAttached: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the connection is attached to an existing tunnel process' };
+};
+
+type RemoteTunnelConnectedEvent = {
+	tunnelName: string;
+	isAttached: boolean;
 };
 
 const restartTunnelOnConfigurationChanges: readonly string[] = [
@@ -241,9 +255,11 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 	}
 
 	private async updateTunnelProcess(): Promise<void> {
+		const tunnelName = this._getTunnelName();
 		this.telemetryService.publicLog2<RemoteTunnelEnablementEvent, RemoteTunnelEnablementClassification>('remoteTunnel.enablement', {
 			enabled: this._mode.active,
 			service: this._mode.active && this._mode.asService,
+			tunnelName,
 		});
 
 		if (this._tunnelProcess) {
@@ -396,6 +412,10 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			const m = message.match(/Open this link in your browser (https:\/\/([^\/\s]+)\/([^\/\s]+)\/([^\/\s]+))/);
 			if (m) {
 				const info: ConnectionInfo = { link: m[1], domain: m[2], tunnelName: m[4], isAttached };
+				this.telemetryService.publicLog2<RemoteTunnelConnectedEvent, RemoteTunnelConnectedClassification>('remoteTunnel.connected', {
+					tunnelName: info.tunnelName,
+					isAttached: info.isAttached,
+				});
 				this.setTunnelStatus(TunnelStates.connected(info, serviceInstallFailed));
 			} else if (message.match(/error refreshing token/)) {
 				serveCommand.cancel();

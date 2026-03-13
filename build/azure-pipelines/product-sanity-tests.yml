@@ -15,6 +15,7 @@ parameters:
   - name: buildCommit
     displayName: Published Build Commit
     type: string
+    default: ''
 
   - name: npmRegistry
     displayName: Custom NPM Registry URL
@@ -27,9 +28,17 @@ variables:
   - name: Codeql.SkipTaskAutoInjection
     value: true
   - name: BUILD_COMMIT
-    value: ${{ parameters.buildCommit }}
+    ${{ if ne(parameters.buildCommit, '') }}:
+      value: ${{ parameters.buildCommit }}
+    ${{ else }}:
+      value: $(resources.pipeline.vscode.sourceCommit)
   - name: BUILD_QUALITY
-    value: ${{ parameters.buildQuality }}
+    ${{ if ne(parameters.buildCommit, '') }}:
+      value: ${{ parameters.buildQuality }}
+    ${{ elseif startsWith(variables['Build.SourceBranch'], 'refs/heads/release/') }}:
+      value: stable
+    ${{ else }}:
+      value: insider
   - name: NPM_REGISTRY
     value: ${{ parameters.npmRegistry }}
 
@@ -41,6 +50,17 @@ resources:
       type: git
       name: 1ESPipelineTemplates/1ESPipelineTemplates
       ref: refs/tags/release
+  pipelines:
+    - pipeline: vscode
+      # allow-any-unicode-next-line
+      source: '⭐️ VS Code'
+      trigger:
+        stages:
+          - Publish
+        branches:
+          include:
+            - main
+            - release/*
 
 extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
@@ -92,6 +112,7 @@ extends:
               displayName: Windows arm64
               poolName: 1es-windows-2022-arm64
               os: windows
+              arch: arm64
 
           # Alpine 3.22
           - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -312,14 +333,3 @@ extends:
               container: ubuntu
               baseImage: ubuntu:24.04
               arch: arm64
-
-          - template: build/azure-pipelines/common/sanity-tests.yml@self
-            parameters:
-              name: ubuntu_24_04_arm64_64k
-              displayName: Ubuntu 24.04 arm64 (64K page)
-              poolName: 1es-ubuntu-22.04-x64
-              container: ubuntu
-              baseImage: ubuntu:24.04
-              arch: arm64
-              pageSize: 64k
-              args: --grep "desktop-linux-arm64"

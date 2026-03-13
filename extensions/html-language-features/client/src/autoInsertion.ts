@@ -7,7 +7,7 @@ import { window, workspace, Disposable, TextDocument, Position, SnippetString, T
 import { Runtime } from './htmlClient';
 import { LanguageParticipants } from './languageParticipants';
 
-export function activateAutoInsertion(provider: (kind: 'autoQuote' | 'autoClose', document: TextDocument, position: Position) => Thenable<string>, languageParticipants: LanguageParticipants, runtime: Runtime): Disposable {
+export function activateAutoInsertion(provider: (kind: 'autoQuote' | 'autoClose', document: TextDocument, position: Position) => Thenable<string | null>, languageParticipants: LanguageParticipants, runtime: Runtime): Disposable {
 	const disposables: Disposable[] = [];
 	workspace.onDidChangeTextDocument(onDidChangeTextDocument, null, disposables);
 

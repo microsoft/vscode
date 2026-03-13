@@ -10,7 +10,7 @@ import { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITextEditorService } from '../../../services/textfile/common/textEditorService.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -46,7 +46,7 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 		@IFileService private readonly fileService: IFileService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IEditorService private readonly editorService: IEditorService,
 		@ITextEditorService private readonly textEditorService: ITextEditorService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
@@ -150,7 +150,7 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 	}
 
 	async configureLanguageModels(options?: ConfigureLanguageModelsOptions): Promise<void> {
-		const editor = await this.editorGroupsService.activeGroup.openEditor(this.textEditorService.createTextEditor({ resource: this.modelsConfigurationFile }));
+		const editor = await this.editorService.openEditor(this.textEditorService.createTextEditor({ resource: this.modelsConfigurationFile }));
 		if (!editor || !options?.group) {
 			return;
 		}
