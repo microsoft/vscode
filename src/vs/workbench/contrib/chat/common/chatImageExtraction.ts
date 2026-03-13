@@ -56,7 +56,7 @@ export function extractImagesFromChatResponse(response: IChatResponseViewModel):
 	};
 }
 
-function extractImagesFromToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, sessionResource: URI): IChatExtractedImage[] {
+export function extractImagesFromToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, sessionResource: URI): IChatExtractedImage[] {
 	const images: IChatExtractedImage[] = [];
 
 	const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
