@@ -58,7 +58,10 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 			},
 			filesystem: {
 				denyRead: [...(runtimeConfig.filesystem?.denyRead ?? [])],
-				allowWrite: [...(runtimeConfig.filesystem?.allowWrite ?? [])],
+				allowWrite: [
+					...(runtimeConfig.filesystem?.allowWrite ?? []),
+					...(this._tempDir ? [this._tempDir] : []),
+				],
 				denyWrite: [...(runtimeConfig.filesystem?.denyWrite ?? [])],
 				allowGitConfig: runtimeConfig.filesystem?.allowGitConfig,
 			},
@@ -94,7 +97,6 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 		if (!this._rgPath) {
 			return undefined;
 		}
-
 		const rgDir = dirname(this._rgPath);
 		const currentPath = process.env['PATH'];
 		const pathModule = process.platform === 'win32' ? win32 : posix;

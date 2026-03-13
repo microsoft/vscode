@@ -3,16 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -41,9 +36,6 @@ export interface ITerminalSandboxService {
 	promptToAllowWritePath(path: string): Promise<boolean>;
 	wrapWithSandbox(runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string>;
 	wrapCommand(command: string): Promise<string>;
-	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
-	getTempDir(): URI | undefined;
-	setNeedsForceUpdateConfigFile(): void;
 	resetSandbox(): Promise<void>;
 }
 
@@ -55,10 +47,6 @@ type ITerminalSandboxFilesystemSettings = {
 
 export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
-	private _sandboxConfigPath: string | undefined;
-	private _needsForceUpdateConfigFile = true;
-	private _tempDir: URI | undefined;
-	private _sandboxSettingsId: string | undefined;
 	private _remoteEnvDetailsPromise: Promise<IRemoteAgentEnvironment | null>;
 	private _remoteEnvDetails: IRemoteAgentEnvironment | null = null;
 	private _os: OperatingSystem = OS;
@@ -69,8 +57,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IFileService private readonly _fileService: IFileService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -78,28 +64,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 	) {
 		super();
-		this._sandboxSettingsId = generateUuid();
 		this._remoteEnvDetailsPromise = this._remoteAgentService.getEnvironment();
-
-		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, (e: IConfigurationChangeEvent | undefined) => {
-			// If terminal sandbox settings changed, update sandbox config.
-			if (
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled) ||
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ||
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ||
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem)
-			) {
-				this.setNeedsForceUpdateConfigFile();
-			}
-		}));
-
-		this._register(this._trustedDomainService.onDidChangeTrustedDomains(() => {
-			this.setNeedsForceUpdateConfigFile();
-		}));
-
-		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
-			this.setNeedsForceUpdateConfigFile();
-		}));
 	}
 
 	public async isEnabled(): Promise<boolean> {
@@ -180,48 +145,13 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this.wrapWithSandbox(sandboxSettings, command);
 	}
 
-	public getTempDir(): URI | undefined {
-		return this._tempDir;
-	}
-
-	public setNeedsForceUpdateConfigFile(): void {
-		this._needsForceUpdateConfigFile = true;
-	}
-
-	public async getSandboxConfigPath(forceRefresh: boolean = false): Promise<string | undefined> {
-		if (!this._sandboxConfigPath || forceRefresh || this._needsForceUpdateConfigFile) {
-			this._sandboxConfigPath = await this._createSandboxConfig();
-			this._needsForceUpdateConfigFile = false;
-		}
-		return this._sandboxConfigPath;
-	}
-
 	public async resetSandbox(): Promise<void> {
 		const service = this._getSandboxHelperService();
 		await service.resetSandbox();
 	}
 
-	private async _createSandboxConfig(): Promise<string | undefined> {
-		const sandboxSettings = await this._getSandboxSettings();
-		if (!sandboxSettings || !this._tempDir) {
-			return undefined;
-		}
-
-		const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
-		this._sandboxConfigPath = configFileUri.path;
-		await this._fileService.createFile(configFileUri, VSBuffer.fromString(JSON.stringify(sandboxSettings, null, '\t')), { overwrite: true });
-		return this._sandboxConfigPath;
-	}
 
 	private async _getSandboxSettings(): Promise<ISandboxRuntimeConfig | undefined> {
-		if (await this.isEnabled() && !this._tempDir) {
-			await this._initTempDir();
-		}
-
-		if (!this._tempDir) {
-			return undefined;
-		}
-
 		const networkSetting = this._configurationService.getValue<ITerminalSandboxNetworkSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
 		const linuxFileSystemSetting = this._os === OperatingSystem.Linux
 			? this._configurationService.getValue<ITerminalSandboxFilesystemSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ?? {}
@@ -253,25 +183,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _resolveAllowWritePaths(configuredAllowWrite: string[] | undefined): string[] {
 		const workspaceFolderPaths = this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri.path);
 		return [...new Set([...workspaceFolderPaths, ...this._defaultWritePaths, ...(configuredAllowWrite ?? [])])];
-	}
-
-	private async _initTempDir(): Promise<void> {
-		if (await this.isEnabled()) {
-			this._needsForceUpdateConfigFile = true;
-			const remoteEnv = this._remoteEnvDetails || await this._remoteEnvDetailsPromise;
-			if (remoteEnv) {
-				this._tempDir = remoteEnv.tmpDir;
-			} else {
-				const environmentService = this._environmentService as IEnvironmentService & { tmpDir?: URI };
-				this._tempDir = environmentService.tmpDir;
-			}
-			if (this._tempDir) {
-				this._defaultWritePaths.push(this._tempDir.path);
-			}
-			if (!this._tempDir) {
-				this._logService.warn('TerminalSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
-			}
-		}
 	}
 
 	private _addTrustedDomainsToAllowedDomains(allowedDomains: string[]): string[] {

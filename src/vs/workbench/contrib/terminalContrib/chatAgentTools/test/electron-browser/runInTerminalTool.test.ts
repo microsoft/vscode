@@ -111,10 +111,6 @@ suite('RunInTerminalTool', () => {
 			promptToAllowWritePath: async () => false,
 			wrapWithSandbox: async (_runtimeConfig, command) => command,
 			wrapCommand: command => Promise.resolve(command),
-			getSandboxConfigPath: async () => undefined,
-			getTempDir: () => undefined,
-			setNeedsForceUpdateConfigFile: () => { }
-			,
 			resetSandbox: async () => { }
 		});
 

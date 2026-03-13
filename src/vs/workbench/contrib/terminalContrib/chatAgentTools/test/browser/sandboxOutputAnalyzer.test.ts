@@ -28,9 +28,6 @@ suite('SandboxOutputAnalyzer', () => {
 			promptToAllowWritePath: async () => false,
 			wrapWithSandbox: async (_runtimeConfig, command) => command,
 			wrapCommand: async command => command,
-			getSandboxConfigPath: async () => '/tmp/sandbox.json',
-			getTempDir: () => undefined,
-			setNeedsForceUpdateConfigFile: () => { },
 			resetSandbox: async () => { },
 			...options.sandboxService,
 		});

@@ -23,9 +23,6 @@ suite('SandboxedCommandLinePresenter', () => {
 			promptToAllowWritePath: async () => false,
 			wrapCommand: async command => command,
 			wrapWithSandbox: async (_runtimeConfig, command) => command,
-			getSandboxConfigPath: async () => '/tmp/sandbox.json',
-			getTempDir: () => undefined,
-			setNeedsForceUpdateConfigFile: () => { },
 			resetSandbox: async () => { },
 		});
 		return instantiationService.createInstance(SandboxedCommandLinePresenter);
@@ -43,6 +40,17 @@ suite('SandboxedCommandLinePresenter', () => {
 		strictEqual(result.commandLine, commandLine);
 		strictEqual(result.language, undefined);
 		strictEqual(result.languageDisplayName, undefined);
+	});
+
+	test('should prefer the original command line when provided', async () => {
+		const presenter = createPresenter();
+		const result = await presenter.present({
+			commandLine: { forDisplay: 'wrapped', original: 'echo hello' },
+			shell: 'bash',
+			os: OperatingSystem.Linux
+		});
+		ok(result);
+		strictEqual(result.commandLine, 'echo hello');
 	});
 
 	test('should return command line for non-sandboxed command when enabled', async () => {
