@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -12,9 +13,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { isUUID } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
@@ -58,17 +59,16 @@ export class ChatDebugHomeView extends Disposable {
 
 		DOM.append(this.scrollContent, $('h2.chat-debug-home-title', undefined, localize('chatDebug.title', "Agent Debug Panel")));
 
-		const isEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatAgentDebugLogEnabled);
+		const isEnabled = this.configurationService.getValue<boolean>('github.copilot.agentDebugLog.enabled');
 		if (!isEnabled) {
 			DOM.append(this.scrollContent, $('p.chat-debug-home-subtitle', undefined,
-				localize('chatDebug.disabled', "The Agent Debug Panel is currently disabled.")
+				localize('chatDebug.disabled', "Enable to explore logs and ask questions about chat internal details using /troubleshoot.")
 			));
 
-			const enableButton = DOM.append(this.scrollContent, $<HTMLButtonElement>('button.chat-debug-home-session-item'));
-			DOM.append(enableButton, $(`span${ThemeIcon.asCSSSelector(Codicon.settingsGear)}`));
-			DOM.append(enableButton, $('span', undefined, localize('chatDebug.openSetting', "Enable in Settings")));
-			this.renderDisposables.add(DOM.addDisposableListener(enableButton, DOM.EventType.CLICK, () => {
-				this.preferencesService.openSettings({ jsonEditor: false, query: ChatConfiguration.ChatAgentDebugLogEnabled });
+			const enableButton = this.renderDisposables.add(new Button(this.scrollContent, { ...defaultButtonStyles, secondary: true }));
+			enableButton.label = localize('chatDebug.openSetting', "Enable in Settings");
+			this.renderDisposables.add(enableButton.onDidClick(() => {
+				this.preferencesService.openSettings({ jsonEditor: false, query: '@id:github.copilot.agentDebugLog.enabled' });
 			}));
 			return;
 		}

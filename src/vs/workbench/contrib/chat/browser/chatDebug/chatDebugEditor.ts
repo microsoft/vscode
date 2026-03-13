@@ -11,6 +11,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -88,6 +89,7 @@ export class ChatDebugEditor extends EditorPane {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(ChatDebugEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -171,7 +173,7 @@ export class ChatDebugEditor extends EditorPane {
 		}));
 
 		this._register(this.chatService.onDidCreateModel(model => {
-			if (this.viewState === ViewState.Home) {
+			if (this.viewState === ViewState.Home && this.configurationService.getValue<boolean>('github.copilot.agentDebugLog.enabled')) {
 				// Auto-navigate to the new session when the debug panel is
 				// already open on the home view.  This avoids the user having to
 				// wait for the title to resolve and manually clicking the session.
@@ -307,6 +309,12 @@ export class ChatDebugEditor extends EditorPane {
 		super.setEditorVisible(visible);
 		if (visible) {
 			this.telemetryService.publicLog2<{}, ChatDebugPanelOpenedClassification>('chatDebugPanelOpened');
+			// If the feature flag is disabled, always reset to the home view
+			if (!this.configurationService.getValue<boolean>('github.copilot.agentDebugLog.enabled')) {
+				this.endActiveSession();
+				this.showView(ViewState.Home);
+				return;
+			}
 			// Re-show the current view so it reloads events from scratch,
 			// ensuring correct ordering and no stale duplicates.
 			// Navigation from new openEditor() options is handled by
@@ -316,6 +324,13 @@ export class ChatDebugEditor extends EditorPane {
 	}
 
 	private _applyNavigationOptions(options: IChatDebugEditorOptions): void {
+		// If the feature flag is disabled, always show the home view
+		if (!this.configurationService.getValue<boolean>('github.copilot.agentDebugLog.enabled')) {
+			this.endActiveSession();
+			this.showView(ViewState.Home);
+			return;
+		}
+
 		const { sessionResource, viewHint, filter } = options;
 		if (viewHint === 'logs' && sessionResource) {
 			this.navigateToSession(sessionResource, 'logs');
