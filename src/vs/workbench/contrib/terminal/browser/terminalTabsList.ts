@@ -122,24 +122,24 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		);
 
 		const instanceDisposables: IDisposable[] = [
-			this._terminalGroupService.onDidChangeInstances(() => this.refresh()),
-			this._terminalGroupService.onDidChangeGroups(() => this.refresh()),
-			this._terminalGroupService.onDidShow(() => this.refresh()),
-			this._terminalGroupService.onDidChangeInstanceCapability(() => this.refresh()),
-			this._terminalService.onAnyInstanceTitleChange(() => this.refresh()),
-			this._terminalService.onAnyInstanceIconChange(() => this.refresh()),
-			this._terminalService.onAnyInstancePrimaryStatusChange(() => this.refresh()),
-			this._terminalService.onDidChangeConnectionState(() => this.refresh()),
-			this._themeService.onDidColorThemeChange(() => this.refresh()),
+			this._terminalGroupService.onDidChangeInstances(() => this.refresh(false)),
+			this._terminalGroupService.onDidChangeGroups(() => this.refresh(false)),
+			this._terminalGroupService.onDidShow(() => this.refresh(false)),
+			this._terminalGroupService.onDidChangeInstanceCapability(() => this.refresh(false)),
+			this._terminalService.onAnyInstanceTitleChange(() => this.refresh(false)),
+			this._terminalService.onAnyInstanceIconChange(() => this.refresh(false)),
+			this._terminalService.onAnyInstancePrimaryStatusChange(() => this.refresh(false)),
+			this._terminalService.onDidChangeConnectionState(() => this.refresh(false)),
+			this._themeService.onDidColorThemeChange(() => this.refresh(false)),
 			this._terminalGroupService.onDidChangeActiveInstance(e => {
 				if (e) {
 					const i = this._terminalGroupService.instances.indexOf(e);
 					this.setSelection([i]);
 					this.reveal(i);
 				}
-				this.refresh();
+				this.refresh(false);
 			}),
-			this._storageService.onDidChangeValue(StorageScope.APPLICATION, TerminalStorageKeys.TabsShowDetailed, this.disposables)(() => this.refresh()),
+			this._storageService.onDidChangeValue(StorageScope.APPLICATION, TerminalStorageKeys.TabsShowDetailed, this.disposables)(() => this.refresh(false)),
 		];
 
 		// Dispose of instance listeners on shutdown to avoid extra work and so tabs don't disappear
@@ -229,7 +229,9 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	}
 
 	refresh(cancelEditing: boolean = true): void {
-		if (cancelEditing && this._terminalEditingService.isEditable(undefined)) {
+		// Don't steal focus if we're actively editing a terminal name
+		// This prevents the rename input box from closing immediately (fixes #279443)
+		if (cancelEditing && !this._terminalEditingService.isEditable(undefined)) {
 			this.domFocus();
 		}
 
@@ -487,6 +489,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		};
 		showInputBoxNotification();
 
+		// Track if blur was intentional (user clicked away) vs accidental (focus stolen)
+		let blurTimeout: IDisposable | undefined;
 		const toDispose = [
 			inputBox,
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
@@ -501,7 +505,27 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				showInputBoxNotification();
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-				done(inputBox.isInputValid(), true);
+				// Add a small delay before closing on blur to allow focus to be restored
+				// This prevents the input from closing when focus is temporarily stolen
+				// (e.g., by refresh() calls or other UI updates)
+				blurTimeout?.dispose();
+				blurTimeout = disposableTimeout(() => {
+					// Only close if input still doesn't have focus after delay
+					// This means the blur was intentional (user clicked away)
+					const window = DOM.getWindow(inputBox.inputElement);
+					if (window.document.activeElement !== inputBox.inputElement) {
+						done(inputBox.isInputValid(), true);
+					}
+				}, 100);
+			}),
+			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.FOCUS, () => {
+				// Cancel blur timeout if focus is restored
+				blurTimeout?.dispose();
+				blurTimeout = undefined;
+			}),
+			toDisposable(() => {
+				// Clean up blur timeout on dispose
+				blurTimeout?.dispose();
 			})
 		];
 
