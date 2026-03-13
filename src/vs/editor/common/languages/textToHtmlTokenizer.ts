@@ -10,6 +10,7 @@ import { ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry } 
 import { LanguageId } from '../encodedTokenAttributes.js';
 import { NullState, nullTokenizeEncoded } from './nullTokenize.js';
 import { ILanguageService } from './language.js';
+import { mainWindow } from '../../../base/common/window.js';
 
 export type IReducedTokenizationSupport = Omit<ITokenizationSupport, 'tokenize'>;
 
@@ -127,7 +128,12 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 			continue;
 		}
 
-		result += `<span style="${viewLineTokens.getInlineStyle(tokenIndex, colorMap)}">${partContent}</span>`;
+		if (mainWindow.cspNonce) {
+			const className = 'token-style-' + Math.random().toString(36).substring(2);
+			result += `<span class="${className}"><style nonce="${mainWindow.cspNonce}">.${className} { ${viewLineTokens.getInlineStyle(tokenIndex, colorMap)} }</style></span>`;
+		} else {
+			result += `<span style="${viewLineTokens.getInlineStyle(tokenIndex, colorMap)}">${partContent}</span>`;
+		}
 
 		if (tokenEndIndex > endOffset || charIndex >= endOffset || startOffset >= endOffset) {
 			break;
