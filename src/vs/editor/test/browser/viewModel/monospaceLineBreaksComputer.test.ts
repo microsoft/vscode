@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { EditorOptions, WrappingIndent } from '../../../common/config/editorOptions.js';
+import { EditorOption, EditorOptions, WrappingIndent } from '../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../common/config/fontInfo.js';
 import { ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
-import { TestConfiguration } from '../../browser/config/testConfiguration.js';
-import { LineTokens } from '../../../common/tokens/lineTokens.js';
+import { ComputedEditorOptions } from '../../../browser/config/editorConfiguration.js';
 import { LanguageIdCodec } from '../../../common/services/languagesRegistry.js';
+import { LineTokens } from '../../../common/tokens/lineTokens.js';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
 	let text = '';
@@ -66,7 +66,7 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		wsmiddotWidth: 7,
 		maxDigitWidth: 7
 	}, false);
-	let wrappingIndent: "none" | "same" | "indent" | "deepIndent" | undefined;
+	let wrappingIndent: 'none' | 'same' | 'indent' | 'deepIndent' | undefined;
 	switch (_wrappingIndent) {
 		case WrappingIndent.None:
 			wrappingIndent = 'none';
@@ -81,14 +81,6 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 			wrappingIndent = 'deepIndent';
 			break;
 	}
-	const configuration = new TestConfiguration({
-		wrappingIndent,
-		wordBreak,
-		fontFamily: fontInfo.fontFamily,
-		fontWeight: fontInfo.fontWeight,
-		fontSize: fontInfo.fontSize,
-		lineHeight: fontInfo.lineHeight,
-	});
 	const context: ILineBreaksComputerContext = {
 		getLineMaxColumn(lineNumber) {
 			return text.length;
@@ -109,7 +101,19 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 			return false;
 		}
 	};
-	const lineBreaksComputer = factory.createLineBreaksComputer(context, configuration, tabSize);
+	const options = new ComputedEditorOptions();
+	options._write(EditorOption.fontInfo, fontInfo);
+	options._write(EditorOption.wrappingIndent, wrappingIndent);
+	options._write(EditorOption.wordWrapColumn, breakAfter);
+	options._write(EditorOption.wordBreak, wordBreak);
+	options._write(EditorOption.wrapOnEscapedLineFeeds, wrapOnEscapedLineFeeds);
+	options._write(EditorOption.wrappingInfo, {
+		isDominatedByLongLines: false,
+		isWordWrapMinified: false,
+		isViewportWrapping: false,
+		wrappingColumn: breakAfter,
+	});
+	const lineBreaksComputer = factory.createLineBreaksComputer(context, options, tabSize);
 	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
 	lineBreaksComputer.addRequest(1, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize()[0];

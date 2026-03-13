@@ -214,6 +214,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				Event.filter(modelChangeEvent, e => e.promptType === PromptsType.agent),
 				this._onDidContributedWhenChange.event,
 				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)),
+				this._onDidPluginPromptFilesChange.event,
 			)
 		));
 
@@ -258,6 +259,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		this._register(this.watchPluginPromptFilesForType(
 			PromptsType.agent,
 			(plugin, reader) => plugin.agents.read(reader),
+		));
+		this._register(this.watchPluginPromptFilesForType(
+			PromptsType.instructions,
+			(plugin, reader) => plugin.instructions.read(reader),
 		));
 
 		this._register(autorun(reader => {
@@ -671,6 +676,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this.getFileLocatorEvent(PromptsType.instructions),
 			this._onDidContributedWhenChange.event,
 			this._onDidChangeInstructions.event,
+			this._onDidPluginPromptFilesChange.event,
 		);
 	}
 
@@ -906,8 +912,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const resolvedAgentFiles: IResolvedAgentFile[] = [];
 		const promises: Promise<IResolvedAgentFile[]>[] = [];
 
-		const includeParents = this.configurationService.getValue(PromptsConfig.SEARCH_ROOT_REPO_CUSTOMIZATIONS) === true;
-		const rootFolders = await this.fileLocator.getWorkspaceFolderRoots(includeParents);
+		const includeParents = this.configurationService.getValue(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS) === true;
+		const rootFolders = await this.fileLocator.getWorkspaceFolderRoots(includeParents, logger);
 
 		const rootFiles: IWorkspaceInstructionFile[] = [];
 		const useAgentMD = this.configurationService.getValue(PromptsConfig.USE_AGENT_MD);

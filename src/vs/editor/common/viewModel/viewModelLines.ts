@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../base/common/lifecycle.js';
-import { ConfigurationChangedEvent, EditorOption } from '../config/editorOptions.js';
+import { EditorOption, IComputedEditorOptions } from '../config/editorOptions.js';
 import { IPosition, Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../model.js';
@@ -24,7 +24,7 @@ import { LineInjectedText } from '../textModelEvents.js';
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
 
-	setWrappingSettings(e: ConfigurationChangedEvent): boolean;
+	setWrappingSettings(options: IComputedEditorOptions): boolean;
 	setTabSize(newTabSize: number): boolean;
 	getHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: readonly Range[]): boolean;
@@ -67,6 +67,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	private readonly _lineBreaksComputerFactory: ILineBreaksComputerFactory;
 
+	private options: IComputedEditorOptions;
 	private tabSize: number;
 
 	private modelLineProjections!: IModelLineProjection[];
@@ -82,15 +83,17 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	constructor(
 		editorId: number,
 		model: ITextModel,
-		lineBreaksComputerFactory: ILineBreaksComputerFactory,
-		config: IEditorConfiguration,
+		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		options: IComputedEditorOptions,
 		tabSize: number,
 	) {
 		this._editorId = editorId;
 		this.model = model;
 		this._validModelVersionId = -1;
-		this._lineBreaksComputerFactory = lineBreaksComputerFactory;
-		this.config = config;
+		this._domLineBreaksComputerFactory = domLineBreaksComputerFactory;
+		this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
+		this.options = options;
 		this.tabSize = tabSize;
 
 		this._constructLines(/*resetHiddenAreas*/true, null);
@@ -259,18 +262,19 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return true;
 	}
 
-	public setWrappingSettings(e: ConfigurationChangedEvent): boolean {
-		const equalFontInfo = !e.hasChanged(EditorOption.fontInfo);
-		const equalWrappingStrategy = !e.hasChanged(EditorOption.wrappingStrategy);
-		const equalWrappingColumn = !e.hasChanged(EditorOption.wrappingInfo);
-		const equalWrappingIndent = !e.hasChanged(EditorOption.wrappingIndent);
-		const equalWordBreak = !e.hasChanged(EditorOption.wordBreak);
-		if (equalFontInfo && equalWrappingStrategy && equalWrappingColumn && equalWrappingIndent && equalWordBreak) {
+	public setWrappingSettings(options: IComputedEditorOptions): boolean {
+		const equalFontInfo = this.options.get(EditorOption.fontInfo).equals(options.get(EditorOption.fontInfo));
+		const equalWrappingStrategy = this.options.get(EditorOption.wrappingStrategy) === options.get(EditorOption.wrappingStrategy);
+		const equalWrappingInfo = this.options.get(EditorOption.wrappingInfo) === options.get(EditorOption.wrappingInfo);
+		const equalWrappingIndent = this.options.get(EditorOption.wrappingIndent) === options.get(EditorOption.wrappingIndent);
+		const equalWordBreak = this.options.get(EditorOption.wordBreak) === options.get(EditorOption.wordBreak);
+		if (equalFontInfo && equalWrappingStrategy && equalWrappingInfo && equalWrappingIndent && equalWordBreak) {
 			return false;
 		}
 
-		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingStrategy && !equalWrappingColumn && equalWrappingIndent && equalWordBreak);
+		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingStrategy && !equalWrappingInfo && equalWrappingIndent && equalWordBreak);
 
+		this.options = options;
 
 		let previousLineBreaks: ((ModelLineProjectionData | null)[]) | null = null;
 		if (onlyWrappingColumnChanged) {
@@ -1168,7 +1172,7 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 		return false;
 	}
 
-	public setWrappingSettings(e: ConfigurationChangedEvent): boolean {
+	public setWrappingSettings(options: IComputedEditorOptions): boolean {
 		return false;
 	}
 

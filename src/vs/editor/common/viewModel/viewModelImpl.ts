@@ -95,12 +95,14 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._lines = new ViewModelLinesFromModelAsIs(this.model);
 
 		} else {
+			const options = this._configuration.options;
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
 				this.model,
-				lineBreaksComputer,
-				this._configuration,
-				this.model.getOptions().tabSize,
+				domLineBreaksComputerFactory,
+				monospaceLineBreaksComputerFactory,
+				options,
+				this.model.getOptions().tabSize
 			);
 		}
 
@@ -258,8 +260,9 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	private _onConfigurationChanged(eventsCollector: ViewModelEventsCollector, e: ConfigurationChangedEvent): void {
 		const stableViewport = this._captureStableViewport();
+		const options = this._configuration.options;
 
-		if (this._lines.setWrappingSettings(e)) {
+		if (this._lines.setWrappingSettings(options)) {
 			eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
