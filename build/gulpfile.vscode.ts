@@ -731,6 +731,17 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
 			: path.join(outputDir, 'resources', 'app');
 
+		// On stable builds the copilot SDK is stripped entirely -- nothing to copy into.
+		const copilotDir = path.join(appBase, 'node_modules', '@github', 'copilot');
+		if (!fs.existsSync(copilotDir)) {
+			const quality = (product as { quality?: string }).quality;
+			if (quality && quality !== 'stable') {
+				throw new Error(`[copyCopilotNativeDeps] Copilot SDK directory not found at ${copilotDir} -- unexpected for ${quality} build`);
+			}
+			console.log(`[copyCopilotNativeDeps] Skipping -- copilot SDK not present (stable build)`);
+			return;
+		}
+
 		const platformArch = `${platform === 'win32' ? 'win32' : platform}-${arch}`;
 
 		// Copy node-pty (pty.node + spawn-helper) into copilot prebuilds
