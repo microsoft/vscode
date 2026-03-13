@@ -23,7 +23,7 @@ import { IBrowserZoomService } from '../../browserView/common/browserZoomService
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, BrowserNewPageLocation, browserZoomFactors, browserZoomLabel } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, BrowserNewPageLocation, browserZoomFactors, browserZoomLabel, browserZoomAccessibilityLabel } from '../../../../platform/browserView/common/browserView.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -803,8 +803,8 @@ export class BrowserEditor extends EditorPane {
 		const currentFactor = this._model.zoomFactor;
 		const label = browserZoomLabel(currentFactor);
 		this._navigationBar.showZoomLevel(label, currentFactor >= defaultFactor);
-		// Announce the new zoom level to screen readers (polite, non-interruptive)
-		this.accessibilityService.status(label);
+		// Announce the new zoom level to screen readers (polite, non-interruptive).
+		this.accessibilityService.status(browserZoomAccessibilityLabel(currentFactor));
 	}
 
 	private updateZoomContext(): void {
