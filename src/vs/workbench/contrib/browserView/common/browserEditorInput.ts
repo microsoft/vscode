@@ -47,7 +47,7 @@ export interface IBrowserEditorInputData {
 
 export class BrowserEditorInput extends EditorInput {
 	static readonly ID = 'workbench.editorinputs.browser';
-	static readonly EDITOR_ID = 'workbench.editorinputs.browser';
+	static readonly EDITOR_ID = 'workbench.editor.browser';
 	private static readonly DEFAULT_LABEL = localize('browser.editorLabel', "Browser");
 
 	private readonly _id: string;

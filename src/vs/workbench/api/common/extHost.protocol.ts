@@ -1372,7 +1372,7 @@ export interface ExtHostBrowsersShape {
 	$onDidOpenBrowserTab(browser: BrowserTabDto): void;
 	$onDidCloseBrowserTab(browserId: string): void;
 	$onDidChangeActiveBrowserTab(browser: BrowserTabDto | undefined): void;
-	$onDidChangeBrowserTab(browserId: string, data: BrowserTabDto): void;
+	$onDidChangeBrowserTabState(browserId: string, data: BrowserTabDto): void;
 	$onCDPSessionMessage(sessionId: string, message: CDPResponse | CDPEvent): void;
 	$onCDPSessionClosed(sessionId: string): void;
 }

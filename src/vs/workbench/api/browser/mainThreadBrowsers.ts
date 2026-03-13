@@ -98,7 +98,7 @@ export class MainThreadBrowsers extends Disposable implements MainThreadBrowsers
 
 		// Track property changes. Currently all the tracked properties are covered under the `onDidChangeLabel` event.
 		disposables.add(input.onDidChangeLabel(() => {
-			this._proxy.$onDidChangeBrowserTab(input.id, this._toDto(input));
+			this._proxy.$onDidChangeBrowserTabState(input.id, this._toDto(input));
 		}));
 		disposables.add(input.onWillDispose(() => {
 			this._proxy.$onDidCloseBrowserTab(input.id);

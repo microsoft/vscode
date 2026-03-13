@@ -245,7 +245,7 @@ export class ExtHostBrowsers extends Disposable implements ExtHostBrowsersShape 
 		this._onDidChangeActiveBrowserTab.fire(this.activeBrowserTab);
 	}
 
-	$onDidChangeBrowserTab(browserId: string, data: BrowserTabDto): void {
+	$onDidChangeBrowserTabState(browserId: string, data: BrowserTabDto): void {
 		const tab = this._browserTabs.get(browserId);
 		if (tab && tab.update(data)) {
 			this._onDidChangeBrowserTabState.fire(tab.value);
