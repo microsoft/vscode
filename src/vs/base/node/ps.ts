@@ -8,7 +8,7 @@ import { readdirSync, readFileSync } from 'fs';
 import { totalmem } from 'os';
 import { ProcessItem } from '../common/processes.js';
 import { parse } from '../common/path.js';
-import { isLinux, isWindows } from '../common/platform.js';
+import { isLinux, isMacintosh, isWindows } from '../common/platform.js';
 
 export const JS_FILENAME_PATTERN = /[a-zA-Z-]+\.js\b/g;
 
@@ -316,8 +316,8 @@ export function hasChildProcesses(pid: number, ignoreNames?: string[]): Promise<
 		return Promise.resolve(hasChildProcessesFromProc(pid, ignoreNames));
 	}
 
-	if (process.platform === 'darwin') {
-		return hasChildProcessesDarwin(pid, ignoreNames);
+	if (isMacintosh) {
+		return hasChildProcessesMacOS(pid, ignoreNames);
 	}
 
 	// Windows: use the native module via listProcesses
@@ -400,7 +400,7 @@ function hasChildProcessesFromProc(pid: number, ignoreNames?: string[]): boolean
 	return !shouldIgnoreProcess(cmd, ignoreNames!);
 }
 
-function hasChildProcessesDarwin(pid: number, ignoreNames?: string[]): Promise<boolean> {
+function hasChildProcessesMacOS(pid: number, ignoreNames?: string[]): Promise<boolean> {
 	return new Promise<boolean>(resolve => {
 		exec(`pgrep -P ${pid}`, (err, stdout) => {
 			if (err || !stdout.trim()) {
