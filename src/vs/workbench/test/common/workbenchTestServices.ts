@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
 import { Schemas } from '../../../base/common/network.js';
 import { observableValue } from '../../../base/common/observable.js';
 import { join } from '../../../base/common/path.js';
@@ -380,7 +380,8 @@ export class TestWorkspaceTrustManagementService extends Disposable implements I
 
 
 	constructor(
-		private trusted: boolean = true
+		private trusted: boolean = true,
+		private trustedUris: ResourceSet = new ResourceSet()
 	) {
 		super();
 	}
@@ -406,11 +407,11 @@ export class TestWorkspaceTrustManagementService extends Disposable implements I
 	}
 
 	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
-		throw new Error('Method not implemented.');
+		return Promise.resolve({ trusted: this.trustedUris.has(uri), uri });
 	}
 
 	async setTrustedUris(folders: URI[]): Promise<void> {
-		throw new Error('Method not implemented.');
+		this.trustedUris = new ResourceSet(folders);
 	}
 
 	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {

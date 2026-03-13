@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../base/common/observable.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, constObservable, derived, ObservablePromise, observableValue } from '../../../../base/common/observable.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -14,21 +14,19 @@ import { IContextKeyService, RawContextKey } from '../../../../platform/contextk
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
+import { GitBranch, GitRepositoryState, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
-const hasGitSyncChangesContextKey = new RawContextKey<boolean>('agentSessionHasGitSyncChanges', false, {
+const hasUpstreamBranchContextKey = new RawContextKey<boolean>('agentSessionGitHasUpstreamBranch', false, {
 	type: 'boolean',
-	description: localize('agentSessionHasGitSyncChanges', "True when the active agent session worktree has ahead or behind commits relative to its upstream.")
+	description: localize('agentSessionGitHasUpstreamBranch', "True when the active agent session worktree has an upstream branch."),
 });
 
 class GitSyncContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.gitSync';
 
-	private readonly _syncActionDisposable = this._register(new MutableDisposable());
-	private readonly _gitRepoDisposables = this._register(new DisposableStore());
-	private readonly _isSyncing = observableValue<boolean>(this, false);
+	private readonly _isSyncingObs = observableValue<boolean>(this, false);
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -37,65 +35,68 @@ class GitSyncContribution extends Disposable implements IWorkbenchContribution {
 	) {
 		super();
 
-		const contextKey = hasGitSyncChangesContextKey.bindTo(this.contextKeyService);
+		const hasUpstreamBranch = hasUpstreamBranchContextKey.bindTo(this.contextKeyService);
+
+		const activeSessionWorktreeObs = derived(reader => {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			return activeSession?.worktree;
+		});
+
+		const activeSessionRepositoryPromiseObs = derived(reader => {
+			const worktreeUri = activeSessionWorktreeObs.read(reader);
+			if (!worktreeUri) {
+				return constObservable(undefined);
+			}
+
+			return new ObservablePromise(this.gitService.openRepository(worktreeUri)).resolvedValue;
+		});
+
+		const activeSessionRepositoryStateObs = derived<GitRepositoryState | undefined>(reader => {
+			const activeSessionRepository = activeSessionRepositoryPromiseObs.read(reader).read(reader);
+			if (activeSessionRepository === undefined) {
+				return undefined;
+			}
+
+			return activeSessionRepository.state.read(reader);
+		});
 
 		this._register(autorun(reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			this._gitRepoDisposables.clear();
-
-			const worktreeUri = activeSession ? this.sessionManagementService.getActiveSession()?.worktree : undefined;
-			if (!worktreeUri) {
-				this._syncActionDisposable.clear();
-				contextKey.set(false);
+			const isSyncing = this._isSyncingObs.read(reader);
+			const activeSessionRepositoryState = activeSessionRepositoryStateObs.read(reader);
+			if (!activeSessionRepositoryState) {
+				hasUpstreamBranch.set(false);
 				return;
 			}
 
-			const repoDisposables = this._gitRepoDisposables.add(new DisposableStore());
-			this.gitService.openRepository(worktreeUri).then(repository => {
-				if (repoDisposables.isDisposed) {
-					return;
-				}
-				if (!repository) {
-					this._syncActionDisposable.clear();
-					contextKey.set(false);
-					return;
-				}
-				repoDisposables.add(autorun(innerReader => {
-					const state = repository.state.read(innerReader);
-					const isSyncing = this._isSyncing.read(innerReader);
-					const head = state.HEAD;
-					if (!head?.upstream) {
-						this._syncActionDisposable.clear();
-						contextKey.set(false);
-						return;
-					}
-					const ahead = head.ahead ?? 0;
-					const behind = head.behind ?? 0;
-					const hasSyncChanges = ahead > 0 || behind > 0;
-					contextKey.set(hasSyncChanges);
-					this._syncActionDisposable.clear();
-					this._syncActionDisposable.value = registerSyncAction(behind, ahead, isSyncing, (syncing) => {
-						this._isSyncing.set(syncing, undefined);
-					});
-				}));
-			});
+			const head = activeSessionRepositoryState.HEAD;
+			hasUpstreamBranch.set(head?.upstream !== undefined);
+
+			if (!head?.upstream) {
+				return;
+			}
+
+			reader.store.add(registerSyncAction(head, isSyncing, (syncing) => {
+				this._isSyncingObs.set(syncing, undefined);
+			}));
 		}));
 	}
 }
 
-function registerSyncAction(behind: number, ahead: number, isSyncing: boolean, setSyncing: (syncing: boolean) => void): IDisposable {
-	if (behind === 0 && ahead === 0) {
-		return Disposable.None;
-	}
-	let title = '';
+function registerSyncAction(branch: GitBranch, isSyncing: boolean, setSyncing: (syncing: boolean) => void): IDisposable {
+	const ahead = branch.ahead ?? 0;
+	const behind = branch.behind ?? 0;
+
+	const titleSegments = [localize('synchronizeChangesTitle', "Sync Changes")];
 	if (behind > 0) {
-		title += `${behind}↓ `;
+		titleSegments.push(`${behind}↓`);
 	}
 	if (ahead > 0) {
-		title += `${ahead}↑`;
+		titleSegments.push(`${ahead}↑`);
 	}
 
-	const icon = isSyncing ? ThemeIcon.modify(Codicon.sync, 'spin') : Codicon.sync;
+	const icon = isSyncing
+		? ThemeIcon.modify(Codicon.sync, 'spin')
+		: Codicon.sync;
 
 	class SynchronizeChangesAction extends Action2 {
 		static readonly ID = 'chatEditing.synchronizeChanges';
@@ -103,16 +104,16 @@ function registerSyncAction(behind: number, ahead: number, isSyncing: boolean, s
 		constructor() {
 			super({
 				id: SynchronizeChangesAction.ID,
-				title,
+				title: titleSegments.join(' '),
 				tooltip: localize('synchronizeChanges', "Synchronize Changes with Git (Behind {0}, Ahead {1})", behind, ahead),
 				icon,
 				category: CHAT_CATEGORY,
 				menu: [
 					{
-						id: MenuId.ChatEditingSessionChangesToolbar,
+						id: MenuId.ChatEditingSessionApplySubmenu,
 						group: 'navigation',
-						order: 5,
-						when: hasGitSyncChangesContextKey,
+						order: 0,
+						when: hasUpstreamBranchContextKey,
 					},
 				],
 			});

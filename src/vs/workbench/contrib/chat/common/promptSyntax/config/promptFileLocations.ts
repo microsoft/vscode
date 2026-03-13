@@ -60,6 +60,10 @@ export const CLAUDE_CONFIG_FOLDER = '.claude';
  */
 export const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
 
+/**
+ * GitHub configuration folder name.
+ */
+export const GITHUB_CONFIG_FOLDER = '.github';
 
 /**
  * Default reusable prompt files source folder.
@@ -134,6 +138,8 @@ export interface IPromptSourceFolder {
  */
 export interface IResolvedPromptSourceFolder {
 	readonly uri: URI;
+	readonly parent: URI; // matches the URI when no glob pattern is used
+	readonly filePattern: string | undefined; // the part of the path with the glob pattern, or undefined if no glob pattern is used
 	readonly source: PromptFileSource;
 	readonly storage: PromptsStorage;
 	/**
