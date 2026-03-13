@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse } from '../../../base/common/path.js';
 import { debounce, throttle } from '../../../base/common/decorators.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { ProcessItem } from '../../../base/common/processes.js';
-import { listProcesses } from '../../../base/node/ps.js';
+import { hasChildProcesses } from '../../../base/node/ps.js';
 import { ILogService } from '../../log/common/log.js';
 
 const enum Constants {
@@ -75,8 +73,7 @@ export class ChildProcessMonitor extends Disposable {
 			return;
 		}
 		try {
-			const processItem = await listProcesses(this._pid);
-			this.hasChildProcesses = this._processContainsChildren(processItem);
+			this.hasChildProcesses = await hasChildProcesses(this._pid, ignoreProcessNames);
 		} catch (e) {
 			this._logService.debug('ChildProcessMonitor: Fetching process tree failed', e);
 		}
@@ -85,32 +82,5 @@ export class ChildProcessMonitor extends Disposable {
 	@throttle(Constants.InactiveThrottleDuration)
 	private _refreshInactive(): void {
 		this._refreshActive();
-	}
-
-	private _processContainsChildren(processItem: ProcessItem): boolean {
-		// No child processes
-		if (!processItem.children) {
-			return false;
-		}
-
-		// A single child process, handle special cases
-		if (processItem.children.length === 1) {
-			const item = processItem.children[0];
-			let cmd: string;
-			if (item.cmd.startsWith(`"`)) {
-				cmd = item.cmd.substring(1, item.cmd.indexOf(`"`, 1));
-			} else {
-				const spaceIndex = item.cmd.indexOf(` `);
-				if (spaceIndex === -1) {
-					cmd = item.cmd;
-				} else {
-					cmd = item.cmd.substring(0, spaceIndex);
-				}
-			}
-			return ignoreProcessNames.indexOf(parse(cmd).name) === -1;
-		}
-
-		// Fallback, count child processes
-		return processItem.children.length > 0;
 	}
 }

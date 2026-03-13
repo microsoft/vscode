@@ -74,7 +74,7 @@ const vscodeResourceIncludes = [
 	'out-build/vs/platform/browserView/electron-browser/preload-browserView.js',
 
 	// Node Scripts
-	'out-build/vs/base/node/{terminateProcess.sh,cpuUsage.sh,ps.sh}',
+	'out-build/vs/base/node/terminateProcess.sh',
 
 	// Touchbar
 	'out-build/vs/workbench/browser/parts/editor/media/*.png',

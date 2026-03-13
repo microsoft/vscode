@@ -66,10 +66,6 @@ const serverResourceIncludes = [
 	'out-build/nls.messages.json',
 	'out-build/nls.keys.json',
 
-	// Process monitor
-	'out-build/vs/base/node/cpuUsage.sh',
-	'out-build/vs/base/node/ps.sh',
-
 	// External Terminal
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
 
