@@ -985,7 +985,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private ensureToolDetails(dto: IToolInvocation, toolResult: IToolResult, toolData: IToolData, toolInvocation: ChatToolInvocation | undefined): void {
-		if (!toolResult.toolResultDetails && (toolData.alwaysDisplayInputOutput || (this.toolResultHasImages(toolResult) && !this.toolInvocationMessageHasImageFileWidgets(toolInvocation)))) {
+		if (!toolResult.toolResultDetails && (toolData.alwaysDisplayInputOutput || (this.toolResultHasImages(toolResult) && !this.toolResultMessageHasImageFileWidgets(toolResult, toolInvocation)))) {
 			toolResult.toolResultDetails = {
 				input: this.formatToolInput(dto),
 				output: this.toolResultToIO(toolResult),
@@ -998,23 +998,31 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	/**
-	 * Returns true if the tool invocation's pastTenseMessage contains empty markdown links
-	 * pointing to image files (the `[](imageUri)` pattern) that will be rendered as
-	 * file pills by renderFileWidgets.
+	 * Returns true if the tool result message (or falling back to the tool invocation's
+	 * pastTenseMessage from streaming) contains empty markdown links pointing to image
+	 * files (the `[](imageUri)` pattern) that will be rendered as file pills by renderFileWidgets.
 	 */
-	private toolInvocationMessageHasImageFileWidgets(toolInvocation: ChatToolInvocation | undefined): boolean {
-		const message = toolInvocation?.pastTenseMessage;
+	private toolResultMessageHasImageFileWidgets(toolResult: IToolResult, toolInvocation: ChatToolInvocation | undefined): boolean {
+		// Check toolResult.toolResultMessage first — this is what didExecuteTool will
+		// copy into pastTenseMessage, and it's already available at this point.
+		// Fall back to pastTenseMessage which may have been set during the streaming phase.
+		const message = toolResult.toolResultMessage ?? toolInvocation?.pastTenseMessage;
 		if (!message) {
 			return false;
 		}
 		const value = typeof message === 'string' ? message : message.value;
 		// Match empty-text markdown links: [](uri) or [ ](uri), capturing the uri
-		const linkPattern = /\[\s*\]\(([^)]+)\)/g;
+		const linkPattern = /\[\s*\]\((?<uri>[^)]+)\)/g;
 		let match: RegExpExecArray | null;
 		while ((match = linkPattern.exec(value)) !== null) {
-			const mime = getMediaMime(match[1]);
-			if (mime?.startsWith('image/')) {
-				return true;
+			try {
+				const parsed = URI.parse(match.groups!.uri);
+				const mime = getMediaMime(parsed.path);
+				if (mime?.startsWith('image/')) {
+					return true;
+				}
+			} catch {
+				// Invalid URI, skip
 			}
 		}
 		return false;
