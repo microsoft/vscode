@@ -164,6 +164,7 @@ export interface IChatRendererDelegate {
 	container: HTMLElement;
 	getListLength(): number;
 	currentChatMode(): ChatModeKind;
+	getEditingValue?(): string | undefined;
 
 	readonly onDidScroll?: Event<ScrollEvent>;
 }
@@ -334,6 +335,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private fireItemHeightChange(template: IChatListItemTemplate, measuredHeight?: number): void {
 		if (!template.currentElement || !template.rowContainer.isConnected) {
+			return;
+		}
+
+		if (dom.findParentWithClass(template.rowContainer, 'monaco-tree-sticky-row')) {
 			return;
 		}
 
@@ -637,12 +642,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return;
 			}
 
-			// Don't let sticky scroll templates update heights - they share the same
-			// view model element and would corrupt the real row's cached height.
-			if (dom.findParentWithClass(template.rowContainer, 'monaco-tree-sticky-row')) {
-				return;
-			}
-
 			const entry = entries[0];
 			if (entry) {
 				this.fireItemHeightChange(template, entry.borderBoxSize.at(0)?.blockSize);
@@ -808,11 +807,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.elementDisposables.add(toDisposable(() => setGroupHover(false)));
 		}
 
-		// Only show restore container when we have a checkpoint and not editing, and not a pending request
-		const shouldShowRestore = this.viewModel?.model.checkpoint && !this.viewModel?.editing && (index === this.delegate.getListLength() - 1) && !isPendingRequest;
+		const isStickyScrollRow = !!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row');
+
+		// Only show restore container when we have a checkpoint and not editing, and not a pending request.
+		// Hide it in sticky scroll rows — only the checkpoint toolbar is shown there.
+		const shouldShowRestore = !isStickyScrollRow && this.viewModel?.model.checkpoint && !this.viewModel?.editing && (index === this.delegate.getListLength() - 1) && !isPendingRequest;
 		templateData.checkpointRestoreContainer.classList.toggle('hidden', !(shouldShowRestore && checkpointEnabled));
 
-		const isStickyScrollRow = !!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row');
 		const editing = !isStickyScrollRow && element.id === this.viewModel?.editing?.id;
 		const isInput = this.configService.getValue<string>('chat.editRequests') === 'input';
 
@@ -1116,7 +1117,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		if (element.id === this.viewModel?.editing?.id) {
+		if (element.id === this.viewModel?.editing?.id && !dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row')) {
 			this._onDidRerender.fire(templateData);
 		}
 
@@ -1141,10 +1142,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const store = new DisposableStore();
 			templateData.elementDisposables.add(store);
 
+			const isStickyAndEditing = dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row')
+				&& element.id === this.viewModel?.editing?.id;
+
 			const message = element.message;
-			const plainTextContent = isChatFollowup(message)
-				? dom.$('span', undefined, message.message)
-				: this.markdownDecorationsRenderer.renderParsedRequestToPlainText(message, store);
+			let plainTextContent: HTMLElement;
+			if (isStickyAndEditing) {
+				const editingText = this.delegate.getEditingValue?.() || '';
+				plainTextContent = dom.$('span', undefined, editingText);
+			} else if (isChatFollowup(message)) {
+				plainTextContent = dom.$('span', undefined, message.message);
+			} else {
+				plainTextContent = this.markdownDecorationsRenderer.renderParsedRequestToPlainText(message, store);
+			}
 
 			const container = dom.$('.rendered-markdown');
 			const innerContent = dom.$('.chat-request-text');

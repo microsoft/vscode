@@ -122,6 +122,11 @@ export interface IChatListWidgetOptions {
 	readonly getCurrentModeInfo?: () => IChatRequestModeInfo | undefined;
 
 	/**
+	 * Callback to get the current editing input value.
+	 */
+	readonly getEditingValue?: () => string | undefined;
+
+	/**
 	 * The render style for the chat widget. Affects minimum height behavior.
 	 */
 	readonly renderStyle?: 'compact' | 'minimal';
@@ -308,6 +313,7 @@ export class ChatListWidget extends Disposable {
 			onDidScroll: this.onDidScroll,
 			container: this._container,
 			currentChatMode: options.currentChatMode ?? (() => ChatModeKind.Ask),
+			getEditingValue: options.getEditingValue,
 		};
 
 		// Create renderer
@@ -375,6 +381,7 @@ export class ChatListWidget extends Disposable {
 				hideTwistiesOfChildlessElements: true,
 				enableStickyScroll: true,
 				stickyScrollMaxItemCount: 1,
+				stickyScrollMaxNodeHeight: 150,
 				indent: 0,
 				expandOnDoubleClick: false,
 				expandOnlyOnTwistieClick: true,

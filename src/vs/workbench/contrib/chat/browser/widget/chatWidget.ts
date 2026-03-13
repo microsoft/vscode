@@ -1473,6 +1473,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				location: this.location,
 				getCurrentLanguageModelId: () => this.input.currentLanguageModel,
 				getCurrentModeInfo: () => this.input.currentModeInfo,
+				getEditingValue: () => this.input.inputEditor.getValue(),
 			}
 		));
 
@@ -1493,6 +1494,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.listWidget.onDidRerender(item => {
 			if (isRequestVM(item.currentElement) && this.configurationService.getValue<string>('chat.editRequests') !== 'input') {
+				// Don't move the input into sticky scroll rows
+				if (dom.findParentWithClass(item.rowContainer, 'monaco-tree-sticky-row')) {
+					return;
+				}
 				if (!item.rowContainer.contains(this.inputContainer)) {
 					item.rowContainer.appendChild(this.inputContainer);
 				}

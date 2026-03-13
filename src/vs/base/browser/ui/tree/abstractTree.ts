@@ -1517,8 +1517,13 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		return this.treeDelegate.getHeight(node);
 	}
 
+	private clampNodeHeight(height: number): number {
+		const max = this.tree.options.stickyScrollMaxNodeHeight;
+		return max !== undefined ? Math.min(height, max) : height;
+	}
+
 	private createStickyScrollNode(node: ITreeNode<T, TFilterData>, currentStickyNodesHeight: number): StickyScrollNode<T, TFilterData> {
-		const height = this.getNodeHeight(node);
+		const height = this.clampNodeHeight(this.getNodeHeight(node));
 		const { startIndex, endIndex } = this.getNodeRange(node);
 
 		const position = this.calculateStickyNodePosition(endIndex, currentStickyNodesHeight, height);
@@ -1640,7 +1645,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 
 		let widgetHeight = 0;
 		for (let i = 0; i < ancestors.length && i < this.stickyScrollMaxItemCount; i++) {
-			widgetHeight += this.getNodeHeight(ancestors[i]);
+			widgetHeight += this.clampNodeHeight(this.getNodeHeight(ancestors[i]));
 		}
 		return widgetHeight;
 	}
@@ -1767,8 +1772,13 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 		this._previousState = state;
 
-		// Set the height of the widget to the bottom of the last sticky node
-		this._rootDomNode.style.height = `${lastStickyNode.position + lastStickyNode.height}px`;
+		// Set the height of the widget to the bottom of the last sticky node,
+		// capped by the max node height option if configured.
+		const maxNodeHeight = this.tree.options.stickyScrollMaxNodeHeight;
+		const widgetHeight = maxNodeHeight !== undefined
+			? lastStickyNode.position + Math.min(lastStickyNode.height, maxNodeHeight)
+			: lastStickyNode.position + lastStickyNode.height;
+		this._rootDomNode.style.height = `${widgetHeight}px`;
 	}
 
 	private renderState(state: StickyScrollState<T, TFilterData, TRef>): void {
@@ -1814,19 +1824,23 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 			element.style.height = '';
 
 			const measuredHeight = element.offsetHeight;
-			if (measuredHeight > 0 && measuredHeight !== stickyNode.height) {
-				heightChanges.push({ index: stickyNode.startIndex, height: measuredHeight });
-
-				// Update the element's style with the measured height
-				if (this.tree.options.setRowHeight !== false) {
-					element.style.height = `${measuredHeight}px`;
-				}
-				if (this.tree.options.setRowLineHeight !== false) {
-					element.style.lineHeight = `${measuredHeight}px`;
-				}
-			} else {
-				// Restore original height
+			if (measuredHeight <= 0) {
 				element.style.height = previousHeight;
+				continue;
+			}
+
+			// Always update the sticky element's visual height to match the measured content
+			if (this.tree.options.setRowHeight !== false) {
+				element.style.height = `${measuredHeight}px`;
+			}
+			if (this.tree.options.setRowLineHeight !== false) {
+				element.style.lineHeight = `${measuredHeight}px`;
+			}
+
+			// Only propagate height increases to the real row — never shrink it,
+			// since sticky elements may have CSS truncation (e.g. line-clamp).
+			if (measuredHeight > stickyNode.height) {
+				heightChanges.push({ index: stickyNode.startIndex, height: measuredHeight });
 			}
 		}
 
@@ -1843,13 +1857,18 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		const stickyElement = document.createElement('div');
 		stickyElement.style.top = `${stickyNode.position}px`;
 
+		const maxNodeHeight = this.tree.options.stickyScrollMaxNodeHeight;
+		const clampedHeight = maxNodeHeight !== undefined ? Math.min(stickyNode.height, maxNodeHeight) : stickyNode.height;
+
 		if (this.tree.options.setRowHeight !== false) {
-			stickyElement.style.height = `${stickyNode.height}px`;
+			stickyElement.style.height = `${clampedHeight}px`;
 		}
 
 		if (this.tree.options.setRowLineHeight !== false) {
-			stickyElement.style.lineHeight = `${stickyNode.height}px`;
+			stickyElement.style.lineHeight = `${clampedHeight}px`;
 		}
+
+		stickyElement.style.overflow = 'hidden';
 
 		stickyElement.classList.add('monaco-tree-sticky-row');
 		stickyElement.classList.add('monaco-list-row');
@@ -2272,6 +2291,7 @@ export interface IAbstractTreeOptionsUpdate<T> extends ITreeRendererOptions<T> {
 	readonly expandOnlyOnTwistieClick?: boolean | ((e: T) => boolean);
 	readonly enableStickyScroll?: boolean;
 	readonly stickyScrollMaxItemCount?: number;
+	readonly stickyScrollMaxNodeHeight?: number;
 	readonly paddingTop?: number;
 }
 
