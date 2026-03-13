@@ -61,7 +61,7 @@ An accessibility help dialog tells the user what the feature does, which keyboar
 The simplest approach is to return an `AccessibleContentProvider` directly from `getProvider()`. This is the most common pattern in the codebase (used by chat, inline chat, quick chat, etc.):
 
 ```ts
-import { AccessibleViewType, AccessibleContentProvider, AccessibleViewProviderId, IAccessibleViewContentProvider, IAccessibleViewOptions } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewType, AccessibleContentProvider, AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../../../platform/accessibility/common/accessibilityConfiguration.js';
 
