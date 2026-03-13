@@ -99,8 +99,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
 				this.model,
-				domLineBreaksComputerFactory,
-				monospaceLineBreaksComputerFactory,
+				lineBreaksComputer,
 				options,
 				this.model.getOptions().tabSize
 			);

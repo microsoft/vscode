@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorOption } from '../config/editorOptions.js';
+import { EditorOption, IComputedEditorOptions } from '../config/editorOptions.js';
 import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData, ILineBreaksComputerContext } from '../modelLineProjectionData.js';
-import { IEditorConfiguration } from '../config/editorConfiguration.js';
 
 enum LineBreaksComputationType {
 	Dom = 'dom',
@@ -19,8 +18,8 @@ export class LineBreaksComputerFactory implements ILineBreaksComputerFactory {
 		private readonly monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory
 	) { }
 
-	public createLineBreaksComputer(context: ILineBreaksComputerContext, config: IEditorConfiguration, tabSize: number): LineBreaksComputer {
-		return new LineBreaksComputer(context, config, tabSize, this.domLineBreaksComputerFactory, this.monospaceLineBreaksComputerFactory);
+	public createLineBreaksComputer(context: ILineBreaksComputerContext, options: IComputedEditorOptions, tabSize: number): LineBreaksComputer {
+		return new LineBreaksComputer(context, options, tabSize, this.domLineBreaksComputerFactory, this.monospaceLineBreaksComputerFactory);
 	}
 }
 
@@ -29,25 +28,25 @@ export class LineBreaksComputer implements ILineBreaksComputer {
 	private readonly _domLineBreaksComputer: ILineBreaksComputer;
 	private readonly _monospaceLineBreaksComputer: ILineBreaksComputer;
 
-	private readonly _config: IEditorConfiguration;
+	private readonly _options: IComputedEditorOptions;
 	private readonly _context: ILineBreaksComputerContext;
 	private readonly _lineBreaksComputationMapping: LineBreaksComputationType[] = [];
 
 	constructor(
 		context: ILineBreaksComputerContext,
-		config: IEditorConfiguration,
+		options: IComputedEditorOptions,
 		tabSize: number,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory
 	) {
 		this._context = context;
-		this._config = config;
-		this._domLineBreaksComputer = domLineBreaksComputerFactory.createLineBreaksComputer(context, config, tabSize);
-		this._monospaceLineBreaksComputer = monospaceLineBreaksComputerFactory.createLineBreaksComputer(context, config, tabSize);
+		this._options = options;
+		this._domLineBreaksComputer = domLineBreaksComputerFactory.createLineBreaksComputer(context, options, tabSize);
+		this._monospaceLineBreaksComputer = monospaceLineBreaksComputerFactory.createLineBreaksComputer(context, options, tabSize);
 	}
 
 	addRequest(lineNumber: number, previousLineBreakData: ModelLineProjectionData | null): void {
-		const options = this._config.options;
+		const options = this._options;
 		const wrappingStrategy = options.get(EditorOption.wrappingStrategy);
 		const allowVariableFonts = options.get(EditorOption.effectiveAllowVariableFonts);
 		if (wrappingStrategy === 'advanced' || (allowVariableFonts && this._context.hasVariableFonts(lineNumber))) {

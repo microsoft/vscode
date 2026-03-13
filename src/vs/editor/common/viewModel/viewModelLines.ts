@@ -15,7 +15,6 @@ import { createModelLineProjection, IModelLineProjection } from './modelLineProj
 import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory, ILineBreaksComputerContext } from '../modelLineProjectionData.js';
 import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
 import { ViewLineData } from '../viewModel.js';
-import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { ICoordinatesConverter, IdentityCoordinatesConverter } from '../coordinatesConverter.js';
 import { IdentityInlineDecorationsComputer, InlineDecoration } from './inlineDecorations.js';
 import { LineTokens } from '../tokens/lineTokens.js';
@@ -78,21 +77,18 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private projectedModelLineLineCounts!: ConstantTimePrefixSumComputer;
 
 	private hiddenAreasDecorationIds!: string[];
-	private config: IEditorConfiguration;
 
 	constructor(
 		editorId: number,
 		model: ITextModel,
-		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
-		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
+		lineBreaksComputerFactory: ILineBreaksComputerFactory,
 		options: IComputedEditorOptions,
 		tabSize: number,
 	) {
 		this._editorId = editorId;
 		this.model = model;
 		this._validModelVersionId = -1;
-		this._domLineBreaksComputerFactory = domLineBreaksComputerFactory;
-		this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
+		this._lineBreaksComputerFactory = lineBreaksComputerFactory;
 		this.options = options;
 		this.tabSize = tabSize;
 
@@ -290,7 +286,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	public createLineBreaksComputer(_context?: ILineBreaksComputerContext): ILineBreaksComputer {
-		const inlineDecorationsComputer = new IdentityInlineDecorationsComputer(this._editorId, this.model, this.config.options);
+		const inlineDecorationsComputer = new IdentityInlineDecorationsComputer(this._editorId, this.model, this.options);
 		const context: ILineBreaksComputerContext = {
 			getLineMaxColumn: (lineNumber: number): number => {
 				return this.model.getLineMaxColumn(lineNumber);
@@ -311,7 +307,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				return inlineDecorationsComputer.hasVariableFonts(lineNumber);
 			}
 		};
-		return this._lineBreaksComputerFactory.createLineBreaksComputer(context, this.config, this.tabSize);
+		return this._lineBreaksComputerFactory.createLineBreaksComputer(context, this.options, this.tabSize);
 	}
 
 	public onModelFlushed(): void {

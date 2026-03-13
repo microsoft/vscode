@@ -98,9 +98,6 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 
 	function withSplitLinesCollection(text: string, callback: (model: TextModel, linesCollection: ViewModelLinesFromProjectedModel) => void): void {
 		const config = new TestConfiguration({ wrappingStrategy: 'simple' });
-		const wordWrapBreakAfterCharacters = config.options.get(EditorOption.wordWrapBreakAfterCharacters);
-		const wordWrapBreakBeforeCharacters = config.options.get(EditorOption.wordWrapBreakBeforeCharacters);
-		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 		const domLineBreaksComputerFactory = DOMLineBreaksComputerFactory.create(getActiveWindow());
 		const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(config.options);
 		const lineBreaksComputerFactory = new LineBreaksComputerFactory(domLineBreaksComputerFactory, monospaceLineBreaksComputerFactory);
@@ -110,7 +107,6 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const linesCollection = new ViewModelLinesFromProjectedModel(
 			1,
 			model,
-			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
 			config.options,
 			model.getOptions().tabSize
@@ -950,7 +946,6 @@ suite('SplitLinesCollection', () => {
 		const linesCollection = new ViewModelLinesFromProjectedModel(
 			1,
 			model,
-			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
 			configuration.options,
 			model.getOptions().tabSize
