@@ -826,14 +826,9 @@ export class ChatService extends Disposable implements IChatService {
 			const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text }, CancellationToken.None);
 			if (newItem) {
 
-				// Update the model's contributed session with the resolved resource
-				// so subsequent requests don't re-invoke newChatSessionItemHandler
-				// and getChatSessionFromInternalUri returns the real resource.
+				// Capture session options before loading the remote session,
+				// since the alias registration below may change the lookup.
 				const sessionOptions = this.chatSessionService.getSessionOptions(sessionResource);
-				model?.setContributedChatSession({
-					chatSessionResource: sessionResource,
-					initialSessionOptions: sessionOptions ? [...sessionOptions].map(([optionId, value]) => ({ optionId, value })) : undefined,
-				});
 
 				model = (await this.loadRemoteSession(newItem.resource, model.initialLocation, CancellationToken.None))?.object as ChatModel | undefined;
 				if (!model) {
@@ -842,6 +837,13 @@ export class ChatService extends Disposable implements IChatService {
 
 				// Register alias so session-option lookups work with the new resource
 				this.chatSessionService.registerSessionResourceAlias(sessionResource, newItem.resource);
+
+				// Update the new model's contributed session with initialSessionOptions
+				// so that the agent receives them when invoked.
+				model.setContributedChatSession({
+					chatSessionResource: newItem.resource,
+					initialSessionOptions: sessionOptions ? [...sessionOptions].map(([optionId, value]) => ({ optionId, value })) : undefined,
+				});
 
 				sessionResource = newItem.resource;
 				newSessionResource = newItem.resource;
