@@ -28,7 +28,7 @@ async function main(buildDir?: string) {
 	const filesToSkip = [
 		'**/CodeResources',
 		'**/Credits.rtf',
-		'**/policies/{*.mobileconfig,**/*.plist}',
+		'**/policies/{*.mobileconfig,**/*.plist}'
 	];
 
 	await makeUniversalApp({

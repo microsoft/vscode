@@ -133,7 +133,7 @@ abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
-	async disableProgressiveReleases(): Promise<void> {
+	async setInternalOrg(_internalOrg: string | undefined): Promise<void> {
 		// noop - not applicable for snap
 	}
 
@@ -176,7 +176,7 @@ export class SnapUpdateService extends AbstractUpdateService {
 			if (result) {
 				this.setState(State.Ready({ version: 'something' }, false, false));
 			} else {
-				this.setState(State.Idle(UpdateType.Snap));
+				this.setState(State.Idle(UpdateType.Snap, undefined, undefined));
 			}
 		}, err => {
 			this.logService.error(err);

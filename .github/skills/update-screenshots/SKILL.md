@@ -38,17 +38,17 @@ Pick the most recent run that has a `screenshot-diff` artifact (runs where scree
 gh run download <run-id> --name screenshot-diff --dir .tmp/screenshot-diff
 ```
 
-This downloads:
-- `test/componentFixtures/.screenshots/current/` — the CI-captured screenshots
-- `test/componentFixtures/.screenshots/report.json` — structured diff report
-- `test/componentFixtures/.screenshots/report.md` — human-readable diff report
+The artifact is uploaded from two paths (`test/componentFixtures/.screenshots/current/` and `test/componentFixtures/.screenshots/report/`), but GitHub Actions strips the common prefix. So the downloaded structure is:
+- `current/` — the CI-captured screenshots (e.g. `current/baseUI/Buttons/Dark.png`)
+- `report/report.json` — structured diff report
+- `report/report.md` — human-readable diff report
 
 ### 3. Review the changes
 
 Show the user what changed by reading the markdown report:
 
 ```bash
-cat .tmp/screenshot-diff/test/componentFixtures/.screenshots/report.md
+cat .tmp/screenshot-diff/report/report.md
 ```
 
 ### 4. Copy CI screenshots to baseline
@@ -56,7 +56,7 @@ cat .tmp/screenshot-diff/test/componentFixtures/.screenshots/report.md
 ```bash
 # Remove old baselines and replace with CI screenshots
 rm -rf test/componentFixtures/.screenshots/baseline/
-cp -r .tmp/screenshot-diff/test/componentFixtures/.screenshots/current/ test/componentFixtures/.screenshots/baseline/
+cp -r .tmp/screenshot-diff/current/ test/componentFixtures/.screenshots/baseline/
 ```
 
 ### 5. Clean up
@@ -72,7 +72,16 @@ git add test/componentFixtures/.screenshots/baseline/
 git commit -m "update screenshot baselines from CI"
 ```
 
-### 7. Verify
+### 7. Push LFS objects before pushing
+
+Screenshot baselines are stored in Git LFS. The `git lfs pre-push` hook is not active in this repo (husky overwrites it), so LFS objects are NOT automatically uploaded on `git push`. You must push them manually before pushing the branch, otherwise the push will fail with `GH008: Your push referenced unknown Git LFS objects`.
+
+```bash
+git lfs push --all origin <branch-name>
+git push
+```
+
+### 8. Verify
 
 Confirm the baselines are updated by listing the files:
 

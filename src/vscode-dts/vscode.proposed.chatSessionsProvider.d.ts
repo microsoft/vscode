@@ -93,7 +93,12 @@ declare module 'vscode' {
 	export type ChatSessionItemControllerRefreshHandler = (token: CancellationToken) => Thenable<void>;
 
 	export interface ChatSessionItemControllerNewItemHandlerContext {
-		readonly request: ChatRequest;
+		// TODO: Use a better type but for now decrease this down to just the prompt and command since that's all we currently need.
+		// The problem with ChatRequest is that it has a resourceUri which is not good for this code path.
+		readonly request: {
+			readonly prompt: string;
+			readonly command?: string;
+		};
 	}
 
 	/**
@@ -456,9 +461,8 @@ declare module 'vscode' {
 
 		/**
 		 * Called as soon as you register (call me once)
-		 * @param token
 		 */
-		provideChatSessionProviderOptions?(token: CancellationToken): Thenable<ChatSessionProviderOptions | ChatSessionProviderOptions>;
+		provideChatSessionProviderOptions?(token: CancellationToken): Thenable<ChatSessionProviderOptions>;
 	}
 
 	export interface ChatSessionOptionUpdate {
@@ -615,6 +619,13 @@ declare module 'vscode' {
 		 * Provider-defined option groups (0-2 groups supported).
 		 * Examples: models picker, sub-agents picker, etc.
 		 */
-		optionGroups?: ChatSessionProviderOptionGroup[];
+		readonly optionGroups?: readonly ChatSessionProviderOptionGroup[];
+
+		/**
+		 * The set of default options used for new chat sessions, provided as key-value pairs.
+		 *
+		 * Keys correspond to option group IDs (e.g., 'models', 'subagents').
+		 */
+		readonly newSessionOptions?: Record<string, string | ChatSessionProviderOptionItem>;
 	}
 }

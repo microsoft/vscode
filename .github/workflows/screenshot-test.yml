@@ -1,4 +1,4 @@
-name: Screenshot Tests
+name: Checking Component Screenshots
 
 on:
   push:
@@ -10,8 +10,7 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
-  checks: write
+  statuses: write
 
 concurrency:
   group: screenshots-${{ github.event.pull_request.number || github.sha }}
@@ -19,13 +18,16 @@ concurrency:
 
 jobs:
   screenshots:
+    name: Checking Component Screenshots
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          lfs: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
 
@@ -36,66 +38,88 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install build dependencies
+        run: npm ci
+        working-directory: build
+
       - name: Install build/vite dependencies
         run: rm -f package-lock.json && npm install
+        working-directory: build/vite
+
+      - name: Build vite
+        run: npm run build
         working-directory: build/vite
 
       - name: Install Playwright Chromium
         run: npx playwright install chromium
 
       - name: Capture screenshots
-        run: npx component-explorer screenshot --project ./test/componentFixtures/component-explorer.json
+        run: ./node_modules/.bin/component-explorer screenshot --project ./test/componentFixtures/component-explorer.json
 
       - name: Compare screenshots
         id: compare
         run: |
-          npx component-explorer screenshot:compare \
+          ./node_modules/.bin/component-explorer screenshot:compare \
             --project ./test/componentFixtures \
-            --report ./test/componentFixtures/.screenshots/report.json \
-            --report-markdown ./test/componentFixtures/.screenshots/report.md
+            --report ./test/componentFixtures/.screenshots/report
         continue-on-error: true
+
+      - name: Prepare explorer artifact
+        run: |
+          mkdir -p /tmp/explorer-artifact/screenshot-report
+          cp -r build/vite/dist/* /tmp/explorer-artifact/
+          if [ -d test/componentFixtures/.screenshots/report ]; then
+            cp -r test/componentFixtures/.screenshots/report/* /tmp/explorer-artifact/screenshot-report/
+          fi
+
+      - name: Upload explorer artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: component-explorer
+          path: /tmp/explorer-artifact/
 
       - name: Upload screenshot report
         if: steps.compare.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: screenshot-diff
           path: |
             test/componentFixtures/.screenshots/current/
-            test/componentFixtures/.screenshots/report.json
-            test/componentFixtures/.screenshots/report.md
+            test/componentFixtures/.screenshots/report/
 
       - name: Set check title
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          REPORT="test/componentFixtures/.screenshots/report.json"
+          REPORT="test/componentFixtures/.screenshots/report/report.json"
+          STATE="success"
           if [ -f "$REPORT" ]; then
             CHANGED=$(node -e "const r = require('./$REPORT'); console.log(r.summary.added + r.summary.removed + r.summary.changed)")
-            TITLE="${CHANGED} screenshots changed"
+            TITLE="⚠ ${CHANGED} screenshots changed"
+            BLOCKS_CI=$(node -e "
+              const r = require('./$REPORT');
+              const blocking = Object.entries(r.fixtures).filter(([, f]) =>
+                f.status !== 'unchanged' && (f.labels || []).includes('blocks-ci')
+              );
+              if (blocking.length > 0) {
+                console.log(blocking.map(([name]) => name).join(', '));
+              }
+            ")
+            if [ -n "$BLOCKS_CI" ]; then
+              STATE="failure"
+              TITLE="❌ ${CHANGED} screenshots changed (blocks CI: ${BLOCKS_CI})"
+            fi
           else
-            TITLE="Screenshots match"
+            TITLE="✅ Screenshots match"
           fi
 
           SHA="${{ github.event.pull_request.head.sha || github.sha }}"
-          CHECK_RUN_ID=$(gh api "repos/${{ github.repository }}/commits/$SHA/check-runs" \
-            --jq '.check_runs[] | select(.name == "screenshots") | .id')
+          DETAILS_URL="https://hediet-ghartifactpreview.azurewebsites.net/${{ github.repository }}/run/${{ github.run_id }}/component-explorer/___explorer.html?report=./screenshot-report/report.json&search=changed"
 
-          if [ -n "$CHECK_RUN_ID" ]; then
-            gh api "repos/${{ github.repository }}/check-runs/$CHECK_RUN_ID" \
-              -X PATCH --input - <<EOF
-          {"output":{"title":"$TITLE","summary":"$TITLE"}}
+          gh api "repos/${{ github.repository }}/statuses/$SHA" \
+            --input - <<EOF || echo "::warning::Could not create commit status (expected for fork PRs)"
+          {"state":"$STATE","target_url":"$DETAILS_URL","description":"$TITLE","context":"Component Screenshots"}
           EOF
-          fi
-
-      - name: Post summary
-        run: |
-          if [ -f test/componentFixtures/.screenshots/report.md ]; then
-            cat test/componentFixtures/.screenshots/report.md >> $GITHUB_STEP_SUMMARY
-          else
-            echo "## Screenshots ✅" >> $GITHUB_STEP_SUMMARY
-            echo "No visual changes detected." >> $GITHUB_STEP_SUMMARY
-          fi
 
       # - name: Post PR comment
       #   if: github.event_name == 'pull_request'

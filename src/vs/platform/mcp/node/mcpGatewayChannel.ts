@@ -6,6 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IPCServer, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { ILoggerService } from '../../log/common/log.js';
 import { IGatewayCallToolResult, IGatewayServerResources, IGatewayServerResourceTemplates, IMcpGatewayService, McpGatewayToolBrokerChannelName } from '../common/mcpGateway.js';
 import { MCP } from '../common/modelContextProtocol.js';
 
@@ -19,10 +20,14 @@ export class McpGatewayChannel<TContext> extends Disposable implements IServerCh
 
 	constructor(
 		private readonly _ipcServer: IPCServer<TContext>,
-		@IMcpGatewayService private readonly mcpGatewayService: IMcpGatewayService
+		@IMcpGatewayService private readonly mcpGatewayService: IMcpGatewayService,
+		@ILoggerService private readonly _loggerService: ILoggerService,
 	) {
 		super();
-		this._register(_ipcServer.onDidRemoveConnection(c => mcpGatewayService.disposeGatewaysForClient(c.ctx)));
+		this._register(_ipcServer.onDidRemoveConnection(c => {
+			this._loggerService.getLogger('mcpGateway')?.info(`[McpGateway][Channel] Client disconnected: ${c.ctx}, cleaning up gateways`);
+			mcpGatewayService.disposeGatewaysForClient(c.ctx);
+		}));
 	}
 
 	listen<T>(_ctx: TContext, _event: string): Event<T> {
@@ -30,6 +35,9 @@ export class McpGatewayChannel<TContext> extends Disposable implements IServerCh
 	}
 
 	async call<T>(ctx: TContext, command: string, args?: unknown): Promise<T> {
+		const logger = this._loggerService.getLogger('mcpGateway');
+		logger?.debug(`[McpGateway][Channel] IPC call: ${command} from client ${ctx}`);
+
 		switch (command) {
 			case 'createGateway': {
 				const brokerChannel = ipcChannelForContext(this._ipcServer, ctx);
@@ -42,9 +50,11 @@ export class McpGatewayChannel<TContext> extends Disposable implements IServerCh
 					readResource: (serverIndex, uri) => brokerChannel.call<MCP.ReadResourceResult>('readResource', { serverIndex, uri }),
 					listResourceTemplates: () => brokerChannel.call<readonly IGatewayServerResourceTemplates[]>('listResourceTemplates'),
 				});
+				logger?.info(`[McpGateway][Channel] Gateway created: ${result.gatewayId} for client ${ctx}`);
 				return result as T;
 			}
 			case 'disposeGateway': {
+				logger?.info(`[McpGateway][Channel] Disposing gateway: ${args as string} for client ${ctx}`);
 				await this.mcpGatewayService.disposeGateway(args as string);
 				return undefined as T;
 			}

@@ -228,6 +228,31 @@
 			"problemMatcher": []
 		},
 		{
+			"label": "Run Dev Sessions",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"args": [
+				"--sessions"
+			],
+			"problemMatcher": []
+		},
+		{
+			"label": "Run and Compile Dev Sessions",
+			"type": "shell",
+			"command": "npm run transpile-client && ./scripts/code.sh",
+			"windows": {
+				"command": "npm run transpile-client && .\\scripts\\code.bat"
+			},
+			"args": [
+				"--sessions"
+			],
+			"inSessions": true,
+			"problemMatcher": []
+		},
+		{
 			"type": "npm",
 			"script": "electron",
 			"label": "Download electron"
@@ -357,6 +382,39 @@
 			"problemMatcher": [
 				"$tsc"
 			]
+		},
+		{
+			"label": "Launch Component Explorer",
+			"type": "shell",
+			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "component-explorer",
+				"fileLocation": "absolute",
+				"pattern": {
+					"regexp": "^\\s*at\\s+(.+?):(\\d+):(\\d+)\\s*$",
+					"file": 1,
+					"line": 2,
+					"column": 3
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*Setting up sessions.*",
+					"endsPattern": "Redirection server listening on.*"
+				}
+			}
+		},
+		{
+			"label": "Install & Watch",
+			"type": "shell",
+			"command": "npm install && npm run watch",
+			"windows": {
+				"command": "cmd /d /c \"npm install && npm run watch\""
+			},
+			"inSessions": true,
+			"runOptions": {
+				"runOn": "worktreeCreated"
+			}
 		}
 	]
 }

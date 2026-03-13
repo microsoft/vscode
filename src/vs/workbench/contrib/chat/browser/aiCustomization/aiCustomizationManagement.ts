@@ -5,11 +5,23 @@
 
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 // Re-export for convenience — consumers import from this file
 export { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
+
+/**
+ * Extended storage type for AI Customization that includes built-in prompts
+ * shipped with the application, alongside the core `PromptsStorage` values.
+ */
+export type AICustomizationPromptsStorage = PromptsStorage | 'builtin';
+
+/**
+ * Storage type discriminator for built-in prompts shipped with the application.
+ */
+export const BUILTIN_STORAGE: AICustomizationPromptsStorage = 'builtin';
 
 /**
  * Editor pane ID for the AI Customizations Management Editor.
@@ -38,7 +50,7 @@ export const AICustomizationManagementCommands = {
 export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR = new RawContextKey<boolean>(
 	'aiCustomizationManagementEditorFocused',
 	false,
-	localize('aiCustomizationManagementEditorFocused', "Whether the AI Customizations editor is focused")
+	localize('aiCustomizationManagementEditorFocused', "Whether the Chat Customizations editor is focused")
 );
 
 /**
@@ -47,7 +59,7 @@ export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR = new RawContextKey<bool
 export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION = new RawContextKey<string>(
 	'aiCustomizationManagementSection',
 	AICustomizationManagementSection.Agents,
-	localize('aiCustomizationManagementSection', "The currently selected section in the AI Customizations editor")
+	localize('aiCustomizationManagementSection', "The currently selected section in the Chat Customizations editor")
 );
 
 /**

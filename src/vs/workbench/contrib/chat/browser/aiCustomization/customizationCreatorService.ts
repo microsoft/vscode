@@ -121,8 +121,13 @@ export function resolveWorkspaceTargetDirectory(workspaceService: IAICustomizati
 
 /**
  * Resolves the user-level directory for a new customization file.
+ * Delegates to IPromptsService.getSourceFolders() which returns the appropriate
+ * user root (VS Code profile in core, ~/.copilot in sessions).
  */
-export async function resolveUserTargetDirectory(promptsService: IPromptsService, type: PromptsType): Promise<URI | undefined> {
+export async function resolveUserTargetDirectory(
+	promptsService: IPromptsService,
+	type: PromptsType,
+): Promise<URI | undefined> {
 	const folders = await promptsService.getSourceFolders(type);
 	const userFolder = folders.find(f => f.storage === PromptsStorage.user);
 	return userFolder?.uri;

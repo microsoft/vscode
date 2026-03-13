@@ -517,8 +517,11 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		markdownDescription: localize('terminalSandbox.enabledSetting', "Controls whether to run commands in a sandboxed terminal for the run in terminal tool."),
 		type: 'boolean',
 		default: false,
-		tags: ['experimental'],
+		tags: ['preview'],
 		restricted: true,
+		experiment: {
+			mode: 'auto'
+		}
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxNetwork]: {
 		markdownDescription: localize('terminalSandbox.networkSetting', "Note: this setting is applicable only when {0} is enabled. Controls network access in the terminal sandbox.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
@@ -547,7 +550,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			deniedDomains: [],
 			allowTrustedDomains: false
 		},
-		tags: ['experimental'],
+		tags: ['preview'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem]: {
@@ -578,7 +581,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			allowWrite: ['.'],
 			denyWrite: []
 		},
-		tags: ['experimental'],
+		tags: ['preview'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem]: {
@@ -609,7 +612,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			allowWrite: ['.'],
 			denyWrite: []
 		},
-		tags: ['experimental'],
+		tags: ['preview'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.PreventShellHistory]: {

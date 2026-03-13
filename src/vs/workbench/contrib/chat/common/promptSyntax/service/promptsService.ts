@@ -8,14 +8,28 @@ import { Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
+import { ContextKeyExpression } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
-import { PromptsType } from '../promptTypes.js';
+import { PromptsType, Target } from '../promptTypes.js';
 import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { IChatRequestHooks } from '../hookSchema.js';
 import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
+import { ChatRequestHooks } from '../hookSchema.js';
+
+/**
+ * Entry emitted by the prompts service when discovery logging occurs.
+ * A debug bridge (e.g. contribution) can listen and forward these to IChatDebugService.
+ */
+export interface IPromptDiscoveryLogEntry {
+	readonly sessionResource: URI;
+	readonly name: string;
+	readonly details?: string;
+	readonly category?: string;
+	/** When present, the bridge should store this for later event resolution. */
+	readonly discoveryInfo?: IPromptDiscoveryInfo;
+}
 
 /**
  * Activation events for prompt file providers.
@@ -59,7 +73,9 @@ export const IPromptsService = createDecorator<IPromptsService>('IPromptsService
 export enum PromptsStorage {
 	local = 'local',
 	user = 'user',
-	extension = 'extension'
+	extension = 'extension',
+	plugin = 'plugin',
+	internal = 'internal',
 }
 
 /**
@@ -74,7 +90,7 @@ export enum ExtensionAgentSourceType {
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
-export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath;
+export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath | IPluginPromptPath | IInternalPromptPath;
 
 
 export interface IPromptPathBase {
@@ -118,12 +134,26 @@ export interface IUserPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.user;
 }
 
+export interface IPluginPromptPath extends IPromptPathBase {
+	readonly storage: PromptsStorage.plugin;
+	readonly pluginUri: URI;
+}
+
+export interface IInternalPromptPath extends IPromptPathBase {
+	readonly storage: PromptsStorage.internal;
+}
+
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
 	readonly type: ExtensionAgentSourceType;
 } | {
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
+} | {
+	readonly storage: PromptsStorage.plugin;
+	readonly pluginUri: URI;
+} | {
+	readonly storage: PromptsStorage.internal;
 };
 
 /**
@@ -144,13 +174,6 @@ export function isCustomAgentVisibility(obj: unknown): obj is ICustomAgentVisibi
 	}
 	const v = obj as { userInvocable?: unknown; agentInvocable?: unknown };
 	return typeof v.userInvocable === 'boolean' && typeof v.agentInvocable === 'boolean';
-}
-
-export enum Target {
-	VSCode = 'vscode',
-	GitHubCopilot = 'github-copilot',
-	Claude = 'claude',
-	Undefined = 'undefined',
 }
 
 export interface ICustomAgent {
@@ -211,6 +234,11 @@ export interface ICustomAgent {
 	readonly agents?: readonly string[];
 
 	/**
+	 * Lifecycle hooks scoped to this subagent.
+	 */
+	readonly hooks?: ChatRequestHooks;
+
+	/**
 	 * Where the agent was loaded from.
 	 */
 	readonly source: IAgentSource;
@@ -228,6 +256,7 @@ export interface IChatPromptSlashCommand {
 	readonly argumentHint: string | undefined;
 	readonly promptPath: IPromptPath;
 	readonly parsedPromptFile: ParsedPromptFile;
+	readonly when: ContextKeyExpression | undefined;
 }
 
 export interface IAgentSkill {
@@ -245,6 +274,11 @@ export interface IAgentSkill {
 	 * Use for background knowledge users shouldn't invoke directly.
 	 */
 	readonly userInvocable: boolean;
+	/**
+	 * Optional context key expression. When set, the skill is only available
+	 * when this expression evaluates to true against a scoped context.
+	 */
+	readonly when?: ContextKeyExpression;
 }
 
 /**
@@ -284,7 +318,8 @@ export type PromptFileSkipReason =
 	| 'parse-error'
 	| 'disabled'
 	| 'all-hooks-disabled'
-	| 'claude-hooks-disabled';
+	| 'claude-hooks-disabled'
+	| 'workspace-untrusted';
 
 /**
  * Result of discovering a single prompt file.
@@ -308,15 +343,25 @@ export interface IPromptFileDiscoveryResult {
 }
 
 /**
+ * Diagnostic information about a source folder that was searched during discovery.
+ */
+export interface IPromptSourceFolderResult {
+	readonly uri: URI;
+	readonly storage: PromptsStorage;
+}
+
+/**
  * Summary of prompt file discovery for a specific type.
  */
 export interface IPromptDiscoveryInfo {
 	readonly type: PromptsType;
 	readonly files: readonly IPromptFileDiscoveryResult[];
+	/** Source folders that were searched */
+	readonly sourceFolders?: readonly IPromptSourceFolderResult[];
 }
 
 export interface IConfiguredHooksInfo {
-	readonly hooks: IChatRequestHooks;
+	readonly hooks: ChatRequestHooks;
 	readonly hasDisabledClaudeHooks: boolean;
 }
 
@@ -372,8 +417,9 @@ export interface IPromptsService extends IDisposable {
 
 	/**
 	 * Returns a prompt command if the command name is valid.
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	getPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]>;
+	getPromptSlashCommands(token: CancellationToken, sessionResource?: URI): Promise<readonly IChatPromptSlashCommand[]>;
 
 	/**
 	 * Returns the prompt command name for the given URI.
@@ -386,9 +432,15 @@ export interface IPromptsService extends IDisposable {
 	readonly onDidChangeCustomAgents: Event<void>;
 
 	/**
-	 * Finds all available custom agents
+	 * Event that is triggered when the list of instruction files changes.
 	 */
-	getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]>;
+	readonly onDidChangeInstructions: Event<void>;
+
+	/**
+	 * Finds all available custom agents
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
+	 */
+	getCustomAgents(token: CancellationToken, sessionResource?: URI): Promise<readonly ICustomAgent[]>;
 
 	/**
 	 * Parses the provided URI
@@ -446,19 +498,31 @@ export interface IPromptsService extends IDisposable {
 
 	/**
 	 * Gets list of agent skills files.
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined>;
+	findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined>;
 
 	/**
-	 * Gets detailed discovery information for a prompt type.
-	 * This includes all files found and their load/skip status with reasons.
-	 * Used for diagnostics and config-info displays.
+	 * Event that is triggered when the list of skills changes.
 	 */
-	getPromptDiscoveryInfo(type: PromptsType, token: CancellationToken): Promise<IPromptDiscoveryInfo>;
+	readonly onDidChangeSkills: Event<void>;
 
 	/**
 	 * Gets all hooks collected from hooks.json files.
 	 * The result is cached and invalidated when hook files change.
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	getHooks(token: CancellationToken): Promise<IConfiguredHooksInfo | undefined>;
+	getHooks(token: CancellationToken, sessionResource?: URI): Promise<IConfiguredHooksInfo | undefined>;
+
+	/**
+	 * Gets all instruction files, logging discovery info to the debug log.
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
+	 */
+	getInstructionFiles(token: CancellationToken, sessionResource?: URI): Promise<readonly IPromptPath[]>;
+
+	/**
+	 * Fired when a discovery-related log entry is produced.
+	 * Listeners (such as a debug bridge) can forward these to IChatDebugService.
+	 */
+	readonly onDidLogDiscovery: Event<IPromptDiscoveryLogEntry>;
 }

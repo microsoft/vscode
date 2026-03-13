@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append } from '../../../../../../base/browser/dom.js';
+import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../../../nls.js';
 import { IChatProgressMessage, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
@@ -61,13 +62,13 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			return;
 		}
 
-		if (this.showSpinner && !this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
-			// TODO@roblourens is this the right place for this?
+		if (this.showSpinner && this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
 			// this step is in progress, communicate it to SR users
-			alert(progress.content.value);
+			alert(stripIcons(renderAsPlaintext(progress.content)));
 		}
 		const isLoadingIcon = icon && ThemeIcon.isEqual(icon, ThemeIcon.modify(Codicon.loading, 'spin'));
-		const useShimmer = shimmer ?? ((!icon || isLoadingIcon) && this.showSpinner);
+		// Even if callers request shimmer, only the active (spinner-visible) progress row should animate.
+		const useShimmer = (shimmer ?? (!icon || isLoadingIcon)) && this.showSpinner;
 		// if we have shimmer, don't show spinner
 		const codicon = useShimmer ? Codicon.check : (icon ?? (this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin') : Codicon.check));
 		const result = this.chatContentMarkdownRenderer.render(progress.content);
@@ -148,6 +149,10 @@ export class ChatProgressSubPart extends Disposable {
 		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
 		if (tooltip) {
 			this._register(hoverService.setupDelayedHover(iconElement, {
+				content: tooltip,
+				style: HoverStyle.Pointer,
+			}));
+			this._register(hoverService.setupDelayedHover(messageElement, {
 				content: tooltip,
 				style: HoverStyle.Pointer,
 			}));

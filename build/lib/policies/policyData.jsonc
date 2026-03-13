@@ -39,20 +39,6 @@
     ],
     "policies": [
         {
-            "key": "chat.mcp.gallery.serviceUrl",
-            "name": "McpGalleryServiceUrl",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.101",
-            "localization": {
-                "description": {
-                    "key": "mcp.gallery.serviceUrl",
-                    "value": "Configure the MCP Gallery service URL to connect to"
-                }
-            },
-            "type": "string",
-            "default": ""
-        },
-        {
             "key": "extensions.gallery.serviceUrl",
             "name": "ExtensionGalleryServiceUrl",
             "category": "Extensions",
@@ -61,6 +47,20 @@
                 "description": {
                     "key": "extensions.gallery.serviceUrl",
                     "value": "Configure the Marketplace service URL to connect to"
+                }
+            },
+            "type": "string",
+            "default": ""
+        },
+        {
+            "key": "chat.mcp.gallery.serviceUrl",
+            "name": "McpGalleryServiceUrl",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.101",
+            "localization": {
+                "description": {
+                    "key": "mcp.gallery.serviceUrl",
+                    "value": "Configure the MCP Gallery service URL to connect to"
                 }
             },
             "type": "string",
@@ -164,6 +164,20 @@
                 "description": {
                     "key": "chat.agent.enabled.description",
                     "value": "When enabled, agent mode can be activated from chat and tools in agentic contexts with side effects can be used."
+                }
+            },
+            "type": "boolean",
+            "default": true
+        },
+        {
+            "key": "chat.editMode.hidden",
+            "name": "DeprecatedEditModeHidden",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.112",
+            "localization": {
+                "description": {
+                    "key": "chat.editMode.hidden",
+                    "value": "When enabled, hides the Edit mode from the chat mode picker."
                 }
             },
             "type": "boolean",
@@ -286,6 +300,20 @@
             },
             "type": "boolean",
             "default": true
+        },
+        {
+            "key": "workbench.browser.enableChatTools",
+            "name": "BrowserChatTools",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.110",
+            "localization": {
+                "description": {
+                    "key": "browser.enableChatTools",
+                    "value": "When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser."
+                }
+            },
+            "type": "boolean",
+            "default": false
         }
     ]
 }

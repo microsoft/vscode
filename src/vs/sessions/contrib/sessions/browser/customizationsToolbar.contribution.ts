@@ -5,7 +5,6 @@
 
 import '../../../browser/media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -21,76 +20,80 @@ import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyn
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { Menus } from '../../../browser/menus.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, workspaceIcon, userIcon, extensionIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon, hookIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { ISessionsManagementService } from './sessionsManagementService.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { getPromptSourceCounts, getSkillSourceCounts, getSourceCountsTotal, ISourceCounts } from './customizationCounts.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { getSourceCounts, getSourceCountsTotal } from './customizationCounts.js';
+import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
+import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 
-interface ICustomizationItemConfig {
+export interface ICustomizationItemConfig {
 	readonly id: string;
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	readonly section: AICustomizationManagementSection;
-	readonly getSourceCounts?: (promptsService: IPromptsService) => Promise<ISourceCounts>;
-	readonly getCount?: (languageModelsService: ILanguageModelsService, mcpService: IMcpService) => Promise<number>;
+	readonly promptType?: PromptsType;
+	readonly isMcp?: boolean;
+	readonly isPlugins?: boolean;
 }
 
-const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
+export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	{
 		id: 'sessions.customization.agents',
 		label: localize('agents', "Agents"),
 		icon: agentIcon,
 		section: AICustomizationManagementSection.Agents,
-		getSourceCounts: (ps) => getPromptSourceCounts(ps, PromptsType.agent),
+		promptType: PromptsType.agent,
 	},
 	{
 		id: 'sessions.customization.skills',
 		label: localize('skills', "Skills"),
 		icon: skillIcon,
 		section: AICustomizationManagementSection.Skills,
-		getSourceCounts: (ps) => getSkillSourceCounts(ps),
+		promptType: PromptsType.skill,
 	},
 	{
 		id: 'sessions.customization.instructions',
 		label: localize('instructions', "Instructions"),
 		icon: instructionsIcon,
 		section: AICustomizationManagementSection.Instructions,
-		getSourceCounts: (ps) => getPromptSourceCounts(ps, PromptsType.instructions),
+		promptType: PromptsType.instructions,
 	},
 	{
 		id: 'sessions.customization.prompts',
 		label: localize('prompts', "Prompts"),
 		icon: promptIcon,
 		section: AICustomizationManagementSection.Prompts,
-		getSourceCounts: (ps) => getPromptSourceCounts(ps, PromptsType.prompt),
+		promptType: PromptsType.prompt,
 	},
 	{
 		id: 'sessions.customization.hooks',
 		label: localize('hooks', "Hooks"),
 		icon: hookIcon,
 		section: AICustomizationManagementSection.Hooks,
-		getSourceCounts: (ps) => getPromptSourceCounts(ps, PromptsType.hook),
+		promptType: PromptsType.hook,
 	},
 	{
 		id: 'sessions.customization.mcpServers',
 		label: localize('mcpServers', "MCP Servers"),
-		icon: Codicon.server,
+		icon: mcpServerIcon,
 		section: AICustomizationManagementSection.McpServers,
-		getCount: (_lm, mcp) => Promise.resolve(mcp.servers.get().length),
+		isMcp: true,
 	},
 	{
-		id: 'sessions.customization.models',
-		label: localize('models', "Models"),
-		icon: Codicon.vm,
-		section: AICustomizationManagementSection.Models,
-		getCount: (lm) => Promise.resolve(lm.getLanguageModelIds().length),
+		id: 'sessions.customization.plugins',
+		label: localize('plugins', "Plugins"),
+		icon: pluginIcon,
+		section: AICustomizationManagementSection.Plugins,
+		isPlugins: true,
 	},
 ];
 
@@ -98,7 +101,7 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
  * Custom ActionViewItem for each customization link in the toolbar.
  * Renders icon + label + source count badges, matching the sidebar footer style.
  */
-class CustomizationLinkViewItem extends ActionViewItem {
+export class CustomizationLinkViewItem extends ActionViewItem {
 
 	private readonly _viewItemDisposables: DisposableStore;
 	private _button: Button | undefined;
@@ -113,6 +116,9 @@ class CustomizationLinkViewItem extends ActionViewItem {
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ISessionsManagementService private readonly _activeSessionService: ISessionsManagementService,
+		@IAICustomizationWorkspaceService private readonly _workspaceService: IAICustomizationWorkspaceService,
+		@IFileService private readonly _fileService: IFileService,
+		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -156,6 +162,10 @@ class CustomizationLinkViewItem extends ActionViewItem {
 			this._mcpService.servers.read(reader);
 			this._updateCounts();
 		}));
+		this._viewItemDisposables.add(autorun(reader => {
+			this._agentPluginService.plugins.read(reader);
+			this._updateCounts();
+		}));
 		this._viewItemDisposables.add(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateCounts()));
 		this._viewItemDisposables.add(autorun(reader => {
 			this._activeSessionService.activeSession.read(reader);
@@ -166,48 +176,34 @@ class CustomizationLinkViewItem extends ActionViewItem {
 		this._updateCounts();
 	}
 
+	private _updateCountsRequestId = 0;
+
 	private async _updateCounts(): Promise<void> {
 		if (!this._countContainer) {
 			return;
 		}
 
-		if (this._config.getSourceCounts) {
-			const counts = await this._config.getSourceCounts(this._promptsService);
-			this._renderSourceCounts(this._countContainer, counts);
-		} else if (this._config.getCount) {
-			const count = await this._config.getCount(this._languageModelsService, this._mcpService);
-			this._renderSimpleCount(this._countContainer, count);
-		}
-	}
+		const requestId = ++this._updateCountsRequestId;
 
-	private _renderSourceCounts(container: HTMLElement, counts: ISourceCounts): void {
-		container.textContent = '';
-		const total = getSourceCountsTotal(counts);
-		container.classList.toggle('hidden', total === 0);
-		if (total === 0) {
-			return;
-		}
-
-		const sources: { count: number; icon: ThemeIcon; title: string }[] = [
-			{ count: counts.workspace, icon: workspaceIcon, title: localize('workspaceCount', "{0} from workspace", counts.workspace) },
-			{ count: counts.user, icon: userIcon, title: localize('userCount', "{0} from user", counts.user) },
-			{ count: counts.extension, icon: extensionIcon, title: localize('extensionCount', "{0} from extensions", counts.extension) },
-		];
-
-		for (const source of sources) {
-			if (source.count === 0) {
-				continue;
+		if (this._config.promptType) {
+			const type = this._config.promptType;
+			const filter = this._workspaceService.getStorageSourceFilter(type);
+			const counts = await getSourceCounts(this._promptsService, type, filter, this._workspaceContextService, this._workspaceService, this._fileService);
+			if (requestId !== this._updateCountsRequestId) {
+				return;
 			}
-			const badge = append(container, $('span.source-count-badge'));
-			badge.title = source.title;
-			const icon = append(badge, $('span.source-count-icon'));
-			icon.classList.add(...ThemeIcon.asClassNameArray(source.icon));
-			const num = append(badge, $('span.source-count-num'));
-			num.textContent = `${source.count}`;
+			const total = getSourceCountsTotal(counts, filter);
+			this._renderTotalCount(this._countContainer, total);
+		} else if (this._config.isMcp) {
+			const total = this._mcpService.servers.get().length;
+			this._renderTotalCount(this._countContainer, total);
+		} else if (this._config.isPlugins) {
+			const total = this._agentPluginService.plugins.get().length;
+			this._renderTotalCount(this._countContainer, total);
 		}
 	}
 
-	private _renderSimpleCount(container: HTMLElement, count: number): void {
+	private _renderTotalCount(container: HTMLElement, count: number): void {
 		container.textContent = '';
 		container.classList.toggle('hidden', count === 0);
 		if (count > 0) {
@@ -220,7 +216,7 @@ class CustomizationLinkViewItem extends ActionViewItem {
 
 // --- Register actions and view items --- //
 
-class CustomizationsToolbarContribution extends Disposable implements IWorkbenchContribution {
+export class CustomizationsToolbarContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsCustomizationsToolbar';
 
@@ -252,7 +248,7 @@ class CustomizationsToolbarContribution extends Disposable implements IWorkbench
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const editorService = accessor.get(IEditorService);
 					const input = AICustomizationManagementEditorInput.getOrCreate();
-					const editor = await editorService.openEditor(input, { pinned: true });
+					const editor = await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
 					if (editor instanceof AICustomizationManagementEditor) {
 						editor.selectSectionById(config.section);
 					}

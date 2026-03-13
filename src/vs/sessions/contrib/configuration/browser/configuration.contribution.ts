@@ -8,20 +8,37 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultConfigurations([{
 	overrides: {
-		'chat.agentsControl.enabled': true,
+		'chat.experimentalSessionsWindowOverride': true,
+		'chat.hookFilesLocations': {
+			'.claude/settings.local.json': false,
+			'.claude/settings.json': false,
+			'~/.claude/settings.json': false,
+		},
 		'chat.agent.maxRequests': 1000,
-		'chat.restoreLastPanelSession': true,
-		'chat.unifiedAgentsBar.enabled': true,
+		'chat.customizationsMenu.userStoragePath': '~/.copilot',
 		'chat.viewSessions.enabled': false,
+		'chat.implicitContext.suggestedContext': false,
+		'chat.implicitContext.enabled': { 'panel': 'never' },
+		'chat.tools.terminal.enableAutoApprove': true,
+		'github.copilot.chat.githubMcpServer.enabled': true,
 
-		'diffEditor.renderSideBySide': false,
+		'breadcrumbs.enabled': false,
+
 		'diffEditor.hideUnchangedRegions.enabled': true,
+
+		'extensions.ignoreRecommendations': true,
 
 		'files.autoSave': 'afterDelay',
 
 		'git.autofetch': true,
+		'git.branchRandomName.enable': true,
 		'git.detectWorktrees': false,
 		'git.showProgress': false,
+
+		'github.copilot.enable': {
+			'markdown': true,
+			'plaintext': true,
+		},
 
 		'github.copilot.chat.claudeCode.enabled': true,
 		'github.copilot.chat.cli.branchSupport.enabled': true,
@@ -31,17 +48,22 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'inlineChat.affordance': 'editor',
 		'inlineChat.renderMode': 'hover',
 
+		'terminal.integrated.initialHint': false,
+
+		'workbench.editor.doubleClickTabToToggleEditorGroupSizes': 'maximize',
 		'workbench.editor.restoreEditors': false,
-		'workbench.editor.showTabs': 'single',
 		'workbench.startupEditor': 'none',
 		'workbench.tips.enabled': false,
 		'workbench.layoutControl.type': 'toggles',
 		'workbench.editor.useModal': 'all',
-		'workbench.editor.labelFormat': 'short',
+		'workbench.panel.showLabels': false,
+		'workbench.colorTheme': 'Experimental Dark',
+		'search.quickOpen.includeHistory': false,
+
 		'window.menuStyle': 'custom',
 		'window.dialogStyle': 'custom',
-
-		'terminal.integrated.initialHint': false
 	},
-	donotCache: true
+	donotCache: true,
+	preventExperimentOverride: true,
+	source: 'sessionsDefaults'
 }]);

@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import TelemetryReporter from '@vscode/extension-telemetry';
+import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import picomatch from 'picomatch';
-import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, ExcludeSettingOptions, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit } from 'vscode';
+import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, CustomExecution, Disposable, Event, EventEmitter, ExcludeSettingOptions, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProcessExecution, ProgressLocation, ProgressOptions, RelativePattern, scm, ShellExecution, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, Task, TaskRunOn, tasks, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
-import { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, RepositoryKind, Status } from './api/git';
+import type { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, LogOptions, Ref, Remote, RepositoryKind } from './api/git';
+import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
 import { AutoFetcher } from './autofetch';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, sequentialize, throttle } from './decorators';
@@ -23,7 +25,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktree, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktreeFolder, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { GitArtifactProvider } from './artifactProvider';
@@ -952,7 +954,7 @@ export class Repository implements Disposable {
 		const icon = repository.kind === 'submodule'
 			? new ThemeIcon('archive')
 			: repository.kind === 'worktree'
-				? isCopilotWorktree(repository.root)
+				? isCopilotWorktreeFolder(repository.root)
 					? new ThemeIcon('chat-sparkle')
 					: new ThemeIcon('worktree')
 				: new ThemeIcon('repo');
@@ -965,7 +967,7 @@ export class Repository implements Disposable {
 		//   from the Repositories view.
 		this._isHidden = workspace.workspaceFolders === undefined ||
 			(repository.kind === 'worktree' &&
-				isCopilotWorktree(repository.root) && parent !== undefined);
+				isCopilotWorktreeFolder(repository.root) && parent !== undefined);
 
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden, parent);
@@ -1304,6 +1306,12 @@ export class Repository implements Disposable {
 				this.closeDiffEditors([...resources.length !== 0 ?
 					resources.map(r => r.fsPath) :
 					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)], []);
+
+				// Clear AI contribution tracking for reverted resources
+				const uris = resources.length !== 0
+					? resources
+					: this.indexGroup.resourceStates.map(r => r.resourceUri);
+				commands.executeCommand('_aiEdits.clearAiContributions', uris);
 			},
 			() => {
 				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
@@ -1380,6 +1388,9 @@ export class Repository implements Disposable {
 						opts.requireUserConfig = config.get<boolean>('requireGitUserConfig');
 					}
 
+					// Add AI co-author trailer if applicable
+					message = await this.appendAICoAuthorTrailer(message, indexResources, workingGroupResources);
+
 					await this.repository.commit(message, opts);
 					await this.commitOperationCleanup(message, indexResources, workingGroupResources);
 				},
@@ -1403,6 +1414,55 @@ export class Repository implements Disposable {
 			? indexResources.map(r => Uri.file(r))
 			: workingGroupResources.map(r => Uri.file(r));
 		commands.executeCommand('_chat.editSessions.accept', resources);
+
+		// Clear AI contribution tracking for committed resources
+		commands.executeCommand('_aiEdits.clearAiContributions', resources);
+	}
+
+	private static readonly AI_CO_AUTHOR_TRAILER = 'Co-authored-by: Copilot <copilot@github.com>';
+
+	private async appendAICoAuthorTrailer(
+		message: string | undefined,
+		indexResources: string[],
+		workingGroupResources: string[]
+	): Promise<string | undefined> {
+		if (!message) {
+			return message;
+		}
+
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const addAICoAuthor = config.get<'off' | 'chatAndAgent' | 'all'>('addAICoAuthor', 'off');
+
+		if (addAICoAuthor === 'off') {
+			return message;
+		}
+
+		// Don't add if trailer is already present
+		if (message.includes(Repository.AI_CO_AUTHOR_TRAILER)) {
+			return message;
+		}
+
+		const resources = indexResources.length !== 0
+			? indexResources.map(r => Uri.file(r))
+			: workingGroupResources.map(r => Uri.file(r));
+
+		if (resources.length === 0) {
+			return message;
+		}
+
+		try {
+			const level = addAICoAuthor === 'all' ? 'all' : 'chatAndAgent';
+			const hasAiContributions = await commands.executeCommand<boolean>('_aiEdits.hasAiContributions', resources, level);
+			if (hasAiContributions) {
+				// Ensure proper trailer formatting: blank line before trailers
+				const trimmed = message.trimEnd();
+				return `${trimmed}\n\n${Repository.AI_CO_AUTHOR_TRAILER}`;
+			}
+		} catch {
+			// Command may not be available (e.g., in web environment)
+		}
+
+		return message;
 	}
 
 	private commitOperationGetOptimisticResourceGroups(opts: CommitOptions): GitResourceGroups {
@@ -1505,6 +1565,9 @@ export class Repository implements Disposable {
 				}
 
 				this.closeDiffEditors([], [...toClean, ...toCheckout]);
+
+				// Clear AI contribution tracking for discarded resources
+				commands.executeCommand('_aiEdits.clearAiContributions', resources);
 			},
 			() => {
 				const resourcePaths = resources.map(r => r.fsPath);
@@ -1829,13 +1892,39 @@ export class Repository implements Disposable {
 				this.globalState.update(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`, newWorktreeRoot);
 			}
 
-			// Copy worktree include files. We explicitly do not await this
-			// since we don't want to block the worktree creation on the
-			// copy operation.
-			this._copyWorktreeIncludeFiles(worktreePath!);
+			this._setupWorktree(worktreePath!);
 
 			return worktreePath!;
 		});
+	}
+
+	private async _setupWorktree(worktreePath: string): Promise<void> {
+		// Copy worktree include files and wait for the copy to complete
+		// before running any worktree-created tasks.
+		await this._copyWorktreeIncludeFiles(worktreePath);
+
+		await this._runWorktreeCreatedTasks(worktreePath);
+	}
+
+	private async _runWorktreeCreatedTasks(worktreePath: string): Promise<void> {
+		try {
+			const allTasks = await tasks.fetchTasks();
+			const worktreeTasks = allTasks.filter(task => task.runOptions.runOn === TaskRunOn.WorktreeCreated);
+
+			for (const task of worktreeTasks) {
+				const worktreeTask = retargetTaskToWorktree(task, worktreePath);
+				if (!worktreeTask) {
+					this.logger.warn(`[Repository][_runWorktreeCreatedTasks] Skipped task '${task.name}' because it could not be retargeted to worktree '${worktreePath}'.`);
+					continue;
+				}
+
+				tasks.executeTask(worktreeTask).then(undefined, err => {
+					this.logger.warn(`[Repository][_runWorktreeCreatedTasks] Failed to execute worktree-created task '${task.name}' for '${worktreePath}': ${err}`);
+				});
+			}
+		} catch (err) {
+			this.logger.warn(`[Repository][_runWorktreeCreatedTasks] Failed to execute worktree-created tasks for '${worktreePath}': ${err}`);
+		}
 	}
 
 	private async _getWorktreeIncludePaths(): Promise<Set<string>> {
@@ -1980,12 +2069,20 @@ export class Repository implements Disposable {
 				}
 
 				await this.repository.checkout(treeish, [], opts);
+
+				// Clear all AI contribution tracking on branch switch
+				commands.executeCommand('_aiEdits.clearAllAiContributions');
 			});
 	}
 
 	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
 		const refLabel = opts.detached ? getCommitShortHash(Uri.file(this.root), treeish) : treeish;
-		await this.run(Operation.CheckoutTracking(refLabel), () => this.repository.checkout(treeish, [], { ...opts, track: true }));
+		await this.run(Operation.CheckoutTracking(refLabel), async () => {
+			await this.repository.checkout(treeish, [], { ...opts, track: true });
+
+			// Clear all AI contribution tracking on branch switch
+			commands.executeCommand('_aiEdits.clearAllAiContributions');
+		});
 	}
 
 	async findTrackingBranches(upstreamRef: string): Promise<Branch[]> {
@@ -2014,7 +2111,14 @@ export class Repository implements Disposable {
 	}
 
 	async reset(treeish: string, hard?: boolean): Promise<void> {
-		await this.run(Operation.Reset, () => this.repository.reset(treeish, hard));
+		await this.run(Operation.Reset, async () => {
+			await this.repository.reset(treeish, hard);
+
+			if (hard) {
+				// Clear all AI contribution tracking on hard reset
+				commands.executeCommand('_aiEdits.clearAllAiContributions');
+			}
+		});
 	}
 
 	async deleteRef(ref: string): Promise<void> {
@@ -3217,7 +3321,110 @@ export class Repository implements Disposable {
 		return this.unpublishedCommits;
 	}
 
+	async generateRandomBranchName(): Promise<string | undefined> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
+
+		if (!branchRandomNameEnabled) {
+			return undefined;
+		}
+
+		const branchPrefix = config.get<string>('branchPrefix', '');
+		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar', '-');
+		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary', ['adjectives', 'animals']);
+
+		const dictionaries: string[][] = [];
+		for (const dictionary of branchRandomNameDictionary) {
+			if (dictionary.toLowerCase() === 'adjectives') {
+				dictionaries.push(adjectives);
+			}
+			if (dictionary.toLowerCase() === 'animals') {
+				dictionaries.push(animals);
+			}
+			if (dictionary.toLowerCase() === 'colors') {
+				dictionaries.push(colors);
+			}
+			if (dictionary.toLowerCase() === 'numbers') {
+				dictionaries.push(NumberDictionary.generate({ length: 3 }));
+			}
+		}
+
+		if (dictionaries.length === 0) {
+			return undefined;
+		}
+
+		// 5 attempts to generate a random branch name
+		for (let index = 0; index < 5; index++) {
+			const randomName = uniqueNamesGenerator({
+				dictionaries,
+				length: dictionaries.length,
+				separator: branchWhitespaceChar
+			});
+
+			// Check for local ref conflict
+			const refs = await this.getRefs({ pattern: `refs/heads/${branchPrefix}${randomName}` });
+			if (refs.length === 0) {
+				return `${branchPrefix}${randomName}`;
+			}
+		}
+
+		return undefined;
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}
+}
+
+function retargetTaskToWorktree(task: Task, worktreePath: string): Task | undefined {
+	const execution = retargetTaskExecution(task.execution, worktreePath);
+	if (!execution) {
+		return undefined;
+	}
+
+	const worktreeFolder: WorkspaceFolder = {
+		uri: Uri.file(worktreePath),
+		name: path.basename(worktreePath),
+		index: workspace.workspaceFolders?.length ?? 0
+	};
+
+	const worktreeTask = new Task({ ...task.definition }, worktreeFolder, task.name, task.source, execution, task.problemMatchers);
+	worktreeTask.detail = task.detail;
+	worktreeTask.group = task.group;
+	worktreeTask.isBackground = task.isBackground;
+	worktreeTask.presentationOptions = { ...task.presentationOptions };
+	worktreeTask.runOptions = { ...task.runOptions };
+
+	return worktreeTask;
+}
+
+function retargetTaskExecution(execution: ProcessExecution | ShellExecution | CustomExecution | undefined, worktreePath: string): ProcessExecution | ShellExecution | CustomExecution | undefined {
+	if (!execution) {
+		return undefined;
+	}
+
+	if (execution instanceof ProcessExecution) {
+		return new ProcessExecution(execution.process, execution.args, {
+			...execution.options,
+			cwd: worktreePath
+		});
+	}
+
+	if (execution instanceof ShellExecution) {
+		if (execution.commandLine !== undefined) {
+			return new ShellExecution(execution.commandLine, {
+				...execution.options,
+				cwd: worktreePath
+			});
+		}
+
+		if (execution.command !== undefined) {
+			return new ShellExecution(execution.command, execution.args ?? [], {
+				...execution.options,
+				cwd: worktreePath
+			});
+		}
+	}
+
+	return execution;
 }

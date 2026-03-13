@@ -260,12 +260,28 @@ export interface IConfigurationNode {
 	restrictedProperties?: string[];
 }
 
-export type ConfigurationDefaultValueSource = IExtensionInfo | Map<string, IExtensionInfo>;
+export type ConfigurationDefaultSource = IExtensionInfo | string;
+
+export function isConfigurationDefaultSourceEquals(a: ConfigurationDefaultSource | undefined, b: ConfigurationDefaultSource | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	if (typeof a === 'string' || typeof b === 'string') {
+		return a === b;
+	}
+	return a.id === b.id;
+}
+
+export type ConfigurationDefaultValueSource = ConfigurationDefaultSource | Map<string, ConfigurationDefaultSource>;
 
 export interface IConfigurationDefaults {
 	overrides: IStringDictionary<unknown>;
-	source?: IExtensionInfo;
+	source?: ConfigurationDefaultSource;
 	donotCache?: boolean;
+	preventExperimentOverride?: boolean;
 }
 
 export type IRegisteredConfigurationPropertySchema = IConfigurationPropertySchema & {
@@ -276,13 +292,13 @@ export type IRegisteredConfigurationPropertySchema = IConfigurationPropertySchem
 		extensionInfo?: IExtensionInfo;
 	};
 	defaultDefaultValue?: unknown;
-	source?: IExtensionInfo; // Source of the Property
+	source?: ConfigurationDefaultSource; // Source of the Property
 	defaultValueSource?: ConfigurationDefaultValueSource; // Source of the Default Value
 };
 
 export interface IConfigurationDefaultOverride {
 	readonly value: unknown;
-	readonly source?: IExtensionInfo;  // Source of the default override
+	readonly source?: ConfigurationDefaultSource;  // Source of the default override
 }
 
 export interface IConfigurationDefaultOverrideValue {
@@ -457,7 +473,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 				}
 
 				const index = configurationDefaultOverridesForKey.configurationDefaultOverrides
-					.findIndex(configurationDefaultOverride => source ? configurationDefaultOverride.source?.id === source.id : configurationDefaultOverride.value === overrides[key]);
+					.findIndex(configurationDefaultOverride => source ? isConfigurationDefaultSourceEquals(configurationDefaultOverride.source, source) : configurationDefaultOverride.value === overrides[key]);
 				if (index === -1) {
 					continue;
 				}
@@ -498,7 +514,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 		this.updateOverridePropertyPatternKey();
 	}
 
-	private updateDefaultOverrideProperty(key: string, newDefaultOverride: IConfigurationDefaultOverrideValue, source: IExtensionInfo | undefined): void {
+	private updateDefaultOverrideProperty(key: string, newDefaultOverride: IConfigurationDefaultOverrideValue, source: ConfigurationDefaultSource | undefined): void {
 		const property: IRegisteredConfigurationPropertySchema = {
 			section: {
 				id: this.defaultLanguageConfigurationOverridesNode.id,
@@ -518,9 +534,9 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 		this.defaultLanguageConfigurationOverridesNode.properties![key] = property;
 	}
 
-	private mergeDefaultConfigurationsForOverrideIdentifier(overrideIdentifier: string, configurationValueObject: IStringDictionary<unknown>, valueSource: IExtensionInfo | undefined, existingDefaultOverride: IConfigurationDefaultOverrideValue | undefined): IConfigurationDefaultOverrideValue | undefined {
+	private mergeDefaultConfigurationsForOverrideIdentifier(overrideIdentifier: string, configurationValueObject: IStringDictionary<unknown>, valueSource: ConfigurationDefaultSource | undefined, existingDefaultOverride: IConfigurationDefaultOverrideValue | undefined): IConfigurationDefaultOverrideValue | undefined {
 		const defaultValue = existingDefaultOverride?.value || {};
-		const source = existingDefaultOverride?.source ?? new Map<string, IExtensionInfo>();
+		const source = existingDefaultOverride?.source ?? new Map<string, ConfigurationDefaultSource>();
 
 		// This should not happen
 		if (!(source instanceof Map)) {
@@ -559,7 +575,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 		return { value: defaultValue, source };
 	}
 
-	private mergeDefaultConfigurationsForConfigurationProperty(propertyKey: string, value: unknown, valuesSource: IExtensionInfo | undefined, existingDefaultOverride: IConfigurationDefaultOverrideValue | undefined): IConfigurationDefaultOverrideValue | undefined {
+	private mergeDefaultConfigurationsForConfigurationProperty(propertyKey: string, value: unknown, valuesSource: ConfigurationDefaultSource | undefined, existingDefaultOverride: IConfigurationDefaultOverrideValue | undefined): IConfigurationDefaultOverrideValue | undefined {
 		const property = this.configurationProperties[propertyKey];
 		const existingDefaultValue = existingDefaultOverride?.value ?? property?.defaultDefaultValue;
 		let source: ConfigurationDefaultValueSource | undefined = valuesSource;
@@ -572,7 +588,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 
 		// If the default value is an object, merge the objects and store the source of each keys
 		if (isObjectSetting) {
-			source = existingDefaultOverride?.source ?? new Map<string, IExtensionInfo>();
+			source = existingDefaultOverride?.source ?? new Map<string, ConfigurationDefaultSource>();
 
 			// This should not happen
 			if (!(source instanceof Map)) {

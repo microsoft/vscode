@@ -12,6 +12,7 @@ import { basename, dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -22,7 +23,6 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariable
 import { ILanguageModelToolsService, IToolData, VSCodeToolReference } from '../tools/languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { isInClaudeAgentsFolder, isInClaudeRulesFolder, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
-import { PromptsType } from './promptTypes.js';
 import { ParsedPromptFile } from './promptFileParser.js';
 import { AgentFileType, ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -64,10 +64,12 @@ export class ComputeAutomaticInstructions {
 		private readonly _modeKind: ChatModeKind,
 		private readonly _enabledTools: UserSelectedTools | undefined,
 		private readonly _enabledSubagents: (readonly string[]) | undefined,
+		private readonly _sessionResource: URI | undefined,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILogService public readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IFileService private readonly _fileService: IFileService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -93,7 +95,7 @@ export class ComputeAutomaticInstructions {
 
 	public async collect(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
 
-		const instructionFiles = await this._promptsService.listPromptFiles(PromptsType.instructions, token);
+		const instructionFiles = await this._promptsService.getInstructionFiles(token, this._sessionResource);
 
 		this._logService.trace(`[InstructionsContextComputer] ${instructionFiles.length} instruction files available.`);
 
@@ -109,9 +111,9 @@ export class ComputeAutomaticInstructions {
 		// get copilot instructions
 		await this._addAgentInstructions(variables, telemetryEvent, token);
 
-		const instructionsListVariable = await this._getInstructionsWithPatternsList(instructionFiles, variables, telemetryEvent, token);
-		if (instructionsListVariable) {
-			variables.add(instructionsListVariable);
+		const customizationsIndexVariable = await this._getCustomizationsIndex(instructionFiles, variables, telemetryEvent, token);
+		if (customizationsIndexVariable) {
+			variables.add(customizationsIndexVariable);
 			telemetryEvent.listedInstructionsCount++;
 		}
 
@@ -293,7 +295,7 @@ export class ComputeAutomaticInstructions {
 		return undefined;
 	}
 
-	private async _getInstructionsWithPatternsList(instructionFiles: readonly IPromptPath[], _existingVariables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<IPromptTextVariableEntry | undefined> {
+	private async _getCustomizationsIndex(instructionFiles: readonly IPromptPath[], _existingVariables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<IPromptTextVariableEntry | undefined> {
 		const readTool = this._getTool('readFile');
 		const runSubagentTool = this._getTool(VSCodeToolReference.runSubagent);
 
@@ -354,9 +356,10 @@ export class ComputeAutomaticInstructions {
 				entries.push('</instructions>', '', ''); // add trailing newline
 			}
 
-			const agentSkills = await this._promptsService.findAgentSkills(token);
+			const agentSkills = await this._promptsService.findAgentSkills(token, this._sessionResource);
 			// Filter out skills with disableModelInvocation=true (they can only be triggered manually via /name)
-			const modelInvocableSkills = agentSkills?.filter(skill => !skill.disableModelInvocation);
+			// Also filter by `when` clause using the scoped context key service
+			const modelInvocableSkills = agentSkills?.filter(skill => !skill.disableModelInvocation && (!skill.when || this._contextKeyService.contextMatchesRules(skill.when)));
 			if (modelInvocableSkills && modelInvocableSkills.length > 0) {
 				const useSkillAdherencePrompt = this._configurationService.getValue(PromptsConfig.USE_SKILL_ADHERENCE_PROMPT);
 				entries.push('<skills>');
@@ -400,7 +403,7 @@ export class ComputeAutomaticInstructions {
 					return (agent: ICustomAgent) => subagents.includes(agent.name);
 				}
 			})();
-			const agents = await this._promptsService.getCustomAgents(token);
+			const agents = await this._promptsService.getCustomAgents(token, this._sessionResource);
 			if (agents.length > 0) {
 				entries.push('<agents>');
 				entries.push('Here is a list of agents that can be used when running a subagent.');

@@ -13,7 +13,7 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatSubagentContentPart } from '../../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { IChatMarkdownContent, IChatSubagentToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
-import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -22,6 +22,9 @@ import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js
 import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { AccessibilityWorkbenchSettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { RunSubagentTool } from '../../../../common/tools/builtinTools/runSubagentTool.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
@@ -52,6 +55,7 @@ suite('ChatSubagentContentPart', () => {
 
 		return {
 			element: mockElement as IChatResponseViewModel,
+			inlineTextModels: {} as InlineTextModelCollection,
 			elementIndex: 0,
 			container: mainWindow.document.createElement('div'),
 			content: [],
@@ -147,6 +151,7 @@ suite('ChatSubagentContentPart', () => {
 			toolCallId: toolCallId,
 			subAgentInvocationId: options.subAgentInvocationId,
 			state: observableValue('state', stateValue),
+			isAttachedToThinking: false,
 			kind: 'toolInvocation',
 			toJSON: () => createMockSerializedToolInvocation({
 				toolId: options.toolId ?? RunSubagentTool.Id,
@@ -412,6 +417,10 @@ suite('ChatSubagentContentPart', () => {
 		});
 
 		test('finalizeTitle should update button icon to check', () => {
+			// Enable the showCheckmarks setting so the check icon is visible
+			const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			configService.setUserConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks, true);
+
 			const toolInvocation = createMockToolInvocation();
 			const context = createMockRenderContext(false);
 

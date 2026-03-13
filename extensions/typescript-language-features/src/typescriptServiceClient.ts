@@ -536,13 +536,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	public async openTsServerLogFile(): Promise<boolean> {
 		if (this._configuration.tsServerLogLevel === TsServerLogLevel.Off) {
 			vscode.window.showErrorMessage<vscode.MessageItem>(
-				vscode.l10n.t("TS Server logging is off. Please set 'typescript.tsserver.log' and restart the TS server to enable logging"),
+				vscode.l10n.t("TS Server logging is off. Please set 'js/ts.tsserver.log' and restart the TS server to enable logging"),
 				{
 					title: vscode.l10n.t("Enable logging and restart TS server"),
 				})
 				.then(selection => {
 					if (selection) {
-						return vscode.workspace.getConfiguration().update('typescript.tsserver.log', 'verbose', true).then(() => {
+						return vscode.workspace.getConfiguration().update('js/ts.tsserver.log', 'verbose', true).then(() => {
 							this.restartTsServer();
 						});
 					}

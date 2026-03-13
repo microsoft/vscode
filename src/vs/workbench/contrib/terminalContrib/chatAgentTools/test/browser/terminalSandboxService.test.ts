@@ -266,4 +266,68 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 			'Wrapped command should include PATH modification with ripgrep'
 		);
 	});
+
+	test('should pass wrapped command as a single quoted argument', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const command = '";echo SANDBOX_ESCAPE_REPRO; # $(uname) `id`';
+		const wrappedCommand = sandboxService.wrapCommand(command);
+
+		ok(
+			wrappedCommand.includes(`-c '";echo SANDBOX_ESCAPE_REPRO; # $(uname) \`id\`'`),
+			'Wrapped command should shell-quote the command argument using single quotes'
+		);
+		ok(
+			!wrappedCommand.includes(`-c "${command}"`),
+			'Wrapped command should not embed the command in double quotes'
+		);
+	});
+
+	test('should keep variable and command substitution payloads literal', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const command = 'echo $HOME $(curl eth0.me) `id`';
+		const wrappedCommand = sandboxService.wrapCommand(command);
+
+		ok(
+			wrappedCommand.includes(`-c 'echo $HOME $(curl eth0.me) \`id\`'`),
+			'Wrapped command should keep variable and command substitutions inside the quoted argument'
+		);
+		ok(
+			!wrappedCommand.includes(`-c ${command}`),
+			'Wrapped command should not pass substitution payloads to -c without quoting'
+		);
+	});
+
+	test('should escape single-quote breakout payloads in wrapped command argument', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const command = `';curl eth0.me; #'`;
+		const wrappedCommand = sandboxService.wrapCommand(command);
+
+		ok(
+			wrappedCommand.includes(`-c '`),
+			'Wrapped command should continue to use a single-quoted -c argument'
+		);
+		ok(
+			wrappedCommand.includes('curl eth0.me'),
+			'Wrapped command should preserve the payload text literally'
+		);
+		ok(
+			!wrappedCommand.includes(`-c '${command}'`),
+			'Wrapped command should not embed attacker-controlled single quotes without escaping'
+		);
+		strictEqual((wrappedCommand.match(/\\''/g) ?? []).length, 2, 'Single quote breakout payload should escape each embedded single quote');
+	});
+
+	test('should escape embedded single quotes in wrapped command argument', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrappedCommand = sandboxService.wrapCommand(`echo 'hello'`);
+		strictEqual((wrappedCommand.match(/\\''/g) ?? []).length, 2, 'Single quote escapes should be inserted for each embedded single quote');
+	});
 });

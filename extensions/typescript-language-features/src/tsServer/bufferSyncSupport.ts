@@ -10,7 +10,7 @@ import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { inMemoryResourcePrefix } from '../typescriptServiceClient';
 import { coalesce } from '../utils/arrays';
-import { readUnifiedConfig, unifiedConfigSection } from '../utils/configuration';
+import { ResourceUnifiedConfigValue } from '../utils/configuration';
 import { Delayer, setImmediate } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
 import { Disposable } from '../utils/dispose';
@@ -471,6 +471,8 @@ export default class BufferSyncSupport extends Disposable {
 	private listening: boolean = false;
 	private readonly synchronizer: BufferSynchronizer;
 
+	private readonly _validate: ResourceUnifiedConfigValue<boolean>;
+
 	private readonly _tabResources: TabResourceTracker;
 
 	constructor(
@@ -481,6 +483,8 @@ export default class BufferSyncSupport extends Disposable {
 		super();
 		this.client = client;
 		this.modeIds = new Set<string>(modeIds);
+
+		this._validate = this._register(new ResourceUnifiedConfigValue<boolean>('validate.enabled', true, { fallbackSubSectionNameOverride: 'validate.enable' }));
 
 		this.diagnosticDelayer = new Delayer<any>(300);
 
@@ -511,14 +515,7 @@ export default class BufferSyncSupport extends Disposable {
 			}
 		}));
 
-		this._register(vscode.workspace.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration(`${unifiedConfigSection}.validate.enabled`)
-				|| e.affectsConfiguration('typescript.validate.enable')
-				|| e.affectsConfiguration('javascript.validate.enable')
-			) {
-				this.requestAllDiagnostics();
-			}
-		}));
+		this._register(this._validate.onDidChange(() => this.requestAllDiagnostics()));
 	}
 
 	private readonly _onDelete = this._register(new vscode.EventEmitter<vscode.Uri>());
@@ -769,9 +766,6 @@ export default class BufferSyncSupport extends Disposable {
 			return false;
 		}
 
-		const fallbackSection = (buffer.languageId === languageModeIds.javascript || buffer.languageId === languageModeIds.javascriptreact)
-			? 'javascript'
-			: 'typescript';
-		return readUnifiedConfig<boolean>('validate.enabled', true, { scope: buffer.document, fallbackSection, fallbackSubSectionNameOverride: 'validate.enable' });
+		return this._validate.getValue(buffer.document);
 	}
 }

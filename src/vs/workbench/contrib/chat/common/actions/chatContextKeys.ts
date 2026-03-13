@@ -9,7 +9,7 @@ import { IsWebContext } from '../../../../../platform/contextkey/common/contextk
 import { RemoteNameContext } from '../../../../common/contextkeys.js';
 import { ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
-import { ChatAgentLocation, ChatModeKind } from '../constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 
 export namespace ChatContextKeys {
 	export const responseVote = new RawContextKey<string>('chatSessionResponseVote', '', { type: 'string', description: localize('interactiveSessionResponseVote', "When the response has been voted up, is set to 'up'. When voted down, is set to 'down'. Otherwise an empty string.") });
@@ -23,7 +23,8 @@ export namespace ChatContextKeys {
 
 	export const enum EditingRequestType {
 		Sent = 's',
-		QueueOrSteer = 'qs',
+		Queue = 'q',
+		Steer = 'st',
 	}
 	export const editingRequestType = new RawContextKey<EditingRequestType | undefined>('chatEditingSentRequest', undefined, { type: 'string', description: localize('chatEditingSentRequest', "The type of the current editing request.") });
 
@@ -43,8 +44,10 @@ export namespace ChatContextKeys {
 	export const inChatEditor = new RawContextKey<boolean>('inChatEditor', false, { type: 'boolean', description: localize('inChatEditor', "Whether focus is in a chat editor.") });
 	export const inChatTodoList = new RawContextKey<boolean>('inChatTodoList', false, { type: 'boolean', description: localize('inChatTodoList', "True when focus is in the chat todo list.") });
 	export const inChatTip = new RawContextKey<boolean>('inChatTip', false, { type: 'boolean', description: localize('inChatTip', "True when focus is in a chat tip.") });
+	export const multipleChatTips = new RawContextKey<boolean>('multipleChatTips', false, { type: 'boolean', description: localize('multipleChatTips', "True when there are multiple chat tips available.") });
 	export const inChatTerminalToolOutput = new RawContextKey<boolean>('inChatTerminalToolOutput', false, { type: 'boolean', description: localize('inChatTerminalToolOutput', "True when focus is in the chat terminal output region.") });
 	export const chatModeKind = new RawContextKey<ChatModeKind>('chatAgentKind', ChatModeKind.Ask, { type: 'string', description: localize('agentKind', "The 'kind' of the current agent.") });
+	export const chatPermissionLevel = new RawContextKey<ChatPermissionLevel>('chatPermissionLevel', ChatPermissionLevel.Default, { type: 'string', description: localize('chatPermissionLevel', "The current permission level for tool auto-approval.") });
 	export const chatModeName = new RawContextKey<string>('chatModeName', '', { type: 'string', description: localize('chatModeName', "The name of the current chat mode (e.g. 'Plan' for custom modes).") });
 	export const chatModelId = new RawContextKey<string>('chatModelId', '', { type: 'string', description: localize('chatModelId', "The short id of the currently selected chat model (for example 'gpt-4.1').") });
 
@@ -55,6 +58,7 @@ export namespace ChatContextKeys {
 	 * True when the chat widget is locked to the coding agent session.
 	 */
 	export const lockedToCodingAgent = new RawContextKey<boolean>('lockedToCodingAgent', false, { type: 'boolean', description: localize('lockedToCodingAgent', "True when the chat widget is locked to the coding agent session.") });
+	export const lockedCodingAgentId = new RawContextKey<string>('lockedCodingAgentId', '', { type: 'string', description: localize('lockedCodingAgentId', "The agent ID when the chat widget is locked to a coding agent session.") });
 	/**
 	 * True when the chat session has a customAgentTarget defined in its contribution,
 	 * which means the mode picker should be shown with filtered custom agents.
@@ -87,6 +91,8 @@ export namespace ChatContextKeys {
 	export const hasFileAttachments = new RawContextKey<boolean>('chatHasFileAttachments', false, { type: 'boolean', description: localize('chatHasFileAttachments', "True when the chat has file attachments.") });
 	export const chatSessionIsEmpty = new RawContextKey<boolean>('chatSessionIsEmpty', true, { type: 'boolean', description: localize('chatSessionIsEmpty', "True when the current chat session has no requests.") });
 	export const hasPendingRequests = new RawContextKey<boolean>('chatHasPendingRequests', false, { type: 'boolean', description: localize('chatHasPendingRequests', "True when there are pending requests in the queue.") });
+	export const chatSessionHasDebugData = new RawContextKey<boolean>('chatSessionHasDebugData', false, { type: 'boolean', description: localize('chatSessionHasDebugData', "True when the current chat session has debug log data.") });
+	export const chatSessionHasDebugTools = new RawContextKey<boolean>('chatSessionHasDebugTools', false, { type: 'boolean', description: localize('chatSessionHasDebugTools', "True when debug tools are enabled in the current chat session.") });
 
 	export const remoteJobCreating = new RawContextKey<boolean>('chatRemoteJobCreating', false, { type: 'boolean', description: localize('chatRemoteJobCreating', "True when a remote coding agent job is being created.") });
 	export const hasRemoteCodingAgent = new RawContextKey<boolean>('hasRemoteCodingAgent', false, localize('hasRemoteCodingAgent', "Whether any remote coding agent is available"));
@@ -110,6 +116,8 @@ export namespace ChatContextKeys {
 	export const Tools = {
 		toolsCount: new RawContextKey<number>('toolsCount', 0, { type: 'number', description: localize('toolsCount', "The count of tools available in the chat.") })
 	};
+
+	export const foregroundSessionCount = new RawContextKey<number>('chatForegroundSessionCount', 0, { type: 'number', description: localize('chatForegroundSessionCount', "The number of foreground chat sessions visible across chat surfaces.") });
 
 	export const Modes = {
 		hasCustomChatModes: new RawContextKey<boolean>('chatHasCustomAgents', false, { type: 'boolean', description: localize('chatHasAgents', "True when the chat has custom agents available.") }),
@@ -138,6 +146,8 @@ export namespace ChatContextKeys {
 	export const hasUsedCreateSlashCommands = new RawContextKey<boolean>('chatHasUsedCreateSlashCommands', false, { type: 'boolean', description: localize('chatHasUsedCreateSlashCommands', "True when the user has used any of the /create-* slash commands.") });
 
 	export const contextUsageHasBeenOpened = new RawContextKey<boolean>('chatContextUsageHasBeenOpened', false, { type: 'boolean', description: localize('chatContextUsageHasBeenOpened', "True when the user has opened the context window usage details.") });
+
+	export const newChatButtonExperimentIcon = new RawContextKey<string>('chatNewChatButtonExperimentIcon', '', { type: 'string', description: localize('chatNewChatButtonExperimentIcon', "The icon variant for the new chat button, controlled by experiment. Values: 'copilot', 'new-session', 'comment', or empty for default.") });
 }
 
 export namespace ChatContextKeyExprs {

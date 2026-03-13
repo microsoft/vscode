@@ -10,11 +10,13 @@ import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { wrapTablesWithScrollable } from './chatMarkdownTableScrolling.js';
 import { coalesce } from '../../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { autorun, autorunSelfDisposable, derived } from '../../../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { equalsIgnoreCase } from '../../../../../../base/common/strings.js';
@@ -88,6 +90,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	readonly codeblocksPartId = String(++ChatMarkdownContentPart.ID_POOL);
 	readonly domNode: HTMLElement;
+
+	// This Event exists for one specific scenario and the pattern shouldn't be copied without a good reason
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
 	private readonly allRefs: IDisposableReference<CodeBlockPart | CollapsedCodeBlock | MarkdownDiffBlockPart>[] = [];
 
@@ -369,6 +375,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				scrollable.scanDomNode();
 			}
 
+			orderedDisposablesList.push(wrapTablesWithScrollable(this.domNode, layoutParticipants));
+
 			orderedDisposablesList.reverse().forEach(d => store.add(d));
 		};
 
@@ -407,7 +415,14 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			this._codeblocks[data.codeBlockPartIndex].codemapperUri = e.codemapperUri;
 		});
 
-		editorInfo.render(data, currentWidth);
+		editorInfo.render(data, currentWidth).then(() => {
+			// There is a scenario where we set the model on the editor in a request and the ResizeObserver is not triggered.
+			// Work around it with this targeted onDidHeightChange. But this pattern generally shouldn't be necessary and
+			// shouldn't be copied elsewhere.
+			if (!this._store.isDisposed && isRequestVM(data.element)) {
+				this._onDidChangeHeight.fire();
+			}
+		});
 
 		return ref;
 	}
@@ -509,6 +524,15 @@ export class CollapsedCodeBlock extends Disposable {
 
 		this.element.appendChild(this.statusIndicatorContainer);
 		this.element.appendChild(this.pillElement);
+
+		// Toggle show-checkmarks class for the accessibility setting
+		const updateCheckmarks = () => this.element.classList.toggle('show-checkmarks', !!this.configurationService.getValue<boolean>(AccessibilityWorkbenchSettingId.ShowChatCheckmarks));
+		updateCheckmarks();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks)) {
+				updateCheckmarks();
+			}
+		}));
 
 		this.registerListeners();
 	}

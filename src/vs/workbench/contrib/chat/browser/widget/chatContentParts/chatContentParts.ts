@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, ReferenceCollection } from '../../../../../../base/common/lifecycle.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
 import { IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../../common/widget/codeBlockModelCollection.js';
 import { DiffEditorPool, EditorPool } from './chatContentCodePools.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { ILanguageSelection } from '../../../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { URI } from '../../../../../../base/common/uri.js';
 
 export interface IChatContentPart extends IDisposable {
 	domNode: HTMLElement | undefined;
@@ -53,4 +57,37 @@ export interface IChatContentPartRenderContext {
 	readonly codeBlockModelCollection: CodeBlockModelCollection;
 	readonly currentWidth: IObservable<number>;
 	readonly onDidChangeVisibility: Event<boolean>;
+	readonly inlineTextModels: InlineTextModelCollection;
+}
+
+/**
+ * Ref-counted collection of inline text models keyed by URI. Models are
+ * created on first acquire and disposed only when the last reference is
+ * released, preventing duplicate-model errors during re-renders.
+ */
+export class InlineTextModelCollection extends Disposable {
+	private readonly _collection: InlineTextModelReferenceCollection;
+
+	constructor(@IModelService modelService: IModelService) {
+		super();
+		this._collection = new InlineTextModelReferenceCollection(modelService);
+	}
+
+	acquire(uri: URI, value: string, languageSelection: ILanguageSelection | null, isForSimpleWidget: boolean) {
+		return this._collection.acquire(uri.toString(), uri, value, languageSelection, isForSimpleWidget);
+	}
+}
+
+class InlineTextModelReferenceCollection extends ReferenceCollection<ITextModel> {
+	constructor(private readonly modelService: IModelService) {
+		super();
+	}
+
+	protected override createReferencedObject(key: string, uri: URI, value: string, languageSelection: ILanguageSelection | null, isForSimpleWidget: boolean): ITextModel {
+		return this.modelService.createModel(value, languageSelection, uri, isForSimpleWidget);
+	}
+
+	protected override destroyReferencedObject(_key: string, model: ITextModel): void {
+		model.dispose();
+	}
 }

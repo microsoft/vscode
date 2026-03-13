@@ -17,10 +17,11 @@ import { ILogService, LogLevel } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType, ITerminalLaunchResult } from '../common/terminal.js';
 import { ChildProcessMonitor } from './childProcessMonitor.js';
-import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection, sanitizeEnvForLogging } from './terminalEnvironment.js';
+import { getShellIntegrationInjection, IShellIntegrationConfigInjection, sanitizeEnvForLogging } from './terminalEnvironment.js';
 import { WindowsShellHelper } from './windowsShellHelper.js';
 import { IPty, IPtyForkOptions, IWindowsPtyForkOptions, spawn } from 'node-pty';
 import { isNumber } from '../../../base/common/types.js';
+import { getWindowsBuildNumberSync } from '../../../base/node/windowsVersion.js';
 
 const enum ShutdownConstants {
 	/**
@@ -150,7 +151,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._initialCwd = cwd;
 		this._properties[ProcessPropertyType.InitialCwd] = this._initialCwd;
 		this._properties[ProcessPropertyType.Cwd] = this._initialCwd;
-		const useConpty = process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
+		const useConpty = process.platform === 'win32' && getWindowsBuildNumberSync() >= 18309;
 		const useConptyDll = useConpty && this._options.windowsUseConptyDll;
 		this._ptyOptions = {
 			name,
@@ -625,7 +626,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	getWindowsPty(): IProcessReadyWindowsPty | undefined {
 		return isWindows ? {
 			backend: 'conpty',
-			buildNumber: getWindowsBuildNumber()
+			buildNumber: getWindowsBuildNumberSync()
 		} : undefined;
 	}
 }

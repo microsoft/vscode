@@ -143,11 +143,8 @@ const logger = createLogger();
 const loggerWarn = logger.warn;
 
 logger.warn = (msg, options) => {
-	// amdX and the baseUrl code cannot be analyzed by vite.
-	// However, they are not needed, so it is okay to silence the warning.
-	if (msg.indexOf('vs/amdX.ts') !== -1) {
-		return;
-	}
+	// the baseUrl code cannot be analyzed by vite.
+	// However, it is not needed, so it is okay to silence the warning.
 	if (msg.indexOf('await import(new URL(`vs/workbench/workbench.desktop.main.js`, baseUrl).href)') !== -1) {
 		return;
 	}
@@ -164,6 +161,7 @@ logger.warn = (msg, options) => {
 };
 
 export default defineConfig({
+	base: './',
 	plugins: [
 		rollupEsmUrlPlugin({}),
 		injectBuiltinExtensionsPlugin(),
@@ -171,6 +169,7 @@ export default defineConfig({
 		componentExplorer({
 			logLevel: 'verbose',
 			include: join(__dirname, '../../src/**/*.fixture.ts'),
+			build: 'all',
 		}),
 	],
 	customLogger: logger,
@@ -188,6 +187,7 @@ export default defineConfig({
 	},
 	root: '../..', // To support /out/... paths
 	build: {
+		outDir: join(__dirname, 'dist'),
 		rollupOptions: {
 			input: {
 				//index: path.resolve(__dirname, 'index.html'),

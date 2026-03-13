@@ -440,7 +440,7 @@ The `AuxiliaryBarPart` provides a custom `DropdownWithPrimaryActionViewItem` for
 
 The `SidebarPart` includes a footer section (35px height) positioned below the pane composite content. The sidebar uses a custom `layout()` override that reduces the content height by `FOOTER_HEIGHT` and renders a `MenuWorkbenchToolBar` driven by `Menus.SidebarFooter`. The footer hosts the account widget (see Section 3.6).
 
-On macOS native, the sidebar title area includes a traffic light spacer (70px) to push content past the system window controls, which is hidden in fullscreen mode.
+On macOS native with custom titlebar, the sidebar title area includes a traffic light spacer (70px) to push content past the system window controls. The spacer is hidden in fullscreen mode and is not created when using native titlebar (since the OS renders traffic lights in its own title bar).
 
 ---
 
@@ -640,6 +640,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-03-02 | Fixed macOS sidebar traffic light spacer to only render with custom titlebar; added `!hasNativeTitlebar()` guard to `SidebarPart.createTitleArea()` so the 70px spacer is not created when using native titlebar (traffic lights are in the OS title bar, not overlapping the sidebar) |
 | 2026-02-20 | Replaced custom `EditorModal` with standard `ModalEditorPart` via `MODAL_GROUP`; main editor part created but hidden; changed `workbench.editor.useModal` from boolean to enum (`off`/`some`/`all`); sessions config uses `all`; removed `editorModal.ts` and editor modal CSS |
 | 2026-02-17 | Added `-webkit-app-region: drag` to sidebar title area so it can be used to drag the window; interactive children (actions, composite bar, labels) marked `no-drag`; CSS rules scoped to `.agent-sessions-workbench` in `parts/media/sidebarPart.css` |
 | 2026-02-13 | Documentation sync: Updated all file names, class names, and references to match current implementation. `AgenticWorkbench` → `Workbench`, `AgenticSidebarPart` → `SidebarPart`, `AgenticAuxiliaryBarPart` → `AuxiliaryBarPart`, `AgenticPanelPart` → `PanelPart`, `agenticWorkbench.ts` → `workbench.ts`, `agenticWorkbenchMenus.ts` → `menus.ts`, `agenticLayoutActions.ts` → `layoutActions.ts`, `AgenticTitleBarWidget` → `SessionsTitleBarWidget`, `AgenticTitleBarContribution` → `SessionsTitleBarContribution`. Removed references to deleted files (`sidebarRevealButton.ts`, `floatingToolbar.ts`, `agentic.contributions.ts`, `agenticTitleBarWidget.ts`). Updated pane composite architecture from `SyncDescriptor`-based to `AgenticPaneCompositePartService`. Moved account widget docs from titlebar to sidebar footer. Added documentation for sidebar footer, project bar, traffic light spacer, card appearance styling, widget directory, and new contrib structure (`accountMenu/`, `chat/`, `configuration/`, `sessions/`). Updated titlebar actions to reflect Run Script split button and Open submenu. Removed Toggle Maximize panel action (no longer registered). Updated contributions section with all current contributions and their locations. |

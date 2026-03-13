@@ -166,6 +166,7 @@ class AttachFileToChatAction extends AttachResourceAction {
 				order: 2,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
+					EditorContextKeys.hasNonEmptySelection.negate(),
 					ContextKeyExpr.or(
 						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
 						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote),
@@ -475,10 +476,7 @@ export class AttachContextAction extends Action2 {
 			menu: [{
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inQuickChat.negate(),
-					ContextKeyExpr.or(
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-						ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditorInline), CTX_INLINE_CHAT_V2_ENABLED)
-					),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ContextKeyExpr.or(
 						ChatContextKeys.lockedToCodingAgent.negate(),
 						ChatContextKeys.agentSupportsAttachments
@@ -486,7 +484,20 @@ export class AttachContextAction extends Action2 {
 				),
 				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 101
+				order: -1
+			}, {
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inQuickChat.negate(),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditorInline),
+					CTX_INLINE_CHAT_V2_ENABLED,
+					ContextKeyExpr.or(
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ChatContextKeys.agentSupportsAttachments
+					)
+				),
+				id: MenuId.ChatInput,
+				group: 'navigation',
+				order: 2
 			}, {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inQuickChat,

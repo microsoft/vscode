@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { getMarks, mark } from '../../../base/common/performance.js';
-import { isTahoeOrNewer, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { isTahoeOrNewer, isLinux, isMacintosh, isWindows, INodeProcess } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { release } from 'os';
@@ -702,11 +702,16 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.windowState = state;
 			this.logService.trace('window#ctor: using window state', state);
 
-			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, {
+			const webPreferences: electron.WebPreferences = {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
 				additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
-				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
-			});
+				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none'
+			};
+			if ((process as INodeProcess).isEmbeddedApp) {
+				webPreferences.backgroundThrottling = false; // disable for sub-app
+			}
+
+			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, webPreferences);
 
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');
