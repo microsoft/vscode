@@ -1217,6 +1217,23 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._editor?.focus();
 	}
 
+	prefillInput(text: string): void {
+		const model = this._editor?.getModel();
+		if (model) {
+			model.setValue(text);
+			this._editor?.setPosition({ lineNumber: 1, column: text.length + 1 });
+			this._editor?.focus();
+		}
+	}
+
+	sendQuery(text: string): void {
+		const model = this._editor?.getModel();
+		if (model) {
+			model.setValue(text);
+			this._send();
+		}
+	}
+
 	updateAllowedTargets(targets: AgentSessionProviders[]): void {
 		this._targetPicker.updateAllowedTargets(targets);
 	}
@@ -1283,6 +1300,14 @@ export class NewChatViewPane extends ViewPane {
 	override focus(): void {
 		super.focus();
 		this._widget?.focusInput();
+	}
+
+	prefillInput(text: string): void {
+		this._widget?.prefillInput(text);
+	}
+
+	sendQuery(text: string): void {
+		this._widget?.sendQuery(text);
 	}
 
 	override setVisible(visible: boolean): void {

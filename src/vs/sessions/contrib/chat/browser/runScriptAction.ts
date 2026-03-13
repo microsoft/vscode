@@ -17,6 +17,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { IActiveSessionItem, IsActiveSessionBackgroundProviderContext, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { Menus } from '../../../browser/menus.js';
@@ -24,6 +25,7 @@ import { INonSessionTaskEntry, ISessionsConfigurationService, ITaskEntry, TaskSt
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
+import { NewChatViewPane, SessionsViewId } from './newChatViewPane.js';
 
 
 
@@ -86,6 +88,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
 		@IChatService private readonly _chatService: IChatService,
+		@IViewsService private readonly _viewsService: IViewsService,
 	) {
 		super();
 
@@ -236,7 +239,12 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
-					await that._chatService.sendRequest(session.resource, '/add-run-action', { location: ChatAgentLocation.Chat });
+					if (session.isUntitled) {
+						const viewPane = that._viewsService.getViewWithId<NewChatViewPane>(SessionsViewId);
+						viewPane?.sendQuery('/add-run-action');
+					} else {
+						await that._chatService.sendRequest(session.resource, '/add-run-action', { location: ChatAgentLocation.Chat });
+					}
 				}
 			}));
 		}));
