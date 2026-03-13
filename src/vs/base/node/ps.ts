@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
-import { readdirSync, readFileSync } from 'fs';
+import { promises as fs, readFileSync } from 'fs';
 import { totalmem } from 'os';
 import { ProcessItem } from '../common/processes.js';
 import { parse } from '../common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../common/platform.js';
+
+const BATCH_SIZE = 200;
 
 export const JS_FILENAME_PATTERN = /[a-zA-Z-]+\.js\b/g;
 
@@ -161,9 +163,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 		// OS X & Linux
 		else {
 			if (isLinux) {
-				try {
-					readProcessesFromProc(addToTree);
-
+				readProcessesFromProc(addToTree).then(() => {
 					if (!rootItem) {
 						reject(new Error(`Root process ${rootPid} not found`));
 						return;
@@ -197,9 +197,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 						}
 						resolve(rootItem!);
 					}, 500);
-				} catch (e) {
-					reject(e);
-				}
+				}, reject);
 			} else {
 				exec('which ps', {}, (err, stdout, stderr) => {
 					if (err || stderr) {
@@ -241,44 +239,57 @@ function parsePsOutput(stdout: string, addToTree: (pid: number, ppid: number, cm
 	}
 }
 
-function readProcessesFromProc(addToTree: (pid: number, ppid: number, cmd: string, load: number, mem: number) => void): void {
-	const totalMemMatch = readFileSync('/proc/meminfo', 'utf8').match(/MemTotal:\s+(\d+)/);
-	const totalMemKB = totalMemMatch ? parseInt(totalMemMatch[1]) : 1;
+async function readProcessesFromProc(addToTree: (pid: number, ppid: number, cmd: string, load: number, mem: number) => void): Promise<void> {
+	const totalMemKB = readTotalMemoryKB();
+	const entries = (await fs.readdir('/proc')).filter(e => /^\d+$/.test(e));
 
-	for (const entry of readdirSync('/proc')) {
-		if (!/^\d+$/.test(entry)) {
-			continue;
+	for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+		if (i > 0) {
+			await yieldToEventLoop();
 		}
-		try {
-			const stat = readFileSync(`/proc/${entry}/stat`, 'utf8');
-			const closeParen = stat.lastIndexOf(')');
-			const fields = stat.substring(closeParen + 2).split(' ');
-			const pid = parseInt(entry);
-			const ppid = parseInt(fields[1]);
-
-			let pmem = 0;
+		const batch = entries.slice(i, i + BATCH_SIZE);
+		for (const entry of batch) {
 			try {
-				const status = readFileSync(`/proc/${entry}/status`, 'utf8');
-				const rssMatch = status.match(/VmRSS:\s+(\d+)/);
-				if (rssMatch) {
-					pmem = (100 * parseInt(rssMatch[1])) / totalMemKB;
+				const stat = readFileSync(`/proc/${entry}/stat`, 'utf8');
+				const closeParen = stat.lastIndexOf(')');
+				const fields = stat.substring(closeParen + 2).split(' ');
+				const pid = parseInt(entry);
+				const ppid = parseInt(fields[1]);
+
+				let pmem = 0;
+				try {
+					const status = readFileSync(`/proc/${entry}/status`, 'utf8');
+					const rssMatch = status.match(/VmRSS:\s+(?<kb>\d+)/);
+					if (rssMatch?.groups) {
+						pmem = (100 * parseInt(rssMatch.groups.kb)) / totalMemKB;
+					}
+				} catch {
+					// Process may have exited
 				}
+
+				let cmd = '';
+				try {
+					cmd = readFileSync(`/proc/${entry}/cmdline`, 'utf8').replace(/\0/g, ' ').trim();
+				} catch {
+					// Process may have exited
+				}
+
+				addToTree(pid, ppid, cmd, 0, pmem);
 			} catch {
 				// Process may have exited
 			}
-
-			let cmd = '';
-			try {
-				cmd = readFileSync(`/proc/${entry}/cmdline`, 'utf8').replace(/\0/g, ' ').trim();
-			} catch {
-				// Process may have exited
-			}
-
-			addToTree(pid, ppid, cmd, 0, pmem);
-		} catch {
-			// Process may have exited
 		}
 	}
+}
+
+function yieldToEventLoop(): Promise<void> {
+	return new Promise(resolve => setImmediate(resolve));
+}
+
+function readTotalMemoryKB(): number {
+	const meminfo = readFileSync('/proc/meminfo', 'utf8');
+	const match = meminfo.match(/MemTotal:\s+(?<kb>\d+)/);
+	return match?.groups ? parseInt(match.groups.kb) : 1;
 }
 
 function readTotalCpuTime(): number {
@@ -313,7 +324,7 @@ function readProcessCpuTime(pid: number): number {
  */
 export function hasChildProcesses(pid: number, ignoreNames?: string[]): Promise<boolean> {
 	if (isLinux) {
-		return Promise.resolve(hasChildProcessesFromProc(pid, ignoreNames));
+		return hasChildProcessesFromProc(pid, ignoreNames);
 	}
 
 	if (isMacintosh) {
@@ -347,10 +358,10 @@ function shouldIgnoreProcess(cmd: string, ignoreNames: string[]): boolean {
 	return ignoreNames.includes(parse(executable).name);
 }
 
-function hasChildProcessesFromProc(pid: number, ignoreNames?: string[]): boolean {
+async function hasChildProcessesFromProc(pid: number, ignoreNames?: string[]): Promise<boolean> {
 	let entries: string[];
 	try {
-		entries = readdirSync('/proc');
+		entries = (await fs.readdir('/proc')).filter(e => /^\d+$/.test(e));
 	} catch {
 		return false;
 	}
@@ -359,28 +370,30 @@ function hasChildProcessesFromProc(pid: number, ignoreNames?: string[]): boolean
 	let childCount = 0;
 	let singleChildEntry: string | undefined;
 
-	for (const entry of entries) {
-		if (!/^\d+$/.test(entry)) {
-			continue;
+	for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+		if (i > 0) {
+			await yieldToEventLoop();
 		}
-		try {
-			const stat = readFileSync(`/proc/${entry}/stat`, 'utf8');
-			const closeParen = stat.lastIndexOf(')');
-			const fields = stat.substring(closeParen + 2).split(' ');
-			// fields[1] is ppid (after state at fields[0])
-			if (parseInt(fields[1]) === pid) {
-				if (!hasIgnoreList) {
-					return true;
+		const batch = entries.slice(i, i + BATCH_SIZE);
+		for (const entry of batch) {
+			try {
+				const stat = readFileSync(`/proc/${entry}/stat`, 'utf8');
+				const closeParen = stat.lastIndexOf(')');
+				const fields = stat.substring(closeParen + 2).split(' ');
+				if (parseInt(fields[1]) === pid) {
+					if (!hasIgnoreList) {
+						return true;
+					}
+					childCount++;
+					if (childCount === 1) {
+						singleChildEntry = entry;
+					} else if (childCount > 1) {
+						return true;
+					}
 				}
-				childCount++;
-				if (childCount === 1) {
-					singleChildEntry = entry;
-				} else if (childCount > 1) {
-					return true;
-				}
+			} catch {
+				// Process may have exited
 			}
-		} catch {
-			// Process may have exited
 		}
 	}
 
