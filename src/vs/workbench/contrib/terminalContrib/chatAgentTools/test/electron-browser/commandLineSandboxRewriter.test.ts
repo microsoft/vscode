@@ -22,10 +22,13 @@ suite('CommandLineSandboxRewriter', () => {
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: async () => false,
-			wrapCommand: command => command,
+			promptToAllowWritePath: async () => false,
+			wrapWithSandbox: async (_runtimeConfig, command) => command,
+			wrapCommand: command => Promise.resolve(command),
 			getSandboxConfigPath: async () => '/tmp/sandbox.json',
 			getTempDir: () => undefined,
 			setNeedsForceUpdateConfigFile: () => { },
+			resetSandbox: async () => { },
 			...overrides
 		});
 	};
@@ -49,7 +52,7 @@ suite('CommandLineSandboxRewriter', () => {
 	test('returns undefined when sandbox config is unavailable', async () => {
 		stubSandboxService({
 			isEnabled: async () => true,
-			wrapCommand: command => `wrapped:${command}`,
+			wrapCommand: command => Promise.resolve(`wrapped:${command}`),
 			getSandboxConfigPath: async () => undefined,
 		});
 
@@ -64,7 +67,7 @@ suite('CommandLineSandboxRewriter', () => {
 			isEnabled: async () => true,
 			wrapCommand: command => {
 				calls.push('wrapCommand');
-				return `wrapped:${command}`;
+				return Promise.resolve(`wrapped:${command}`);
 			},
 			getSandboxConfigPath: async () => {
 				calls.push('getSandboxConfigPath');

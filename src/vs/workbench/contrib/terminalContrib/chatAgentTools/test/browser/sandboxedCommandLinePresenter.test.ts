@@ -20,10 +20,13 @@ suite('SandboxedCommandLinePresenter', () => {
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: async () => enabled,
-			wrapCommand: command => command,
+			promptToAllowWritePath: async () => false,
+			wrapCommand: async command => command,
+			wrapWithSandbox: async (_runtimeConfig, command) => command,
 			getSandboxConfigPath: async () => '/tmp/sandbox.json',
 			getTempDir: () => undefined,
 			setNeedsForceUpdateConfigFile: () => { },
+			resetSandbox: async () => { },
 		});
 		return instantiationService.createInstance(SandboxedCommandLinePresenter);
 	};

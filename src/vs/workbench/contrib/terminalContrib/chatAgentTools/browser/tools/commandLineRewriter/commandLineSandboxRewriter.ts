@@ -19,14 +19,7 @@ export class CommandLineSandboxRewriter extends Disposable implements ICommandLi
 			return undefined;
 		}
 
-		// Ensure sandbox config is initialized before wrapping
-		const sandboxConfigPath = await this._sandboxService.getSandboxConfigPath();
-		if (!sandboxConfigPath) {
-			// If no sandbox config is available, run without sandboxing
-			return undefined;
-		}
-
-		const wrappedCommand = this._sandboxService.wrapCommand(options.commandLine);
+		const wrappedCommand = await this._sandboxService.wrapCommand(options.commandLine);
 		return {
 			rewritten: wrappedCommand,
 			reasoning: 'Wrapped command for sandbox execution',

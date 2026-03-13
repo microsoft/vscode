@@ -17,10 +17,16 @@ import { ITrustedDomainService } from '../../../../url/common/trustedDomainServi
 import { URI } from '../../../../../../base/common/uri.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { Event, Emitter } from '../../../../../../base/common/event.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/common/remoteAgentEnvironment.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IMainProcessService } from '../../../../../../platform/ipc/common/mainProcessService.js';
+import { IChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
+import { ISandboxPermissionRequest } from '../../../../../../platform/sandbox/common/sandboxHelperIpc.js';
+import { IWorkspaceContextService, IWorkspaceFolder, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 suite('TerminalSandboxService - allowTrustedDomains', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,6 +36,7 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 	let trustedDomainService: MockTrustedDomainService;
 	let fileService: MockFileService;
 	let createdFiles: Map<string, string>;
+	let workspaceContextService: MockWorkspaceContextService;
 
 	class MockTrustedDomainService implements ITrustedDomainService {
 		_serviceBrand: undefined;
@@ -77,14 +84,96 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 				isUnsupportedGlibc: false
 			};
 		}
+
+		getConnection() {
+			return null;
+		}
+	}
+
+	class PersistingTestConfigurationService extends TestConfigurationService {
+		override updateValue(key: string, value: unknown, ..._rest: unknown[]): Promise<void> {
+			return this.setUserConfiguration(key, value);
+		}
+	}
+
+	class MockWorkspaceContextService extends mock<IWorkspaceContextService>() {
+		override _serviceBrand: undefined;
+		private readonly _onDidChangeWorkspaceFolders = new Emitter<any>();
+		override readonly onDidChangeWorkspaceFolders = this._onDidChangeWorkspaceFolders.event;
+		folders: IWorkspaceFolder[] = [];
+
+		override getWorkspace() {
+			return {
+				id: 'test-workspace',
+				folders: this.folders,
+			};
+		}
+	}
+
+	class MockMainProcessService implements IMainProcessService {
+		_serviceBrand: undefined;
+		private readonly _onDidRequestSandboxPermission = new Emitter<ISandboxPermissionRequest>();
+		private readonly _pendingPermissionResponses = new Map<string, (allowed: boolean) => void>();
+		resetSandboxCallCount = 0;
+
+		getChannel(_channelName: string): IChannel {
+			return {
+				call: async <T>(command: string, arg?: unknown) => {
+					const args = Array.isArray(arg) ? arg : [];
+					if (command === 'resetSandbox') {
+						this.resetSandboxCallCount++;
+						return undefined as T;
+					}
+					if (command === 'resolveSandboxPermissionRequest') {
+						const requestId = String(args[0] ?? '');
+						const allowed = Boolean(args[1]);
+						this._pendingPermissionResponses.get(requestId)?.(allowed);
+						this._pendingPermissionResponses.delete(requestId);
+						return undefined as T;
+					}
+					if (command === 'wrapWithSandbox') {
+						return `wrapped:${String(args[1] ?? '')}` as T;
+					}
+					throw new Error(`Unexpected command: ${command}`);
+				},
+				listen: <T>(event: string) => {
+					if (event === 'onDidRequestSandboxPermission') {
+						return this._onDidRequestSandboxPermission.event as Event<T>;
+					}
+					return Event.None;
+				},
+			};
+		}
+
+		registerChannel(): void { }
+
+		fireSandboxPermissionRequest(request: ISandboxPermissionRequest): void {
+			this._onDidRequestSandboxPermission.fire(request);
+		}
+
+		waitForSandboxPermissionResponse(requestId: string): Promise<boolean> {
+			return new Promise<boolean>(resolve => {
+				this._pendingPermissionResponses.set(requestId, resolve);
+			});
+		}
+	}
+
+	class TestTerminalSandboxService extends TerminalSandboxService {
+		readonly permissionRequests: ISandboxPermissionRequest[] = [];
+
+		override async promptForSandboxPermission(request: ISandboxPermissionRequest): Promise<boolean> {
+			this.permissionRequests.push(request);
+			return true;
+		}
 	}
 
 	setup(() => {
 		createdFiles = new Map();
 		instantiationService = workbenchInstantiationService({}, store);
-		configurationService = new TestConfigurationService();
+		configurationService = new PersistingTestConfigurationService();
 		trustedDomainService = new MockTrustedDomainService();
 		fileService = new MockFileService();
+		workspaceContextService = new MockWorkspaceContextService();
 
 		// Setup default configuration
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled, true);
@@ -104,6 +193,13 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IRemoteAgentService, new MockRemoteAgentService());
 		instantiationService.stub(ITrustedDomainService, trustedDomainService);
+		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
+		instantiationService.stub(IMainProcessService, new MockMainProcessService());
+		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async confirm() {
+				return { confirmed: true };
+			}
+		});
 	});
 
 	test('should filter out sole wildcard (*) from trusted domains', async () => {
@@ -255,79 +351,202 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		strictEqual(config.network.allowedDomains.length, 0, 'Should have no domains (* filtered out)');
 	});
 
-	test('should add ripgrep bin directory to PATH when wrapping command', async () => {
+	test('should expand workspace write access defaults for multi-root workspaces', async () => {
+		workspaceContextService.folders = [
+			toWorkspaceFolder(URI.file('/workspace-one')),
+			toWorkspaceFolder(URI.file('/workspace-two')),
+		];
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem, {
+			denyRead: [],
+			allowWrite: ['.'],
+			denyWrite: []
+		});
+
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		await sandboxService.getSandboxConfigPath();
+		const configPath = await sandboxService.getSandboxConfigPath();
 
-		const wrappedCommand = sandboxService.wrapCommand('echo test');
+		ok(configPath, 'Config path should be defined');
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created');
 
-		ok(
-			wrappedCommand.includes('PATH') && wrappedCommand.includes('ripgrep'),
-			'Wrapped command should include PATH modification with ripgrep'
-		);
+		const config = JSON.parse(configContent);
+		ok(config.filesystem.allowWrite.includes('/workspace-one'), 'Should include the first workspace folder path');
+		ok(config.filesystem.allowWrite.includes('/workspace-two'), 'Should include the second workspace folder path');
+		ok(!config.filesystem.allowWrite.includes('.'), 'Should replace dot with concrete workspace folder paths');
 	});
 
-	test('should pass wrapped command as a single quoted argument', async () => {
+	test('should delegate wrapping to sandbox helper', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		await sandboxService.getSandboxConfigPath();
+		const wrappedCommand = await sandboxService.wrapCommand('echo test');
+		strictEqual(wrappedCommand, 'wrapped:echo test');
+	});
+
+	test('should preserve the full command when delegating wrapping', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 
 		const command = '";echo SANDBOX_ESCAPE_REPRO; # $(uname) `id`';
-		const wrappedCommand = sandboxService.wrapCommand(command);
-
-		ok(
-			wrappedCommand.includes(`-c '";echo SANDBOX_ESCAPE_REPRO; # $(uname) \`id\`'`),
-			'Wrapped command should shell-quote the command argument using single quotes'
-		);
-		ok(
-			!wrappedCommand.includes(`-c "${command}"`),
-			'Wrapped command should not embed the command in double quotes'
-		);
+		const wrappedCommand = await sandboxService.wrapCommand(command);
+		strictEqual(wrappedCommand, `wrapped:${command}`);
 	});
 
-	test('should keep variable and command substitution payloads literal', async () => {
+	test('should preserve variable and command substitution payloads', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		await sandboxService.getSandboxConfigPath();
 
 		const command = 'echo $HOME $(curl eth0.me) `id`';
-		const wrappedCommand = sandboxService.wrapCommand(command);
-
-		ok(
-			wrappedCommand.includes(`-c 'echo $HOME $(curl eth0.me) \`id\`'`),
-			'Wrapped command should keep variable and command substitutions inside the quoted argument'
-		);
-		ok(
-			!wrappedCommand.includes(`-c ${command}`),
-			'Wrapped command should not pass substitution payloads to -c without quoting'
-		);
+		const wrappedCommand = await sandboxService.wrapCommand(command);
+		strictEqual(wrappedCommand, `wrapped:${command}`);
 	});
 
-	test('should escape single-quote breakout payloads in wrapped command argument', async () => {
+	test('should preserve single-quote breakout payloads', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		await sandboxService.getSandboxConfigPath();
 
 		const command = `';curl eth0.me; #'`;
-		const wrappedCommand = sandboxService.wrapCommand(command);
-
-		ok(
-			wrappedCommand.includes(`-c '`),
-			'Wrapped command should continue to use a single-quoted -c argument'
-		);
-		ok(
-			wrappedCommand.includes('curl eth0.me'),
-			'Wrapped command should preserve the payload text literally'
-		);
-		ok(
-			!wrappedCommand.includes(`-c '${command}'`),
-			'Wrapped command should not embed attacker-controlled single quotes without escaping'
-		);
-		strictEqual((wrappedCommand.match(/\\''/g) ?? []).length, 2, 'Single quote breakout payload should escape each embedded single quote');
+		const wrappedCommand = await sandboxService.wrapCommand(command);
+		strictEqual(wrappedCommand, `wrapped:${command}`);
 	});
 
-	test('should escape embedded single quotes in wrapped command argument', async () => {
+	test('should preserve embedded single quotes', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		await sandboxService.getSandboxConfigPath();
 
-		const wrappedCommand = sandboxService.wrapCommand(`echo 'hello'`);
-		strictEqual((wrappedCommand.match(/\\''/g) ?? []).length, 2, 'Single quote escapes should be inserted for each embedded single quote');
+		const wrappedCommand = await sandboxService.wrapCommand(`echo 'hello'`);
+		strictEqual(wrappedCommand, `wrapped:echo 'hello'`);
+	});
+
+	test('should route sandbox permission requests through terminal sandbox service', async () => {
+		const mainProcessService = new MockMainProcessService();
+		instantiationService.stub(IMainProcessService, mainProcessService);
+
+		const sandboxService = store.add(instantiationService.createInstance(TestTerminalSandboxService));
+		await sandboxService.wrapWithSandbox({
+			network: {
+				allowedDomains: [],
+				deniedDomains: []
+			},
+			filesystem: {
+				denyRead: [],
+				allowWrite: [],
+				denyWrite: []
+			}
+		}, 'echo test');
+
+		const responsePromise = mainProcessService.waitForSandboxPermissionResponse('request-1');
+		mainProcessService.fireSandboxPermissionRequest({
+			requestId: 'request-1',
+			host: 'example.com',
+			port: 443,
+		});
+
+		strictEqual(await responsePromise, true);
+		strictEqual(sandboxService.permissionRequests.length, 1);
+		strictEqual(sandboxService.permissionRequests[0].host, 'example.com');
+		strictEqual(sandboxService.permissionRequests[0].port, 443);
+	});
+
+	test('should persist approved sandbox hosts to settings', async () => {
+		const mainProcessService = new MockMainProcessService();
+		instantiationService.stub(IMainProcessService, mainProcessService);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
+			allowedDomains: ['existing.com'],
+			deniedDomains: ['example.com'],
+			allowTrustedDomains: false
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TestTerminalSandboxService));
+		await sandboxService.wrapWithSandbox({
+			network: {
+				allowedDomains: [],
+				deniedDomains: []
+			},
+			filesystem: {
+				denyRead: [],
+				allowWrite: [],
+				denyWrite: []
+			}
+		}, 'echo test');
+
+		const responsePromise = mainProcessService.waitForSandboxPermissionResponse('request-2');
+		mainProcessService.fireSandboxPermissionRequest({
+			requestId: 'request-2',
+			host: 'example.com',
+			port: 443,
+		});
+
+		strictEqual(await responsePromise, true);
+		const updatedSettings = configurationService.getValue<{
+			allowedDomains?: string[];
+			deniedDomains?: string[];
+		}>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork);
+		ok(updatedSettings?.allowedDomains?.includes('existing.com'));
+		ok(updatedSettings?.allowedDomains?.includes('example.com'));
+		ok(!updatedSettings?.deniedDomains?.includes('example.com'));
+	});
+
+	test('should persist approved sandbox write paths to settings', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem, {
+			denyRead: [],
+			allowWrite: ['/existing/path'],
+			denyWrite: ['/tmp/blocked.txt']
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		strictEqual(await sandboxService.promptToAllowWritePath('/tmp/blocked.txt'), true);
+
+		const updatedSettings = configurationService.getValue<{
+			allowWrite?: string[];
+			denyWrite?: string[];
+		}>(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem);
+		ok(updatedSettings?.allowWrite?.includes('/existing/path'));
+		ok(updatedSettings?.allowWrite?.includes('/tmp/blocked.txt'));
+		ok(!updatedSettings?.denyWrite?.includes('/tmp/blocked.txt'));
+	});
+
+	test('should reset sandbox before first wrap and after sandbox settings change', async () => {
+		const mainProcessService = new MockMainProcessService();
+		instantiationService.stub(IMainProcessService, mainProcessService);
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.wrapWithSandbox({
+			network: {
+				allowedDomains: [],
+				deniedDomains: []
+			},
+			filesystem: {
+				denyRead: [],
+				allowWrite: [],
+				denyWrite: []
+			}
+		}, 'echo first');
+
+		strictEqual(mainProcessService.resetSandboxCallCount, 1);
+
+		await sandboxService.wrapWithSandbox({
+			network: {
+				allowedDomains: [],
+				deniedDomains: []
+			},
+			filesystem: {
+				denyRead: [],
+				allowWrite: [],
+				denyWrite: []
+			}
+		}, 'echo second');
+
+		strictEqual(mainProcessService.resetSandboxCallCount, 1);
+
+		sandboxService.setNeedsForceUpdateConfigFile();
+
+		await sandboxService.wrapWithSandbox({
+			network: {
+				allowedDomains: [],
+				deniedDomains: []
+			},
+			filesystem: {
+				denyRead: [],
+				allowWrite: [],
+				denyWrite: []
+			}
+		}, 'echo third');
+
+		strictEqual(mainProcessService.resetSandboxCallCount, 2);
 	});
 });
