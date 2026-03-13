@@ -241,9 +241,9 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				async run(): Promise<void> {
 					if (session.isUntitled) {
 						const viewPane = that._viewsService.getViewWithId<NewChatViewPane>(SessionsViewId);
-						viewPane?.sendQuery('/add-run-action');
+						viewPane?.sendQuery('/generate-run-commands');
 					} else {
-						await that._chatService.sendRequest(session.resource, '/add-run-action', { location: ChatAgentLocation.Chat });
+						await that._chatService.sendRequest(session.resource, '/generate-run-commands', { location: ChatAgentLocation.Chat });
 					}
 				}
 			}));
