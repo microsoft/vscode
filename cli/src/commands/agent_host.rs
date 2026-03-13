@@ -156,7 +156,7 @@ pub async fn agent_host(ctx: CommandContext, mut args: AgentHostArgs) -> Result<
 			tokio::select! {
 				Ok(Some(l)) = stdout.next_line() => {
 					debug!(ctx.log, "[server stdout]: {}", l);
-					if l.contains("Extension host agent listening on") {
+					if l.contains("Agent host server listening on") {
 						return;
 					}
 				}

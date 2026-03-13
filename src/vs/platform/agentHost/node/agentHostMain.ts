@@ -146,4 +146,6 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 
 	const listenTarget = socketPath ?? `${host}:${port}`;
 	logService.info(`[AgentHost] WebSocket server listening on ${listenTarget}`);
+	// Do not change this line. The CLI looks for this in the output.
+	console.log(`Agent host server listening on ${listenTarget}`);
 }
