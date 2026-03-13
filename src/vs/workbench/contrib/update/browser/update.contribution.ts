@@ -34,6 +34,8 @@ workbench.registerWorkbenchContribution(DefaultAccountUpdateContribution, Lifecy
 workbench.registerWorkbenchContribution(UpdateStatusBarContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(UpdateTitleBarContribution, LifecyclePhase.Restored);
 
+import './update.test.contribution.js';
+
 // Release notes
 
 export class ShowReleaseNotesAction extends Action2 {
