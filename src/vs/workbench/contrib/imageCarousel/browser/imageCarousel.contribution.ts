@@ -25,6 +25,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -152,7 +153,16 @@ registerAction2(OpenImageInCarouselAction);
 
 // --- Explorer Context Menu Integration ---
 
-const IMAGE_EXTENSION_REGEX = /^\.(png|jpe?g|jpe|gif|webp|svg|bmp|ico|tiff?|tga|psd)$/i;
+/**
+ * Image-extension regex built from {@link getMediaMime} so the declarative
+ * `when`-clause and the runtime {@link isImageResource} share a single source
+ * of truth with `base/common/mime.ts`.
+ */
+const IMAGE_EXTENSION_REGEX = (function () {
+	const candidates = ['png', 'jpg', 'jpeg', 'jpe', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tif', 'tiff', 'tga', 'psd'];
+	const imageExts = candidates.filter(ext => getMediaMime(`f.${ext}`)?.startsWith('image/'));
+	return new RegExp(`^\\.(${imageExts.join('|')})$`, 'i');
+})();
 
 function isImageResource(uri: URI): boolean {
 	const mimeType = getMediaMime(uri.path);
@@ -165,7 +175,7 @@ async function collectImageFilesFromFolder(fileService: IFileService, folderUri:
 		const imageUris: URI[] = [];
 		if (stat.children) {
 			for (const child of stat.children) {
-				if (!child.isDirectory && isImageResource(child.resource)) {
+				if (child.isFile && isImageResource(child.resource)) {
 					imageUris.push(child.resource);
 				}
 			}
@@ -178,23 +188,22 @@ async function collectImageFilesFromFolder(fileService: IFileService, folderUri:
 }
 
 async function readImageFiles(fileService: IFileService, uris: URI[]): Promise<ICarouselImage[]> {
-	const images: ICarouselImage[] = [];
-	for (const uri of uris) {
-		try {
+	const results = await Promise.allSettled(
+		uris.map(async (uri): Promise<ICarouselImage> => {
 			const content = await fileService.readFile(uri);
 			const mimeType = getMediaMime(uri.path) ?? 'image/png';
-			images.push({
+			return {
 				id: generateUuid(),
 				name: basename(uri),
 				mimeType,
 				data: content.value,
 				uri,
-			});
-		} catch {
-			// Skip files that cannot be read
-		}
-	}
-	return images;
+			};
+		})
+	);
+	return results
+		.filter((r): r is PromiseFulfilledResult<ICarouselImage> => r.status === 'fulfilled')
+		.map(r => r.value);
 }
 
 class OpenImagesInCarouselFromExplorerAction extends Action2 {
@@ -259,21 +268,19 @@ class OpenImagesInCarouselFromExplorerAction extends Action2 {
 			} else {
 				// Multiple items or a folder: collect images from selection,
 				// deduplicating in case a folder and its children are both selected
-				const seen = new Set<string>();
+				const seen = new ResourceSet();
 				for (const item of context) {
 					if (item.isDirectory) {
 						const folderImages = await collectImageFilesFromFolder(fileService, item.resource);
 						for (const uri of folderImages) {
-							const key = uri.toString();
-							if (!seen.has(key)) {
-								seen.add(key);
+							if (!seen.has(uri)) {
+								seen.add(uri);
 								imageUris.push(uri);
 							}
 						}
 					} else if (isImageResource(item.resource)) {
-						const key = item.resource.toString();
-						if (!seen.has(key)) {
-							seen.add(key);
+						if (!seen.has(item.resource)) {
+							seen.add(item.resource);
 							imageUris.push(item.resource);
 							if (!startUri) {
 								startUri = item.resource;
