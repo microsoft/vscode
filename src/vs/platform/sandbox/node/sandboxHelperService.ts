@@ -97,7 +97,9 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 
 		const rgDir = dirname(this._rgPath);
 		const currentPath = process.env['PATH'];
-		return currentPath ? `${currentPath}:${rgDir}` : rgDir;
+		const pathModule = process.platform === 'win32' ? win32 : posix;
+		const delimiter = pathModule.delimiter;
+		return currentPath ? `${currentPath}${delimiter}${rgDir}` : rgDir;
 	}
 
 	private _toEnvironmentAssignment(name: string, value: string): string {
