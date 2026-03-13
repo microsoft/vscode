@@ -67,10 +67,10 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		} else {
 			this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted()));
 		}
-		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._store);
-		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._store);
-		this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this, this._store);
-		this._workspaceTrustManagementService.onDidChangeTrustedFolders(this._onDidChangeWorkspaceTrustedFolders, this, this._store);
+		this._register(this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this));
+		this._register(this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this));
+		this._register(this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this));
+		this._register(this._workspaceTrustManagementService.onDidChangeTrustedFolders(this._onDidChangeWorkspaceTrustedFolders, this));
 	}
 
 	override dispose(): void {
