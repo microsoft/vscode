@@ -7,6 +7,7 @@ import { isWeb, isWindows } from '../../../base/common/platform.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -93,7 +94,7 @@ configurationRegistry.registerConfiguration({
 		'update.titleBar': {
 			type: 'string',
 			enum: ['none', 'actionable', 'detailed', 'always'],
-			default: 'none',
+			default: product.quality !== 'stable' ? 'actionable' : 'none',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
