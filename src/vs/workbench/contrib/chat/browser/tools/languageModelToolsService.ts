@@ -16,6 +16,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { createMarkdownCommandLink, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { getMediaMime } from '../../../../../base/common/mime.js';
 import { derived, derivedOpts, IObservable, IReader, observableFromEventOpts, ObservableSet, observableSignal, transaction } from '../../../../../base/common/observable.js';
 import Severity from '../../../../../base/common/severity.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
@@ -643,7 +644,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 			}, token);
 			invocationTimeWatch.stop();
-			this.ensureToolDetails(dto, toolResult, tool.data);
+			this.ensureToolDetails(dto, toolResult, tool.data, toolInvocation);
 
 			const afterExecuteState = await toolInvocation?.didExecuteTool(toolResult, undefined, () =>
 				this.shouldAutoConfirmPostExecution(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, dto.context?.sessionResource, dto.chatRequestId));
@@ -983,8 +984,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	private ensureToolDetails(dto: IToolInvocation, toolResult: IToolResult, toolData: IToolData): void {
-		if (!toolResult.toolResultDetails && (toolData.alwaysDisplayInputOutput || this.toolResultHasImages(toolResult))) {
+	private ensureToolDetails(dto: IToolInvocation, toolResult: IToolResult, toolData: IToolData, toolInvocation: ChatToolInvocation | undefined): void {
+		if (!toolResult.toolResultDetails && (toolData.alwaysDisplayInputOutput || (this.toolResultHasImages(toolResult) && !this.toolInvocationMessageHasImageFileWidgets(toolInvocation)))) {
 			toolResult.toolResultDetails = {
 				input: this.formatToolInput(dto),
 				output: this.toolResultToIO(toolResult),
@@ -994,6 +995,29 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private toolResultHasImages(toolResult: IToolResult): boolean {
 		return toolResult.content.some(part => part.kind === 'data' && part.value.mimeType?.startsWith('image/'));
+	}
+
+	/**
+	 * Returns true if the tool invocation's pastTenseMessage contains empty markdown links
+	 * pointing to image files (the `[](imageUri)` pattern) that will be rendered as
+	 * file pills by renderFileWidgets.
+	 */
+	private toolInvocationMessageHasImageFileWidgets(toolInvocation: ChatToolInvocation | undefined): boolean {
+		const message = toolInvocation?.pastTenseMessage;
+		if (!message) {
+			return false;
+		}
+		const value = typeof message === 'string' ? message : message.value;
+		// Match empty-text markdown links: [](uri) or [ ](uri), capturing the uri
+		const linkPattern = /\[\s*\]\(([^)]+)\)/g;
+		let match: RegExpExecArray | null;
+		while ((match = linkPattern.exec(value)) !== null) {
+			const mime = getMediaMime(match[1]);
+			if (mime?.startsWith('image/')) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private formatToolInput(dto: IToolInvocation): string {
