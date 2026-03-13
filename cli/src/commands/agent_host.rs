@@ -71,16 +71,19 @@ pub async fn agent_host(ctx: CommandContext, mut args: AgentHostArgs) -> Result<
 
 	let manager = AgentHostManager::new(&ctx, platform, args.clone())?;
 
-	// Eagerly resolve the latest version so the first connection is fast
-	if let Err(e) = manager.get_latest_release().await {
-		warning!(ctx.log, "Error resolving initial server version: {}", e);
-	}
+	// Eagerly resolve the latest version so the first connection is fast.
+	// Skip when using a dev override since updates don't apply.
+	if option_env!("VSCODE_CLI_OVERRIDE_SERVER_PATH").is_none() {
+		if let Err(e) = manager.get_latest_release().await {
+			warning!(ctx.log, "Error resolving initial server version: {}", e);
+		}
 
-	// Start background update checker
-	let manager_for_updates = manager.clone();
-	tokio::spawn(async move {
-		manager_for_updates.run_update_loop().await;
-	});
+		// Start background update checker
+		let manager_for_updates = manager.clone();
+		tokio::spawn(async move {
+			manager_for_updates.run_update_loop().await;
+		});
+	}
 
 	// Bind the HTTP/WebSocket proxy
 	let mut shutdown = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
@@ -376,6 +379,19 @@ impl AgentHostManager {
 	/// cached version. Only fetches from the network and downloads if
 	/// nothing is cached at all.
 	async fn get_cached_or_download(&self) -> Result<(Release, PathBuf), CodeError> {
+		// When using a dev override, skip the update service entirely -
+		// the override path is used directly by run_server().
+		if option_env!("VSCODE_CLI_OVERRIDE_SERVER_PATH").is_some() {
+			let release = Release {
+				name: String::new(),
+				commit: String::from("dev"),
+				platform: self.platform,
+				target: TargetKind::Server,
+				quality: Quality::Insiders,
+			};
+			return Ok((release, PathBuf::new()));
+		}
+
 		// Best case: the latest known release is already downloaded
 		if let Some((_, release)) = &*self.latest_release.lock().await {
 			if let Some(dir) = self.cache.exists(&release.commit) {
@@ -533,6 +549,7 @@ async fn handle_request(
 	let socket_path = match manager.ensure_server().await {
 		Ok(p) => p,
 		Err(e) => {
+			error!(manager.log, "Error starting agent host: {:?}", e);
 			return Ok(Response::builder()
 				.status(503)
 				.body(Body::from(format!("Error starting agent host: {e:?}")))
@@ -545,6 +562,7 @@ async fn handle_request(
 	let rw = match get_socket_rw_stream(&socket_path).await {
 		Ok(rw) => rw,
 		Err(e) => {
+			error!(manager.log, "Error connecting to agent host socket: {:?}", e);
 			return Ok(Response::builder()
 				.status(503)
 				.body(Body::from(format!("Error connecting to agent host: {e:?}")))
