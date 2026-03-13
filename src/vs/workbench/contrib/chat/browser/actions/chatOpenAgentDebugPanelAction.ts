@@ -237,7 +237,7 @@ type ChatDebugExportEvent = {
 type ChatDebugExportClassification = {
 	fileSizeBytes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Size of the exported chat debug log file in bytes.' };
 	owner: 'vijayu';
-	comment: 'Tracks usage of the debug panel export feature.';
+	comment: 'Tracks usage of the Agent Debug Logs export feature.';
 };
 
 type ChatDebugImportEvent = {
@@ -249,5 +249,5 @@ type ChatDebugImportClassification = {
 	fileSizeBytes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Size of the imported chat debug log file in bytes.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Outcome of the chat debug file import: success, fileTooLarge, or providerFailed.' };
 	owner: 'vijayu';
-	comment: 'Tracks usage of the debug panel import feature and failure modes.';
+	comment: 'Tracks usage of the Agent Debug Logs import feature and failure modes.';
 };
