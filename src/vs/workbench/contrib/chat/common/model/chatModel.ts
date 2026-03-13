@@ -29,10 +29,11 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatTodoListContent, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
 import { ToolDataSource, IToolData } from '../tools/languageModelToolsService.js';
+import { IChatTodoListService } from '../tools/chatTodoListService.js';
 import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../languageModels.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from '../participants/chatAgents.js';
@@ -2133,6 +2134,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 	) {
 		super();
 
@@ -2335,15 +2337,24 @@ export class ChatModel extends Disposable implements IChatModel {
 				modelState = { value: ResponseModelState.Cancelled, completedAt: Date.now() };
 			}
 
-			// Mark question carousels as used after
-			// deserialization. After a reload, the extension is no longer listening for
-			// their responses, so they cannot be interacted with.
+			// Post-process deserialized response parts:
+			// - Mark question carousels as used (extension is no longer listening after reload)
+			// - Track the last todoList for hydration into the service
+			let lastTodoList: IChatTodoListContent['todoList'] | undefined;
 			if (raw.response) {
 				for (const part of raw.response) {
-					if (hasKey(part, { kind: true }) && (part.kind === 'questionCarousel')) {
-						part.isUsed = true;
+					if (hasKey(part, { kind: true })) {
+						if (part.kind === 'questionCarousel') {
+							part.isUsed = true;
+						}
+						if (part.kind === 'toolInvocationSerialized' && part.toolSpecificData?.kind === 'todoList') {
+							lastTodoList = part.toolSpecificData.todoList;
+						}
 					}
 				}
+			}
+			if (lastTodoList) {
+				this.chatTodoListService.setTodos(this._sessionResource, lastTodoList.map((t, i) => ({ id: Number(t.id) || i + 1, title: t.title, status: t.status })));
 			}
 
 			request.response = new ChatResponseModel({
@@ -2579,6 +2590,14 @@ export class ChatModel extends Disposable implements IChatModel {
 			this.logService.error(`Couldn't handle progress: ${JSON.stringify(progress)}`);
 		} else {
 			request.response.updateContent(progress, quiet);
+
+			// Hydrate todoList into the service when a serialized tool
+			// invocation arrives (e.g. from a background agent that did
+			// not run invoke() locally).
+			if (progress.kind === 'toolInvocationSerialized' && progress.toolSpecificData?.kind === 'todoList') {
+				const todoList = progress.toolSpecificData.todoList;
+				this.chatTodoListService.setTodos(this._sessionResource, todoList.map((t, i) => ({ id: Number(t.id) || i + 1, title: t.title, status: t.status })));
+			}
 		}
 	}
 

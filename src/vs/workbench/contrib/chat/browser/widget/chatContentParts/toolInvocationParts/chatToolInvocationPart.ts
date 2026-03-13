@@ -11,7 +11,6 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
-import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
 import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation } from '../../../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../../chat.js';
@@ -64,28 +63,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		private readonly announcedToolProgressKeys: Set<string> | undefined,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 	) {
 		super();
 
 		this.domNode = dom.$('.chat-tool-invocation-part');
 		if (toolInvocation.presentation === 'hidden') {
 			return;
-		}
-
-		// Update the todo list service if this tool invocation contains todo data
-		if (toolInvocation.toolSpecificData?.kind === 'todoList') {
-			const sessionResource = context.element.sessionResource;
-			const todos = toolInvocation.toolSpecificData.todoList.map((todo, index) => {
-				const parsedId = parseInt(todo.id, 10);
-				const id = Number.isNaN(parsedId) ? index + 1 : parsedId;
-				return {
-					id,
-					title: todo.title,
-					status: todo.status as 'not-started' | 'in-progress' | 'completed'
-				};
-			});
-			this.chatTodoListService.setTodos(sessionResource, todos);
 		}
 
 		if (toolInvocation.kind === 'toolInvocation') {

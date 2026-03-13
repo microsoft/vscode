@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -27,8 +28,9 @@ import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, ICh
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatModel, ChatRequestModel, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestQueueKind, IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
+import { IChatTodo, IChatTodoListService } from '../../../common/tools/chatTodoListService.js';
 import { MockChatService } from '../chatService/mockChatService.js';
 
 suite('ChatModel', () => {
@@ -273,6 +275,162 @@ suite('ChatModel', () => {
 		// Should filter out string attachments and implicit attachments with StringChatContextValue
 		// Should keep file attachments and implicit attachments with URI values
 		assert.deepStrictEqual(serialized.attachments, [fileAttachment, implicitWithUri]);
+	});
+
+	test('deserialization hydrates todo list from serialized tool invocations', () => {
+		const setTodosCalls: { sessionResource: URI; todos: IChatTodo[] }[] = [];
+		instantiationService.stub(IChatTodoListService, {
+			_serviceBrand: undefined,
+			onDidUpdateTodos: Event.None,
+			getTodos: () => [],
+			setTodos: (sessionResource: URI, todos: IChatTodo[]) => { setTodosCalls.push({ sessionResource, todos: [...todos] }); },
+			migrateTodos: () => { },
+		});
+
+		const toolInvocationWithTodos: IChatToolInvocationSerialized = {
+			kind: 'toolInvocationSerialized',
+			toolCallId: 'call-1',
+			toolId: 'manage_todo_list',
+			invocationMessage: 'Updating TODO list',
+			originMessage: undefined,
+			pastTenseMessage: 'Updated TODO list (3/3 complete)',
+			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+			isComplete: true,
+			presentation: undefined,
+			source: undefined,
+			toolSpecificData: {
+				kind: 'todoList',
+				todoList: [
+					{ id: '1', title: 'Task 1', status: 'completed' },
+					{ id: '2', title: 'Task 2', status: 'completed' },
+					{ id: '3', title: 'Task 3', status: 'completed' },
+				]
+			},
+		};
+
+		const serializableData: ISerializableChatData3 = {
+			version: 3,
+			sessionId: 'test-todo-session',
+			creationDate: Date.now(),
+			customTitle: undefined,
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [{
+				requestId: 'req1',
+				message: { text: 'create a todo list', parts: [] },
+				variableData: { variables: [] },
+				response: [
+					{ value: 'Created a todo list', isTrusted: false },
+					toolInvocationWithTodos,
+				],
+				modelState: { value: 1 /* ResponseModelState.Complete */, completedAt: Date.now() },
+			}],
+			responderUsername: 'bot',
+		};
+
+		testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serializableData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+
+		assert.strictEqual(setTodosCalls.length, 1, 'Should hydrate exactly once');
+		assert.deepStrictEqual(setTodosCalls[0].todos, [
+			{ id: 1, title: 'Task 1', status: 'completed' },
+			{ id: 2, title: 'Task 2', status: 'completed' },
+			{ id: 3, title: 'Task 3', status: 'completed' },
+		]);
+	});
+
+	test('deserialization hydrates latest todo list when multiple invocations exist', () => {
+		const setTodosCalls: { todos: IChatTodo[] }[] = [];
+		instantiationService.stub(IChatTodoListService, {
+			_serviceBrand: undefined,
+			onDidUpdateTodos: Event.None,
+			getTodos: () => [],
+			setTodos: (_sessionResource: URI, todos: IChatTodo[]) => { setTodosCalls.push({ todos: [...todos] }); },
+			migrateTodos: () => { },
+		});
+
+		const olderToolInvocation: IChatToolInvocationSerialized = {
+			kind: 'toolInvocationSerialized',
+			toolCallId: 'call-1',
+			toolId: 'manage_todo_list',
+			invocationMessage: 'Creating TODO list',
+			originMessage: undefined,
+			pastTenseMessage: 'Created TODO list with 3 items',
+			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+			isComplete: true,
+			presentation: undefined,
+			source: undefined,
+			toolSpecificData: {
+				kind: 'todoList',
+				todoList: [
+					{ id: '1', title: 'Task 1', status: 'not-started' },
+					{ id: '2', title: 'Task 2', status: 'not-started' },
+					{ id: '3', title: 'Task 3', status: 'not-started' },
+				]
+			},
+		};
+
+		const newerToolInvocation: IChatToolInvocationSerialized = {
+			kind: 'toolInvocationSerialized',
+			toolCallId: 'call-2',
+			toolId: 'manage_todo_list',
+			invocationMessage: 'Updating TODO list',
+			originMessage: undefined,
+			pastTenseMessage: 'All tasks complete (3/3)',
+			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+			isComplete: true,
+			presentation: undefined,
+			source: undefined,
+			toolSpecificData: {
+				kind: 'todoList',
+				todoList: [
+					{ id: '1', title: 'Task 1', status: 'completed' },
+					{ id: '2', title: 'Task 2', status: 'completed' },
+					{ id: '3', title: 'Task 3', status: 'completed' },
+				]
+			},
+		};
+
+		const serializableData: ISerializableChatData3 = {
+			version: 3,
+			sessionId: 'test-todo-session-2',
+			creationDate: Date.now(),
+			customTitle: undefined,
+			initialLocation: ChatAgentLocation.Chat,
+			requests: [
+				{
+					requestId: 'req1',
+					message: { text: 'create a todo list', parts: [] },
+					variableData: { variables: [] },
+					response: [olderToolInvocation],
+					modelState: { value: 1, completedAt: Date.now() },
+				},
+				{
+					requestId: 'req2',
+					message: { text: 'complete all tasks', parts: [] },
+					variableData: { variables: [] },
+					response: [newerToolInvocation],
+					modelState: { value: 1, completedAt: Date.now() },
+				},
+			],
+			responderUsername: 'bot',
+		};
+
+		testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serializableData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+
+		// Each request with todoList data hydrates inline, so the last call wins
+		assert.ok(setTodosCalls.length >= 1, 'Should hydrate at least once');
+		assert.deepStrictEqual(setTodosCalls[setTodosCalls.length - 1].todos, [
+			{ id: 1, title: 'Task 1', status: 'completed' },
+			{ id: 2, title: 'Task 2', status: 'completed' },
+			{ id: 3, title: 'Task 3', status: 'completed' },
+		], 'Final hydration should use the latest (completed) todo state');
 	});
 
 	test('modeInfo roundtrips through serialization', async () => {
