@@ -132,6 +132,9 @@ import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeM
 import { IMcpGatewayService, McpGatewayChannelName } from '../../platform/mcp/common/mcpGateway.js';
 import { McpGatewayService } from '../../platform/mcp/node/mcpGatewayService.js';
 import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js';
+import { SandboxHelperChannelName } from '../../platform/sandbox/common/sandboxHelperIpc.js';
+import { ISandboxHelperService } from '../../platform/sandbox/common/sandboxHelperService.js';
+import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelperService.js';
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
@@ -1151,6 +1154,9 @@ export class CodeApplication extends Disposable {
 		// Proxy Auth
 		services.set(IProxyAuthService, new SyncDescriptor(ProxyAuthService));
 
+		// Sandbox
+		services.set(ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
+
 		// MCP
 		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
 		services.set(IMcpGatewayService, new SyncDescriptor(McpGatewayService));
@@ -1282,6 +1288,10 @@ export class CodeApplication extends Disposable {
 		// External Terminal
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService), disposables);
 		mainProcessElectronServer.registerChannel('externalTerminal', externalTerminalChannel);
+
+		// Sandbox
+		const sandboxHelperChannel = ProxyChannel.fromService(accessor.get(ISandboxHelperService), disposables);
+		mainProcessElectronServer.registerChannel(SandboxHelperChannelName, sandboxHelperChannel);
 
 		// MCP
 		const mcpDiscoveryChannel = ProxyChannel.fromService(accessor.get(INativeMcpDiscoveryHelperService), disposables);
