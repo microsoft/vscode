@@ -13,6 +13,15 @@ Examples of existing features that have all three: the **terminal**, **chat pane
 
 Sections 4–7 below (signals, ARIA announcements, keyboard navigation, ARIA labels) apply more broadly to **any UI change**, including modifications to existing features.
 
+## Related Specialized Skill
+
+- Specialized new-feature gate: `/Users/meganrogge/.claude/skills/vscode-accessibility/SKILL.md`
+
+Precedence:
+- Use this built-in skill for broad accessibility work across new and existing UI.
+- For new features or contributions, apply both this built-in skill and the specialized `vscode-accessibility` skill.
+- Use the specialized `vscode-accessibility` skill to enforce accessibility help, accessible view (when needed), and verbosity setting requirements.
+
 When **updating an existing feature** — for example, adding new commands, keyboard shortcuts, or interactive capabilities — you must also update the feature's existing accessibility help dialog (`provideContent()`) to document the new functionality. Screen reader users rely on the help dialog as the primary way to discover available actions.
 
 ---
