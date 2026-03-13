@@ -33,6 +33,9 @@ const shellMatrix: IShellLaunchConfig[] = [
 const lineCounts = [10, 20];
 const waitDuration = 4000;
 
+const BRACKETED_PASTE_START = '\x1b[200~';
+const BRACKETED_PASTE_END = '\x1b[201~';
+
 function shellExists(executable: string): boolean {
 	return fs.existsSync(executable);
 }
@@ -140,6 +143,110 @@ function buildMultilineCommand(outputFile: string, lineCount: number): { command
 
 				this.timeout(10000);
 				await runShellMultilineTest(shell, lineCount);
+			});
+		}
+	}
+});
+
+// Test that bracketed paste mode wrapping prevents corruption for shells that support it.
+// This proves the fix in chatTerminalToolProgressPart.ts works at the PTY level.
+(isWindows ? suite.skip : suite)('TerminalProcess - multiline write with bracketed paste', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let outputDir: string;
+
+	setup(() => {
+		outputDir = fs.mkdtempSync(path.join(tmpdir(), 'vscode-pty-paste-test-'));
+	});
+
+	teardown(() => {
+		fs.rmSync(outputDir, { recursive: true, force: true });
+	});
+
+	async function runBracketedPasteTest(shellLaunchConfig: IShellLaunchConfig, lineCount: number): Promise<void> {
+		const shellName = path.posix.basename(shellLaunchConfig.executable!);
+		const outputFile = path.join(outputDir, `output-paste-${shellName}-${lineCount}.txt`);
+		const { command, expectedByteCount } = buildMultilineCommand(outputFile, lineCount);
+		const terminalProcess = store.add(new TerminalProcess(
+			shellLaunchConfig,
+			outputDir,
+			80,
+			24,
+			{ ...process.env } as Record<string, string>,
+			{ ...process.env } as Record<string, string>,
+			processOptions,
+			new NullLogService(),
+			{ applicationName: 'vscode' } as IProductService
+		));
+
+		const result = await terminalProcess.start();
+		const error = result as ITerminalLaunchError | undefined;
+		if (error?.message) {
+			throw new Error(`Failed to start terminal: ${error.message}`);
+		}
+
+		await new Promise<void>(resolve => {
+			const timer = setTimeout(() => {
+				listener.dispose();
+				resolve();
+			}, 10000);
+			const listener = terminalProcess.onProcessData(() => {
+				clearTimeout(timer);
+				listener.dispose();
+				resolve();
+			});
+		});
+
+		// Wrap the command in bracketed paste sequences, simulating what
+		// sendText(data, false, true) does when bracketedPasteMode is enabled.
+		// The trailing \r must come AFTER the paste end marker — inside the
+		// markers, \r is treated as a literal newline in the edit buffer.
+		const commandContent = command.slice(0, -1).replace(/\n/g, '\r');
+		const wrappedCommand = BRACKETED_PASTE_START + commandContent + BRACKETED_PASTE_END + '\r';
+		terminalProcess.input(wrappedCommand);
+
+		const start = Date.now();
+		while (Date.now() - start < waitDuration) {
+			await new Promise(resolve => setTimeout(resolve, 200));
+			if (fs.existsSync(outputFile)) {
+				await new Promise(resolve => setTimeout(resolve, 200));
+				break;
+			}
+		}
+
+		const exitPromise = new Promise<void>(resolve => {
+			const listener = terminalProcess.onProcessExit(() => {
+				listener.dispose();
+				resolve();
+			});
+		});
+		terminalProcess.shutdown(true);
+		await exitPromise;
+
+		if (!fs.existsSync(outputFile)) {
+			throw new Error('Output file was not created');
+		}
+
+		const actualByteCount = parseInt(fs.readFileSync(outputFile, 'utf-8').trim(), 10);
+		deepStrictEqual(actualByteCount, expectedByteCount);
+	}
+
+	// Shells that support bracketed paste mode should handle large multiline
+	// input correctly when wrapped in paste sequences
+	const bracketedPasteShells: IShellLaunchConfig[] = [
+		{ executable: '/bin/zsh', args: ['-f', '-i'] },
+	];
+
+	for (const lineCount of lineCounts) {
+		const sizeName = lineCount === 10 ? 'small' : lineCount === 20 ? 'medium' : 'large';
+		for (const shell of bracketedPasteShells) {
+			const shellName = path.posix.basename(shell.executable!);
+			test(`${shellName} ${sizeName} multiline write with bracketed paste`, async function () {
+				if (!shellExists(shell.executable!)) {
+					this.skip();
+				}
+
+				this.timeout(10000);
+				await runBracketedPasteTest(shell, lineCount);
 			});
 		}
 	}
