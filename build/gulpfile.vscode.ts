@@ -742,30 +742,22 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
 			: path.join(outputDir, versionedResourcesFolder, 'resources', 'app');
 
-		// Native modules may live in node_modules/ (Windows versioned builds) or
-		// node_modules.asar.unpacked/ (macOS/Linux after ASAR packaging). Check both.
-		// We write the copilot native deps into node_modules/@github/copilot/ so the
-		// CLI subprocess can find them via plain filesystem access.
+		// Source and destination are both in node_modules/, which exists as a real
+		// directory on disk on all platforms after packaging.
 		const nodeModulesDir = path.join(appBase, 'node_modules');
-		const unpackedDir = path.join(appBase, 'node_modules.asar.unpacked');
 		const copilotBase = path.join(nodeModulesDir, '@github', 'copilot');
 		const platformArch = `${platform === 'win32' ? 'win32' : platform}-${arch}`;
 
-		// Source binaries: prefer node_modules/ (Windows), fall back to .asar.unpacked/ (macOS/Linux)
-		const nodePtyPlain = path.join(nodeModulesDir, 'node-pty', 'build', 'Release');
-		const nodePtyUnpacked = path.join(unpackedDir, 'node-pty', 'build', 'Release');
-		const nodePtySource = fs.existsSync(nodePtyPlain) ? nodePtyPlain : nodePtyUnpacked;
+		const nodePtySource = path.join(nodeModulesDir, 'node-pty', 'build', 'Release');
 		const rgBinary = platform === 'win32' ? 'rg.exe' : 'rg';
-		const ripgrepPlain = path.join(nodeModulesDir, '@vscode', 'ripgrep', 'bin', rgBinary);
-		const ripgrepUnpacked = path.join(unpackedDir, '@vscode', 'ripgrep', 'bin', rgBinary);
-		const ripgrepSource = fs.existsSync(ripgrepPlain) ? ripgrepPlain : ripgrepUnpacked;
+		const ripgrepSource = path.join(nodeModulesDir, '@vscode', 'ripgrep', 'bin', rgBinary);
 
 		// Fail-fast: source binaries must exist on non-stable builds.
 		if (!fs.existsSync(nodePtySource)) {
-			throw new Error(`[copyCopilotNativeDeps] node-pty source not found at ${nodePtyPlain} or ${nodePtyUnpacked}`);
+			throw new Error(`[copyCopilotNativeDeps] node-pty source not found at ${nodePtySource}`);
 		}
 		if (!fs.existsSync(ripgrepSource)) {
-			throw new Error(`[copyCopilotNativeDeps] ripgrep source not found at ${ripgrepPlain} or ${ripgrepUnpacked}`);
+			throw new Error(`[copyCopilotNativeDeps] ripgrep source not found at ${ripgrepSource}`);
 		}
 
 		// Copy node-pty (pty.node + spawn-helper) into copilot prebuilds
