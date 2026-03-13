@@ -21,10 +21,13 @@ import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
-import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isBuiltInAgentSessionProvider } from './agentSessions.js';
 
@@ -152,7 +155,6 @@ interface IAgentSessionState {
 export const enum AgentSessionSection {
 
 	// Default Grouping (by date)
-	InProgress = 'inProgress',
 	Today = 'today',
 	Yesterday = 'yesterday',
 	Week = 'week',
@@ -161,6 +163,9 @@ export const enum AgentSessionSection {
 
 	// Capped Grouping
 	More = 'more',
+
+	// Repository Grouping
+	Repository = 'repository',
 }
 
 export interface IAgentSessionSection {
@@ -396,7 +401,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -425,10 +432,24 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	private registerListeners(): void {
 
-		// Sessions changes
+		// Sessions updates
 		this._register(this.chatSessionsService.onDidChangeItemsProviders(({ chatSessionType }) => this.resolve(chatSessionType)));
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.resolve(undefined)));
-		this._register(this.chatSessionsService.onDidChangeSessionItems(({ chatSessionType }) => this.updateItems([chatSessionType], CancellationToken.None)));
+		this._register(this.chatSessionsService.onDidChangeSessionItems((delta) => {
+			const changedChatSessionTypes = new Set<string>();
+
+			for (const resource of delta.addedOrUpdated ?? []) {
+				changedChatSessionTypes.add(getChatSessionType(resource.resource));
+			}
+
+			for (const resource of delta.removed ?? []) {
+				changedChatSessionTypes.add(getChatSessionType(resource));
+			}
+
+			this.updateItems(Array.from(changedChatSessionTypes), CancellationToken.None);
+		}));
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.resolve(undefined)));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this.resolve(undefined)));
 
 		// State
 		this._register(this.storageService.onWillSaveState(() => {
@@ -478,17 +499,17 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	 * Update the sessions by fetching from the service. This does not trigger an explicit refresh
 	 */
 	private async updateItems(providerFilter: readonly string[] | undefined, token: CancellationToken): Promise<void> {
-		const mapSessionContributionToType = new Map<string, IChatSessionsExtensionPoint>();
+		const mapSessionContributionToType = new Map<string, ResolvedChatSessionsExtensionPoint>();
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
 
-		const providerResults = await this.chatSessionsService.getChatSessionItems(providerFilter, token);
+		const providerResults = this.chatSessionsService.getChatSessionItems(providerFilter, token);
 
 		const resolvedProviders = new Set<string>();
 		const sessions = new ResourceMap<IInternalAgentSession>();
 
-		for (const { chatSessionType, items: providerSessions } of providerResults) {
+		for await (const { chatSessionType, items: providerSessions } of providerResults) {
 			resolvedProviders.add(chatSessionType);
 
 			if (token.isCancellationRequested) {

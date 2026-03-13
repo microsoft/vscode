@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ViewContainerLocation, IViewDescriptorService, ViewContainer, IViewsRegistry, IViewContainersRegistry, IViewDescriptor, Extensions as ViewExtensions, ViewVisibilityState, defaultViewIcon, ViewContainerLocationToString, VIEWS_LOG_ID, VIEWS_LOG_NAME } from '../../../common/views.js';
+import { ViewContainerLocation, IViewDescriptorService, ViewContainer, IViewsRegistry, IViewContainersRegistry, IViewDescriptor, Extensions as ViewExtensions, ViewVisibilityState, defaultViewIcon, ViewContainerLocationToString, VIEWS_LOG_ID, VIEWS_LOG_NAME, WindowVisibility } from '../../../common/views.js';
 import { IContextKey, RawContextKey, IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
@@ -24,6 +24,7 @@ import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js'
 import { Lazy } from '../../../../base/common/lazy.js';
 import { IViewsService } from '../common/viewsService.js';
 import { windowLogGroup } from '../../log/common/logConstants.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 
 interface IViewsCustomizations {
 	viewContainerLocations: IStringDictionary<ViewContainerLocation>;
@@ -69,6 +70,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	get viewContainers(): ReadonlyArray<ViewContainer> { return this.viewContainersRegistry.all; }
 
 	private readonly logger: Lazy<ILogger>;
+	private readonly isSessionsWindow: boolean;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -77,10 +79,12 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILoggerService loggerService: ILoggerService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
 		this.logger = new Lazy(() => loggerService.createLogger(VIEWS_LOG_ID, { name: VIEWS_LOG_NAME, group: windowLogGroup }));
+		this.isSessionsWindow = environmentService.isSessionsWindow;
 
 		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
 		this.movableViewContextKeys = new Map<string, IContextKey<boolean>>();
@@ -263,7 +267,11 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	getViewDescriptorById(viewId: string): IViewDescriptor | null {
-		return this.viewsRegistry.getView(viewId);
+		const view = this.viewsRegistry.getView(viewId);
+		if (view && !this.isViewVisible(view)) {
+			return null;
+		}
+		return view;
 	}
 
 	getViewLocationById(viewId: string): ViewContainerLocation | null {
@@ -276,6 +284,12 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	getViewContainerByViewId(viewId: string): ViewContainer | null {
+		// Check if the view itself should be visible in current workspace
+		const view = this.viewsRegistry.getView(viewId);
+		if (view && !this.isViewVisible(view)) {
+			return null;
+		}
+
 		const containerId = this.viewDescriptorsCustomLocations.get(viewId);
 
 		return containerId ?
@@ -284,11 +298,21 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation {
-		return this.viewContainersCustomLocations.get(viewContainer.id) ?? this.getDefaultViewContainerLocation(viewContainer);
+		const location = this.viewContainersCustomLocations.get(viewContainer.id) ?? this.getDefaultViewContainerLocation(viewContainer);
+		return this.getEffectiveViewContainerLocation(location);
 	}
 
 	getDefaultViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation {
-		return this.viewContainersRegistry.getViewContainerLocation(viewContainer);
+		return this.getEffectiveViewContainerLocation(this.viewContainersRegistry.getViewContainerLocation(viewContainer));
+	}
+
+	private getEffectiveViewContainerLocation(location: ViewContainerLocation): ViewContainerLocation {
+		// When not in agent sessions workspace, view containers contributed to ChatBar
+		// should be registered at the AuxiliaryBar location instead
+		if (!this.isSessionsWindow && location === ViewContainerLocation.ChatBar) {
+			return ViewContainerLocation.AuxiliaryBar;
+		}
+		return location;
 	}
 
 	getDefaultContainerById(viewId: string): ViewContainer | null {
@@ -300,19 +324,40 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	getViewContainerById(id: string): ViewContainer | null {
-		return this.viewContainersRegistry.get(id) || null;
+		const viewContainer = this.viewContainersRegistry.get(id) || null;
+		if (viewContainer && !this.isViewContainerVisible(viewContainer)) {
+			return null;
+		}
+		return viewContainer;
 	}
 
 	getViewContainersByLocation(location: ViewContainerLocation): ViewContainer[] {
-		return this.viewContainers.filter(v => this.getViewContainerLocation(v) === location);
+		return this.viewContainers.filter(v => this.getViewContainerLocation(v) === location && this.isViewContainerVisible(v));
+	}
+
+	private isViewContainerVisible(viewContainer: ViewContainer): boolean {
+		const layoutVisibility = viewContainer.windowVisibility;
+		if (this.isSessionsWindow) {
+			return layoutVisibility === WindowVisibility.Sessions || layoutVisibility === WindowVisibility.Both;
+		}
+		return !layoutVisibility || layoutVisibility === WindowVisibility.Editor || layoutVisibility === WindowVisibility.Both;
+	}
+
+	private isViewVisible(view: IViewDescriptor): boolean {
+		const layoutVisibility = view.windowVisibility;
+		if (this.isSessionsWindow) {
+			return layoutVisibility === WindowVisibility.Sessions || layoutVisibility === WindowVisibility.Both;
+		}
+		return !layoutVisibility || layoutVisibility === WindowVisibility.Editor || layoutVisibility === WindowVisibility.Both;
 	}
 
 	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined {
-		return this.viewContainersRegistry.getDefaultViewContainers(location)[0];
+		const viewContainers = this.viewContainersRegistry.getDefaultViewContainers(location);
+		return viewContainers.find(viewContainer => this.isViewContainerVisible(viewContainer));
 	}
 
 	canMoveViews(): boolean {
-		return true;
+		return !this.isSessionsWindow;
 	}
 
 	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number, reason?: string): void {
@@ -673,10 +718,16 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private getStoredViewCustomizationsValue(): string {
+		if (this.isSessionsWindow) {
+			return '{}';
+		}
 		return this.storageService.get(ViewDescriptorService.VIEWS_CUSTOMIZATIONS, StorageScope.PROFILE, '{}');
 	}
 
 	private setStoredViewCustomizationsValue(value: string): void {
+		if (this.isSessionsWindow) {
+			return;
+		}
 		this.storageService.store(ViewDescriptorService.VIEWS_CUSTOMIZATIONS, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 

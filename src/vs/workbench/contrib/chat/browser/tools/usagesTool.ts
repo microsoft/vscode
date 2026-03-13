@@ -20,6 +20,7 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getReferencesAtPosition } from '../../../../../editor/contrib/gotoSymbol/browser/goToSymbol.js';
 import { localize } from '../../../../../nls.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -85,6 +86,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 			userDescription: localize('tool.usages.userDescription', 'Find references, definitions, and implementations of a symbol'),
 			modelDescription,
 			source: ToolDataSource.Internal,
+			when: ContextKeyExpr.has('config.chat.tools.usagesTool.enabled'),
 			inputSchema: {
 				type: 'object',
 				properties: {

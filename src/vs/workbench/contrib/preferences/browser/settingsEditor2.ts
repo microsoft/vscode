@@ -44,7 +44,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { asCssVariable, asCssVariableWithDefault, badgeBackground, badgeForeground, contrastBorder, editorForeground, inputBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, editorForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -783,15 +783,8 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}));
 
-		const headerRightControlsContainer = DOM.append(headerControlsContainer, $('.settings-right-controls'));
-
-		const openSettingsJsonContainer = DOM.append(headerRightControlsContainer, $('.open-settings-json'));
-		const openSettingsJsonButton = this._register(new Button(openSettingsJsonContainer, { secondary: true, title: true, ...defaultButtonStyles }));
-		openSettingsJsonButton.label = localize('openSettingsJson', "Edit as JSON");
-		this._register(openSettingsJsonButton.onDidClick(() => this.openSettingsFile()));
-
 		if (this.userDataSyncWorkbenchService.enabled && this.userDataSyncEnablementService.canToggleEnablement()) {
-			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, this.window, headerRightControlsContainer));
+			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, this.window, headerControlsContainer));
 			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => {
 				this.lastSyncedLabel = lastSyncedLabel;
 				this.updateInputAriaLabel();
@@ -801,9 +794,6 @@ export class SettingsEditor2 extends EditorPane {
 		this.controlsElement = DOM.append(this.searchContainer, DOM.$('.search-container-widgets'));
 
 		this.countElement = DOM.append(this.controlsElement, DOM.$('.settings-count-widget.monaco-count-badge.long'));
-		this.countElement.style.backgroundColor = asCssVariable(badgeBackground);
-		this.countElement.style.color = asCssVariable(badgeForeground);
-		this.countElement.style.border = `1px solid ${asCssVariableWithDefault(contrastBorder, asCssVariable(inputBackground))}`;
 
 		this.searchInputActionBar = this._register(new ActionBar(this.controlsElement, {
 			actionViewItemProvider: (action, options) => {
@@ -914,11 +904,15 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		if (!recursed && (!targetElement || revealFailed)) {
-			// We'll call this event handler again after clearing the search query,
-			// so that more settings show up in the list.
-			const p = this.triggerSearch('', true);
+			// Search for the target setting by ID so it becomes visible,
+			// even if it's an advanced setting that would be hidden with an empty query.
+			const idQuery = `@id:${evt.targetKey}`;
+			// Set the widget value first, then cancel the debounced search it triggers,
+			// so that only the direct triggerSearch call below runs.
+			this.searchWidget.setValue(idQuery);
+			this.searchInputDelayer.cancel();
+			const p = this.triggerSearch(idQuery, true);
 			p.then(() => {
-				this.searchWidget.setValue('');
 				this.onDidClickSetting(evt, true);
 			});
 		}
@@ -2162,9 +2156,10 @@ class SyncControls extends Disposable {
 	) {
 		super();
 
-		const turnOnSyncButtonContainer = DOM.append(container, $('.turn-on-sync'));
+		const headerRightControlsContainer = DOM.append(container, $('.settings-right-controls'));
+		const turnOnSyncButtonContainer = DOM.append(headerRightControlsContainer, $('.turn-on-sync'));
 		this.turnOnSyncButton = this._register(new Button(turnOnSyncButtonContainer, { title: true, ...defaultButtonStyles }));
-		this.lastSyncedLabel = DOM.append(container, $('.last-synced-label'));
+		this.lastSyncedLabel = DOM.append(headerRightControlsContainer, $('.last-synced-label'));
 		DOM.hide(this.lastSyncedLabel);
 
 		this.turnOnSyncButton.enabled = true;

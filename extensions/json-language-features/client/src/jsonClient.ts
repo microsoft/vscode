@@ -690,6 +690,23 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 			execute: () => Promise<void>;
 		}
 
+		const normalizeTrustedDomains = (domains: Record<string, boolean>): Record<string, boolean> => {
+			return Object.fromEntries(Object.entries(domains).sort(([a], [b]) => a.localeCompare(b)));
+		};
+
+		const updateTrustedDomains = async (updateDomain: string): Promise<void> => {
+			const config = workspace.getConfiguration();
+			const currentDomains = config.get<Record<string, boolean>>(SettingIds.trustedDomains, {});
+			if (currentDomains[updateDomain] === true) {
+				return;
+			}
+			const nextDomains = normalizeTrustedDomains({
+				...currentDomains,
+				[updateDomain]: true
+			});
+			await config.update(SettingIds.trustedDomains, nextDomains, true);
+		};
+
 		const items: QuickPickItemWithAction[] = [];
 
 		try {
@@ -701,10 +718,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 				label: l10n.t('Trust Domain: {0}', domain),
 				description: l10n.t('Allow all schemas from this domain'),
 				execute: async () => {
-					const config = workspace.getConfiguration();
-					const currentDomains = config.get<Record<string, boolean>>(SettingIds.trustedDomains, {});
-					currentDomains[domain] = true;
-					await config.update(SettingIds.trustedDomains, currentDomains, true);
+					await updateTrustedDomains(domain);
 					await commands.executeCommand(CommandIds.workbenchActionOpenSettings, SettingIds.trustedDomains);
 				}
 			});
@@ -714,10 +728,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 				label: l10n.t('Trust URI: {0}', schemaUri),
 				description: l10n.t('Allow only this specific schema'),
 				execute: async () => {
-					const config = workspace.getConfiguration();
-					const currentDomains = config.get<Record<string, boolean>>(SettingIds.trustedDomains, {});
-					currentDomains[schemaUri] = true;
-					await config.update(SettingIds.trustedDomains, currentDomains, true);
+					await updateTrustedDomains(schemaUri);
 					await commands.executeCommand(CommandIds.workbenchActionOpenSettings, SettingIds.trustedDomains);
 				}
 			});
@@ -925,5 +936,4 @@ export namespace ErrorCodes {
 export function isSchemaResolveError(d: Diagnostic) {
 	return typeof d.code === 'number' && d.code >= ErrorCodes.SchemaResolveError;
 }
-
 

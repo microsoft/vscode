@@ -263,6 +263,7 @@ export interface IChatWidgetViewOptions {
 	enableWorkingSet?: 'explicit' | 'implicit';
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
+	inputEditorMinLines?: number;
 	defaultMode?: IChatMode;
 	/**
 	 * Optional delegate for the session target picker.
@@ -288,6 +289,12 @@ export interface IChatWidgetViewOptions {
 	 * redirect to a different workspace rather than executing locally.
 	 */
 	submitHandler?: (query: string, mode: ChatModeKind) => Promise<boolean>;
+
+	/**
+	 * Whether we are running in the sessions window.
+	 * When true, the secondary toolbar (permissions picker) is hidden.
+	 */
+	isSessionsWindow?: boolean;
 }
 
 export interface IChatViewViewContext {
@@ -322,6 +329,11 @@ export interface IChatAcceptInputOptions {
 	 * If Steering, also sets yieldRequested on any active request to signal it should wrap up.
 	 */
 	queue?: ChatRequestQueueKind;
+	/**
+	 * When true, always queues the request regardless of whether a request is currently in progress.
+	 * The request stays in the pending queue until explicitly processed.
+	 */
+	alwaysQueue?: boolean;
 }
 
 export interface IChatWidgetViewModelChangeEvent {
@@ -338,6 +350,7 @@ export interface IChatWidget {
 	readonly onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeParsedInput: Event<void>;
+	readonly onDidChangeActiveInputEditor: Event<void>;
 	readonly onDidFocus: Event<void>;
 	readonly location: ChatAgentLocation;
 	readonly viewContext: IChatWidgetViewContext;
@@ -397,6 +410,16 @@ export interface IChatWidget {
 	 * @returns Whether the operation succeeded (i.e., the focus was toggled).
 	 */
 	toggleQuestionCarouselFocus(): boolean;
+	/**
+	 * Navigates to the previous question in the question carousel.
+	 * @returns Whether the operation succeeded (i.e., a previous question exists).
+	 */
+	navigateToPreviousQuestion(): boolean;
+	/**
+	 * Navigates to the next question in the question carousel.
+	 * @returns Whether the operation succeeded (i.e., a next question exists).
+	 */
+	navigateToNextQuestion(): boolean;
 	/**
 	 * Toggles focus between the tip widget and the chat input.
 	 * Returns false if no tip is visible.

@@ -18,11 +18,11 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
-import { AgentSessionProviders, backgroundAgentDisplayName, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+
 
 export interface ISessionTypeItem {
 	type: AgentSessionProviders;
@@ -105,15 +105,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			this._updateAgentSessionItems();
 		}));
 
-		// Re-render when the background agent display name changes via experiment
-		// Note: autorun runs immediately, so this also handles initial population
-		this._register(autorun(reader => {
-			backgroundAgentDisplayName.read(reader);
-			this._updateAgentSessionItems();
-			if (this.element) {
-				this.renderLabel(this.element);
-			}
-		}));
+		this._updateAgentSessionItems();
 	}
 
 	protected _run(sessionTypeItem: ISessionTypeItem): void {
@@ -185,7 +177,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _isSessionTypeEnabled(type: AgentSessionProviders): boolean {
-		return true;
+		if (type === AgentSessionProviders.Local) {
+			return true; // Local is always available
+		}
+		// Disable non-local session types when their provider is not registered yet
+		return !!this.chatSessionsService.getChatSessionContribution(type);
 	}
 
 	protected _getSessionCategory(sessionTypeItem: ISessionTypeItem) {
@@ -194,6 +190,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	protected _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
 		return undefined;
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-session-target-picker-item');
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
@@ -205,9 +206,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const labelElements = [];
 		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
-		if (currentType !== AgentSessionProviders.Local || !this.pickerOptions.onlyShowIconsForDefaultActions.get()) {
-			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
-		}
+		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...labelElements);

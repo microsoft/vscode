@@ -525,7 +525,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 					publisherDisplayName: string;
 					themeId: string;
 				};
-				this.telemetryService.publicLog2<ActivatePluginEvent, ActivatePluginClassification>('activatePlugin', {
+				this.telemetryService.publicLog2<ActivatePluginEvent, ActivatePluginClassification>('activateThemeExtension', {
 					id: themeData.extensionId,
 					name: themeData.extensionName,
 					isBuiltin: themeData.extensionIsBuiltin,

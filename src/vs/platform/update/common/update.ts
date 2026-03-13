@@ -59,6 +59,7 @@ export const enum DisablementReason {
 	NotBuilt,
 	DisabledByEnvironment,
 	ManuallyDisabled,
+	Policy,
 	MissingConfiguration,
 	InvalidConfiguration,
 	RunningAsAdmin,
@@ -66,9 +67,9 @@ export const enum DisablementReason {
 
 export type Uninitialized = { type: StateType.Uninitialized };
 export type Disabled = { type: StateType.Disabled; reason: DisablementReason };
-export type Idle = { type: StateType.Idle; updateType: UpdateType; error?: string };
+export type Idle = { type: StateType.Idle; updateType: UpdateType; error?: string; notAvailable?: boolean };
 export type CheckingForUpdates = { type: StateType.CheckingForUpdates; explicit: boolean };
-export type AvailableForDownload = { type: StateType.AvailableForDownload; update: IUpdate };
+export type AvailableForDownload = { type: StateType.AvailableForDownload; update: IUpdate; canInstall?: boolean };
 export type Downloading = { type: StateType.Downloading; update?: IUpdate; explicit: boolean; overwrite: boolean; downloadedBytes?: number; totalBytes?: number; startTime?: number };
 export type Downloaded = { type: StateType.Downloaded; update: IUpdate; explicit: boolean; overwrite: boolean };
 export type Updating = { type: StateType.Updating; update: IUpdate; currentProgress?: number; maxProgress?: number };
@@ -80,9 +81,9 @@ export type State = Uninitialized | Disabled | Idle | CheckingForUpdates | Avail
 export const State = {
 	Uninitialized: upcast<Uninitialized>({ type: StateType.Uninitialized }),
 	Disabled: (reason: DisablementReason): Disabled => ({ type: StateType.Disabled, reason }),
-	Idle: (updateType: UpdateType, error?: string): Idle => ({ type: StateType.Idle, updateType, error }),
+	Idle: (updateType: UpdateType, error?: string, notAvailable?: boolean): Idle => ({ type: StateType.Idle, updateType, error, notAvailable }),
 	CheckingForUpdates: (explicit: boolean): CheckingForUpdates => ({ type: StateType.CheckingForUpdates, explicit }),
-	AvailableForDownload: (update: IUpdate): AvailableForDownload => ({ type: StateType.AvailableForDownload, update }),
+	AvailableForDownload: (update: IUpdate, canInstall?: boolean): AvailableForDownload => ({ type: StateType.AvailableForDownload, update, canInstall }),
 	Downloading: (update: IUpdate | undefined, explicit: boolean, overwrite: boolean, downloadedBytes?: number, totalBytes?: number, startTime?: number): Downloading => ({ type: StateType.Downloading, update, explicit, overwrite, downloadedBytes, totalBytes, startTime }),
 	Downloaded: (update: IUpdate, explicit: boolean, overwrite: boolean): Downloaded => ({ type: StateType.Downloaded, update, explicit, overwrite }),
 	Updating: (update: IUpdate, currentProgress?: number, maxProgress?: number): Updating => ({ type: StateType.Updating, update, currentProgress, maxProgress }),
@@ -110,7 +111,10 @@ export interface IUpdateService {
 	applyUpdate(): Promise<void>;
 	quitAndInstall(): Promise<void>;
 
+	/**
+	 * @deprecated This method should not be used any more. It will be removed in a future release.
+	*/
 	isLatestVersion(): Promise<boolean | undefined>;
 	_applySpecificUpdate(packagePath: string): Promise<void>;
-	disableProgressiveReleases(): Promise<void>;
+	setInternalOrg(internalOrg: string | undefined): Promise<void>;
 }

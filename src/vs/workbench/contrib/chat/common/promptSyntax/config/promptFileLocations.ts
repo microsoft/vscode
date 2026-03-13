@@ -60,6 +60,10 @@ export const CLAUDE_CONFIG_FOLDER = '.claude';
  */
 export const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
 
+/**
+ * GitHub configuration folder name.
+ */
+export const GITHUB_CONFIG_FOLDER = '.github';
 
 /**
  * Default reusable prompt files source folder.
@@ -87,6 +91,11 @@ export const AGENTS_SOURCE_FOLDER = '.github/agents';
 export const CLAUDE_AGENTS_SOURCE_FOLDER = '.claude/agents';
 
 /**
+ * Copilot user agents folder.
+ */
+export const COPILOT_USER_AGENTS_SOURCE_FOLDER = '~/.copilot/agents';
+
+/**
  * Claude rules folder.
  */
 export const CLAUDE_RULES_SOURCE_FOLDER = '.claude/rules';
@@ -111,6 +120,8 @@ export enum PromptFileSource {
 	ConfigPersonal = 'config-personal',
 	ExtensionContribution = 'extension-contribution',
 	ExtensionAPI = 'extension-api',
+	Plugin = 'plugin',
+	Internal = 'internal',
 }
 
 /**
@@ -127,6 +138,8 @@ export interface IPromptSourceFolder {
  */
 export interface IResolvedPromptSourceFolder {
 	readonly uri: URI;
+	readonly parent: URI; // matches the URI when no glob pattern is used
+	readonly filePattern: string | undefined; // the part of the path with the glob pattern, or undefined if no glob pattern is used
 	readonly source: PromptFileSource;
 	readonly storage: PromptsStorage;
 	/**
@@ -167,6 +180,7 @@ export const DEFAULT_SKILL_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 export const DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 	{ path: INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
 	{ path: CLAUDE_RULES_SOURCE_FOLDER, source: PromptFileSource.ClaudeWorkspace, storage: PromptsStorage.local },
+	{ path: '~/.copilot/instructions', source: PromptFileSource.CopilotPersonal, storage: PromptsStorage.user },
 	{ path: '~/' + CLAUDE_RULES_SOURCE_FOLDER, source: PromptFileSource.ClaudePersonal, storage: PromptsStorage.user },
 ];
 
@@ -183,6 +197,8 @@ export const DEFAULT_PROMPT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 export const DEFAULT_AGENT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 	{ path: AGENTS_SOURCE_FOLDER, source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
 	{ path: CLAUDE_AGENTS_SOURCE_FOLDER, source: PromptFileSource.ClaudeWorkspace, storage: PromptsStorage.local },
+	{ path: '~/' + CLAUDE_AGENTS_SOURCE_FOLDER, source: PromptFileSource.ClaudePersonal, storage: PromptsStorage.user },
+	{ path: COPILOT_USER_AGENTS_SOURCE_FOLDER, source: PromptFileSource.CopilotPersonal, storage: PromptsStorage.user },
 ];
 
 /**
@@ -193,6 +209,7 @@ export const DEFAULT_HOOK_FILE_PATHS: readonly IPromptSourceFolder[] = [
 	{ path: '.github/hooks', source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
 	{ path: '.claude/settings.local.json', source: PromptFileSource.ClaudeWorkspaceLocal, storage: PromptsStorage.local },
 	{ path: '.claude/settings.json', source: PromptFileSource.ClaudeWorkspace, storage: PromptsStorage.local },
+	{ path: '~/.copilot/hooks', source: PromptFileSource.CopilotPersonal, storage: PromptsStorage.user },
 	{ path: '~/.claude/settings.json', source: PromptFileSource.ClaudePersonal, storage: PromptsStorage.user },
 ];
 
@@ -201,7 +218,7 @@ export const DEFAULT_HOOK_FILE_PATHS: readonly IPromptSourceFolder[] = [
  */
 function isInAgentsFolder(fileUri: URI): boolean {
 	const dir = dirname(fileUri.path);
-	return dir.endsWith('/' + AGENTS_SOURCE_FOLDER) || dir.endsWith('/' + CLAUDE_AGENTS_SOURCE_FOLDER);
+	return dir.endsWith('/' + AGENTS_SOURCE_FOLDER) || dir.endsWith('/' + CLAUDE_AGENTS_SOURCE_FOLDER) || isInCopilotAgentsFolder(fileUri);
 }
 
 /**
@@ -210,6 +227,14 @@ function isInAgentsFolder(fileUri: URI): boolean {
 export function isInClaudeAgentsFolder(fileUri: URI): boolean {
 	const dir = dirname(fileUri.path);
 	return dir.endsWith('/' + CLAUDE_AGENTS_SOURCE_FOLDER);
+}
+
+/**
+ * Helper function to check if a file is directly in the ~/.copilot/agents/ folder.
+ */
+export function isInCopilotAgentsFolder(fileUri: URI): boolean {
+	const dir = dirname(fileUri.path);
+	return dir.endsWith(COPILOT_USER_AGENTS_SOURCE_FOLDER.substring(1));
 }
 
 /**

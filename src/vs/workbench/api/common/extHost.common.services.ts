@@ -36,6 +36,7 @@ import { ExtHostUrls, IExtHostUrlsService } from './extHostUrls.js';
 import { ExtHostProgress, IExtHostProgress } from './extHostProgress.js';
 import { ExtHostDataChannels, IExtHostDataChannels } from './extHostDataChannels.js';
 import { ExtHostMeteredConnection, IExtHostMeteredConnection } from './extHostMeteredConnection.js';
+import { ExtHostGitExtensionService, IExtHostGitExtensionService } from './extHostGitExtensionService.js';
 
 registerSingleton(IExtHostLocalizationService, ExtHostLocalizationService, InstantiationType.Delayed);
 registerSingleton(ILoggerService, ExtHostLoggerService, InstantiationType.Delayed);
@@ -68,3 +69,4 @@ registerSingleton(IExtHostVariableResolverProvider, ExtHostVariableResolverProvi
 registerSingleton(IExtHostMpcService, ExtHostMcpService, InstantiationType.Eager);
 registerSingleton(IExtHostDataChannels, ExtHostDataChannels, InstantiationType.Eager);
 registerSingleton(IExtHostMeteredConnection, ExtHostMeteredConnection, InstantiationType.Eager);
+registerSingleton(IExtHostGitExtensionService, ExtHostGitExtensionService, InstantiationType.Delayed);

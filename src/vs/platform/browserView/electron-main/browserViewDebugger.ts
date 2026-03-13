@@ -60,7 +60,7 @@ export class BrowserViewDebugger extends Disposable implements ICDPTarget {
 		}) as { sessionId: string };
 
 		const sessionId = result.sessionId;
-		const session = new DebugSession(sessionId, this._electronDebugger);
+		const session = new DebugSession(sessionId, this.view, this._electronDebugger);
 		this._sessions.set(sessionId, session);
 		session.onClose(() => this._sessions.deleteAndDispose(sessionId));
 
@@ -182,18 +182,27 @@ class DebugSession extends Disposable implements ICDPConnection {
 
 	constructor(
 		public readonly sessionId: string,
+		private readonly _view: BrowserView,
 		private readonly _electronDebugger: Electron.Debugger
 	) {
 		super();
 	}
 
-	async sendMessage(method: string, params?: unknown, _sessionId?: string): Promise<unknown> {
+	async sendCommand(method: string, params?: unknown, _sessionId?: string): Promise<unknown> {
 		// This crashes Electron. Don't pass it through.
 		if (method === 'Emulation.setDeviceMetricsOverride') {
 			return Promise.resolve({});
 		}
 
-		return this._electronDebugger.sendCommand(method, params, this.sessionId);
+		const result = await this._electronDebugger.sendCommand(method, params, this.sessionId);
+
+		// Electron overrides dialog behavior in a way that this command does not auto-dismiss the dialog.
+		// So we manually emit the (internal) event to dismiss open dialogs when this command is sent.
+		if (method === 'Page.handleJavaScriptDialog') {
+			this._view.webContents.emit('-cancel-dialogs');
+		}
+
+		return result;
 	}
 
 	override dispose(): void {

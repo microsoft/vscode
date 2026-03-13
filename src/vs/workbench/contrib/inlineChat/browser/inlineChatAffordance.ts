@@ -9,7 +9,7 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { InlineChatConfigKeys } from '../common/inlineChat.js';
+import { InlineChatConfigKeys, CTX_INLINE_CHAT_AFFORDANCE_VISIBLE } from '../common/inlineChat.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
@@ -23,15 +23,19 @@ import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { CodeActionController } from '../../../../editor/contrib/codeAction/browser/codeActionController.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { Event } from '../../../../base/common/event.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 type InlineChatAffordanceEvent = {
 	mode: string;
 	id: string;
+	commandId: string;
 };
 
 type InlineChatAffordanceClassification = {
 	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The affordance mode: gutter or editor.' };
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'UUID to correlate shown and selected events.' };
+	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The command that was executed.' };
 	owner: 'jrieken';
 	comment: 'Tracks when the inline chat affordance is shown or selected.';
 };
@@ -41,7 +45,8 @@ export class InlineChatAffordance extends Disposable {
 	readonly #editor: ICodeEditor;
 	readonly #inputWidget: InlineChatInputWidget;
 	readonly #instantiationService: IInstantiationService;
-	readonly #menuData = observableValue<{ rect: DOMRect; above: boolean; lineNumber: number } | undefined>(this, undefined);
+	readonly #menuData = observableValue<{ rect: DOMRect; above: boolean; lineNumber: number; placeholder: string; value?: string } | undefined>(this, undefined);
+	readonly #selectionData = observableValue<Selection | undefined>(this, undefined);
 
 	constructor(
 		editor: ICodeEditor,
@@ -51,6 +56,7 @@ export class InlineChatAffordance extends Disposable {
 		@IChatEntitlementService chatEntiteldService: IChatEntitlementService,
 		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.#editor = editor;
@@ -61,7 +67,10 @@ export class InlineChatAffordance extends Disposable {
 		const affordance = observableConfigValue<'off' | 'gutter' | 'editor'>(InlineChatConfigKeys.Affordance, 'off', configurationService);
 		const debouncedSelection = debouncedObservable(editorObs.cursorSelection, 500);
 
-		const selectionData = observableValue<Selection | undefined>(this, undefined);
+		const selectionData = this.#selectionData;
+
+		const ctxAffordanceVisible = CTX_INLINE_CHAT_AFFORDANCE_VISIBLE.bindTo(contextKeyService);
+		this._store.add({ dispose: () => ctxAffordanceVisible.reset() });
 
 		let explicitSelection = false;
 		let affordanceId: string | undefined;
@@ -83,7 +92,7 @@ export class InlineChatAffordance extends Disposable {
 			affordanceId = generateUuid();
 			const mode = affordance.read(undefined);
 			if (mode === 'gutter' || mode === 'editor') {
-				telemetryService.publicLog2<InlineChatAffordanceEvent, InlineChatAffordanceClassification>('inlineChatAffordance/shown', { mode, id: affordanceId });
+				telemetryService.publicLog2<InlineChatAffordanceEvent, InlineChatAffordanceClassification>('inlineChatAffordance/shown', { mode, id: affordanceId, commandId: '' });
 			}
 			selectionData.set(value, undefined);
 		}));
@@ -106,11 +115,28 @@ export class InlineChatAffordance extends Disposable {
 			}
 		}));
 
-		this._store.add(this.#instantiationService.createInstance(
+		// Hide when the editor context menu shows
+		this._store.add(this.#editor.onContextMenu(() => {
+			selectionData.set(undefined, undefined);
+		}));
+
+		// Hide when the editor loses focus (e.g., switching tabs in notebooks)
+		this._store.add(autorun(r => {
+			if (!editorObs.isFocused.read(r)) {
+				selectionData.set(undefined, undefined);
+			}
+		}));
+
+		this._store.add(autorun(r => {
+			const sel = selectionData.read(r);
+			const mode = affordance.read(r);
+			ctxAffordanceVisible.set(sel !== undefined && (mode === 'editor' || mode === 'gutter'));
+		}));
+
+		const gutterAffordance = this._store.add(this.#instantiationService.createInstance(
 			InlineChatGutterAffordance,
 			editorObs,
 			derived(r => affordance.read(r) === 'gutter' ? selectionData.read(r) : undefined),
-			this.#menuData
 		));
 
 		const editorAffordance = this.#instantiationService.createInstance(
@@ -119,17 +145,19 @@ export class InlineChatAffordance extends Disposable {
 			derived(r => affordance.read(r) === 'editor' ? selectionData.read(r) : undefined)
 		);
 		this._store.add(editorAffordance);
-		this._store.add(editorAffordance.onDidRunAction(() => {
+
+		this._store.add(Event.any(editorAffordance.onDidRunAction, gutterAffordance.onDidRunAction)(commandId => {
 			if (affordanceId) {
-				telemetryService.publicLog2<InlineChatAffordanceEvent, InlineChatAffordanceClassification>('inlineChatAffordance/selected', { mode: 'editor', id: affordanceId });
+				telemetryService.publicLog2<InlineChatAffordanceEvent, InlineChatAffordanceClassification>('inlineChatAffordance/selected', { mode: affordance.get(), id: affordanceId, commandId });
 			}
 		}));
 
 		this._store.add(autorun(r => {
-			const isEditor = affordance.read(r) === 'editor';
+			const mode = affordance.read(r);
+			const hideWithSelection = mode === 'editor' || mode === 'gutter';
 			const controller = CodeActionController.get(this.#editor);
 			if (controller) {
-				controller.onlyLightBulbWithEmptySelection = isEditor;
+				controller.onlyLightBulbWithEmptySelection = hideWithSelection;
 			}
 		}));
 
@@ -137,10 +165,6 @@ export class InlineChatAffordance extends Disposable {
 			const data = this.#menuData.read(r);
 			if (!data) {
 				return;
-			}
-
-			if (affordanceId) {
-				telemetryService.publicLog2<InlineChatAffordanceEvent, InlineChatAffordanceClassification>('inlineChatAffordance/selected', { mode: 'gutter', id: affordanceId });
 			}
 
 			// Reveal the line in case it's outside the viewport (e.g., when triggered from sticky scroll)
@@ -151,7 +175,7 @@ export class InlineChatAffordance extends Disposable {
 			const left = data.rect.left - editorRect.left;
 
 			// Show the overlay widget
-			this.#inputWidget.show(data.lineNumber, left, data.above);
+			this.#inputWidget.show(data.lineNumber, left, data.above, data.placeholder, data.value);
 		}));
 
 		this._store.add(autorun(r => {
@@ -162,7 +186,11 @@ export class InlineChatAffordance extends Disposable {
 		}));
 	}
 
-	async showMenuAtSelection() {
+	dismiss(): void {
+		this.#selectionData.set(undefined, undefined);
+	}
+
+	async showMenuAtSelection(placeholder: string, value?: string): Promise<void> {
 		assertType(this.#editor.hasModel());
 
 		const direction = this.#editor.getSelection().getDirection();
@@ -176,7 +204,9 @@ export class InlineChatAffordance extends Disposable {
 		this.#menuData.set({
 			rect: new DOMRect(x, y, 0, scrolledPosition.height),
 			above: direction === SelectionDirection.RTL,
-			lineNumber: position.lineNumber
+			lineNumber: position.lineNumber,
+			placeholder,
+			value
 		}, undefined);
 
 		await waitForState(this.#inputWidget.position, pos => pos === null);

@@ -11,6 +11,7 @@ import product from '../../platform/product/common/product.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { ConfigurationKeyValuePairs, ConfigurationMigrationWorkbenchContribution, DynamicWindowConfiguration, DynamicWorkbenchSecurityConfiguration, Extensions, IConfigurationMigrationRegistry, problemsConfigurationNodeBase, windowConfigurationNodeBase, workbenchConfigurationNodeBase } from '../common/configuration.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../common/contributions.js';
+import { NotificationsPosition, NotificationsSettings } from '../common/notifications.js';
 import { CustomEditorLabelService } from '../services/editor/common/customEditorLabelService.js';
 import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from '../services/layout/browser/layoutService.js';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
@@ -349,10 +350,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('revealIfOpen', "Controls whether an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, such as when forcing an editor to open in a specific group or to the side of the currently active group."),
 				'default': false
 			},
-			'workbench.editor.allowOpenInModalEditor': {
-				'type': 'boolean',
-				'description': localize('allowOpenInModalEditor', "Controls whether editors can be opened in a modal overlay. When enabled, certain editors such as Settings and Keyboard Shortcuts may open in a centered modal overlay instead of as a regular editor tab."),
-				'default': product.quality !== 'stable', // TODO@bpasero figure out the default for stable
+			'workbench.editor.useModal': {
+				'type': 'string',
+				'enum': ['off', 'some', 'all'],
+				'enumDescriptions': [
+					localize('useModal.off', "Editors never open in a modal overlay."),
+					localize('useModal.some', "Certain editors such as Settings and Keyboard Shortcuts may open in a centered modal overlay."),
+					localize('useModal.all', "All editors open in a centered modal overlay."),
+				],
+				'description': localize('useModal', "Controls whether editors open in a modal overlay."),
+				'default': product.quality !== 'stable' ? 'some' : 'off', // TODO@bpasero figure out the default
 				tags: ['experimental'],
 				experiment: {
 					mode: 'auto'
@@ -609,6 +616,26 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': true,
 				'description': localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
+			},
+			[NotificationsSettings.NOTIFICATIONS_POSITION]: {
+				'type': 'string',
+				'enum': [NotificationsPosition.BOTTOM_RIGHT, NotificationsPosition.BOTTOM_LEFT, NotificationsPosition.TOP_RIGHT],
+				'default': NotificationsPosition.BOTTOM_RIGHT,
+				'description': localize('notificationsPosition', "Controls the position of the notification toasts and notification center."),
+				'enumDescriptions': [
+					localize('workbench.notifications.position.bottom-right', "Show notifications in the bottom right corner."),
+					localize('workbench.notifications.position.bottom-left', "Show notifications in the bottom left corner."),
+					localize('workbench.notifications.position.top-right', "Show notifications in the top right corner, similar to OS-level notifications.")
+				],
+				'tags': ['experimental'],
+				'experiment': {
+					'mode': 'auto'
+				}
+			},
+			[NotificationsSettings.NOTIFICATIONS_BUTTON]: {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('notificationsButton', "Controls the visibility of the Notifications button in the title bar. Only applies when notifications are positioned at the top right.")
 			},
 			[LayoutSettings.ACTIVITY_BAR_LOCATION]: {
 				'type': 'string',
@@ -1025,6 +1052,19 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			const result: ConfigurationKeyValuePairs = [['zenMode.hideTabs', { value: undefined }]];
 			if (value === true) {
 				result.push(['zenMode.showTabs', { value: 'single' }]);
+			}
+			return result;
+		}
+	}]);
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'workbench.editor.useModal', migrateFn: (value: unknown) => {
+			const result: ConfigurationKeyValuePairs = [];
+			if (value === 'default') {
+				result.push(['workbench.editor.useModal', { value: 'some' }]);
+			} else if (value === 'on') {
+				result.push(['workbench.editor.useModal', { value: 'all' }]);
 			}
 			return result;
 		}

@@ -1,0 +1,90 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-action-bar .update-indicator {
+	display: flex;
+	align-items: center;
+	border-radius: var(--vscode-cornerRadius-medium);
+	white-space: nowrap;
+	padding: 0px 12px;
+	height: 24px;
+	background-color: transparent;
+	border: 1px solid transparent;
+}
+
+.monaco-action-bar .update-indicator:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-action-bar .update-indicator .indicator-label {
+	font-size: var(--vscode-bodyFontSize-small);
+	position: relative;
+}
+
+/* Prominent state (action required) — primary button style */
+.monaco-action-bar .update-indicator.prominent {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-background);
+}
+
+.monaco-action-bar .update-indicator.prominent:hover {
+	background-color: var(--vscode-button-hoverBackground);
+	border-color: var(--vscode-button-hoverBackground);
+}
+
+/* Disabled state */
+.monaco-action-bar .update-indicator.update-disabled .indicator-label {
+	color: var(--vscode-disabledForeground);
+}
+
+/* Progress underline bar (shared base) */
+.monaco-action-bar .update-indicator.progress-indefinite .indicator-label::after,
+.monaco-action-bar .update-indicator.progress-percent .indicator-label::after {
+	content: '';
+	position: absolute;
+	left: 0;
+	bottom: 0;
+	height: 2px;
+	border-radius: 1px;
+}
+
+/* Progress: indefinite — animated shimmer underline */
+.monaco-action-bar .update-indicator.progress-indefinite .indicator-label::after {
+	width: 100%;
+	background: linear-gradient(
+		90deg,
+		transparent 0%,
+		var(--vscode-progressBar-background) 80%,
+		transparent 100%
+	);
+	background-size: 200% 100%;
+	animation: update-indicator-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes update-indicator-shimmer {
+	0% { background-position: 100% 0; }
+	100% { background-position: -100% 0; }
+}
+
+/* Progress: percentage — left-to-right fill underline */
+.monaco-action-bar .update-indicator.progress-percent .indicator-label::after {
+	width: 100%;
+	background: linear-gradient(
+		90deg,
+		var(--vscode-progressBar-background) var(--update-progress, 0%),
+		color-mix(in srgb, var(--vscode-progressBar-background) 25%, transparent) var(--update-progress, 0%)
+	);
+	transition: background 0.3s ease;
+}
+
+/* Reduced motion */
+.monaco-workbench.monaco-reduce-motion .update-indicator.progress-indefinite .indicator-label::after {
+	animation: none;
+}
+
+.monaco-workbench.monaco-reduce-motion .update-indicator.progress-percent .indicator-label::after {
+	transition: none;
+}
