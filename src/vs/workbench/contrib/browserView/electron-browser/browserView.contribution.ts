@@ -165,7 +165,7 @@ class WindowZoomSynchronizer extends Disposable implements IWorkbenchContributio
 	}
 }
 
-registerWorkbenchContribution2(WindowZoomSynchronizer.ID, WindowZoomSynchronizer, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(WindowZoomSynchronizer.ID, WindowZoomSynchronizer, WorkbenchPhase.BlockRestore);
 
 registerSingleton(IBrowserViewWorkbenchService, BrowserViewWorkbenchService, InstantiationType.Delayed);
 registerSingleton(IBrowserZoomService, BrowserZoomService, InstantiationType.Delayed);
