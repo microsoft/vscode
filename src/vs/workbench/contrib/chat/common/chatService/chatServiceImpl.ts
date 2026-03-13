@@ -1018,11 +1018,11 @@ export class ChatService extends Disposable implements IChatService {
 							kind: 'markdownContent',
 							content: new MarkdownString(localize(
 								'agentDebugLog.troubleshootDisabled',
-								"The /{0} feature requires the following settings to be enabled: {1}. [Enable in Settings](command:workbench.action.openSettings?{2})",
+								"The /{0} feature requires the following settings to be enabled: {1}. After enabling, reload the window to apply. [Enable in Settings](command:workbench.action.openSettings?{2})",
 								TROUBLESHOOT_COMMAND_NAME,
 								missingSettings.join(', '),
 								settingsArg
-							)),
+							), { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }),
 						});
 						model.setResponse(request, {});
 						request.response?.complete();
