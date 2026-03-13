@@ -22,7 +22,7 @@ import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promp
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon, builtinIcon } from './aiCustomizationIcons.js';
-import { AICustomizationManagementItemMenuId, AICustomizationManagementSection, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
+import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementSection, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { Delayer } from '../../../../../base/common/async.js';
@@ -353,8 +353,15 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			storage: element.storage,
 		};
 
+		// Create scoped context key service with item-specific keys for when-clause filtering
+		const overlay = this.contextKeyService.createOverlay([
+			[AI_CUSTOMIZATION_ITEM_TYPE_KEY, element.promptType],
+			[AI_CUSTOMIZATION_ITEM_STORAGE_KEY, element.storage],
+			[AI_CUSTOMIZATION_ITEM_URI_KEY, element.uri.toString()],
+		]);
+
 		const menu = templateData.elementDisposables.add(
-			this.menuService.createMenu(AICustomizationManagementItemMenuId, this.contextKeyService)
+			this.menuService.createMenu(AICustomizationManagementItemMenuId, overlay)
 		);
 
 		const updateActions = () => {
@@ -615,8 +622,15 @@ export class AICustomizationListWidget extends Disposable {
 			storage: item.storage,
 		};
 
+		// Create scoped context key service with item-specific keys for when-clause filtering
+		const overlay = this.contextKeyService.createOverlay([
+			[AI_CUSTOMIZATION_ITEM_TYPE_KEY, item.promptType],
+			[AI_CUSTOMIZATION_ITEM_STORAGE_KEY, item.storage],
+			[AI_CUSTOMIZATION_ITEM_URI_KEY, item.uri.toString()],
+		]);
+
 		// Get menu actions, excluding inline actions to avoid duplicates
-		const actions = this.menuService.getMenuActions(AICustomizationManagementItemMenuId, this.contextKeyService, {
+		const actions = this.menuService.getMenuActions(AICustomizationManagementItemMenuId, overlay, {
 			arg: context,
 			shouldForwardArgs: true,
 		});
