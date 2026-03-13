@@ -40,6 +40,9 @@ export function rootReducer(state: IRootState, action: IRootAction): IRootState 
 		case 'root/agentsChanged': {
 			return { ...state, agents: action.agents };
 		}
+		case 'root/activeSessionsChanged': {
+			return { ...state, activeSessions: action.activeSessions };
+		}
 	}
 }
 

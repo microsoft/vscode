@@ -62,8 +62,14 @@ export interface IAgentsChangedAction {
 	readonly agents: readonly IAgentInfo[];
 }
 
+export interface IActiveSessionsChangedAction {
+	readonly type: 'root/activeSessionsChanged';
+	readonly activeSessions: number;
+}
+
 export type IRootAction =
-	| IAgentsChangedAction;
+	| IAgentsChangedAction
+	| IActiveSessionsChangedAction;
 
 // ---- Session actions (mutate SessionState, scoped to a session URI) ---------
 

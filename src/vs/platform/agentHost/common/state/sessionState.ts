@@ -60,6 +60,7 @@ export interface ISessionModelInfo {
  */
 export interface IRootState {
 	readonly agents: readonly IAgentInfo[];
+	readonly activeSessions: number;
 }
 
 export interface IAgentInfo {
@@ -261,6 +262,7 @@ export interface IErrorInfo {
 export function createRootState(): IRootState {
 	return {
 		agents: [],
+		activeSessions: 0,
 	};
 }
 
