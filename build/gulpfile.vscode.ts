@@ -756,6 +756,31 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 		const rgBinary = platform === 'win32' ? 'rg.exe' : 'rg';
 		const ripgrepSource = path.join(unpackedDir, '@vscode', 'ripgrep', 'bin', rgBinary);
 
+		// Diagnostic: show what's in the unpacked directory
+		console.log(`[copyCopilotNativeDeps] appBase: ${appBase}`);
+		console.log(`[copyCopilotNativeDeps] unpacked exists: ${fs.existsSync(unpackedDir)}`);
+		if (fs.existsSync(unpackedDir)) {
+			console.log(`[copyCopilotNativeDeps] unpacked top-level: ${JSON.stringify(fs.readdirSync(unpackedDir))}`);
+			const nodePtyDir = path.join(unpackedDir, 'node-pty');
+			if (fs.existsSync(nodePtyDir)) {
+				const walk = (dir: string, prefix = ''): string[] => {
+					const items: string[] = [];
+					for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+						const p = prefix ? `${prefix}/${entry.name}` : entry.name;
+						if (entry.isDirectory()) {
+							items.push(...walk(path.join(dir, entry.name), p));
+						} else {
+							items.push(p);
+						}
+					}
+					return items;
+				};
+				console.log(`[copyCopilotNativeDeps] node-pty tree: ${JSON.stringify(walk(nodePtyDir))}`);
+			} else {
+				console.log(`[copyCopilotNativeDeps] node-pty NOT in unpacked`);
+			}
+		}
+
 		// Fail-fast: source binaries must exist on non-stable builds.
 		if (!fs.existsSync(nodePtySource)) {
 			throw new Error(`[copyCopilotNativeDeps] node-pty source not found at ${nodePtySource}`);
