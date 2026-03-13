@@ -195,7 +195,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.contentContainer = $('.agentSessionsWelcome-content');
 		this.scrollableElement = this._register(new DomScrollableElement(this.contentContainer, {
 			className: 'agentSessionsWelcome-scrollable',
-			vertical: ScrollbarVisibility.Auto
+			vertical: ScrollbarVisibility.Auto,
+			horizontal: ScrollbarVisibility.Auto
 		}));
 		this.container.appendChild(this.scrollableElement.getDomNode());
 	}
