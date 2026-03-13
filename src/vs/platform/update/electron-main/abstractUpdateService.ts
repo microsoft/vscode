@@ -9,15 +9,14 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { Emitter, Event } from '../../../base/common/event.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { getWindowsReleaseSync } from '../../../base/node/windowsVersion.js';
-import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService, LifecycleMainPhase } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 
 export interface IUpdateURLOptions {
 	readonly background?: boolean;
@@ -71,8 +70,6 @@ export type UpdateErrorClassification = {
 	comment: 'This is used to know how often VS Code updates have failed.';
 };
 
-const LAST_KNOWN_VERSION_KEY = 'updateService/lastKnownVersion';
-
 export abstract class AbstractUpdateService implements IUpdateService {
 
 	declare readonly _serviceBrand: undefined;
@@ -115,7 +112,6 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@ILogService protected logService: ILogService,
 		@IProductService protected readonly productService: IProductService,
 		@IMeteredConnectionService protected readonly meteredConnectionService: IMeteredConnectionService,
-		@IStorageService protected readonly storageService: IStorageService,
 		protected readonly supportsUpdateOverwrite: boolean,
 	) {
 		lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen)
@@ -169,9 +165,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		this.quality = quality;
 
-		const lastKnownVersion = this.storageService.get(LAST_KNOWN_VERSION_KEY, StorageScope.APPLICATION);
-		this.storageService.store(LAST_KNOWN_VERSION_KEY, this.productService.version, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		this.setState(State.Idle(this.getUpdateType(), undefined, undefined, lastKnownVersion));
+		this.setState(State.Idle(this.getUpdateType()));
 
 		await this.postInitialize();
 
