@@ -142,8 +142,14 @@ fn make_logger(core: &args::CliCore) -> log::Logger {
 	let tracer = SdkTracerProvider::builder().build().tracer("codecli");
 	let mut log = log::Logger::new(tracer, log_level);
 	if let Some(f) = &core.global_options.log_to_file {
-		log = log
-			.with_sink(log::FileLogSink::new(log_level, f).expect("expected to make file logger"))
+		match log::FileLogSink::new(log_level, f) {
+			Ok(sink) => log = log.with_sink(sink),
+			Err(e) => log::emit(
+				log::Level::Warn,
+				"",
+				&format!("failed to create log file {}: {e}", f.display()),
+			),
+		}
 	}
 
 	log
