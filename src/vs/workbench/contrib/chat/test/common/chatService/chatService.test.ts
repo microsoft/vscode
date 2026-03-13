@@ -609,6 +609,64 @@ suite('ChatService', () => {
 		completeRequest.complete();
 		await response.data.responseCompletePromise;
 	});
+
+	test('pending requests can be removed from one session and re-sent on another', async () => {
+		const requestStarted = new DeferredPromise<void>();
+		const completeRequest = new DeferredPromise<void>();
+		const invokedMessages: string[] = [];
+
+		const slowAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				invokedMessages.push(request.message);
+				if (invokedMessages.length === 1) {
+					requestStarted.complete();
+					await completeRequest.p;
+				}
+				return {};
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('slowAgent', { ...getAgentData('slowAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('slowAgent', slowAgent));
+
+		const testService = createChatService();
+		const sourceRef = testDisposables.add(startSessionModel(testService));
+		const source = sourceRef.object;
+
+		// Start a blocking request on source
+		const response = await testService.sendRequest(source.sessionResource, 'first request', { agentId: 'slowAgent' });
+		ChatSendResult.assertSent(response);
+		await requestStarted.p;
+
+		// Queue a request while the first is in progress
+		const queued = await testService.sendRequest(source.sessionResource, 'queued request', { agentId: 'slowAgent', queue: ChatRequestQueueKind.Queued });
+		assert.ok(ChatSendResult.isQueued(queued));
+
+		// Remove the queued request from source
+		const pendingId = source.getPendingRequests()[0].request.id;
+		testService.removePendingRequest(source.sessionResource, pendingId);
+		assert.strictEqual(source.getPendingRequests().length, 0);
+
+		// Re-send it on a new target session through the normal queue path
+		const targetRef = testDisposables.add(startSessionModel(testService));
+		const target = targetRef.object;
+		const resent = await testService.sendRequest(target.sessionResource, 'queued request', { agentId: 'slowAgent', queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		assert.ok(ChatSendResult.isQueued(resent));
+		assert.strictEqual(target.getPendingRequests().length, 1);
+
+		// Complete the first request so the source loop finishes
+		completeRequest.complete();
+		await response.data.responseCompletePromise;
+
+		// Process the target queue — the re-sent request should be invoked
+		testService.processPendingRequests(target.sessionResource);
+		const result = await resent.deferred;
+		assert.ok(ChatSendResult.isSent(result));
+
+		// The agent should have been invoked twice: first request + re-sent queued request
+		assert.strictEqual(invokedMessages.length, 2);
+		assert.ok(invokedMessages[1].includes('queued request'));
+	});
 });
 
 

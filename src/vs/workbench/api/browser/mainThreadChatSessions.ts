@@ -24,7 +24,7 @@ import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/edito
 import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { awaitStatsForSession } from '../../contrib/chat/common/chat.js';
-import { IChatContentInlineReference, IChatProgress, IChatService, ResponseModelState } from '../../contrib/chat/common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatContentInlineReference, IChatProgress, IChatService, ResponseModelState } from '../../contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
@@ -579,6 +579,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 						options,
 					},
 				}], originalGroup);
+
+				// Re-send queued requests from the original session on the committed session
+				this._resendPendingRequests(originalResource, modifiedResource);
 				return;
 			}
 
@@ -599,8 +602,64 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				const ref = await this._chatService.acquireOrLoadSession(modifiedResource, ChatAgentLocation.Chat, CancellationToken.None);
 				ref?.dispose();
 			}
+
+			// Re-send queued requests from the original session on the committed session
+			this._resendPendingRequests(originalResource, modifiedResource);
 		} finally {
 			originalModel?.dispose();
+		}
+	}
+
+	/**
+	 * Takes any pending (queued) requests from the original session, removes them,
+	 * and re-sends them on the committed session through the normal sendRequest path.
+	 *
+	 * Also handles a race condition: when the previous request completes, processNextPendingRequest
+	 * runs synchronously (in the .finally() microtask) and dequeues the first queued request before
+	 * the commit event arrives from the extension host. That dequeued request is now in-flight on
+	 * the old session and must also be cancelled and re-sent on the committed session.
+	 */
+	private _resendPendingRequests(originalResource: URI, modifiedResource: URI): void {
+		const originalSession = this._chatService.getSession(originalResource);
+		if (!originalSession) {
+			return;
+		}
+
+		// Detect an in-flight request that was dequeued and started on the old session
+		// by processNextPendingRequest before this commit handler could run.
+		const lastRequest = originalSession.lastRequest;
+		const inFlightRequest = lastRequest?.response && !lastRequest.response.isComplete ? lastRequest : undefined;
+
+		const pendingRequests = [...originalSession.getPendingRequests()];
+
+		if (!inFlightRequest && pendingRequests.length === 0) {
+			return;
+		}
+
+		// Cancel the in-flight request on the old session — fire and forget,
+		// we just need the CancellationToken cancelled so the agent stops.
+		if (inFlightRequest) {
+			this._chatService.cancelCurrentRequestForSession(originalResource);
+		}
+
+		// Remove each remaining pending request from the original session
+		for (const pending of pendingRequests) {
+			this._chatService.removePendingRequest(originalResource, pending.request.id);
+		}
+
+		// Re-send the cancelled in-flight request first (it was ahead of the queued ones)
+		if (inFlightRequest) {
+			this._chatService.sendRequest(modifiedResource, inFlightRequest.message.text, {
+				queue: ChatRequestQueueKind.Queued,
+			});
+		}
+
+		// Re-send remaining queued requests
+		for (const pending of pendingRequests) {
+			this._chatService.sendRequest(modifiedResource, pending.request.message.text, {
+				...pending.sendOptions,
+				queue: pending.kind,
+			});
 		}
 	}
 
