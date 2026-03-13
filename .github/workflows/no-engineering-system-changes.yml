@@ -34,7 +34,11 @@ jobs:
             exit 0
           fi
 
-          DIFF=$(gh pr diff ${{ github.event.pull_request.number }} -- package.json)
+          DIFF=$(gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }}) || {
+            echo "Failed to fetch PR diff — not allowed"
+            echo "allowed=false" >> $GITHUB_OUTPUT
+            exit 0
+          }
           CHANGED_LINES=$(echo "$DIFF" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | wc -l)
           DISTRO_LINES=$(echo "$DIFF" | grep -cE '^[+-].*"distro"')
 
