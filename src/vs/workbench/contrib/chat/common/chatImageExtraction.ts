@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { getExtensionForMimeType } from '../../../../base/common/mime.js';
+import { getExtensionForMimeType, getMediaMime } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { isLocation } from '../../../../editor/common/languages.js';
 import { IChatResponseViewModel, IChatRequestViewModel, isRequestVM } from './model/chatViewModel.js';
 import { ChatResponseResource } from './model/chatModel.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from './chatService/chatService.js';
+import { IChatContentInlineReference, IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from './chatService/chatService.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, IToolResultOutputDetails } from './tools/languageModelToolsService.js';
 
 export interface IChatExtractedImage {
@@ -29,20 +30,28 @@ export interface IChatExtractedImageCollection {
 }
 
 /**
- * Extract all images from a chat response's tool invocations.
+ * Extract all images from a chat response's tool invocations and inline references.
+ * Tool invocation images are extracted from output details and message URIs.
+ * Inline reference images (file URIs) are read via the provided {@link readFile} callback.
  */
-export function extractImagesFromChatResponse(response: IChatResponseViewModel): IChatExtractedImageCollection | undefined {
+export async function extractImagesFromChatResponse(
+	response: IChatResponseViewModel,
+	readFile: (uri: URI) => Promise<VSBuffer>,
+): Promise<IChatExtractedImageCollection> {
 	const allImages: IChatExtractedImage[] = [];
 
 	for (const item of response.response.value) {
 		if (item.kind === 'toolInvocation' || item.kind === 'toolInvocationSerialized') {
-			const images = extractImagesFromToolInvocation(item, response.sessionResource);
+			const images = extractImagesFromToolInvocationOutputDetails(item, response.sessionResource);
 			allImages.push(...images);
+			const messageImages = await extractImagesFromToolInvocationMessages(item, readFile);
+			allImages.push(...messageImages);
+		} else if (item.kind === 'inlineReference') {
+			const image = await extractImageFromInlineReference(item, readFile);
+			if (image) {
+				allImages.push(image);
+			}
 		}
-	}
-
-	if (allImages.length === 0) {
-		return undefined;
 	}
 
 	// Use the corresponding user request as the carousel title
@@ -56,7 +65,7 @@ export function extractImagesFromChatResponse(response: IChatResponseViewModel):
 	};
 }
 
-export function extractImagesFromToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, sessionResource: URI): IChatExtractedImage[] {
+export function extractImagesFromToolInvocationOutputDetails(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, sessionResource: URI): IChatExtractedImage[] {
 	const images: IChatExtractedImage[] = [];
 
 	const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
@@ -99,6 +108,44 @@ export function extractImagesFromToolInvocation(toolInvocation: IChatToolInvocat
 	return images;
 }
 
+export async function extractImagesFromToolInvocationMessages(
+	toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
+	readFile: (uri: URI) => Promise<VSBuffer>
+): Promise<IChatExtractedImage[]> {
+	// Use pastTenseMessage if available, otherwise fall back to invocationMessage.
+	// When pastTenseMessage exists it visually replaces invocationMessage in the UI,
+	// so we only look at its URIs — we don't fall back to invocationMessage URIs.
+	const message = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
+	if (!message || typeof message === 'string' || !message.uris || Object.keys(message.uris).length === 0) {
+		return [];
+	}
+
+	const images: IChatExtractedImage[] = [];
+	for (const uriComponents of Object.values(message.uris)) {
+		const uri = URI.revive(uriComponents);
+		const mimeType = getMediaMime(uri.path);
+		if (mimeType?.startsWith('image/')) {
+			let data: VSBuffer;
+			try {
+				data = await readFile(uri);
+			} catch {
+				continue;
+			}
+			const name = uri.path.split('/').pop() ?? 'image';
+			images.push({
+				id: uri.toString(),
+				uri,
+				name,
+				mimeType,
+				data,
+				source: localize('chatImageExtraction.toolSource', "Tool: {0}", toolInvocation.toolId),
+				caption: message.value,
+			});
+		}
+	}
+	return images;
+}
+
 function getImageDataFromOutputDetails(resultDetails: IToolResultOutputDetails, toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): VSBuffer | undefined {
 	if (toolInvocation.kind === 'toolInvocationSerialized') {
 		const serializedDetails = resultDetails as unknown as IToolResultOutputDetailsSerialized;
@@ -109,4 +156,33 @@ function getImageDataFromOutputDetails(resultDetails: IToolResultOutputDetails, 
 	} else {
 		return resultDetails.output.value;
 	}
+}
+
+async function extractImageFromInlineReference(
+	part: IChatContentInlineReference,
+	readFile: (uri: URI) => Promise<VSBuffer>,
+): Promise<IChatExtractedImage | undefined> {
+	const ref = part.inlineReference;
+	const refUri = URI.isUri(ref) ? ref : isLocation(ref) ? ref.uri : ref.location.uri;
+	const mime = getMediaMime(refUri.path);
+	if (!mime?.startsWith('image/')) {
+		return undefined;
+	}
+
+	let data: VSBuffer;
+	try {
+		data = await readFile(refUri);
+	} catch {
+		return undefined;
+	}
+	const name = part.name ?? refUri.path.split('/').pop() ?? 'image';
+	return {
+		id: refUri.toString(),
+		uri: refUri,
+		name,
+		mimeType: mime,
+		data,
+		source: localize('chatImageExtraction.inlineReference', "File"),
+		caption: undefined,
+	};
 }
