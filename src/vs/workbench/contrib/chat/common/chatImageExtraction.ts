@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { getExtensionForMimeType } from '../../../../base/common/mime.js';
+import { getExtensionForMimeType, getMediaMime } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { isLocation } from '../../../../editor/common/languages.js';
 import { IChatResponseViewModel, IChatRequestViewModel, isRequestVM } from './model/chatViewModel.js';
 import { ChatResponseResource } from './model/chatModel.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from './chatService/chatService.js';
+import { IChatContentInlineReference, IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from './chatService/chatService.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, IToolResultOutputDetails } from './tools/languageModelToolsService.js';
 
 export interface IChatExtractedImage {
@@ -29,20 +30,26 @@ export interface IChatExtractedImageCollection {
 }
 
 /**
- * Extract all images from a chat response's tool invocations.
+ * Extract all images from a chat response's tool invocations and inline references.
+ * When a {@link readFile} callback is provided, inline reference images (file URIs)
+ * are also extracted; otherwise only tool invocation images are returned.
  */
-export function extractImagesFromChatResponse(response: IChatResponseViewModel): IChatExtractedImageCollection | undefined {
+export async function extractImagesFromChatResponse(
+	response: IChatResponseViewModel,
+	readFile?: (uri: URI) => Promise<VSBuffer>,
+): Promise<IChatExtractedImageCollection> {
 	const allImages: IChatExtractedImage[] = [];
 
 	for (const item of response.response.value) {
 		if (item.kind === 'toolInvocation' || item.kind === 'toolInvocationSerialized') {
 			const images = extractImagesFromToolInvocation(item, response.sessionResource);
 			allImages.push(...images);
+		} else if (item.kind === 'inlineReference' && readFile) {
+			const image = await extractImageFromInlineReference(item, readFile);
+			if (image) {
+				allImages.push(image);
+			}
 		}
-	}
-
-	if (allImages.length === 0) {
-		return undefined;
 	}
 
 	// Use the corresponding user request as the carousel title
@@ -109,4 +116,28 @@ function getImageDataFromOutputDetails(resultDetails: IToolResultOutputDetails, 
 	} else {
 		return resultDetails.output.value;
 	}
+}
+
+async function extractImageFromInlineReference(
+	part: IChatContentInlineReference,
+	readFile: (uri: URI) => Promise<VSBuffer>,
+): Promise<IChatExtractedImage | undefined> {
+	const ref = part.inlineReference;
+	const refUri = URI.isUri(ref) ? ref : isLocation(ref) ? ref.uri : ref.location.uri;
+	const mime = getMediaMime(refUri.path);
+	if (!mime?.startsWith('image/')) {
+		return undefined;
+	}
+
+	const data = await readFile(refUri);
+	const name = part.name ?? refUri.path.split('/').pop() ?? 'image';
+	return {
+		id: refUri.toString(),
+		uri: refUri,
+		name,
+		mimeType: mime,
+		data,
+		source: localize('chatImageExtraction.inlineReference', "File"),
+		caption: undefined,
+	};
 }
