@@ -488,6 +488,15 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental']
 		},
+		[ChatConfiguration.ChatAgentDebugLogEnabled]: {
+			default: false,
+			description: nls.localize('chat.agentDebugLog.enabled', "Controls whether the agent troubleshooting experience using logs is enabled, including the /troubleshoot slash command."),
+			type: 'boolean',
+			tags: ['preview'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
 		'chat.undoRequests.restoreInput': {
 			default: true,
 			markdownDescription: nls.localize('chat.undoRequests.restoreInput', "Controls whether the input of the chat should be restored when an undo request is made. The input will be filled with the text of the request that was restored."),

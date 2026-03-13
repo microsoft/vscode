@@ -11,10 +11,13 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isUUID } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 
 const $ = DOM.$;
 
@@ -32,6 +35,8 @@ export class ChatDebugHomeView extends Disposable {
 		@IChatService private readonly chatService: IChatService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
 		this.container = DOM.append(parent, $('.chat-debug-home'));
@@ -52,6 +57,21 @@ export class ChatDebugHomeView extends Disposable {
 		this.renderDisposables.clear();
 
 		DOM.append(this.scrollContent, $('h2.chat-debug-home-title', undefined, localize('chatDebug.title', "Agent Debug Panel")));
+
+		const isEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatAgentDebugLogEnabled);
+		if (!isEnabled) {
+			DOM.append(this.scrollContent, $('p.chat-debug-home-subtitle', undefined,
+				localize('chatDebug.disabled', "The Agent Debug Panel is currently disabled.")
+			));
+
+			const enableButton = DOM.append(this.scrollContent, $<HTMLButtonElement>('button.chat-debug-home-session-item'));
+			DOM.append(enableButton, $(`span${ThemeIcon.asCSSSelector(Codicon.settingsGear)}`));
+			DOM.append(enableButton, $('span', undefined, localize('chatDebug.openSetting', "Enable in Settings")));
+			this.renderDisposables.add(DOM.addDisposableListener(enableButton, DOM.EventType.CLICK, () => {
+				this.preferencesService.openSettings({ jsonEditor: false, query: ChatConfiguration.ChatAgentDebugLogEnabled });
+			}));
+			return;
+		}
 
 		// Determine the active session resource
 		const activeWidget = this.chatWidgetService.lastFocusedWidget;

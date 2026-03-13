@@ -56,6 +56,7 @@ export enum ChatConfiguration {
 	ChatCustomizationMenuEnabled = 'chat.customizationsMenu.enabled',
 	AutopilotEnabled = 'chat.autopilot.enabled',
 	ImageCarouselEnabled = 'chat.imageCarousel.enabled',
+	ChatAgentDebugLogEnabled = 'chat.agentDebugLog.enabled',
 }
 
 /**
