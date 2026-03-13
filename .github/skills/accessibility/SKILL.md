@@ -13,8 +13,6 @@ Trigger examples:
 - "add a new command or workflow"
 - "update existing UI interactions"
 
-For new features and contributions, apply both this skill and the specialized `vscode-accessibility` skill.
-
 When adding a **new interactive UI surface** to VS Code — a panel, view, widget, editor overlay, dialog, or any rich focusable component the user interacts with — you **must** provide three accessibility components (if they do not already exist for the feature):
 
 1. **An Accessibility Help Dialog** — opened via the accessibility help keybinding when the feature has focus.
