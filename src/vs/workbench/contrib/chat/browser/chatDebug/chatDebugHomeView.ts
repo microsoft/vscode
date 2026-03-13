@@ -62,7 +62,7 @@ export class ChatDebugHomeView extends Disposable {
 		const isEnabled = this.configurationService.getValue<boolean>('github.copilot.agentDebugLog.enabled');
 		if (!isEnabled) {
 			DOM.append(this.scrollContent, $('p.chat-debug-home-subtitle', undefined,
-				localize('chatDebug.disabled', "Enable to view internal chat logs and ask agents questions about it via /troubleshoot.")
+				localize('chatDebug.disabled', "Enable to view internal chat logs and ask agents questions about it via /troubleshoot. If already enabled, reload the window to apply.")
 			));
 
 			const enableButton = this.renderDisposables.add(new Button(this.scrollContent, { ...defaultButtonStyles, secondary: true }));
