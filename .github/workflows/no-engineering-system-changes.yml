@@ -40,7 +40,7 @@ jobs:
             exit 0
           }
           CHANGED_LINES=$(echo "$DIFF" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | wc -l)
-          DISTRO_LINES=$(echo "$DIFF" | grep -cE '^[+-].*"distro"')
+          DISTRO_LINES=$(echo "$DIFF" | grep -cE '^[+-]\s*"distro"\s*:' || true)
 
           if [[ "$CHANGED_LINES" -eq 2 && "$DISTRO_LINES" -eq 2 ]]; then
             echo "Distro-only update by bot — allowing"
