@@ -90,8 +90,7 @@ import { UserDataAutoSyncService } from '../platform/userDataSync/common/userDat
 import { AccessibilityService } from '../platform/accessibility/browser/accessibilityService.js';
 import { ICustomEndpointTelemetryService } from '../platform/telemetry/common/telemetry.js';
 import { NullEndpointTelemetryService } from '../platform/telemetry/common/telemetryUtils.js';
-import { ITitleService } from '../workbench/services/title/browser/titleService.js';
-import { BrowserTitleService } from '../workbench/browser/parts/titlebar/titlebarPart.js';
+import './services/title/browser/titleService.js';
 import { ITimerService, TimerService } from '../workbench/services/timer/browser/timerService.js';
 import { IDiagnosticsService, NullDiagnosticsService } from '../platform/diagnostics/common/diagnostics.js';
 import { ILanguagePackService } from '../platform/languagePacks/common/languagePacks.js';
@@ -111,7 +110,6 @@ registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService, Insta
 registerSingleton(IUserDataSyncService, UserDataSyncService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncResourceProviderService, UserDataSyncResourceProviderService, InstantiationType.Delayed);
 registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, InstantiationType.Eager);
-registerSingleton(ITitleService, BrowserTitleService, InstantiationType.Eager);
 registerSingleton(IExtensionTipsService, ExtensionTipsService, InstantiationType.Delayed);
 registerSingleton(ITimerService, TimerService, InstantiationType.Delayed);
 registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, InstantiationType.Delayed);
@@ -154,7 +152,9 @@ import './browser/layoutActions.js';
 
 import './contrib/accountMenu/browser/account.contribution.js';
 import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
+import './contrib/applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
 import './contrib/chat/browser/chat.contribution.js';
+import './contrib/terminal/browser/sessionsTerminalContribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changesView.contribution.js';

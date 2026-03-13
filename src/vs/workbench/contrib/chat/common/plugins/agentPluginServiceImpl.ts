@@ -37,10 +37,13 @@ import { parseClaudeHooks } from '../promptSyntax/hookClaudeCompat.js';
 import { parseCopilotHooks } from '../promptSyntax/hookCompatibility.js';
 import { IHookCommand } from '../promptSyntax/hookSchema.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
-import { agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from './agentPluginService.js';
+import { agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from './agentPluginService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
 
 const COMMAND_FILE_SUFFIX = '.md';
+
+/** File suffixes accepted for rule/instruction files (longest first for correct name stripping). */
+const RULE_FILE_SUFFIXES = ['.instructions.md', '.mdc', '.md'];
 
 const enum AgentPluginFormat {
 	Copilot,
@@ -507,8 +510,9 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		};
 
 		const commands = observeComponent('commands', d => this._readMarkdownComponents(d));
-		const skills = observeComponent('skills', d => this._readSkills(d));
+		const skills = observeComponent('skills', d => this._readSkills(uri, d));
 		const agents = observeComponent('agents', d => this._readMarkdownComponents(d));
+		const instructions = observeComponent('rules', d => this._readRules(d));
 		const hooks = observeComponent(
 			'hooks',
 			paths => this._readHooksFromPaths(uri, paths, adapter),
@@ -549,6 +553,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			commands,
 			skills,
 			agents,
+			instructions,
 			mcpServerDefinitions,
 			fromMarketplace,
 		};
@@ -694,7 +699,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 	}
 
-	private async _readSkills(dirs: readonly URI[]): Promise<readonly IAgentPluginSkill[]> {
+	private async _readSkills(pluginRoot: URI, dirs: readonly URI[]): Promise<readonly IAgentPluginSkill[]> {
 		const seen = new Set<string>();
 		const skills: IAgentPluginSkill[] = [];
 
@@ -733,8 +738,72 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			}
 		}
 
+		// Fallback: support single-skill plugins with SKILL.md at the plugin root
+		if (skills.length === 0) {
+			const rootSkillMd = URI.joinPath(pluginRoot, 'SKILL.md');
+			if (await this._pathExists(rootSkillMd)) {
+				addSkill(basename(pluginRoot), rootSkillMd);
+			}
+		}
+
 		skills.sort((a, b) => a.name.localeCompare(b.name));
 		return skills;
+	}
+
+	/**
+	 * Scans directories for rule/instruction files (`.mdc`, `.md`,
+	 * `.instructions.md`), returning `{ uri, name }` entries where name is
+	 * derived from the filename minus the matched suffix.
+	 */
+	private async _readRules(dirs: readonly URI[]): Promise<readonly IAgentPluginInstruction[]> {
+		const seen = new Set<string>();
+		const items: IAgentPluginInstruction[] = [];
+
+		const matchSuffix = (filename: string): string | undefined => {
+			const lower = filename.toLowerCase();
+			return RULE_FILE_SUFFIXES.find(s => lower.endsWith(s));
+		};
+
+		const addItem = (name: string, uri: URI) => {
+			if (!seen.has(name)) {
+				seen.add(name);
+				items.push({ uri, name });
+			}
+		};
+
+		for (const dir of dirs) {
+			let stat;
+			try {
+				stat = await this._fileService.resolve(dir);
+			} catch {
+				continue;
+			}
+
+			if (stat.isFile) {
+				const suffix = matchSuffix(basename(dir));
+				if (suffix) {
+					addItem(basename(dir).slice(0, -suffix.length), dir);
+				}
+				continue;
+			}
+
+			if (!stat.isDirectory || !stat.children) {
+				continue;
+			}
+
+			for (const child of stat.children) {
+				if (!child.isFile) {
+					continue;
+				}
+				const suffix = matchSuffix(child.name);
+				if (suffix) {
+					addItem(child.name.slice(0, -suffix.length), child.resource);
+				}
+			}
+		}
+
+		items.sort((a, b) => a.name.localeCompare(b.name));
+		return items;
 	}
 
 	/**

@@ -242,6 +242,45 @@ suite('AgentPlugin format detection', () => {
 		assert.deepStrictEqual(skillNames, ['deploy', 'lint']);
 	}));
 
+	test('reads root-level SKILL.md as a fallback skill', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/root-skill');
+		await writeFile('/plugins/root-skill/.plugin/plugin.json', JSON.stringify({ name: 'root-skill' }));
+		await writeFile('/plugins/root-skill/SKILL.md', '# Visual Explainer');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = discovery.plugins.get();
+		assert.strictEqual(plugins.length, 1);
+
+		await waitForState(plugins[0].skills, s => s.length > 0);
+		assert.deepStrictEqual(
+			plugins[0].skills.get().map(s => s.name),
+			['root-skill'],
+		);
+	}));
+
+	test('root-level SKILL.md is ignored when skills/ has content', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/root-skill-ignored');
+		await writeFile('/plugins/root-skill-ignored/.plugin/plugin.json', JSON.stringify({ name: 'root-skill-ignored' }));
+		await writeFile('/plugins/root-skill-ignored/SKILL.md', '# Root skill');
+		await writeFile('/plugins/root-skill-ignored/skills/real/SKILL.md', '# Real skill');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = discovery.plugins.get();
+		assert.strictEqual(plugins.length, 1);
+
+		await waitForState(plugins[0].skills, s => s.length > 0);
+		assert.deepStrictEqual(
+			plugins[0].skills.get().map(s => s.name),
+			['real'],
+		);
+	}));
+
 	test('reads agents from agents/ directory', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = pluginUri('/plugins/agents-plugin');
 		await writeFile('/plugins/agents-plugin/.plugin/plugin.json', JSON.stringify({ name: 'agents-plugin' }));
@@ -401,6 +440,7 @@ suite('AgentPlugin format detection', () => {
 		await writeFile('/plugins/no-manifest/commands/hello.md', '# Hello');
 		await writeFile('/plugins/no-manifest/skills/my-skill/SKILL.md', '# My skill');
 		await writeFile('/plugins/no-manifest/agents/helper.md', '# Helper');
+		await writeFile('/plugins/no-manifest/rules/prefer-const.mdc', '---\ndescription: Prefer const\n---\nUse const.');
 
 		const discovery = createDiscovery();
 		discovery.start(mockEnablementModel);
@@ -418,6 +458,9 @@ suite('AgentPlugin format detection', () => {
 
 		await waitForState(plugins[0].agents, a => a.length > 0);
 		assert.strictEqual(plugins[0].agents.get()[0].name, 'helper');
+
+		await waitForState(plugins[0].instructions, i => i.length > 0);
+		assert.strictEqual(plugins[0].instructions.get()[0].name, 'prefer-const');
 	}));
 
 	test('reads hooks from default hooks/hooks.json', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -700,5 +743,133 @@ suite('AgentPlugin format detection', () => {
 		assert.strictEqual(plugins.length, 1);
 		await waitForState(plugins[0].mcpServerDefinitions, d => d.length > 0);
 		assert.strictEqual(plugins[0].mcpServerDefinitions.get()[0].name, 'custom-server');
+	}));
+
+	test('reads rules from rules/ directory with .mdc extension', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/rules-plugin');
+		await writeFile('/plugins/rules-plugin/.plugin/plugin.json', JSON.stringify({ name: 'rules-plugin' }));
+		await writeFile('/plugins/rules-plugin/rules/prefer-const.mdc', '---\ndescription: Prefer const\n---\nUse const.');
+		await writeFile('/plugins/rules-plugin/rules/error-handling.mdc', '---\ndescription: Error handling\n---\nAlways handle errors.');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = discovery.plugins.get();
+		assert.strictEqual(plugins.length, 1);
+
+		await waitForState(plugins[0].instructions, i => i.length >= 2);
+		assert.deepStrictEqual(
+			plugins[0].instructions.get().map(i => i.name).sort(),
+			['error-handling', 'prefer-const'],
+		);
+	}));
+
+	test('reads rules with .md and .instructions.md extensions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/rules-mixed');
+		await writeFile('/plugins/rules-mixed/.plugin/plugin.json', JSON.stringify({ name: 'rules-mixed' }));
+		await writeFile('/plugins/rules-mixed/rules/rule-a.mdc', 'Rule A');
+		await writeFile('/plugins/rules-mixed/rules/rule-b.md', 'Rule B');
+		await writeFile('/plugins/rules-mixed/rules/rule-c.instructions.md', 'Rule C');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = discovery.plugins.get();
+		assert.strictEqual(plugins.length, 1);
+
+		await waitForState(plugins[0].instructions, i => i.length >= 3);
+		assert.deepStrictEqual(
+			plugins[0].instructions.get().map(i => i.name).sort(),
+			['rule-a', 'rule-b', 'rule-c'],
+		);
+	}));
+
+	test('manifest rules field adds supplemental rule directories', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/custom-rules');
+		await writeFile('/plugins/custom-rules/.plugin/plugin.json', JSON.stringify({
+			name: 'custom-rules',
+			rules: './extra-rules/',
+		}));
+		await writeFile('/plugins/custom-rules/rules/default-rule.mdc', 'Default rule');
+		await writeFile('/plugins/custom-rules/extra-rules/bonus-rule.mdc', 'Bonus rule');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = discovery.plugins.get();
+		assert.strictEqual(plugins.length, 1);
+
+		await waitForState(plugins[0].instructions, i => i.length >= 2);
+		assert.deepStrictEqual(
+			plugins[0].instructions.get().map(i => i.name).sort(),
+			['bonus-rule', 'default-rule'],
+		);
+	}));
+
+	test('manifest rules field with exclusive mode skips default directory', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/exclusive-rules');
+		await writeFile('/plugins/exclusive-rules/.plugin/plugin.json', JSON.stringify({
+			name: 'exclusive-rules',
+			rules: { paths: ['./only-here/'], exclusive: true },
+		}));
+		await writeFile('/plugins/exclusive-rules/rules/ignored.mdc', 'Should be ignored');
+		await writeFile('/plugins/exclusive-rules/only-here/visible.mdc', 'Should be visible');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = discovery.plugins.get();
+		assert.strictEqual(plugins.length, 1);
+
+		await waitForState(plugins[0].instructions, i => i.length === 1 && i[0].name === 'visible');
+		assert.deepStrictEqual(
+			plugins[0].instructions.get().map(i => i.name),
+			['visible'],
+		);
+	}));
+
+	test('rule name strips longest matching suffix first', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/suffix-rules');
+		await writeFile('/plugins/suffix-rules/.plugin/plugin.json', JSON.stringify({ name: 'suffix-rules' }));
+		await writeFile('/plugins/suffix-rules/rules/coding-standards.instructions.md', 'Standards');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = discovery.plugins.get();
+		assert.strictEqual(plugins.length, 1);
+
+		await waitForState(plugins[0].instructions, i => i.length > 0);
+		// Should strip '.instructions.md' (longest match), not just '.md'
+		assert.strictEqual(plugins[0].instructions.get()[0].name, 'coding-standards');
+	}));
+
+	test('deduplicates rules with the same base name', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/dup-rules');
+		await writeFile('/plugins/dup-rules/.plugin/plugin.json', JSON.stringify({
+			name: 'dup-rules',
+			rules: './extra/',
+		}));
+		// Default directory has 'my-rule.mdc', supplemental has 'my-rule.md' — first wins
+		await writeFile('/plugins/dup-rules/rules/my-rule.mdc', 'From default');
+		await writeFile('/plugins/dup-rules/extra/my-rule.md', 'From extra');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = discovery.plugins.get();
+		assert.strictEqual(plugins.length, 1);
+
+		await waitForState(plugins[0].instructions, i => i.length > 0);
+		assert.strictEqual(plugins[0].instructions.get().length, 1);
+		const instruction = plugins[0].instructions.get()[0];
+		assert.strictEqual(instruction.name, 'my-rule');
+		assert.ok(instruction.uri.path.endsWith('/rules/my-rule.mdc'));
 	}));
 });

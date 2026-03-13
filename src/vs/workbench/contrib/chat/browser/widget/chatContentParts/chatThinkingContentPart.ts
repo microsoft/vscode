@@ -320,6 +320,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			// Materialize lazy items when first expanded
 			if (isExpanded && !this.hasExpandedOnce && this.lazyItems.length > 0) {
 				this.hasExpandedOnce = true;
+				// Flush pending removals so that completed hidden tools are removed from lazyItems before materialization
+				this.processPendingRemovals();
 				for (const item of this.lazyItems) {
 					this.materializeLazyItem(item);
 				}
@@ -450,20 +452,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
-	// try to schedule scroll
+	// Schedule a batched scroll dimension update for the next animation frame.
+	// All calls during a single frame (from updateThinking, MutationObserver, etc.)
+	// are coalesced into one layout read, avoiding forced synchronous layouts
+	// during tree splice operations.
 	private syncDimensionsAndScheduleScroll(): void {
-		if (this.autoScrollEnabled && this.scrollableElement) {
-			this.isUpdatingDimensions = true;
-			try {
-				this.updateScrollDimensions();
-				this.scrollToBottom();
-			} finally {
-				this.isUpdatingDimensions = false;
-			}
-			return;
-		}
-
-		// debounce animation
 		if (this.pendingScrollDisposable) {
 			return;
 		}
@@ -474,21 +467,24 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 			this.isUpdatingDimensions = true;
 			try {
-				this.updateScrollDimensions();
+				const contentHeight = this.updateScrollDimensions();
+				if (this.autoScrollEnabled && contentHeight !== undefined) {
+					this.scrollToBottom(contentHeight);
+				}
 			} finally {
 				this.isUpdatingDimensions = false;
 			}
 		});
 	}
 
-	private updateScrollDimensions(): void {
+	private updateScrollDimensions(): number | undefined {
 		if (!this.scrollableElement) {
-			return;
+			return undefined;
 		}
 
 		const isCollapsed = this.domNode.classList.contains('chat-used-context-collapsed');
 		if (!isCollapsed) {
-			return;
+			return undefined;
 		}
 
 		const contentHeight = this.wrapper.scrollHeight;
@@ -504,14 +500,15 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		// Re-evaluate hover feedback as content grows past the max height,
 		// reusing the already-measured contentHeight to avoid an extra layout read.
 		this.updateDropdownClickability(contentHeight);
+
+		return contentHeight;
 	}
 
-	private scrollToBottom(): void {
+	private scrollToBottom(contentHeight: number): void {
 		if (!this.scrollableElement) {
 			return;
 		}
 
-		const contentHeight = this.wrapper.scrollHeight;
 		const viewportHeight = Math.min(contentHeight, THINKING_SCROLL_MAX_HEIGHT);
 
 		if (contentHeight > viewportHeight) {
@@ -1319,6 +1316,11 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 					if (currentState.type === IChatToolInvocation.StateKind.Completed ||
 						currentState.type === IChatToolInvocation.StateKind.Cancelled) {
+						// Remove tools that should be hidden now or after completion.
+						if (toolInvocationOrMarkdown.presentation === 'hidden' || toolInvocationOrMarkdown.presentation === 'hiddenAfterComplete') {
+							this.pendingRemovals.push({ toolCallId: toolInvocationOrMarkdown.toolCallId, toolLabel: currentToolLabel });
+							this.schedulePendingRemovalsFlush();
+						}
 						isComplete = true;
 						return;
 					}

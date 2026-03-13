@@ -26,11 +26,22 @@ Clicking an image attachment pill in chat (when `chat.imageCarousel.enabled` is 
 
 ## Key design decisions
 
-- **Stable DOM skeleton**: Builds DOM once per `setInput()`, updates only changing parts to avoid flash on navigation.
-- **Blob URL lifecycle**: Main image URLs tracked in `_imageDisposables` (revoked on nav), thumbnails in `_contentDisposables` (revoked on `clearInput()`).
+### Editor & lifecycle
+
 - **Modal editor**: Opens in `MODAL_GROUP` (-4) as an overlay.
 - **Not restorable**: `canSerialize()` returns `false` — image data is in-memory only.
 - **Collection ID = chat response identity**: `sessionResource + '_' + responseId` for stable dedup via `EditorInput.matches()`.
 - **Preview-gated**: `chat.imageCarousel.enabled` (default `false`, tagged `preview`). When off, clicks fall through to `openResource()`.
 - **Exact image matching**: Scans responses in reverse, only opens a collection if the clicked image bytes are found in it (`findIndex` + `VSBuffer.equals`).
+
+### DOM & rendering
+
+- **DOM construction**: Uses the `h()` helper from `vs/base/browser/dom` with `@name` references for declarative DOM — no imperative `document.createElement` calls.
+- **Stable DOM skeleton**: Builds DOM once per `setInput()`, updates only changing parts to avoid flash on navigation.
+- **Blob URL lifecycle**: Main image URLs tracked in `_imageDisposables` (revoked on nav), thumbnails in `_contentDisposables` (revoked on `clearInput()`).
+- **Focus border suppressed**: The slideshow container uses `outline: none !important` on `:focus` / `:focus-visible` to override the workbench's global `[tabindex="0"]` focus styles.
+
+### Keyboard & focus
+
 - **Keyboard parity**: Uses `registerOpenEditorListeners` (click, double-click, Enter, Space) matching other attachment widgets.
+- **Arrow key navigation**: Handled via DOM `keydown` listener with `stopPropagation()` — not Action2 keybindings, because the modal editor's `KEY_DOWN` handler blocks `workbench.*` commands not in its allowlist. The editor overrides `focus()` to forward focus to the slideshow container so arrow keys work immediately without clicking.
