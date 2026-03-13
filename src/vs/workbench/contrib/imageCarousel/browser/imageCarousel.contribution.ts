@@ -27,6 +27,23 @@ import { URI } from '../../../../base/common/uri.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+
+// --- Configuration ---
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'imageCarousel',
+	title: localize('imageCarouselConfigurationTitle', "Image Carousel"),
+	type: 'object',
+	properties: {
+		'imageCarousel.explorerContextMenu.enabled': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: localize('imageCarousel.explorerContextMenu.enabled', "Controls whether the **Open Images in Carousel** option appears in the Explorer context menu. This is an experimental feature."),
+			tags: ['experimental'],
+		},
+	}
+});
 
 // --- Editor Pane Registration ---
 
@@ -190,9 +207,12 @@ class OpenImagesInCarouselFromExplorerAction extends Action2 {
 				id: MenuId.ExplorerContext,
 				group: 'navigation',
 				order: 25,
-				when: ContextKeyExpr.or(
-					ExplorerFolderContext,
-					ContextKeyExpr.regex(ResourceContextKey.Extension.key, IMAGE_EXTENSION_REGEX),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.has('config.imageCarousel.explorerContextMenu.enabled'),
+					ContextKeyExpr.or(
+						ExplorerFolderContext,
+						ContextKeyExpr.regex(ResourceContextKey.Extension.key, IMAGE_EXTENSION_REGEX),
+					),
 				),
 			}],
 		});
