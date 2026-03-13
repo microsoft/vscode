@@ -82,7 +82,6 @@ export const indentationFilter = Object.freeze<string[]>([
 	'!src/vs/base/common/marked/marked.js',
 	'!src/vs/base/common/semver/semver.js',
 	'!src/vs/base/node/terminateProcess.sh',
-	'!src/vs/base/node/cpuUsage.sh',
 	'!src/vs/editor/common/languages/highlights/*.scm',
 	'!src/vs/editor/common/languages/injections/*.scm',
 	'!test/unit/assert.js',
