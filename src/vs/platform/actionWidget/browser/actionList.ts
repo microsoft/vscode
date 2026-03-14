@@ -1248,10 +1248,11 @@ export class ActionList<T> extends Disposable {
 
 		const menu = new Menu(submenuContainer, element.submenuActions, {}, defaultMenuStyles);
 
-		// Position to the right of the row, using the list's element position
-		const elementTop = this._list.getElementTop(index) - this._list.scrollTop;
-		submenuContainer.style.top = `${elementTop}px`;
-		submenuContainer.style.left = `${this.domNode.clientWidth}px`;
+		// Position to the right of the row
+		const rowRect = rowElement.getBoundingClientRect();
+		const domRect = this.domNode.getBoundingClientRect();
+		submenuContainer.style.top = `${rowRect.top - domRect.top}px`;
+		submenuContainer.style.left = `${domRect.width}px`;
 
 		submenuDisposables.add(menu.onDidCancel(() => this._cleanupSubmenu()));
 
