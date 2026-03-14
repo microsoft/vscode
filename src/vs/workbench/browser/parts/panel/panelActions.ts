@@ -8,8 +8,8 @@ import { localize, localize2 } from '../../../../nls.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { MenuId, MenuRegistry, registerAction2, Action2, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { isHorizontal, IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from '../../../services/layout/browser/layoutService.js';
-import { IsAuxiliaryWindowContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from '../../../common/contextkeys.js';
+import { isHorizontal, IWorkbenchLayoutService, PanelAlignment, PanelMode, Parts, Position, positionToString } from '../../../services/layout/browser/layoutService.js';
+import { IsAuxiliaryWindowContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext, PanelDialogModeContext } from '../../../common/contextkeys.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -184,7 +184,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	submenu: MenuId.PanelPositionMenu,
 	title: localize('positionPanel', "Panel Position"),
 	group: '3_workbench_layout_move',
-	order: 4
+	order: 4,
+	when: PanelDialogModeContext.negate()
 });
 
 PositionPanelActionConfigs.forEach((positionPanelAction, index) => {
@@ -219,7 +220,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	submenu: MenuId.PanelAlignmentMenu,
 	title: localize('alignPanel', "Align Panel"),
 	group: '3_workbench_layout_move',
-	order: 5
+	order: 5,
+	when: PanelDialogModeContext.negate()
 });
 
 AlignPanelActionConfigs.forEach(alignPanelAction => {
@@ -272,7 +274,11 @@ registerAction2(class extends SwitchCompositeViewAction {
 	}
 });
 
-const panelMaximizationSupportedWhen = ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), ContextKeyExpr.and(PanelPositionContext.notEqualsTo('bottom'), PanelPositionContext.notEqualsTo('top')));
+const panelMaximizationSupportedWhen = ContextKeyExpr.or(
+	PanelDialogModeContext,
+	PanelAlignmentContext.isEqualTo('center'),
+	ContextKeyExpr.and(PanelPositionContext.notEqualsTo('bottom'), PanelPositionContext.notEqualsTo('top'))
+);
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -299,7 +305,9 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor) {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const notificationService = accessor.get(INotificationService);
-		if (layoutService.getPanelAlignment() !== 'center' && isHorizontal(layoutService.getPanelPosition())) {
+		// Grid-based maximization requires center alignment in horizontal position.
+		// Dialog mode has no grid constraints, so this limitation doesn't apply.
+		if (layoutService.getPanelMode() === PanelMode.Dock && layoutService.getPanelAlignment() !== 'center' && isHorizontal(layoutService.getPanelPosition())) {
 			notificationService.warn(localize('panelMaxNotSupported', "Maximizing the panel is only supported when it is center aligned."));
 			return;
 		}
@@ -425,3 +433,41 @@ export class MoveSecondarySideBarToPanelAction extends MoveViewsBetweenPanelsAct
 }
 registerAction2(MoveSidePanelToPanelAction);
 registerAction2(MoveSecondarySideBarToPanelAction);
+
+// --- Toggle Panel Mode (Dock/Dialog)
+
+const undockIcon = registerIcon('panel-undock', Codicon.pinned, localize('undockPanelIcon', 'Icon to undock the panel from the grid.'));
+
+registerAction2(class TogglePanelModeAction extends Action2 {
+
+	static readonly ID = 'workbench.action.togglePanelMode';
+
+	constructor() {
+		super({
+			id: 'workbench.action.togglePanelMode',
+			title: localize2('togglePanelMode', "Toggle Panel Mode"),
+			category: Categories.View,
+			f1: true,
+			toggled: {
+				condition: PanelDialogModeContext,
+				title: localize('dockPanel', "Dock Panel"),
+			},
+			menu: [{
+				id: MenuId.PanelTitle,
+				group: 'navigation',
+				order: 1,
+				when: PanelDialogModeContext.negate()
+			}, {
+				id: MenuId.PanelTitle,
+				group: 'navigation',
+				order: 1,
+				when: PanelDialogModeContext
+			}],
+			icon: undockIcon,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IWorkbenchLayoutService).togglePanelMode();
+	}
+});

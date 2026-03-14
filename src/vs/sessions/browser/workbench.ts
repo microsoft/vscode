@@ -13,7 +13,7 @@ import { isFullscreen, onDidChangeFullscreen, isChrome, isFirefox, isSafari } fr
 import { mark } from '../../base/common/performance.js';
 import { onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
 import { isWindows, isLinux, isWeb, isNative, isMacintosh } from '../../base/common/platform.js';
-import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW_PARTS, MULTI_WINDOW_PARTS, IPartVisibilityChangeEvent, positionToString } from '../../workbench/services/layout/browser/layoutService.js';
+import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW_PARTS, MULTI_WINDOW_PARTS, IPartVisibilityChangeEvent, positionToString, PanelMode } from '../../workbench/services/layout/browser/layoutService.js';
 import { ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.js';
 import { Part } from '../../workbench/browser/part.js';
 import { Direction, ISerializableView, ISerializedGrid, ISerializedLeafNode, ISerializedNode, IViewSize, Orientation, SerializableGrid } from '../../base/browser/ui/grid/grid.js';
@@ -1283,6 +1283,18 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		return this.workbenchGrid.isViewMaximized(this.panelPartView);
+	}
+
+	getPanelMode(): PanelMode {
+		return PanelMode.Dock; // Sessions workbench only supports dock mode
+	}
+
+	setPanelMode(_mode: PanelMode): void {
+		// No-op: Dialog mode not supported in sessions workbench
+	}
+
+	togglePanelMode(): void {
+		// No-op: Dialog mode not supported in sessions workbench
 	}
 
 	toggleMaximizedAuxiliaryBar(): void {
