@@ -68,6 +68,7 @@ import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chat
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
+import { AICustomizationManagementCommands } from '../aiCustomization/aiCustomizationManagement.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -1445,11 +1446,42 @@ export function registerChatActions() {
 		}
 	});
 
+	registerAction2(class OpenChatCustomizationsTitleAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.openCustomizationsFromTitle',
+				title: localize2('openChatCustomizationsFromTitle', "Configure Chat"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.gear,
+				f1: false,
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
+				menu: [{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.equals('view', ChatViewId),
+						ChatContextKeys.enabled,
+						ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)
+					),
+					group: 'navigation',
+					order: 6
+				}]
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor);
+		}
+	});
+
 	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 		submenu: CHAT_CONFIG_MENU_ID,
 		title: localize2('config.label', "Configure Chat"),
 		group: 'navigation',
-		when: ContextKeyExpr.equals('view', ChatViewId),
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals('view', ChatViewId),
+			ContextKeyExpr.not(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)
+		),
 		icon: Codicon.gear,
 		order: 6
 	});
