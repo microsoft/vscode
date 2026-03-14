@@ -375,7 +375,9 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const widgetService = accessor.get(IActionWidgetService);
 		if (widgetService instanceof ActionWidgetService) {
-			widgetService.acceptSelected();
+			if (!widgetService.toggleSection()) {
+				widgetService.acceptSelected();
+			}
 		}
 	}
 });
