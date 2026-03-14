@@ -29,7 +29,7 @@ export function getPreferredOutputStartMarker(
 	if (best && best !== startMarker) {
 		log?.(`Using ${best === commandMarker ? 'command' : 'executed'} marker as output start (line ${best.line})`);
 	}
-	return best ?? startMarker;
+	return best;
 }
 
 /**
@@ -63,6 +63,10 @@ export function setupRecreatingStartMarker(
 		const candidateLine = marker.line >= 0 ? marker.line : undefined;
 		if (earliestStartLine !== undefined && candidateLine !== undefined && candidateLine > earliestStartLine) {
 			log?.(`Start marker recreation at line ${candidateLine} is past earliest known line ${earliestStartLine}, skipping`);
+			if (startMarker.value && (startMarker.value.isDisposed || startMarker.value.line < 0)) {
+				startMarker.clear();
+				fire(undefined);
+			}
 		} else {
 			startMarker.value = marker;
 			fire(marker);

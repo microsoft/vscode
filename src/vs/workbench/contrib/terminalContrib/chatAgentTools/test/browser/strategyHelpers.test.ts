@@ -15,13 +15,18 @@ class TestMarker implements IXtermMarker {
 	isDisposed = false;
 	private readonly _listeners = new Set<() => void>();
 
-	constructor(readonly line: number) { }
+	line: number;
+
+	constructor(line: number) {
+		this.line = line;
+	}
 
 	dispose(): void {
 		if (this.isDisposed) {
 			return;
 		}
 		this.isDisposed = true;
+		this.line = -1;
 		for (const listener of this._listeners) {
 			listener();
 		}
@@ -55,8 +60,9 @@ suite('Execute Strategy Helpers', () => {
 
 		strictEqual(startMarker.value, firstMarker);
 		firstMarker.dispose();
-		strictEqual(startMarker.value, firstMarker, 'Recreated marker should not replace an earlier boundary');
-		strictEqual(createdMarkers.length, 1, 'No new marker event should fire when a forward recreation is ignored');
+		strictEqual(startMarker.value, undefined, 'Disposed marker should be cleared when forward recreation is skipped');
+		strictEqual(createdMarkers.length, 2, 'Undefined marker event should fire when disposed marker is cleared');
+		strictEqual(createdMarkers[1], undefined, 'Cleared marker event should fire undefined');
 
 		store.dispose();
 	});
