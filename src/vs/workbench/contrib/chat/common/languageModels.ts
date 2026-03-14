@@ -332,7 +332,7 @@ export interface ILanguageModelChatInfoOptions {
 
 export interface ILanguageModelChatRequestOptions {
 	readonly modelOptions?: IStringDictionary<unknown>;
-	readonly configuration?: IStringDictionary<unknown>;
+	readonly modelConfiguration?: IStringDictionary<unknown>;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	readonly [name: string]: any;
 }
