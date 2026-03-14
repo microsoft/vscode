@@ -1186,16 +1186,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return;
 		}
 
-		// Find the group that contains this model
-		const vendorGroups = this._modelsGroups.get(metadata.vendor);
+		// Find the group from the configuration service (source of truth)
+		const allGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
 		let group: ILanguageModelsProviderGroup | undefined;
-		if (vendorGroups) {
-			for (const vg of vendorGroups) {
-				if (vg.modelIdentifiers.includes(modelId) && vg.group) {
-					group = vg.group;
-					break;
-				}
-			}
+
+		// First try to find a group that already has config for this model
+		group = allGroups.find(g => g.vendor === metadata.vendor && g.models?.[metadata.id] !== undefined);
+
+		// If not found, find any group for this vendor
+		if (!group) {
+			group = allGroups.find(g => g.vendor === metadata.vendor);
 		}
 
 		// Merge new values into existing config
