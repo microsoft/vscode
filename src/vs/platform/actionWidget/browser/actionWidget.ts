@@ -179,6 +179,10 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 			if (activeElement?.closest('.action-widget-hover')) {
 				return;
 			}
+			// Don't hide if focus moved to a submenu
+			if (activeElement?.closest('.monaco-submenu')) {
+				return;
+			}
 			this.hide(true);
 		}));
 
