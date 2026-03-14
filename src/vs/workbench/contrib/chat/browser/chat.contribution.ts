@@ -774,6 +774,7 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+
 		[mcpDiscoverySection]: {
 			type: 'object',
 			properties: Object.fromEntries(allDiscoverySources.map(k => [k, { type: 'boolean', description: discoverySourceSettingsLabel[k] }])),
