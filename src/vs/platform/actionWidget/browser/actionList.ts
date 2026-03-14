@@ -1181,12 +1181,11 @@ export class ActionList<T> extends Disposable {
 		const element = e.element;
 
 		if (element && element.item && this.focusCondition(element)) {
-			// Check if the hover target is inside a toolbar or submenu - if so, skip the splice
+			// Check if the hover target is inside a toolbar or active submenu - if so, skip the splice
 			// to avoid re-rendering which would destroy the toolbar/submenu mid-hover
 			const isHoveringToolbar = dom.isHTMLElement(e.browserEvent.target) && (
 				e.browserEvent.target.closest('.action-list-item-toolbar') !== null ||
-				e.browserEvent.target.closest('.action-list-submenu-indicator') !== null ||
-				e.browserEvent.target.closest('.monaco-submenu') !== null
+				e.browserEvent.target.closest('.action-list-submenu') !== null
 			);
 			if (isHoveringToolbar) {
 				this._list.setFocus([]);
