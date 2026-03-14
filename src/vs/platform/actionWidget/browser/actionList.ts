@@ -1050,6 +1050,15 @@ export class ActionList<T> extends Disposable {
 			return;
 		}
 
+		// Don't select when clicking on toolbar actions
+		if (e.browserEvent && dom.isHTMLElement((e.browserEvent as MouseEvent).target)) {
+			const target = (e.browserEvent as MouseEvent).target as HTMLElement;
+			if (target.closest('.action-list-item-toolbar')) {
+				this._list.setSelection([]);
+				return;
+			}
+		}
+
 		const element = e.elements[0];
 		if (element.isSectionToggle) {
 			this._list.setSelection([]);
