@@ -454,7 +454,8 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 
 		// Wire up click + keyboard (Enter/Space) open handlers
-		if (resource || imageData) {
+		const canOpenCarousel = attachment.value instanceof Uint8Array && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled);
+		if ((imageData && canOpenCarousel) || resource) {
 			this.element.style.cursor = 'pointer';
 			this._register(registerOpenEditorListeners(this.element, async () => {
 				await clickHandler();

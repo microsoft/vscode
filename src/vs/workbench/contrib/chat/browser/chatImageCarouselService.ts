@@ -88,7 +88,7 @@ export async function collectCarouselSections(
 			continue;
 		}
 
-		const { title, images: responseImages } = await extractImagesFromChatResponse(item, async uri => VSBuffer.wrap(await readFile(uri)));
+		const { title: extractedTitle, images: responseImages } = await extractImagesFromChatResponse(item, async uri => VSBuffer.wrap(await readFile(uri)));
 
 		// Also collect images from the corresponding user request
 		const request = requestMap.get(item.requestId);
@@ -97,7 +97,7 @@ export async function collectCarouselSections(
 		const allImages = [...requestImages, ...responseImages];
 		if (allImages.length > 0) {
 			sections.push({
-				title,
+				title: request?.messageText ?? extractedTitle,
 				images: allImages.map(({ id, name, mimeType, data }) => ({ id, name, mimeType, data: data.buffer }))
 			});
 		}

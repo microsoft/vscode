@@ -200,6 +200,18 @@ suite('ChatImageCarouselService helpers', () => {
 			assert.strictEqual(result[0].images[0].name, 'cat.png');
 		});
 
+		test('prefers paired request message text over extracted response title', async () => {
+			const request = makeRequest('req-1', [
+				makeImageVariableEntry({ value: new Uint8Array([1, 2, 3]) }),
+			], 'Request title wins');
+			const response = makeResponse('req-1');
+
+			const result = await collectCarouselSections([request, response], async () => new Uint8Array());
+
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].title, 'Request title wins');
+		});
+
 		test('does not duplicate request images when response exists', async () => {
 			const request = makeRequest('req-1', [
 				makeImageVariableEntry({ value: new Uint8Array([1, 2, 3]) }),
