@@ -1274,13 +1274,9 @@ export class ActionList<T> extends Disposable {
 				// Render children
 				for (const child of action.actions) {
 					const item = dom.append(submenuContainer, dom.$('.action-list-submenu-item'));
+					const checkIcon = dom.append(item, dom.$('.check-icon'));
 					if (child.checked) {
-						const check = dom.append(item, dom.$('.codicon.codicon-check'));
-						check.style.marginRight = '4px';
-					} else {
-						const spacer = dom.append(item, dom.$('span'));
-						spacer.style.width = '20px';
-						spacer.style.display = 'inline-block';
+						checkIcon.classList.add('codicon', 'codicon-check');
 					}
 					const label = dom.append(item, dom.$('span'));
 					label.textContent = child.label;
