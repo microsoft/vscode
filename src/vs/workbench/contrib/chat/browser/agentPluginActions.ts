@@ -262,13 +262,27 @@ export function createDisablePluginDropDown(
 	const key = plugin.uri.toString();
 	const hasWorkspace = workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 
-	const disable = new EnablementSubAction('agentPlugin.disable', localize('disable', "Disable"), 'extension-action label disable',
-		isContributionEnabled(plugin.enablement.get()),
-		() => { enablementModel.setEnabled(key, ContributionEnablementState.DisabledProfile); return Promise.resolve(); });
+	const disable = new EnablementSubAction(
+	'agentPlugin.disable',
+	localize('disable', "Disable"),
+	'extension-action label disable',
+	plugin.enablement.get() !== ContributionEnablementState.DisabledProfile,
+	() => {
+		enablementModel.setEnabled(key, ContributionEnablementState.DisabledProfile);
+		return Promise.resolve();
+	}
+);
 
-	const disableWorkspace = new EnablementSubAction('agentPlugin.disableForWorkspace', localize('disableForWorkspace', "Disable (Workspace)"), 'extension-action label disable',
-		isContributionEnabled(plugin.enablement.get()) && hasWorkspace,
-		() => { enablementModel.setEnabled(key, ContributionEnablementState.DisabledWorkspace); return Promise.resolve(); });
+const disableWorkspace = new EnablementSubAction(
+	'agentPlugin.disableForWorkspace',
+	localize('disableForWorkspace', "Disable (Workspace)"),
+	'extension-action label disable',
+	plugin.enablement.get() !== ContributionEnablementState.DisabledWorkspace && hasWorkspace,
+	() => {
+		enablementModel.setEnabled(key, ContributionEnablementState.DisabledWorkspace);
+		return Promise.resolve();
+	}
+);
 
 	return new EnablementDropDownAction('agentPlugin.disableDropdown', [disable, disableWorkspace]);
 }
