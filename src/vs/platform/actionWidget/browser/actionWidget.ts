@@ -174,10 +174,6 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
 		renderDisposables.add(focusTracker.onDidBlur(() => {
-			// Don't hide if the list has an active submenu
-			if (list.hasActiveSubmenu) {
-				return;
-			}
 			const activeElement = dom.getActiveElement();
 			// Don't hide if focus moved to a hover that belongs to this action widget
 			if (activeElement?.closest('.action-widget-hover')) {
@@ -187,6 +183,8 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 			if (activeElement && dom.isAncestor(activeElement, element)) {
 				return;
 			}
+			// Focus left the widget entirely — clean up any active submenu and hide
+			list.cleanupSubmenu();
 			this.hide(true);
 		}));
 
