@@ -1134,6 +1134,11 @@ export class ActionList<T> extends Disposable {
 	}
 
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
+		// Don't show hover for items with submenu actions to avoid conflict
+		if (element.submenuActions?.length) {
+			return;
+		}
+
 		let newHover: IHoverWidget | undefined;
 
 		// Show hover if the element has hover content
@@ -1202,6 +1207,8 @@ export class ActionList<T> extends Disposable {
 			this._submenuHoverIndex = e.index;
 			this._submenuHideScheduler.cancel();
 			this._submenuShowScheduler.schedule();
+			// Hide hover widget to avoid conflict with submenu
+			this._hover.clear();
 		} else {
 			this._submenuHoverIndex = undefined;
 			this._submenuShowScheduler.cancel();
@@ -1229,7 +1236,7 @@ export class ActionList<T> extends Disposable {
 		this._cleanupSubmenu();
 
 		// Get the row DOM element from the list
-		const rowElement = this._list.getHTMLElement().querySelector(`[data-index="${index}"]`) as HTMLElement | null;
+		const rowElement = this._getRowElement(index);
 		if (!rowElement) {
 			return;
 		}
