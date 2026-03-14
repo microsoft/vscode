@@ -1263,6 +1263,7 @@ interface IEditorPartConfiguration {
 	swipeToNavigate?: boolean;
 	mouseBackForwardToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
+	tabHoverVerbosity?: 'default' | 'short' | 'detailed';
 	restoreViewState?: boolean;
 	splitInGroupLayout?: 'vertical' | 'horizontal';
 	splitSizing?: 'auto' | 'split' | 'distribute';
