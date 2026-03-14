@@ -170,6 +170,15 @@ class CodeMain {
 
 		// Environment
 		const environmentMainService = new EnvironmentMainService(this.resolveArgs(), productService);
+
+		// Set custom application name for WM_CLASS/app_id when --class argument is provided
+		if (environmentMainService.args.class) {
+			app.setName(environmentMainService.args.class);
+			if (isLinux) {
+				app.setDesktopName(environmentMainService.args.class);
+			}
+		}
+
 		const instanceEnvironment = this.patchEnvironment(environmentMainService); // Patch `process.env` with the instance's environment
 		services.set(IEnvironmentMainService, environmentMainService);
 
