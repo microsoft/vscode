@@ -35,7 +35,7 @@ import { IEditorGroupsService } from '../../services/editor/common/editorGroupsS
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, IChatSessionItemsChange, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
+import { ChatSessionContentContextDto, ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, IChatSessionItemsChange, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
 
 export class ObservableChatSession extends Disposable implements IChatSession {
 
@@ -99,17 +99,17 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 		this._dialogService = dialogService;
 	}
 
-	initialize(token: CancellationToken): Promise<void> {
+	initialize(token: CancellationToken, context: ChatSessionContentContextDto): Promise<void> {
 		if (!this._initializationPromise) {
-			this._initializationPromise = this._doInitializeContent(token);
+			this._initializationPromise = this._doInitializeContent(token, context);
 		}
 		return this._initializationPromise;
 	}
 
-	private async _doInitializeContent(token: CancellationToken): Promise<void> {
+	private async _doInitializeContent(token: CancellationToken, context: ChatSessionContentContextDto): Promise<void> {
 		try {
 			const sessionContent = await raceCancellationError(
-				this._proxy.$provideChatSessionContent(this._providerHandle, this.sessionResource, token),
+				this._proxy.$provideChatSessionContent(this._providerHandle, this.sessionResource, context, token),
 				token
 			);
 
@@ -668,7 +668,10 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		}
 
 		try {
-			await session.initialize(token);
+			const initialSessionOptions = this._chatSessionsService.getSessionOptions(sessionResource);
+			await session.initialize(token, {
+				initialSessionOptions: initialSessionOptions ? [...initialSessionOptions].map(([optionId, value]) => ({ optionId, value })) : undefined,
+			});
 			if (session.options) {
 				for (const [_, handle] of this._sessionTypeToHandle) {
 					if (handle === providerHandle) {
