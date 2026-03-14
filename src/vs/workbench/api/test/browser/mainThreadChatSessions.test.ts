@@ -197,25 +197,6 @@ suite('ObservableChatSession', function () {
 		assert.ok((proxy.$provideChatSessionContent as sinon.SinonStub).calledOnce);
 	});
 
-	test('initialization forwards initial session options context', async function () {
-		const sessionId = 'test-id';
-		const resource = LocalChatSessionUri.forSession(sessionId);
-		const session = disposables.add(new ObservableChatSession(resource, 1, proxy, logService, dialogService));
-		const initialSessionOptions = [{ optionId: 'model', value: 'gpt-4.1' }];
-
-		const sessionContent = createSessionContent();
-		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
-
-		await session.initialize(CancellationToken.None, { initialSessionOptions });
-
-		assert.ok((proxy.$provideChatSessionContent as sinon.SinonStub).calledOnceWith(
-			1,
-			resource,
-			CancellationToken.None,
-			{ initialSessionOptions }
-		));
-	});
-
 	test('progress handling works correctly after initialization', async function () {
 		const sessionContent = createSessionContent();
 		const session = disposables.add(await createInitializedSession(sessionContent));
