@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { basename, extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -84,17 +85,27 @@ export class FolderPicker extends Disposable {
 		this._storageKeyLastFolder = prefix + STORAGE_KEY_LAST_FOLDER;
 		this._storageKeyRecentFolders = prefix + STORAGE_KEY_RECENT_FOLDERS;
 
-		// Restore last picked folder
+		// The set of schemes this picker is allowed to browse
+		const allowedSchemes = new Set(this._options?.availableFileSystems ?? [Schemas.file]);
+
+		// Restore last picked folder (skip URIs with schemes this picker can't handle)
 		const lastFolder = this.storageService.get(this._storageKeyLastFolder, StorageScope.PROFILE);
 		if (lastFolder) {
-			try { this._selectedFolderUri = URI.parse(lastFolder); } catch { /* ignore */ }
+			try {
+				const parsed = URI.parse(lastFolder);
+				if (allowedSchemes.has(parsed.scheme)) {
+					this._selectedFolderUri = parsed;
+				}
+			} catch { /* ignore */ }
 		}
 
-		// Restore recently picked folders
+		// Restore recently picked folders (filter out URIs with foreign schemes)
 		try {
 			const stored = this.storageService.get(this._storageKeyRecentFolders, StorageScope.PROFILE);
 			if (stored) {
-				this._recentlyPickedFolders = JSON.parse(stored).map((s: string) => URI.parse(s));
+				this._recentlyPickedFolders = JSON.parse(stored)
+					.map((s: string) => URI.parse(s))
+					.filter((u: URI) => allowedSchemes.has(u.scheme));
 			}
 		} catch { /* ignore */ }
 	}
