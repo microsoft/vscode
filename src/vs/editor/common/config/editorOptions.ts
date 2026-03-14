@@ -693,6 +693,18 @@ export interface IEditorOptions {
 	 */
 	foldingImportsByDefault?: boolean;
 	/**
+	 * Folding preferences.
+	 *
+	* Preferences are advisory. They take effect only if supported by the active
+	* folding provider or the FoldingPreferencesCompatibility layer. Providers may
+	* declare support but choose to ignore a preference to bypass undesired
+	* compatibility adjustments.
+	*
+	* Preferences and their values supported by the compatibility layer should be
+	* marked with `*` in the schema descriptions to indicate this to users.
+	 */
+	foldingPreferences?: IEditorFoldingPreferences;
+	/**
 	 * Maximum number of foldable regions.
 	 * Defaults to 5000.
 	 */
@@ -2080,7 +2092,8 @@ class EffectiveAllowVariableFonts extends ComputedEditorOption<EditorOption.effe
 	}
 }
 
-//#engregion
+//#endregion
+//#endregion
 
 //#region fontSize
 
@@ -3719,7 +3732,8 @@ class EditorPixelRatio extends ComputedEditorOption<EditorOption.pixelRatio, num
 
 //#endregion
 
-//#region
+//#region placeholderOption
+//#region placeholderOption
 
 class PlaceholderOption extends BaseEditorOption<EditorOption.placeholder, string | undefined, string | undefined> {
 	constructor() {
@@ -3736,6 +3750,8 @@ class PlaceholderOption extends BaseEditorOption<EditorOption.placeholder, strin
 		return this.defaultValue;
 	}
 }
+
+
 //#endregion
 
 //#region quickSuggestions
@@ -5759,6 +5775,231 @@ class EditorPasteAs extends BaseEditorOption<EditorOption.pasteAs, IPasteAsOptio
 
 //#endregion
 
+//#region foldingPreferences
+
+/**
+ * Editor-level folding preferences.
+ *
+ * Option names must be language-agnostic. This object is not intended for
+ * language-specific preferences.
+ *
+ * Defines the non-`'auto'` value domains; `'auto'` is added automatically.
+ *
+ * Preferences are advisory. They take effect only if supported by the active
+ * folding provider or the FoldingPreferencesCompatibility layer. Providers may
+ * declare support but choose to ignore a preference to bypass undesired
+ * compatibility adjustments.
+ *
+ * Preferences and their values supported by the compatibility layer should be
+ * marked with `*` in the schema descriptions to indicate this to users.
+ */
+interface IEditorFoldingPreferencesShape {
+	/**
+	 * Preferred handling of closing delimiters in folding regions
+	 * (e.g. braces, brackets, tags, or corresponding keywords) *
+	 *
+	 * `true`: include closures in folding regions. *
+	 *
+	 * `false`: exclude closures from folding regions. *
+	 *
+	 * `'only'`: include closing delimiters if the last line
+	 * contains closing delimiters only.
+	 */
+	includeClosures: FoldingPreferenceIncludeClosures;
+	/**
+	 * Examples of potential future options:
+	 *
+	 * comments: boolean | 'segmented'
+	 *   Controls folding of comment regions. The 'segmented' option
+	 *   may produce multiple folding regions within a single comment,
+	 *   using empty lines or other language-specific separators.
+	 *
+	 * branching: boolean | 'multiple'
+	 *   Controls how many folding regions are produced for branching
+	 *   constructs such as `if / else` or `switch` statements.
+	 *
+	 *   Possible values:
+	 *    true:     single folding region
+	 *    multiple: one folding region per branch block
+	 *    false:    no folding region
+	 *
+	 * maximumNesting: number
+	 *   Controls the maximum nesting level of folding regions.
+	 *   A value of 0 allows only root-level regions.
+	 *
+	 * custom: {
+	 *     start: string | RegExp
+	 *     end: string | RegExp
+	 * }[]
+	 *   Defines custom folding regions by matching lines against
+	 *   start and end patterns.
+	 */
+}
+
+type FoldingPreferenceIncludeClosures = boolean | 'only';
+
+/**
+ * Folding preference with an automatic mode.
+ *
+ * All preferences default to `'auto'`, indicating that the user
+ * expresses no preference. Handling is delegated to the folding
+ * range provider and compatibility adjustments are disabled.
+ */
+type FoldingPreference<T> = 'auto' | T;
+
+export type IEditorFoldingPreferences = {
+	[K in keyof IEditorFoldingPreferencesShape]?: FoldingPreference<IEditorFoldingPreferencesShape[K]>
+};
+
+export type EditorFoldingPreferences = Readonly<Required<IEditorFoldingPreferences>>;
+
+/**
+ * @internal
+ */
+export class FoldingPreferences extends BaseEditorOption<EditorOption.foldingPreferences, IEditorFoldingPreferences, EditorFoldingPreferences> {
+	private static descriptionAuto = nls.localize('editor.foldingPreferences.auto', "Use the folding provider's default handling.");
+
+	constructor() {
+		const defaults: EditorFoldingPreferences = {
+			includeClosures: 'auto'
+		};
+		super(
+			EditorOption.foldingPreferences, 'foldingPreferences', defaults,
+			{
+				'editor.foldingPreferences': {
+					type: 'object',
+					description: nls.localize(
+						'editor.foldingPreferences',
+						"Folding preferences.\n\nOptions require support from language providers. Options and their values marked with '*' are supported by VS Code's compatibility layer, but may produce undesired behavior depending on the active language provider."
+					),
+					additionalProperties: false,
+					properties: {
+						'includeClosures': {
+							anyOf: [
+								{
+									type: 'boolean',
+									enum: [
+										true,
+										false
+									],
+									enumDescriptions: [
+										nls.localize(
+											'editor.foldingPreferences.includeClosures.true',
+											"Include the closing delimiter in folding regions. *"
+										),
+										nls.localize(
+											'editor.foldingPreferences.includeClosures.false',
+											"Exclude the closing delimiter from folding regions. *"
+										)
+									]
+								},
+								{
+									type: 'string',
+									enum: ['auto', 'only'],
+									enumDescriptions: [
+										FoldingPreferences.descriptionAuto,
+										nls.localize(
+											'editor.foldingPreferences.includeClosures.only',
+											"Include closing delimiters if the last line contains closing delimiters only."
+										)
+									]
+								}
+							],
+							description: nls.localize(
+								'editor.foldingPreferences.includeClosures',
+								"Specifies the preferred handling of closing delimiters (e.g. braces, brackets, tags, or corresponding keywords) in folding regions. *"
+							),
+							default: 'auto'
+						}
+					}
+				}
+			}
+		);
+	}
+
+	/**
+	 * Normalizes user input and preserves reference identity when
+	 * no transformation is required.
+	 *
+	 * Each property is individually validated. The `'auto'` value is always allowed
+	 * and indicates that the user expresses no preference. Non-`'auto'` values are
+	 * checked with the corresponding validator functions.
+	 *
+	 * Returns the original object if all properties are valid,
+	 * otherwise returns a new object with normalized values.
+	 */
+	public validate(input: unknown): EditorFoldingPreferences {
+		if (input && typeof input === 'object') {
+			const _input = input as Unknown<IEditorFoldingPreferences>;
+
+			const rawIncludeClosures = _input.includeClosures;
+			const includeClosures = FoldingPreferences.vAuto(
+				rawIncludeClosures, FoldingPreferences.vIncludeClosures
+			);
+
+			// if all validated properties equal input, return it
+			if (
+				includeClosures === rawIncludeClosures
+			) {
+				return _input as EditorFoldingPreferences;
+			}
+
+			return {
+				includeClosures
+			};
+		}
+
+		return this.defaultValue;
+	}
+
+	/**
+	 * Preserves reference identity when no effective change occurred.
+	 */
+	public override applyUpdate(value: Readonly<Required<IEditorFoldingPreferences>> | undefined, update: Readonly<Required<IEditorFoldingPreferences>>): ApplyUpdateResult<Readonly<Required<IEditorFoldingPreferences>>> {
+		const didChange = !value ||
+			value.includeClosures !== update.includeClosures;
+
+		return {
+			newValue: didChange ? update : value,
+			didChange
+		};
+	}
+
+	/**
+	 * Normalizes a folding preference with automatic mode support.
+	 *
+	 * @param input - the value to normalize
+	 * @param validator - a type guard function validating non-`'auto'` values
+	 * @returns either a valid value of type T or `'auto'`
+	 *
+	 * Ensures that `'auto'` is always a valid option, and falls back to it if
+	 * the input is invalid.
+	 */
+	private static vAuto<T>(input: unknown, validator: (v: unknown) => v is T): FoldingPreference<T> {
+		if (input === 'auto') {
+			return input;
+		}
+		return validator(input) ? input : 'auto';
+	}
+
+	private static vBool(input: unknown): input is boolean {
+		if (input === true || input === false) {
+			return true;
+		}
+		return false;
+	}
+
+	private static vIncludeClosures(input: unknown): input is FoldingPreferenceIncludeClosures {
+		if (FoldingPreferences.vBool(input) || input === 'only') {
+			return true;
+		}
+		return false;
+	}
+}
+
+//#endregion
+
+
 /**
  * @internal
  */
@@ -5826,6 +6067,7 @@ export const enum EditorOption {
 	foldingStrategy,
 	foldingHighlight,
 	foldingImportsByDefault,
+	foldingPreferences,
 	foldingMaximumRegions,
 	unfoldOnClickAfterEndOfLine,
 	fontFamily,
@@ -6328,6 +6570,7 @@ export const EditorOptions = {
 		5000, 10, 65000, // limit must be less than foldingRanges MAX_FOLDING_REGIONS
 		{ description: nls.localize('foldingMaximumRegions', "The maximum number of foldable regions. Increasing this value may result in the editor becoming less responsive when the current source has a large number of foldable regions.") }
 	)),
+	foldingPreferences: register(new FoldingPreferences()),
 	unfoldOnClickAfterEndOfLine: register(new EditorBooleanOption(
 		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,
 		{ description: nls.localize('unfoldOnClickAfterEndOfLine', "Controls whether clicking on the empty content after a folded line will unfold the line.") }
