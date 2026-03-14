@@ -64,7 +64,7 @@ export class ChatDebugLogsView extends Disposable {
 	private tree: WorkbenchObjectTree<IChatDebugEvent, void>;
 
 	private currentSessionResource: URI | undefined;
-	private logsViewMode: LogsViewMode = LogsViewMode.List;
+	private logsViewMode: LogsViewMode = LogsViewMode.Tree;
 	private events: IChatDebugEvent[] = [];
 	private currentDimension: Dimension | undefined;
 	private readonly eventListener = this._register(new MutableDisposable());
@@ -174,8 +174,9 @@ export class ChatDebugLogsView extends Disposable {
 		// Body container
 		this.bodyContainer = DOM.append(mainColumn, $('.chat-debug-logs-body'));
 
-		// List container
+		// List container (initially hidden — tree view is default)
 		this.listContainer = DOM.append(this.bodyContainer, $('.chat-debug-list-container'));
+		DOM.hide(this.listContainer);
 
 		const accessibilityProvider = {
 			getAriaLabel: (e: IChatDebugEvent) => {
@@ -215,9 +216,8 @@ export class ChatDebugLogsView extends Disposable {
 			{ identityProvider, accessibilityProvider }
 		));
 
-		// Tree container (initially hidden)
+		// Tree container (default view)
 		this.treeContainer = DOM.append(this.bodyContainer, $('.chat-debug-list-container'));
-		DOM.hide(this.treeContainer);
 
 		this.tree = this._register(this.instantiationService.createInstance(
 			WorkbenchObjectTree<IChatDebugEvent, void>,
