@@ -323,6 +323,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'enablePreviewFromCodeNavigation' }, "Controls whether editors remain in preview when a code navigation is started from them. Preview editors do not stay open, and are reused until explicitly set to be kept open (via double-click or editing). This value is ignored when {0} is not set to {1}.", '`#workbench.editor.showTabs#`', '`multiple`'),
 				'default': false
 			},
+			'workbench.editor.enablePreviewFromExplorer': {
+				'type': 'boolean',
+				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'enablePreviewFromExplorer' }, "Controls whether editors opened from the Explorer show as preview editors. Preview editors do not stay open, and are reused until explicitly set to be kept open (via double-click or editing). This value is ignored when {0} is not set to {1}.", '`#workbench.editor.showTabs#`', '`multiple`'),
+				'default': true
+			},
+			'workbench.editor.enablePreviewFromScm': {
+				'type': 'boolean',
+				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'enablePreviewFromScm' }, "Controls whether editors opened from Source Control show as preview editors. Preview editors do not stay open, and are reused until explicitly set to be kept open (via double-click or editing). This value is ignored when {0} is not set to {1}.", '`#workbench.editor.showTabs#`', '`multiple`'),
+				'default': true
+			},
 			'workbench.editor.closeOnFileDelete': {
 				'type': 'boolean',
 				'description': localize('closeOnFileDelete', "Controls whether editors showing a file that was opened during the session should close automatically when getting deleted or renamed by some other process. Disabling this will keep the editor open  on such an event. Note that deleting from within the application will always close the editor and that editors with unsaved changes will never close to preserve your data."),

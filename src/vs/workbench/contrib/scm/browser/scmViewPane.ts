@@ -1706,6 +1706,10 @@ export class SCMViewPane extends ViewPane {
 			}
 			return;
 		} else if (isSCMResource(e.element)) {
+			const enablePreviewFromScm = this.configurationService.getValue<boolean>('workbench.editor.enablePreviewFromScm') ?? true;
+			const enablePreview = this.configurationService.getValue<boolean>('workbench.editor.enablePreview') ?? true;
+			const shouldForcePin = !enablePreviewFromScm || !enablePreview;
+
 			if (e.element.command?.id === API_OPEN_EDITOR_COMMAND_ID || e.element.command?.id === API_OPEN_DIFF_EDITOR_COMMAND_ID) {
 				if (isPointerEvent(e.browserEvent) && e.browserEvent.button === 1) {
 					const resourceGroup = e.element.resourceGroup;
@@ -1727,12 +1731,12 @@ export class SCMViewPane extends ViewPane {
 				}
 			} else {
 				await e.element.open(!!e.editorOptions.preserveFocus);
+			}
 
-				if (e.editorOptions.pinned) {
-					const activeEditorPane = this.editorService.activeEditorPane;
+			if (e.editorOptions.pinned || shouldForcePin) {
+				const activeEditorPane = this.editorService.activeEditorPane;
 
-					activeEditorPane?.group.pinEditor(activeEditorPane.input);
-				}
+				activeEditorPane?.group.pinEditor(activeEditorPane.input);
 			}
 
 			const provider = e.element.resourceGroup.provider;
