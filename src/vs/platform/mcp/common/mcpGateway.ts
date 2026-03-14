@@ -13,29 +13,51 @@ export const IMcpGatewayService = createDecorator<IMcpGatewayService>('IMcpGatew
 export const McpGatewayChannelName = 'mcpGateway';
 export const McpGatewayToolBrokerChannelName = 'mcpGatewayToolBroker';
 
-export interface IGatewayCallToolResult {
-	result: MCP.CallToolResult;
-	serverIndex: number;
+/**
+ * Descriptor for an MCP server known to the gateway.
+ */
+export interface IMcpGatewayServerDescriptor {
+	readonly id: string;
+	readonly label: string;
 }
 
-export interface IGatewayServerResources {
-	serverIndex: number;
-	resources: readonly MCP.Resource[];
+/**
+ * A single server entry exposed by the gateway.
+ */
+export interface IMcpGatewayServerInfo {
+	readonly label: string;
+	readonly address: URI;
 }
 
-export interface IGatewayServerResourceTemplates {
-	serverIndex: number;
-	resourceTemplates: readonly MCP.ResourceTemplate[];
-}
-
-export interface IMcpGatewayToolInvoker {
+/**
+ * Per-server tool invoker used by a single gateway route/session.
+ * All methods operate on the specific server this invoker is bound to.
+ */
+export interface IMcpGatewaySingleServerInvoker {
 	readonly onDidChangeTools: Event<void>;
 	readonly onDidChangeResources: Event<void>;
 	listTools(): Promise<readonly MCP.Tool[]>;
-	callTool(name: string, args: Record<string, unknown>): Promise<IGatewayCallToolResult>;
-	listResources(): Promise<readonly IGatewayServerResources[]>;
-	readResource(serverIndex: number, uri: string): Promise<MCP.ReadResourceResult>;
-	listResourceTemplates(): Promise<readonly IGatewayServerResourceTemplates[]>;
+	callTool(name: string, args: Record<string, unknown>): Promise<MCP.CallToolResult>;
+	listResources(): Promise<readonly MCP.Resource[]>;
+	readResource(uri: string): Promise<MCP.ReadResourceResult>;
+	listResourceTemplates(): Promise<readonly MCP.ResourceTemplate[]>;
+}
+
+/**
+ * Aggregating tool invoker that provides per-server operations and
+ * server lifecycle tracking. Used by the gateway service to create
+ * and manage per-server routes.
+ */
+export interface IMcpGatewayToolInvoker {
+	readonly onDidChangeServers: Event<void>;
+	readonly onDidChangeTools: Event<void>;
+	readonly onDidChangeResources: Event<void>;
+	listServers(): Promise<readonly IMcpGatewayServerDescriptor[]>;
+	listToolsForServer(serverId: string): Promise<readonly MCP.Tool[]>;
+	callToolForServer(serverId: string, name: string, args: Record<string, unknown>): Promise<MCP.CallToolResult>;
+	listResourcesForServer(serverId: string): Promise<readonly MCP.Resource[]>;
+	readResourceForServer(serverId: string, uri: string): Promise<MCP.ReadResourceResult>;
+	listResourceTemplatesForServer(serverId: string): Promise<readonly MCP.ResourceTemplate[]>;
 }
 
 /**
@@ -43,9 +65,14 @@ export interface IMcpGatewayToolInvoker {
  */
 export interface IMcpGatewayInfo {
 	/**
-	 * The address of the HTTP endpoint for this gateway.
+	 * The servers currently exposed by this gateway.
 	 */
-	readonly address: URI;
+	readonly servers: readonly IMcpGatewayServerInfo[];
+
+	/**
+	 * Event that fires when the set of servers changes.
+	 */
+	readonly onDidChangeServers: Event<readonly IMcpGatewayServerInfo[]>;
 
 	/**
 	 * The unique identifier for this gateway, used for disposal.
