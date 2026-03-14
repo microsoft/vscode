@@ -1242,19 +1242,30 @@ export class ActionList<T> extends Disposable {
 		}
 
 		const submenuDisposables = new DisposableStore();
-		const submenuContainer = dom.append(this.domNode, dom.$('div.monaco-submenu'));
+		// Append to document body to avoid any overflow clipping from parent containers
+		const targetWindow = dom.getWindow(this.domNode);
+		const submenuContainer = dom.append(targetWindow.document.body, dom.$('div.monaco-submenu'));
 		submenuContainer.classList.add('menubar-menu-items-holder', 'context-view');
-		submenuContainer.style.position = 'absolute';
+		submenuContainer.style.position = 'fixed';
 		submenuContainer.style.zIndex = '10000';
-		submenuContainer.style.backgroundColor = 'var(--vscode-menu-background)';
 
 		const menu = new Menu(submenuContainer, element.submenuActions, {}, defaultMenuStyles);
 
-		// Layout: position to the right of the row
-		const listRect = this.domNode.getBoundingClientRect();
+		// Position to the right of the row
 		const entryBox = rowElement.getBoundingClientRect();
-		submenuContainer.style.top = `${entryBox.top - listRect.top}px`;
-		submenuContainer.style.left = `${entryBox.width}px`;
+		const viewBox = submenuContainer.getBoundingClientRect();
+
+		let left = entryBox.right;
+		if (left + viewBox.width > targetWindow.innerWidth) {
+			left = entryBox.left - viewBox.width;
+		}
+		let top = entryBox.top;
+		if (top + viewBox.height > targetWindow.innerHeight) {
+			top = targetWindow.innerHeight - viewBox.height;
+		}
+
+		submenuContainer.style.top = `${top}px`;
+		submenuContainer.style.left = `${left}px`;
 
 		submenuDisposables.add(menu.onDidCancel(() => this._cleanupSubmenu()));
 
