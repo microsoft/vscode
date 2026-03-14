@@ -39,12 +39,12 @@ export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMin
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
-export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string, useCurrentFile: boolean) {
+export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string, useCurrentFile: boolean, automatic = false) {
 	if (!releaseNotesManager) {
 		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
 	}
 
-	return releaseNotesManager.show(version, useCurrentFile);
+	return releaseNotesManager.show(version, useCurrentFile, automatic);
 }
 
 async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
@@ -185,7 +185,7 @@ export class ProductContribution implements IWorkbenchContribution {
 
 			// was there a major/minor update? if so, open release notes
 			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
-				showReleaseNotesInEditor(instantiationService, productService.version, false)
+				showReleaseNotesInEditor(instantiationService, productService.version, false, true)
 					.then(undefined, () => {
 						notificationService.prompt(
 							severity.Info,

@@ -33,6 +33,7 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { SimpleSettingRenderer } from '../../markdown/browser/markdownSettingRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { parse as parseYaml } from '../../../../base/common/yaml.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { dirname } from '../../../../base/common/resources.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
@@ -95,8 +96,15 @@ export class ReleaseNotesManager extends Disposable {
 		return URI.parse('https://code.visualstudio.com/raw');
 	}
 
-	public async show(version: string, useCurrentFile: boolean): Promise<boolean> {
+	public async show(version: string, useCurrentFile: boolean, automatic = false): Promise<boolean> {
 		const releaseNoteText = await this.loadReleaseNotes(version, useCurrentFile);
+
+		// On stable builds, skip Insiders draft release notes when shown automatically.
+		// This can happen when a new stable release ships before stable release notes are published.
+		// When the user manually requests release notes, always show them.
+		if (automatic && !useCurrentFile && this._productService.quality === 'stable' && isInsidersReleaseNotes(releaseNoteText)) {
+			return false;
+		}
 		const base = await this.getBase(useCurrentFile);
 		this._lastMeta = { text: releaseNoteText, base };
 		const html = await this.renderBody(this._lastMeta);
@@ -228,7 +236,7 @@ export class ReleaseNotesManager extends Disposable {
 				throw new Error('Failed to fetch release notes');
 			}
 
-			if (!text || (!/^#\s/.test(text) && !useCurrentFile)) { // release notes always starts with `#` followed by whitespace, except when using the current file
+			if (!text || (!/^#\s/.test(text) && !text.startsWith('---') && !useCurrentFile)) { // release notes always starts with `#` or YAML front-matter, except when using the current file
 				throw new Error('Invalid release notes');
 			}
 
@@ -772,6 +780,25 @@ export class ReleaseNotesManager extends Disposable {
 			});
 		}
 	}
+}
+
+/**
+ * Returns true if the release notes text is for an Insiders pre-release build.
+ * Determined by the `ProductEdition: Insiders` YAML front-matter field.
+ */
+export function isInsidersReleaseNotes(text: string): boolean {
+	if (text.startsWith('---')) {
+		const end = text.indexOf('\n---', 3);
+		if (end !== -1) {
+			const frontmatter = text.substring(3, end);
+			const parsed = parseYaml(frontmatter);
+			if (parsed?.type === 'map') {
+				const field = parsed.properties.find(p => p.key.value === 'ProductEdition');
+				return field?.value.type === 'scalar' && field.value.value === 'Insiders';
+			}
+		}
+	}
+	return false;
 }
 
 export async function renderReleaseNotesMarkdown(
