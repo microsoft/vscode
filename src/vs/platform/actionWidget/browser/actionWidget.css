@@ -244,18 +244,27 @@
 
 /* Item toolbar - shows on hover/focus */
 .action-widget .monaco-list-row.action .action-list-item-toolbar {
-	display: flex;
-	visibility: hidden;
+	display: none;
 }
 
 .action-widget .monaco-list-row.focused.action.has-toolbar .action-list-item-toolbar,
 .action-widget .monaco-list-row:hover.action.has-toolbar .action-list-item-toolbar {
 	display: flex;
-	visibility: visible;
 }
 
 .action-widget .monaco-list-row .action-list-item-toolbar .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover{
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.action-widget .monaco-list-row.action .action-list-submenu-indicator {
+	display: none;
+	align-items: center;
+	padding: 0 4px;
+	cursor: pointer;
+}
+
+.action-widget .monaco-list-row.action.has-submenu .action-list-submenu-indicator {
+	display: flex;
 }
 
 .action-widget-delegate-label {

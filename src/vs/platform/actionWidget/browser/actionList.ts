@@ -102,6 +102,11 @@ export interface IActionListItem<T> {
 	 * When set, a close button is automatically added to the item toolbar.
 	 */
 	readonly onRemove?: () => void;
+	/**
+	 * Optional submenu actions. When set, the item renders with a submenu indicator (▸)
+	 * and shows a child menu on hover/click.
+	 */
+	readonly submenuActions?: IAction[];
 }
 
 interface IActionMenuTemplateData {
@@ -112,6 +117,7 @@ interface IActionMenuTemplateData {
 	readonly description?: HTMLElement;
 	readonly keybinding: KeybindingLabel;
 	readonly toolbar: HTMLElement;
+	readonly submenuIndicator: HTMLElement;
 	readonly elementDisposables: DisposableStore;
 	previousClassName?: string;
 }
@@ -212,9 +218,13 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		toolbar.className = 'action-list-item-toolbar';
 		container.append(toolbar);
 
+		const submenuIndicator = document.createElement('span');
+		submenuIndicator.className = 'action-list-submenu-indicator';
+		container.append(submenuIndicator);
+
 		const elementDisposables = new DisposableStore();
 
-		return { container, icon, text, badge, description, keybinding, toolbar, elementDisposables };
+		return { container, icon, text, badge, description, keybinding, toolbar, submenuIndicator, elementDisposables };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
@@ -318,46 +328,43 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		}
 		data.container.classList.toggle('has-toolbar', toolbarActions.length > 0);
 		if (toolbarActions.length > 0) {
-			// For SubmenuActions, show a gear button that opens an inline Menu
-			const submenuActions = toolbarActions.filter(a => a instanceof SubmenuAction);
-			const regularActions = toolbarActions.filter(a => !(a instanceof SubmenuAction));
-			if (submenuActions.length > 0) {
-				const gearButton = dom.append(data.toolbar, dom.$('.action-label.codicon.codicon-gear'));
-				gearButton.title = localize('actionList.configure', "Configure");
-				gearButton.tabIndex = 0;
-				gearButton.role = 'button';
-				data.elementDisposables.add(dom.addDisposableListener(gearButton, dom.EventType.CLICK, (e) => {
-					dom.EventHelper.stop(e, true);
-					const targetWindow = dom.getWindow(gearButton);
-					const menuContainer = dom.append(targetWindow.document.body, dom.$('.monaco-menu-container.context-view'));
-					const menu = new Menu(menuContainer, submenuActions, {}, defaultMenuStyles);
-					const rect = gearButton.getBoundingClientRect();
-					menuContainer.style.position = 'fixed';
-					menuContainer.style.top = `${rect.bottom}px`;
-					menuContainer.style.left = `${rect.left}px`;
-					menuContainer.style.zIndex = '10000';
-					menu.focus();
-					const disposableListeners = new DisposableStore();
-					const cleanup = () => {
-						menu.dispose();
-						menuContainer.remove();
-						disposableListeners.dispose();
-					};
-					disposableListeners.add(menu.onDidCancel(cleanup));
-					disposableListeners.add(menu.onDidBlur(cleanup));
-					disposableListeners.add(dom.addDisposableListener(targetWindow.document, dom.EventType.MOUSE_DOWN, (evt) => {
-						if (!dom.isAncestor(evt.target as HTMLElement, menuContainer)) {
-							cleanup();
-						}
-					}));
-					data.elementDisposables.add({ dispose: cleanup });
+			const actionBar = new ActionBar(data.toolbar);
+			data.elementDisposables.add(actionBar);
+			actionBar.push(toolbarActions, { icon: true, label: false });
+		}
+
+		// Render submenu indicator and handle submenu actions
+		dom.clearNode(data.submenuIndicator);
+		data.container.classList.toggle('has-submenu', !!element.submenuActions?.length);
+		if (element.submenuActions && element.submenuActions.length > 0) {
+			dom.append(data.submenuIndicator, dom.$('.codicon.codicon-chevron-right'));
+			const showSubmenu = (e: Event) => {
+				dom.EventHelper.stop(e, true);
+				const targetWindow = dom.getWindow(data.container);
+				const menuContainer = dom.append(targetWindow.document.body, dom.$('.monaco-menu-container.context-view'));
+				const menu = new Menu(menuContainer, element.submenuActions!, {}, defaultMenuStyles);
+				const rect = data.container.getBoundingClientRect();
+				menuContainer.style.position = 'fixed';
+				menuContainer.style.top = `${rect.top}px`;
+				menuContainer.style.left = `${rect.right}px`;
+				menuContainer.style.zIndex = '10000';
+				menu.focus();
+				const disposableListeners = new DisposableStore();
+				const cleanup = () => {
+					menu.dispose();
+					menuContainer.remove();
+					disposableListeners.dispose();
+				};
+				disposableListeners.add(menu.onDidCancel(cleanup));
+				disposableListeners.add(menu.onDidBlur(cleanup));
+				disposableListeners.add(dom.addDisposableListener(targetWindow.document, dom.EventType.MOUSE_DOWN, (evt) => {
+					if (!dom.isAncestor(evt.target as HTMLElement, menuContainer)) {
+						cleanup();
+					}
 				}));
-			}
-			if (regularActions.length > 0) {
-				const actionBar = new ActionBar(data.toolbar);
-				data.elementDisposables.add(actionBar);
-				actionBar.push(regularActions, { icon: true, label: false });
-			}
+				data.elementDisposables.add({ dispose: cleanup });
+			};
+			data.elementDisposables.add(dom.addDisposableListener(data.submenuIndicator, dom.EventType.CLICK, showSubmenu));
 		}
 	}
 
@@ -1070,10 +1077,10 @@ export class ActionList<T> extends Disposable {
 			return;
 		}
 
-		// Don't select when clicking on toolbar actions
+		// Don't select when clicking on toolbar actions or submenu indicator
 		if (e.browserEvent && dom.isHTMLElement((e.browserEvent as MouseEvent).target)) {
 			const target = (e.browserEvent as MouseEvent).target as HTMLElement;
-			if (target.closest('.action-list-item-toolbar')) {
+			if (target.closest('.action-list-item-toolbar') || target.closest('.action-list-submenu-indicator')) {
 				this._list.setSelection([]);
 				return;
 			}

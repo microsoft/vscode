@@ -88,7 +88,7 @@ function createModelItem(
 		hideIcon: false,
 		section: action.section,
 		hover: model ? { content: getModelHoverContent(model), position: hoverPosition } : undefined,
-		toolbarActions: action.toolbarActions,
+		submenuActions: action.toolbarActions,
 	};
 }
 
