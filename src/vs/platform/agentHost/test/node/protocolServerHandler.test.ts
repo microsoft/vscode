@@ -70,12 +70,12 @@ class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	handleDisposeSession(_session: URI): void { }
 	async handleListSessions(): Promise<ISessionSummary[]> { return []; }
 	handleSetAuthToken(_token: string): void { }
-	async handleBrowseDirectory(uri: URI): Promise<{ entries: { name: string; uri: URI; type: 'file' | 'directory' }[] }> {
+	async handleBrowseDirectory(uri: URI): Promise<{ entries: { name: string; type: 'file' | 'directory' }[] }> {
 		this.browsedUris.push(uri);
 		return {
 			entries: [
-				{ name: 'src', uri: URI.file('/home/user/project/src'), type: 'directory' },
-				{ name: 'README.md', uri: URI.file('/home/user/project/README.md'), type: 'file' },
+				{ name: 'src', type: 'directory' },
+				{ name: 'README.md', type: 'file' },
 			],
 		};
 	}

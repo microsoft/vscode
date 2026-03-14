@@ -5,7 +5,6 @@
 
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
-import { join } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -240,12 +239,9 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			}
 			throw err;
 		}
-		const visible = dirents.filter(d => !d.name.startsWith('.'));
-		const entries = visible.map(dirent => {
-			const isDirectory = dirent.isDirectory();
-			const entryPath = join(dirPath, dirent.name);
-			const type: IDirectoryEntry['type'] = isDirectory ? 'directory' : 'file';
-			return { name: dirent.name, uri: URI.file(entryPath), type };
+		const entries = dirents.map(dirent => {
+			const type: IDirectoryEntry['type'] = dirent.isDirectory() ? 'directory' : 'file';
+			return { name: dirent.name, type };
 		});
 		return { entries };
 	}

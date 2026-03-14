@@ -208,7 +208,6 @@ export interface IBrowseDirectoryParams {
 
 export interface IDirectoryEntry {
 	readonly name: string;
-	readonly uri: URI;
 	readonly type: 'file' | 'directory';
 }
 
