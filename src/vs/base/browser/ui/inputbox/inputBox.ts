@@ -320,13 +320,14 @@ export class InputBox extends Widget {
 	}
 
 	public select(range: IRange | null = null): void {
-		this.input.select();
-
 		if (range) {
+			this.input.focus();
 			this.input.setSelectionRange(range.start, range.end);
 			if (range.end === this.input.value.length) {
 				this.input.scrollLeft = this.input.scrollWidth;
 			}
+		} else {
+			this.input.select();
 		}
 	}
 
