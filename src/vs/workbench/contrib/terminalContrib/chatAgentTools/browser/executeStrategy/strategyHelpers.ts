@@ -8,8 +8,8 @@ import { DisposableStore, MutableDisposable, toDisposable, type IDisposable } fr
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 /**
- * Picks the best start marker for output capture: prefer non-disposed over disposed,
- * then earliest line.
+ * Picks the best start marker for output capture: prefer non-disposed markers,
+ * then choose the earliest line.
  */
 export function getPreferredOutputStartMarker(
 	startMarker: IXtermMarker | undefined,
@@ -19,10 +19,10 @@ export function getPreferredOutputStartMarker(
 ): IXtermMarker | undefined {
 	let best: IXtermMarker | undefined;
 	for (const marker of [startMarker, commandMarker, executedMarker]) {
-		if (!marker || marker.line < 0) {
+		if (!marker || marker.isDisposed || marker.line < 0) {
 			continue;
 		}
-		if (!best || (!marker.isDisposed && best.isDisposed) || (!best.isDisposed === !marker.isDisposed && marker.line < best.line)) {
+		if (!best || marker.line < best.line) {
 			best = marker;
 		}
 	}
