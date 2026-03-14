@@ -49,10 +49,10 @@ export interface IMcpGatewaySingleServerInvoker {
  * and manage per-server routes.
  */
 export interface IMcpGatewayToolInvoker {
-	readonly onDidChangeServers: Event<void>;
+	readonly onDidChangeServers: Event<readonly IMcpGatewayServerDescriptor[]>;
 	readonly onDidChangeTools: Event<void>;
 	readonly onDidChangeResources: Event<void>;
-	listServers(): Promise<readonly IMcpGatewayServerDescriptor[]>;
+	listServers(): readonly IMcpGatewayServerDescriptor[];
 	listToolsForServer(serverId: string): Promise<readonly MCP.Tool[]>;
 	callToolForServer(serverId: string, name: string, args: Record<string, unknown>): Promise<MCP.CallToolResult>;
 	listResourcesForServer(serverId: string): Promise<readonly MCP.Resource[]>;
@@ -61,23 +61,28 @@ export interface IMcpGatewayToolInvoker {
 }
 
 /**
- * Result of creating an MCP gateway.
+ * Serializable result of creating an MCP gateway (safe for IPC).
  */
-export interface IMcpGatewayInfo {
+export interface IMcpGatewayDto {
 	/**
 	 * The servers currently exposed by this gateway.
 	 */
 	readonly servers: readonly IMcpGatewayServerInfo[];
 
 	/**
-	 * Event that fires when the set of servers changes.
-	 */
-	readonly onDidChangeServers: Event<readonly IMcpGatewayServerInfo[]>;
-
-	/**
 	 * The unique identifier for this gateway, used for disposal.
 	 */
 	readonly gatewayId: string;
+}
+
+/**
+ * Result of creating an MCP gateway (in-process, includes event).
+ */
+export interface IMcpGatewayInfo extends IMcpGatewayDto {
+	/**
+	 * Event that fires when the set of servers changes.
+	 */
+	readonly onDidChangeServers: Event<readonly IMcpGatewayServerInfo[]>;
 }
 
 /**

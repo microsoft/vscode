@@ -33,7 +33,7 @@ interface IServerIdArg {
 export class McpGatewayToolBrokerChannel extends Disposable implements IServerChannel<unknown> {
 	private readonly _onDidChangeTools = this._register(new Emitter<void>());
 	private readonly _onDidChangeResources = this._register(new Emitter<void>());
-	private readonly _onDidChangeServers = this._register(new Emitter<void>());
+	private readonly _onDidChangeServers = this._register(new Emitter<readonly IMcpGatewayServerDescriptor[]>());
 
 	/**
 	 * Per-server promise that races server startup against the grace period timeout.
@@ -85,11 +85,11 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 
 		let serversInitialized = false;
 		this._register(autorun(reader => {
-			this._mcpService.servers.read(reader);
+			const servers = this._mcpService.servers.read(reader);
 
 			if (serversInitialized) {
 				this._logService.debug('[McpGateway][ToolBroker] Servers changed, firing onDidChangeServers');
-				this._onDidChangeServers.fire();
+				this._onDidChangeServers.fire(servers.map(s => ({ id: s.definition.id, label: s.definition.label })));
 			} else {
 				serversInitialized = true;
 			}
@@ -163,7 +163,7 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 
 		switch (command) {
 			case 'listServers': {
-				const servers = await this._listServers();
+				const servers = this._listServers();
 				return servers as T;
 			}
 			case 'listToolsForServer': {
@@ -196,13 +196,11 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 		throw new Error(`Invalid call: ${command}`);
 	}
 
-	private async _listServers(): Promise<readonly IMcpGatewayServerDescriptor[]> {
+	private _listServers(): readonly IMcpGatewayServerDescriptor[] {
 		const servers = this._mcpService.servers.get();
 		const result: IMcpGatewayServerDescriptor[] = [];
 		for (const server of servers) {
-			if (await this._shouldUseCachedData(server)) {
-				result.push({ id: server.definition.id, label: server.definition.label });
-			}
+			result.push({ id: server.definition.id, label: server.definition.label });
 		}
 		this._logService.debug(`[McpGateway][ToolBroker] listServers result: ${result.length} server(s): [${result.map(s => s.label).join(', ')}]`);
 		return result;

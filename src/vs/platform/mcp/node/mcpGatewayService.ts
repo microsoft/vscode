@@ -11,7 +11,7 @@ import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogger, ILoggerService } from '../../log/common/log.js';
-import { IMcpGatewayInfo, IMcpGatewayServerInfo, IMcpGatewayService, IMcpGatewaySingleServerInvoker, IMcpGatewayToolInvoker } from '../common/mcpGateway.js';
+import { IMcpGatewayInfo, IMcpGatewayServerDescriptor, IMcpGatewayServerInfo, IMcpGatewayService, IMcpGatewaySingleServerInvoker, IMcpGatewayToolInvoker } from '../common/mcpGateway.js';
 import { isInitializeMessage, McpGatewaySession } from './mcpGatewaySession.js';
 
 /**
@@ -67,79 +67,100 @@ export class McpGatewayService extends Disposable implements IMcpGatewayService 
 		const disposables = new DisposableStore();
 		this._gatewayDisposables.set(gatewayId, disposables);
 
-		// Create initial server routes
-		const serverDescriptors = await toolInvoker.listServers();
-		const servers: IMcpGatewayServerInfo[] = [];
-		for (const descriptor of serverDescriptors) {
-			const serverInfo = this._createRouteForServer(gatewayId, descriptor.id, descriptor.label, toolInvoker, routeIds, serverRouteMap);
-			servers.push(serverInfo);
+		try {
+			// Create initial server routes
+			const serverDescriptors = toolInvoker.listServers();
+			const servers: IMcpGatewayServerInfo[] = [];
+			for (const descriptor of serverDescriptors) {
+				const serverInfo = this._createRouteForServer(gatewayId, descriptor.id, descriptor.label, toolInvoker, routeIds, serverRouteMap);
+				servers.push(serverInfo);
+			}
+
+			// Track client ownership
+			if (clientId) {
+				this._gatewayToClient.set(gatewayId, clientId);
+				this._logger.info(`[McpGatewayService] Created gateway ${gatewayId} with ${servers.length} server(s) for client ${clientId}`);
+			} else {
+				this._logger.warn(`[McpGatewayService] Created gateway ${gatewayId} with ${servers.length} server(s) without client tracking`);
+			}
+
+			// Listen for server changes to dynamically add/remove routes
+			const onDidChangeServers = disposables.add(new Emitter<readonly IMcpGatewayServerInfo[]>());
+			disposables.add(toolInvoker.onDidChangeServers(newDescriptors => {
+				this._refreshGatewayServers(gatewayId, newDescriptors, toolInvoker, routeIds, serverRouteMap, onDidChangeServers);
+			}));
+
+			return {
+				servers,
+				onDidChangeServers: onDidChangeServers.event,
+				gatewayId,
+			};
+		} catch (error) {
+			// Clean up partially-created state on failure
+			this._cleanupGateway(gatewayId);
+			throw error;
 		}
-
-		// Track client ownership
-		if (clientId) {
-			this._gatewayToClient.set(gatewayId, clientId);
-			this._logger.info(`[McpGatewayService] Created gateway ${gatewayId} with ${servers.length} server(s) for client ${clientId}`);
-		} else {
-			this._logger.warn(`[McpGatewayService] Created gateway ${gatewayId} with ${servers.length} server(s) without client tracking`);
-		}
-
-		// Listen for server changes to dynamically add/remove routes
-		const onDidChangeServers = disposables.add(new Emitter<readonly IMcpGatewayServerInfo[]>());
-		disposables.add(toolInvoker.onDidChangeServers(() => {
-			void this._refreshGatewayServers(gatewayId, toolInvoker, routeIds, serverRouteMap, onDidChangeServers);
-		}));
-
-		return {
-			servers,
-			onDidChangeServers: onDidChangeServers.event,
-			gatewayId,
-		};
 	}
 
-	private async _refreshGatewayServers(
+	private _refreshGatewayServers(
 		gatewayId: string,
+		newDescriptors: readonly IMcpGatewayServerDescriptor[],
 		toolInvoker: IMcpGatewayToolInvoker,
 		routeIds: Set<string>,
 		serverRouteMap: Map<string, string>,
 		onDidChangeServers: Emitter<readonly IMcpGatewayServerInfo[]>,
-	): Promise<void> {
-		try {
-			const newDescriptors = await toolInvoker.listServers();
-			const newServerIds = new Set(newDescriptors.map(d => d.id));
-			const existingServerIds = new Set(serverRouteMap.keys());
-
-			// Remove routes for servers that are gone
-			for (const serverId of existingServerIds) {
-				if (!newServerIds.has(serverId)) {
-					const routeId = serverRouteMap.get(serverId);
-					if (routeId) {
-						this._disposeRoute(routeId);
-						routeIds.delete(routeId);
-						serverRouteMap.delete(serverId);
-					}
-				}
-			}
-
-			// Add routes for new servers, and update labels for existing ones.
-			for (const descriptor of newDescriptors) {
-				if (!existingServerIds.has(descriptor.id)) {
-					this._createRouteForServer(gatewayId, descriptor.id, descriptor.label, toolInvoker, routeIds, serverRouteMap);
-					continue;
-				}
-
-				const routeId = serverRouteMap.get(descriptor.id);
-				const route = routeId ? this._routes.get(routeId) : undefined;
-				if (route && route.label !== descriptor.label) {
-					route.label = descriptor.label;
-				}
-			}
-
-			const updatedServers = this._getGatewayServers(gatewayId);
-			this._logger.info(`[McpGatewayService] Gateway ${gatewayId} servers changed: ${updatedServers.length} server(s)`);
-			onDidChangeServers.fire(updatedServers);
-		} catch (error) {
-			this._logger.warn(`[McpGatewayService] Failed to refresh gateway ${gatewayId} servers`, error);
+	): void {
+		// Bail out if the gateway has been disposed
+		if (!this._gatewayRoutes.has(gatewayId)) {
+			return;
 		}
+
+		const newServerIds = new Set(newDescriptors.map(d => d.id));
+		const existingServerIds = new Set(serverRouteMap.keys());
+
+		// Remove routes for servers that are gone
+		for (const serverId of existingServerIds) {
+			if (!newServerIds.has(serverId)) {
+				const routeId = serverRouteMap.get(serverId);
+				if (routeId) {
+					this._disposeRoute(routeId);
+					routeIds.delete(routeId);
+					serverRouteMap.delete(serverId);
+				}
+			}
+		}
+
+		// Add routes for new servers, and update labels for existing ones.
+		for (const descriptor of newDescriptors) {
+			if (!existingServerIds.has(descriptor.id)) {
+				this._createRouteForServer(gatewayId, descriptor.id, descriptor.label, toolInvoker, routeIds, serverRouteMap);
+				continue;
+			}
+
+			const routeId = serverRouteMap.get(descriptor.id);
+			const route = routeId ? this._routes.get(routeId) : undefined;
+			if (route && route.label !== descriptor.label) {
+				route.label = descriptor.label;
+			}
+		}
+
+		const updatedServers = this._getGatewayServers(gatewayId);
+		this._logger.info(`[McpGatewayService] Gateway ${gatewayId} servers changed: ${updatedServers.length} server(s)`);
+		onDidChangeServers.fire(updatedServers);
+	}
+
+	private _cleanupGateway(gatewayId: string): void {
+		const routeIds = this._gatewayRoutes.get(gatewayId);
+		if (routeIds) {
+			for (const routeId of routeIds) {
+				this._disposeRoute(routeId);
+			}
+		}
+		this._gatewayRoutes.delete(gatewayId);
+		this._gatewayServerRoutes.delete(gatewayId);
+		this._gatewayToClient.delete(gatewayId);
+		this._gatewayDisposables.get(gatewayId)?.dispose();
+		this._gatewayDisposables.delete(gatewayId);
 	}
 
 	private _createRouteForServer(
@@ -202,20 +223,12 @@ export class McpGatewayService extends Disposable implements IMcpGatewayService 
 	}
 
 	async disposeGateway(gatewayId: string): Promise<void> {
-		const routeIds = this._gatewayRoutes.get(gatewayId);
-		if (!routeIds) {
+		if (!this._gatewayRoutes.has(gatewayId)) {
 			this._logger.warn(`[McpGatewayService] Attempted to dispose unknown gateway: ${gatewayId}`);
 			return;
 		}
 
-		for (const routeId of routeIds) {
-			this._disposeRoute(routeId);
-		}
-		this._gatewayRoutes.delete(gatewayId);
-		this._gatewayServerRoutes.delete(gatewayId);
-		this._gatewayToClient.delete(gatewayId);
-		this._gatewayDisposables.get(gatewayId)?.dispose();
-		this._gatewayDisposables.delete(gatewayId);
+		this._cleanupGateway(gatewayId);
 		this._logger.info(`[McpGatewayService] Disposed gateway: ${gatewayId} (remaining routes: ${this._routes.size})`);
 
 		// If no more routes, shut down the server
@@ -237,17 +250,7 @@ export class McpGatewayService extends Disposable implements IMcpGatewayService 
 			this._logger.info(`[McpGatewayService] Disposing ${gatewaysToDispose.length} gateway(s) for disconnected client ${clientId}`);
 
 			for (const gatewayId of gatewaysToDispose) {
-				const routeIds = this._gatewayRoutes.get(gatewayId);
-				if (routeIds) {
-					for (const routeId of routeIds) {
-						this._disposeRoute(routeId);
-					}
-				}
-				this._gatewayRoutes.delete(gatewayId);
-				this._gatewayServerRoutes.delete(gatewayId);
-				this._gatewayToClient.delete(gatewayId);
-				this._gatewayDisposables.get(gatewayId)?.dispose();
-				this._gatewayDisposables.delete(gatewayId);
+				this._cleanupGateway(gatewayId);
 			}
 
 			// If no more routes, shut down the server
