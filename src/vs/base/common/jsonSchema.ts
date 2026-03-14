@@ -88,7 +88,6 @@ export interface IJSONSchema {
 	allowComments?: boolean;
 	allowTrailingCommas?: boolean;
 	secret?: boolean;
-	showInPicker?: boolean;
 }
 
 export interface IJSONSchemaMap {
