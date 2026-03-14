@@ -323,21 +323,23 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			const regularActions = toolbarActions.filter(a => !(a instanceof SubmenuAction));
 			if (submenuActions.length > 0) {
 				const allSubmenuChildren = submenuActions.flatMap(a => (a as SubmenuAction).actions);
-				regularActions.push(toAction({
-					id: 'actionList.configure',
-					label: localize('actionList.configure', "Configure"),
-					class: ThemeIcon.asClassName(Codicon.gear),
-					run: (_event) => {
-						this._contextMenuService.showContextMenu({
-							getAnchor: () => data.toolbar,
-							getActions: () => allSubmenuChildren,
-						});
-					}
+				const gearButton = dom.append(data.toolbar, dom.$('.action-label.codicon.codicon-gear'));
+				gearButton.title = localize('actionList.configure', "Configure");
+				gearButton.tabIndex = 0;
+				gearButton.role = 'button';
+				data.elementDisposables.add(dom.addDisposableListener(gearButton, dom.EventType.CLICK, (e) => {
+					dom.EventHelper.stop(e, true);
+					this._contextMenuService.showContextMenu({
+						getAnchor: () => gearButton,
+						getActions: () => allSubmenuChildren,
+					});
 				}));
 			}
-			const actionBar = new ActionBar(data.toolbar);
-			data.elementDisposables.add(actionBar);
-			actionBar.push(regularActions, { icon: true, label: false });
+			if (regularActions.length > 0) {
+				const actionBar = new ActionBar(data.toolbar);
+				data.elementDisposables.add(actionBar);
+				actionBar.push(regularActions, { icon: true, label: false });
+			}
 		}
 	}
 
