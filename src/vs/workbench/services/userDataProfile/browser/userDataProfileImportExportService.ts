@@ -753,6 +753,8 @@ class UserDataProfileExportState extends UserDataProfileImportExportState {
 			mcpResource: profile.mcpResource.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			snippetsHome: profile.snippetsHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			promptsHome: profile.promptsHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
+			skillsHome: profile.skillsHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
+			hooksHome: profile.hooksHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			extensionsResource: profile.extensionsResource,
 			cacheHome: profile.cacheHome,
 			useDefaultFlags: profile.useDefaultFlags,

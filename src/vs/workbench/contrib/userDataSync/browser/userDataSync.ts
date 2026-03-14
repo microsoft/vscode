@@ -684,6 +684,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			case SyncResource.Extensions: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Extensions, false);
 			case SyncResource.GlobalState: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.GlobalState, false);
 			case SyncResource.Profiles: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Profiles, false);
+			case SyncResource.Prompts: return this.userDataSyncEnablementService.setResourceEnablement(SyncResource.Prompts, false);
 		}
 	}
 
