@@ -1116,7 +1116,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 				continue;
 			}
 			const currentValue = currentConfig[key] ?? propSchema.default;
-			const label = propSchema.description ?? key;
+			const label = (typeof propSchema.title === 'string' ? propSchema.title : undefined)
+				?? key.replace(/([a-z])([A-Z])/g, '$1 $2')
+					.replace(/^./, s => s.toUpperCase());
 			const enumActions: IAction[] = propSchema.enum.map((value: unknown) => ({
 				id: `configureModel.${key}.${value}`,
 				label: String(value),
