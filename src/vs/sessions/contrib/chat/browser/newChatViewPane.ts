@@ -458,7 +458,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 				this._renderRemoteSessionPickers(session);
 			}));
 		} else if (session instanceof AgentHostNewSession) {
-			this._renderAgentHostSessionPickers();
+			this._renderAgentHostSessionPickers(session);
 		} else {
 			this._renderLocalSessionPickers();
 		}
@@ -850,7 +850,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * Agent Host sessions use the standard model picker and mode picker
 	 * but don't need repo, folder, isolation, or cloud option pickers.
 	 */
-	private _renderAgentHostSessionPickers(): void {
+	private _renderAgentHostSessionPickers(session: AgentHostNewSession): void {
 		this._clearAllPickers();
 		// Show local model and mode pickers
 		if (this._localModelPickerContainer) {
@@ -858,6 +858,15 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}
 		this._modePicker.setVisible(true);
 		this._cloudModelPicker.setVisible(false);
+
+		// Show the remote folder picker for browsing the agent host filesystem
+		const address = this._getRemoteAgentHostAddress(session.target);
+		if (address) {
+			if (this._extensionPickersLeftContainer) {
+				this._extensionPickersLeftContainer.style.display = 'block';
+			}
+			this._ensureRemoteFolderPicker(address, session);
+		}
 	}
 
 	// --- Remote session pickers ---
@@ -884,23 +893,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._extensionPickersLeftContainer.style.display = 'block';
 		}
 
-		// Detect agent-host remote targets and show a folder picker with remote browsing
-		const remoteAddress = this._getRemoteAgentHostAddress(session.target);
-		if (remoteAddress) {
-			// Agent-host remote: show folder picker, hide repo picker and text input
-			this._repoPickerContainer.style.display = 'none';
-			if (this._remoteFolderInputContainer) {
-				this._remoteFolderInputContainer.style.display = 'none';
-			}
-			this._ensureRemoteFolderPicker(remoteAddress, session);
-		} else {
-			// Cloud remote: show repo picker (original behavior), hide everything else
-			this._clearRemoteFolderPicker();
-			if (this._remoteFolderInputContainer) {
-				this._remoteFolderInputContainer.style.display = 'none';
-			}
-			this._repoPickerContainer.style.display = '';
+		// Cloud remote: show repo picker, hide folder pickers
+		this._clearRemoteFolderPicker();
+		if (this._remoteFolderInputContainer) {
+			this._remoteFolderInputContainer.style.display = 'none';
 		}
+		this._repoPickerContainer.style.display = '';
 
 		// Render toolbar pickers (other groups)
 		this._renderToolbarPickers(session, force);
@@ -923,7 +921,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		return undefined;
 	}
 
-	private _ensureRemoteFolderPicker(address: string, session: RemoteNewSession): void {
+	private _ensureRemoteFolderPicker(address: string, session: INewSession): void {
 		this._remoteFolderPickerDisposables.clear();
 
 		const authority = agentHostAuthority(address);
