@@ -65,7 +65,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					address,
 					name: this._names.get(address) ?? address,
 					clientId: entry.client.clientId,
-					homeDirectory: entry.client.homeDirectory,
+					defaultDirectory: entry.client.defaultDirectory,
 				});
 			}
 		}

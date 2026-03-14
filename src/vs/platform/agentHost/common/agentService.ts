@@ -385,7 +385,7 @@ export interface IAgentService {
 	 * List the contents of a directory on the agent host's filesystem.
 	 * Used by the client to drive a remote folder picker before session creation.
 	 */
-	browseDirectory(path: string): Promise<IBrowseDirectoryResult>;
+	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
 }
 
 /**

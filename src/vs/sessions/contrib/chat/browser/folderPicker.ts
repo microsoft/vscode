@@ -46,6 +46,12 @@ export interface IFolderPickerOptions {
 	 * Default URI to pass to `showOpenDialog` as the starting location.
 	 */
 	readonly defaultUri?: URI;
+
+	/**
+	 * Optional prefix for storage keys, so that different picker instances
+	 * (e.g. local vs remote) don't share the same last-picked and recents.
+	 */
+	readonly storageKeyPrefix?: string;
 }
 
 export class FolderPicker extends Disposable {
@@ -58,6 +64,8 @@ export class FolderPicker extends Disposable {
 
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _storageKeyLastFolder: string;
+	private readonly _storageKeyRecentFolders: string;
 
 	get selectedFolderUri(): URI | undefined {
 		return this._selectedFolderUri;
@@ -72,15 +80,19 @@ export class FolderPicker extends Disposable {
 	) {
 		super();
 
+		const prefix = this._options?.storageKeyPrefix ?? '';
+		this._storageKeyLastFolder = prefix + STORAGE_KEY_LAST_FOLDER;
+		this._storageKeyRecentFolders = prefix + STORAGE_KEY_RECENT_FOLDERS;
+
 		// Restore last picked folder
-		const lastFolder = this.storageService.get(STORAGE_KEY_LAST_FOLDER, StorageScope.PROFILE);
+		const lastFolder = this.storageService.get(this._storageKeyLastFolder, StorageScope.PROFILE);
 		if (lastFolder) {
 			try { this._selectedFolderUri = URI.parse(lastFolder); } catch { /* ignore */ }
 		}
 
 		// Restore recently picked folders
 		try {
-			const stored = this.storageService.get(STORAGE_KEY_RECENT_FOLDERS, StorageScope.PROFILE);
+			const stored = this.storageService.get(this._storageKeyRecentFolders, StorageScope.PROFILE);
 			if (stored) {
 				this._recentlyPickedFolders = JSON.parse(stored).map((s: string) => URI.parse(s));
 			}
@@ -182,7 +194,7 @@ export class FolderPicker extends Disposable {
 	private _selectFolder(folderUri: URI): void {
 		this._selectedFolderUri = folderUri;
 		this._addToRecentlyPickedFolders(folderUri);
-		this.storageService.store(STORAGE_KEY_LAST_FOLDER, folderUri.toString(), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(this._storageKeyLastFolder, folderUri.toString(), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._updateTriggerLabel(this._triggerElement);
 		this._onDidSelectFolder.fire(folderUri);
 	}
@@ -218,7 +230,7 @@ export class FolderPicker extends Disposable {
 
 	private _addToRecentlyPickedFolders(folderUri: URI): void {
 		this._recentlyPickedFolders = [folderUri, ...this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri))].slice(0, MAX_RECENT_FOLDERS);
-		this.storageService.store(STORAGE_KEY_RECENT_FOLDERS, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(this._storageKeyRecentFolders, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private _buildItems(currentFolderUri: URI | undefined): IActionListItem<IFolderItem>[] {
@@ -265,7 +277,7 @@ export class FolderPicker extends Disposable {
 			group: { title: '', icon: Codicon.search },
 			item: { uri: URI.from({ scheme: 'command', path: 'browse' }), label: localize('browseFolder', "Browse...") },
 		});
-		if (!this._options?.availableFileSystems) {
+		if (!this._options?.availableFileSystems?.length) {
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: localize('cloneRepository', "Clone..."),
@@ -282,18 +294,18 @@ export class FolderPicker extends Disposable {
 	 */
 	removeFromRecents(folderUri: URI): void {
 		this._recentlyPickedFolders = this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri));
-		this.storageService.store(STORAGE_KEY_RECENT_FOLDERS, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(this._storageKeyRecentFolders, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
 		// If this was the last picked folder, clear it
 		if (this._selectedFolderUri && isEqual(this._selectedFolderUri, folderUri)) {
 			this._selectedFolderUri = undefined;
-			this.storageService.remove(STORAGE_KEY_LAST_FOLDER, StorageScope.PROFILE);
+			this.storageService.remove(this._storageKeyLastFolder, StorageScope.PROFILE);
 			this._updateTriggerLabel(this._triggerElement);
 		}
 	}
 
 	private _removeFolder(folderUri: URI): void {
 		this._recentlyPickedFolders = this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri));
-		this.storageService.store(STORAGE_KEY_RECENT_FOLDERS, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(this._storageKeyRecentFolders, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private _updateTriggerLabel(trigger: HTMLElement | undefined): void {

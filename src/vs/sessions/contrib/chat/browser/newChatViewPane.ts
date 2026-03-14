@@ -895,8 +895,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			return undefined;
 		}
 		for (const conn of this.remoteAgentHostService.connections) {
-			const authority = agentHostAuthority(conn.address);
-			if (target.startsWith(`remote-${authority}-`)) {
+			const prefix = agentHostAuthority(conn.address);
+			if (target.startsWith(`remote-${prefix}-`)) {
 				return conn.address;
 			}
 		}
@@ -910,12 +910,15 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Use the home directory from the connection handshake as the default browse location
 		const conn = this.remoteAgentHostService.connections.find(c => c.address === address);
-		const defaultPath = conn?.homeDirectory ?? '/';
+		const defaultUri = conn?.defaultDirectory
+			? agentHostUri(authority, conn.defaultDirectory.path)
+			: agentHostUri(authority, '/');
 
 		const picker = this._remoteFolderPickerDisposables.add(
 			this.instantiationService.createInstance(FolderPicker, {
 				availableFileSystems: [AGENT_HOST_FS_SCHEME],
-				defaultUri: agentHostUri(authority, defaultPath),
+				defaultUri,
+				storageKeyPrefix: 'remote.',
 			})
 		);
 

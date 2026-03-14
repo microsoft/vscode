@@ -129,7 +129,7 @@ export interface IInitializeResult {
 	readonly protocolVersion: number;
 	readonly serverSeq: number;
 	readonly snapshots: readonly IStateSnapshot[];
-	readonly homeDirectory?: string;
+	readonly defaultDirectory?: URI;
 }
 
 export interface IReconnectParams {
@@ -203,12 +203,12 @@ export interface IFetchContentResult {
 // ---- Filesystem browsing ----------------------------------------------------
 
 export interface IBrowseDirectoryParams {
-	readonly path: string;
+	readonly uri: URI;
 }
 
 export interface IDirectoryEntry {
 	readonly name: string;
-	readonly path: string;
+	readonly uri: URI;
 	readonly type: 'file' | 'directory';
 }
 

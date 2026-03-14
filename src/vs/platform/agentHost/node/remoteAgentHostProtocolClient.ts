@@ -37,7 +37,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private readonly _transport: WebSocketClientTransport;
 	private _serverSeq = 0;
 	private _nextClientSeq = 1;
-	private _homeDirectory: string | undefined;
+	private _defaultDirectory: URI | undefined;
 
 	private readonly _onDidAction = this._register(new Emitter<IActionEnvelope>());
 	readonly onDidAction = this._onDidAction.event;
@@ -60,8 +60,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._transport['_address'];
 	}
 
-	get homeDirectory(): string | undefined {
-		return this._homeDirectory;
+	get defaultDirectory(): URI | undefined {
+		return this._defaultDirectory;
 	}
 
 	constructor(
@@ -86,7 +86,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			clientId: this._clientId,
 		}) as IInitializeResult;
 		this._serverSeq = result.serverSeq;
-		this._homeDirectory = result.homeDirectory;
+		this._defaultDirectory = result.defaultDirectory ? URI.revive(result.defaultDirectory) : undefined;
 	}
 
 	/**
@@ -173,8 +173,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * List the contents of a directory on the remote host's filesystem.
 	 */
-	async browseDirectory(path: string): Promise<IBrowseDirectoryResult> {
-		return await this._sendRequest('browseDirectory', { path }) as IBrowseDirectoryResult;
+	async browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
+		return await this._sendRequest('browseDirectory', { uri }) as IBrowseDirectoryResult;
 	}
 
 	private _handleMessage(msg: IProtocolMessage): void {

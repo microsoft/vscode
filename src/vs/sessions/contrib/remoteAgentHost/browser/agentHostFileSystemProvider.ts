@@ -58,7 +58,7 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 	readonly capabilities =
 		FileSystemProviderCapabilities.Readonly |
 		FileSystemProviderCapabilities.PathCaseSensitive |
-		FileSystemProviderCapabilities.FileReadWrite; // needed so file service treats us as a real provider
+		FileSystemProviderCapabilities.FileReadWrite; // required for the file service to resolve directory contents
 
 	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
 	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
@@ -99,7 +99,7 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 		const parentUri = dirname(resource);
 		const name = basename(resource);
 
-		const entries = await this._listDirectory(resource.authority, parentUri.path);
+		const entries = await this._listDirectory(resource.authority, parentUri);
 		const entry = entries.find(e => e.name === name);
 		if (!entry) {
 			throw createFileSystemProviderError(`File not found: ${path}`, FileSystemProviderErrorCode.FileNotFound);
@@ -115,7 +115,7 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 	}
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
-		const entries = await this._listDirectory(resource.authority, resource.path || '/');
+		const entries = await this._listDirectory(resource.authority, resource);
 		return entries.map(e => [e.name, e.type === 'directory' ? FileType.Directory : FileType.File]);
 	}
 
@@ -155,10 +155,12 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 		return connection;
 	}
 
-	private async _listDirectory(authority: string, path: string): Promise<readonly IDirectoryEntry[]> {
+	private async _listDirectory(authority: string, resource: URI): Promise<readonly IDirectoryEntry[]> {
 		const connection = this._getConnection(authority);
 		try {
-			const result = await connection.browseDirectory(path || '/');
+			// Convert the agenthost URI to a file URI for the remote server
+			const remoteUri = URI.from({ scheme: 'file', path: resource.path || '/' });
+			const result = await connection.browseDirectory(remoteUri);
 			return result.entries;
 		} catch (err) {
 			throw createFileSystemProviderError(

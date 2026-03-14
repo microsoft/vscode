@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
+import { join } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -227,8 +228,8 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		}
 	}
 
-	async handleBrowseDirectory(path: string): Promise<IBrowseDirectoryResult> {
-		const dirPath = path || '/';
+	async handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
+		const dirPath = uri.fsPath || '/';
 		let dirents;
 		try {
 			dirents = await fs.promises.readdir(dirPath, { withFileTypes: true });
@@ -242,15 +243,15 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		const visible = dirents.filter(d => !d.name.startsWith('.'));
 		const entries = visible.map(dirent => {
 			const isDirectory = dirent.isDirectory();
-			const entryPath = dirPath.endsWith('/') ? `${dirPath}${dirent.name}` : `${dirPath}/${dirent.name}`;
+			const entryPath = join(dirPath, dirent.name);
 			const type: IDirectoryEntry['type'] = isDirectory ? 'directory' : 'file';
-			return { name: dirent.name, path: entryPath, type };
+			return { name: dirent.name, uri: URI.file(entryPath), type };
 		});
 		return { entries };
 	}
 
-	getHomeDirectory(): string {
-		return os.homedir();
+	getDefaultDirectory(): URI {
+		return URI.file(os.homedir());
 	}
 
 	override dispose(): void {

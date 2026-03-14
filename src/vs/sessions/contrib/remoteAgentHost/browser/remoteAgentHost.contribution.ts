@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IOutputService } from '../../../../workbench/services/output/common/output.js';
@@ -26,19 +27,18 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { AGENT_HOST_FS_SCHEME, AgentHostFileSystemProvider } from './agentHostFileSystemProvider.js';
 
 /**
- * Sanitize a remote address into a string safe for use as a URI authority.
- * Replaces non-alphanumeric characters with hyphens.
- */
-function sanitizeAddress(address: string): string {
-	return address.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-}
-
-/**
- * Returns the URI authority used for a remote agent host connection.
- * Used as the authority component in `agenthost://{authority}/path` URIs.
+ * Encode a remote address into an identifier that is safe for use in
+ * both URI schemes and URI authorities, and is collision-free.
+ *
+ * If the address contains only alphanumeric characters it is returned as-is.
+ * Otherwise it is url-safe base64-encoded (no padding) to guarantee the
+ * result contains only `[A-Za-z0-9_-]`.
  */
 export function agentHostAuthority(address: string): string {
-	return sanitizeAddress(address);
+	if (/^[a-zA-Z0-9]+$/.test(address)) {
+		return address;
+	}
+	return 'b64-' + encodeBase64(VSBuffer.fromString(address), false, true);
 }
 
 /** Per-connection state bundle, disposed when a connection is removed. */
@@ -220,7 +220,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		connState.agents.set(agent.provider, agentStore);
 		connState.store.add(agentStore);
 
-		const sanitized = sanitizeAddress(address);
+		const sanitized = agentHostAuthority(address);
 		const sessionType = `remote-${sanitized}-${agent.provider}`;
 		const agentId = sessionType;
 		const vendor = sessionType;

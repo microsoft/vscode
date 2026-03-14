@@ -241,7 +241,7 @@ Clients interact with the server in two ways:
 | `listSessions(filter?)` | Returns `SessionSummary[]` |
 | `fetchContent(uri)` | Returns content bytes |
 | `fetchTurns(session, range)` | Returns historical turns |
-| `browseDirectory(path)` | Returns directory entries at a path on the server's filesystem |
+| `browseDirectory(uri)` | Lists directory entries at a file URI on the server's filesystem |
 
 ### Session creation flow
 
@@ -261,7 +261,7 @@ The protocol uses **JSON-RPC 2.0** framing over the transport (WebSocket, Messag
 ### Message categories
 
 - **Client → Server notifications** (fire-and-forget): `unsubscribe`, `dispatchAction`
-- **Client → Server requests** (expect a correlated response): `initialize`, `reconnect`, `subscribe`, `createSession`, `disposeSession`, `listSessions`, `fetchTurns`, `fetchContent`
+- **Client → Server requests** (expect a correlated response): `initialize`, `reconnect`, `subscribe`, `createSession`, `disposeSession`, `listSessions`, `fetchTurns`, `fetchContent`, `browseDirectory`
 - **Server → Client notifications** (pushed): `action`, `notification`
 - **Server → Client responses** (correlated to requests by `id`): success result or JSON-RPC error
 
@@ -271,7 +271,7 @@ The protocol uses **JSON-RPC 2.0** framing over the transport (WebSocket, Messag
 
 ```
 1. Client → Server:  { "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": { protocolVersion, clientId, initialSubscriptions? } }
-2. Server → Client:  { "jsonrpc": "2.0", "id": 1, "result": { protocolVersion, serverSeq, snapshots[] } }
+2. Server → Client:  { "jsonrpc": "2.0", "id": 1, "result": { protocolVersion, serverSeq, snapshots[], defaultDirectory? } }
 ```
 
 `initialSubscriptions` allows the client to subscribe to root state (and any previously-open sessions on reconnect) in the same round-trip as the handshake. The server returns snapshots for each in the response.

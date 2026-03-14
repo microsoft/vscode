@@ -180,8 +180,8 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sideEffects.handleAction(action);
 	}
 
-	async browseDirectory(path: string): Promise<IBrowseDirectoryResult> {
-		return this._sideEffects.handleBrowseDirectory(path);
+	async browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
+		return this._sideEffects.handleBrowseDirectory(uri);
 	}
 
 	async shutdown(): Promise<void> {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentConnection } from './agentService.js';
 
@@ -47,5 +48,5 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly address: string;
 	readonly name: string;
 	readonly clientId: string;
-	readonly homeDirectory?: string;
+	readonly defaultDirectory?: URI;
 }

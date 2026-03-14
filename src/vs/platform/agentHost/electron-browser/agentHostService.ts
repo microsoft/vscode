@@ -113,8 +113,8 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
 		this._proxy.dispatchAction(action, clientId, clientSeq);
 	}
-	browseDirectory(path: string): Promise<IBrowseDirectoryResult> {
-		return this._proxy.browseDirectory(path);
+	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
+		return this._proxy.browseDirectory(uri);
 	}
 	async restartAgentHost(): Promise<void> {
 		// Restart is handled by the main process side

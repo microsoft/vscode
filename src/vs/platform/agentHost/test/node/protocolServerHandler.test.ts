@@ -61,6 +61,8 @@ class MockProtocolServer implements IProtocolServer {
 
 class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	readonly handledActions: ISessionAction[] = [];
+	readonly browsedUris: URI[] = [];
+
 	handleAction(action: ISessionAction): void {
 		this.handledActions.push(action);
 	}
@@ -68,7 +70,18 @@ class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	handleDisposeSession(_session: URI): void { }
 	async handleListSessions(): Promise<ISessionSummary[]> { return []; }
 	handleSetAuthToken(_token: string): void { }
-	async handleBrowseDirectory(_path: string): Promise<{ entries: [] }> { return { entries: [] }; }
+	async handleBrowseDirectory(uri: URI): Promise<{ entries: { name: string; uri: URI; type: 'file' | 'directory' }[] }> {
+		this.browsedUris.push(uri);
+		return {
+			entries: [
+				{ name: 'src', uri: URI.file('/home/user/project/src'), type: 'directory' },
+				{ name: 'README.md', uri: URI.file('/home/user/project/README.md'), type: 'file' },
+			],
+		};
+	}
+	getDefaultDirectory(): URI {
+		return URI.file('/home/testuser');
+	}
 }
 
 // ---- Helpers ----------------------------------------------------------------
@@ -310,5 +323,36 @@ suite('ProtocolServerHandler', () => {
 		stateManager.dispatchServerAction({ type: 'session/titleChanged', session: sessionUri, title: 'After Disconnect' });
 
 		assert.strictEqual(transport.sent.length, 0);
+	});
+
+	test('handshake includes defaultDirectory from side effects', () => {
+		const transport = connectClient('client-home');
+
+		const resp = findResponse(transport.sent, 1);
+		assert.ok(resp);
+		const result = (resp as { result: IInitializeResult }).result;
+		assert.strictEqual(URI.revive(result.defaultDirectory!).fsPath, '/home/testuser');
+	});
+
+	test('browseDirectory routes to side effect handler', async () => {
+		const transport = connectClient('client-browse');
+		transport.sent.length = 0;
+
+		const dirUri = URI.file('/home/user/project');
+		transport.simulateMessage(request(2, 'browseDirectory', { uri: dirUri }));
+
+		await new Promise(resolve => setTimeout(resolve, 10));
+
+		assert.strictEqual(sideEffects.browsedUris.length, 1);
+		assert.strictEqual(sideEffects.browsedUris[0].fsPath, '/home/user/project');
+
+		const resp = findResponse(transport.sent, 2);
+		assert.ok(resp);
+		const result = (resp as { result: { entries: { name: string; uri: unknown; type: string }[] } }).result;
+		assert.strictEqual(result.entries.length, 2);
+		assert.strictEqual(result.entries[0].name, 'src');
+		assert.strictEqual(result.entries[0].type, 'directory');
+		assert.strictEqual(result.entries[1].name, 'README.md');
+		assert.strictEqual(result.entries[1].type, 'file');
 	});
 });
