@@ -14,7 +14,9 @@ import { ACTIVE_GROUP, IEditorService, type PreferredGroup } from '../../../../s
 import { IEditorGroup, IEditorGroupsService, isEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
+import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatViewViewContext } from '../chat.js';
 import { ChatEditor, IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
@@ -119,6 +121,9 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 			const chatView = await this.viewsService.openView<ChatViewPane>(ChatViewId, !options?.preserveFocus);
 			if (chatView) {
 				await chatView.loadSession(sessionResource);
+				if (options?.title?.preferred && getChatSessionType(sessionResource) !== localChatSessionType) {
+					this.chatService.setChatSessionTitle(sessionResource, options.title.preferred);
+				}
 				if (!options?.preserveFocus) {
 					chatView.focusInput();
 				}
