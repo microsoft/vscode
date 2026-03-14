@@ -618,6 +618,11 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	}
 
 	private async handleSessionModelOverrides(model: IChatModel, session: Dto<IChatSessionItem>): Promise<Dto<IChatSessionItem>> {
+		// Sync title from session item to model if model doesn't have a custom title
+		if (!model.hasCustomTitle && session.label) {
+			this._chatService.setTitle(model.sessionResource, session.label);
+		}
+
 		// Override desciription if there's an in-progress count
 		const inProgress = model.getRequests().filter(r => r.response && !r.response.isComplete);
 		if (inProgress.length) {
