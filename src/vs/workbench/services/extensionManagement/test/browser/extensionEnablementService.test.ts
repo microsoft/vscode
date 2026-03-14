@@ -537,8 +537,31 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.canChangeWorkspaceEnablement(aLocalExtension('pub.a')), false);
 	});
 
-	test('test canChangeWorkspaceEnablement return false for auth extension', () => {
-		assert.strictEqual(testObject.canChangeWorkspaceEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), false);
+	test('test canChangeWorkspaceEnablement return true for auth extension', () => {
+		// Auth extensions can be enabled in workspace (but not disabled)
+		assert.strictEqual(testObject.canChangeWorkspaceEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), true);
+	});
+
+	test('test disable auth extension in workspace throws error', async () => {
+		const extension = aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] });
+		installed.push(extension);
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+		try {
+			await testObject.setEnablement([extension], EnablementState.DisabledWorkspace);
+			assert.fail('Expected error');
+		} catch (error) {
+			assert.ok((<Error>error).message.includes('authentication providers'));
+		}
+	});
+
+	test('test enable auth extension in workspace succeeds', async () => {
+		const extension = aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] });
+		installed.push(extension);
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+		await testObject.setEnablement([extension], EnablementState.DisabledGlobally);
+		await testObject.setEnablement([extension], EnablementState.EnabledWorkspace);
+		assert.ok(testObject.isEnabled(extension));
+		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledWorkspace);
 	});
 
 	test('test canChangeEnablement return false when extensions are disabled in environment', () => {

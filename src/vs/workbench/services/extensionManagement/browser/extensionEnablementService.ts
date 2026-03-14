@@ -172,7 +172,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 
 		try {
-			this.throwErrorIfCannotChangeWorkspaceEnablement(extension);
+			// Passing `true` to check if the enable operation is allowed in workspace.
+			// For auth provider extensions, enabling is allowed but disabling is not.
+			// This means canChangeWorkspaceEnablement returns true for auth extensions.
+			this.throwErrorIfCannotChangeWorkspaceEnablement(extension, true);
 			return true;
 		} catch (error) {
 			return false;
@@ -224,12 +227,12 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 	}
 
-	private throwErrorIfCannotChangeWorkspaceEnablement(extension: IExtension): void {
+	private throwErrorIfCannotChangeWorkspaceEnablement(extension: IExtension, enable: boolean): void {
 		if (!this.hasWorkspace) {
 			throw new Error(localize('noWorkspace', "No workspace."));
 		}
-		if (isAuthenticationProviderExtension(extension.manifest)) {
-			throw new Error(localize('cannot disable auth extension in workspace', "Cannot change enablement of {0} extension in workspace because it contributes authentication providers", extension.manifest.displayName || extension.identifier.id));
+		if (!enable && isAuthenticationProviderExtension(extension.manifest)) {
+			throw new Error(localize('cannot disable auth extension in workspace', "Cannot disable {0} extension in workspace because it contributes authentication providers", extension.manifest.displayName || extension.identifier.id));
 		}
 	}
 
@@ -241,9 +244,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 
 		const workspace = newState === EnablementState.DisabledWorkspace || newState === EnablementState.EnabledWorkspace;
+		const enable = newState === EnablementState.EnabledGlobally || newState === EnablementState.EnabledWorkspace;
 		for (const extension of extensions) {
 			if (workspace) {
-				this.throwErrorIfCannotChangeWorkspaceEnablement(extension);
+				this.throwErrorIfCannotChangeWorkspaceEnablement(extension, enable);
 			} else {
 				this.throwErrorIfCannotChangeEnablement(extension);
 			}
