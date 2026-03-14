@@ -1177,12 +1177,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const parts: string[] = [];
 
 		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (typeof propSchema === 'boolean' || !(propSchema as any).showInDescription) { // eslint-disable-line @typescript-eslint/no-explicit-any
+			if (typeof propSchema === 'boolean' || !(propSchema as any).showInPicker) { // eslint-disable-line @typescript-eslint/no-explicit-any
 				continue;
 			}
 			const value = currentConfig[key] ?? propSchema.default;
-			if (value !== undefined && value !== propSchema.default) {
-				parts.push(String(value));
+			if (value !== undefined) {
+				const title = (typeof propSchema.title === 'string' ? propSchema.title : undefined)
+					?? key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
+				parts.push(`${title}: ${String(value)}`);
 			}
 		}
 
