@@ -286,10 +286,6 @@ const desktopResourcePatterns = [
 
 // Resources for server target (minimal - no UI)
 const serverResourcePatterns = [
-	// Shell scripts for process monitoring
-	'vs/base/node/cpuUsage.sh',
-	'vs/base/node/ps.sh',
-
 	// External Terminal
 	'vs/workbench/contrib/externalTerminal/**/*.scpt',
 
