@@ -741,6 +741,10 @@ export class ActionList<T> extends Disposable {
 		return this._filterInput;
 	}
 
+	get hasActiveSubmenu(): boolean {
+		return !!this._submenu;
+	}
+
 	private focusCondition(element: IActionListItem<unknown>): boolean {
 		return !element.disabled && element.kind === ActionListItemKind.Action;
 	}
