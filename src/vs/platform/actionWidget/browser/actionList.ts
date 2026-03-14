@@ -10,6 +10,7 @@ import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/con
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
+import { Menu } from '../../../base/browser/ui/menu/menu.js';
 import { IAction, SubmenuAction, toAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -22,7 +23,7 @@ import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import './actionWidget.css';
 import { localize } from '../../../nls.js';
-import { IContextMenuService, IContextViewService } from '../../contextview/browser/contextView.js';
+import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { IOpenerService } from '../../opener/common/opener.js';
 import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
@@ -184,7 +185,6 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _onRemoveItem: ((item: IActionListItem<T>) => void) | undefined,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IActionMenuTemplateData {
@@ -318,7 +318,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		}
 		data.container.classList.toggle('has-toolbar', toolbarActions.length > 0);
 		if (toolbarActions.length > 0) {
-			// Flatten SubmenuActions into a single gear button that opens a context menu
+			// Flatten SubmenuActions into a single gear button that opens an inline menu
 			const submenuActions = toolbarActions.filter(a => a instanceof SubmenuAction);
 			const regularActions = toolbarActions.filter(a => !(a instanceof SubmenuAction));
 			if (submenuActions.length > 0) {
@@ -329,10 +329,34 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 				gearButton.role = 'button';
 				data.elementDisposables.add(dom.addDisposableListener(gearButton, dom.EventType.CLICK, (e) => {
 					dom.EventHelper.stop(e, true);
-					this._contextMenuService.showContextMenu({
-						getAnchor: () => gearButton,
-						getActions: () => allSubmenuChildren,
+					const targetWindow = dom.getWindow(gearButton);
+					const menuContainer = dom.append(targetWindow.document.body, dom.$('.monaco-menu-container.context-view'));
+					const menu = new Menu(menuContainer, allSubmenuChildren, {}, {
+						borderColor: undefined, foregroundColor: undefined, backgroundColor: undefined,
+						separatorColor: undefined, scrollbarShadow: undefined,
+						scrollbarSliderActiveBackground: undefined, scrollbarSliderBackground: undefined,
+						scrollbarSliderHoverBackground: undefined
 					});
+					const rect = gearButton.getBoundingClientRect();
+					menuContainer.style.position = 'fixed';
+					menuContainer.style.top = `${rect.bottom}px`;
+					menuContainer.style.left = `${rect.left}px`;
+					menuContainer.style.zIndex = '10000';
+					menu.focus();
+					const disposableListeners = new DisposableStore();
+					const cleanup = () => {
+						menu.dispose();
+						menuContainer.remove();
+						disposableListeners.dispose();
+					};
+					disposableListeners.add(menu.onDidCancel(cleanup));
+					disposableListeners.add(menu.onDidBlur(cleanup));
+					disposableListeners.add(dom.addDisposableListener(targetWindow.document, dom.EventType.MOUSE_DOWN, (evt) => {
+						if (!dom.isAncestor(evt.target as HTMLElement, menuContainer)) {
+							cleanup();
+						}
+					}));
+					data.elementDisposables.add({ dispose: cleanup });
 				}));
 			}
 			if (regularActions.length > 0) {
