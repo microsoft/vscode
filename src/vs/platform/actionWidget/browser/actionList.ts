@@ -1286,6 +1286,7 @@ export class ActionList<T> extends Disposable {
 						dom.EventHelper.stop(e, true);
 						child.run();
 						this._cleanupSubmenu();
+						this.hide();
 					}));
 				}
 			}
