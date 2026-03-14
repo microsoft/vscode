@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Standalone agent host server with WebSocket protocol transport.
-// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--enable-mock-agent]
+// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--enable-mock-agent] [--quiet] [--log <level>]
 
 import { fileURLToPath } from 'url';
 
@@ -33,6 +33,11 @@ import { SessionStateManager } from './sessionStateManager.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 
+/** Log to stderr so messages appear in the terminal alongside the process. */
+function log(msg: string): void {
+	process.stderr.write(`[AgentHostServer] ${msg}\n`);
+}
+
 // ---- Options ----------------------------------------------------------------
 
 interface IServerOptions {
@@ -53,7 +58,7 @@ function parseServerOptions(): IServerOptions {
 
 // ---- Main -------------------------------------------------------------------
 
-function main(): void {
+async function main(): Promise<void> {
 	const options = parseServerOptions();
 	const disposables = new DisposableStore();
 
@@ -77,6 +82,7 @@ function main(): void {
 	}
 
 	logService.info('[AgentHostServer] Starting standalone agent host server');
+	log('Starting standalone agent host server');
 
 	// Create state manager
 	const stateManager = disposables.add(new SessionStateManager(logService));
@@ -116,6 +122,7 @@ function main(): void {
 		const instantiationService = new InstantiationService(services);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		registerAgent(copilotAgent);
+		log('CopilotAgent registered');
 	}
 
 	if (options.enableMockAgent) {
@@ -129,7 +136,7 @@ function main(): void {
 	}
 
 	// WebSocket server
-	const wsServer = disposables.add(new WebSocketProtocolServer(options.port, logService));
+	const wsServer = disposables.add(await WebSocketProtocolServer.create(options.port, logService));
 
 	// Wire up protocol handler
 	disposables.add(new ProtocolServerHandler(stateManager, wsServer, sideEffects, logService));

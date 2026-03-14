@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { ISessionAction } from '../../common/state/sessionActions.js';
-import { isJsonRpcNotification, isJsonRpcResponse, type ICreateSessionParams, type IProtocolMessage, type IProtocolNotification, type IServerHelloParams, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type ICreateSessionParams, type IInitializeResult, type IProtocolMessage, type IProtocolNotification, type IReconnectResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -22,6 +22,8 @@ import { SessionStateManager } from '../../node/sessionStateManager.js';
 class MockProtocolTransport implements IProtocolTransport {
 	private readonly _onMessage = new Emitter<IProtocolMessage>();
 	readonly onMessage = this._onMessage.event;
+	private readonly _onDidSend = new Emitter<IProtocolMessage>();
+	readonly onDidSend = this._onDidSend.event;
 	private readonly _onClose = new Emitter<void>();
 	readonly onClose = this._onClose.event;
 
@@ -29,6 +31,7 @@ class MockProtocolTransport implements IProtocolTransport {
 
 	send(message: IProtocolMessage): void {
 		this.sent.push(message);
+		this._onDidSend.fire(message);
 	}
 
 	simulateMessage(msg: IProtocolMessage): void {
@@ -41,6 +44,7 @@ class MockProtocolTransport implements IProtocolTransport {
 
 	dispose(): void {
 		this._onMessage.dispose();
+		this._onDidSend.dispose();
 		this._onClose.dispose();
 	}
 }
@@ -61,12 +65,32 @@ class MockProtocolServer implements IProtocolServer {
 
 class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	readonly handledActions: ISessionAction[] = [];
+	readonly browsedUris: URI[] = [];
+	readonly browseErrors = new Map<string, Error>();
+
 	handleAction(action: ISessionAction): void {
 		this.handledActions.push(action);
 	}
-	async handleCreateSession(_command: ICreateSessionParams): Promise<void> { }
+	async handleCreateSession(_command: ICreateSessionParams): Promise<URI> { return URI.parse('copilot:/mock-session'); }
 	handleDisposeSession(_session: URI): void { }
 	async handleListSessions(): Promise<ISessionSummary[]> { return []; }
+	handleSetAuthToken(_token: string): void { }
+	async handleBrowseDirectory(uri: URI): Promise<{ entries: { name: string; type: 'file' | 'directory' }[] }> {
+		this.browsedUris.push(uri);
+		const error = this.browseErrors.get(uri.toString());
+		if (error) {
+			throw error;
+		}
+		return {
+			entries: [
+				{ name: 'src', type: 'directory' },
+				{ name: 'README.md', type: 'file' },
+			],
+		};
+	}
+	getDefaultDirectory(): URI {
+		return URI.file('/home/testuser');
+	}
 }
 
 // ---- Helpers ----------------------------------------------------------------
@@ -79,16 +103,16 @@ function request(id: number, method: string, params?: unknown): IProtocolMessage
 	return { jsonrpc: '2.0', id, method, params } as IProtocolMessage;
 }
 
-function findNotification(sent: IProtocolMessage[], method: string): IProtocolNotification | undefined {
-	return sent.find(isJsonRpcNotification) as IProtocolNotification | undefined;
-}
-
 function findNotifications(sent: IProtocolMessage[], method: string): IProtocolNotification[] {
 	return sent.filter(isJsonRpcNotification) as IProtocolNotification[];
 }
 
 function findResponse(sent: IProtocolMessage[], id: number): IProtocolMessage | undefined {
 	return sent.find(isJsonRpcResponse) as IProtocolMessage | undefined;
+}
+
+function waitForResponse(transport: MockProtocolTransport, id: number): Promise<IProtocolMessage> {
+	return Event.toPromise(Event.filter(transport.onDidSend, message => isJsonRpcResponse(message) && message.id === id));
 }
 
 // ---- Tests ------------------------------------------------------------------
@@ -116,7 +140,7 @@ suite('ProtocolServerHandler', () => {
 	function connectClient(clientId: string, initialSubscriptions?: readonly URI[]): MockProtocolTransport {
 		const transport = new MockProtocolTransport();
 		server.simulateConnection(transport);
-		transport.simulateMessage(notification('initialize', {
+		transport.simulateMessage(request(1, 'initialize', {
 			protocolVersion: PROTOCOL_VERSION,
 			clientId,
 			initialSubscriptions,
@@ -143,14 +167,14 @@ suite('ProtocolServerHandler', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('handshake sends serverHello notification', () => {
+	test('handshake returns initialize response', () => {
 		const transport = connectClient('client-1');
 
-		const hello = findNotification(transport.sent, 'serverHello');
-		assert.ok(hello, 'should have sent serverHello');
-		const params = hello.params as IServerHelloParams;
-		assert.strictEqual(params.protocolVersion, PROTOCOL_VERSION);
-		assert.strictEqual(params.serverSeq, stateManager.serverSeq);
+		const resp = findResponse(transport.sent, 1);
+		assert.ok(resp, 'should have sent initialize response');
+		const result = (resp as { result: IInitializeResult }).result;
+		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
+		assert.strictEqual(result.serverSeq, stateManager.serverSeq);
 	});
 
 	test('handshake with initialSubscriptions returns snapshots', () => {
@@ -158,11 +182,11 @@ suite('ProtocolServerHandler', () => {
 
 		const transport = connectClient('client-1', [sessionUri]);
 
-		const hello = findNotification(transport.sent, 'serverHello');
-		assert.ok(hello);
-		const params = hello.params as IServerHelloParams;
-		assert.strictEqual(params.snapshots.length, 1);
-		assert.strictEqual(params.snapshots[0].resource.toString(), sessionUri.toString());
+		const resp = findResponse(transport.sent, 1);
+		assert.ok(resp);
+		const result = (resp as { result: IInitializeResult }).result;
+		assert.strictEqual(result.snapshots.length, 1);
+		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
 	});
 
 	test('subscribe request returns snapshot', async () => {
@@ -170,13 +194,11 @@ suite('ProtocolServerHandler', () => {
 
 		const transport = connectClient('client-1');
 		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 1);
 
 		transport.simulateMessage(request(1, 'subscribe', { resource: sessionUri }));
+		const resp = await responsePromise;
 
-		// Wait for async response
-		await new Promise(resolve => setTimeout(resolve, 10));
-
-		const resp = findResponse(transport.sent, 1);
 		assert.ok(resp, 'should have sent response');
 		const snapshot = (resp as { result: IStateSnapshot }).result;
 		assert.strictEqual(snapshot.resource.toString(), sessionUri.toString());
@@ -248,8 +270,8 @@ suite('ProtocolServerHandler', () => {
 		stateManager.dispatchServerAction({ type: 'session/ready', session: sessionUri });
 
 		const transport1 = connectClient('client-r', [sessionUri]);
-		const hello = findNotification(transport1.sent, 'serverHello');
-		const helloSeq = (hello!.params as IServerHelloParams).serverSeq;
+		const resp = findResponse(transport1.sent, 1);
+		const initSeq = (resp as { result: IInitializeResult }).result.serverSeq;
 		transport1.simulateClose();
 
 		stateManager.dispatchServerAction({ type: 'session/titleChanged', session: sessionUri, title: 'Title A' });
@@ -257,14 +279,19 @@ suite('ProtocolServerHandler', () => {
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
-		transport2.simulateMessage(notification('reconnect', {
+		transport2.simulateMessage(request(1, 'reconnect', {
 			clientId: 'client-r',
-			lastSeenServerSeq: helloSeq,
+			lastSeenServerSeq: initSeq,
 			subscriptions: [sessionUri],
 		}));
 
-		const replayed = findNotifications(transport2.sent, 'action');
-		assert.strictEqual(replayed.length, 2);
+		const reconnectResp = findResponse(transport2.sent, 1);
+		assert.ok(reconnectResp, 'should have sent reconnect response');
+		const result = (reconnectResp as { result: IReconnectResult }).result;
+		assert.strictEqual(result.type, 'replay');
+		if (result.type === 'replay') {
+			assert.strictEqual(result.actions.length, 2);
+		}
 	});
 
 	test('reconnect sends fresh snapshots when gap too large', () => {
@@ -280,16 +307,19 @@ suite('ProtocolServerHandler', () => {
 
 		const transport2 = new MockProtocolTransport();
 		server.simulateConnection(transport2);
-		transport2.simulateMessage(notification('reconnect', {
+		transport2.simulateMessage(request(1, 'reconnect', {
 			clientId: 'client-g',
 			lastSeenServerSeq: 0,
 			subscriptions: [sessionUri],
 		}));
 
-		const reconnectResp = findNotification(transport2.sent, 'reconnectResponse');
-		assert.ok(reconnectResp, 'should receive a reconnectResponse');
-		const params = reconnectResp!.params as { snapshots: IStateSnapshot[] };
-		assert.ok(params.snapshots.length > 0, 'should contain snapshots');
+		const reconnectResp = findResponse(transport2.sent, 1);
+		assert.ok(reconnectResp, 'should have sent reconnect response');
+		const result = (reconnectResp as { result: IReconnectResult }).result;
+		assert.strictEqual(result.type, 'snapshot');
+		if (result.type === 'snapshot') {
+			assert.ok(result.snapshots.length > 0, 'should contain snapshots');
+		}
 	});
 
 	test('client disconnect cleans up', () => {
@@ -304,5 +334,50 @@ suite('ProtocolServerHandler', () => {
 		stateManager.dispatchServerAction({ type: 'session/titleChanged', session: sessionUri, title: 'After Disconnect' });
 
 		assert.strictEqual(transport.sent.length, 0);
+	});
+
+	test('handshake includes defaultDirectory from side effects', () => {
+		const transport = connectClient('client-home');
+
+		const resp = findResponse(transport.sent, 1);
+		assert.ok(resp);
+		const result = (resp as { result: IInitializeResult }).result;
+		assert.strictEqual(URI.revive(result.defaultDirectory!).fsPath, '/home/testuser');
+	});
+
+	test('browseDirectory routes to side effect handler', async () => {
+		const transport = connectClient('client-browse');
+		transport.sent.length = 0;
+
+		const dirUri = URI.file('/home/user/project');
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'browseDirectory', { uri: dirUri }));
+		const resp = await responsePromise;
+
+		assert.strictEqual(sideEffects.browsedUris.length, 1);
+		assert.strictEqual(sideEffects.browsedUris[0].fsPath, '/home/user/project');
+
+		assert.ok(resp);
+		const result = (resp as { result: { entries: { name: string; uri: unknown; type: string }[] } }).result;
+		assert.strictEqual(result.entries.length, 2);
+		assert.strictEqual(result.entries[0].name, 'src');
+		assert.strictEqual(result.entries[0].type, 'directory');
+		assert.strictEqual(result.entries[1].name, 'README.md');
+		assert.strictEqual(result.entries[1].type, 'file');
+	});
+
+	test('browseDirectory returns a JSON-RPC error when the target is invalid', async () => {
+		const transport = connectClient('client-browse-error');
+		transport.sent.length = 0;
+
+		const dirUri = URI.file('/missing');
+		sideEffects.browseErrors.set(dirUri.toString(), new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Directory not found: ${dirUri.toString()}`));
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'browseDirectory', { uri: dirUri }));
+		const resp = await responsePromise as { error?: { code: number; message: string } };
+
+		assert.ok(resp?.error);
+		assert.strictEqual(resp.error!.code, JSON_RPC_INTERNAL_ERROR);
+		assert.match(resp.error!.message, /Directory not found/);
 	});
 });

@@ -4,6 +4,8 @@
   "private": true,
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.23",
+    "@github/copilot": "^1.0.4-0",
+    "@github/copilot-sdk": "^0.1.32",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "^2.5.6",
@@ -39,6 +41,7 @@
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "^9.3.2",
+    "ws": "^8.19.0",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
   },

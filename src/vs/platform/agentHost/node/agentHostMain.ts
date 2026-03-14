@@ -8,12 +8,17 @@ import { Server as ChildProcessServer } from '../../../base/parts/ipc/node/ipc.c
 import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc.mp.js';
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { AgentHostIpcChannels } from '../common/agentService.js';
+import { URI } from '../../../base/common/uri.js';
+import * as os from 'os';
+import { AgentHostIpcChannels, AgentSession, type AgentProvider } from '../common/agentService.js';
+import { SessionStatus } from '../common/state/sessionState.js';
 import { AgentService } from './agentService.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
+import { ProtocolServerHandler, type IProtocolSideEffectHandler } from './protocolServerHandler.js';
+import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { parseArgs, OPTIONS } from '../../environment/node/argv.js';
-import { getLogLevel } from '../../log/common/log.js';
+import { getLogLevel, ILogService } from '../../log/common/log.js';
 import { LogService } from '../../log/common/logService.js';
 import { LoggerService } from '../../log/node/loggerService.js';
 import { LoggerChannel } from '../../log/common/logIpc.js';
@@ -24,6 +29,8 @@ import { localize } from '../../../nls.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
+// When VSCODE_AGENT_HOST_PORT or VSCODE_AGENT_HOST_SOCKET_PATH env vars
+// are set, also starts a WebSocket server for external clients.
 
 startAgentHost();
 
@@ -59,9 +66,94 @@ function startAgentHost(): void {
 	const agentChannel = ProxyChannel.fromService(agentService, disposables);
 	server.registerChannel(AgentHostIpcChannels.AgentHost, agentChannel);
 
+	// Start WebSocket server for external clients if configured
+	startWebSocketServer(agentService, logService, disposables).catch(err => {
+		logService.error('Failed to start WebSocket server', err);
+	});
+
 	process.once('exit', () => {
 		agentService.dispose();
 		logService.dispose();
 		disposables.dispose();
 	});
+}
+
+/**
+ * When the parent process passes WebSocket configuration via environment
+ * variables, start a protocol server that external clients can connect to.
+ * This reuses the same {@link AgentService} and {@link SessionStateManager}
+ * that the IPC channel uses, so both IPC and WebSocket clients share state.
+ */
+async function startWebSocketServer(agentService: AgentService, logService: ILogService, disposables: DisposableStore): Promise<void> {
+	const port = process.env['VSCODE_AGENT_HOST_PORT'];
+	const socketPath = process.env['VSCODE_AGENT_HOST_SOCKET_PATH'];
+
+	if (!port && !socketPath) {
+		return;
+	}
+
+	const connectionToken = process.env['VSCODE_AGENT_HOST_CONNECTION_TOKEN'];
+	const host = process.env['VSCODE_AGENT_HOST_HOST'] || 'localhost';
+
+	const wsServer = disposables.add(await WebSocketProtocolServer.create(
+		socketPath
+			? {
+				socketPath,
+				connectionTokenValidate: connectionToken
+					? (token) => token === connectionToken
+					: undefined,
+			}
+			: {
+				port: parseInt(port!, 10),
+				host,
+				connectionTokenValidate: connectionToken
+					? (token) => token === connectionToken
+					: undefined,
+			},
+		logService,
+	));
+
+	// Create a side-effect handler that delegates to AgentService
+	const sideEffects: IProtocolSideEffectHandler = {
+		handleAction(action) {
+			agentService.dispatchAction(action, 'ws-server', 0);
+		},
+		async handleCreateSession(command) {
+			return agentService.createSession({
+				provider: command.provider as AgentProvider | undefined,
+				model: command.model,
+				workingDirectory: command.workingDirectory,
+			});
+		},
+		handleDisposeSession(session) {
+			agentService.disposeSession(session);
+		},
+		async handleListSessions() {
+			const sessions = await agentService.listSessions();
+			return sessions.map(s => ({
+				resource: s.session,
+				provider: AgentSession.provider(s.session) ?? 'copilot',
+				title: s.summary ?? 'Session',
+				status: SessionStatus.Idle,
+				createdAt: s.startTime,
+				modifiedAt: s.modifiedTime,
+			}));
+		},
+		handleSetAuthToken(token) {
+			agentService.setAuthToken(token);
+		},
+		handleBrowseDirectory(uri) {
+			return agentService.browseDirectory(uri);
+		},
+		getDefaultDirectory() {
+			return URI.file(os.homedir());
+		},
+	};
+
+	disposables.add(new ProtocolServerHandler(agentService.stateManager, wsServer, sideEffects, logService));
+
+	const listenTarget = socketPath ?? `${host}:${port}`;
+	logService.info(`[AgentHost] WebSocket server listening on ${listenTarget}`);
+	// Do not change this line. The CLI looks for this in the output.
+	console.log(`Agent host server listening on ${listenTarget}`);
 }

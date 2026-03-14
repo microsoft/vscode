@@ -356,6 +356,82 @@ export class RemoteNewSession extends Disposable implements INewSession {
 	}
 }
 
+/**
+ * New session for Agent Host sessions (both local and remote).
+ * Agent host sessions resolve working directories internally and get their
+ * models from {@link AgentHostLanguageModelProvider}, so they don't need
+ * extension-driven option groups, repo pickers, or isolation mode.
+ */
+export class AgentHostNewSession extends Disposable implements INewSession {
+
+	private _repoUri: URI | undefined;
+	private _modelId: string | undefined;
+	private _mode: IChatMode | undefined;
+	private _query: string | undefined;
+	private _attachedContext: IChatRequestVariableEntry[] | undefined;
+
+	private readonly _onDidChange = this._register(new Emitter<NewSessionChangeType>());
+	readonly onDidChange: Event<NewSessionChangeType> = this._onDidChange.event;
+
+	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
+
+	get repoUri(): URI | undefined { return this._repoUri; }
+	get isolationMode(): IsolationMode { return 'workspace'; }
+	get branch(): string | undefined { return undefined; }
+	get modelId(): string | undefined { return this._modelId; }
+	get mode(): IChatMode | undefined { return this._mode; }
+	get query(): string | undefined { return this._query; }
+	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
+	get disabled(): boolean { return false; }
+
+	constructor(
+		readonly resource: URI,
+		readonly target: AgentSessionProviders,
+	) {
+		super();
+	}
+
+	setRepoUri(uri: URI): void {
+		this._repoUri = uri;
+		this._onDidChange.fire('repoUri');
+	}
+
+	setIsolationMode(_mode: IsolationMode): void {
+		// No-op: agent host sessions don't use isolation modes
+	}
+
+	setBranch(_branch: string | undefined): void {
+		// No-op: agent host sessions don't use branches
+	}
+
+	setModelId(modelId: string | undefined): void {
+		this._modelId = modelId;
+	}
+
+	setMode(mode: IChatMode | undefined): void {
+		if (this._mode?.id !== mode?.id) {
+			this._mode = mode;
+			this._onDidChange.fire('agent');
+		}
+	}
+
+	setQuery(query: string): void {
+		this._query = query;
+	}
+
+	setAttachedContext(context: IChatRequestVariableEntry[] | undefined): void {
+		this._attachedContext = context;
+	}
+
+	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void {
+		if (typeof value === 'string') {
+			this.selectedOptions.set(optionId, { id: value, name: value });
+		} else {
+			this.selectedOptions.set(optionId, value);
+		}
+	}
+}
+
 function isModelOptionGroup(group: IChatSessionProviderOptionGroup): boolean {
 	if (group.id === 'models') {
 		return true;

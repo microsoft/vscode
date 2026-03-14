@@ -17,8 +17,9 @@ import type {
 import type {
 	ISessionAction,
 	IDeltaAction,
-	IToolStartAction,
-	IToolCompleteAction,
+	IToolCallStartAction,
+	IToolCallReadyAction,
+	IToolCallCompleteAction,
 	ITurnCompleteAction,
 	ISessionErrorAction,
 	IUsageAction,
@@ -26,15 +27,17 @@ import type {
 	IPermissionRequestAction,
 	IReasoningAction,
 } from '../common/state/sessionActions.js';
-import { ToolCallStatus } from '../common/state/sessionState.js';
 import { URI } from '../../../base/common/uri.js';
 
 /**
  * Maps a flat {@link IAgentProgressEvent} from the agent host into
- * a protocol {@link ISessionAction} suitable for dispatch to the reducer.
+ * protocol {@link ISessionAction}(s) suitable for dispatch to the reducer.
+ *
  * Returns `undefined` for events that have no corresponding action.
+ * May return an array when a single SDK event maps to multiple protocol actions
+ * (e.g. `tool_start` → `toolCallStart` + `toolCallReady`).
  */
-export function mapProgressEventToAction(event: IAgentProgressEvent, session: URI, turnId: string): ISessionAction | undefined {
+export function mapProgressEventToActions(event: IAgentProgressEvent, session: URI, turnId: string): ISessionAction | ISessionAction[] | undefined {
 	switch (event.type) {
 		case 'delta':
 			return {
@@ -45,29 +48,36 @@ export function mapProgressEventToAction(event: IAgentProgressEvent, session: UR
 			} satisfies IDeltaAction;
 
 		case 'tool_start': {
+			// The Copilot SDK provides full parameters at tool_start time.
+			// We emit both toolCallStart (streaming → created) and toolCallReady
+			// (params complete → running with auto-confirm) as a pair.
 			const e = event as IAgentToolStartEvent;
-			return {
-				type: 'session/toolStart',
+			const startAction: IToolCallStartAction = {
+				type: 'session/toolCallStart',
 				session,
 				turnId,
-				toolCall: {
-					toolCallId: e.toolCallId,
-					toolName: e.toolName,
-					displayName: e.displayName,
-					invocationMessage: e.invocationMessage,
-					toolInput: e.toolInput,
-					toolKind: e.toolKind,
-					language: e.language,
-					toolArguments: e.toolArguments,
-					status: ToolCallStatus.Running,
-				},
-			} satisfies IToolStartAction;
+				toolCallId: e.toolCallId,
+				toolName: e.toolName,
+				displayName: e.displayName,
+				toolKind: e.toolKind,
+				language: e.language,
+			};
+			const readyAction: IToolCallReadyAction = {
+				type: 'session/toolCallReady',
+				session,
+				turnId,
+				toolCallId: e.toolCallId,
+				invocationMessage: e.invocationMessage,
+				toolInput: e.toolInput,
+				confirmed: 'not-needed',
+			};
+			return [startAction, readyAction];
 		}
 
 		case 'tool_complete': {
 			const e = event as IAgentToolCompleteEvent;
 			return {
-				type: 'session/toolComplete',
+				type: 'session/toolCallComplete',
 				session,
 				turnId,
 				toolCallId: e.toolCallId,
@@ -77,7 +87,7 @@ export function mapProgressEventToAction(event: IAgentProgressEvent, session: UR
 					toolOutput: e.toolOutput,
 					error: e.error,
 				},
-			} satisfies IToolCompleteAction;
+			} satisfies IToolCallCompleteAction;
 		}
 
 		case 'idle':
