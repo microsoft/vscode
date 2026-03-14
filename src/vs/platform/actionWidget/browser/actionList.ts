@@ -1149,11 +1149,6 @@ export class ActionList<T> extends Disposable {
 	}
 
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
-		// Don't show hover for items with submenu actions to avoid conflict
-		if (element.submenuActions?.length) {
-			return;
-		}
-
 		let newHover: IHoverWidget | undefined;
 
 		// Show hover if the element has hover content
@@ -1217,8 +1212,10 @@ export class ActionList<T> extends Disposable {
 			this._showHoverForElement(element, e.index);
 		}
 
-		// Handle submenu show/hide on hover
-		if (element?.submenuActions?.length && typeof e.index === 'number') {
+		// Handle submenu show/hide on hover — only when hovering on the submenu indicator (▸)
+		const isHoveringIndicator = element?.submenuActions?.length && dom.isHTMLElement(e.browserEvent.target) &&
+			e.browserEvent.target.closest('.action-list-submenu-indicator') !== null;
+		if (isHoveringIndicator && typeof e.index === 'number') {
 			this._submenuHoverIndex = e.index;
 			this._submenuHideScheduler.cancel();
 			this._submenuShowScheduler.schedule();
