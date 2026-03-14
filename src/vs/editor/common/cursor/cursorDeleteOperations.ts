@@ -8,6 +8,7 @@ import { ReplaceCommand } from '../commands/replaceCommand.js';
 import { EditorAutoClosingEditStrategy, EditorAutoClosingStrategy } from '../config/editorOptions.js';
 import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from '../cursorCommon.js';
 import { CursorColumns } from '../core/cursorColumns.js';
+import { ShiftCommand } from '../commands/shiftCommand.js';
 import { MoveOperations } from './cursorMoveOperations.js';
 import { Range } from '../core/range.js';
 import { Selection } from '../core/selection.js';
@@ -171,7 +172,24 @@ export class DeleteOperations {
 		const commands: Array<ICommand | null> = [];
 		let shouldPushStackElementBefore = (prevEditOperationType !== EditOperationType.DeletingLeft);
 		for (let i = 0, len = selections.length; i < len; i++) {
-			const deleteRange = DeleteOperations.getDeleteLeftRange(selections[i], model, config);
+			const [useUnshift, deleteRange] = DeleteOperations.getDeleteLeftRange(selections[i], model, config);
+
+			if (useUnshift === true) {
+				// The deleteLeft leads to a decrease in indentation. Use a
+				// shift command instead of a replace command since the required
+				// new indentation level might not constructible by removing
+				// characters from the old indentation (e.g. if tabs with a size
+				// greater than the indent size are involved).
+				commands[i] = new ShiftCommand(selections[i], {
+					isUnshift: true,
+					tabSize: config.tabSize,
+					indentSize: config.indentSize,
+					insertSpaces: config.insertSpaces,
+					useTabStops: config.useTabStops,
+					autoIndent: config.autoIndent
+				}, config.languageConfigurationService);
+				continue;
+			}
 
 			// Ignore empty delete ranges, as they have no effect
 			// They happen if the cursor is at the beginning of the file.
@@ -190,9 +208,9 @@ export class DeleteOperations {
 
 	}
 
-	private static getDeleteLeftRange(selection: Selection, model: ICursorSimpleModel, config: CursorConfiguration): Range {
+	private static getDeleteLeftRange(selection: Selection, model: ICursorSimpleModel, config: CursorConfiguration): [boolean, Range] {
 		if (!selection.isEmpty()) {
-			return selection;
+			return [false, selection];
 		}
 
 		const position = selection.getPosition();
@@ -210,13 +228,29 @@ export class DeleteOperations {
 
 			if (position.column <= lastIndentationColumn) {
 				const fromVisibleColumn = config.visibleColumnFromColumn(model, position);
+				if (fromVisibleColumn % config.indentSize === 0) {
+					// The position is at an indentation level, so this delete
+					// amounts to a decrease in indentation level. However, if
+					// the previous indentation level cannot be reached by
+					// removing existing characters (for example when the indent
+					// size is smaller than the tab size and the character to
+					// remove is a tab), this will fail and not delete anything
+					// if we just return a range.
+					// see: https://github.com/microsoft/vscode/issues/275754
+
+					// Instead, signal to the caller that an 'unshift' needs to
+					// happen, which is able to transform the indentation correctly.
+					return [true, new Range(0, 0, 0, 0)];
+				}
+
+				// Remove all characters until the previous indent level
 				const toVisibleColumn = CursorColumns.prevIndentTabStop(fromVisibleColumn, config.indentSize);
 				const toColumn = config.columnFromVisibleColumn(model, position.lineNumber, toVisibleColumn);
-				return new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
+				return [false, new Range(position.lineNumber, toColumn, position.lineNumber, position.column)];
 			}
 		}
 
-		return Range.fromPositions(DeleteOperations.getPositionAfterDeleteLeft(position, model), position);
+		return [false, Range.fromPositions(DeleteOperations.getPositionAfterDeleteLeft(position, model), position)];
 	}
 
 	private static getPositionAfterDeleteLeft(position: Position, model: ICursorSimpleModel): Position {
