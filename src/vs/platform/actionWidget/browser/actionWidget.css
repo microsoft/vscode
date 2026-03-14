@@ -284,19 +284,27 @@
 }
 
 .action-list-submenu-header {
-	padding: 4px 12px;
-	font-size: 11px;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
+	padding: 2px 20px 2px 12px;
+	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
+	pointer-events: none;
 }
 
 .action-list-submenu-item {
 	display: flex;
 	align-items: center;
-	padding: 4px 12px;
+	padding: 2px 20px 2px 4px;
 	cursor: pointer;
 	white-space: nowrap;
+	font-size: 13px;
+}
+
+.action-list-submenu-item .check-icon {
+	width: 20px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
 }
 
 .action-list-submenu-item:hover {
