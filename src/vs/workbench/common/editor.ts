@@ -1254,6 +1254,8 @@ interface IEditorPartConfiguration {
 	enablePreview?: boolean;
 	enablePreviewFromQuickOpen?: boolean;
 	enablePreviewFromCodeNavigation?: boolean;
+	enablePreviewFromExplorer?: boolean;
+	enablePreviewFromScm?: boolean;
 	closeOnFileDelete?: boolean;
 	openPositioning?: 'left' | 'right' | 'first' | 'last';
 	openSideBySideDirection?: 'right' | 'down';
