@@ -211,8 +211,8 @@ suite('ObservableChatSession', function () {
 		assert.ok((proxy.$provideChatSessionContent as sinon.SinonStub).calledOnceWith(
 			1,
 			resource,
-			CancellationToken.None,
-			{ initialSessionOptions }
+			{ initialSessionOptions },
+			CancellationToken.None
 		));
 	});
 
