@@ -742,7 +742,7 @@ export class ActionList<T> extends Disposable {
 	}
 
 	get hasActiveSubmenu(): boolean {
-		return !!this._submenu;
+		return !!this._submenu || this._submenuShowScheduler.isScheduled();
 	}
 
 	private focusCondition(element: IActionListItem<unknown>): boolean {
