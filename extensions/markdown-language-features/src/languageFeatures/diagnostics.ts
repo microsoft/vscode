@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { MdLanguageClient } from '../client/client';
 import { CommandManager } from '../commandManager';
-import { isMarkdownFile } from '../util/file';
+import { Disposable } from '../util/dispose';
+import { isMarkdownFile, markdownFileExtensions } from '../util/file';
 
 
 // Copied from markdown language service
@@ -122,12 +124,201 @@ function registerMarkdownStatusItem(selector: vscode.DocumentSelector, commandMa
 	);
 }
 
+class WorkspaceDiagnosticManager extends Disposable {
+
+	private readonly _collection: vscode.DiagnosticCollection;
+	private readonly _pendingDiagnostics = new Set<string>();
+
+	private _validateDelayHandle: ReturnType<typeof setTimeout> | undefined;
+	private _currentCancelSource: vscode.CancellationTokenSource | undefined;
+
+	constructor(
+		private readonly _client: MdLanguageClient,
+	) {
+		super();
+
+		this._collection = this._register(vscode.languages.createDiagnosticCollection('markdown-workspace'));
+
+		if (this._isEnabled()) {
+			this._validateWorkspace();
+		}
+
+		this._register(vscode.workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('markdown.validate.enabled') || e.affectsConfiguration('markdown.validate.workspaceEnabled')) {
+				if (this._isEnabled()) {
+					this._validateWorkspace();
+				} else {
+					this._cancelPending();
+					this._collection.clear();
+				}
+			}
+		}));
+
+		const mdFileGlob = `**/*.{${markdownFileExtensions.join(',')}}`;
+		const watcher = this._register(vscode.workspace.createFileSystemWatcher(mdFileGlob));
+
+		this._register(watcher.onDidChange(uri => {
+			if (this._isEnabled()) {
+				this._queueValidation(uri);
+			}
+		}));
+
+		this._register(watcher.onDidCreate(uri => {
+			if (this._isEnabled()) {
+				this._queueValidation(uri);
+			}
+		}));
+
+		this._register(watcher.onDidDelete(uri => {
+			this._collection.delete(uri);
+		}));
+
+		// When a document is opened, remove it from workspace diagnostics
+		// to avoid duplicates with the pull-based diagnostics
+		this._register(vscode.workspace.onDidOpenTextDocument(doc => {
+			if (isMarkdownFile(doc)) {
+				this._collection.delete(doc.uri);
+			}
+		}));
+
+		// When a document is closed, re-validate it for workspace diagnostics
+		this._register(vscode.workspace.onDidCloseTextDocument(doc => {
+			if (isMarkdownFile(doc) && this._isEnabled()) {
+				this._queueValidation(doc.uri);
+			}
+		}));
+	}
+
+	private _isEnabled(): boolean {
+		const config = vscode.workspace.getConfiguration('markdown');
+		return !!config.get<boolean>('validate.enabled') && !!config.get<boolean>('validate.workspaceEnabled');
+	}
+
+	private _cancelPending(): void {
+		this._currentCancelSource?.cancel();
+		this._currentCancelSource?.dispose();
+		this._currentCancelSource = undefined;
+		if (this._validateDelayHandle) {
+			clearTimeout(this._validateDelayHandle);
+			this._validateDelayHandle = undefined;
+		}
+		this._pendingDiagnostics.clear();
+	}
+
+	private _queueValidation(uri: vscode.Uri): void {
+		this._pendingDiagnostics.add(uri.toString());
+
+		if (this._validateDelayHandle) {
+			clearTimeout(this._validateDelayHandle);
+		}
+
+		this._validateDelayHandle = setTimeout(() => {
+			this._validateDelayHandle = undefined;
+			this._validatePending();
+		}, 500);
+	}
+
+	private async _validatePending(): Promise<void> {
+		const uris = [...this._pendingDiagnostics].map(u => vscode.Uri.parse(u));
+		this._pendingDiagnostics.clear();
+
+		const openDocUris = new Set(
+			vscode.workspace.textDocuments
+				.filter(isMarkdownFile)
+				.map(doc => doc.uri.toString())
+		);
+
+		const source = new vscode.CancellationTokenSource();
+		this._currentCancelSource = source;
+
+		for (const uri of uris) {
+			if (source.token.isCancellationRequested) {
+				break;
+			}
+
+			// Skip open documents to avoid duplicate diagnostics
+			if (openDocUris.has(uri.toString())) {
+				continue;
+			}
+
+			try {
+				const diagnostics = await this._client.computeDiagnostics(uri, source.token);
+				if (!source.token.isCancellationRequested) {
+					this._collection.set(uri, diagnostics);
+				}
+			} catch {
+				// File might have been deleted or become inaccessible
+			}
+		}
+	}
+
+	private async _validateWorkspace(): Promise<void> {
+		this._cancelPending();
+
+		const source = new vscode.CancellationTokenSource();
+		this._currentCancelSource = source;
+
+		const mdFileGlob = `**/*.{${markdownFileExtensions.join(',')}}`;
+		const files = await vscode.workspace.findFiles(mdFileGlob, '**/node_modules/**');
+
+		if (source.token.isCancellationRequested) {
+			return;
+		}
+
+		const openDocUris = new Set(
+			vscode.workspace.textDocuments
+				.filter(isMarkdownFile)
+				.map(doc => doc.uri.toString())
+		);
+
+		this._collection.clear();
+
+		const concurrencyLimit = 5;
+		for (let i = 0; i < files.length; i += concurrencyLimit) {
+			if (source.token.isCancellationRequested) {
+				break;
+			}
+
+			const batch = files.slice(i, i + concurrencyLimit);
+			const results = await Promise.all(
+				batch
+					.filter(uri => !openDocUris.has(uri.toString()))
+					.map(async uri => {
+						try {
+							const diagnostics = await this._client.computeDiagnostics(uri, source.token);
+							return { uri, diagnostics };
+						} catch {
+							return undefined;
+						}
+					})
+			);
+
+			if (source.token.isCancellationRequested) {
+				break;
+			}
+
+			for (const result of results) {
+				if (result) {
+					this._collection.set(result.uri, result.diagnostics);
+				}
+			}
+		}
+	}
+
+	public override dispose(): void {
+		this._cancelPending();
+		super.dispose();
+	}
+}
+
 export function registerDiagnosticSupport(
 	selector: vscode.DocumentSelector,
 	commandManager: CommandManager,
+	client: MdLanguageClient,
 ): vscode.Disposable {
 	return vscode.Disposable.from(
 		AddToIgnoreLinksQuickFixProvider.register(selector, commandManager),
 		registerMarkdownStatusItem(selector, commandManager),
+		new WorkspaceDiagnosticManager(client),
 	);
 }

@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { BaseLanguageClient, LanguageClientOptions, NotebookDocumentSyncRegistrationType, Range, TextEdit } from 'vscode-languageclient';
+import type * as lsp from 'vscode-languageserver-types';
 import { IMdParser } from '../markdownEngine';
 import { IDisposable } from '../util/dispose';
 import { looksLikeMarkdownPath, markdownFileExtensions, markdownLanguageIds } from '../util/file';
@@ -14,6 +15,12 @@ import * as proto from './protocol';
 import { VsCodeMdWorkspace } from './workspace';
 
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => BaseLanguageClient;
+
+interface DocumentDiagnosticReport {
+	kind: 'full' | 'unchanged';
+	items?: lsp.Diagnostic[];
+	resultId?: string;
+}
 
 export class MdLanguageClient implements IDisposable {
 
@@ -31,6 +38,16 @@ export class MdLanguageClient implements IDisposable {
 	dispose(): void {
 		this.#client.stop();
 		this.#workspace.dispose();
+	}
+
+	async computeDiagnostics(uri: vscode.Uri, token: vscode.CancellationToken): Promise<vscode.Diagnostic[]> {
+		const result = await this._client.sendRequest<DocumentDiagnosticReport>('textDocument/diagnostic', {
+			textDocument: { uri: uri.toString() }
+		}, token);
+		if (result.kind === 'full' && result.items) {
+			return this._client.protocol2CodeConverter.asDiagnostics(result.items);
+		}
+		return [];
 	}
 
 	resolveLinkTarget(linkText: string, uri: vscode.Uri): Promise<proto.ResolvedDocumentLinkTarget> {
