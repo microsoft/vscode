@@ -1259,6 +1259,8 @@ export class ActionList<T> extends Disposable {
 		submenuContainer.style.backgroundColor = 'var(--vscode-menu-background)';
 
 		const menu = new Menu(submenuContainer, element.submenuActions, {}, defaultMenuStyles);
+		// Prevent the menu from being focusable to avoid stealing focus from the action widget
+		submenuContainer.querySelectorAll('[tabindex]').forEach(el => el.removeAttribute('tabindex'));
 
 		// Position relative to domNode (which now has position:relative)
 		const rowRect = rowElement.getBoundingClientRect();
