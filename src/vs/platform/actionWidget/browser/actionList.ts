@@ -19,6 +19,7 @@ import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import './actionWidget.css';
@@ -337,34 +338,99 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		dom.clearNode(data.submenuIndicator);
 		data.container.classList.toggle('has-submenu', !!element.submenuActions?.length);
 		if (element.submenuActions && element.submenuActions.length > 0) {
-			dom.append(data.submenuIndicator, dom.$('.codicon.codicon-chevron-right'));
-			const showSubmenu = (e: Event) => {
-				dom.EventHelper.stop(e, true);
-				const targetWindow = dom.getWindow(data.container);
-				const menuContainer = dom.append(targetWindow.document.body, dom.$('.monaco-menu-container.context-view'));
-				const menu = new Menu(menuContainer, element.submenuActions!, {}, defaultMenuStyles);
-				const rect = data.container.getBoundingClientRect();
-				menuContainer.style.position = 'fixed';
-				menuContainer.style.top = `${rect.top}px`;
-				menuContainer.style.left = `${rect.right}px`;
-				menuContainer.style.zIndex = '10000';
-				menu.focus();
-				const disposableListeners = new DisposableStore();
-				const cleanup = () => {
-					menu.dispose();
-					menuContainer.remove();
-					disposableListeners.dispose();
-				};
-				disposableListeners.add(menu.onDidCancel(cleanup));
-				disposableListeners.add(menu.onDidBlur(cleanup));
-				disposableListeners.add(dom.addDisposableListener(targetWindow.document, dom.EventType.MOUSE_DOWN, (evt) => {
-					if (!dom.isAncestor(evt.target as HTMLElement, menuContainer)) {
-						cleanup();
-					}
-				}));
-				data.elementDisposables.add({ dispose: cleanup });
+			const submenuIndicatorIcon = dom.append(data.submenuIndicator, dom.$(ThemeIcon.asCSSSelector(Codicon.menuSubmenu)));
+			submenuIndicatorIcon.setAttribute('aria-hidden', 'true');
+			data.container.setAttribute('aria-haspopup', 'true');
+
+			let submenuContainer: HTMLElement | undefined;
+			let submenuMenu: Menu | undefined;
+			const submenuDisposables = data.elementDisposables.add(new DisposableStore());
+			let mouseOver = false;
+
+			const cleanupSubmenu = () => {
+				submenuMenu?.dispose();
+				submenuMenu = undefined;
+				submenuContainer?.remove();
+				submenuContainer = undefined;
+				submenuDisposables.clear();
 			};
-			data.elementDisposables.add(dom.addDisposableListener(data.submenuIndicator, dom.EventType.CLICK, showSubmenu));
+
+			const showSubmenu = () => {
+				if (submenuMenu) {
+					return;
+				}
+				submenuContainer = dom.append(data.container, dom.$('div.monaco-submenu'));
+				submenuContainer.classList.add('menubar-menu-items-holder', 'context-view');
+				submenuContainer.style.position = 'fixed';
+				submenuContainer.style.top = '0';
+				submenuContainer.style.left = '0';
+				submenuContainer.style.zIndex = '1';
+
+				submenuMenu = new Menu(submenuContainer, element.submenuActions!, {}, defaultMenuStyles);
+
+				// Layout: position to the right of the row
+				const entryBox = data.container.getBoundingClientRect();
+				const viewBox = submenuContainer.getBoundingClientRect();
+				const targetWindow = dom.getWindow(data.container);
+				const windowWidth = targetWindow.innerWidth;
+				const windowHeight = targetWindow.innerHeight;
+
+				let left = entryBox.right;
+				if (left + viewBox.width > windowWidth) {
+					left = entryBox.left - viewBox.width;
+				}
+				let top = entryBox.top;
+				if (top + viewBox.height > windowHeight) {
+					top = windowHeight - viewBox.height;
+				}
+
+				submenuContainer.style.left = `${left - viewBox.left}px`;
+				submenuContainer.style.top = `${top - viewBox.top}px`;
+
+				submenuMenu.focus(false);
+
+				submenuDisposables.add(submenuMenu.onDidCancel(() => {
+					cleanupSubmenu();
+				}));
+				submenuDisposables.add(dom.addDisposableListener(submenuContainer, dom.EventType.MOUSE_LEAVE, () => {
+					cleanupSubmenu();
+				}));
+			};
+
+			const showScheduler = data.elementDisposables.add(new RunOnceScheduler(() => {
+				if (mouseOver) {
+					showSubmenu();
+				}
+			}, 250));
+
+			const hideScheduler = data.elementDisposables.add(new RunOnceScheduler(() => {
+				if (!mouseOver) {
+					cleanupSubmenu();
+				}
+			}, 750));
+
+			data.elementDisposables.add(dom.addDisposableListener(data.container, dom.EventType.MOUSE_OVER, () => {
+				if (!mouseOver) {
+					mouseOver = true;
+					showScheduler.schedule();
+				}
+			}));
+
+			data.elementDisposables.add(dom.addDisposableListener(data.container, dom.EventType.MOUSE_LEAVE, (e) => {
+				mouseOver = false;
+				// Don't hide if mouse moved into submenu
+				if (submenuContainer && dom.isAncestor(e.relatedTarget as HTMLElement, submenuContainer)) {
+					return;
+				}
+				hideScheduler.schedule();
+			}));
+
+			data.elementDisposables.add(dom.addDisposableListener(data.submenuIndicator, dom.EventType.CLICK, (e) => {
+				dom.EventHelper.stop(e, true);
+				showSubmenu();
+			}));
+
+			data.elementDisposables.add({ dispose: cleanupSubmenu });
 		}
 	}
 
@@ -1077,10 +1143,10 @@ export class ActionList<T> extends Disposable {
 			return;
 		}
 
-		// Don't select when clicking on toolbar actions or submenu indicator
+		// Don't select when clicking on toolbar actions, submenu indicator, or submenu
 		if (e.browserEvent && dom.isHTMLElement((e.browserEvent as MouseEvent).target)) {
 			const target = (e.browserEvent as MouseEvent).target as HTMLElement;
-			if (target.closest('.action-list-item-toolbar') || target.closest('.action-list-submenu-indicator')) {
+			if (target.closest('.action-list-item-toolbar') || target.closest('.action-list-submenu-indicator') || target.closest('.monaco-submenu')) {
 				this._list.setSelection([]);
 				return;
 			}
@@ -1172,9 +1238,13 @@ export class ActionList<T> extends Disposable {
 		const element = e.element;
 
 		if (element && element.item && this.focusCondition(element)) {
-			// Check if the hover target is inside a toolbar - if so, skip the splice
-			// to avoid re-rendering which would destroy the toolbar mid-hover
-			const isHoveringToolbar = dom.isHTMLElement(e.browserEvent.target) && e.browserEvent.target.closest('.action-list-item-toolbar') !== null;
+			// Check if the hover target is inside a toolbar or submenu - if so, skip the splice
+			// to avoid re-rendering which would destroy the toolbar/submenu mid-hover
+			const isHoveringToolbar = dom.isHTMLElement(e.browserEvent.target) && (
+				e.browserEvent.target.closest('.action-list-item-toolbar') !== null ||
+				e.browserEvent.target.closest('.action-list-submenu-indicator') !== null ||
+				e.browserEvent.target.closest('.monaco-submenu') !== null
+			);
 			if (isHoveringToolbar) {
 				this._list.setFocus([]);
 				return;
