@@ -1226,9 +1226,13 @@ export class ActionList<T> extends Disposable {
 				dom.isAncestor(e.browserEvent.target, this._submenu.container);
 			const isSameRow = this._submenu && this._submenuHoverIndex !== undefined && e.index === this._submenuHoverIndex;
 			if (!isHoveringSubmenu && !isSameRow) {
-				this._submenuHoverIndex = undefined;
 				this._submenuShowScheduler.cancel();
-				this._cleanupSubmenu();
+				if (this._submenu) {
+					// Use delay to allow crossing scrollbar gap between indicator and submenu
+					this._submenuHideScheduler.schedule();
+				} else {
+					this._submenuHoverIndex = undefined;
+				}
 			}
 		}
 	}
