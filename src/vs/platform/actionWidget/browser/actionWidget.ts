@@ -174,24 +174,16 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
 		renderDisposables.add(focusTracker.onDidBlur(() => {
-			// Use setTimeout to allow focus to settle before checking
-			// This prevents false blur events during focus transitions (e.g., between submenu items)
-			setTimeout(() => {
-				const activeElement = dom.getActiveElement();
-				// Don't hide if focus moved to a hover that belongs to this action widget
-				if (activeElement?.closest('.action-widget-hover')) {
-					return;
-				}
-				// Don't hide if focus moved to a submenu
-				if (activeElement?.closest('.monaco-submenu')) {
-					return;
-				}
-				// Don't hide if focus is still inside the widget
-				if (activeElement && dom.isAncestor(activeElement, element)) {
-					return;
-				}
-				this.hide(true);
-			}, 0);
+			const activeElement = dom.getActiveElement();
+			// Don't hide if focus moved to a hover that belongs to this action widget
+			if (activeElement?.closest('.action-widget-hover')) {
+				return;
+			}
+			// Don't hide if focus is still inside the widget container (includes submenus)
+			if (activeElement && dom.isAncestor(activeElement, element)) {
+				return;
+			}
+			this.hide(true);
 		}));
 
 		return renderDisposables;
