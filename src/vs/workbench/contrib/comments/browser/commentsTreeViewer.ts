@@ -398,9 +398,14 @@ export class Filter implements ITreeFilter<ResourceWithCommentThreads | CommentN
 	private filterResourceMarkers(resourceMarkers: ResourceWithCommentThreads): TreeFilterResult<FilterData> {
 		// Filter by text. Do not apply negated filters on resources instead use exclude patterns
 		if (this.options.textFilter.text && !this.options.textFilter.negate) {
-			const uriMatches = FilterOptions._filter(this.options.textFilter.text, basename(resourceMarkers.resource));
+			// First try matching against the basename (filename only)
+			let uriMatches = FilterOptions._filter(this.options.textFilter.text, basename(resourceMarkers.resource));
+			if (!uriMatches) {
+				// Also try matching against the full path to support filtering by repository-relative paths
+				uriMatches = FilterOptions._filter(this.options.textFilter.text, resourceMarkers.resource.path);
+			}
 			if (uriMatches) {
-				return { visibility: true, data: { type: FilterDataType.Resource, uriMatches: uriMatches || [] } };
+				return { visibility: true, data: { type: FilterDataType.Resource, uriMatches } };
 			}
 		}
 
