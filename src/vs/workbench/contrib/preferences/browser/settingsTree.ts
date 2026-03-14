@@ -2118,12 +2118,12 @@ class SettingBoolRenderer extends AbstractSettingRenderer implements ITreeRender
 			template.descriptionElement.classList.remove('disabled');
 
 			// Need to listen for mouse clicks on description and toggle checkbox - use target ID for safety
-			// Also have to ignore embedded links - too buried to stop propagation
+			// Also have to ignore embedded links - use closest('a') to handle clicks on child elements of links (e.g. SVG icons inside <a> tags)
 			template.elementDisposables.add(DOM.addDisposableListener(template.descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
 				const targetElement = <HTMLElement>e.target;
 
 				// Toggle target checkbox
-				if (targetElement.tagName.toLowerCase() !== 'a') {
+				if (!targetElement.closest('a')) {
 					template.checkbox.checked = !template.checkbox.checked;
 					template.onChange!(template.checkbox.checked);
 				}
