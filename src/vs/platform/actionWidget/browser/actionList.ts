@@ -318,11 +318,10 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		}
 		data.container.classList.toggle('has-toolbar', toolbarActions.length > 0);
 		if (toolbarActions.length > 0) {
-			// Flatten SubmenuActions into a single gear button that opens an inline menu
+			// For SubmenuActions, show a gear button that opens an inline Menu
 			const submenuActions = toolbarActions.filter(a => a instanceof SubmenuAction);
 			const regularActions = toolbarActions.filter(a => !(a instanceof SubmenuAction));
 			if (submenuActions.length > 0) {
-				const allSubmenuChildren = submenuActions.flatMap(a => (a as SubmenuAction).actions);
 				const gearButton = dom.append(data.toolbar, dom.$('.action-label.codicon.codicon-gear'));
 				gearButton.title = localize('actionList.configure', "Configure");
 				gearButton.tabIndex = 0;
@@ -331,7 +330,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 					dom.EventHelper.stop(e, true);
 					const targetWindow = dom.getWindow(gearButton);
 					const menuContainer = dom.append(targetWindow.document.body, dom.$('.monaco-menu-container.context-view'));
-					const menu = new Menu(menuContainer, allSubmenuChildren, {}, defaultMenuStyles);
+					const menu = new Menu(menuContainer, submenuActions, {}, defaultMenuStyles);
 					const rect = gearButton.getBoundingClientRect();
 					menuContainer.style.position = 'fixed';
 					menuContainer.style.top = `${rect.bottom}px`;
