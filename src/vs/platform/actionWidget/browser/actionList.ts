@@ -6,11 +6,12 @@ import * as dom from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { renderMarkdown } from '../../../base/browser/markdownRenderer.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { ToolBar } from '../../../base/browser/ui/toolbar/toolbar.js';
 import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
-import { IAction, toAction } from '../../../base/common/actions.js';
+import { IAction, SubmenuAction, toAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
@@ -22,7 +23,7 @@ import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import './actionWidget.css';
 import { localize } from '../../../nls.js';
-import { IContextViewService } from '../../contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../contextview/browser/contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { IOpenerService } from '../../opener/common/opener.js';
 import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
@@ -184,6 +185,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _onRemoveItem: ((item: IActionListItem<T>) => void) | undefined,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IActionMenuTemplateData {
@@ -317,9 +319,16 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		}
 		data.container.classList.toggle('has-toolbar', toolbarActions.length > 0);
 		if (toolbarActions.length > 0) {
-			const actionBar = new ActionBar(data.toolbar);
-			data.elementDisposables.add(actionBar);
-			actionBar.push(toolbarActions, { icon: true, label: false });
+			const hasSubmenu = toolbarActions.some(a => a instanceof SubmenuAction);
+			if (hasSubmenu) {
+				const toolbar = new ToolBar(data.toolbar, this._contextMenuService, { icon: true, label: false });
+				data.elementDisposables.add(toolbar);
+				toolbar.setActions(toolbarActions);
+			} else {
+				const actionBar = new ActionBar(data.toolbar);
+				data.elementDisposables.add(actionBar);
+				actionBar.push(toolbarActions, { icon: true, label: false });
+			}
 		}
 	}
 

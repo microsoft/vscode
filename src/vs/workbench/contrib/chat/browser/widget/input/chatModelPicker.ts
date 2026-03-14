@@ -98,15 +98,7 @@ function createModelAction(
 	section?: string,
 	languageModelsService?: ILanguageModelsService,
 ): IActionWidgetDropdownAction & { section?: string } {
-	const hasConfigSchema = !!model.metadata.configurationSchema;
-	const toolbarActions = hasConfigSchema && languageModelsService ? [{
-		id: 'configureModel',
-		label: localize('chat.modelPicker.configure', "Configure"),
-		class: ThemeIcon.asClassName(Codicon.gear),
-		enabled: true,
-		tooltip: localize('chat.modelPicker.configure.tooltip', "Configure Model"),
-		run: () => languageModelsService.configureModel(model.identifier)
-	}] : undefined;
+	const toolbarActions = languageModelsService?.getModelConfigurationActions(model.identifier);
 	return {
 		id: model.identifier,
 		enabled: true,
@@ -117,7 +109,7 @@ function createModelAction(
 		tooltip: model.metadata.name,
 		label: model.metadata.name,
 		section,
-		toolbarActions,
+		toolbarActions: toolbarActions && toolbarActions.length > 0 ? toolbarActions : undefined,
 		run: () => onSelect(model),
 	};
 }
