@@ -6,6 +6,7 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { renderIcon, renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -79,6 +80,15 @@ function createModelItem(
 	model?: ILanguageModelChatMetadataAndIdentifier,
 	hoverPosition?: IHoverPositionOptions,
 ): IActionListItem<IActionWidgetDropdownAction> {
+	// TEST: hardcoded submenu actions for debugging
+	const testSubmenuActions: IAction[] = [
+		new SubmenuAction('test.thinkingEffort', 'Thinking Effort', [
+			{ id: 'test.low', label: 'low', class: undefined, enabled: true, tooltip: '', checked: false, run: () => { } },
+			{ id: 'test.medium', label: 'medium', class: undefined, enabled: true, tooltip: '', checked: true, run: () => { } },
+			{ id: 'test.high', label: 'high (default)', class: undefined, enabled: true, tooltip: '', checked: false, run: () => { } },
+		]),
+	];
+
 	return {
 		item: action,
 		kind: ActionListItemKind.Action,
@@ -88,7 +98,7 @@ function createModelItem(
 		hideIcon: false,
 		section: action.section,
 		hover: model ? { content: getModelHoverContent(model), position: hoverPosition } : undefined,
-		submenuActions: action.toolbarActions,
+		submenuActions: testSubmenuActions,
 	};
 }
 
