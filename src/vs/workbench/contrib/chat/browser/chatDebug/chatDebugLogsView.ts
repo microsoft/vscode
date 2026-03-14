@@ -26,12 +26,16 @@ import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugServic
 import { filterDebugEventsByText } from '../../common/chatDebugEvents.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
-import { ChatDebugEventRenderer, ChatDebugEventDelegate, ChatDebugEventTreeRenderer } from './chatDebugEventList.js';
+import { ChatDebugEventRenderer, ChatDebugEventDelegate, ChatDebugEventTreeRenderer, getEventCreatedText, getEventNameText, getEventDetailsText } from './chatDebugEventList.js';
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem, LogsViewMode } from './chatDebugTypes.js';
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
 import { ChatDebugDetailPanel } from './chatDebugDetailPanel.js';
 import { IChatWidgetService } from '../chat.js';
 import { createDebugEventsAttachment } from './chatDebugAttachment.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { Action, Separator } from '../../../../../base/common/actions.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 
 const $ = DOM.$;
 
@@ -60,7 +64,7 @@ export class ChatDebugLogsView extends Disposable {
 	private tree: WorkbenchObjectTree<IChatDebugEvent, void>;
 
 	private currentSessionResource: URI | undefined;
-	private logsViewMode: LogsViewMode = LogsViewMode.List;
+	private logsViewMode: LogsViewMode = LogsViewMode.Tree;
 	private events: IChatDebugEvent[] = [];
 	private currentDimension: Dimension | undefined;
 	private readonly eventListener = this._register(new MutableDisposable());
@@ -76,6 +80,8 @@ export class ChatDebugLogsView extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 		this.refreshScheduler = this._register(new RunOnceScheduler(() => this.refreshList(), 50));
@@ -168,8 +174,9 @@ export class ChatDebugLogsView extends Disposable {
 		// Body container
 		this.bodyContainer = DOM.append(mainColumn, $('.chat-debug-logs-body'));
 
-		// List container
+		// List container (initially hidden — tree view is default)
 		this.listContainer = DOM.append(this.bodyContainer, $('.chat-debug-list-container'));
+		DOM.hide(this.listContainer);
 
 		const accessibilityProvider = {
 			getAriaLabel: (e: IChatDebugEvent) => {
@@ -209,9 +216,8 @@ export class ChatDebugLogsView extends Disposable {
 			{ identityProvider, accessibilityProvider }
 		));
 
-		// Tree container (initially hidden)
+		// Tree container (default view)
 		this.treeContainer = DOM.append(this.bodyContainer, $('.chat-debug-list-container'));
-		DOM.hide(this.treeContainer);
 
 		this.tree = this._register(this.instantiationService.createInstance(
 			WorkbenchObjectTree<IChatDebugEvent, void>,
@@ -231,12 +237,32 @@ export class ChatDebugLogsView extends Disposable {
 
 		// Detail panel (sibling of main column so it aligns with table header)
 		this.detailPanel = this._register(this.instantiationService.createInstance(ChatDebugDetailPanel, contentContainer));
+		this._register(this.detailPanel.onDidChangeWidth(() => {
+			if (this.currentDimension) {
+				this.layout(this.currentDimension);
+			}
+		}));
 		this._register(this.detailPanel.onDidHide(() => {
 			if (this.list.getSelection().length > 0) {
 				this.list.setSelection([]);
 			}
 			if (this.tree.getSelection().length > 0) {
 				this.tree.setSelection([]);
+			}
+			if (this.currentDimension) {
+				this.layout(this.currentDimension);
+			}
+		}));
+
+		// Context menu
+		this._register(this.list.onContextMenu(e => {
+			if (e.element) {
+				this.showEventContextMenu(e.element, e.browserEvent);
+			}
+		}));
+		this._register(this.tree.onContextMenu(e => {
+			if (e.element) {
+				this.showEventContextMenu(e.element, e.browserEvent);
 			}
 		}));
 
@@ -303,8 +329,8 @@ export class ChatDebugLogsView extends Disposable {
 		const breadcrumbHeight = 22;
 		const headerHeight = this.headerContainer.offsetHeight;
 		const tableHeaderHeight = this.tableHeader.offsetHeight;
-		const detailVisible = this.detailPanel.element.style.display !== 'none';
-		const detailWidth = detailVisible ? this.detailPanel.element.offsetWidth : 0;
+		const detailVisible = this.detailPanel.isVisible;
+		const detailWidth = detailVisible ? this.detailPanel.width : 0;
 		const listHeight = dimension.height - breadcrumbHeight - headerHeight - tableHeaderHeight;
 		const listWidth = dimension.width - detailWidth;
 		if (this.logsViewMode === LogsViewMode.Tree) {
@@ -312,6 +338,10 @@ export class ChatDebugLogsView extends Disposable {
 		} else {
 			this.list.layout(listHeight, listWidth);
 		}
+		if (this.detailPanel.isVisible) {
+			this.detailPanel.layout(listHeight);
+		}
+		this.detailPanel.layoutSash();
 	}
 
 	refreshList(): void {
@@ -506,5 +536,29 @@ export class ChatDebugLogsView extends Disposable {
 		this.filterWidget.checkMoreFilters(!this.filterState.isAllFiltersDefault());
 	}
 
+	private showEventContextMenu(event: IChatDebugEvent, browserEvent: UIEvent): void {
+		const d = event.created;
+		const pad = (n: number) => String(n).padStart(2, '0');
+		const timestamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+		const row = [getEventCreatedText(event), getEventNameText(event), getEventDetailsText(event)].filter(Boolean).join('\t');
+		const name = getEventNameText(event);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => DOM.isMouseEvent(browserEvent)
+				? new StandardMouseEvent(DOM.getWindow(this.container), browserEvent)
+				: this.container,
+			getActions: () => [
+				new Action('chatDebug.copyTimestamp', localize('chatDebug.copyTimestamp', "Copy Timestamp"), undefined, true, () => this.clipboardService.writeText(timestamp)),
+				new Action('chatDebug.copyRow', localize('chatDebug.copyRow', "Copy Row"), undefined, true, () => this.clipboardService.writeText(row)),
+				new Separator(),
+				new Action('chatDebug.filterBefore', localize('chatDebug.filterBefore', "Filter Before Timestamp"), undefined, true, () => this.applyFilterToken(`before:${timestamp}`)),
+				new Action('chatDebug.filterAfter', localize('chatDebug.filterAfter', "Filter After Timestamp"), undefined, true, () => this.applyFilterToken(`after:${timestamp}`)),
+				new Action('chatDebug.filterName', localize('chatDebug.filterName', "Filter Name"), undefined, !!name, () => this.applyFilterToken(name)),
+			],
+		});
+	}
+
+	private applyFilterToken(token: string): void {
+		this.filterWidget.setFilterText(token);
+	}
 
 }

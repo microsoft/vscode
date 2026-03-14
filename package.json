@@ -122,7 +122,7 @@
     "open": "^10.1.2",
     "playwright-core": "1.59.0-alpha-2026-02-20",
     "tas-client": "0.3.1",
-    "undici": "^7.18.2",
+    "undici": "^7.24.0",
     "v8-inspect-profiler": "^0.1.1",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
