@@ -439,6 +439,9 @@ import './contrib/dropOrPasteInto/browser/dropOrPasteInto.contribution.js';
 // Edit Telemetry
 import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
 
+// Policy Telemetry
+import './contrib/policyTelemetry/browser/policyTelemetry.contribution.js';
+
 // Opener
 import './contrib/opener/browser/opener.contribution.js';
 
