@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { spawn } from 'child_process';
 import electron from 'electron';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
 import { Barrier, Promises, timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
-import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { cwd } from '../../../base/common/process.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
@@ -688,8 +689,18 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		const quitListener = () => {
 			if (!this.relaunchHandler?.handleRelaunch(options)) {
-				this.trace('Lifecycle#relaunch() - calling app.relaunch()');
-				electron.app.relaunch({ args });
+				if (isLinux) {
+					// On Linux, Electron's app.relaunch() uses Chromium's base::LaunchProcess()
+					// which sets PR_SET_NO_NEW_PRIVS on the new process by default, preventing
+					// sudo from working in VS Code terminals (https://github.com/microsoft/vscode/issues/253204).
+					// Spawn the new process via Node.js which does not set this flag.
+					this.trace('Lifecycle#relaunch() - calling spawn()');
+					const child = spawn(process.execPath, args, { detached: true, stdio: 'ignore' });
+					child.unref();
+				} else {
+					this.trace('Lifecycle#relaunch() - calling app.relaunch()');
+					electron.app.relaunch({ args });
+				}
 			}
 		};
 		electron.app.once('quit', quitListener);
