@@ -213,7 +213,7 @@ export function buildModelPickerItems(
 			const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
-				items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect), autoModel, hoverPosition));
+				items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, undefined, languageModelsService), autoModel, hoverPosition));
 			}
 
 			// --- 2. Promoted section (selected + recently used + featured) ---
@@ -301,7 +301,7 @@ export function buildModelPickerItems(
 
 				for (const item of promotedItems) {
 					if (item.kind === 'available') {
-						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect), item.model, hoverPosition));
+						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect, undefined, languageModelsService), item.model, hoverPosition));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, undefined, hoverPosition));
 					}
@@ -354,7 +354,7 @@ export function buildModelPickerItems(
 					if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other, hoverPosition));
 					} else {
-						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, ModelPickerSection.Other), model, hoverPosition));
+						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, ModelPickerSection.Other, languageModelsService), model, hoverPosition));
 					}
 				}
 			}
@@ -376,7 +376,7 @@ export function buildModelPickerItems(
 		// Flat list: auto first, then all models sorted alphabetically
 		const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
 		if (autoModel) {
-			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect), autoModel, hoverPosition));
+			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, undefined, languageModelsService), autoModel, hoverPosition));
 		}
 		const sortedModels = models
 			.filter(m => m !== autoModel)
@@ -385,7 +385,7 @@ export function buildModelPickerItems(
 				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
 			});
 		for (const model of sortedModels) {
-			items.push(createModelItem(createModelAction(model, selectedModelId, onSelect), model, hoverPosition));
+			items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, undefined, languageModelsService), model, hoverPosition));
 		}
 	}
 
@@ -606,6 +606,7 @@ export class ModelPickerWidget extends Disposable {
 			this._delegate.showUnavailableFeatured(),
 			this._delegate.showFeatured(),
 			this._hoverPosition,
+			this._languageModelsService,
 		);
 
 		const listOptions = {
