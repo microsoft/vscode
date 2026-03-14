@@ -1231,9 +1231,8 @@ export class ActionList<T> extends Disposable {
 			if (!isHoveringSubmenu) {
 				this._submenuHoverIndex = undefined;
 				this._submenuShowScheduler.cancel();
-				if (this._submenu) {
-					this._submenuHideScheduler.schedule();
-				}
+				// Immediately clean up when hovering a different list item
+				this._cleanupSubmenu();
 			}
 		}
 	}
