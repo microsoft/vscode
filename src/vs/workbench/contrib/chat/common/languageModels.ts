@@ -864,6 +864,23 @@ export class LanguageModelsService implements ILanguageModelsService {
 					continue;
 				}
 
+				// For the default vendor, groups that only have per-model config
+				// should not trigger a separate model resolution call.
+				// Instead, apply the per-model config to the already-resolved models.
+				if (vendor.isDefault && !vendor.configuration) {
+					if (group.models) {
+						for (const model of allModels) {
+							const modelConfig = group.models[model.metadata.id];
+							if (modelConfig) {
+								const resolvedModelConfig = await this._resolveModelConfiguration(modelConfig, model.metadata.configurationSchema);
+								perModelConfigurations.set(model.identifier, resolvedModelConfig);
+							}
+						}
+					}
+					languageModelsGroups.push({ group, modelIdentifiers: [] });
+					continue;
+				}
+
 				const configuration = await this._resolveConfiguration(group, vendor.configuration);
 
 				try {
