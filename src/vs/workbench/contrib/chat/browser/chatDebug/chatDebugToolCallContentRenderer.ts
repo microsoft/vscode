@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { tokenizeToString } from '../../../../../editor/common/languages/textToHtmlTokenizer.js';
 import { IChatDebugEventToolCallContent } from '../../common/chatDebugService.js';
@@ -20,7 +24,7 @@ const _ttpPolicy = createTrustedTypesPolicy('chatDebugTokenizer', {
 	}
 });
 
-function tryParseJSON(text: string): { parsed: unknown; isJSON: true } | { isJSON: false } {
+export function tryParseJSON(text: string): { parsed: unknown; isJSON: true } | { isJSON: false } {
 	try {
 		return { parsed: JSON.parse(text), isJSON: true };
 	} catch {
@@ -31,19 +35,43 @@ function tryParseJSON(text: string): { parsed: unknown; isJSON: true } | { isJSO
 /**
  * Render a collapsible section. When `tokenizedHtml` is provided the content
  * is rendered as syntax-highlighted HTML; otherwise plain-text is used.
+ * Optionally adds a copy button when `clipboardService` is provided.
  */
-function renderSection(
+export function renderSection(
 	parent: HTMLElement,
 	label: string,
 	plainText: string,
 	tokenizedHtml: string | undefined,
 	disposables: DisposableStore,
 	initiallyCollapsed: boolean = false,
+	clipboardService?: IClipboardService,
 ): void {
 	const sectionEl = DOM.append(parent, $('div.chat-debug-message-section'));
 	const header = DOM.append(sectionEl, $('div.chat-debug-message-section-header'));
 	const chevron = DOM.append(header, $('span.chat-debug-message-section-chevron'));
 	DOM.append(header, $('span.chat-debug-message-section-title', undefined, label));
+
+	if (clipboardService) {
+		const copyBtn = disposables.add(new Button(header, {
+			title: localize('chatDebug.section.copy', "Copy"),
+			ariaLabel: localize('chatDebug.section.copy', "Copy"),
+			hoverDelegate: getDefaultHoverDelegate('mouse'),
+		}));
+		copyBtn.icon = Codicon.copy;
+		copyBtn.element.classList.add('chat-debug-section-copy-btn');
+		disposables.add(DOM.addDisposableListener(copyBtn.element, DOM.EventType.MOUSE_ENTER, () => {
+			header.classList.add('chat-debug-section-copy-header-passthrough');
+		}));
+		disposables.add(DOM.addDisposableListener(copyBtn.element, DOM.EventType.MOUSE_LEAVE, () => {
+			header.classList.remove('chat-debug-section-copy-header-passthrough');
+		}));
+		disposables.add(copyBtn.onDidClick(e => {
+			if (e) {
+				DOM.EventHelper.stop(e, true);
+			}
+			clipboardService.writeText(plainText);
+		}));
+	}
 
 	const wrapper = DOM.append(sectionEl, $('div.chat-debug-message-section-content-wrapper'));
 	const contentEl = DOM.append(wrapper, $('pre.chat-debug-message-section-content'));
@@ -66,7 +94,7 @@ function renderSection(
  * When JSON is detected in input/output, renders it with syntax highlighting
  * using the editor's tokenization.
  */
-export async function renderToolCallContent(content: IChatDebugEventToolCallContent, languageService: ILanguageService): Promise<{ element: HTMLElement; disposables: DisposableStore }> {
+export async function renderToolCallContent(content: IChatDebugEventToolCallContent, languageService: ILanguageService, clipboardService?: IClipboardService): Promise<{ element: HTMLElement; disposables: DisposableStore }> {
 	const disposables = new DisposableStore();
 	const container = $('div.chat-debug-message-content');
 	container.tabIndex = 0;
@@ -97,7 +125,7 @@ export async function renderToolCallContent(content: IChatDebugEventToolCallCont
 		const tokenizedHtml = result.isJSON
 			? await tokenizeToString(languageService, plainText, 'json')
 			: undefined;
-		renderSection(sectionsContainer, localize('chatDebug.toolCall.arguments', "Arguments"), plainText, tokenizedHtml, disposables);
+		renderSection(sectionsContainer, localize('chatDebug.toolCall.arguments', "Arguments"), plainText, tokenizedHtml, disposables, false, clipboardService);
 	}
 
 	if (content.output) {
@@ -106,7 +134,7 @@ export async function renderToolCallContent(content: IChatDebugEventToolCallCont
 		const tokenizedHtml = result.isJSON
 			? await tokenizeToString(languageService, plainText, 'json')
 			: undefined;
-		renderSection(sectionsContainer, localize('chatDebug.toolCall.output', "Output"), plainText, tokenizedHtml, disposables);
+		renderSection(sectionsContainer, localize('chatDebug.toolCall.output', "Output"), plainText, tokenizedHtml, disposables, false, clipboardService);
 	}
 
 	return { element: container, disposables };
