@@ -10,6 +10,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ContributionEnablementState } from '../../../chat/common/enablement.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IMcpGatewayServerDescriptor } from '../../../../../platform/mcp/common/mcpGateway.js';
 import { MCP } from '../../common/modelContextProtocol.js';
 import { McpGatewayToolBrokerChannel } from '../../common/mcpGatewayToolBrokerChannel.js';
 import { IMcpIcons, IMcpServer, IMcpTool, McpConnectionState, McpServerCacheState, McpToolVisibility } from '../../common/mcpTypes.js';
@@ -248,6 +249,58 @@ suite('McpGatewayToolBrokerChannel', () => {
 
 			channel.dispose();
 		});
+	});
+
+	test('listServers returns all servers regardless of cache state', async () => {
+		const mcpService = new TestMcpService();
+		const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService());
+
+		const liveServer = createServer('collectionA', 'serverA', [], McpServerCacheState.Live);
+		const unknownServer = createServer('collectionB', 'serverB', [], McpServerCacheState.Unknown);
+
+		mcpService.servers.set([liveServer, unknownServer], undefined);
+
+		const servers = await channel.call<readonly IMcpGatewayServerDescriptor[]>(undefined, 'listServers');
+		assert.deepStrictEqual(servers, [
+			{ id: 'serverA', label: 'serverA' },
+			{ id: 'serverB', label: 'serverB' },
+		]);
+
+		channel.dispose();
+	});
+
+	test('emits onDidChangeServers with descriptors when servers change', () => {
+		const mcpService = new TestMcpService();
+		const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService());
+		const serverA = createServer('collectionA', 'serverA', []);
+
+		mcpService.servers.set([serverA], undefined);
+
+		const received: (readonly IMcpGatewayServerDescriptor[])[] = [];
+		const disposable = channel.listen<readonly IMcpGatewayServerDescriptor[]>(undefined, 'onDidChangeServers')(e => {
+			received.push(e);
+		});
+
+		// Add a second server
+		const serverB = createServer('collectionB', 'serverB', []);
+		mcpService.servers.set([serverA, serverB], undefined);
+
+		assert.strictEqual(received.length, 1);
+		assert.deepStrictEqual(received[0], [
+			{ id: 'serverA', label: 'serverA' },
+			{ id: 'serverB', label: 'serverB' },
+		]);
+
+		// Remove the first server
+		mcpService.servers.set([serverB], undefined);
+
+		assert.strictEqual(received.length, 2);
+		assert.deepStrictEqual(received[1], [
+			{ id: 'serverB', label: 'serverB' },
+		]);
+
+		disposable.dispose();
+		channel.dispose();
 	});
 });
 
