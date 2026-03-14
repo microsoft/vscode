@@ -140,10 +140,18 @@ const toolMessages = [
 ];
 
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
+
+	private static _codeBlockRendererSync(_languageId: string, text: string, _raw?: string): HTMLElement {
+		const codeElement = $('code');
+		codeElement.textContent = text;
+		return codeElement;
+	}
+
 	public readonly codeblocks: undefined;
 	public readonly codeblocksPartId: undefined;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	private readonly _asyncRenderCallback = () => this._onDidChangeHeight.fire();
 
 	private id: string | undefined;
 	private content: IChatThinkingPart;
@@ -563,12 +571,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		const rendered = this.chatContentMarkdownRenderer.render(new MarkdownString(contentToRender), {
 			fillInIncompleteTokens: true,
-			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-			codeBlockRendererSync: (_languageId, text, raw) => {
-				const codeElement = $('code');
-				codeElement.textContent = text;
-				return codeElement;
-			}
+			asyncRenderCallback: this._asyncRenderCallback,
+			codeBlockRendererSync: ChatThinkingContentPart._codeBlockRendererSync,
 		}, target);
 		this._markdownResult.value = rendered;
 		if (!target) {
