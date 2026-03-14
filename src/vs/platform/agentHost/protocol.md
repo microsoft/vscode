@@ -241,6 +241,7 @@ Clients interact with the server in two ways:
 | `listSessions(filter?)` | Returns `SessionSummary[]` |
 | `fetchContent(uri)` | Returns content bytes |
 | `fetchTurns(session, range)` | Returns historical turns |
+| `browseDirectory(path)` | Returns directory entries at a path on the server's filesystem |
 
 ### Session creation flow
 

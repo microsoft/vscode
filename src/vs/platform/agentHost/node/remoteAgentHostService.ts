@@ -61,7 +61,12 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const result: IRemoteAgentHostConnectionInfo[] = [];
 		for (const [address, entry] of this._entries) {
 			if (entry.connected) {
-				result.push({ address, name: this._names.get(address) ?? address, clientId: entry.client.clientId });
+				result.push({
+					address,
+					name: this._names.get(address) ?? address,
+					clientId: entry.client.clientId,
+					homeDirectory: entry.client.homeDirectory,
+				});
 			}
 		}
 		return result;

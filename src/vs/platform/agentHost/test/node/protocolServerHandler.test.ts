@@ -68,6 +68,7 @@ class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	handleDisposeSession(_session: URI): void { }
 	async handleListSessions(): Promise<ISessionSummary[]> { return []; }
 	handleSetAuthToken(_token: string): void { }
+	async handleBrowseDirectory(_path: string): Promise<{ entries: [] }> { return { entries: [] }; }
 }
 
 // ---- Helpers ----------------------------------------------------------------
@@ -78,10 +79,6 @@ function notification(method: string, params?: unknown): IProtocolMessage {
 
 function request(id: number, method: string, params?: unknown): IProtocolMessage {
 	return { jsonrpc: '2.0', id, method, params } as IProtocolMessage;
-}
-
-function findNotification(sent: IProtocolMessage[], method: string): IProtocolNotification | undefined {
-	return sent.find(isJsonRpcNotification) as IProtocolNotification | undefined;
 }
 
 function findNotifications(sent: IProtocolMessage[], method: string): IProtocolNotification[] {

@@ -16,7 +16,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata } from '../common/agentService.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
-import { isJsonRpcNotification, isJsonRpcResponse, type IListSessionsResult, type IProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcResponse, type IBrowseDirectoryResult, type IInitializeResult, type IListSessionsResult, type IProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import type { ISessionSummary } from '../common/state/sessionState.js';
 import { WebSocketClientTransport } from './webSocketClientTransport.js';
@@ -37,6 +37,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private readonly _transport: WebSocketClientTransport;
 	private _serverSeq = 0;
 	private _nextClientSeq = 1;
+	private _homeDirectory: string | undefined;
 
 	private readonly _onDidAction = this._register(new Emitter<IActionEnvelope>());
 	readonly onDidAction = this._onDidAction.event;
@@ -59,6 +60,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._transport['_address'];
 	}
 
+	get homeDirectory(): string | undefined {
+		return this._homeDirectory;
+	}
+
 	constructor(
 		address: string,
 		@ILogService private readonly _logService: ILogService,
@@ -79,8 +84,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		const result = await this._sendRequest('initialize', {
 			protocolVersion: PROTOCOL_VERSION,
 			clientId: this._clientId,
-		}) as { serverSeq: number };
+		}) as IInitializeResult;
 		this._serverSeq = result.serverSeq;
+		this._homeDirectory = result.homeDirectory;
 	}
 
 	/**
@@ -162,6 +168,13 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			modifiedTime: s.modifiedAt,
 			summary: s.title,
 		}));
+	}
+
+	/**
+	 * List the contents of a directory on the remote host's filesystem.
+	 */
+	async browseDirectory(path: string): Promise<IBrowseDirectoryResult> {
+		return await this._sendRequest('browseDirectory', { path }) as IBrowseDirectoryResult;
 	}
 
 	private _handleMessage(msg: IProtocolMessage): void {

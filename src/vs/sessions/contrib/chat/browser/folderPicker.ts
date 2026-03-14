@@ -34,6 +34,20 @@ interface IFolderItem {
  * folder and recently picked folders in storage. Enables a filter input when
  * there are more than 10 items.
  */
+export interface IFolderPickerOptions {
+	/**
+	 * Filesystem schemes to pass to `showOpenDialog`. When set, the dialog
+	 * browses the given scheme(s) instead of the default local filesystem.
+	 * This is used to browse a remote agent host's filesystem.
+	 */
+	readonly availableFileSystems?: readonly string[];
+
+	/**
+	 * Default URI to pass to `showOpenDialog` as the starting location.
+	 */
+	readonly defaultUri?: URI;
+}
+
 export class FolderPicker extends Disposable {
 
 	private readonly _onDidSelectFolder = this._register(new Emitter<URI>());
@@ -50,6 +64,7 @@ export class FolderPicker extends Disposable {
 	}
 
 	constructor(
+		private readonly _options: IFolderPickerOptions | undefined,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
@@ -179,6 +194,8 @@ export class FolderPicker extends Disposable {
 				canSelectFolders: true,
 				canSelectMany: false,
 				title: localize('selectFolder', "Select Folder"),
+				availableFileSystems: this._options?.availableFileSystems?.slice(),
+				defaultUri: this._options?.defaultUri,
 			});
 			if (selected?.[0]) {
 				this._selectFolder(selected[0]);
@@ -248,12 +265,14 @@ export class FolderPicker extends Disposable {
 			group: { title: '', icon: Codicon.search },
 			item: { uri: URI.from({ scheme: 'command', path: 'browse' }), label: localize('browseFolder', "Browse...") },
 		});
-		items.push({
-			kind: ActionListItemKind.Action,
-			label: localize('cloneRepository', "Clone..."),
-			group: { title: '', icon: Codicon.repoClone },
-			item: { uri: URI.from({ scheme: 'command', path: 'clone' }), label: localize('cloneRepository', "Clone...") },
-		});
+		if (!this._options?.availableFileSystems) {
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: localize('cloneRepository', "Clone..."),
+				group: { title: '', icon: Codicon.repoClone },
+				item: { uri: URI.from({ scheme: 'command', path: 'clone' }), label: localize('cloneRepository', "Clone...") },
+			});
+		}
 
 		return items;
 	}

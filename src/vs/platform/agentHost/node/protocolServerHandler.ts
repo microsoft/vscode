@@ -15,6 +15,7 @@ import {
 	AHP_SESSION_NOT_FOUND,
 	AHP_UNSUPPORTED_PROTOCOL_VERSION,
 	ProtocolError,
+	type IBrowseDirectoryParams,
 	type ICreateSessionParams,
 	type IDispatchActionParams,
 	type IDisposeSessionParams,
@@ -191,6 +192,7 @@ export class ProtocolServerHandler extends Disposable {
 				protocolVersion: PROTOCOL_VERSION,
 				serverSeq: this._stateManager.serverSeq,
 				snapshots,
+				homeDirectory: this._sideEffectHandler.getHomeDirectory?.(),
 			},
 		};
 	}
@@ -308,6 +310,10 @@ export class ProtocolServerHandler extends Disposable {
 					hasMore: startIndex > 0,
 				};
 			}
+			case 'browseDirectory': {
+				const p = params as IBrowseDirectoryParams;
+				return this._sideEffectHandler.handleBrowseDirectory(p.path);
+			}
 			default:
 				throw new Error(`Unknown method: ${method}`);
 		}
@@ -366,4 +372,7 @@ export interface IProtocolSideEffectHandler {
 	handleDisposeSession(session: URI): void;
 	handleListSessions(): Promise<import('../common/state/sessionState.js').ISessionSummary[]>;
 	handleSetAuthToken(token: string): void;
+	handleBrowseDirectory(path: string): Promise<import('../common/state/sessionProtocol.js').IBrowseDirectoryResult>;
+	/** Returns the server's home directory, if available. */
+	getHomeDirectory?(): string;
 }

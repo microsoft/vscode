@@ -47,4 +47,5 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly address: string;
 	readonly name: string;
 	readonly clientId: string;
+	readonly homeDirectory?: string;
 }

@@ -8,6 +8,7 @@ import { Server as ChildProcessServer } from '../../../base/parts/ipc/node/ipc.c
 import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc.mp.js';
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import * as os from 'os';
 import { AgentHostIpcChannels, AgentSession, type AgentProvider } from '../common/agentService.js';
 import { SessionStatus } from '../common/state/sessionState.js';
 import { AgentService } from './agentService.js';
@@ -139,6 +140,12 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 		},
 		handleSetAuthToken(token) {
 			agentService.setAuthToken(token);
+		},
+		handleBrowseDirectory(path) {
+			return agentService.browseDirectory(path);
+		},
+		getHomeDirectory() {
+			return os.homedir();
 		},
 	};
 

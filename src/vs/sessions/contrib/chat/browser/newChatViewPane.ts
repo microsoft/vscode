@@ -57,6 +57,8 @@ import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 import { FolderPicker } from './folderPicker.js';
+import { agentHostAuthority } from '../../remoteAgentHost/browser/remoteAgentHost.contribution.js';
+import { AGENT_HOST_FS_SCHEME, agentHostRemotePath, agentHostUri } from '../../remoteAgentHost/browser/agentHostFileSystemProvider.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { IsolationMode, IsolationModePicker, SessionTargetPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
@@ -154,6 +156,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private readonly _repoPicker: RepoPicker;
 	private _repoPickerContainer: HTMLElement | undefined;
 	private _remoteFolderInputContainer: HTMLElement | undefined;
+	private _remoteFolderPickerContainer: HTMLElement | undefined;
+	private readonly _remoteFolderPickerDisposables = this._register(new DisposableStore());
 	private readonly _cloudModelPicker: CloudModelPicker;
 	private readonly _modePicker: ModePicker;
 	private readonly _toolbarPickerWidgets = new Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem>();
@@ -195,11 +199,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		@IGitService private readonly gitService: IGitService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super();
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
-		this._folderPicker = this._register(this.instantiationService.createInstance(FolderPicker));
+		this._folderPicker = this._register(this.instantiationService.createInstance(FolderPicker, undefined));
 		this._permissionPicker = this._register(this.instantiationService.createInstance(NewChatPermissionPicker));
 		this._repoPicker = this._register(this.instantiationService.createInstance(RepoPicker));
 		this._cloudModelPicker = this._register(this.instantiationService.createInstance(CloudModelPicker));
@@ -855,17 +860,87 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._cloudModelPicker.setSession(session);
 		this._cloudModelPicker.setVisible(true);
 
-		// Show remote folder input and separator
 		if (this._extensionPickersLeftContainer) {
 			this._extensionPickersLeftContainer.style.display = 'block';
 		}
-		if (this._remoteFolderInputContainer) {
-			this._remoteFolderInputContainer.style.display = '';
+
+		// Detect agent-host remote targets and show a folder picker with remote browsing
+		const remoteAddress = this._getRemoteAgentHostAddress(session.target);
+		if (remoteAddress) {
+			// Agent-host remote: show folder picker, hide repo picker and text input
+			this._repoPickerContainer.style.display = 'none';
+			if (this._remoteFolderInputContainer) {
+				this._remoteFolderInputContainer.style.display = 'none';
+			}
+			this._ensureRemoteFolderPicker(remoteAddress, session);
+		} else {
+			// Cloud remote: show repo picker (original behavior), hide everything else
+			this._clearRemoteFolderPicker();
+			if (this._remoteFolderInputContainer) {
+				this._remoteFolderInputContainer.style.display = 'none';
+			}
+			this._repoPickerContainer.style.display = '';
 		}
-		this._repoPickerContainer.style.display = 'none';
 
 		// Render toolbar pickers (other groups)
 		this._renderToolbarPickers(session, force);
+	}
+
+	/**
+	 * Returns the remote agent host address if the given target corresponds
+	 * to a remote agent host connection, or `undefined` otherwise.
+	 */
+	private _getRemoteAgentHostAddress(target: string): string | undefined {
+		if (!target.startsWith('remote-')) {
+			return undefined;
+		}
+		for (const conn of this.remoteAgentHostService.connections) {
+			const authority = agentHostAuthority(conn.address);
+			if (target.startsWith(`remote-${authority}-`)) {
+				return conn.address;
+			}
+		}
+		return undefined;
+	}
+
+	private _ensureRemoteFolderPicker(address: string, session: RemoteNewSession): void {
+		this._remoteFolderPickerDisposables.clear();
+
+		const authority = agentHostAuthority(address);
+
+		// Use the home directory from the connection handshake as the default browse location
+		const conn = this.remoteAgentHostService.connections.find(c => c.address === address);
+		const defaultPath = conn?.homeDirectory ?? '/';
+
+		const picker = this._remoteFolderPickerDisposables.add(
+			this.instantiationService.createInstance(FolderPicker, {
+				availableFileSystems: [AGENT_HOST_FS_SCHEME],
+				defaultUri: agentHostUri(authority, defaultPath),
+			})
+		);
+
+		// Wire folder selection to session
+		this._remoteFolderPickerDisposables.add(picker.onDidSelectFolder(folderUri => {
+			// Convert agenthost://authority/path to a file URI with just the path,
+			// which is the remote filesystem path the server understands
+			session.setRepoUri(URI.from({ scheme: 'file', path: agentHostRemotePath(folderUri) }));
+			this._updateDraftState();
+			this._focusEditor();
+		}));
+
+		// Render into the existing container (reuse the remote folder input area)
+		if (this._remoteFolderInputContainer?.parentElement) {
+			const container = this._remoteFolderInputContainer.parentElement;
+			this._remoteFolderPickerContainer = picker.render(container);
+			this._remoteFolderPickerDisposables.add(toDisposable(() => {
+				this._remoteFolderPickerContainer?.remove();
+				this._remoteFolderPickerContainer = undefined;
+			}));
+		}
+	}
+
+	private _clearRemoteFolderPicker(): void {
+		this._remoteFolderPickerDisposables.clear();
 	}
 
 	private _renderToolbarPickers(session: RemoteNewSession, force?: boolean): void {
@@ -981,6 +1056,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		if (this._remoteFolderInputContainer) {
 			this._remoteFolderInputContainer.style.display = 'none';
 		}
+		this._clearRemoteFolderPicker();
 		if (this._extensionPickersLeftContainer) {
 			this._extensionPickersLeftContainer.style.display = 'none';
 		}

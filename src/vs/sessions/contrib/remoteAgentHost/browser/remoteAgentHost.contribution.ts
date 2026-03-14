@@ -22,13 +22,23 @@ import { AgentHostLanguageModelProvider } from '../../../../workbench/contrib/ch
 import { AgentHostSessionHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { AgentHostSessionListController } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionListController.js';
 import { ISessionsManagementService } from '../../../contrib/sessions/browser/sessionsManagementService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { AGENT_HOST_FS_SCHEME, AgentHostFileSystemProvider } from './agentHostFileSystemProvider.js';
 
 /**
- * Sanitize a remote address into a string usable as a URI scheme component.
+ * Sanitize a remote address into a string safe for use as a URI authority.
  * Replaces non-alphanumeric characters with hyphens.
  */
 function sanitizeAddress(address: string): string {
 	return address.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+}
+
+/**
+ * Returns the URI authority used for a remote agent host connection.
+ * Used as the authority component in `agenthost://{authority}/path` URIs.
+ */
+export function agentHostAuthority(address: string): string {
+	return sanitizeAddress(address);
 }
 
 /** Per-connection state bundle, disposed when a connection is removed. */
@@ -64,6 +74,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	/** Per-connection state: client state + per-agent registrations. */
 	private readonly _connections = this._register(new DisposableMap<string, ConnectionState>());
 
+	/** Maps sanitized authority strings back to original addresses. */
+	private readonly _fsProvider: AgentHostFileSystemProvider;
+
 	constructor(
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
@@ -74,8 +87,14 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
+
+		// Register a single read-only filesystem provider for all remote agent
+		// hosts. Individual connections are identified by the URI authority.
+		this._fsProvider = this._register(this._instantiationService.createInstance(AgentHostFileSystemProvider));
+		this._register(this._fileService.registerProvider(AGENT_HOST_FS_SCHEME, this._fsProvider));
 
 		// Reconcile when connections change (added/removed/reconnected)
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => {
@@ -126,6 +145,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const connState = new ConnectionState(connection.clientId, name);
 		this._connections.set(address, connState);
 		const store = connState.store;
+
+		// Track authority -> address mapping for FS provider routing
+		const authority = agentHostAuthority(address);
+		store.add(this._fsProvider.registerAuthority(authority, address));
 
 		// Forward non-session actions to client state
 		store.add(connection.onDidAction(envelope => {
@@ -216,7 +239,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			}
 			const activeSessionItem = this._sessionsManagementService.getActiveSession();
 			if (activeSessionItem?.repository) {
-				const dir = activeSessionItem.repository.fsPath;
+				// The repository URI's path is the remote filesystem path
+				// (set via agentHostRemotePath in the folder picker callback)
+				const dir = activeSessionItem.repository.path;
 				sessionWorkingDirs.set(resourceKey, dir);
 				return dir;
 			}
