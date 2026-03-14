@@ -467,6 +467,7 @@ export class ActionList<T> extends Disposable {
 		super();
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
+		this.domNode.style.position = 'relative';
 		if (this._options?.descriptionBelow) {
 			this.domNode.classList.add('description-below');
 		}
@@ -1249,13 +1250,10 @@ export class ActionList<T> extends Disposable {
 
 		const menu = new Menu(submenuContainer, element.submenuActions, {}, defaultMenuStyles);
 
-		// Use getBoundingClientRect for both to get correct relative position
+		// Position relative to domNode (which now has position:relative)
 		const rowRect = rowElement.getBoundingClientRect();
 		const domRect = this.domNode.getBoundingClientRect();
-
-		// Account for filter input by subtracting domNode top from row top
-		const filterHeight = this._filterContainer ? this._filterContainer.offsetHeight : 0;
-		submenuContainer.style.top = `${rowRect.top - domRect.top - filterHeight}px`;
+		submenuContainer.style.top = `${rowRect.top - domRect.top}px`;
 		submenuContainer.style.left = `${domRect.width}px`;
 
 		submenuDisposables.add(menu.onDidCancel(() => this._cleanupSubmenu()));
