@@ -1198,20 +1198,41 @@ export class LanguageModelsService implements ILanguageModelsService {
 			group = allGroups.find(g => g.vendor === metadata.vendor);
 		}
 
-		// Merge new values into existing config
+		// Merge new values into existing config, removing properties set to their schema default
 		const existingConfig = this._modelConfigurations.get(modelId) ?? {};
 		const updatedConfig = { ...existingConfig, ...values };
+		const schema = metadata.configurationSchema;
+		if (schema?.properties) {
+			for (const [key, value] of Object.entries(updatedConfig)) {
+				const propSchema = schema.properties[key];
+				if (typeof propSchema !== 'boolean' && propSchema?.default !== undefined && propSchema.default === value) {
+					delete updatedConfig[key];
+				}
+			}
+		}
 
 		if (group) {
-			// Update the existing group with the new model config
 			const existingModels = (group.models as IStringDictionary<IStringDictionary<unknown>> | undefined) ?? {};
+			let updatedModels: IStringDictionary<IStringDictionary<unknown>>;
+			if (Object.keys(updatedConfig).length === 0) {
+				// Remove the model entry entirely if no non-default config remains
+				updatedModels = { ...existingModels };
+				delete updatedModels[metadata.id];
+			} else {
+				updatedModels = { ...existingModels, [metadata.id]: updatedConfig };
+			}
 			const updatedGroup: ILanguageModelsProviderGroup = {
 				...group,
-				models: { ...existingModels, [metadata.id]: updatedConfig }
+				models: Object.keys(updatedModels).length > 0 ? updatedModels : undefined
 			};
-			await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(group, updatedGroup);
-		} else {
-			// Create a new group with the model config
+			if (!updatedGroup.models && Object.keys(updatedGroup).filter(k => k !== 'name' && k !== 'vendor' && k !== 'range' && k !== 'models').length === 0) {
+				// Remove the group entirely if it only had model config
+				await this._languageModelsConfigurationService.removeLanguageModelsProviderGroup(group);
+			} else {
+				await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(group, updatedGroup);
+			}
+		} else if (Object.keys(updatedConfig).length > 0) {
+			// Only create a new group if there's non-default config
 			const vendor = this.getVendors().find(v => v.vendor === metadata.vendor);
 			if (!vendor) {
 				return;
@@ -1225,7 +1246,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		// Update the in-memory cache
-		this._modelConfigurations.set(modelId, updatedConfig);
+		if (Object.keys(updatedConfig).length > 0) {
+			this._modelConfigurations.set(modelId, updatedConfig);
+		} else {
+			this._modelConfigurations.delete(modelId);
+		}
 	}
 
 	getModelConfigurationActions(modelId: string): IAction[] {
