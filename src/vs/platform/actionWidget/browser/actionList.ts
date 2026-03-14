@@ -745,6 +745,12 @@ export class ActionList<T> extends Disposable {
 		return !!this._submenu;
 	}
 
+	cleanupSubmenu(): void {
+		this._cleanupSubmenu();
+		this._submenuShowScheduler.cancel();
+		this._submenuHideScheduler.cancel();
+	}
+
 	private focusCondition(element: IActionListItem<unknown>): boolean {
 		return !element.disabled && element.kind === ActionListItemKind.Action;
 	}
