@@ -5517,6 +5517,7 @@ export class CommandCenter {
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
+			let resolvedRepository: Repository | undefined;
 
 			if (!options.repository) {
 				result = Promise.resolve(method.apply(this, args));
@@ -5536,6 +5537,7 @@ export class CommandCenter {
 						return Promise.resolve();
 					}
 
+					resolvedRepository = repository;
 					return Promise.resolve(method.apply(this, [repository, ...args.slice(1)]));
 				});
 			}
@@ -5548,7 +5550,7 @@ export class CommandCenter {
 			*/
 			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
 
-			return result.catch(err => {
+			return result.catch(async err => {
 				const options: MessageOptions = {
 					modal: true
 				};
@@ -5621,10 +5623,18 @@ export class CommandCenter {
 						break;
 					}
 					case GitErrorCodes.NoUserNameConfigured:
-					case GitErrorCodes.NoUserEmailConfigured:
+					case GitErrorCodes.NoUserEmailConfigured: {
+						const configured = await this.promptConfigureIdentity(resolvedRepository);
+						if (configured) {
+							if (resolvedRepository) {
+								return method.apply(this, [resolvedRepository, ...args.slice(1)]);
+							}
+							return method.apply(this, args);
+						}
 						message = l10n.t('Make sure you configure your "user.name" and "user.email" in git.');
 						choices.set(l10n.t('Learn More'), () => commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-setup-git')));
 						break;
+					}
 					case GitErrorCodes.EmptyCommitMessage:
 						message = l10n.t('Commit operation was cancelled due to empty commit message.');
 						choices.clear();
@@ -5696,6 +5706,61 @@ export class CommandCenter {
 			const resultFn = choices.get(result);
 
 			resultFn?.();
+		}
+	}
+
+	private async promptConfigureIdentity(repository?: Repository): Promise<boolean> {
+		const name = await window.showInputBox({
+			placeHolder: l10n.t('Your Name'),
+			prompt: l10n.t('Please enter your name for Git commits'),
+			ignoreFocusOut: true,
+			validateInput: (value: string) => {
+				return value.trim() ? null : l10n.t('Name cannot be empty');
+			}
+		});
+
+		if (!name) {
+			return false;
+		}
+
+		const email = await window.showInputBox({
+			placeHolder: l10n.t('your@email.com'),
+			prompt: l10n.t('Please enter your email address for Git commits'),
+			ignoreFocusOut: true,
+			validateInput: (value: string) => {
+				return value.trim() ? null : l10n.t('Email cannot be empty');
+			}
+		});
+
+		if (!email) {
+			return false;
+		}
+
+		const scopeItems: (QuickPickItem & { scope: 'local' | 'global' })[] = [
+			{ label: l10n.t('Global'), description: l10n.t('Apply to all repositories'), scope: 'global' },
+			{ label: l10n.t('Local'), description: l10n.t('Apply to this repository only'), scope: 'local' }
+		];
+
+		const scopeChoice = await window.showQuickPick(scopeItems, {
+			placeHolder: l10n.t('Where should the Git identity be saved?'),
+			ignoreFocusOut: true
+		});
+
+		if (!scopeChoice) {
+			return false;
+		}
+
+		try {
+			if (repository) {
+				await repository.setConfigByScope(scopeChoice.scope, 'user.name', name.trim());
+				await repository.setConfigByScope(scopeChoice.scope, 'user.email', email.trim());
+			} else {
+				await this.git.exec(os.homedir(), ['config', `--${scopeChoice.scope}`, 'user.name', name.trim()]);
+				await this.git.exec(os.homedir(), ['config', `--${scopeChoice.scope}`, 'user.email', email.trim()]);
+			}
+			return true;
+		} catch {
+			return false;
 		}
 	}
 
