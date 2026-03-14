@@ -1264,18 +1264,22 @@ export class ActionList<T> extends Disposable {
 		// Render submenu items as simple DOM elements — no Menu widget, no focus management
 		for (const action of element.submenuActions) {
 			if (action instanceof SubmenuAction) {
-				// Render header
-				const header = dom.append(submenuContainer, dom.$('.action-list-submenu-header'));
-				header.textContent = action.label;
-				// Render children
-				for (const child of action.actions) {
+				// Render children with group label on the first item
+				const children = action.actions;
+				for (let i = 0; i < children.length; i++) {
+					const child = children[i];
 					const item = dom.append(submenuContainer, dom.$('.action-list-submenu-item'));
 					const checkIcon = dom.append(item, dom.$('.check-icon'));
 					if (child.checked) {
 						checkIcon.classList.add('codicon', 'codicon-check');
 					}
-					const label = dom.append(item, dom.$('span'));
+					const label = dom.append(item, dom.$('span.action-list-submenu-label'));
 					label.textContent = child.label;
+					// Show group label right-aligned on the first item
+					if (i === 0) {
+						const groupLabel = dom.append(item, dom.$('span.action-list-submenu-group'));
+						groupLabel.textContent = action.label;
+					}
 					submenuDisposables.add(dom.addDisposableListener(item, dom.EventType.CLICK, (e) => {
 						dom.EventHelper.stop(e, true);
 						child.run();
