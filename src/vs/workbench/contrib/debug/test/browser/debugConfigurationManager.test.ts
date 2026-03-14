@@ -177,7 +177,7 @@ suite('debugConfigurationManager', () => {
 				{ type: 'node', request: 'launch', name: 'visible', presentation: { hidden: false } },
 				{ type: 'node', request: 'launch', name: 'linux-hidden', linux: { presentation: { hidden: true } } }
 			]
-		}, contextService.getWorkspace().folders[0].uri);
+		});
 		_debugConfigurationManager = new ConfigurationManager(
 			adapterManager,
 			contextService,
