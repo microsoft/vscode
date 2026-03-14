@@ -94,6 +94,29 @@ If you believe the bot got something wrong, please open a new issue and let us k
 
 If you are interested in writing code to fix issues, please see [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) in the wiki.
 
+## Emoji Usage in Documentation
+
+When writing or updating documentation files (`.md`), follow these conventions for consistent emoji usage:
+
+### Standard Emoji Meanings
+
+| Emoji | Meaning | Usage |
+|-------|---------|-------|
+| ✅ | Supported / Correct / Yes | Tables, feature matrices, correct examples |
+| ❌ | Unsupported / Wrong / No | Tables, feature matrices, incorrect examples, anti-patterns |
+| ⚠️ | Warning / Important | Inline warnings, important callouts |
+| 🔒 | Fixed / Locked / Immutable | Feature matrices where a value cannot be changed |
+| ❓ | Unknown / Unverified | Status indicators for uncertain states |
+
+### Formatting Rules
+
+* **Warnings**: Use a single ⚠️ at the start, not at both start and end. Format as `**⚠️ Warning text**` or `> **⚠️ IMPORTANT:** Details here`.
+* **Tables**: Use ✅ and ❌ as standalone cell values in feature/compatibility matrices. Pair with descriptive text when helpful (e.g., `✅ Supported`).
+* **Correct/Wrong examples**: Use ✅ and ❌ at the start of lines to indicate right vs wrong approaches.
+* **Section headers**: Avoid emojis in Markdown headings (`##`, `###`). Use emojis inline within body text or tables instead. Exception: template examples shown to end users (e.g., issue templates, setup prompts) may use emojis in headers for visual clarity.
+* **Do not double emojis**: Use `⚠️` not `⚠️⚠️` unless in a "do not delete" marker in issue templates.
+* **Instructional HTML comments**: Emojis in `<!-- -->` comments (e.g., in issue templates) may use any relevant emoji to visually distinguish different types of guidance.
+
 ## Thank You
 
 Your contributions to open source, large or small, make great projects like this possible. Thank you for taking the time to contribute.
