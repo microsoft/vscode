@@ -1242,18 +1242,18 @@ export class ActionList<T> extends Disposable {
 		}
 
 		const submenuDisposables = new DisposableStore();
-		// Append to document body to avoid any overflow clipping from parent containers
-		const targetWindow = dom.getWindow(this.domNode);
-		const submenuContainer = dom.append(targetWindow.document.body, dom.$('div.monaco-submenu'));
+		// Append inside the action list's domNode to stay within the context view DOM tree
+		const submenuContainer = dom.append(this.domNode, dom.$('div.monaco-submenu'));
 		submenuContainer.classList.add('menubar-menu-items-holder', 'context-view');
 		submenuContainer.style.position = 'fixed';
 		submenuContainer.style.zIndex = '10000';
 
 		const menu = new Menu(submenuContainer, element.submenuActions, {}, defaultMenuStyles);
 
-		// Position to the right of the row
+		// Position using fixed coordinates from the row's bounding rect
 		const entryBox = rowElement.getBoundingClientRect();
 		const viewBox = submenuContainer.getBoundingClientRect();
+		const targetWindow = dom.getWindow(this.domNode);
 
 		let left = entryBox.right;
 		if (left + viewBox.width > targetWindow.innerWidth) {
@@ -1264,8 +1264,9 @@ export class ActionList<T> extends Disposable {
 			top = targetWindow.innerHeight - viewBox.height;
 		}
 
-		submenuContainer.style.top = `${top}px`;
-		submenuContainer.style.left = `${left}px`;
+		// Adjust for any transform offset on the container
+		submenuContainer.style.left = `${left - viewBox.left}px`;
+		submenuContainer.style.top = `${top - viewBox.top}px`;
 
 		submenuDisposables.add(menu.onDidCancel(() => this._cleanupSubmenu()));
 
