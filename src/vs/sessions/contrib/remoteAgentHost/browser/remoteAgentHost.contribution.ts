@@ -237,6 +237,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			description: agent.description,
 			canDelegate: true,
 			requiresCustomModels: true,
+			supportsDelegation: false,
 		}));
 
 		// Session list controller (unified)
