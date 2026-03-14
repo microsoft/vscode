@@ -337,9 +337,10 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		// Render submenu indicator
 		dom.clearNode(data.submenuIndicator);
 		data.container.classList.toggle('has-submenu', !!element.submenuActions?.length);
+		// Always render the icon so the element has consistent width for alignment
+		const submenuIndicatorIcon = dom.append(data.submenuIndicator, dom.$(ThemeIcon.asCSSSelector(Codicon.menuSubmenu)));
+		submenuIndicatorIcon.setAttribute('aria-hidden', 'true');
 		if (element.submenuActions && element.submenuActions.length > 0) {
-			const submenuIndicatorIcon = dom.append(data.submenuIndicator, dom.$(ThemeIcon.asCSSSelector(Codicon.menuSubmenu)));
-			submenuIndicatorIcon.setAttribute('aria-hidden', 'true');
 			data.container.setAttribute('aria-haspopup', 'true');
 		}
 	}
