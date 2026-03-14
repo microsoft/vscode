@@ -93,7 +93,7 @@ suite('ObservableChatSession', function () {
 		const resource = LocalChatSessionUri.forSession(sessionId);
 		const session = new ObservableChatSession(resource, 1, proxy, logService, dialogService);
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
-		await session.initialize(CancellationToken.None);
+		await session.initialize(CancellationToken.None, { initialSessionOptions: [] });
 		return session;
 	}
 
@@ -130,7 +130,7 @@ suite('ObservableChatSession', function () {
 		// Initialize the session
 		const sessionContent = createSessionContent();
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
-		await session.initialize(CancellationToken.None);
+		await session.initialize(CancellationToken.None, { initialSessionOptions: [] });
 
 		// Now progress should be visible
 		assert.strictEqual(session.progressObs.get().length, 2);
@@ -187,8 +187,8 @@ suite('ObservableChatSession', function () {
 		const sessionContent = createSessionContent();
 		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
 
-		const promise1 = session.initialize(CancellationToken.None);
-		const promise2 = session.initialize(CancellationToken.None);
+		const promise1 = session.initialize(CancellationToken.None, { initialSessionOptions: [] });
+		const promise2 = session.initialize(CancellationToken.None, { initialSessionOptions: [] });
 
 		assert.strictEqual(promise1, promise2);
 		await promise1;
