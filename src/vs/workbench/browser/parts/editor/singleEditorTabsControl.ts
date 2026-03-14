@@ -300,6 +300,8 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 				description = ''; // hide description when showing breadcrumbs
 			} else if (labelFormat === 'default' && !isGroupActive) {
 				description = ''; // hide description when group is not active and style is 'default'
+			} else if (labelFormat === 'short' && !editor.hasCapability(EditorInputCapabilities.ForceDescription)) {
+				description = ''; // hide description in short mode to suppress root folder name
 			} else {
 				description = editor.getDescription(this.getVerbosity(labelFormat)) || '';
 			}

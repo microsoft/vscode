@@ -1385,11 +1385,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const labels: IEditorInputLabel[] = [];
 		let activeEditorTabIndex = -1;
 		this.tabsModel.getEditors(EditorsOrder.SEQUENTIAL).forEach((editor: EditorInput, tabIndex: number) => {
+			const forceDescription = editor.hasCapability(EditorInputCapabilities.ForceDescription);
 			labels.push({
 				editor,
 				name: editor.getName(),
-				description: editor.getDescription(verbosity),
-				forceDescription: editor.hasCapability(EditorInputCapabilities.ForceDescription),
+				description: labelFormat === 'short' && !forceDescription ? '' : editor.getDescription(verbosity),
+				forceDescription,
 				title: editor.getTitle(Verbosity.LONG),
 				ariaLabel: computeEditorAriaLabel(editor, tabIndex, this.groupView, this.editorPartsView.count)
 			});

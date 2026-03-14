@@ -26,7 +26,7 @@ import { EditorPart } from './editorPart.js';
 import { GroupDirection, GroupsOrder, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext } from '../../../common/contextkeys.js';
-import { EditorResourceAccessor, SideBySideEditor, Verbosity } from '../../../common/editor.js';
+import { EditorInputCapabilities, EditorResourceAccessor, SideBySideEditor, Verbosity } from '../../../common/editor.js';
 import { ResourceLabel } from '../../labels.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
@@ -285,12 +285,13 @@ export class ModalEditorPart {
 			const activeEditor = editorPart.activeGroup.activeEditor;
 			if (activeEditor) {
 				const { labelFormat } = editorPart.partOptions;
+				const forceDescription = activeEditor.hasCapability(EditorInputCapabilities.ForceDescription);
 
 				label.element.setResource(
 					{
 						resource: EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.BOTH }),
 						name: activeEditor.getName(),
-						description: activeEditor.getDescription(labelFormat === 'short' ? Verbosity.SHORT : labelFormat === 'long' ? Verbosity.LONG : Verbosity.MEDIUM) || ''
+						description: labelFormat === 'short' && !forceDescription ? '' : activeEditor.getDescription(labelFormat === 'short' ? Verbosity.SHORT : labelFormat === 'long' ? Verbosity.LONG : Verbosity.MEDIUM) || ''
 					},
 					{
 						icon: activeEditor.getIcon(),
