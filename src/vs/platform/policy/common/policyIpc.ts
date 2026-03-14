@@ -13,17 +13,20 @@ import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } 
 
 export class PolicyChannel implements IServerChannel {
 
+	private readonly _onDidChange: Event<object>;
 	private readonly disposables = new DisposableStore();
 
-	constructor(private service: IPolicyService) { }
+	constructor(private service: IPolicyService) {
+		this._onDidChange = Event.map(
+			this.service.onDidChange,
+			names => names.reduce<object>((r, name) => ({ ...r, [name]: this.service.getPolicyValue(name) ?? null }), {}),
+			this.disposables
+		);
+	}
 
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
-			case 'onDidChange': return Event.map(
-				this.service.onDidChange,
-				names => names.reduce<object>((r, name) => ({ ...r, [name]: this.service.getPolicyValue(name) ?? null }), {}),
-				this.disposables
-			);
+			case 'onDidChange': return this._onDidChange;
 		}
 
 		throw new Error(`Event not found: ${event}`);
