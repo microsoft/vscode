@@ -434,7 +434,7 @@ export class ActionList<T> extends Disposable {
 	private _cachedMaxWidth: number | undefined;
 	private _hasLaidOut = false;
 	private _showAbove: boolean | undefined;
-	private _submenu: { menu: Menu; container: HTMLElement; disposables: DisposableStore } | undefined;
+	private _submenu: { menu: Menu; container: HTMLElement; rowElement: HTMLElement; disposables: DisposableStore } | undefined;
 	private readonly _submenuShowScheduler: RunOnceScheduler;
 	private readonly _submenuHideScheduler: RunOnceScheduler;
 	private _submenuHoverIndex: number | undefined;
@@ -1240,6 +1240,9 @@ export class ActionList<T> extends Disposable {
 			return;
 		}
 
+		// Override overflow:hidden on the list row to allow the fixed-position submenu to render
+		rowElement.style.overflow = 'visible';
+
 		const submenuDisposables = new DisposableStore();
 
 		// Follow the exact same pattern as SubmenuMenuActionViewItem.createSubmenu
@@ -1280,11 +1283,12 @@ export class ActionList<T> extends Disposable {
 			this._submenuHideScheduler.schedule();
 		}));
 
-		this._submenu = { menu, container: submenuContainer, disposables: submenuDisposables };
+		this._submenu = { menu, container: submenuContainer, rowElement, disposables: submenuDisposables };
 	}
 
 	private _cleanupSubmenu(): void {
 		if (this._submenu) {
+			this._submenu.rowElement.style.overflow = '';
 			this._submenu.menu.dispose();
 			this._submenu.container.remove();
 			this._submenu.disposables.dispose();
