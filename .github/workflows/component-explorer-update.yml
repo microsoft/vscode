@@ -1,0 +1,151 @@
+name: Component Explorer Update
+
+on:
+  schedule:
+    - cron: '0 17 * * *' # Run daily at 17:00 UTC (end of day)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-update:
+    name: Check for Component Explorer updates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check for updates
+        id: check
+        run: |
+          # Packages to check
+          PACKAGES=(
+            "@vscode/component-explorer"
+            "@vscode/component-explorer-cli"
+            "@vscode/component-explorer-vite-plugin"
+          )
+
+          UPDATED=false
+          SUMMARY=""
+
+          for PACKAGE in "${PACKAGES[@]}"; do
+            LATEST=$(npm view "$PACKAGE" version 2>/dev/null || echo "")
+            if [ -z "$LATEST" ]; then
+              echo "Could not fetch version for $PACKAGE, skipping."
+              continue
+            fi
+
+            # Check package.json
+            CURRENT=$(node -e "
+              const fs = require('fs');
+              try {
+                const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+                const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+                const ver = deps['$PACKAGE'];
+                console.log(ver ? ver.replace(/^[^\\d]*/, '') : '');
+              } catch(e) { console.log(''); }
+            ")
+
+            if [ -n "$CURRENT" ] && [ "$LATEST" != "$CURRENT" ]; then
+              echo "Updating $PACKAGE in package.json: $CURRENT -> $LATEST"
+              node -e "
+                const fs = require('fs');
+                const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+                for (const section of ['dependencies', 'devDependencies']) {
+                  if (pkg[section] && pkg[section]['$PACKAGE']) {
+                    const prefix = pkg[section]['$PACKAGE'].match(/^[^\\d]*/)[0];
+                    pkg[section]['$PACKAGE'] = prefix + '$LATEST';
+                  }
+                }
+                fs.writeFileSync('package.json', JSON.stringify(pkg, null, '\t') + '\n');
+              "
+              UPDATED=true
+              SUMMARY="$SUMMARY"$'\n'"- \`$PACKAGE\`: \`$CURRENT\` → \`$LATEST\` (package.json)"
+            fi
+
+            # Check build/vite/package.json
+            CURRENT_VITE=$(node -e "
+              const fs = require('fs');
+              try {
+                const pkg = JSON.parse(fs.readFileSync('build/vite/package.json', 'utf8'));
+                const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+                const ver = deps['$PACKAGE'];
+                console.log(ver ? ver.replace(/^[^\\d]*/, '') : '');
+              } catch(e) { console.log(''); }
+            ")
+
+            if [ -n "$CURRENT_VITE" ] && [ "$LATEST" != "$CURRENT_VITE" ]; then
+              echo "Updating $PACKAGE in build/vite/package.json: $CURRENT_VITE -> $LATEST"
+              node -e "
+                const fs = require('fs');
+                const pkg = JSON.parse(fs.readFileSync('build/vite/package.json', 'utf8'));
+                for (const section of ['dependencies', 'devDependencies']) {
+                  if (pkg[section] && pkg[section]['$PACKAGE']) {
+                    const prefix = pkg[section]['$PACKAGE'].match(/^[^\\d]*/)[0];
+                    pkg[section]['$PACKAGE'] = prefix + '$LATEST';
+                  }
+                }
+                fs.writeFileSync('build/vite/package.json', JSON.stringify(pkg, null, '\t') + '\n');
+              "
+              UPDATED=true
+              SUMMARY="$SUMMARY"$'\n'"- \`$PACKAGE\`: \`$CURRENT_VITE\` → \`$LATEST\` (build/vite/package.json)"
+            fi
+          done
+
+          echo "updated=$UPDATED" >> $GITHUB_OUTPUT
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Update package-lock.json
+        if: steps.check.outputs.updated == 'true'
+        run: |
+          npm install --package-lock-only --ignore-scripts
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Pull Request
+        if: steps.check.outputs.updated == 'true'
+        uses: actions/github-script@v7
+        env:
+          SUMMARY: ${{ steps.check.outputs.summary }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { execSync } = require('child_process');
+            const date = new Date().toISOString().slice(0, 10);
+            const branch = `component-explorer-update-${date}-${{ github.run_number }}`;
+
+            execSync(`git config user.name "github-actions[bot]"`);
+            execSync(`git config user.email "github-actions[bot]@users.noreply.github.com"`);
+            execSync(`git checkout -b ${branch}`);
+            execSync(`git add -u`);
+            execSync(`git commit -m "Update component explorer packages"`);
+            execSync(`git push origin ${branch}`);
+
+            const summary = process.env.SUMMARY;
+            try {
+              await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'Update component explorer packages',
+                body: `This PR updates the component explorer packages to their latest versions.\n\n### Changes\n${summary}`,
+                head: branch,
+                base: 'main',
+              });
+            } catch (err) {
+              if (err.status === 422) {
+                core.warning(`A pull request for branch '${branch}' already exists.`);
+              } else {
+                throw err;
+              }
+            }
