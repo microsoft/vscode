@@ -26,7 +26,7 @@ import { localize } from '../../../nls.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { IOpenerService } from '../../opener/common/opener.js';
-import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
+import { defaultListStyles, defaultMenuStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { IHoverService } from '../../hover/browser/hover.js';
@@ -331,12 +331,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 					dom.EventHelper.stop(e, true);
 					const targetWindow = dom.getWindow(gearButton);
 					const menuContainer = dom.append(targetWindow.document.body, dom.$('.monaco-menu-container.context-view'));
-					const menu = new Menu(menuContainer, allSubmenuChildren, {}, {
-						borderColor: undefined, foregroundColor: undefined, backgroundColor: undefined,
-						separatorColor: undefined, scrollbarShadow: undefined,
-						scrollbarSliderActiveBackground: undefined, scrollbarSliderBackground: undefined,
-						scrollbarSliderHoverBackground: undefined
-					});
+					const menu = new Menu(menuContainer, allSubmenuChildren, {}, defaultMenuStyles);
 					const rect = gearButton.getBoundingClientRect();
 					menuContainer.style.position = 'fixed';
 					menuContainer.style.top = `${rect.bottom}px`;
