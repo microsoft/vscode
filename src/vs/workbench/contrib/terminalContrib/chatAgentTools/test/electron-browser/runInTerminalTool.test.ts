@@ -108,10 +108,9 @@ suite('RunInTerminalTool', () => {
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: async () => false,
-			wrapCommand: command => command,
-			getSandboxConfigPath: async () => undefined,
-			getTempDir: () => undefined,
-			setNeedsForceUpdateConfigFile: () => { }
+			promptToAllowWritePath: async () => false,
+			wrapWithSandbox: async (_runtimeConfig, command) => command,
+			wrapCommand: command => Promise.resolve(command),
 		});
 
 		const treeSitterLibraryService = store.add(instantiationService.createInstance(TreeSitterLibraryService));
