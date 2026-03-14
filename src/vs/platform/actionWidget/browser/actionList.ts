@@ -557,6 +557,10 @@ export class ActionList<T> extends Disposable {
 
 		this._allMenuItems = [...items];
 
+		// If any item has submenu actions, mark the container so CSS can reserve space
+		const hasAnySubmenu = items.some(item => item.submenuActions?.length);
+		this.domNode.classList.toggle('has-submenu-items', hasAnySubmenu);
+
 		// Create filter input
 		if (this._options?.showFilter) {
 			this._filterContainer = document.createElement('div');
