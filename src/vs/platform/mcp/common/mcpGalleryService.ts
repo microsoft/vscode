@@ -280,7 +280,7 @@ namespace McpServerSchemaVersion_v2025_07_09 {
 
 			if (
 				(!from.name || !isString(from.name))
-				|| (!from.description || !isString(from.description))
+				|| (from.description == null || !isString(from.description))
 				|| (!from.version || !isString(from.version))
 			) {
 				return undefined;
@@ -592,7 +592,7 @@ namespace McpServerSchemaVersion_v0_1 {
 			if (
 				(!from.server || !isObject(from.server))
 				|| (!from.server.name || !isString(from.server.name))
-				|| (!from.server.description || !isString(from.server.description))
+				|| (from.server.description == null || !isString(from.server.description))
 				|| (!from.server.version || !isString(from.server.version))
 			) {
 				return undefined;
