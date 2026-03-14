@@ -314,8 +314,8 @@
 }
 
 .action-list-submenu-item:hover {
-	background-color: var(--vscode-menu-selectionBackground);
-	color: var(--vscode-menu-selectionForeground);
+	background-color: var(--vscode-list-focusBackground);
+	color: var(--vscode-list-focusForeground);
 }
 
 .action-widget-delegate-label {
