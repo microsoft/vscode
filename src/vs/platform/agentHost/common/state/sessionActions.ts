@@ -20,9 +20,11 @@ import type {
 	IPermissionRequest,
 	IResponsePart,
 	ISessionSummary,
-	IToolCallState,
+	IToolCallResult,
 	IUsageInfo,
 	IUserMessage,
+	StringOrMarkdown,
+	ToolCallConfirmationReason,
 } from './sessionState.js';
 
 // ---- Action envelope --------------------------------------------------------
@@ -113,27 +115,79 @@ export interface IResponsePartAction extends ISessionActionBase {
 	readonly part: IResponsePart;
 }
 
-// -- Tool calls (server-only) --
+// -- Tool calls --
 
-export interface IToolStartAction extends ISessionActionBase {
-	readonly type: 'session/toolStart';
-	readonly turnId: string;
-	readonly toolCall: IToolCallState;
-}
-
-export interface IToolCompleteAction extends ISessionActionBase {
-	readonly type: 'session/toolComplete';
+/** Base interface for all tool-call-scoped actions. */
+interface IToolCallActionBase extends ISessionActionBase {
 	readonly turnId: string;
 	readonly toolCallId: string;
-	readonly result: IToolCompleteResult;
 }
 
-/** The data delivered with a tool completion event. */
-export interface IToolCompleteResult {
-	readonly success: boolean;
-	readonly pastTenseMessage: string;
-	readonly toolOutput?: string;
-	readonly error?: { readonly message: string; readonly code?: string };
+/** Server-only. A tool call begins — parameters are streaming from the LM. */
+export interface IToolCallStartAction extends IToolCallActionBase {
+	readonly type: 'session/toolCallStart';
+	readonly toolName: string;
+	readonly displayName: string;
+	/** Hint for the renderer about how to display this tool. */
+	readonly toolKind?: 'terminal';
+	/** Language identifier for syntax highlighting. */
+	readonly language?: string;
+}
+
+/** Server-only. Streaming partial parameters for a tool call. */
+export interface IToolCallDeltaAction extends IToolCallActionBase {
+	readonly type: 'session/toolCallDelta';
+	readonly content: string;
+	readonly invocationMessage?: StringOrMarkdown;
+}
+
+/**
+ * Server-only. Tool call parameters are complete. Transitions to
+ * `pending-confirmation` or directly to `running` if `confirmed` is set.
+ */
+export interface IToolCallReadyAction extends IToolCallActionBase {
+	readonly type: 'session/toolCallReady';
+	readonly invocationMessage: StringOrMarkdown;
+	readonly toolInput?: string;
+	/** If set, the tool was auto-confirmed and transitions directly to `running`. */
+	readonly confirmed?: ToolCallConfirmationReason;
+}
+
+/** Client-dispatchable. Approves a pending tool call → `running`. */
+export interface IToolCallApprovedAction extends IToolCallActionBase {
+	readonly type: 'session/toolCallConfirmed';
+	readonly approved: true;
+	readonly confirmed: ToolCallConfirmationReason;
+}
+
+/** Client-dispatchable. Denies a pending tool call → `cancelled`. */
+export interface IToolCallDeniedAction extends IToolCallActionBase {
+	readonly type: 'session/toolCallConfirmed';
+	readonly approved: false;
+	readonly reason: 'denied' | 'skipped';
+	readonly userSuggestion?: IUserMessage;
+	readonly reasonMessage?: StringOrMarkdown;
+}
+
+/** Client-dispatchable. Confirms or denies a pending tool call. */
+export type IToolCallConfirmedAction =
+	| IToolCallApprovedAction
+	| IToolCallDeniedAction;
+
+/**
+ * Server-only. Tool execution finished. Transitions to `completed` or
+ * `pending-result-confirmation` if `requiresResultConfirmation` is true.
+ */
+export interface IToolCallCompleteAction extends IToolCallActionBase {
+	readonly type: 'session/toolCallComplete';
+	readonly result: IToolCallResult;
+	readonly requiresResultConfirmation?: boolean;
+}
+
+/** Client-dispatchable. Approves or denies a tool's result. */
+export interface IToolCallResultConfirmedAction extends IToolCallActionBase {
+	readonly type: 'session/toolCallResultConfirmed';
+	readonly approved: boolean;
 }
 
 // -- Permissions --
@@ -208,8 +262,12 @@ export type ISessionAction =
 	| ITurnStartedAction
 	| IDeltaAction
 	| IResponsePartAction
-	| IToolStartAction
-	| IToolCompleteAction
+	| IToolCallStartAction
+	| IToolCallDeltaAction
+	| IToolCallReadyAction
+	| IToolCallConfirmedAction
+	| IToolCallCompleteAction
+	| IToolCallResultConfirmedAction
 	| IPermissionRequestAction
 	| IPermissionResolvedAction
 	| ITurnCompleteAction

@@ -18,7 +18,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IAgentAttachment, AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
-import { ToolCallStatus, TurnState, type IMessageAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { TurnState, type IMessageAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
@@ -354,14 +354,27 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			for (const [toolCallId, tc] of Object.entries(activeTurn.toolCalls)) {
 				const existing = activeToolInvocations.get(toolCallId);
 				if (!existing) {
-					if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.PendingPermission) {
+					if (tc.status === 'running' || tc.status === 'streaming' || tc.status === 'pending-confirmation') {
 						const invocation = toolCallStateToInvocation(tc);
 						activeToolInvocations.set(toolCallId, invocation);
 						progress([invocation]);
 					}
-				} else if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Failed) {
+				} else if (tc.status === 'completed' || tc.status === 'cancelled') {
 					activeToolInvocations.delete(toolCallId);
 					finalizeToolInvocation(existing, tc);
+				} else if (tc.status === 'running' || tc.status === 'pending-confirmation') {
+					// Tool transitioned from streaming to ready — update the invocation
+					// with the now-available invocationMessage and toolSpecificData.
+					existing.invocationMessage = typeof tc.invocationMessage === 'string'
+						? tc.invocationMessage
+						: new MarkdownString(tc.invocationMessage.markdown);
+					if (tc.toolKind === 'terminal' && tc.toolInput) {
+						existing.toolSpecificData = {
+							kind: 'terminal',
+							commandLine: { original: tc.toolInput },
+							language: tc.language ?? 'shellscript',
+						};
+					}
 				}
 			}
 

@@ -16,7 +16,7 @@ import {
 	ISessionModelInfo,
 	SessionStatus, type ISessionSummary
 } from '../common/state/sessionState.js';
-import { mapProgressEventToAction } from './agentEventMapper.js';
+import { mapProgressEventToActions } from './agentEventMapper.js';
 import type { IProtocolSideEffectHandler } from './protocolServerHandler.js';
 import { SessionStateManager } from './sessionStateManager.js';
 
@@ -99,9 +99,15 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 
 			const turnId = this._stateManager.getActiveTurnId(e.session);
 			if (turnId) {
-				const action = mapProgressEventToAction(e, e.session, turnId);
-				if (action) {
-					this._stateManager.dispatchServerAction(action);
+				const actions = mapProgressEventToActions(e, e.session, turnId);
+				if (actions) {
+					if (Array.isArray(actions)) {
+						for (const action of actions) {
+							this._stateManager.dispatchServerAction(action);
+						}
+					} else {
+						this._stateManager.dispatchServerAction(actions);
+					}
 				}
 			}
 		}));

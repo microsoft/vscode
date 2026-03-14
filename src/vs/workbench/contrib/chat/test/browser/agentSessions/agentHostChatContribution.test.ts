@@ -16,7 +16,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IActionEnvelope, INotification, IPermissionResolvedAction, ISessionAction, ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { SessionLifecycle, SessionStatus, ToolCallStatus, TurnState, createSessionState, type ISessionState, type ISessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionLifecycle, SessionStatus, TurnState, createSessionState, type ISessionState, type ISessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -479,10 +479,8 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: { toolCallId: 'tc-1', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file', status: ToolCallStatus.Running },
-			} as ISessionAction);
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-1', toolName: 'read_file', displayName: 'Read File' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-1', invocationMessage: 'Reading file', confirmed: 'not-needed' } as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
 			await turnPromise;
@@ -496,12 +494,10 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-2', toolName: 'bash', displayName: 'Bash' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-2', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
 			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: { toolCallId: 'tc-2', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', status: ToolCallStatus.Running },
-			} as ISessionAction);
-			fire({
-				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-2',
+				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-2',
 				result: { success: true, pastTenseMessage: 'Ran Bash command' },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
@@ -520,12 +516,10 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-3', toolName: 'bash', displayName: 'Bash' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-3', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
 			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: { toolCallId: 'tc-3', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', status: ToolCallStatus.Running },
-			} as ISessionAction);
-			fire({
-				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-3',
+				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-3',
 				result: { success: false, pastTenseMessage: '"Bash" failed', toolOutput: 'command not found', error: { message: 'command not found' } },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
@@ -543,10 +537,8 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: { toolCallId: 'tc-bad', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', status: ToolCallStatus.Running, toolArguments: '{not valid json' },
-			} as ISessionAction);
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-bad', toolName: 'bash', displayName: 'Bash' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-bad', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
 			await turnPromise;
@@ -561,10 +553,8 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
 			// tool_start without tool_complete
-			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: { toolCallId: 'tc-orphan', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', status: ToolCallStatus.Running },
-			} as ISessionAction);
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-orphan', toolName: 'bash', displayName: 'Bash' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-orphan', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
 			await turnPromise;
@@ -626,10 +616,8 @@ suite('AgentHostChatContribution', () => {
 				cancellationToken: cts.token,
 			});
 
-			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: { toolCallId: 'tc-cancel', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', status: ToolCallStatus.Running },
-			} as ISessionAction);
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-cancel', toolName: 'bash', displayName: 'Bash' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-cancel', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
 
 			cts.cancel();
 			await turnPromise;
@@ -854,17 +842,10 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-shell', toolName: 'bash', displayName: 'Bash', toolKind: 'terminal' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-shell', invocationMessage: 'Running `echo hello`', toolInput: 'echo hello', confirmed: 'not-needed' } as ISessionAction);
 			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: {
-					toolCallId: 'tc-shell', toolName: 'bash', displayName: 'Bash',
-					invocationMessage: 'Running `echo hello`', toolInput: 'echo hello',
-					toolKind: 'terminal', status: ToolCallStatus.Running,
-					toolArguments: JSON.stringify({ command: 'echo hello' }),
-				},
-			} as ISessionAction);
-			fire({
-				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-shell',
+				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-shell',
 				result: { success: true, pastTenseMessage: 'Ran `echo hello`', toolOutput: 'hello\n' },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
@@ -899,17 +880,10 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-fail', toolName: 'bash', displayName: 'Bash', toolKind: 'terminal' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-fail', invocationMessage: 'Running `bad_cmd`', toolInput: 'bad_cmd', confirmed: 'not-needed' } as ISessionAction);
 			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: {
-					toolCallId: 'tc-fail', toolName: 'bash', displayName: 'Bash',
-					invocationMessage: 'Running `bad_cmd`', toolInput: 'bad_cmd',
-					toolKind: 'terminal', status: ToolCallStatus.Running,
-					toolArguments: JSON.stringify({ command: 'bad_cmd' }),
-				},
-			} as ISessionAction);
-			fire({
-				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-fail',
+				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-fail',
 				result: { success: false, pastTenseMessage: '"Bash" failed', toolOutput: 'command not found: bad_cmd', error: { message: 'command not found: bad_cmd' } },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
@@ -934,16 +908,10 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-gen', toolName: 'custom_tool', displayName: 'custom_tool' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-gen', invocationMessage: 'Using "custom_tool"', confirmed: 'not-needed' } as ISessionAction);
 			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: {
-					toolCallId: 'tc-gen', toolName: 'custom_tool', displayName: 'custom_tool',
-					invocationMessage: 'Using "custom_tool"', status: ToolCallStatus.Running,
-					toolArguments: JSON.stringify({ input: 'data' }),
-				},
-			} as ISessionAction);
-			fire({
-				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-gen',
+				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-gen',
 				result: { success: true, pastTenseMessage: 'Used "custom_tool"' },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
@@ -967,16 +935,10 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-noargs', toolName: 'bash', displayName: 'Bash', toolKind: 'terminal' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-noargs', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
 			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: {
-					toolCallId: 'tc-noargs', toolName: 'bash', displayName: 'Bash',
-					invocationMessage: 'Running Bash command', toolKind: 'terminal',
-					status: ToolCallStatus.Running,
-				},
-			} as ISessionAction);
-			fire({
-				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-noargs',
+				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-noargs',
 				result: { success: true, pastTenseMessage: 'Ran Bash command' },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
@@ -1000,16 +962,10 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-view', toolName: 'view', displayName: 'View File' } as ISessionAction);
+			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-view', invocationMessage: 'Reading /tmp/test.txt', confirmed: 'not-needed' } as ISessionAction);
 			fire({
-				type: 'session/toolStart', session, turnId,
-				toolCall: {
-					toolCallId: 'tc-view', toolName: 'view', displayName: 'View File',
-					invocationMessage: 'Reading /tmp/test.txt', status: ToolCallStatus.Running,
-					toolArguments: JSON.stringify({ file_path: '/tmp/test.txt' }),
-				},
-			} as ISessionAction);
-			fire({
-				type: 'session/toolComplete', session, turnId, toolCallId: 'tc-view',
+				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-view',
 				result: { success: true, pastTenseMessage: 'Read /tmp/test.txt' },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
@@ -1045,9 +1001,9 @@ suite('AgentHostChatContribution', () => {
 					responseParts: [],
 					usage: undefined,
 					toolCalls: [{
-						toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash',
+						status: 'completed' as const, toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash',
 						invocationMessage: 'Running `ls`', toolInput: 'ls', toolKind: 'terminal' as const,
-						success: true, pastTenseMessage: 'Ran `ls`', toolOutput: 'file1\nfile2',
+						confirmed: 'not-needed' as const, success: true, pastTenseMessage: 'Ran `ls`', toolOutput: 'file1\nfile2',
 					}],
 					responseText: '',
 				}],
@@ -1090,7 +1046,7 @@ suite('AgentHostChatContribution', () => {
 					responseParts: [],
 					responseText: '',
 					usage: undefined,
-					toolCalls: [{ toolCallId: 'tc-orphan', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file', success: false, pastTenseMessage: 'Reading file' }],
+					toolCalls: [{ status: 'completed' as const, toolCallId: 'tc-orphan', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file', confirmed: 'not-needed' as const, success: false, pastTenseMessage: 'Reading file' }],
 				}],
 			} as ISessionState);
 
@@ -1121,7 +1077,7 @@ suite('AgentHostChatContribution', () => {
 					responseParts: [],
 					usage: undefined,
 					responseText: '',
-					toolCalls: [{ toolCallId: 'tc-g', toolName: 'grep', displayName: 'Grep', invocationMessage: 'Searching...', success: true, pastTenseMessage: 'Searched for pattern' }],
+					toolCalls: [{ status: 'completed' as const, toolCallId: 'tc-g', toolName: 'grep', displayName: 'Grep', invocationMessage: 'Searching...', confirmed: 'not-needed' as const, success: true, pastTenseMessage: 'Searched for pattern' }],
 				}],
 			} as ISessionState);
 

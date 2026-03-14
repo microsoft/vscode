@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { ToolCallStatus, TurnState, type ICompletedToolCall, type IPermissionRequest, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { TurnState, type ICompletedToolCall, type IPermissionRequest, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IChatProgress, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -48,31 +48,54 @@ export function turnsToHistory(turns: readonly ITurn[], participantId: string): 
  */
 function completedToolCallToSerialized(tc: ICompletedToolCall): IChatToolInvocationSerialized {
 	const isTerminal = tc.toolKind === 'terminal';
+	const isSuccess = tc.status === 'completed' && tc.success;
+	const invocationMsg = stringOrMarkdownToString(tc.invocationMessage) ?? '';
 
 	let toolSpecificData: IChatTerminalToolInvocationData | undefined;
 	if (isTerminal && tc.toolInput) {
+		const toolOutput = tc.status === 'completed' ? tc.toolOutput : undefined;
 		toolSpecificData = {
 			kind: 'terminal',
 			commandLine: { original: tc.toolInput },
 			language: tc.language ?? 'shellscript',
-			terminalCommandOutput: tc.toolOutput !== undefined ? { text: tc.toolOutput } : undefined,
-			terminalCommandState: { exitCode: tc.success ? 0 : 1 },
+			terminalCommandOutput: toolOutput !== undefined ? { text: toolOutput } : undefined,
+			terminalCommandState: { exitCode: isSuccess ? 0 : 1 },
 		};
 	}
+
+	const pastTenseMsg = isSuccess
+		? stringOrMarkdownToString(tc.pastTenseMessage) ?? invocationMsg
+		: invocationMsg;
 
 	return {
 		kind: 'toolInvocationSerialized',
 		toolCallId: tc.toolCallId,
 		toolId: tc.toolName,
 		source: ToolDataSource.Internal,
-		invocationMessage: new MarkdownString(tc.invocationMessage),
+		invocationMessage: invocationMsg,
 		originMessage: undefined,
-		pastTenseMessage: isTerminal ? undefined : new MarkdownString(tc.pastTenseMessage),
-		isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
+		isConfirmed: isSuccess
+			? { type: ToolConfirmKind.ConfirmationNotNeeded }
+			: { type: ToolConfirmKind.Denied },
 		isComplete: true,
 		presentation: undefined,
 		toolSpecificData,
 	};
+}
+
+/**
+ * Creates a live {@link ChatToolInvocation} from the protocol's tool-call
+ * state. Used during active turns to represent running tool calls in the UI.
+ */
+/**
+ * Converts a protocol `StringOrMarkdown` value to a chat-layer `IMarkdownString`.
+ */
+function stringOrMarkdownToString(value: string | { readonly markdown: string } | undefined): string | IMarkdownString | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	return typeof value === 'string' ? value : new MarkdownString(value.markdown);
 }
 
 /**
@@ -87,15 +110,10 @@ export function toolCallStateToInvocation(tc: IToolCallState): ChatToolInvocatio
 		modelDescription: tc.toolName,
 	};
 
-	let parameters: unknown;
-	if (tc.toolArguments) {
-		try { parameters = JSON.parse(tc.toolArguments); } catch { /* malformed JSON */ }
-	}
+	const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, undefined, undefined);
+	invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage) ?? '';
 
-	const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, undefined, parameters);
-	invocation.invocationMessage = new MarkdownString(tc.invocationMessage);
-
-	if (tc.toolKind === 'terminal' && tc.toolInput) {
+	if (tc.toolKind === 'terminal' && tc.status !== 'streaming' && tc.toolInput) {
 		invocation.toolSpecificData = {
 			kind: 'terminal',
 			commandLine: { original: tc.toolInput },
@@ -183,17 +201,23 @@ export function permissionToConfirmation(perm: IPermissionRequest): ChatToolInvo
  * protocol's tool-call state, transitioning it to the completed state.
  */
 export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: IToolCallState): void {
-	if (invocation.toolSpecificData?.kind === 'terminal') {
+	const isCompleted = tc.status === 'completed';
+	const isCancelled = tc.status === 'cancelled';
+
+	if (invocation.toolSpecificData?.kind === 'terminal' && (isCompleted || isCancelled)) {
 		const terminalData = invocation.toolSpecificData as IChatTerminalToolInvocationData;
+		const toolOutput = isCompleted ? tc.toolOutput : undefined;
 		invocation.toolSpecificData = {
 			...terminalData,
-			terminalCommandOutput: tc.toolOutput !== undefined ? { text: tc.toolOutput } : undefined,
-			terminalCommandState: { exitCode: tc.status === ToolCallStatus.Completed ? 0 : 1 },
+			terminalCommandOutput: toolOutput !== undefined ? { text: toolOutput } : undefined,
+			terminalCommandState: { exitCode: isCompleted && tc.success ? 0 : 1 },
 		};
-	} else if (tc.pastTenseMessage) {
-		invocation.pastTenseMessage = new MarkdownString(tc.pastTenseMessage);
+	} else if (isCompleted && tc.pastTenseMessage) {
+		invocation.pastTenseMessage = stringOrMarkdownToString(tc.pastTenseMessage);
 	}
 
-	const isFailure = tc.status === ToolCallStatus.Failed;
-	invocation.didExecuteTool(isFailure ? { content: [], toolResultError: tc.error?.message } : undefined);
+	const isFailure = (isCompleted && !tc.success) || isCancelled;
+	const errorMessage = isCompleted ? tc.error?.message : (isCancelled ? tc.reasonMessage : undefined);
+	const errorString = typeof errorMessage === 'string' ? errorMessage : errorMessage?.markdown;
+	invocation.didExecuteTool(isFailure ? { content: [], toolResultError: errorString } : undefined);
 }

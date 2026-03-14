@@ -347,16 +347,17 @@ suite('Protocol WebSocket E2E', function () {
 	});
 
 	// 4. Tool invocation lifecycle
-	test('tool invocation: toolStart → toolComplete → delta → turnComplete', async function () {
+	test('tool invocation: toolCallStart → toolCallComplete → delta → turnComplete', async function () {
 		this.timeout(10_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-tool-invocation');
 		dispatchTurnStarted(client, sessionUri, 'turn-tool', 'use-tool', 1);
 
-		await client.waitForNotification(n => isActionNotification(n, 'session/toolStart'));
-		const toolComplete = await client.waitForNotification(n => isActionNotification(n, 'session/toolComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
+		const toolComplete = await client.waitForNotification(n => isActionNotification(n, 'session/toolCallComplete'));
 		const tcAction = getActionParams(toolComplete).envelope.action;
-		if (tcAction.type === 'session/toolComplete') {
+		if (tcAction.type === 'session/toolCallComplete') {
 			assert.strictEqual(tcAction.result.success, true);
 		}
 		await client.waitForNotification(n => isActionNotification(n, 'session/delta'));

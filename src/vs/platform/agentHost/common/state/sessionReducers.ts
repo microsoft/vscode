@@ -20,11 +20,11 @@ import {
 	type IErrorInfo,
 	type IRootState,
 	type ISessionState,
+	type IToolCallState,
 	type ITurn,
 	createActiveTurn,
 	SessionLifecycle,
 	SessionStatus,
-	ToolCallStatus,
 	TurnState,
 } from './sessionState.js';
 
@@ -95,24 +95,8 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 				},
 			};
 		}
-		case 'session/toolStart': {
+		case 'session/toolCallStart': {
 			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
-				return state;
-			}
-			return {
-				...state,
-				activeTurn: {
-					...state.activeTurn,
-					toolCalls: { ...state.activeTurn.toolCalls, [action.toolCall.toolCallId]: action.toolCall },
-				},
-			};
-		}
-		case 'session/toolComplete': {
-			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
-				return state;
-			}
-			const toolCall = state.activeTurn.toolCalls[action.toolCallId];
-			if (!toolCall) {
 				return state;
 			}
 			return {
@@ -122,13 +106,201 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 					toolCalls: {
 						...state.activeTurn.toolCalls,
 						[action.toolCallId]: {
-							...toolCall,
-							status: action.result.success ? ToolCallStatus.Completed : ToolCallStatus.Failed,
-							pastTenseMessage: action.result.pastTenseMessage,
-							toolOutput: action.result.toolOutput,
-							error: action.result.error,
+							status: 'streaming',
+							toolCallId: action.toolCallId,
+							toolName: action.toolName,
+							displayName: action.displayName,
+							toolKind: action.toolKind,
+							language: action.language,
 						},
 					},
+				},
+			};
+		}
+		case 'session/toolCallDelta': {
+			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
+				return state;
+			}
+			const tc = state.activeTurn.toolCalls[action.toolCallId];
+			if (!tc || tc.status !== 'streaming') {
+				return state;
+			}
+			return {
+				...state,
+				activeTurn: {
+					...state.activeTurn,
+					toolCalls: {
+						...state.activeTurn.toolCalls,
+						[action.toolCallId]: {
+							...tc,
+							partialInput: (tc.partialInput ?? '') + action.content,
+							invocationMessage: action.invocationMessage ?? tc.invocationMessage,
+						},
+					},
+				},
+			};
+		}
+		case 'session/toolCallReady': {
+			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
+				return state;
+			}
+			const tc = state.activeTurn.toolCalls[action.toolCallId];
+			if (!tc) {
+				return state;
+			}
+			const updated: IToolCallState = action.confirmed
+				? {
+					status: 'running',
+					toolCallId: tc.toolCallId,
+					toolName: tc.toolName,
+					displayName: tc.displayName,
+					toolKind: tc.toolKind,
+					language: tc.language,
+					invocationMessage: action.invocationMessage,
+					toolInput: action.toolInput,
+					confirmed: action.confirmed,
+				}
+				: {
+					status: 'pending-confirmation',
+					toolCallId: tc.toolCallId,
+					toolName: tc.toolName,
+					displayName: tc.displayName,
+					toolKind: tc.toolKind,
+					language: tc.language,
+					invocationMessage: action.invocationMessage,
+					toolInput: action.toolInput,
+				};
+			return {
+				...state,
+				activeTurn: {
+					...state.activeTurn,
+					toolCalls: { ...state.activeTurn.toolCalls, [action.toolCallId]: updated },
+				},
+			};
+		}
+		case 'session/toolCallConfirmed': {
+			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
+				return state;
+			}
+			const tc = state.activeTurn.toolCalls[action.toolCallId];
+			if (!tc || tc.status !== 'pending-confirmation') {
+				return state;
+			}
+			const updated: IToolCallState = action.approved
+				? {
+					status: 'running',
+					toolCallId: tc.toolCallId,
+					toolName: tc.toolName,
+					displayName: tc.displayName,
+					toolKind: tc.toolKind,
+					language: tc.language,
+					invocationMessage: tc.invocationMessage,
+					toolInput: tc.toolInput,
+					confirmed: action.confirmed,
+				}
+				: {
+					status: 'cancelled',
+					toolCallId: tc.toolCallId,
+					toolName: tc.toolName,
+					displayName: tc.displayName,
+					toolKind: tc.toolKind,
+					language: tc.language,
+					invocationMessage: tc.invocationMessage,
+					toolInput: tc.toolInput,
+					reason: action.reason,
+					reasonMessage: action.reasonMessage,
+					userSuggestion: action.userSuggestion,
+				};
+			return {
+				...state,
+				activeTurn: {
+					...state.activeTurn,
+					toolCalls: { ...state.activeTurn.toolCalls, [action.toolCallId]: updated },
+				},
+			};
+		}
+		case 'session/toolCallComplete': {
+			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
+				return state;
+			}
+			const tc = state.activeTurn.toolCalls[action.toolCallId];
+			if (!tc || (tc.status !== 'running' && tc.status !== 'pending-confirmation')) {
+				return state;
+			}
+			const confirmed = tc.status === 'running' ? tc.confirmed : 'not-needed';
+			const updated: IToolCallState = action.requiresResultConfirmation
+				? {
+					status: 'pending-result-confirmation',
+					toolCallId: tc.toolCallId,
+					toolName: tc.toolName,
+					displayName: tc.displayName,
+					toolKind: tc.toolKind,
+					language: tc.language,
+					invocationMessage: tc.invocationMessage,
+					toolInput: tc.toolInput,
+					confirmed,
+					...action.result,
+				}
+				: {
+					status: 'completed',
+					toolCallId: tc.toolCallId,
+					toolName: tc.toolName,
+					displayName: tc.displayName,
+					toolKind: tc.toolKind,
+					language: tc.language,
+					invocationMessage: tc.invocationMessage,
+					toolInput: tc.toolInput,
+					confirmed,
+					...action.result,
+				};
+			return {
+				...state,
+				activeTurn: {
+					...state.activeTurn,
+					toolCalls: { ...state.activeTurn.toolCalls, [action.toolCallId]: updated },
+				},
+			};
+		}
+		case 'session/toolCallResultConfirmed': {
+			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
+				return state;
+			}
+			const tc = state.activeTurn.toolCalls[action.toolCallId];
+			if (!tc || tc.status !== 'pending-result-confirmation') {
+				return state;
+			}
+			const updated: IToolCallState = action.approved
+				? {
+					status: 'completed',
+					toolCallId: tc.toolCallId,
+					toolName: tc.toolName,
+					displayName: tc.displayName,
+					toolKind: tc.toolKind,
+					language: tc.language,
+					invocationMessage: tc.invocationMessage,
+					toolInput: tc.toolInput,
+					confirmed: tc.confirmed,
+					success: tc.success,
+					pastTenseMessage: tc.pastTenseMessage,
+					toolOutput: tc.toolOutput,
+					error: tc.error,
+				}
+				: {
+					status: 'cancelled',
+					toolCallId: tc.toolCallId,
+					toolName: tc.toolName,
+					displayName: tc.displayName,
+					toolKind: tc.toolKind,
+					language: tc.language,
+					invocationMessage: tc.invocationMessage,
+					toolInput: tc.toolInput,
+					reason: 'result-denied',
+				};
+			return {
+				...state,
+				activeTurn: {
+					...state.activeTurn,
+					toolCalls: { ...state.activeTurn.toolCalls, [action.toolCallId]: updated },
 				},
 			};
 		}
@@ -140,8 +312,15 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 			let toolCalls = state.activeTurn.toolCalls;
 			if (action.request.toolCallId) {
 				const toolCall = toolCalls[action.request.toolCallId];
-				if (toolCall) {
-					toolCalls = { ...toolCalls, [action.request.toolCallId]: { ...toolCall, status: ToolCallStatus.PendingPermission } };
+				if (toolCall && (toolCall.status === 'running' || toolCall.status === 'streaming')) {
+					toolCalls = {
+						...toolCalls,
+						[action.request.toolCallId]: {
+							...toolCall,
+							status: 'pending-confirmation',
+							invocationMessage: toolCall.invocationMessage ?? '',
+						},
+					};
 				}
 			}
 			return {
@@ -158,16 +337,31 @@ export function sessionReducer(state: ISessionState, action: ISessionAction): IS
 			let toolCalls = state.activeTurn.toolCalls;
 			if (resolved?.toolCallId) {
 				const toolCall = toolCalls[resolved.toolCallId];
-				if (toolCall && toolCall.status === ToolCallStatus.PendingPermission) {
-					toolCalls = {
-						...toolCalls,
-						[resolved.toolCallId]: {
-							...toolCall,
-							status: action.approved ? ToolCallStatus.Running : ToolCallStatus.Cancelled,
-							confirmed: action.approved ? 'user-action' : 'denied',
-							cancellationReason: action.approved ? undefined : 'denied',
-						},
-					};
+				if (toolCall && toolCall.status === 'pending-confirmation') {
+					const updated: IToolCallState = action.approved
+						? {
+							status: 'running',
+							toolCallId: toolCall.toolCallId,
+							toolName: toolCall.toolName,
+							displayName: toolCall.displayName,
+							toolKind: toolCall.toolKind,
+							language: toolCall.language,
+							invocationMessage: toolCall.invocationMessage,
+							toolInput: toolCall.toolInput,
+							confirmed: 'user-action',
+						}
+						: {
+							status: 'cancelled',
+							toolCallId: toolCall.toolCallId,
+							toolName: toolCall.toolName,
+							displayName: toolCall.displayName,
+							toolKind: toolCall.toolKind,
+							language: toolCall.language,
+							invocationMessage: toolCall.invocationMessage,
+							toolInput: toolCall.toolInput,
+							reason: 'denied',
+						};
+					toolCalls = { ...toolCalls, [resolved.toolCallId]: updated };
 				}
 			}
 			return {
@@ -236,19 +430,26 @@ function finalizeTurn(state: ISessionState, turnId: string, turnState: TurnState
 
 	const completedToolCalls: ICompletedToolCall[] = [];
 	for (const tc of Object.values(active.toolCalls)) {
-		completedToolCalls.push({
-			toolCallId: tc.toolCallId,
-			toolName: tc.toolName,
-			displayName: tc.displayName,
-			invocationMessage: tc.invocationMessage,
-			success: tc.status === ToolCallStatus.Completed,
-			pastTenseMessage: tc.pastTenseMessage ?? tc.invocationMessage,
-			toolInput: tc.toolInput,
-			toolKind: tc.toolKind,
-			language: tc.language,
-			toolOutput: tc.toolOutput,
-			error: tc.error,
-		});
+		if (tc.status === 'completed') {
+			completedToolCalls.push(tc);
+		} else if (tc.status === 'cancelled') {
+			completedToolCalls.push(tc);
+		} else {
+			// For tool calls that are not in a terminal state when the turn
+			// finishes (e.g. still streaming or running), force them into
+			// a cancelled state so they are persisted properly.
+			completedToolCalls.push({
+				status: 'cancelled',
+				toolCallId: tc.toolCallId,
+				toolName: tc.toolName,
+				displayName: tc.displayName,
+				toolKind: tc.toolKind,
+				language: tc.language,
+				invocationMessage: tc.status === 'streaming' ? (tc.invocationMessage ?? '') : tc.invocationMessage,
+				toolInput: tc.status === 'streaming' ? undefined : tc.toolInput,
+				reason: 'skipped',
+			});
+		}
 	}
 
 	const finalizedTurn: ITurn = {

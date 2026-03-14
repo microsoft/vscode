@@ -69,7 +69,7 @@ export interface IV1_Turn {
 	readonly userMessage: IV1_UserMessage;
 	readonly responseText: string;
 	readonly responseParts: readonly IV1_ResponsePart[];
-	readonly toolCalls: readonly IV1_CompletedToolCall[];
+	readonly toolCalls: readonly (IV1_ToolCallCompletedState | IV1_ToolCallCancelledState)[];
 	readonly usage: IV1_UsageInfo | undefined;
 	readonly state: 'complete' | 'cancelled' | 'error';
 	readonly error?: IV1_ErrorInfo;
@@ -100,37 +100,71 @@ export interface IV1_ContentRef {
 
 export type IV1_ResponsePart = IV1_MarkdownResponsePart | IV1_ContentRef;
 
-export interface IV1_ToolCallState {
+export type IV1_StringOrMarkdown = string | { readonly markdown: string };
+
+export type IV1_ToolCallConfirmationReason = 'not-needed' | 'user-action' | 'setting';
+
+interface IV1_ToolCallBase {
 	readonly toolCallId: string;
 	readonly toolName: string;
 	readonly displayName: string;
-	readonly invocationMessage: string;
-	readonly toolInput?: string;
 	readonly toolKind?: 'terminal';
 	readonly language?: string;
-	readonly toolArguments?: string;
-	readonly status: 'running' | 'pending-permission' | 'completed' | 'failed' | 'cancelled';
-	readonly parameters?: unknown;
-	readonly confirmed?: 'not-needed' | 'user-action' | 'setting' | 'denied' | 'skipped';
-	readonly pastTenseMessage?: string;
-	readonly toolOutput?: string;
-	readonly error?: { readonly message: string; readonly code?: string };
-	readonly cancellationReason?: 'denied' | 'skipped';
 }
 
-export interface IV1_CompletedToolCall {
-	readonly toolCallId: string;
-	readonly toolName: string;
-	readonly displayName: string;
-	readonly invocationMessage: string;
-	readonly success: boolean;
-	readonly pastTenseMessage: string;
+interface IV1_ToolCallParameterFields {
+	readonly invocationMessage: IV1_StringOrMarkdown;
 	readonly toolInput?: string;
-	readonly toolKind?: 'terminal';
-	readonly language?: string;
+}
+
+export interface IV1_ToolCallResult {
+	readonly success: boolean;
+	readonly pastTenseMessage: IV1_StringOrMarkdown;
 	readonly toolOutput?: string;
 	readonly error?: { readonly message: string; readonly code?: string };
 }
+
+export interface IV1_ToolCallStreamingState extends IV1_ToolCallBase {
+	readonly status: 'streaming';
+	readonly partialInput?: string;
+	readonly invocationMessage?: IV1_StringOrMarkdown;
+}
+
+export interface IV1_ToolCallPendingConfirmationState extends IV1_ToolCallBase, IV1_ToolCallParameterFields {
+	readonly status: 'pending-confirmation';
+}
+
+export interface IV1_ToolCallRunningState extends IV1_ToolCallBase, IV1_ToolCallParameterFields {
+	readonly status: 'running';
+	readonly confirmed: IV1_ToolCallConfirmationReason;
+}
+
+export interface IV1_ToolCallPendingResultConfirmationState extends IV1_ToolCallBase, IV1_ToolCallParameterFields, IV1_ToolCallResult {
+	readonly status: 'pending-result-confirmation';
+	readonly confirmed: IV1_ToolCallConfirmationReason;
+}
+
+export interface IV1_ToolCallCompletedState extends IV1_ToolCallBase, IV1_ToolCallParameterFields, IV1_ToolCallResult {
+	readonly status: 'completed';
+	readonly confirmed: IV1_ToolCallConfirmationReason;
+}
+
+export interface IV1_ToolCallCancelledState extends IV1_ToolCallBase, IV1_ToolCallParameterFields {
+	readonly status: 'cancelled';
+	readonly reason: 'denied' | 'skipped' | 'result-denied';
+	readonly reasonMessage?: IV1_StringOrMarkdown;
+	readonly userSuggestion?: IV1_UserMessage;
+}
+
+export type IV1_ToolCallState =
+	| IV1_ToolCallStreamingState
+	| IV1_ToolCallPendingConfirmationState
+	| IV1_ToolCallRunningState
+	| IV1_ToolCallPendingResultConfirmationState
+	| IV1_ToolCallCompletedState
+	| IV1_ToolCallCancelledState;
+
+export type IV1_CompletedToolCall = IV1_ToolCallCompletedState | IV1_ToolCallCancelledState;
 
 export interface IV1_PermissionRequest {
 	readonly requestId: string;
@@ -200,24 +234,59 @@ export interface IV1_ResponsePartAction extends IV1_SessionActionBase {
 	readonly part: IV1_ResponsePart;
 }
 
-export interface IV1_ToolStartAction extends IV1_SessionActionBase {
-	readonly type: 'session/toolStart';
-	readonly turnId: string;
-	readonly toolCall: IV1_ToolCallState;
-}
-
-export interface IV1_ToolCompleteAction extends IV1_SessionActionBase {
-	readonly type: 'session/toolComplete';
+interface IV1_ToolCallActionBase extends IV1_SessionActionBase {
 	readonly turnId: string;
 	readonly toolCallId: string;
-	readonly result: IV1_ToolCompleteResult;
 }
 
-export interface IV1_ToolCompleteResult {
-	readonly success: boolean;
-	readonly pastTenseMessage: string;
-	readonly toolOutput?: string;
-	readonly error?: { readonly message: string; readonly code?: string };
+export interface IV1_ToolCallStartAction extends IV1_ToolCallActionBase {
+	readonly type: 'session/toolCallStart';
+	readonly toolName: string;
+	readonly displayName: string;
+	readonly toolKind?: 'terminal';
+	readonly language?: string;
+}
+
+export interface IV1_ToolCallDeltaAction extends IV1_ToolCallActionBase {
+	readonly type: 'session/toolCallDelta';
+	readonly content: string;
+	readonly invocationMessage?: IV1_StringOrMarkdown;
+}
+
+export interface IV1_ToolCallReadyAction extends IV1_ToolCallActionBase {
+	readonly type: 'session/toolCallReady';
+	readonly invocationMessage: IV1_StringOrMarkdown;
+	readonly toolInput?: string;
+	readonly confirmed?: IV1_ToolCallConfirmationReason;
+}
+
+export interface IV1_ToolCallApprovedAction extends IV1_ToolCallActionBase {
+	readonly type: 'session/toolCallConfirmed';
+	readonly approved: true;
+	readonly confirmed: IV1_ToolCallConfirmationReason;
+}
+
+export interface IV1_ToolCallDeniedAction extends IV1_ToolCallActionBase {
+	readonly type: 'session/toolCallConfirmed';
+	readonly approved: false;
+	readonly reason: 'denied' | 'skipped';
+	readonly userSuggestion?: IV1_UserMessage;
+	readonly reasonMessage?: IV1_StringOrMarkdown;
+}
+
+export type IV1_ToolCallConfirmedAction =
+	| IV1_ToolCallApprovedAction
+	| IV1_ToolCallDeniedAction;
+
+export interface IV1_ToolCallCompleteAction extends IV1_ToolCallActionBase {
+	readonly type: 'session/toolCallComplete';
+	readonly result: IV1_ToolCallResult;
+	readonly requiresResultConfirmation?: boolean;
+}
+
+export interface IV1_ToolCallResultConfirmedAction extends IV1_ToolCallActionBase {
+	readonly type: 'session/toolCallResultConfirmed';
+	readonly approved: boolean;
 }
 
 export interface IV1_PermissionRequestAction extends IV1_SessionActionBase {
@@ -280,8 +349,12 @@ export type IV1_SessionAction =
 	| IV1_TurnStartedAction
 	| IV1_DeltaAction
 	| IV1_ResponsePartAction
-	| IV1_ToolStartAction
-	| IV1_ToolCompleteAction
+	| IV1_ToolCallStartAction
+	| IV1_ToolCallDeltaAction
+	| IV1_ToolCallReadyAction
+	| IV1_ToolCallConfirmedAction
+	| IV1_ToolCallCompleteAction
+	| IV1_ToolCallResultConfirmedAction
 	| IV1_PermissionRequestAction
 	| IV1_PermissionResolvedAction
 	| IV1_TurnCompleteAction
