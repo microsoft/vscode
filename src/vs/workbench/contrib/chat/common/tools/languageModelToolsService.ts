@@ -595,11 +595,8 @@ export function createToolInputUri(toolCallId: string): URI {
 	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolCallId}/tool_input.json` });
 }
 
-export function createToolSchemaUri(toolOrId: IToolData | string): URI {
-	if (typeof toolOrId !== 'string') {
-		toolOrId = toolOrId.id;
-	}
-	return URI.from({ scheme: Schemas.vscode, authority: 'schemas', path: `/lm/tool/${toolOrId}` });
+export function createToolSchemaUri(toolId: string): URI {
+	return URI.from({ scheme: Schemas.vscode, authority: 'schemas', path: `/lm/tool/${toolId}` });
 }
 
 export namespace SpecedToolAliases {
