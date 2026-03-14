@@ -1246,9 +1246,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 			const label = (typeof propSchema.title === 'string' ? propSchema.title : undefined)
 				?? key.replace(/([a-z])([A-Z])/g, '$1 $2')
 					.replace(/^./, s => s.toUpperCase());
+			const defaultValue = propSchema.default;
 			const enumActions: IAction[] = propSchema.enum.map((value: unknown) => ({
 				id: `configureModel.${key}.${value}`,
-				label: String(value),
+				label: value === defaultValue ? localize('models.enumDefault', "{0} (default)", String(value)) : String(value),
 				class: undefined,
 				enabled: true,
 				tooltip: '',
