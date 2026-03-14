@@ -2535,6 +2535,8 @@ export class Repository {
 					err.gitErrorCode = GitErrorCodes.ForcePushWithLeaseRejected;
 				} else if (forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes && /! \[rejected\].*\(remote ref updated since checkout\)/m.test(err.stderr || '')) {
 					err.gitErrorCode = GitErrorCodes.ForcePushWithLeaseIfIncludesRejected;
+				} else if (/remote:.*fatal error in commit_refs/m.test(err.stderr || '')) {
+					err.gitErrorCode = GitErrorCodes.RemoteInternalError;
 				} else {
 					err.gitErrorCode = GitErrorCodes.PushRejected;
 				}
