@@ -1089,7 +1089,7 @@ export class ActionList<T> extends Disposable {
 		// Don't select when clicking on toolbar actions, submenu indicator, or submenu
 		if (e.browserEvent && dom.isHTMLElement((e.browserEvent as MouseEvent).target)) {
 			const target = (e.browserEvent as MouseEvent).target as HTMLElement;
-			if (target.closest('.action-list-item-toolbar') || target.closest('.action-list-submenu-indicator') || target.closest('.monaco-submenu')) {
+			if (target.closest('.action-list-item-toolbar') || target.closest('.action-list-submenu-indicator') || target.closest('.action-list-submenu')) {
 				this._list.setSelection([]);
 				return;
 			}
@@ -1279,6 +1279,9 @@ export class ActionList<T> extends Disposable {
 						const groupLabel = dom.append(item, dom.$('span.action-list-submenu-group'));
 						groupLabel.textContent = action.label;
 					}
+					submenuDisposables.add(dom.addDisposableListener(item, dom.EventType.MOUSE_DOWN, (e) => {
+						dom.EventHelper.stop(e, true);
+					}));
 					submenuDisposables.add(dom.addDisposableListener(item, dom.EventType.CLICK, (e) => {
 						dom.EventHelper.stop(e, true);
 						child.run();
