@@ -8,9 +8,8 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { tokenizeToString } from '../../../../../editor/common/languages/textToHtmlTokenizer.js';
 import { IChatDebugEventModelTurnContent } from '../../common/chatDebugService.js';
-import { tryParseJSON, renderSection } from './chatDebugToolCallContentRenderer.js';
+import { renderSection, tokenizeContent } from './chatDebugToolCallContentRenderer.js';
 import { safeIntl } from '../../../../../base/common/date.js';
 
 const $ = DOM.$;
@@ -82,11 +81,7 @@ export async function renderModelTurnContent(content: IChatDebugEventModelTurnCo
 			localize('chatDebug.modelTurn.sections', "Sections ({0})", content.sections.length)));
 
 		for (const section of content.sections) {
-			const result = tryParseJSON(section.content);
-			const plainText = result.isJSON ? JSON.stringify(result.parsed, null, 2) : section.content;
-			const tokenizedHtml = result.isJSON
-				? await tokenizeToString(languageService, plainText, 'json')
-				: undefined;
+			const { plainText, tokenizedHtml } = await tokenizeContent(section.content, languageService);
 			renderSection(sectionsContainer, section.name, plainText, tokenizedHtml, disposables, false, clipboardService);
 		}
 	}

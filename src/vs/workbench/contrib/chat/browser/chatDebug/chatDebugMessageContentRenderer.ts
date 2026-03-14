@@ -8,9 +8,8 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { tokenizeToString } from '../../../../../editor/common/languages/textToHtmlTokenizer.js';
 import { IChatDebugUserMessageEvent, IChatDebugAgentResponseEvent, IChatDebugEventMessageContent } from '../../common/chatDebugService.js';
-import { tryParseJSON, renderSection } from './chatDebugToolCallContentRenderer.js';
+import { renderSection, tokenizeContent } from './chatDebugToolCallContentRenderer.js';
 
 const $ = DOM.$;
 
@@ -32,11 +31,7 @@ export async function renderUserMessageContent(event: IChatDebugUserMessageEvent
 			localize('chatDebug.promptSections', "Prompt Sections ({0})", event.sections.length)));
 
 		for (const section of event.sections) {
-			const result = tryParseJSON(section.content);
-			const plainText = result.isJSON ? JSON.stringify(result.parsed, null, 2) : section.content;
-			const tokenizedHtml = result.isJSON
-				? await tokenizeToString(languageService, plainText, 'json')
-				: undefined;
+			const { plainText, tokenizedHtml } = await tokenizeContent(section.content, languageService);
 			renderSection(sectionsContainer, section.name, plainText, tokenizedHtml, disposables, false, clipboardService);
 		}
 	}
@@ -62,11 +57,7 @@ export async function renderAgentResponseContent(event: IChatDebugAgentResponseE
 			localize('chatDebug.responseSections', "Response Sections ({0})", event.sections.length)));
 
 		for (const section of event.sections) {
-			const result = tryParseJSON(section.content);
-			const plainText = result.isJSON ? JSON.stringify(result.parsed, null, 2) : section.content;
-			const tokenizedHtml = result.isJSON
-				? await tokenizeToString(languageService, plainText, 'json')
-				: undefined;
+			const { plainText, tokenizedHtml } = await tokenizeContent(section.content, languageService);
 			renderSection(sectionsContainer, section.name, plainText, tokenizedHtml, disposables, false, clipboardService);
 		}
 	}
@@ -115,11 +106,7 @@ export async function renderResolvedMessageContent(content: IChatDebugEventMessa
 		DOM.append(sectionsContainer, $('div.chat-debug-message-sections-label', undefined, label));
 
 		for (const section of content.sections) {
-			const result = tryParseJSON(section.content);
-			const plainText = result.isJSON ? JSON.stringify(result.parsed, null, 2) : section.content;
-			const tokenizedHtml = result.isJSON
-				? await tokenizeToString(languageService, plainText, 'json')
-				: undefined;
+			const { plainText, tokenizedHtml } = await tokenizeContent(section.content, languageService);
 			renderSection(sectionsContainer, section.name, plainText, tokenizedHtml, disposables, false, clipboardService);
 		}
 	}
