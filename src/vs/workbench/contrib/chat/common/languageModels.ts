@@ -332,7 +332,7 @@ export interface ILanguageModelChatInfoOptions {
 
 export interface ILanguageModelChatRequestOptions {
 	readonly modelOptions?: IStringDictionary<unknown>;
-	readonly modelConfiguration?: IStringDictionary<unknown>;
+	readonly configuration?: IStringDictionary<unknown>;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	readonly [name: string]: any;
 }
@@ -1024,7 +1024,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			throw new Error(`Chat provider for model ${modelId} is not registered.`);
 		}
 		const configuration = this._resolveModelConfigurationWithDefaults(modelId, metadata);
-		const mergedOptions = configuration ? { ...options, modelConfiguration: configuration } : options;
+		const mergedOptions = configuration ? { ...options, configuration } : options;
 		return provider.sendChatRequest(modelId, messages, from, mergedOptions, token);
 	}
 
