@@ -33,6 +33,19 @@ export function tryParseJSON(text: string): { parsed: unknown; isJSON: true } | 
 }
 
 /**
+ * Format and syntax-highlight a content string.
+ * When the content is valid JSON it is pretty-printed and tokenized as JSON;
+ * otherwise it is tokenized as markdown.
+ */
+export async function tokenizeContent(text: string, languageService: ILanguageService): Promise<{ plainText: string; tokenizedHtml: string }> {
+	const result = tryParseJSON(text);
+	const plainText = result.isJSON ? JSON.stringify(result.parsed, null, 2) : text;
+	const language = result.isJSON ? 'json' : 'markdown';
+	const tokenizedHtml = await tokenizeToString(languageService, plainText, language);
+	return { plainText, tokenizedHtml };
+}
+
+/**
  * Render a collapsible section. When `tokenizedHtml` is provided the content
  * is rendered as syntax-highlighted HTML; otherwise plain-text is used.
  * Optionally adds a copy button when `clipboardService` is provided.
@@ -120,20 +133,12 @@ export async function renderToolCallContent(content: IChatDebugEventToolCallCont
 	const sectionsContainer = DOM.append(container, $('div.chat-debug-message-sections'));
 
 	if (content.input) {
-		const result = tryParseJSON(content.input);
-		const plainText = result.isJSON ? JSON.stringify(result.parsed, null, 2) : content.input;
-		const tokenizedHtml = result.isJSON
-			? await tokenizeToString(languageService, plainText, 'json')
-			: undefined;
+		const { plainText, tokenizedHtml } = await tokenizeContent(content.input, languageService);
 		renderSection(sectionsContainer, localize('chatDebug.toolCall.arguments', "Arguments"), plainText, tokenizedHtml, disposables, false, clipboardService);
 	}
 
 	if (content.output) {
-		const result = tryParseJSON(content.output);
-		const plainText = result.isJSON ? JSON.stringify(result.parsed, null, 2) : content.output;
-		const tokenizedHtml = result.isJSON
-			? await tokenizeToString(languageService, plainText, 'json')
-			: undefined;
+		const { plainText, tokenizedHtml } = await tokenizeContent(content.output, languageService);
 		renderSection(sectionsContainer, localize('chatDebug.toolCall.output', "Output"), plainText, tokenizedHtml, disposables, false, clipboardService);
 	}
 
