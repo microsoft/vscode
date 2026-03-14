@@ -8,8 +8,10 @@ import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/drop
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
 import { renderIcon, renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
@@ -66,7 +68,15 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 			}
 			return models.map(model => {
 				const hoverContent = model.metadata.tooltip;
-				const toolbarActions = languageModelsService.getModelConfigurationActions(model.identifier);
+				const hasConfigSchema = !!model.metadata.configurationSchema;
+				const toolbarActions = hasConfigSchema ? [{
+					id: 'configureModel',
+					label: localize('chat.modelPicker.configure', "Configure"),
+					class: ThemeIcon.asClassName(Codicon.gear),
+					enabled: true,
+					tooltip: localize('chat.modelPicker.configure.tooltip', "Configure Model"),
+					run: () => languageModelsService.configureModel(model.identifier)
+				}] : undefined;
 				return {
 					id: model.metadata.id,
 					enabled: true,
@@ -78,7 +88,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					tooltip: hoverContent ? '' : model.metadata.name,
 					hover: hoverContent ? { content: hoverContent, position: pickerOptions.hoverPosition } : undefined,
 					label: model.metadata.name,
-					toolbarActions: toolbarActions.length > 0 ? toolbarActions : undefined,
+					toolbarActions,
 					run: () => {
 						const previousModel = delegate.currentModel.get();
 						telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
