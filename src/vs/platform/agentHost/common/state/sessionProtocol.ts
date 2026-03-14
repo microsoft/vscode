@@ -129,6 +129,7 @@ export interface IInitializeResult {
 	readonly protocolVersion: number;
 	readonly serverSeq: number;
 	readonly snapshots: readonly IStateSnapshot[];
+	readonly defaultDirectory?: URI;
 }
 
 export interface IReconnectParams {
@@ -197,6 +198,21 @@ export interface IFetchContentResult {
 	readonly data: string;
 	readonly encoding: 'base64' | 'utf-8';
 	readonly mimeType?: string;
+}
+
+// ---- Filesystem browsing ----------------------------------------------------
+
+export interface IBrowseDirectoryParams {
+	readonly uri: URI;
+}
+
+export interface IDirectoryEntry {
+	readonly name: string;
+	readonly type: 'file' | 'directory';
+}
+
+export interface IBrowseDirectoryResult {
+	readonly entries: readonly IDirectoryEntry[];
 }
 
 // ---- Server → Client: Notification params -----------------------------------

@@ -6,10 +6,12 @@
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import * as fs from 'fs';
+import * as os from 'os';
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, IAgent, IAgentAttachment } from '../common/agentService.js';
 import type { ISessionAction } from '../common/state/sessionActions.js';
-import { ICreateSessionParams, AHP_PROVIDER_NOT_FOUND, ProtocolError } from '../common/state/sessionProtocol.js';
+import { IBrowseDirectoryResult, ICreateSessionParams, AHP_PROVIDER_NOT_FOUND, ProtocolError, IDirectoryEntry } from '../common/state/sessionProtocol.js';
 import {
 	ISessionModelInfo,
 	SessionStatus, type ISessionSummary
@@ -223,6 +225,29 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				this._logService.error('[AgentSideEffects] setAuthToken failed', err);
 			});
 		}
+	}
+
+	async handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
+		const dirPath = uri.fsPath || '/';
+		let dirents;
+		try {
+			dirents = await fs.promises.readdir(dirPath, { withFileTypes: true });
+		} catch (err) {
+			const code = (err as NodeJS.ErrnoException).code;
+			if (code === 'ENOENT' || code === 'ENOTDIR') {
+				return { entries: [] };
+			}
+			throw err;
+		}
+		const entries = dirents.map(dirent => {
+			const type: IDirectoryEntry['type'] = dirent.isDirectory() ? 'directory' : 'file';
+			return { name: dirent.name, type };
+		});
+		return { entries };
+	}
+
+	getDefaultDirectory(): URI {
+		return URI.file(os.homedir());
 	}
 
 	override dispose(): void {

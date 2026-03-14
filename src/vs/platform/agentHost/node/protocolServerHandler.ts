@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { IActionEnvelope, INotification, isSessionAction } from '../common/state/sessionActions.js';
+import { IActionEnvelope, INotification, isSessionAction, type ISessionAction } from '../common/state/sessionActions.js';
 import { isActionKnownToVersion, MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import {
 	isJsonRpcRequest,
@@ -15,6 +15,8 @@ import {
 	AHP_SESSION_NOT_FOUND,
 	AHP_UNSUPPORTED_PROTOCOL_VERSION,
 	ProtocolError,
+	type IBrowseDirectoryParams,
+	type IBrowseDirectoryResult,
 	type ICreateSessionParams,
 	type IDispatchActionParams,
 	type IDisposeSessionParams,
@@ -27,7 +29,7 @@ import {
 	type ISubscribeParams,
 	type IUnsubscribeParams,
 } from '../common/state/sessionProtocol.js';
-import { ROOT_STATE_URI } from '../common/state/sessionState.js';
+import { ROOT_STATE_URI, type ISessionSummary } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { SessionStateManager } from './sessionStateManager.js';
 
@@ -191,6 +193,7 @@ export class ProtocolServerHandler extends Disposable {
 				protocolVersion: PROTOCOL_VERSION,
 				serverSeq: this._stateManager.serverSeq,
 				snapshots,
+				defaultDirectory: this._sideEffectHandler.getDefaultDirectory?.(),
 			},
 		};
 	}
@@ -308,6 +311,10 @@ export class ProtocolServerHandler extends Disposable {
 					hasMore: startIndex > 0,
 				};
 			}
+			case 'browseDirectory': {
+				const p = params as IBrowseDirectoryParams;
+				return this._sideEffectHandler.handleBrowseDirectory(URI.revive(p.uri));
+			}
 			default:
 				throw new Error(`Unknown method: ${method}`);
 		}
@@ -361,9 +368,12 @@ export class ProtocolServerHandler extends Disposable {
  * These are operations that involve I/O, agent backends, etc.
  */
 export interface IProtocolSideEffectHandler {
-	handleAction(action: import('../common/state/sessionActions.js').ISessionAction): void;
-	handleCreateSession(command: import('../common/state/sessionProtocol.js').ICreateSessionParams): Promise<URI>;
+	handleAction(action: ISessionAction): void;
+	handleCreateSession(command: ICreateSessionParams): Promise<URI>;
 	handleDisposeSession(session: URI): void;
-	handleListSessions(): Promise<import('../common/state/sessionState.js').ISessionSummary[]>;
+	handleListSessions(): Promise<ISessionSummary[]>;
 	handleSetAuthToken(token: string): void;
+	handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
+	/** Returns the server's default browsing directory, if available. */
+	getDefaultDirectory?(): URI;
 }

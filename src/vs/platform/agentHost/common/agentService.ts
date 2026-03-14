@@ -7,7 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
-import type { IStateSnapshot } from './state/sessionProtocol.js';
+import type { IBrowseDirectoryResult, IStateSnapshot } from './state/sessionProtocol.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -380,6 +380,12 @@ export interface IAgentService {
 	 * {@link onDidAction} with the client's origin for reconciliation.
 	 */
 	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void;
+
+	/**
+	 * List the contents of a directory on the agent host's filesystem.
+	 * Used by the client to drive a remote folder picker before session creation.
+	 */
+	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
 }
 
 /**
