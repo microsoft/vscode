@@ -334,103 +334,13 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			actionBar.push(toolbarActions, { icon: true, label: false });
 		}
 
-		// Render submenu indicator and handle submenu actions
+		// Render submenu indicator
 		dom.clearNode(data.submenuIndicator);
 		data.container.classList.toggle('has-submenu', !!element.submenuActions?.length);
 		if (element.submenuActions && element.submenuActions.length > 0) {
 			const submenuIndicatorIcon = dom.append(data.submenuIndicator, dom.$(ThemeIcon.asCSSSelector(Codicon.menuSubmenu)));
 			submenuIndicatorIcon.setAttribute('aria-hidden', 'true');
 			data.container.setAttribute('aria-haspopup', 'true');
-
-			let submenuContainer: HTMLElement | undefined;
-			let submenuMenu: Menu | undefined;
-			const submenuDisposables = data.elementDisposables.add(new DisposableStore());
-			let mouseOver = false;
-
-			const cleanupSubmenu = () => {
-				submenuMenu?.dispose();
-				submenuMenu = undefined;
-				submenuContainer?.remove();
-				submenuContainer = undefined;
-				submenuDisposables.clear();
-			};
-
-			const showSubmenu = () => {
-				if (submenuMenu) {
-					return;
-				}
-				submenuContainer = dom.append(data.container, dom.$('div.monaco-submenu'));
-				submenuContainer.classList.add('menubar-menu-items-holder', 'context-view');
-				submenuContainer.style.position = 'fixed';
-				submenuContainer.style.top = '0';
-				submenuContainer.style.left = '0';
-				submenuContainer.style.zIndex = '1';
-
-				submenuMenu = new Menu(submenuContainer, element.submenuActions!, {}, defaultMenuStyles);
-
-				// Layout: position to the right of the row
-				const entryBox = data.container.getBoundingClientRect();
-				const viewBox = submenuContainer.getBoundingClientRect();
-				const targetWindow = dom.getWindow(data.container);
-				const windowWidth = targetWindow.innerWidth;
-				const windowHeight = targetWindow.innerHeight;
-
-				let left = entryBox.right;
-				if (left + viewBox.width > windowWidth) {
-					left = entryBox.left - viewBox.width;
-				}
-				let top = entryBox.top;
-				if (top + viewBox.height > windowHeight) {
-					top = windowHeight - viewBox.height;
-				}
-
-				submenuContainer.style.left = `${left - viewBox.left}px`;
-				submenuContainer.style.top = `${top - viewBox.top}px`;
-
-				submenuMenu.focus(false);
-
-				submenuDisposables.add(submenuMenu.onDidCancel(() => {
-					cleanupSubmenu();
-				}));
-				submenuDisposables.add(dom.addDisposableListener(submenuContainer, dom.EventType.MOUSE_LEAVE, () => {
-					cleanupSubmenu();
-				}));
-			};
-
-			const showScheduler = data.elementDisposables.add(new RunOnceScheduler(() => {
-				if (mouseOver) {
-					showSubmenu();
-				}
-			}, 250));
-
-			const hideScheduler = data.elementDisposables.add(new RunOnceScheduler(() => {
-				if (!mouseOver) {
-					cleanupSubmenu();
-				}
-			}, 750));
-
-			data.elementDisposables.add(dom.addDisposableListener(data.container, dom.EventType.MOUSE_OVER, () => {
-				if (!mouseOver) {
-					mouseOver = true;
-					showScheduler.schedule();
-				}
-			}));
-
-			data.elementDisposables.add(dom.addDisposableListener(data.container, dom.EventType.MOUSE_LEAVE, (e) => {
-				mouseOver = false;
-				// Don't hide if mouse moved into submenu
-				if (submenuContainer && dom.isAncestor(e.relatedTarget as HTMLElement, submenuContainer)) {
-					return;
-				}
-				hideScheduler.schedule();
-			}));
-
-			data.elementDisposables.add(dom.addDisposableListener(data.submenuIndicator, dom.EventType.CLICK, (e) => {
-				dom.EventHelper.stop(e, true);
-				showSubmenu();
-			}));
-
-			data.elementDisposables.add({ dispose: cleanupSubmenu });
 		}
 	}
 
@@ -524,6 +434,10 @@ export class ActionList<T> extends Disposable {
 	private _cachedMaxWidth: number | undefined;
 	private _hasLaidOut = false;
 	private _showAbove: boolean | undefined;
+	private _submenu: { menu: Menu; container: HTMLElement; disposables: DisposableStore } | undefined;
+	private readonly _submenuShowScheduler: RunOnceScheduler;
+	private readonly _submenuHideScheduler: RunOnceScheduler;
+	private _submenuHoverIndex: number | undefined;
 
 	/**
 	 * Returns the resolved anchor position after the first layout.
@@ -625,6 +539,20 @@ export class ActionList<T> extends Disposable {
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));
 		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
+
+		// Submenu schedulers
+		this._submenuShowScheduler = this._register(new RunOnceScheduler(() => {
+			if (this._submenuHoverIndex !== undefined) {
+				const element = this._list.element(this._submenuHoverIndex);
+				if (element?.submenuActions?.length) {
+					this._showSubmenu(this._submenuHoverIndex, element);
+				}
+			}
+		}, 250));
+		this._submenuHideScheduler = this._register(new RunOnceScheduler(() => {
+			this._cleanupSubmenu();
+		}, 750));
+		this._register({ dispose: () => this._cleanupSubmenu() });
 
 		this._allMenuItems = [...items];
 
@@ -1268,6 +1196,19 @@ export class ActionList<T> extends Disposable {
 			// Show hover for disabled items that have hover content
 			this._showHoverForElement(element, e.index);
 		}
+
+		// Handle submenu show/hide on hover
+		if (element?.submenuActions?.length && typeof e.index === 'number') {
+			this._submenuHoverIndex = e.index;
+			this._submenuHideScheduler.cancel();
+			this._submenuShowScheduler.schedule();
+		} else {
+			this._submenuHoverIndex = undefined;
+			this._submenuShowScheduler.cancel();
+			if (this._submenu) {
+				this._submenuHideScheduler.schedule();
+			}
+		}
 	}
 
 	private onListClick(e: IListMouseEvent<IActionListItem<T>>): void {
@@ -1278,6 +1219,69 @@ export class ActionList<T> extends Disposable {
 		}
 		if (e.element && this.focusCondition(e.element)) {
 			this._list.setFocus([]);
+		}
+	}
+
+	private _showSubmenu(index: number, element: IActionListItem<T>): void {
+		if (!element.submenuActions?.length) {
+			return;
+		}
+		this._cleanupSubmenu();
+
+		// Get the row DOM element from the list
+		const rowElement = this._list.getHTMLElement().querySelector(`[data-index="${index}"]`) as HTMLElement | null;
+		if (!rowElement) {
+			return;
+		}
+
+		const submenuDisposables = new DisposableStore();
+		const submenuContainer = dom.append(rowElement, dom.$('div.monaco-submenu'));
+		submenuContainer.classList.add('menubar-menu-items-holder', 'context-view');
+		submenuContainer.style.position = 'fixed';
+		submenuContainer.style.top = '0';
+		submenuContainer.style.left = '0';
+		submenuContainer.style.zIndex = '1';
+
+		const menu = new Menu(submenuContainer, element.submenuActions, {}, defaultMenuStyles);
+
+		// Layout: position to the right of the row
+		const entryBox = rowElement.getBoundingClientRect();
+		const viewBox = submenuContainer.getBoundingClientRect();
+		const targetWindow = dom.getWindow(rowElement);
+		const windowWidth = targetWindow.innerWidth;
+		const windowHeight = targetWindow.innerHeight;
+
+		let left = entryBox.right;
+		if (left + viewBox.width > windowWidth) {
+			left = entryBox.left - viewBox.width;
+		}
+		let top = entryBox.top;
+		if (top + viewBox.height > windowHeight) {
+			top = windowHeight - viewBox.height;
+		}
+
+		submenuContainer.style.left = `${left - viewBox.left}px`;
+		submenuContainer.style.top = `${top - viewBox.top}px`;
+
+		submenuDisposables.add(menu.onDidCancel(() => this._cleanupSubmenu()));
+
+		// Track mouse entering/leaving the submenu
+		submenuDisposables.add(dom.addDisposableListener(submenuContainer, dom.EventType.MOUSE_ENTER, () => {
+			this._submenuHideScheduler.cancel();
+		}));
+		submenuDisposables.add(dom.addDisposableListener(submenuContainer, dom.EventType.MOUSE_LEAVE, () => {
+			this._submenuHideScheduler.schedule();
+		}));
+
+		this._submenu = { menu, container: submenuContainer, disposables: submenuDisposables };
+	}
+
+	private _cleanupSubmenu(): void {
+		if (this._submenu) {
+			this._submenu.menu.dispose();
+			this._submenu.container.remove();
+			this._submenu.disposables.dispose();
+			this._submenu = undefined;
 		}
 	}
 }
