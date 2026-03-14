@@ -170,6 +170,17 @@ export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart
 
 export type IExtendedChatResponsePart = IChatResponsePullRequestPart;
 
+export interface ILanguageModelConfigurationSchemaProperty extends IJSONSchema {
+	/**
+	 * When true, the current value of this property is shown in the model picker.
+	 */
+	showInPicker?: boolean;
+}
+
+export interface ILanguageModelConfigurationSchema extends IJSONSchema {
+	properties?: { [key: string]: ILanguageModelConfigurationSchemaProperty | boolean };
+}
+
 export interface ILanguageModelChatMetadata {
 	readonly extension: ExtensionIdentifier;
 
@@ -209,7 +220,7 @@ export interface ILanguageModelChatMetadata {
 	 * An optional JSON schema describing the per-model configuration options.
 	 * Used to validate user-provided per-model configuration in `chatLanguageModels.json`.
 	 */
-	readonly configurationSchema?: IJSONSchema;
+	readonly configurationSchema?: ILanguageModelConfigurationSchema;
 }
 
 export namespace ILanguageModelChatMetadata {
@@ -1177,7 +1188,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const parts: string[] = [];
 
 		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (typeof propSchema === 'boolean' || !(propSchema as any).showInPicker) { // eslint-disable-line @typescript-eslint/no-explicit-any
+			if (typeof propSchema === 'boolean' || !propSchema.showInPicker) {
 				continue;
 			}
 			const value = currentConfig[key] ?? propSchema.default;
