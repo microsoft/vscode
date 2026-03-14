@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './experiments/agentSessionsExperiments.contribution.js';
+import '../../../../agentSessions/browser/agentSessionsLayoutActions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -18,6 +19,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../comm
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ArchiveAgentSessionAction, ArchiveAgentSessionSectionAction, UnarchiveAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, PickAgentSessionAction, ArchiveAllAgentSessionsAction, MarkAllAgentSessionsReadAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction, MarkAgentSessionSectionReadAction, ToggleShowAgentSessionsAction, UnarchiveAgentSessionSectionAction } from './agentSessionsActions.js';
 import { AgentSessionsQuickAccessProvider, AGENT_SESSIONS_QUICK_ACCESS_PREFIX } from './agentSessionsQuickAccess.js';
+import { MaximizeAgentSessionsPanelAction, RestoreAgentSessionsPanelAction } from '../../../../agentSessions/browser/agentSessionsLayoutActions.js';
 
 //#region Actions and Menus
 
@@ -46,6 +48,8 @@ registerAction2(ToggleAgentSessionsSidebar);
 registerAction2(ToggleShowAgentSessionsAction);
 registerAction2(SetAgentSessionsOrientationStackedAction);
 registerAction2(SetAgentSessionsOrientationSideBySideAction);
+registerAction2(MaximizeAgentSessionsPanelAction);
+registerAction2(RestoreAgentSessionsPanelAction);
 
 // --- Agent Sessions Toolbar
 
