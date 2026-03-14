@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
@@ -266,6 +267,25 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].provider, 'mock');
 			assert.strictEqual(sessions[0].title, 'Session');
+		});
+	});
+
+	// ---- handleBrowseDirectory ------------------------------------------
+
+	suite('handleBrowseDirectory', () => {
+
+		test('throws when the directory does not exist', async () => {
+			await assert.rejects(
+				() => sideEffects.handleBrowseDirectory(URI.file('/path/that/does/not/exist')),
+				/Directory not found/,
+			);
+		});
+
+		test('throws when the target is not a directory', async () => {
+			await assert.rejects(
+				() => sideEffects.handleBrowseDirectory(URI.file('/Users/roblou/code/vscode/package.json')),
+				/Not a directory/,
+			);
 		});
 	});
 

@@ -11,7 +11,7 @@ import * as os from 'os';
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, IAgent, IAgentAttachment } from '../common/agentService.js';
 import type { ISessionAction } from '../common/state/sessionActions.js';
-import { IBrowseDirectoryResult, ICreateSessionParams, AHP_PROVIDER_NOT_FOUND, ProtocolError, IDirectoryEntry } from '../common/state/sessionProtocol.js';
+import { IBrowseDirectoryResult, ICreateSessionParams, AHP_PROVIDER_NOT_FOUND, JSON_RPC_INTERNAL_ERROR, ProtocolError, IDirectoryEntry } from '../common/state/sessionProtocol.js';
 import {
 	ISessionModelInfo,
 	SessionStatus, type ISessionSummary
@@ -234,8 +234,14 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			dirents = await fs.promises.readdir(dirPath, { withFileTypes: true });
 		} catch (err) {
 			const code = (err as NodeJS.ErrnoException).code;
-			if (code === 'ENOENT' || code === 'ENOTDIR') {
-				return { entries: [] };
+			if (code === 'ENOENT') {
+				throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Directory not found: ${uri.toString()}`);
+			}
+			if (code === 'ENOTDIR') {
+				throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Not a directory: ${uri.toString()}`);
+			}
+			if (code === 'EACCES' || code === 'EPERM') {
+				throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Cannot access directory: ${uri.toString()}`);
 			}
 			throw err;
 		}

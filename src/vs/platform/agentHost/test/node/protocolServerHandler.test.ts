@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { ISessionAction } from '../../common/state/sessionActions.js';
-import { isJsonRpcNotification, isJsonRpcResponse, type ICreateSessionParams, type IInitializeResult, type IProtocolMessage, type IProtocolNotification, type IReconnectResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type ICreateSessionParams, type IInitializeResult, type IProtocolMessage, type IProtocolNotification, type IReconnectResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -62,6 +62,7 @@ class MockProtocolServer implements IProtocolServer {
 class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	readonly handledActions: ISessionAction[] = [];
 	readonly browsedUris: URI[] = [];
+	readonly browseErrors = new Map<string, Error>();
 
 	handleAction(action: ISessionAction): void {
 		this.handledActions.push(action);
@@ -72,6 +73,10 @@ class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	handleSetAuthToken(_token: string): void { }
 	async handleBrowseDirectory(uri: URI): Promise<{ entries: { name: string; type: 'file' | 'directory' }[] }> {
 		this.browsedUris.push(uri);
+		const error = this.browseErrors.get(uri.toString());
+		if (error) {
+			throw error;
+		}
 		return {
 			entries: [
 				{ name: 'src', type: 'directory' },
@@ -354,5 +359,21 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(result.entries[0].type, 'directory');
 		assert.strictEqual(result.entries[1].name, 'README.md');
 		assert.strictEqual(result.entries[1].type, 'file');
+	});
+
+	test('browseDirectory returns a JSON-RPC error when the target is invalid', async () => {
+		const transport = connectClient('client-browse-error');
+		transport.sent.length = 0;
+
+		const dirUri = URI.file('/missing');
+		sideEffects.browseErrors.set(dirUri.toString(), new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Directory not found: ${dirUri.toString()}`));
+		transport.simulateMessage(request(2, 'browseDirectory', { uri: dirUri }));
+
+		await new Promise(resolve => setTimeout(resolve, 10));
+
+		const resp = findResponse(transport.sent, 2) as { error?: { code: number; message: string } } | undefined;
+		assert.ok(resp?.error);
+		assert.strictEqual(resp.error!.code, JSON_RPC_INTERNAL_ERROR);
+		assert.match(resp.error!.message, /Directory not found/);
 	});
 });

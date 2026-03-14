@@ -253,9 +253,11 @@ export class ProtocolServerHandler extends Disposable {
 		}).catch(err => {
 			this._logService.error(`[ProtocolServer] Request '${method}' failed`, err);
 			const code = err instanceof ProtocolError ? err.code : JSON_RPC_INTERNAL_ERROR;
-			const message = err instanceof Error && err.stack
-				? err.stack
-				: String(err?.message ?? err);
+			const message = err instanceof ProtocolError
+				? err.message
+				: err instanceof Error && err.stack
+					? err.stack
+					: String(err?.message ?? err);
 			client.transport.send({
 				jsonrpc: '2.0',
 				id,

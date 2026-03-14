@@ -243,6 +243,8 @@ Clients interact with the server in two ways:
 | `fetchTurns(session, range)` | Returns historical turns |
 | `browseDirectory(uri)` | Lists directory entries at a file URI on the server's filesystem |
 
+`browseDirectory(uri)` succeeds only if the target exists and is a directory. If the target does not exist, is not a directory, or cannot be accessed, the server MUST return a JSON-RPC error.
+
 ### Session creation flow
 
 1. Client picks a session URI (e.g. `copilot:/<new-uuid>`)
