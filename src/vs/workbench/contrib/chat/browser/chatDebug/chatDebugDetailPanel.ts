@@ -70,6 +70,7 @@ export class ChatDebugDetailPanel extends Disposable {
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 		this.element = DOM.append(parent, $('.chat-debug-detail-panel'));
@@ -171,14 +172,13 @@ export class ChatDebugDetailPanel extends Disposable {
 		if (resolved && resolved.kind === 'fileList') {
 			this.currentDetailText = fileListToPlainText(resolved);
 			const { element: contentEl, disposables: contentDisposables } = this.instantiationService.invokeFunction(accessor =>
-				renderCustomizationDiscoveryContent(resolved, this.openerService, accessor.get(IModelService), accessor.get(ILanguageService), this.hoverService, accessor.get(ILabelService))
+				renderCustomizationDiscoveryContent(resolved, this.openerService, accessor.get(IModelService), this.languageService, this.hoverService, accessor.get(ILabelService))
 			);
 			this.detailDisposables.add(contentDisposables);
 			this.contentContainer.appendChild(contentEl);
 		} else if (resolved && resolved.kind === 'toolCall') {
 			this.currentDetailText = toolCallContentToPlainText(resolved);
-			const languageService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageService));
-			const { element: contentEl, disposables: contentDisposables } = await renderToolCallContent(resolved, languageService, this.clipboardService);
+			const { element: contentEl, disposables: contentDisposables } = await renderToolCallContent(resolved, this.languageService, this.clipboardService);
 			if (this.currentDetailEventId !== event.id) {
 				// Another event was selected while we were rendering
 				contentDisposables.dispose();
@@ -188,8 +188,7 @@ export class ChatDebugDetailPanel extends Disposable {
 			this.contentContainer.appendChild(contentEl);
 		} else if (resolved && resolved.kind === 'message') {
 			this.currentDetailText = resolvedMessageToPlainText(resolved);
-			const languageService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageService));
-			const { element: contentEl, disposables: contentDisposables } = await renderResolvedMessageContent(resolved, languageService, this.clipboardService);
+			const { element: contentEl, disposables: contentDisposables } = await renderResolvedMessageContent(resolved, this.languageService, this.clipboardService);
 			if (this.currentDetailEventId !== event.id) {
 				contentDisposables.dispose();
 				return;
@@ -198,8 +197,7 @@ export class ChatDebugDetailPanel extends Disposable {
 			this.contentContainer.appendChild(contentEl);
 		} else if (resolved && resolved.kind === 'modelTurn') {
 			this.currentDetailText = modelTurnContentToPlainText(resolved);
-			const languageService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageService));
-			const { element: contentEl, disposables: contentDisposables } = await renderModelTurnContent(resolved, languageService, this.clipboardService);
+			const { element: contentEl, disposables: contentDisposables } = await renderModelTurnContent(resolved, this.languageService, this.clipboardService);
 			if (this.currentDetailEventId !== event.id) {
 				// Another event was selected while we were rendering
 				contentDisposables.dispose();
@@ -209,8 +207,7 @@ export class ChatDebugDetailPanel extends Disposable {
 			this.contentContainer.appendChild(contentEl);
 		} else if (event.kind === 'userMessage') {
 			this.currentDetailText = messageEventToPlainText(event);
-			const languageService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageService));
-			const { element: contentEl, disposables: contentDisposables } = await renderUserMessageContent(event, languageService, this.clipboardService);
+			const { element: contentEl, disposables: contentDisposables } = await renderUserMessageContent(event, this.languageService, this.clipboardService);
 			if (this.currentDetailEventId !== event.id) {
 				contentDisposables.dispose();
 				return;
@@ -219,8 +216,7 @@ export class ChatDebugDetailPanel extends Disposable {
 			this.contentContainer.appendChild(contentEl);
 		} else if (event.kind === 'agentResponse') {
 			this.currentDetailText = messageEventToPlainText(event);
-			const languageService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageService));
-			const { element: contentEl, disposables: contentDisposables } = await renderAgentResponseContent(event, languageService, this.clipboardService);
+			const { element: contentEl, disposables: contentDisposables } = await renderAgentResponseContent(event, this.languageService, this.clipboardService);
 			if (this.currentDetailEventId !== event.id) {
 				contentDisposables.dispose();
 				return;

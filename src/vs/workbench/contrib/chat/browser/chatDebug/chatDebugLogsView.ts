@@ -543,7 +543,9 @@ export class ChatDebugLogsView extends Disposable {
 		const row = [getEventCreatedText(event), getEventNameText(event), getEventDetailsText(event)].filter(Boolean).join('\t');
 		const name = getEventNameText(event);
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => new StandardMouseEvent(DOM.getWindow(this.container), browserEvent as MouseEvent),
+			getAnchor: () => DOM.isMouseEvent(browserEvent)
+				? new StandardMouseEvent(DOM.getWindow(this.container), browserEvent)
+				: this.container,
 			getActions: () => [
 				new Action('chatDebug.copyTimestamp', localize('chatDebug.copyTimestamp', "Copy Timestamp"), undefined, true, () => this.clipboardService.writeText(timestamp)),
 				new Action('chatDebug.copyRow', localize('chatDebug.copyRow', "Copy Row"), undefined, true, () => this.clipboardService.writeText(row)),
