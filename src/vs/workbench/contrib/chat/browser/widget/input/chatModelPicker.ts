@@ -96,7 +96,9 @@ function createModelAction(
 	selectedModelId: string | undefined,
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
 	section?: string,
+	languageModelsService?: ILanguageModelsService,
 ): IActionWidgetDropdownAction & { section?: string } {
+	const configActions = languageModelsService?.getModelConfigurationActions(model.identifier);
 	return {
 		id: model.identifier,
 		enabled: true,
@@ -107,6 +109,7 @@ function createModelAction(
 		tooltip: model.metadata.name,
 		label: model.metadata.name,
 		section,
+		toolbarActions: configActions && configActions.length > 0 ? configActions : undefined,
 		run: () => onSelect(model),
 	};
 }
@@ -156,6 +159,7 @@ export function buildModelPickerItems(
 	manageModelsAction: IActionWidgetDropdownAction | undefined,
 	chatEntitlementService: IChatEntitlementService,
 	hoverPosition?: IHoverPositionOptions,
+	languageModelsService?: ILanguageModelsService,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {

@@ -21,7 +21,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../../common/widget/input/modelPickerWidget.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 
@@ -46,7 +46,7 @@ type ChatModelChangeEvent = {
 };
 
 
-function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, telemetryService: ITelemetryService, pickerOptions: IChatInputPickerOptions): IActionWidgetDropdownActionProvider {
+function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, telemetryService: ITelemetryService, languageModelsService: ILanguageModelsService, pickerOptions: IChatInputPickerOptions): IActionWidgetDropdownActionProvider {
 	return {
 		getActions: () => {
 			const models = delegate.getModels();
@@ -66,6 +66,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 			}
 			return models.map(model => {
 				const hoverContent = model.metadata.tooltip;
+				const toolbarActions = languageModelsService.getModelConfigurationActions(model.identifier);
 				return {
 					id: model.metadata.id,
 					enabled: true,
@@ -77,6 +78,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					tooltip: hoverContent ? '' : model.metadata.name,
 					hover: hoverContent ? { content: hoverContent, position: pickerOptions.hoverPosition } : undefined,
 					label: model.metadata.name,
+					toolbarActions: toolbarActions.length > 0 ? toolbarActions : undefined,
 					run: () => {
 						const previousModel = delegate.currentModel.get();
 						telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
@@ -159,6 +161,7 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProductService productService: IProductService,
+		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 	) {
 		// Modify the original action with a different label and make it show the current model
 		const actionWithLabel: IAction = {
@@ -169,7 +172,7 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 
 		const baseActionBarActionProvider = getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService);
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
-			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService, pickerOptions),
+			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService, languageModelsService, pickerOptions),
 			actionBarActionProvider: { getActions: () => baseActionBarActionProvider.getActions() },
 			reporter: { id: 'ChatModelPicker', name: 'ChatModelPicker', includeOptions: true },
 		};
