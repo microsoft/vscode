@@ -10,7 +10,6 @@ import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/con
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
-import { HorizontalDirection, Menu, VerticalDirection } from '../../../base/browser/ui/menu/menu.js';
 import { IAction, SubmenuAction, toAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -27,7 +26,7 @@ import { localize } from '../../../nls.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { IOpenerService } from '../../opener/common/opener.js';
-import { defaultListStyles, defaultMenuStyles } from '../../theme/browser/defaultStyles.js';
+import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { IHoverService } from '../../hover/browser/hover.js';
@@ -435,7 +434,7 @@ export class ActionList<T> extends Disposable {
 	private _cachedMaxWidth: number | undefined;
 	private _hasLaidOut = false;
 	private _showAbove: boolean | undefined;
-	private _submenu: { menu: Menu; container: HTMLElement; disposables: DisposableStore } | undefined;
+	private _submenu: { container: HTMLElement; disposables: DisposableStore } | undefined;
 	private readonly _submenuShowScheduler: RunOnceScheduler;
 	private readonly _submenuHideScheduler: RunOnceScheduler;
 	private _submenuHoverIndex: number | undefined;
@@ -1262,30 +1261,45 @@ export class ActionList<T> extends Disposable {
 		}
 
 		const submenuDisposables = new DisposableStore();
-		const submenuContainer = dom.append(this.domNode, dom.$('div.monaco-submenu'));
-		submenuContainer.classList.add('menubar-menu-items-holder', 'context-view');
+		const submenuContainer = dom.append(this.domNode, dom.$('div.action-list-submenu'));
 		submenuContainer.style.position = 'absolute';
 		submenuContainer.style.zIndex = '10000';
-		submenuContainer.style.backgroundColor = 'var(--vscode-menu-background)';
 
-		const domRect = this.domNode.getBoundingClientRect();
-		const targetWindow = dom.getWindow(this.domNode);
-
-		// Determine expand direction based on available space
-		const showOnRight = domRect.right + 200 <= targetWindow.innerWidth; // estimate 200px for submenu width
-		const expandDirection = showOnRight
-			? { horizontal: HorizontalDirection.Right, vertical: VerticalDirection.Below }
-			: { horizontal: HorizontalDirection.Left, vertical: VerticalDirection.Below };
-
-		const menu = new Menu(submenuContainer, element.submenuActions, { expandDirection }, defaultMenuStyles);
-		// Prevent the menu from being focusable to avoid stealing focus from the action widget
-		submenuContainer.querySelectorAll('[tabindex]').forEach(el => el.removeAttribute('tabindex'));
+		// Render submenu items as simple DOM elements — no Menu widget, no focus management
+		for (const action of element.submenuActions) {
+			if (action instanceof SubmenuAction) {
+				// Render header
+				const header = dom.append(submenuContainer, dom.$('.action-list-submenu-header'));
+				header.textContent = action.label;
+				// Render children
+				for (const child of action.actions) {
+					const item = dom.append(submenuContainer, dom.$('.action-list-submenu-item'));
+					if (child.checked) {
+						const check = dom.append(item, dom.$('.codicon.codicon-check'));
+						check.style.marginRight = '4px';
+					} else {
+						const spacer = dom.append(item, dom.$('span'));
+						spacer.style.width = '20px';
+						spacer.style.display = 'inline-block';
+					}
+					const label = dom.append(item, dom.$('span'));
+					label.textContent = child.label;
+					submenuDisposables.add(dom.addDisposableListener(item, dom.EventType.CLICK, (e) => {
+						dom.EventHelper.stop(e, true);
+						child.run();
+						this._cleanupSubmenu();
+					}));
+				}
+			}
+		}
 
 		// Position relative to domNode (which now has position:relative)
+		const domRect = this.domNode.getBoundingClientRect();
 		const rowRect = rowElement.getBoundingClientRect();
+		const targetWindow = dom.getWindow(this.domNode);
 		const submenuRect = submenuContainer.getBoundingClientRect();
 
-		// Vertical: align to row, but clamp within the action list bounds
+		// Vertical: align to row, clamp within action list bounds
 		let top = rowRect.top - domRect.top;
 		if (top + submenuRect.height > domRect.height) {
 			top = Math.max(0, domRect.height - submenuRect.height);
@@ -1300,8 +1314,6 @@ export class ActionList<T> extends Disposable {
 			submenuContainer.style.left = `${-submenuRect.width}px`;
 		}
 
-		submenuDisposables.add(menu.onDidCancel(() => this._cleanupSubmenu()));
-
 		submenuDisposables.add(dom.addDisposableListener(submenuContainer, dom.EventType.MOUSE_ENTER, () => {
 			this._submenuHideScheduler.cancel();
 		}));
@@ -1309,12 +1321,11 @@ export class ActionList<T> extends Disposable {
 			this._submenuHideScheduler.schedule();
 		}));
 
-		this._submenu = { menu, container: submenuContainer, disposables: submenuDisposables };
+		this._submenu = { container: submenuContainer, disposables: submenuDisposables };
 	}
 
 	private _cleanupSubmenu(): void {
 		if (this._submenu) {
-			this._submenu.menu.dispose();
 			this._submenu.container.remove();
 			this._submenu.disposables.dispose();
 			this._submenu = undefined;
