@@ -1235,42 +1235,44 @@ export class ActionList<T> extends Disposable {
 		}
 		this._cleanupSubmenu();
 
-		// Get the row DOM element from the list
 		const rowElement = this._getRowElement(index);
 		if (!rowElement) {
 			return;
 		}
 
 		const submenuDisposables = new DisposableStore();
-		// Append inside the action list's domNode to stay within the context view DOM tree
-		const submenuContainer = dom.append(this.domNode, dom.$('div.monaco-submenu'));
+
+		// Follow the exact same pattern as SubmenuMenuActionViewItem.createSubmenu
+		const submenuContainer = dom.append(rowElement, dom.$('div.monaco-submenu'));
 		submenuContainer.classList.add('menubar-menu-items-holder', 'context-view');
 		submenuContainer.style.position = 'fixed';
-		submenuContainer.style.zIndex = '10000';
+		submenuContainer.style.top = '0';
+		submenuContainer.style.left = '0';
+		submenuContainer.style.zIndex = '1';
 
 		const menu = new Menu(submenuContainer, element.submenuActions, {}, defaultMenuStyles);
 
-		// Position using fixed coordinates from the row's bounding rect
+		// Layout: position to the right of the row, subtract offsets caused by transform parent
 		const entryBox = rowElement.getBoundingClientRect();
 		const viewBox = submenuContainer.getBoundingClientRect();
-		const targetWindow = dom.getWindow(this.domNode);
+		const targetWindow = dom.getWindow(rowElement);
+		const windowWidth = targetWindow.innerWidth;
+		const windowHeight = targetWindow.innerHeight;
 
 		let left = entryBox.right;
-		if (left + viewBox.width > targetWindow.innerWidth) {
+		if (left + viewBox.width > windowWidth) {
 			left = entryBox.left - viewBox.width;
 		}
 		let top = entryBox.top;
-		if (top + viewBox.height > targetWindow.innerHeight) {
-			top = targetWindow.innerHeight - viewBox.height;
+		if (top + viewBox.height > windowHeight) {
+			top = windowHeight - viewBox.height;
 		}
 
-		// Adjust for any transform offset on the container
 		submenuContainer.style.left = `${left - viewBox.left}px`;
 		submenuContainer.style.top = `${top - viewBox.top}px`;
 
 		submenuDisposables.add(menu.onDidCancel(() => this._cleanupSubmenu()));
 
-		// Track mouse entering/leaving the submenu
 		submenuDisposables.add(dom.addDisposableListener(submenuContainer, dom.EventType.MOUSE_ENTER, () => {
 			this._submenuHideScheduler.cancel();
 		}));
