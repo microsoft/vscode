@@ -211,6 +211,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	private _registerAgent(address: string, connection: IAgentConnection, agent: IAgentInfo, configuredName: string | undefined): void {
+		// Only register copilot agents; other provider types are not supported
+		if (agent.provider !== 'copilot') {
+			this._logService.warn(`[RemoteAgentHost] Ignoring unsupported agent provider '${agent.provider}' from ${address}`);
+			return;
+		}
+
 		const connState = this._connections.get(address);
 		if (!connState) {
 			return;
@@ -256,6 +262,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			description: agent.description,
 			canDelegate: true,
 			requiresCustomModels: true,
+			supportsDelegation: false,
 		}));
 
 		// Session list controller (unified)

@@ -20,8 +20,8 @@ import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../.
 import { IAgentSession, isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
+import { AgentSessionProviders, isAgentHostTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { AgentHostNewSession, INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
@@ -265,6 +265,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		let newSession: INewSession;
 		if (target === AgentSessionProviders.Background) {
 			newSession = this.instantiationService.createInstance(LocalNewSession, sessionResource, defaultRepoUri);
+		} else if (isAgentHostTarget(target)) {
+			newSession = this.instantiationService.createInstance(AgentHostNewSession, sessionResource, target);
 		} else {
 			newSession = this.instantiationService.createInstance(RemoteNewSession, sessionResource, target);
 		}
