@@ -280,11 +280,13 @@
 	border-radius: 4px;
 	padding: 4px 0;
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
-	min-width: 120px;
+	min-width: 160px;
 }
 
 .action-list-submenu-header {
-	padding: 2px 20px 2px 12px;
+	display: flex;
+	justify-content: flex-end;
+	padding: 2px 12px;
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 	pointer-events: none;
@@ -293,10 +295,11 @@
 .action-list-submenu-item {
 	display: flex;
 	align-items: center;
-	padding: 2px 20px 2px 4px;
+	padding: 0 12px 0 4px;
 	cursor: pointer;
 	white-space: nowrap;
 	font-size: 13px;
+	height: 24px;
 }
 
 .action-list-submenu-item .check-icon {
