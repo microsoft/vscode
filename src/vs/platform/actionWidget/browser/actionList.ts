@@ -1240,20 +1240,35 @@ export class ActionList<T> extends Disposable {
 			return;
 		}
 
+		// Find the action-widget container (parent of the list) to append the submenu.
+		// This avoids overflow clipping from list rows while staying within the context view DOM.
+		const widgetContainer = this.domNode.closest('.action-widget') ?? this.domNode.parentElement ?? this.domNode;
+
 		const submenuDisposables = new DisposableStore();
-		const listElement = this._list.getHTMLElement();
-		const submenuContainer = dom.append(listElement, dom.$('div.monaco-submenu'));
+		const submenuContainer = dom.append(widgetContainer, dom.$('div.monaco-submenu'));
 		submenuContainer.classList.add('menubar-menu-items-holder', 'context-view');
-		submenuContainer.style.position = 'absolute';
+		submenuContainer.style.position = 'fixed';
 		submenuContainer.style.zIndex = '10000';
 
 		const menu = new Menu(submenuContainer, element.submenuActions, {}, defaultMenuStyles);
 
-		// Position to the right of the row
+		// Position using fixed coordinates from the row's bounding rect
 		const rowRect = rowElement.getBoundingClientRect();
-		const listRect = listElement.getBoundingClientRect();
-		submenuContainer.style.top = `${rowRect.top - listRect.top}px`;
-		submenuContainer.style.left = `${listRect.width}px`;
+		const viewBox = submenuContainer.getBoundingClientRect();
+		const targetWindow = dom.getWindow(rowElement);
+
+		let left = rowRect.right;
+		if (left + viewBox.width > targetWindow.innerWidth) {
+			left = rowRect.left - viewBox.width;
+		}
+		let top = rowRect.top;
+		if (top + viewBox.height > targetWindow.innerHeight) {
+			top = targetWindow.innerHeight - viewBox.height;
+		}
+
+		// Subtract viewBox offsets caused by transform parent (same pattern as SubmenuMenuActionViewItem)
+		submenuContainer.style.left = `${left - viewBox.left}px`;
+		submenuContainer.style.top = `${top - viewBox.top}px`;
 
 		submenuDisposables.add(menu.onDidCancel(() => this._cleanupSubmenu()));
 
