@@ -1265,8 +1265,17 @@ export class ActionList<T> extends Disposable {
 		// Position relative to domNode (which now has position:relative)
 		const rowRect = rowElement.getBoundingClientRect();
 		const domRect = this.domNode.getBoundingClientRect();
+		const submenuRect = submenuContainer.getBoundingClientRect();
+		const targetWindow = dom.getWindow(this.domNode);
+
 		submenuContainer.style.top = `${rowRect.top - domRect.top}px`;
-		submenuContainer.style.left = `${domRect.width}px`;
+
+		// Show to the right if there's space, otherwise to the left
+		if (domRect.right + submenuRect.width <= targetWindow.innerWidth) {
+			submenuContainer.style.left = `${domRect.width}px`;
+		} else {
+			submenuContainer.style.left = `${-submenuRect.width}px`;
+		}
 
 		submenuDisposables.add(menu.onDidCancel(() => this._cleanupSubmenu()));
 
