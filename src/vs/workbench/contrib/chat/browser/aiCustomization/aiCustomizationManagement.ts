@@ -73,6 +73,21 @@ export const AICustomizationManagementTitleMenuId = MenuId.for('AICustomizationM
 export const AICustomizationManagementItemMenuId = MenuId.for('AICustomizationManagementEditorItem');
 
 /**
+ * Context key for the item prompt type (e.g. 'prompt', 'agent') used in when-clause filtering.
+ */
+export const AI_CUSTOMIZATION_ITEM_TYPE_KEY = 'aiCustomizationManagementItemType';
+
+/**
+ * Context key for the item storage type (e.g. 'local', 'user', 'extension') used in when-clause filtering.
+ */
+export const AI_CUSTOMIZATION_ITEM_STORAGE_KEY = 'aiCustomizationManagementItemStorage';
+
+/**
+ * Context key for the item URI used in when-clause filtering.
+ */
+export const AI_CUSTOMIZATION_ITEM_URI_KEY = 'aiCustomizationManagementItemUri';
+
+/**
  * Storage key for persisting the selected section.
  */
 export const AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY = 'aiCustomizationManagement.selectedSection';
