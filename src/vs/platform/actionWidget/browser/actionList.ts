@@ -1272,7 +1272,13 @@ export class ActionList<T> extends Disposable {
 		const submenuRect = submenuContainer.getBoundingClientRect();
 		const targetWindow = dom.getWindow(this.domNode);
 
-		submenuContainer.style.top = `${rowRect.top - domRect.top}px`;
+		// Vertical: align to row, but clamp so submenu doesn't go above the action list
+		let top = rowRect.top - domRect.top;
+		if (top + submenuRect.height > domRect.height) {
+			top = Math.max(0, domRect.height - submenuRect.height);
+		}
+		top = Math.max(0, top);
+		submenuContainer.style.top = `${top}px`;
 
 		// Show to the right if there's space, otherwise to the left
 		if (domRect.right + submenuRect.width <= targetWindow.innerWidth) {
