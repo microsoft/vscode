@@ -179,12 +179,10 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 			if (activeElement?.closest('.action-widget-hover')) {
 				return;
 			}
-			// Don't hide if focus is still inside the widget container (includes submenus)
+			// Don't hide if focus is still inside the widget container
 			if (activeElement && dom.isAncestor(activeElement, element)) {
 				return;
 			}
-			// Focus left the widget entirely — clean up any active submenu and hide
-			list.cleanupSubmenu();
 			this.hide(true);
 		}));
 
