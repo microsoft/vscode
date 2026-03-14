@@ -1241,7 +1241,8 @@ export class ActionList<T> extends Disposable {
 		}
 
 		const submenuDisposables = new DisposableStore();
-		const submenuContainer = dom.append(this.domNode, dom.$('div.monaco-submenu'));
+		const listElement = this._list.getHTMLElement();
+		const submenuContainer = dom.append(listElement, dom.$('div.monaco-submenu'));
 		submenuContainer.classList.add('menubar-menu-items-holder', 'context-view');
 		submenuContainer.style.position = 'absolute';
 		submenuContainer.style.zIndex = '10000';
@@ -1250,9 +1251,9 @@ export class ActionList<T> extends Disposable {
 
 		// Position to the right of the row
 		const rowRect = rowElement.getBoundingClientRect();
-		const domRect = this.domNode.getBoundingClientRect();
-		submenuContainer.style.top = `${rowRect.top - domRect.top}px`;
-		submenuContainer.style.left = `${domRect.width}px`;
+		const listRect = listElement.getBoundingClientRect();
+		submenuContainer.style.top = `${rowRect.top - listRect.top}px`;
+		submenuContainer.style.left = `${listRect.width}px`;
 
 		submenuDisposables.add(menu.onDidCancel(() => this._cleanupSubmenu()));
 
