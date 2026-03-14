@@ -9,6 +9,7 @@ import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IMarkerOrigin } from './markerOrigin.js';
 
 export interface IMarkerReadOptions {
 	owner?: string;
@@ -23,11 +24,13 @@ export interface IMarkerService {
 
 	getStatistics(): MarkerStatistics;
 
-	changeOne(owner: string, resource: URI, markers: IMarkerData[]): void;
+	removeOriginForOwner(origin: IMarkerOrigin, owner: string): void;
 
-	changeAll(owner: string, data: IResourceMarker[]): void;
+	changeOne(origin: IMarkerOrigin, owner: string, resource: URI, markers: IMarkerData[]): void;
 
-	remove(owner: string, resources: URI[]): void;
+	changeAll(origin: IMarkerOrigin, owner: string, data: IResourceMarker[]): void;
+
+	removeOriginForOwnerResources(origin: IMarkerOrigin, owner: string, resources: URI[]): void;
 
 	read(filter?: IMarkerReadOptions): IMarker[];
 
@@ -118,7 +121,6 @@ export interface IMarkerData {
 	modelVersionId?: number;
 	relatedInformation?: IRelatedInformation[];
 	tags?: MarkerTag[];
-	origin?: string | undefined;
 }
 
 export interface IResourceMarker {
@@ -140,7 +142,6 @@ export interface IMarker {
 	modelVersionId?: number;
 	relatedInformation?: IRelatedInformation[];
 	tags?: MarkerTag[];
-	origin?: string | undefined;
 }
 
 export interface MarkerStatistics {
