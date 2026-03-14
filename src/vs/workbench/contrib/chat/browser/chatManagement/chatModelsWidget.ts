@@ -1192,6 +1192,15 @@ export class ChatModelsWidget extends Disposable {
 					run: () => this.viewModel.setModelsVisibility(selectedModelEntries, true)
 				}));
 
+				// Show per-model configuration actions for a single model
+				if (selectedModelEntries.length === 1) {
+					const configActions = this.languageModelsService.getModelConfigurationActions(selectedModelEntries[0].model.identifier);
+					if (configActions.length) {
+						actions.push(new Separator());
+						actions.push(...configActions);
+					}
+				}
+
 				// Show configure action if all models are from the same group
 				configureGroup = selectedModelEntries[0].model.provider.group.name;
 				configureVendor = selectedModelEntries[0].model.provider.vendor;
