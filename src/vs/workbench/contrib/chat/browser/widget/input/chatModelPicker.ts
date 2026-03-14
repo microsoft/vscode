@@ -78,6 +78,7 @@ function createModelItem(
 	action: IActionWidgetDropdownAction & { section?: string },
 	model?: ILanguageModelChatMetadataAndIdentifier,
 	hoverPosition?: IHoverPositionOptions,
+	languageModelsService?: ILanguageModelsService,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	return {
 		item: action,
@@ -87,7 +88,7 @@ function createModelItem(
 		group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 		hideIcon: false,
 		section: action.section,
-		hover: model ? { content: getModelHoverContent(model), position: hoverPosition } : undefined,
+		hover: model ? { content: getModelHoverContent(model, languageModelsService), position: hoverPosition } : undefined,
 		submenuActions: action.toolbarActions,
 	};
 }
@@ -692,7 +693,7 @@ export class ModelPickerWidget extends Disposable {
 }
 
 
-function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): MarkdownString {
+function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService?: ILanguageModelsService): MarkdownString {
 	const isAuto = model.metadata.id === 'auto' && model.metadata.vendor === 'copilot';
 	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 	markdown.appendMarkdown(`**${model.metadata.name}**`);
@@ -716,6 +717,26 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): M
 		markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
 		markdown.appendMarkdown(`${formatTokenCount(totalTokens)}`);
 		markdown.appendText(`\n`);
+	}
+
+	// Show configuration properties marked with showInPicker
+	if (languageModelsService) {
+		const schema = model.metadata.configurationSchema;
+		if (schema?.properties) {
+			const currentConfig = languageModelsService.getModelConfiguration(model.identifier) ?? {};
+			for (const [key, propSchema] of Object.entries(schema.properties)) {
+				if (typeof propSchema === 'boolean' || !propSchema.showInPicker) {
+					continue;
+				}
+				const value = currentConfig[key] ?? propSchema.default;
+				if (value !== undefined) {
+					const title = (typeof propSchema.title === 'string' ? propSchema.title : undefined)
+						?? key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
+					markdown.appendMarkdown(`${title}: ${String(value)}`);
+					markdown.appendText(`\n`);
+				}
+			}
+		}
 	}
 
 	return markdown;
