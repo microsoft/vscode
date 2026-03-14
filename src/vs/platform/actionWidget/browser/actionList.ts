@@ -434,7 +434,7 @@ export class ActionList<T> extends Disposable {
 	private _cachedMaxWidth: number | undefined;
 	private _hasLaidOut = false;
 	private _showAbove: boolean | undefined;
-	private _submenu: { menu: Menu; container: HTMLElement; rowElement: HTMLElement; disposables: DisposableStore } | undefined;
+	private _submenu: { menu: Menu; container: HTMLElement; disposables: DisposableStore } | undefined;
 	private readonly _submenuShowScheduler: RunOnceScheduler;
 	private readonly _submenuHideScheduler: RunOnceScheduler;
 	private _submenuHoverIndex: number | undefined;
@@ -1240,39 +1240,18 @@ export class ActionList<T> extends Disposable {
 			return;
 		}
 
-		// Override overflow:hidden on the list row to allow the fixed-position submenu to render
-		rowElement.style.overflow = 'visible';
-
 		const submenuDisposables = new DisposableStore();
-
-		// Follow the exact same pattern as SubmenuMenuActionViewItem.createSubmenu
-		const submenuContainer = dom.append(rowElement, dom.$('div.monaco-submenu'));
+		const submenuContainer = dom.append(this.domNode, dom.$('div.monaco-submenu'));
 		submenuContainer.classList.add('menubar-menu-items-holder', 'context-view');
-		submenuContainer.style.position = 'fixed';
-		submenuContainer.style.top = '0';
-		submenuContainer.style.left = '0';
-		submenuContainer.style.zIndex = '1';
+		submenuContainer.style.position = 'absolute';
+		submenuContainer.style.zIndex = '10000';
 
 		const menu = new Menu(submenuContainer, element.submenuActions, {}, defaultMenuStyles);
 
-		// Layout: position to the right of the row, subtract offsets caused by transform parent
-		const entryBox = rowElement.getBoundingClientRect();
-		const viewBox = submenuContainer.getBoundingClientRect();
-		const targetWindow = dom.getWindow(rowElement);
-		const windowWidth = targetWindow.innerWidth;
-		const windowHeight = targetWindow.innerHeight;
-
-		let left = entryBox.right;
-		if (left + viewBox.width > windowWidth) {
-			left = entryBox.left - viewBox.width;
-		}
-		let top = entryBox.top;
-		if (top + viewBox.height > windowHeight) {
-			top = windowHeight - viewBox.height;
-		}
-
-		submenuContainer.style.left = `${left - viewBox.left}px`;
-		submenuContainer.style.top = `${top - viewBox.top}px`;
+		// Position to the right of the row, using the list's element position
+		const elementTop = this._list.getElementTop(index) - this._list.scrollTop;
+		submenuContainer.style.top = `${elementTop}px`;
+		submenuContainer.style.left = `${this.domNode.clientWidth}px`;
 
 		submenuDisposables.add(menu.onDidCancel(() => this._cleanupSubmenu()));
 
@@ -1283,12 +1262,11 @@ export class ActionList<T> extends Disposable {
 			this._submenuHideScheduler.schedule();
 		}));
 
-		this._submenu = { menu, container: submenuContainer, rowElement, disposables: submenuDisposables };
+		this._submenu = { menu, container: submenuContainer, disposables: submenuDisposables };
 	}
 
 	private _cleanupSubmenu(): void {
 		if (this._submenu) {
-			this._submenu.rowElement.style.overflow = '';
 			this._submenu.menu.dispose();
 			this._submenu.container.remove();
 			this._submenu.disposables.dispose();
