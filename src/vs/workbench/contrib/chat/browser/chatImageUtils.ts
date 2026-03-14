@@ -162,6 +162,9 @@ function getTimestampFromFilename(filename: string): number | undefined {
 	return undefined;
 }
 
-CommandsRegistry.registerCommand('_chat.resizeImage', async (_accessor, data: Uint8Array, mimeType?: string): Promise<Uint8Array> => {
+CommandsRegistry.registerCommand('_chat.resizeImage', async (_accessor, data: Uint8Array | VSBuffer, mimeType?: string): Promise<Uint8Array> => {
+	if (data instanceof VSBuffer) {
+		data = data.buffer;
+	}
 	return resizeImage(data, mimeType);
 });
