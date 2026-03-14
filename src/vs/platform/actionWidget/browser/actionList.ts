@@ -10,7 +10,7 @@ import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/con
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
-import { Menu } from '../../../base/browser/ui/menu/menu.js';
+import { HorizontalDirection, Menu, VerticalDirection } from '../../../base/browser/ui/menu/menu.js';
 import { IAction, SubmenuAction, toAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -1262,17 +1262,24 @@ export class ActionList<T> extends Disposable {
 		submenuContainer.style.zIndex = '10000';
 		submenuContainer.style.backgroundColor = 'var(--vscode-menu-background)';
 
-		const menu = new Menu(submenuContainer, element.submenuActions, {}, defaultMenuStyles);
+		const domRect = this.domNode.getBoundingClientRect();
+		const targetWindow = dom.getWindow(this.domNode);
+
+		// Determine expand direction based on available space
+		const showOnRight = domRect.right + 200 <= targetWindow.innerWidth; // estimate 200px for submenu width
+		const expandDirection = showOnRight
+			? { horizontal: HorizontalDirection.Right, vertical: VerticalDirection.Below }
+			: { horizontal: HorizontalDirection.Left, vertical: VerticalDirection.Below };
+
+		const menu = new Menu(submenuContainer, element.submenuActions, { expandDirection }, defaultMenuStyles);
 		// Prevent the menu from being focusable to avoid stealing focus from the action widget
 		submenuContainer.querySelectorAll('[tabindex]').forEach(el => el.removeAttribute('tabindex'));
 
 		// Position relative to domNode (which now has position:relative)
 		const rowRect = rowElement.getBoundingClientRect();
-		const domRect = this.domNode.getBoundingClientRect();
 		const submenuRect = submenuContainer.getBoundingClientRect();
-		const targetWindow = dom.getWindow(this.domNode);
 
-		// Vertical: align to row, but clamp so submenu doesn't go above the action list
+		// Vertical: align to row, but clamp within the action list bounds
 		let top = rowRect.top - domRect.top;
 		if (top + submenuRect.height > domRect.height) {
 			top = Math.max(0, domRect.height - submenuRect.height);
@@ -1280,7 +1287,7 @@ export class ActionList<T> extends Disposable {
 		top = Math.max(0, top);
 		submenuContainer.style.top = `${top}px`;
 
-		// Show to the right if there's space, otherwise to the left
+		// Horizontal: right if space, otherwise left
 		if (domRect.right + submenuRect.width <= targetWindow.innerWidth) {
 			submenuContainer.style.left = `${domRect.width}px`;
 		} else {
