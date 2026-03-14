@@ -280,7 +280,7 @@
 	border-radius: 4px;
 	padding: 4px 0;
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
-	min-width: 160px;
+	min-width: 220px;
 }
 
 .action-list-submenu-item {
