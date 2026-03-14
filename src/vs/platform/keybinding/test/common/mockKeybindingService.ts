@@ -97,6 +97,10 @@ export class MockKeybindingService implements IKeybindingService {
 		return '';
 	}
 
+	public getDefaultKeybindingsContentForOS(): string {
+		return '';
+	}
+
 	public getDefaultKeybindings(): ResolvedKeybindingItem[] {
 		return [];
 	}
