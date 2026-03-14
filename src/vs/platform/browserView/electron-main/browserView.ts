@@ -8,18 +8,19 @@ import { FileAccess } from '../../../base/common/network.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex } from '../common/browserView.js';
 import { EVENT_KEY_CODE_MAP, KeyCode, KeyMod, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
-import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
+import { ICodeWindow } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
-import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { isMacintosh } from '../../../base/common/platform.js';
 import { BrowserViewUri } from '../common/browserViewUri.js';
 import { BrowserViewDebugger } from './browserViewDebugger.js';
 import { ILogService } from '../../log/common/log.js';
 import { ICDPTarget, ICDPConnection, CDPTargetInfo } from '../common/cdp/types.js';
 import { BrowserSession } from './browserSession.js';
+import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
+import { hasKey } from '../../../base/common/types.js';
 
 /** Key combinations that are used in system-level shortcuts. */
 const nativeShortcuts = new Set([
@@ -45,9 +46,10 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	private _lastFavicon: string | undefined = undefined;
 	private _lastError: IBrowserViewLoadError | undefined = undefined;
 	private _lastUserGestureTimestamp: number = -Infinity;
+	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
 	private _debugger: BrowserViewDebugger;
-	private _window: IBaseWindow | undefined;
+	private _window: ICodeWindow | IAuxiliaryWindow | undefined;
 	private _isSendingKeyEvent = false;
 	private _isDisposed = false;
 
@@ -88,6 +90,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		public readonly id: string,
 		public readonly session: BrowserSession,
 		createChildView: (options?: Electron.WebContentsViewConstructorOptions) => BrowserView,
+		openContextMenu: (view: BrowserView, params: Electron.ContextMenuParams) => void,
 		options: Electron.WebContentsViewConstructorOptions | undefined,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
@@ -148,6 +151,10 @@ export class BrowserView extends Disposable implements ICDPTarget {
 					return childView.webContents;
 				}
 			};
+		});
+
+		this._view.webContents.on('context-menu', (_event, params) => {
+			openContextMenu(this, params);
 		});
 
 		this._view.webContents.on('destroyed', () => {
@@ -272,6 +279,12 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		webContents.on('did-navigate', fireNavigationEvent);
 		webContents.on('did-navigate-in-page', fireNavigationEvent);
 
+		// Chromium resets the zoom factor to its per-origin default (100%) when
+		// navigating to a new document. Re-apply our stored zoom to override it.
+		webContents.on('did-navigate', () => {
+			this._view.webContents.setZoomFactor(browserZoomFactors[this._browserZoomIndex]);
+		});
+
 		// Focus events
 		webContents.on('focus', () => {
 			this._onDidChangeFocus.fire({ focused: true });
@@ -360,7 +373,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			lastFavicon: this._lastFavicon,
 			lastError: this._lastError,
 			storageScope: this.session.storageScope,
-			zoomFactor: webContents.getZoomFactor()
+			browserZoomIndex: this._browserZoomIndex
 		};
 	}
 
@@ -376,7 +389,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	 */
 	layout(bounds: IBrowserViewBounds): void {
 		if (this._window?.win?.id !== bounds.windowId) {
-			const newWindow = this.windowById(bounds.windowId);
+			const newWindow = this._windowById(bounds.windowId);
 			if (newWindow) {
 				this._window?.win?.contentView.removeChildView(this._view);
 				this._window = newWindow;
@@ -384,13 +397,19 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			}
 		}
 
-		this._view.webContents.setZoomFactor(bounds.zoomFactor);
+		this._view.setBorderRadius(Math.round(bounds.cornerRadius * bounds.zoomFactor));
 		this._view.setBounds({
 			x: Math.round(bounds.x * bounds.zoomFactor),
 			y: Math.round(bounds.y * bounds.zoomFactor),
 			width: Math.round(bounds.width * bounds.zoomFactor),
 			height: Math.round(bounds.height * bounds.zoomFactor)
 		});
+	}
+
+	setBrowserZoomIndex(zoomIndex: number): void {
+		this._browserZoomIndex = Math.max(0, Math.min(zoomIndex, browserZoomFactors.length - 1));
+		const browserZoomFactor = browserZoomFactors[this._browserZoomIndex];
+		this._view.webContents.setZoomFactor(browserZoomFactor);
 	}
 
 	/**
@@ -473,8 +492,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
 		const quality = options?.quality ?? 80;
 		const image = await this._view.webContents.capturePage(options?.rect, {
-			stayHidden: true,
-			stayAwake: true
+			stayHidden: true
 		});
 		const buffer = image.toJPEG(quality);
 		const screenshot = VSBuffer.wrap(buffer);
@@ -574,6 +592,22 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		return this._view;
 	}
 
+	/**
+	 * Get the hosting Electron window for this view, if any.
+	 * This can be an auxiliary window, depending on where the view is currently hosted.
+	 */
+	getElectronWindow(): Electron.BrowserWindow | undefined {
+		return this._window?.win ?? undefined;
+	}
+
+	/**
+	 * Get the main code window hosting this browser view, if any. This is used for routing commands from the browser view to the correct window.
+	 * If the browser view is hosted in an auxiliary window, this will return the parent code window of that auxiliary window.
+	 */
+	getTopCodeWindow(): ICodeWindow | undefined {
+		return this._window && hasKey(this._window, { parentId: true }) ? this._codeWindowById(this._window.parentId) : undefined;
+	}
+
 	// ============ ICDPTarget implementation ============
 
 	/**
@@ -607,7 +641,9 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		this._onDidClose.fire();
 
 		// Clean up the view and all its event listeners
-		this._view.webContents.close({ waitForBeforeUnload: false });
+		if (!this._view.webContents.isDestroyed()) {
+			this._view.webContents.close({ waitForBeforeUnload: false });
+		}
 
 		super.dispose();
 	}
@@ -622,6 +658,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 		const isArrowKey = keyCode >= KeyCode.LeftArrow && keyCode <= KeyCode.DownArrow;
 		const isNonEditingKey =
+			keyCode === KeyCode.Enter ||
 			keyCode === KeyCode.Escape ||
 			keyCode >= KeyCode.F1 && keyCode <= KeyCode.F24 ||
 			keyCode >= KeyCode.AudioVolumeMute;
@@ -661,11 +698,11 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		return true;
 	}
 
-	private windowById(windowId: number | undefined): ICodeWindow | IAuxiliaryWindow | undefined {
-		return this.codeWindowById(windowId) ?? this.auxiliaryWindowById(windowId);
+	private _windowById(windowId: number | undefined): ICodeWindow | IAuxiliaryWindow | undefined {
+		return this._codeWindowById(windowId) ?? this._auxiliaryWindowById(windowId);
 	}
 
-	private codeWindowById(windowId: number | undefined): ICodeWindow | undefined {
+	private _codeWindowById(windowId: number | undefined): ICodeWindow | undefined {
 		if (typeof windowId !== 'number') {
 			return undefined;
 		}
@@ -673,7 +710,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		return this.windowsMainService.getWindowById(windowId);
 	}
 
-	private auxiliaryWindowById(windowId: number | undefined): IAuxiliaryWindow | undefined {
+	private _auxiliaryWindowById(windowId: number | undefined): IAuxiliaryWindow | undefined {
 		if (typeof windowId !== 'number') {
 			return undefined;
 		}

@@ -24,14 +24,14 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { HOOK_METADATA, HOOKS_BY_TARGET, HookType, IHookTypeMeta } from '../../common/promptSyntax/hookTypes.js';
-import { getEffectiveCommandFieldKey } from '../../common/promptSyntax/hookSchema.js';
+import { formatHookCommandLabel, getEffectiveCommandFieldKey } from '../../common/promptSyntax/hookSchema.js';
 import { getCopilotCliHookTypeName, resolveCopilotCliHookType } from '../../common/promptSyntax/hookCopilotCliCompat.js';
 import { getHookSourceFormat, HookSourceFormat, buildNewHookEntry } from '../../common/promptSyntax/hookCompatibility.js';
 import { getClaudeHookTypeName, resolveClaudeHookType } from '../../common/promptSyntax/hookClaudeCompat.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
-import { findHookCommandSelection, parseAllHookFiles, IParsedHook } from './hookUtils.js';
+import { findHookCommandSelection, findHookCommandInYaml, parseAllHookFiles, IParsedHook } from './hookUtils.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -348,7 +348,8 @@ export async function showConfigureHooksQuickPick(
 		workspaceRootUri,
 		userHome,
 		targetOS,
-		CancellationToken.None
+		CancellationToken.None,
+		{ includeAgentHooks: true }
 	);
 
 	// Count hooks per type
@@ -445,6 +446,10 @@ export async function showConfigureHooksQuickPick(
 					// Filter hooks by the selected type
 					const hooksOfType = hookEntries.filter(h => h.hookType === selectedHookType!.hookType);
 
+					// Separate hooks by source
+					const fileHooks = hooksOfType.filter(h => !h.agentName);
+					const agentHooks = hooksOfType.filter(h => h.agentName);
+
 					// Step 2: Show "Add new hook" + existing hooks of this type
 					const hookItems: (IHookQuickPickItem | IQuickPickSeparator)[] = [];
 
@@ -455,20 +460,40 @@ export async function showConfigureHooksQuickPick(
 						alwaysShow: true
 					});
 
-					// Add existing hooks
-					if (hooksOfType.length > 0) {
+					// Add existing file-based hooks
+					if (fileHooks.length > 0) {
 						hookItems.push({
 							type: 'separator',
 							label: localize('existingHooks', "Existing Hooks")
 						});
 
-						for (const entry of hooksOfType) {
+						for (const entry of fileHooks) {
 							const description = labelService.getUriLabel(entry.fileUri, { relative: true });
 							hookItems.push({
 								label: entry.commandLabel,
 								description,
 								hookEntry: entry
 							});
+						}
+					}
+
+					// Add agent-defined hooks grouped by agent name
+					if (agentHooks.length > 0) {
+						const agentNames = [...new Set(agentHooks.map(h => h.agentName!))];
+						for (const agentName of agentNames) {
+							hookItems.push({
+								type: 'separator',
+								label: localize('agentHooks', "Agent: {0}", agentName)
+							});
+
+							for (const entry of agentHooks.filter(h => h.agentName === agentName)) {
+								const description = labelService.getUriLabel(entry.fileUri, { relative: true });
+								hookItems.push({
+									label: entry.commandLabel,
+									description,
+									hookEntry: entry
+								});
+							}
 						}
 					}
 
@@ -500,21 +525,33 @@ export async function showConfigureHooksQuickPick(
 						const entry = selectedHook.hookEntry;
 						let selection: ITextEditorSelection | undefined;
 
-						// Determine the command field name to highlight based on target platform
-						const commandFieldName = getEffectiveCommandFieldKey(entry.command, targetOS);
-
-						// Try to find the command field to highlight
-						if (commandFieldName) {
+						if (entry.agentName) {
+							// Agent hook: search the YAML frontmatter for the command
 							try {
 								const content = await fileService.readFile(entry.fileUri);
-								selection = findHookCommandSelection(
-									content.value.toString(),
-									entry.originalHookTypeId,
-									entry.index,
-									commandFieldName
-								);
+								const commandText = formatHookCommandLabel(entry.command, targetOS);
+								if (commandText) {
+									selection = findHookCommandInYaml(content.value.toString(), commandText);
+								}
 							} catch {
 								// Ignore errors and just open without selection
+							}
+						} else {
+							// File hook: use JSON-based selection finder
+							const commandFieldName = getEffectiveCommandFieldKey(entry.command, targetOS);
+
+							if (commandFieldName) {
+								try {
+									const content = await fileService.readFile(entry.fileUri);
+									selection = findHookCommandSelection(
+										content.value.toString(),
+										entry.originalHookTypeId,
+										entry.index,
+										commandFieldName
+									);
+								} catch {
+									// Ignore errors and just open without selection
+								}
 							}
 						}
 

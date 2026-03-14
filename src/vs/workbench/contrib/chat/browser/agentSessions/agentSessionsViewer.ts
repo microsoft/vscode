@@ -43,11 +43,13 @@ import { MarkdownString, IMarkdownString } from '../../../../../base/common/html
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
 import { AgentSessionProviders, getAgentSessionTime } from './agentSessions.js';
 import { AgentSessionsGrouping } from './agentSessionsFilter.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
@@ -87,16 +89,24 @@ interface IAgentSessionItemTemplate {
 }
 
 export interface IAgentSessionRendererOptions {
-	readonly useSimpleHover?: boolean;
+	readonly disableHover?: boolean;
 	readonly showIsolationIcon?: boolean;
 	getHoverPosition(): HoverPosition;
+	isGroupedByRepository?(): boolean;
 }
 
 export class AgentSessionRenderer extends Disposable implements ICompressibleTreeRenderer<IAgentSession, FuzzyScore, IAgentSessionItemTemplate> {
 
 	static readonly TEMPLATE_ID = 'agent-session';
 
-	static readonly APPROVAL_ROW_HEIGHT = 40;
+	static readonly APPROVAL_ROW_MAX_LINES = 3;
+	private static readonly _APPROVAL_ROW_LINE_HEIGHT = 18;
+	private static readonly _APPROVAL_ROW_OVERHEAD = 14; // 4px margin-top + 4px padding-top + 4px padding-bottom + 2px border
+
+	static getApprovalRowHeight(label: string): number {
+		const lineCount = Math.min(label.split(/\r?\n/).length, AgentSessionRenderer.APPROVAL_ROW_MAX_LINES);
+		return lineCount * AgentSessionRenderer._APPROVAL_ROW_LINE_HEIGHT + AgentSessionRenderer._APPROVAL_ROW_OVERHEAD;
+	}
 
 	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
 
@@ -108,6 +118,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	constructor(
 		private readonly options: IAgentSessionRendererOptions,
 		private readonly _approvalModel: AgentSessionApprovalModel | undefined,
+		private readonly _activeSessionResource: IObservable<URI | undefined>,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IProductService private readonly productService: IProductService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -263,11 +274,29 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 	private renderBadge(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
 		const badge = session.element.badge;
-		if (badge) {
-			this.renderMarkdownOrText(badge, template.badge, template.elementDisposable);
+		if (!badge) {
+			return false;
 		}
 
-		return !!badge;
+		// When grouped by repository, hide the badge only if the name it shows
+		// matches the section header (i.e. the repository name for this session).
+		// Badges with a different name (e.g. worktree name) are still shown.
+		// Archived sessions always keep their badge since they are grouped under
+		// the "Archived" section, not a repository section.
+		if (this.options.isGroupedByRepository?.() && !session.element.isArchived()) {
+			const raw = typeof badge === 'string' ? badge : badge.value;
+			const match = raw.match(/^\$\((?:repo|folder|worktree)\)\s*(.+)/);
+			if (match) {
+				const badgeName = match[1].trim();
+				const repoName = getRepositoryName(session.element);
+				if (badgeName === repoName) {
+					return false;
+				}
+			}
+		}
+
+		this.renderMarkdownOrText(badge, template.badge, template.elementDisposable);
+		return true;
 	}
 
 	private renderMarkdownOrText(content: string | IMarkdownString, container: HTMLElement, disposables: DisposableStore): void {
@@ -402,9 +431,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
-		if (this.options.useSimpleHover) {
-			const title = renderAsPlaintext(new MarkdownString(session.element.label));
-			template.elementDisposable.add(this.hoverService.setupDelayedHover(template.element, { content: title, position: { hoverPosition: this.options.getHoverPosition() } }, { groupId: 'agent.sessions' }));
+		if (this.options.disableHover) {
 			return;
 		}
 
@@ -459,20 +486,33 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			template.approvalRow.classList.toggle('visible', visible);
 
 			if (info) {
-				// Render as a syntax-highlighted code block
-				const codeblockContent = new MarkdownString().appendCodeblock(info.languageId ?? 'json', info.label);
-				this.renderMarkdownOrText(codeblockContent, template.approvalLabel, buttonStore);
+				// Render up to 3 lines, each as a separate code block so CSS can truncate per-line
+				const lines = info.label.split('\n');
+				const maxLines = AgentSessionRenderer.APPROVAL_ROW_MAX_LINES;
+				const visibleLines = lines.slice(0, maxLines);
+				if (lines.length > maxLines) {
+					visibleLines[maxLines - 1] = `${visibleLines[maxLines - 1]} \u2026`;
+				}
+				const langId = info.languageId ?? 'json';
+				const labelContent = new MarkdownString();
+				for (const line of visibleLines) {
+					labelContent.appendCodeblock(langId, line);
+				}
+				this.renderMarkdownOrText(labelContent, template.approvalLabel, buttonStore);
 
 				// Hover with full content as a code block
+				const fullContent = new MarkdownString().appendCodeblock(info.languageId ?? 'json', info.label);
 				buttonStore.add(this.hoverService.setupDelayedHover(template.approvalLabel, {
-					content: codeblockContent,
+					content: fullContent,
 					style: HoverStyle.Pointer,
 					position: { hoverPosition: HoverPosition.BELOW },
 				}));
 
 				template.approvalButtonContainer.textContent = '';
+				const isActive = this._activeSessionResource.read(reader)?.toString() === session.element.resource.toString();
 				const button = buttonStore.add(new Button(template.approvalButtonContainer, {
 					title: localize('allowActionOnce', "Allow once"),
+					secondary: isActive,
 					...defaultButtonStyles
 				}));
 				button.label = localize('allowAction', "Allow");
@@ -607,8 +647,9 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 		}
 
 		let height = AgentSessionsListDelegate.ITEM_HEIGHT;
-		if (this._approvalModel?.getApproval(element.resource).get()) {
-			height += AgentSessionRenderer.APPROVAL_ROW_HEIGHT;
+		const approval = this._approvalModel?.getApproval(element.resource).get();
+		if (approval) {
+			height += AgentSessionRenderer.getApprovalRowHeight(approval.label);
 		}
 		return height;
 	}
@@ -713,6 +754,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
 		private readonly sorter: ITreeSorter<IAgentSession>,
+		private readonly logService?: ILogService,
 	) {
 		super();
 	}
@@ -787,6 +829,8 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			}
 
 			return this.groupSessionsCapped(sortedSessions);
+		} else if (this.filter?.groupResults?.() === AgentSessionsGrouping.Repository) {
+			return this.groupSessionsByRepository(sortedSessions);
 		} else {
 			return this.groupSessionsByDate(sortedSessions);
 		}
@@ -830,6 +874,200 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		return result;
 	}
+
+	private groupSessionsByRepository(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
+		const repoMap = new Map<string, { label: string; sessions: IAgentSession[] }>();
+		const archivedSessions: IAgentSession[] = [];
+		const unknownKey = '\x00unknown';
+		const unknownLabel = localize('agentSessions.noRepository', "Other");
+
+		for (const session of sortedSessions) {
+			if (session.isArchived()) {
+				archivedSessions.push(session);
+				continue;
+			}
+
+			const repoName = this.getRepositoryName(session);
+			if (!repoName) {
+				this.logService?.warn('[AgentSessions] Could not determine repository name for session, categorizing as "Other"', JSON.stringify(session));
+			}
+			const repoId = repoName || unknownKey;
+			const repoLabel = repoName || unknownLabel;
+
+			let group = repoMap.get(repoId);
+			if (!group) {
+				group = { label: repoLabel, sessions: [] };
+				repoMap.set(repoId, group);
+			}
+			group.sessions.push(session);
+		}
+
+		const result: AgentSessionListItem[] = [];
+		for (const [, { label, sessions }] of repoMap) {
+			result.push({
+				section: AgentSessionSection.Repository,
+				label,
+				sessions,
+			});
+		}
+
+		if (archivedSessions.length > 0) {
+			result.push({
+				section: AgentSessionSection.Archived,
+				label: AgentSessionSectionLabels[AgentSessionSection.Archived],
+				sessions: archivedSessions,
+			});
+		}
+
+		return result;
+	}
+
+	private getRepositoryName(session: IAgentSession): string | undefined {
+		return getRepositoryName(session);
+	}
+}
+
+/**
+ * Extracts the repository name for an agent session from its metadata or badge.
+ * Used for grouping sessions by repository and for determining whether a badge
+ * is redundant with the section header.
+ */
+export function getRepositoryName(session: IAgentSession): string | undefined {
+	const metadata = session.metadata;
+	if (metadata) {
+		// Cloud sessions: metadata.owner + metadata.name
+		const owner = metadata.owner as string | undefined;
+		const name = metadata.name as string | undefined;
+		if (owner && name) {
+			return name;
+		}
+
+		// repositoryNwo: "owner/repo"
+		const nwo = metadata.repositoryNwo as string | undefined;
+		if (nwo && nwo.includes('/')) {
+			return nwo.split('/').pop()!;
+		}
+
+		// repository: could be "owner/repo", a URL, or git@host:owner/repo.git
+		const repository = metadata.repository as string | undefined;
+		if (repository) {
+			const repoName = parseRepositoryName(repository);
+			if (repoName) {
+				return repoName;
+			}
+		}
+
+		// repositoryUrl: "https://github.com/owner/repo"
+		const repositoryUrl = metadata.repositoryUrl as string | undefined;
+		if (repositoryUrl) {
+			const repoName = parseRepositoryName(repositoryUrl);
+			if (repoName) {
+				return repoName;
+			}
+		}
+
+		// repositoryPath: extract repo name from the directory path basename
+		const repositoryPath = metadata.repositoryPath as string | undefined;
+		if (repositoryPath) {
+			const repoName = extractRepoNameFromPath(repositoryPath);
+			if (repoName) {
+				return repoName;
+			}
+		}
+
+		// worktreePath: extract repo name from the worktree path
+		const worktreePath = metadata.worktreePath as string | undefined;
+		if (worktreePath) {
+			const repoName = extractRepoNameFromPath(worktreePath);
+			if (repoName) {
+				return repoName;
+			}
+		}
+
+		// workingDirectoryPath: fallback to extract name from the working directory
+		const workingDirectoryPath = metadata.workingDirectoryPath as string | undefined;
+		if (workingDirectoryPath) {
+			const repoName = extractRepoNameFromPath(workingDirectoryPath);
+			if (repoName) {
+				return repoName;
+			}
+		}
+	}
+
+	// Fallback: extract repo/folder name from badge
+	const badge = session.badge;
+	if (badge) {
+		const raw = typeof badge === 'string' ? badge : badge.value;
+		const badgeMatch = raw.match(/\$\((?:repo|folder|worktree)\)\s*(.+)/);
+		if (badgeMatch) {
+			return badgeMatch[1].trim();
+		}
+	}
+
+	return undefined;
+}
+
+/**
+ * Parses a repository name from various formats: "owner/repo", URLs,
+ * and git@host:owner/repo.git style references.
+ */
+function parseRepositoryName(value: string): string | undefined {
+	// Direct "owner/repo" style (no scheme, no git@ prefix)
+	if (value.includes('/') && !value.includes('://') && !value.startsWith('git@')) {
+		let repoSegment = value.split('/').filter(Boolean).pop();
+		if (repoSegment?.endsWith('.git')) {
+			repoSegment = repoSegment.slice(0, -4);
+		}
+		return repoSegment || undefined;
+	}
+
+	// Standard URL formats (https://..., ssh://..., etc.)
+	try {
+		const url = new URL(value);
+		const parts = url.pathname.split('/').filter(Boolean);
+		if (parts.length >= 2) {
+			let repoSegment = parts[1];
+			if (repoSegment.endsWith('.git')) {
+				repoSegment = repoSegment.slice(0, -4);
+			}
+			return repoSegment || undefined;
+		}
+	} catch {
+		// not a standard URL
+	}
+
+	// git@host:owner/repo(.git) style URLs
+	if (value.startsWith('git@')) {
+		const colonIndex = value.indexOf(':');
+		if (colonIndex !== -1 && colonIndex < value.length - 1) {
+			const pathPart = value.substring(colonIndex + 1);
+			let repoSegment = pathPart.split('/').filter(Boolean).pop();
+			if (repoSegment?.endsWith('.git')) {
+				repoSegment = repoSegment.slice(0, -4);
+			}
+			return repoSegment || undefined;
+		}
+	}
+
+	return undefined;
+}
+
+/**
+ * Extracts the repository name from a filesystem path, handling git worktree
+ * conventions where paths follow `<repo>.worktrees/<worktree-name>`.
+ */
+function extractRepoNameFromPath(dirPath: string): string | undefined {
+	const segments = dirPath.split(/[/\\]/).filter(Boolean);
+	if (segments.length < 2) {
+		return segments[0];
+	}
+
+	const parent = segments[segments.length - 2];
+	if (parent.endsWith('.worktrees')) {
+		return parent.slice(0, -'.worktrees'.length) || undefined;
+	}
+
+	return segments[segments.length - 1];
 }
 
 export const AgentSessionSectionLabels = {
@@ -909,7 +1147,7 @@ export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSe
 
 	getId(element: IAgentSessionsModel | AgentSessionListItem): string {
 		if (isAgentSessionSection(element)) {
-			return `section-${element.section}`;
+			return `section-${element.section}-${element.label}`;
 		}
 
 		if (isAgentSession(element)) {

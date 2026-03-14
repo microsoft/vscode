@@ -162,7 +162,7 @@ export class UITest {
 		await installButton.click();
 
 		this.context.log('Waiting for extension to be installed');
-		await page.locator('.extension-action:not(.disabled)', { hasText: /Uninstall/ }).waitFor({ timeout: 5 * 60_1000 });
+		await page.getByRole('button', { name: 'Uninstall' }).first().waitFor({ timeout: 5 * 60_000 });
 	}
 
 	/**

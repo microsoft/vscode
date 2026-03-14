@@ -29,7 +29,10 @@ export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
-	canManageModels(): boolean;
+	useGroupedModelPicker(): boolean;
+	showManageModelsAction(): boolean;
+	showUnavailableFeatured(): boolean;
+	showFeatured(): boolean;
 }
 
 type ChatModelChangeClassification = {
@@ -209,9 +212,7 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 		}
 
 		domChildren.push(dom.$('span.chat-input-picker-label', undefined, name ?? localize('chat.modelPicker.auto', "Auto")));
-		if (!this.pickerOptions.hideChevrons.get()) {
-			domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
-		}
+		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...domChildren);
 		this.setAriaLabelAttributes(element);

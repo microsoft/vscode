@@ -138,7 +138,13 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 	// --- GitHub API
 
 	private async getAuthToken(): Promise<string> {
-		const sessions = await this.authenticationService.getSessions('github', ['repo'], { silent: true }) ?? await this.authenticationService.getSessions('github', ['repo'], { createIfNone: true });
+		let sessions = await this.authenticationService.getSessions('github', [], { silent: true });
+		if (!sessions || sessions.length === 0) {
+			sessions = await this.authenticationService.getSessions('github', [], { createIfNone: true });
+		}
+		if (!sessions || sessions.length === 0) {
+			throw createFileSystemProviderError('No GitHub authentication sessions available', FileSystemProviderErrorCode.Unavailable);
+		}
 		return sessions[0].accessToken ?? '';
 	}
 
@@ -183,6 +189,7 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 				'Accept': 'application/vnd.github.v3+json',
 				'User-Agent': 'VSCode-SessionRepoFS',
 			},
+			callSite: 'githubFileSystemProvider.fetchTree'
 		}, CancellationToken.None);
 
 		// Cache 404s so we don't keep re-fetching missing trees
@@ -293,6 +300,7 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 				'Accept': 'application/vnd.github.v3+json',
 				'User-Agent': 'VSCode-SessionRepoFS',
 			},
+			callSite: 'githubFileSystemProvider.readFile'
 		}, CancellationToken.None);
 
 		const data = await asJson<{ content: string; encoding: string }>(response);

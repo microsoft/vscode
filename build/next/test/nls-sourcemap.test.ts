@@ -220,6 +220,28 @@ suite('NLS plugin source maps', () => {
 		}
 	});
 
+	test('NLS-affected nested file keeps a non-duplicated source path', async () => {
+		const source = [
+			'import { localize } from "../../vs/nls";',
+			'export const msg = localize("myKey", "Hello World");',
+		].join('\n');
+
+		const { mapJson, cleanup } = await bundleWithNLS(
+			{ 'nested/deep/file.ts': source },
+			'nested/deep/file.ts',
+		);
+
+		try {
+			const sources: string[] = mapJson.sources ?? [];
+			const nestedSource = sources.find((s: string) => s.endsWith('/nested/deep/file.ts'));
+			assert.ok(nestedSource, 'Should find nested/deep/file.ts in sources');
+			assert.ok(!nestedSource.includes('/nested/deep/nested/deep/file.ts'),
+				`Source path should not duplicate directory segments. Actual: ${nestedSource}`);
+		} finally {
+			cleanup();
+		}
+	});
+
 	test('line mapping correct for code after localize calls', async () => {
 		const source = [
 			'import { localize } from "../vs/nls";',                         // 1

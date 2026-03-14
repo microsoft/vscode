@@ -544,6 +544,16 @@ export interface IModalEditorPart extends IEditorPart {
 	toggleMaximized(): void;
 
 	/**
+	 * Size set by the user via resizing, if any.
+	 */
+	readonly size: IDimension | undefined;
+
+	/**
+	 * Position set by the user via dragging, if any.
+	 */
+	readonly position: { left: number; top: number } | undefined;
+
+	/**
 	 * The current navigation context, if any.
 	 */
 	readonly navigation: IModalEditorNavigation | undefined;

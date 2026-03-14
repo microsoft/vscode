@@ -360,6 +360,11 @@ export interface IActionListOptions {
 	readonly filterPlaceholder?: string;
 
 	/**
+	 * Optional actions shown in the filter row, to the right of the input.
+	 */
+	readonly filterActions?: readonly IAction[];
+
+	/**
 	 * Section IDs that should be collapsed by default.
 	 */
 	readonly collapsedByDefault?: ReadonlySet<string>;
@@ -368,6 +373,12 @@ export interface IActionListOptions {
 	 * Minimum width for the action list.
 	 */
 	readonly minWidth?: number;
+
+	/**
+	 * When true, descriptions are rendered as subtext below the title
+	 * instead of inline to the right.
+	 */
+	readonly descriptionBelow?: boolean;
 
 
 
@@ -383,7 +394,7 @@ export class ActionList<T> extends Disposable {
 
 	private readonly _list: List<IActionListItem<T>>;
 
-	private readonly _actionLineHeight = 24;
+	private readonly _actionLineHeight: number;
 	private readonly _headerLineHeight = 24;
 	private readonly _separatorLineHeight = 8;
 
@@ -431,6 +442,10 @@ export class ActionList<T> extends Disposable {
 		super();
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
+		if (this._options?.descriptionBelow) {
+			this.domNode.classList.add('description-below');
+		}
+		this._actionLineHeight = this._options?.descriptionBelow ? 48 : 24;
 
 		// Initialize collapsed sections
 		if (this._options?.collapsedByDefault) {
@@ -506,13 +521,21 @@ export class ActionList<T> extends Disposable {
 		if (this._options?.showFilter) {
 			this._filterContainer = document.createElement('div');
 			this._filterContainer.className = 'action-list-filter';
+			const filterRow = dom.append(this._filterContainer, dom.$('.action-list-filter-row'));
 
 			this._filterInput = document.createElement('input');
 			this._filterInput.type = 'text';
 			this._filterInput.className = 'action-list-filter-input';
 			this._filterInput.placeholder = this._options?.filterPlaceholder ?? localize('actionList.filter.placeholder', "Search...");
 			this._filterInput.setAttribute('aria-label', localize('actionList.filter.ariaLabel', "Filter items"));
-			this._filterContainer.appendChild(this._filterInput);
+			filterRow.appendChild(this._filterInput);
+
+			const filterActions = this._options?.filterActions ?? [];
+			if (filterActions.length > 0) {
+				const filterActionsContainer = dom.append(filterRow, dom.$('.action-list-filter-actions'));
+				const filterActionBar = this._register(new ActionBar(filterActionsContainer));
+				filterActionBar.push(filterActions, { icon: true, label: false });
+			}
 
 			this._register(dom.addDisposableListener(this._filterInput, 'input', () => {
 				this._filterText = this._filterInput!.value;
@@ -787,7 +810,7 @@ export class ActionList<T> extends Disposable {
 			availableHeight = widgetTop > 0 ? windowHeight - widgetTop - padding : windowHeight * 0.7;
 		}
 
-		const viewportMaxHeight = Math.floor(targetWindow.innerHeight * 0.4);
+		const viewportMaxHeight = Math.floor(targetWindow.innerHeight * 0.6);
 		const maxHeight = Math.min(Math.max(availableHeight, this._actionLineHeight * 3 + filterHeight), viewportMaxHeight);
 		const height = Math.min(listHeight + filterHeight, maxHeight);
 		return height - filterHeight;

@@ -53,6 +53,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		AICustomizationManagementSection.Prompts,
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.McpServers,
+		AICustomizationManagementSection.Plugins,
 	];
 
 	private static readonly _defaultFilter: IStorageSourceFilter = {

@@ -2671,7 +2671,7 @@ export namespace ChatResponseQuestionCarouselPart {
 				type: questionTypeToString(q.type),
 				title: q.title,
 				message: q.message ? MarkdownString.from(q.message) : undefined,
-				options: q.options,
+				options: q.options?.map(opt => ({ id: opt.id, label: opt.label, value: String(opt.value) })),
 				defaultValue: q.defaultValue,
 				allowFreeformInput: q.allowFreeformInput
 			})),
@@ -2934,6 +2934,7 @@ export namespace ChatToolInvocationPart {
 				pastTenseMessage: part.pastTenseMessage ? MarkdownString.from(part.pastTenseMessage) : undefined,
 				toolSpecificData,
 				subagentInvocationId: part.subAgentInvocationId,
+				resultDetails
 			};
 		}
 
@@ -3440,6 +3441,7 @@ export namespace ChatAgentRequest {
 			editedFileEvents: request.editedFileEvents,
 			modeInstructions: request.modeInstructions?.content,
 			modeInstructions2: ChatRequestModeInstructions.to(request.modeInstructions),
+			permissionLevel: request.permissionLevel,
 			subAgentInvocationId: request.subAgentInvocationId,
 			subAgentName: request.subAgentName,
 			parentRequestId: request.parentRequestId,
@@ -3606,6 +3608,7 @@ export namespace ChatRequestModeInstructions {
 	export function to(mode: IChatRequestModeInstructions | undefined): vscode.ChatRequestModeInstructions | undefined {
 		if (mode) {
 			return {
+				uri: URI.revive(mode.uri),
 				name: mode.name,
 				content: mode.content,
 				toolReferences: ChatLanguageModelToolReferences.to(mode.toolReferences),
@@ -4052,6 +4055,7 @@ export namespace McpServerDefinition {
 					command: item.command,
 					env: item.env,
 					envFile: undefined,
+					sandbox: undefined
 				}
 		);
 	}

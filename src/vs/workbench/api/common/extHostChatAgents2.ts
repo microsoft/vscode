@@ -27,7 +27,7 @@ import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js'
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentProgressShape, IChatProgressDto, IChatSessionContextDto, IExtensionChatAgentMetadata, IMainContext, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
+import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentProgressShape, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IExtensionChatAgentMetadata, IInstructionDto, IMainContext, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
@@ -440,6 +440,7 @@ export class ChatAgentResponseStream {
 						kind: 'usage',
 						promptTokens: usage.promptTokens,
 						completionTokens: usage.completionTokens,
+						outputBuffer: usage.outputBuffer,
 						promptTokenDetails: usage.promptTokenDetails
 					};
 					_report(dto);
@@ -487,6 +488,17 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private readonly _onDidDisposeChatSession = this._register(new Emitter<string>());
 	readonly onDidDisposeChatSession = this._onDidDisposeChatSession.event;
 
+	private readonly _onDidChangeCustomAgents = this._register(new Emitter<void>());
+	readonly onDidChangeCustomAgents = this._onDidChangeCustomAgents.event;
+	private readonly _onDidChangeInstructions = this._register(new Emitter<void>());
+	readonly onDidChangeInstructions = this._onDidChangeInstructions.event;
+	private readonly _onDidChangeSkills = this._register(new Emitter<void>());
+	readonly onDidChangeSkills = this._onDidChangeSkills.event;
+
+	private _customAgents: vscode.ChatResource[] = [];
+	private _instructions: vscode.ChatResource[] = [];
+	private _skills: vscode.ChatResource[] = [];
+
 	private _activeChatPanelSessionResource: URI | undefined;
 
 	private readonly _onDidChangeActiveChatPanelSessionResource = this._register(new Emitter<URI | undefined>());
@@ -494,6 +506,33 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	get activeChatPanelSessionResource(): URI | undefined {
 		return this._activeChatPanelSessionResource;
+	}
+
+	get customAgents(): readonly vscode.ChatResource[] {
+		return this._customAgents;
+	}
+
+	get instructions(): readonly vscode.ChatResource[] {
+		return this._instructions;
+	}
+
+	get skills(): readonly vscode.ChatResource[] {
+		return this._skills;
+	}
+
+	$acceptCustomAgents(agents: ICustomAgentDto[]): void {
+		this._customAgents = agents.map(a => Object.freeze({ uri: URI.revive(a.uri) }));
+		this._onDidChangeCustomAgents.fire();
+	}
+
+	$acceptInstructions(instructions: IInstructionDto[]): void {
+		this._instructions = instructions.map(i => Object.freeze({ uri: URI.revive(i.uri) }));
+		this._onDidChangeInstructions.fire();
+	}
+
+	$acceptSkills(skills: ISkillDto[]): void {
+		this._skills = skills.map(s => Object.freeze({ uri: URI.revive(s.uri) }));
+		this._onDidChangeSkills.fire();
 	}
 
 	constructor(
@@ -1007,7 +1046,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context });
-		return await agent.provideTitle({ history, yieldRequested: false }, token);
+		const sessionResource = context[0]?.request.sessionResource ? URI.revive(context[0].request.sessionResource) : undefined;
+		return await agent.provideTitle({ history, sessionResource, yieldRequested: false }, token);
 	}
 
 	async $provideChatSummary(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined> {
@@ -1017,7 +1057,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context });
-		return await agent.provideSummary({ history, yieldRequested: false }, token);
+		const sessionResource = context[0]?.request.sessionResource ? URI.revive(context[0].request.sessionResource) : undefined;
+		return await agent.provideSummary({ history, sessionResource, yieldRequested: false }, token);
 	}
 }
 

@@ -209,4 +209,9 @@
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
 	"debug.breakpointsView.presentation": "tree",
+	"chat.agentSkillsLocations": {
+		".github/skills/.local": true,
+		".agents/skills/.local": true,
+		".claude/skills/.local": true,
+	}
 }

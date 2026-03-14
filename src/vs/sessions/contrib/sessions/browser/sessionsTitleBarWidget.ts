@@ -32,7 +32,8 @@ import { AgentSessionsPicker } from '../../../../workbench/contrib/chat/browser/
 import { autorun } from '../../../../base/common/observable.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { getAgentSessionProvider, getAgentSessionProviderIcon } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { basename } from '../../../../base/common/resources.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
@@ -290,6 +291,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		// Try to get icon from the agent session model (has provider-resolved icon)
 		const agentSession = this.agentSessionsService.getSession(activeSession.resource);
 		if (agentSession) {
+			// For background sessions, distinguish worktree vs folder based on metadata
+			if (agentSession.providerType === AgentSessionProviders.Background) {
+				const hasWorktree = typeof agentSession.metadata?.worktreePath === 'string';
+				return hasWorktree ? Codicon.worktree : Codicon.folder;
+			}
+
 			return agentSession.icon;
 		}
 
