@@ -12,6 +12,7 @@ import { IChatResponseViewModel, IChatRequestViewModel, isRequestVM } from './mo
 import { ChatResponseResource } from './model/chatModel.js';
 import { IChatContentInlineReference, IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from './chatService/chatService.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, IToolResultOutputDetails } from './tools/languageModelToolsService.js';
+import { isImageVariableEntry } from './attachments/chatVariableEntries.js';
 
 export interface IChatExtractedImage {
 	readonly id: string;
@@ -185,4 +186,49 @@ async function extractImageFromInlineReference(
 		source: localize('chatImageExtraction.inlineReference', "File"),
 		caption: undefined,
 	};
+}
+
+export function coerceImageBuffer(value: unknown): Uint8Array | undefined {
+	return value instanceof Uint8Array
+		? value
+		: value instanceof ArrayBuffer
+			? new Uint8Array(value)
+			: (value && typeof value === 'object' && !Array.isArray(value))
+				? new Uint8Array(
+					Object.keys(value as Record<string, number>)
+						.sort((a, b) => Number(a) - Number(b))
+						.map(key => (value as Record<string, number>)[key])
+				)
+				: undefined;
+}
+
+/**
+ * Extract images from a chat request's variable attachments (user-attached images).
+ */
+export function extractImagesFromChatRequest(
+	request: IChatRequestViewModel,
+): IChatExtractedImage[] {
+	const images: IChatExtractedImage[] = [];
+	for (const variable of request.variables) {
+		if (!isImageVariableEntry(variable)) {
+			continue;
+		}
+		const buffer = coerceImageBuffer(variable.value);
+		if (!buffer) {
+			continue;
+		}
+		const mimeType = variable.mimeType ?? getMediaMime(variable.name) ?? 'image/png';
+		const uri = variable.references?.[0]?.reference;
+		const imageUri = URI.isUri(uri) ? uri : URI.from({ scheme: 'data', path: variable.name });
+		images.push({
+			id: imageUri.toString(),
+			uri: imageUri,
+			name: variable.name,
+			mimeType,
+			data: VSBuffer.wrap(buffer),
+			source: localize('chatImageExtraction.userAttachment', "Attachment"),
+			caption: undefined,
+		});
+	}
+	return images;
 }
