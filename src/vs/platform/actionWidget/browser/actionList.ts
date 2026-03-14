@@ -1211,10 +1211,15 @@ export class ActionList<T> extends Disposable {
 			// Hide hover widget to avoid conflict with submenu
 			this._hover.clear();
 		} else {
-			this._submenuHoverIndex = undefined;
-			this._submenuShowScheduler.cancel();
-			if (this._submenu) {
-				this._submenuHideScheduler.schedule();
+			// Don't hide submenu if mouse moved into the submenu itself
+			const isHoveringSubmenu = this._submenu && dom.isHTMLElement(e.browserEvent.target) &&
+				dom.isAncestor(e.browserEvent.target, this._submenu.container);
+			if (!isHoveringSubmenu) {
+				this._submenuHoverIndex = undefined;
+				this._submenuShowScheduler.cancel();
+				if (this._submenu) {
+					this._submenuHideScheduler.schedule();
+				}
 			}
 		}
 	}
