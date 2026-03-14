@@ -37,7 +37,7 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { AgentSessionProviders, isAgentHostTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessionPickerActionItem.js';
@@ -61,7 +61,7 @@ import { IGitService } from '../../../../workbench/contrib/git/common/gitService
 import { IsolationMode, IsolationModePicker, SessionTargetPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { SyncIndicator } from './syncIndicator.js';
-import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
+import { AgentHostNewSession, INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
 import { RepoPicker } from './repoPicker.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { ModePicker } from './modePicker.js';
@@ -212,6 +212,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// When target changes, create new session
 		this._register(this._targetPicker.onDidChangeTarget((target) => {
+			this._initDefaultModel();
 			this._createNewSession();
 			const isLocal = target === AgentSessionProviders.Background;
 			this._updateIsolationPickerVisibility();
@@ -411,7 +412,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			if (this._branchPicker.selectedBranch) {
 				session.setBranch(this._branchPicker.selectedBranch);
 			}
-		} else {
+		} else if (!isAgentHostTarget(target)) {
 			const selectedRepo = this._repoPicker.selectedRepo;
 			if (selectedRepo) {
 				session.setRepoUri(this._getRepoUri(selectedRepo));
@@ -451,6 +452,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			listeners.add(session.onDidChangeOptionGroups(() => {
 				this._renderRemoteSessionPickers(session);
 			}));
+		} else if (session instanceof AgentHostNewSession) {
+			this._renderAgentHostSessionPickers();
 		} else {
 			this._renderLocalSessionPickers();
 		}
@@ -754,12 +757,13 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	private _getAvailableModels(): ILanguageModelChatMetadataAndIdentifier[] {
+		const target = this._targetPicker.selectedTarget;
 		return this.languageModelsService.getLanguageModelIds()
 			.map(id => {
 				const metadata = this.languageModelsService.lookupLanguageModel(id);
 				return metadata ? { metadata, identifier: id } : undefined;
 			})
-			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && m.metadata.targetChatSessionType === AgentSessionProviders.Background);
+			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && m.metadata.targetChatSessionType === target);
 	}
 
 	// --- Welcome: Target & option pickers (dropdown row below input) ---
@@ -828,6 +832,22 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._extensionPickersLeftContainer.style.display = 'block';
 		}
 		// Show local model and mode pickers, hide remote
+		if (this._localModelPickerContainer) {
+			this._localModelPickerContainer.style.display = '';
+		}
+		this._modePicker.setVisible(true);
+		this._cloudModelPicker.setVisible(false);
+	}
+
+	// --- Agent Host session pickers ---
+
+	/**
+	 * Agent Host sessions use the standard model picker and mode picker
+	 * but don't need repo, folder, isolation, or cloud option pickers.
+	 */
+	private _renderAgentHostSessionPickers(): void {
+		this._clearAllPickers();
+		// Show local model and mode pickers
 		if (this._localModelPickerContainer) {
 			this._localModelPickerContainer.style.display = '';
 		}
@@ -1327,7 +1347,8 @@ export class NewChatViewPane extends ViewPane {
 		const targets: AgentSessionProviders[] = [AgentSessionProviders.Background, AgentSessionProviders.Cloud];
 		const targetLabels = new Map<string, string>();
 
-		// Add remote agent host session types
+		// Add remote agent host session types (dynamically registered
+		// by RemoteAgentHostContribution with a `remote-` prefix)
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
 			if (contribution.type.startsWith('remote-')) {
 				targets.push(contribution.type as AgentSessionProviders);
