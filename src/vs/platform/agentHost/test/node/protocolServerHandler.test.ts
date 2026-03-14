@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -22,6 +22,8 @@ import { SessionStateManager } from '../../node/sessionStateManager.js';
 class MockProtocolTransport implements IProtocolTransport {
 	private readonly _onMessage = new Emitter<IProtocolMessage>();
 	readonly onMessage = this._onMessage.event;
+	private readonly _onDidSend = new Emitter<IProtocolMessage>();
+	readonly onDidSend = this._onDidSend.event;
 	private readonly _onClose = new Emitter<void>();
 	readonly onClose = this._onClose.event;
 
@@ -29,6 +31,7 @@ class MockProtocolTransport implements IProtocolTransport {
 
 	send(message: IProtocolMessage): void {
 		this.sent.push(message);
+		this._onDidSend.fire(message);
 	}
 
 	simulateMessage(msg: IProtocolMessage): void {
@@ -41,6 +44,7 @@ class MockProtocolTransport implements IProtocolTransport {
 
 	dispose(): void {
 		this._onMessage.dispose();
+		this._onDidSend.dispose();
 		this._onClose.dispose();
 	}
 }
@@ -105,6 +109,10 @@ function findNotifications(sent: IProtocolMessage[], method: string): IProtocolN
 
 function findResponse(sent: IProtocolMessage[], id: number): IProtocolMessage | undefined {
 	return sent.find(isJsonRpcResponse) as IProtocolMessage | undefined;
+}
+
+function waitForResponse(transport: MockProtocolTransport, id: number): Promise<IProtocolMessage> {
+	return Event.toPromise(Event.filter(transport.onDidSend, message => isJsonRpcResponse(message) && message.id === id));
 }
 
 // ---- Tests ------------------------------------------------------------------
@@ -186,13 +194,11 @@ suite('ProtocolServerHandler', () => {
 
 		const transport = connectClient('client-1');
 		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 1);
 
 		transport.simulateMessage(request(1, 'subscribe', { resource: sessionUri }));
+		const resp = await responsePromise;
 
-		// Wait for async response
-		await new Promise(resolve => setTimeout(resolve, 10));
-
-		const resp = findResponse(transport.sent, 1);
 		assert.ok(resp, 'should have sent response');
 		const snapshot = (resp as { result: IStateSnapshot }).result;
 		assert.strictEqual(snapshot.resource.toString(), sessionUri.toString());
@@ -344,14 +350,13 @@ suite('ProtocolServerHandler', () => {
 		transport.sent.length = 0;
 
 		const dirUri = URI.file('/home/user/project');
+		const responsePromise = waitForResponse(transport, 2);
 		transport.simulateMessage(request(2, 'browseDirectory', { uri: dirUri }));
-
-		await new Promise(resolve => setTimeout(resolve, 10));
+		const resp = await responsePromise;
 
 		assert.strictEqual(sideEffects.browsedUris.length, 1);
 		assert.strictEqual(sideEffects.browsedUris[0].fsPath, '/home/user/project');
 
-		const resp = findResponse(transport.sent, 2);
 		assert.ok(resp);
 		const result = (resp as { result: { entries: { name: string; uri: unknown; type: string }[] } }).result;
 		assert.strictEqual(result.entries.length, 2);
@@ -367,11 +372,10 @@ suite('ProtocolServerHandler', () => {
 
 		const dirUri = URI.file('/missing');
 		sideEffects.browseErrors.set(dirUri.toString(), new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Directory not found: ${dirUri.toString()}`));
+		const responsePromise = waitForResponse(transport, 2);
 		transport.simulateMessage(request(2, 'browseDirectory', { uri: dirUri }));
+		const resp = await responsePromise as { error?: { code: number; message: string } };
 
-		await new Promise(resolve => setTimeout(resolve, 10));
-
-		const resp = findResponse(transport.sent, 2) as { error?: { code: number; message: string } } | undefined;
 		assert.ok(resp?.error);
 		assert.strictEqual(resp.error!.code, JSON_RPC_INTERNAL_ERROR);
 		assert.match(resp.error!.message, /Directory not found/);
