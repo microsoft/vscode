@@ -8,6 +8,7 @@ import * as cssValue from '../../../../base/browser/cssValue.js';
 import { DeferredPromise, timeout, type MaybePromise } from '../../../../base/common/async.js';
 import { debounce, memoize } from '../../../../base/common/decorators.js';
 import { DynamicListEventMultiplexer, Emitter, Event, IDynamicListEventMultiplexer } from '../../../../base/common/event.js';
+import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
@@ -153,17 +154,17 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private readonly _onDidChangeActiveGroup = this._register(new Emitter<ITerminalGroup | undefined>());
 	get onDidChangeActiveGroup(): Event<ITerminalGroup | undefined> { return this._onDidChangeActiveGroup.event; }
 
-	// Lazily initialized events that fire when the specified event fires on _any_ terminal
-	// TODO: Batch events
+	// Lazily initialized events that fire when the specified event fires on _any_ terminal.
+	// UI-triggering events are batched with microtask delay while preserving all events.
 	@memoize get onAnyInstanceData() { return this._register(this.createOnInstanceEvent(instance => Event.map(instance.onData, data => ({ instance, data })))).event; }
 	@memoize get onAnyInstanceDataInput() { return this._register(this.createOnInstanceEvent(e => Event.map(e.onDidInputData, () => e, e.store))).event; }
-	@memoize get onAnyInstanceIconChange() { return this._register(this.createOnInstanceEvent(e => e.onIconChanged)).event; }
-	@memoize get onAnyInstanceMaximumDimensionsChange() { return this._register(this.createOnInstanceEvent(e => Event.map(e.onMaximumDimensionsChanged, () => e, e.store))).event; }
-	@memoize get onAnyInstancePrimaryStatusChange() { return this._register(this.createOnInstanceEvent(e => Event.map(e.statusList.onDidChangePrimaryStatus, () => e, e.store))).event; }
+	@memoize get onAnyInstanceIconChange() { return this.createOnInstanceMicrotaskBatchEvent(e => e.onIconChanged); }
+	@memoize get onAnyInstanceMaximumDimensionsChange() { return this.createOnInstanceMicrotaskBatchEvent(e => Event.map(e.onMaximumDimensionsChanged, () => e, e.store)); }
+	@memoize get onAnyInstancePrimaryStatusChange() { return this.createOnInstanceMicrotaskBatchEvent(e => Event.map(e.statusList.onDidChangePrimaryStatus, () => e, e.store)); }
 	@memoize get onAnyInstanceProcessIdReady() { return this._register(this.createOnInstanceEvent(e => e.onProcessIdReady)).event; }
 	@memoize get onAnyInstanceSelectionChange() { return this._register(this.createOnInstanceEvent(e => e.onDidChangeSelection)).event; }
-	@memoize get onAnyInstanceTitleChange() { return this._register(this.createOnInstanceEvent(e => e.onTitleChanged)).event; }
-	@memoize get onAnyInstanceShellTypeChanged() { return this._register(this.createOnInstanceEvent(e => Event.map(e.onDidChangeShellType, () => e))).event; }
+	@memoize get onAnyInstanceTitleChange() { return this.createOnInstanceMicrotaskBatchEvent(e => e.onTitleChanged); }
+	@memoize get onAnyInstanceShellTypeChanged() { return this.createOnInstanceMicrotaskBatchEvent(e => Event.map(e.onDidChangeShellType, () => e)); }
 	@memoize get onAnyInstanceAddedCapabilityType() { return this._register(this.createOnInstanceEvent(e => Event.map(e.capabilities.onDidAddCapability, e => e.id))).event; }
 
 	constructor(
@@ -1308,6 +1309,17 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	createOnInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): DynamicListEventMultiplexer<ITerminalInstance, T> {
 		return new DynamicListEventMultiplexer(this.instances, this.onDidCreateInstance, this.onDidDisposeInstance, getEvent);
+	}
+
+	private createOnInstanceMicrotaskBatchEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): Event<T> {
+		const source = this._register(this.createOnInstanceEvent(getEvent));
+		const emitter = this._register(new Emitter<T>());
+		this._register(Event.accumulate(source.event, MicrotaskDelay, true, this._store)(events => {
+			for (const e of events) {
+				emitter.fire(e);
+			}
+		}));
+		return emitter.event;
 	}
 
 	createOnInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }> {
