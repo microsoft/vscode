@@ -6,7 +6,6 @@ import * as dom from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { renderMarkdown } from '../../../base/browser/markdownRenderer.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
-import { ToolBar } from '../../../base/browser/ui/toolbar/toolbar.js';
 import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
@@ -319,16 +318,26 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		}
 		data.container.classList.toggle('has-toolbar', toolbarActions.length > 0);
 		if (toolbarActions.length > 0) {
-			const hasSubmenu = toolbarActions.some(a => a instanceof SubmenuAction);
-			if (hasSubmenu) {
-				const toolbar = new ToolBar(data.toolbar, this._contextMenuService, { icon: true, label: false });
-				data.elementDisposables.add(toolbar);
-				toolbar.setActions(toolbarActions);
-			} else {
-				const actionBar = new ActionBar(data.toolbar);
-				data.elementDisposables.add(actionBar);
-				actionBar.push(toolbarActions, { icon: true, label: false });
+			// Flatten SubmenuActions into a single gear button that opens a context menu
+			const submenuActions = toolbarActions.filter(a => a instanceof SubmenuAction);
+			const regularActions = toolbarActions.filter(a => !(a instanceof SubmenuAction));
+			if (submenuActions.length > 0) {
+				const allSubmenuChildren = submenuActions.flatMap(a => (a as SubmenuAction).actions);
+				regularActions.push(toAction({
+					id: 'actionList.configure',
+					label: localize('actionList.configure', "Configure"),
+					class: ThemeIcon.asClassName(Codicon.gear),
+					run: (_event) => {
+						this._contextMenuService.showContextMenu({
+							getAnchor: () => data.toolbar,
+							getActions: () => allSubmenuChildren,
+						});
+					}
+				}));
 			}
+			const actionBar = new ActionBar(data.toolbar);
+			data.elementDisposables.add(actionBar);
+			actionBar.push(regularActions, { icon: true, label: false });
 		}
 	}
 
