@@ -100,13 +100,18 @@ function createModelAction(
 	languageModelsService?: ILanguageModelsService,
 ): IActionWidgetDropdownAction & { section?: string } {
 	const toolbarActions = languageModelsService?.getModelConfigurationActions(model.identifier);
+	const configDescription = languageModelsService?.getModelConfigurationDescription(model.identifier);
+	const baseDescription = model.metadata.multiplier ?? model.metadata.detail;
+	const description = configDescription && baseDescription
+		? `${configDescription} · ${baseDescription}`
+		: configDescription ?? baseDescription;
 	return {
 		id: model.identifier,
 		enabled: true,
 		icon: model.metadata.statusIcon,
 		checked: model.identifier === selectedModelId,
 		class: undefined,
-		description: model.metadata.multiplier ?? model.metadata.detail,
+		description,
 		tooltip: model.metadata.name,
 		label: model.metadata.name,
 		section,

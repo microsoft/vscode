@@ -402,6 +402,12 @@ export interface ILanguageModelsService {
 	 */
 	getModelConfigurationActions(modelId: string): IAction[];
 
+	/**
+	 * Returns the display description for configuration properties marked with `showInDescription`.
+	 * Returns undefined if no properties are marked or all are at default values.
+	 */
+	getModelConfigurationDescription(modelId: string): string | undefined;
+
 	addLanguageModelsProviderGroup(name: string, vendorId: string, configuration: IStringDictionary<unknown> | undefined): Promise<void>;
 
 	removeLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void>;
@@ -1285,6 +1291,29 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		return actions;
+	}
+
+	getModelConfigurationDescription(modelId: string): string | undefined {
+		const metadata = this._modelCache.get(modelId);
+		const schema = metadata?.configurationSchema;
+		if (!schema?.properties) {
+			return undefined;
+		}
+
+		const currentConfig = this._modelConfigurations.get(modelId) ?? {};
+		const parts: string[] = [];
+
+		for (const [key, propSchema] of Object.entries(schema.properties)) {
+			if (typeof propSchema === 'boolean' || !(propSchema as any).showInDescription) { // eslint-disable-line @typescript-eslint/no-explicit-any
+				continue;
+			}
+			const value = currentConfig[key] ?? propSchema.default;
+			if (value !== undefined && value !== propSchema.default) {
+				parts.push(String(value));
+			}
+		}
+
+		return parts.length > 0 ? parts.join(' · ') : undefined;
 	}
 
 	async configureLanguageModelsProviderGroup(vendorId: string, providerGroupName?: string): Promise<void> {
