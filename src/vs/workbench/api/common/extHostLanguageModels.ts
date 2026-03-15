@@ -127,6 +127,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	private readonly _localModels = new Map<string, { group: string | undefined; metadata: ILanguageModelChatMetadata; info: vscode.LanguageModelChatInformation }>();
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
 	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
+	private readonly _modelSettings = new Map<string, IStringDictionary<unknown>>();
 	private readonly _ignoredFileProviders = new Map<number, vscode.LanguageModelIgnoredFileProvider>();
 	private _languageModelProxyProvider: vscode.LanguageModelProxyProvider | undefined;
 
@@ -414,6 +415,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				family: model.info.family,
 				version: model.info.version,
 				name: model.info.name,
+				get configuration() { return that._modelSettings.get(modelId); },
 				capabilities: {
 					supportsImageToText: model.metadata.capabilities?.vision ?? false,
 					supportsToolCalling: !!model.metadata.capabilities?.toolCalling,
@@ -605,6 +607,14 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				updated.push(newItem);
 				this._onDidChangeModelAccess.fire(newItem);
 			}
+		}
+	}
+
+	$updateModelSettings(modelId: string, settings: IStringDictionary<unknown> | undefined): void {
+		if (settings) {
+			this._modelSettings.set(modelId, settings);
+		} else {
+			this._modelSettings.delete(modelId);
 		}
 	}
 
