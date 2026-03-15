@@ -413,6 +413,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private readonly _currentModeObservable: ISettableObservable<IChatMode>;
 	private readonly _currentPermissionLevel: ISettableObservable<ChatPermissionLevel>;
+	private readonly _isWorktreeIsolated: ISettableObservable<boolean>;
 	private permissionLevelKey: IContextKey<ChatPermissionLevel>;
 
 	public get currentModeKind(): ChatModeKind {
@@ -551,6 +552,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 		this._currentModeObservable = observableValue<IChatMode>('currentMode', this.options.defaultMode ?? ChatMode.Agent);
 		this._currentPermissionLevel = observableValue<ChatPermissionLevel>('permissionLevel', ChatPermissionLevel.Default);
+		this._isWorktreeIsolated = observableValue<boolean>('isWorktreeIsolated', false);
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this._indexOfLastOpenedContext = -1;
 			this.refreshChatSessionPickers();
@@ -562,6 +564,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (sessionResource && isEqual(sessionResource, e)) {
 				// Options changed for our current session - refresh pickers
 				this.refreshChatSessionPickers();
+				this.updateWorktreeIsolationState(sessionResource);
 			}
 		}));
 
@@ -823,6 +826,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.permissionWidget?.refresh();
 	}
 
+	private updateWorktreeIsolationState(sessionResource: URI): void {
+		const ctx = this.chatService.getChatSessionFromInternalUri(sessionResource);
+		if (!ctx) {
+			return;
+		}
+		const isolationOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, 'isolation');
+		const isWorktree = typeof isolationOption === 'string'
+			? isolationOption === 'worktree'
+			: isolationOption?.id === 'worktree';
+		const wasWorktree = this._isWorktreeIsolated.get();
+		this._isWorktreeIsolated.set(isWorktree, undefined);
+		if (isWorktree && !wasWorktree) {
+			// Switching to worktree: force bypass approvals
+			this._currentPermissionLevel.set(ChatPermissionLevel.AutoApprove, undefined);
+			this.permissionLevelKey.set(ChatPermissionLevel.AutoApprove);
+			this.permissionWidget?.refresh();
+		} else if (!isWorktree && wasWorktree) {
+			// Switching away from worktree: reset to default
+			this._currentPermissionLevel.set(ChatPermissionLevel.Default, undefined);
+			this.permissionLevelKey.set(ChatPermissionLevel.Default);
+			this.permissionWidget?.refresh();
+		}
+	}
+
 	public openSessionTargetPicker(): void {
 		this.sessionTargetWidget?.show();
 	}
@@ -916,6 +943,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._currentPermissionLevel.set(ChatPermissionLevel.Default, undefined);
 			this.permissionLevelKey.set(ChatPermissionLevel.Default);
 			this.permissionWidget?.refresh();
+		}
+
+		// Update worktree isolation state for the new session
+		const sessionResource = this._widget?.viewModel?.model.sessionResource;
+		if (sessionResource) {
+			this.updateWorktreeIsolationState(sessionResource);
+		} else {
+			this._isWorktreeIsolated.set(false, undefined);
 		}
 
 		// TODO@roblourens This is for an experiment which will be obsolete in a month or two and can then be removed.
@@ -2383,6 +2418,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this._currentPermissionLevel.set(level, undefined);
 							this.permissionLevelKey.set(level);
 						},
+						isWorktreeIsolated: this._isWorktreeIsolated,
 					};
 					return this.permissionWidget = this.instantiationService.createInstance(PermissionPickerActionItem, action, delegate, pickerOptions);
 				}
