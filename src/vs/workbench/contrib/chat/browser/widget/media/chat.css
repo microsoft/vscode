@@ -25,9 +25,18 @@
 	--vscode-chat-font-size-body-xxl: 1.538em;
 }
 
-.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie {
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie,
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container .monaco-tree-sticky-row > .monaco-tl-row > .monaco-tl-twistie {
 	/* Hide twisties from chat tree rows, but not from nested trees within a chat response */
 	display: none !important;
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container .monaco-tree-sticky-row:hover {
+	background-color: transparent !important;
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-tree-sticky-container .monaco-tree-sticky-row {
+	overflow: hidden;
 }
 
 .interactive-list > .chat-scroll-down {
@@ -2839,6 +2848,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		width: fit-content;
 		margin-bottom: 5px;
 		position: relative;
+	}
+
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-text {
+		/* Clamp request text to 4 lines — only in sticky scroll */
+		display: -webkit-box;
+		line-clamp: 4;
+		-webkit-line-clamp: 4;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .request-hover {
+		opacity: 1 !important;
+	}
+
+	.monaco-tree-sticky-row .checkpoint-container {
+		opacity: 1 !important;
 	}
 
 	.interactive-item-container.interactive-request .value .rendered-markdown {
