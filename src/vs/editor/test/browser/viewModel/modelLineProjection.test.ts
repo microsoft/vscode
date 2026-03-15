@@ -22,6 +22,9 @@ import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/mo
 import { ViewModelLinesFromProjectedModel } from '../../../common/viewModel/viewModelLines.js';
 import { TestConfiguration } from '../config/testConfiguration.js';
 import { createTextModel } from '../../common/testTextModel.js';
+import { LineBreaksComputerFactory } from '../../../common/viewModel/lineBreaksComputer.js';
+import { DOMLineBreaksComputerFactory } from '../../../browser/view/domLineBreaksComputer.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 
@@ -95,16 +98,15 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 
 	function withSplitLinesCollection(text: string, callback: (model: TextModel, linesCollection: ViewModelLinesFromProjectedModel) => void): void {
 		const config = new TestConfiguration({ wrappingStrategy: 'simple' });
-		const wordWrapBreakAfterCharacters = config.options.get(EditorOption.wordWrapBreakAfterCharacters);
-		const wordWrapBreakBeforeCharacters = config.options.get(EditorOption.wordWrapBreakBeforeCharacters);
-		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
+		const domLineBreaksComputerFactory = DOMLineBreaksComputerFactory.create(getActiveWindow());
+		const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(config.options);
+		const lineBreaksComputerFactory = new LineBreaksComputerFactory(domLineBreaksComputerFactory, monospaceLineBreaksComputerFactory);
 
 		const model = createTextModel(text);
 
 		const linesCollection = new ViewModelLinesFromProjectedModel(
 			1,
 			model,
-			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
 			config.options,
 			model.getOptions().tabSize
@@ -944,7 +946,6 @@ suite('SplitLinesCollection', () => {
 		const linesCollection = new ViewModelLinesFromProjectedModel(
 			1,
 			model,
-			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
 			configuration.options,
 			model.getOptions().tabSize
