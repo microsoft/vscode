@@ -1,0 +1,64 @@
+{
+  "name": "nexora-core",
+  "displayName": "Nexora Core",
+  "description": "Universal AI Orchestration System - Core Extension",
+  "version": "1.0.0",
+  "publisher": "nexora-team",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "nexora-sidebar",
+          "title": "Nexora AI",
+          "icon": "media/nexora-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "nexora-sidebar": [
+        {
+          "type": "webview",
+          "id": "nexora.chatPanel",
+          "name": "Nexora Chat"
+        },
+        {
+          "id": "nexora.platformBrowser",
+          "name": "Platform Browser"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "nexora.openChat",
+        "title": "Open Nexora Chat",
+        "category": "Nexora"
+      },
+      {
+        "command": "nexora.refreshPlatforms",
+        "title": "Refresh Platforms",
+        "category": "Nexora"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^18.x",
+    "typescript": "^5.3.0"
+  }
+}
