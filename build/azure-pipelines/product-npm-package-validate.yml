@@ -12,7 +12,7 @@ variables:
 
 jobs:
   - job: ValidateNpmPackages
-    displayName: Valiate NPM packages against Terrapin
+    displayName: Validate NPM packages against Terrapin
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux
