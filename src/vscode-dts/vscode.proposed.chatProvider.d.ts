@@ -115,15 +115,6 @@ declare module 'vscode' {
 
 	export type LanguageModelResponsePart2 = LanguageModelResponsePart | LanguageModelDataPart | LanguageModelThinkingPart;
 
-	export interface LanguageModelChat {
-		/**
-		 * Per-model configuration provided by the user via the language models configuration file.
-		 * Contains resolved values based on the model's {@linkcode LanguageModelChatInformation.configurationSchema configurationSchema},
-		 * with user overrides applied on top of schema defaults.
-		 */
-		readonly configuration?: { readonly [key: string]: any };
-	}
-
 	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
 		provideLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
 		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Thenable<void>;
@@ -140,5 +131,17 @@ declare module 'vscode' {
 		readonly configuration?: {
 			readonly [key: string]: any;
 		};
+	}
+
+	export interface ChatRequest {
+		/**
+		 * Per-model configuration provided by the user. Contains resolved values based on the model's
+		 * {@linkcode LanguageModelChatInformation.configurationSchema configurationSchema},
+		 * with user overrides applied on top of schema defaults.
+		 *
+		 * This is the same data that is sent as {@linkcode ProvideLanguageModelChatResponseOptions.configuration}
+		 * when the model is invoked via the language model API.
+		 */
+		readonly modelConfiguration?: { readonly [key: string]: any };
 	}
 }

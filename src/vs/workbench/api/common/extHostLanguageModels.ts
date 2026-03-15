@@ -415,7 +415,6 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				family: model.info.family,
 				version: model.info.version,
 				name: model.info.name,
-				get configuration() { return that._modelSettings.get(modelId); },
 				capabilities: {
 					supportsImageToText: model.metadata.capabilities?.vision ?? false,
 					supportsToolCalling: !!model.metadata.capabilities?.toolCalling,
@@ -616,6 +615,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		} else {
 			this._modelSettings.delete(modelId);
 		}
+	}
+
+	getModelSettings(modelId: string): IStringDictionary<unknown> | undefined {
+		return this._modelSettings.get(modelId);
 	}
 
 	private readonly _languageAccessInformationExtensions = new Set<Readonly<IExtensionDescription>>();
