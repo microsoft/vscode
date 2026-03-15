@@ -1195,11 +1195,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Fall back to the current mode picker for old sessions where modeInfo was not persisted.
 		const modeInfo = lastItem.model.request?.modeInfo;
 		let responseMode: IChatMode | undefined;
-		if (modeInfo?.modeInstructions?.name) {
+		if (modeInfo?.modeInstructions?.uri) {
+			// URI is the authoritative identifier for custom modes — findModeById does
+			// a direct map lookup, avoiding the getCustomModes() visibility gate.
+			// URI.revive handles both live URI instances and deserialized UriComponents.
+			responseMode = this.chatModeService.findModeById(URI.revive(modeInfo.modeInstructions.uri).toString());
+		}
+		if (!responseMode && modeInfo?.modeInstructions?.name) {
 			responseMode = this.chatModeService.findModeByName(modeInfo.modeInstructions.name);
-		} else if (modeInfo?.modeId) {
+		}
+		if (!responseMode && modeInfo?.modeId) {
 			responseMode = this.chatModeService.findModeById(modeInfo.modeId);
-		} else {
+		}
+		if (!responseMode) {
 			responseMode = this.input.currentModeObs.get();
 		}
 
