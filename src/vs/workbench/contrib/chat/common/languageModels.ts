@@ -1027,6 +1027,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 		const configuration = this.getModelConfiguration(modelId);
 		const mergedOptions = configuration ? { ...options, configuration: { ...configuration, ...options.configuration } } : options;
+=======
+		const mergedOptions = configuration ? { ...options, configuration } : options;
+>>>>>>> theirs
 		return provider.sendChatRequest(modelId, messages, from, mergedOptions, token);
 	}
 
@@ -1071,6 +1074,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined {
 		const metadata = this._modelCache.get(modelId);
 		return this._resolveModelConfigurationWithDefaults(modelId, metadata);
+<<<<<<< ours
 	}
 
 	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
