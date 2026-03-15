@@ -23,7 +23,7 @@ declare module 'vscode' {
 		 * in the user's language models configuration file, validated against the model's
 		 * {@linkcode LanguageModelChatInformation.configurationSchema configurationSchema}.
 		 */
-		readonly configuration?: {
+		readonly modelConfiguration?: {
 			readonly [key: string]: any;
 		};
 	}
