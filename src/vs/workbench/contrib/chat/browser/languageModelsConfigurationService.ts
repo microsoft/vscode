@@ -331,7 +331,7 @@ export class ChatLanguageModelsDataContribution extends Disposable implements IW
 						},
 						then: {
 							properties: {
-								models: {
+								settings: {
 									type: 'object',
 									properties: {
 										[metadata.id]: metadata.configurationSchema
@@ -353,9 +353,9 @@ export class ChatLanguageModelsDataContribution extends Disposable implements IW
 						enum: vendors.map(v => v.vendor)
 					},
 					name: { type: 'string' },
-					models: {
+					settings: {
 						type: 'object',
-						description: localize('models.perModelConfig', "Per-model configuration"),
+						description: localize('settings.perModelConfig', "Per-model settings"),
 					}
 				},
 				allOf: [

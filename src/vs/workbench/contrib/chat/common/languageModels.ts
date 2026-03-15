@@ -887,9 +887,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 				// should not trigger a separate model resolution call.
 				// Instead, apply the per-model config to the already-resolved models.
 				if (vendor.isDefault && !vendor.configuration) {
-					if (group.models) {
+					if (group.settings) {
 						for (const model of allModels) {
-							const modelConfig = group.models[model.metadata.id];
+							const modelConfig = group.settings[model.metadata.id];
 							if (modelConfig) {
 								const resolvedModelConfig = await this._resolveModelConfiguration(modelConfig, model.metadata.configurationSchema);
 								perModelConfigurations.set(model.identifier, resolvedModelConfig);
@@ -910,9 +910,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 					}
 
 					// Collect per-model configurations from the group
-					if (group.models) {
+					if (group.settings) {
 						for (const model of models) {
-							const modelConfig = group.models[model.metadata.id];
+							const modelConfig = group.settings[model.metadata.id];
 							if (modelConfig) {
 								const resolvedModelConfig = await this._resolveModelConfiguration(modelConfig, model.metadata.configurationSchema);
 								perModelConfigurations.set(model.identifier, resolvedModelConfig);
@@ -1084,7 +1084,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		let group: ILanguageModelsProviderGroup | undefined;
 
 		// First try to find a group that already has config for this model
-		group = allGroups.find(g => g.vendor === metadata.vendor && g.models?.[metadata.id] !== undefined);
+		group = allGroups.find(g => g.vendor === metadata.vendor && g.settings?.[metadata.id] !== undefined);
 
 		// If not found, find any group for this vendor
 		if (!group) {
@@ -1105,20 +1105,19 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		if (group) {
-			const existingModels = (group.models as IStringDictionary<IStringDictionary<unknown>> | undefined) ?? {};
-			let updatedModels: IStringDictionary<IStringDictionary<unknown>>;
+			const existingSettings = (group.settings as IStringDictionary<IStringDictionary<unknown>> | undefined) ?? {};
+			let updatedSettings: IStringDictionary<IStringDictionary<unknown>>;
 			if (Object.keys(updatedConfig).length === 0) {
-				// Remove the model entry entirely if no non-default config remains
-				updatedModels = { ...existingModels };
-				delete updatedModels[metadata.id];
+				updatedSettings = { ...existingSettings };
+				delete updatedSettings[metadata.id];
 			} else {
-				updatedModels = { ...existingModels, [metadata.id]: updatedConfig };
+				updatedSettings = { ...existingSettings, [metadata.id]: updatedConfig };
 			}
 			const updatedGroup: ILanguageModelsProviderGroup = {
 				...group,
-				models: Object.keys(updatedModels).length > 0 ? updatedModels : undefined
+				settings: Object.keys(updatedSettings).length > 0 ? updatedSettings : undefined
 			};
-			if (!updatedGroup.models && Object.keys(updatedGroup).filter(k => k !== 'name' && k !== 'vendor' && k !== 'range' && k !== 'models').length === 0) {
+			if (!updatedGroup.settings && Object.keys(updatedGroup).filter(k => k !== 'name' && k !== 'vendor' && k !== 'range' && k !== 'settings').length === 0) {
 				// Remove the group entirely if it only had model config
 				await this._languageModelsConfigurationService.removeLanguageModelsProviderGroup(group);
 			} else {
@@ -1133,7 +1132,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			const newGroup: ILanguageModelsProviderGroup = {
 				name: vendor.displayName,
 				vendor: metadata.vendor,
-				models: { [metadata.id]: updatedConfig }
+				settings: { [metadata.id]: updatedConfig }
 			};
 			await this._languageModelsConfigurationService.addLanguageModelsProviderGroup(newGroup);
 		}
@@ -1273,7 +1272,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				return;
 			}
 			const groupName = vendor.displayName;
-			const newGroup: ILanguageModelsProviderGroup = { name: groupName, vendor: metadata.vendor, models: { [metadata.id]: {} } };
+			const newGroup: ILanguageModelsProviderGroup = { name: groupName, vendor: metadata.vendor, settings: { [metadata.id]: {} } };
 			group = await this._languageModelsConfigurationService.addLanguageModelsProviderGroup(newGroup);
 			await this._resolveAllLanguageModels(metadata.vendor, true);
 		}
@@ -1305,7 +1304,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const modelContent = properties.length > 0
 			? `{\n${properties.join(',\n')}\n\t\t}`
 			: '{\n\t\t\t$0\n\t\t}';
-		return `"models": {\n\t\t"${modelId}": ${modelContent}\n\t}`;
+		return `"settings": {\n\t\t"${modelId}": ${modelContent}\n\t}`;
 	}
 
 	async addLanguageModelsProviderGroup(name: string, vendorId: string, configuration: IStringDictionary<unknown> | undefined): Promise<void> {
@@ -1623,7 +1622,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		const result: IStringDictionary<unknown> = {};
 		for (const key in group) {
-			if (key === 'vendor' || key === 'name' || key === 'range' || key === 'models') {
+			if (key === 'vendor' || key === 'name' || key === 'range' || key === 'settings') {
 				continue;
 			}
 			let value = group[key];
