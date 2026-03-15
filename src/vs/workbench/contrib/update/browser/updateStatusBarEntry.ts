@@ -37,7 +37,7 @@ export class UpdateStatusBarContribution extends Disposable implements IWorkbenc
 			return; // Electron only
 		}
 
-		this.tooltip = this._register(instantiationService.createInstance(UpdateTooltip));
+		this.tooltip = this._register(instantiationService.createInstance(UpdateTooltip, false));
 
 		this._register(updateService.onStateChange(this.onStateChange.bind(this)));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -67,6 +67,7 @@ export class UpdateStatusBarContribution extends Disposable implements IWorkbenc
 			this.lastStateType = state.type;
 		}
 
+		this.tooltip.renderState(state);
 		switch (state.type) {
 			case StateType.CheckingForUpdates:
 				this.updateEntry(

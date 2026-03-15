@@ -196,6 +196,8 @@ export interface IChatSessionContentProvider {
 export interface IChatNewSessionRequest {
 	readonly prompt: string;
 	readonly command?: string;
+
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>;
 }
 
 export interface IChatSessionItemsDelta {

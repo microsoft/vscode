@@ -22,7 +22,7 @@ import { IChatNewSessionRequest, IChatSessionProviderOptionItem } from '../../co
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionProviderOptions, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
+import { ChatSessionContentContextDto, ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionProviderOptions, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
 import { ChatAgentResponseStream } from './extHostChatAgents2.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
@@ -499,7 +499,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		});
 	}
 
-	async $provideChatSessionContent(handle: number, sessionResourceComponents: UriComponents, token: CancellationToken): Promise<ChatSessionDto> {
+	async $provideChatSessionContent(handle: number, sessionResourceComponents: UriComponents, context: ChatSessionContentContextDto, token: CancellationToken): Promise<ChatSessionDto> {
 		const provider = this._chatSessionContentProviders.get(handle);
 		if (!provider) {
 			throw new Error(`No provider for handle ${handle}`);
@@ -507,7 +507,9 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		const sessionResource = URI.revive(sessionResourceComponents);
 
-		const session = await provider.provider.provideChatSessionContent(sessionResource, token);
+		const session = await provider.provider.provideChatSessionContent(sessionResource, token, {
+			sessionOptions: context?.initialSessionOptions ?? []
+		});
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -785,7 +787,13 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			return undefined;
 		}
 
-		const item = await handler({ request: { prompt: request.prompt, command: request.command } }, token);
+		const item = await handler({
+			request: {
+				prompt: request.prompt,
+				command: request.command
+			},
+			sessionOptions: request.initialSessionOptions ?? [],
+		}, token);
 		if (!item) {
 			return undefined;
 		}

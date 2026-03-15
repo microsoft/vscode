@@ -128,6 +128,8 @@ export class MockChatService implements IChatService {
 
 	async cancelCurrentRequestForSession(_sessionResource: URI, _source?: string): Promise<void> { }
 
+	migrateRequests(_originalResource: URI, _targetResource: URI): void { }
+
 	setYieldRequested(_sessionResource: URI): void { }
 
 	removePendingRequest(_sessionResource: URI, _requestId: string): void { }

@@ -872,4 +872,63 @@ suite('AgentPlugin format detection', () => {
 		assert.strictEqual(instruction.name, 'my-rule');
 		assert.ok(instruction.uri.path.endsWith('/rules/my-rule.mdc'));
 	}));
+
+	test('PLUGIN_ROOT expansion in inline MCP server definitions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/mcp-root');
+		await writeFile('/plugins/mcp-root/.plugin/plugin.json', JSON.stringify({
+			name: 'mcp-root',
+			mcpServers: {
+				'my-server': {
+					command: '${PLUGIN_ROOT}/bin/server',
+					args: ['--config', '${PLUGIN_ROOT}/config.json'],
+					cwd: '${PLUGIN_ROOT}',
+					env: { 'CONFIG_DIR': '${PLUGIN_ROOT}/etc' },
+				},
+			},
+		}));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = discovery.plugins.get();
+		assert.strictEqual(plugins.length, 1);
+
+		await waitForState(plugins[0].mcpServerDefinitions, d => d.length > 0);
+		const server = plugins[0].mcpServerDefinitions.get()[0];
+		assert.strictEqual(server.name, 'my-server');
+		const config: any = server.configuration;
+		assert.ok(!config.command.includes('${PLUGIN_ROOT}'), `Expected PLUGIN_ROOT to be expanded in command, got: ${config.command}`);
+		assert.ok(!config.args[1].includes('${PLUGIN_ROOT}'), `Expected PLUGIN_ROOT to be expanded in args, got: ${config.args[1]}`);
+		assert.ok(!config.cwd.includes('${PLUGIN_ROOT}'), `Expected PLUGIN_ROOT to be expanded in cwd, got: ${config.cwd}`);
+		assert.ok(!config.env['CONFIG_DIR'].includes('${PLUGIN_ROOT}'), `Expected PLUGIN_ROOT to be expanded in env, got: ${config.env['CONFIG_DIR']}`);
+		assert.strictEqual(config.env['PLUGIN_ROOT'], uri.fsPath, 'Expected PLUGIN_ROOT env var to be set');
+	}));
+
+	test('CLAUDE_PLUGIN_ROOT expansion in MCP server definitions from .mcp.json', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/claude-mcp-root');
+		await writeFile('/plugins/claude-mcp-root/.claude-plugin/plugin.json', JSON.stringify({ name: 'claude-mcp-root' }));
+		await writeFile('/plugins/claude-mcp-root/.mcp.json', JSON.stringify({
+			mcpServers: {
+				'claude-server': {
+					command: '${CLAUDE_PLUGIN_ROOT}/run.sh',
+					args: ['--dir', '${CLAUDE_PLUGIN_ROOT}/data'],
+				},
+			},
+		}));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = discovery.plugins.get();
+		assert.strictEqual(plugins.length, 1);
+
+		await waitForState(plugins[0].mcpServerDefinitions, d => d.length > 0);
+		const server = plugins[0].mcpServerDefinitions.get()[0];
+		const config: any = server.configuration;
+		assert.ok(!config.command.includes('${CLAUDE_PLUGIN_ROOT}'), `Expected CLAUDE_PLUGIN_ROOT to be expanded in command, got: ${config.command}`);
+		assert.ok(!config.args[1].includes('${CLAUDE_PLUGIN_ROOT}'), `Expected CLAUDE_PLUGIN_ROOT to be expanded in args, got: ${config.args[1]}`);
+		assert.strictEqual(config.env['CLAUDE_PLUGIN_ROOT'], uri.fsPath, 'Expected CLAUDE_PLUGIN_ROOT env var to be set');
+	}));
 });

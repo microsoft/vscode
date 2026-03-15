@@ -15,6 +15,8 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { IActiveSessionItem, IsActiveSessionBackgroundProviderContext, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { Menus } from '../../../browser/menus.js';
@@ -22,6 +24,7 @@ import { INonSessionTaskEntry, ISessionsConfigurationService, ITaskEntry, TaskSt
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
+import { NewChatViewPane, SessionsViewId } from './newChatViewPane.js';
 
 
 
@@ -32,6 +35,7 @@ export const RunScriptDropdownMenuId = MenuId.for('AgentSessionsRunScriptDropdow
 const RUN_SCRIPT_ACTION_ID = 'workbench.action.agentSessions.runScript';
 const RUN_SCRIPT_ACTION_PRIMARY_ID = 'workbench.action.agentSessions.runScriptPrimary';
 const CONFIGURE_DEFAULT_RUN_ACTION_ID = 'workbench.action.agentSessions.configureDefaultRunAction';
+const GENERATE_RUN_ACTION_ID = 'workbench.action.agentSessions.generateRunAction';
 function getTaskDisplayLabel(task: ITaskEntry): string {
 	if (task.label && task.label.length > 0) {
 		return task.label;
@@ -82,6 +86,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IViewsService private readonly _viewsService: IViewsService,
 	) {
 		super();
 
@@ -211,6 +217,33 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					const task = await that._showConfigureQuickPick(session);
 					if (task) {
 						await that._sessionsConfigService.runTask(task, session);
+					}
+				}
+			}));
+
+			// Generate new action via Copilot (only shown when there is an active session)
+			reader.store.add(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: GENERATE_RUN_ACTION_ID,
+						title: localize2('generateRunAction', "Generate New Action..."),
+						category: SessionsCategories.Sessions,
+						precondition: IsActiveSessionBackgroundProviderContext,
+						menu: [{
+							id: RunScriptDropdownMenuId,
+							group: tasks.length === 0 ? 'navigation' : '1_configure',
+							order: 1
+						}]
+					});
+				}
+
+				async run(): Promise<void> {
+					if (session.isUntitled) {
+						const viewPane = that._viewsService.getViewWithId<NewChatViewPane>(SessionsViewId);
+						viewPane?.sendQuery('/generate-run-commands');
+					} else {
+						const widget = that._chatWidgetService.getWidgetBySessionResource(session.resource);
+						await widget?.acceptInput('/generate-run-commands');
 					}
 				}
 			}));

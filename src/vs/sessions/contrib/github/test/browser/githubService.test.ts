@@ -87,6 +87,7 @@ suite('getGitHubContext', () => {
 			repository: undefined,
 			worktree: undefined,
 			worktreeBranchName: undefined,
+			worktreeBaseBranchProtected: undefined,
 			providerType: 'copilot-cloud-agent',
 			...overrides,
 		};

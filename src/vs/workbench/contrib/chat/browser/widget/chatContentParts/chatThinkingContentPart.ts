@@ -27,7 +27,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { DisposableMap, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
@@ -140,10 +140,18 @@ const toolMessages = [
 ];
 
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
+
+	private static _codeBlockRendererSync(_languageId: string, text: string, _raw?: string): HTMLElement {
+		const codeElement = $('code');
+		codeElement.textContent = text;
+		return codeElement;
+	}
+
 	public readonly codeblocks: undefined;
 	public readonly codeblocksPartId: undefined;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	private readonly _asyncRenderCallback = () => this._onDidChangeHeight.fire();
 
 	private id: string | undefined;
 	private content: IChatThinkingPart;
@@ -151,7 +159,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private currentTitle: string;
 	private defaultTitle = localize('chat.thinking.header', 'Working');
 	private textContainer!: HTMLElement;
-	private markdownResult: IRenderedMarkdown | undefined;
+	private readonly _markdownResult = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private wrapper!: HTMLElement;
 	private fixedScrollingMode: boolean = false;
 	private autoScrollEnabled: boolean = true;
@@ -179,7 +187,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private isUpdatingDimensions: boolean = false;
 	private titleShimmerSpan: HTMLElement | undefined;
 	private titleDetailContainer: HTMLElement | undefined;
-	private titleDetailRendered: IRenderedMarkdown | undefined;
+	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
 
 	private getRandomWorkingMessage(category: WorkingMessageCategory = WorkingMessageCategory.Tool): string {
 		let pool = this.availableMessagesByCategory.get(category);
@@ -546,10 +554,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 		const cleanedContent = content.trim();
 		if (!cleanedContent) {
-			if (this.markdownResult) {
-				this.markdownResult.dispose();
-				this.markdownResult = undefined;
-			}
+			this._markdownResult.clear();
 			if (this.textContainer) {
 				clearNode(this.textContainer);
 			}
@@ -562,22 +567,14 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			contentToRender = cleanedContent.slice(2, -2);
 		}
 
-		const target = reuseExisting ? this.markdownResult?.element : undefined;
-		if (this.markdownResult) {
-			this.markdownResult.dispose();
-			this.markdownResult = undefined;
-		}
+		const target = reuseExisting ? this._markdownResult.value?.element : undefined;
 
-		const rendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(contentToRender), {
+		const rendered = this.chatContentMarkdownRenderer.render(new MarkdownString(contentToRender), {
 			fillInIncompleteTokens: true,
-			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-			codeBlockRendererSync: (_languageId, text, raw) => {
-				const codeElement = $('code');
-				codeElement.textContent = text;
-				return codeElement;
-			}
-		}, target));
-		this.markdownResult = rendered;
+			asyncRenderCallback: this._asyncRenderCallback,
+			codeBlockRendererSync: ChatThinkingContentPart._codeBlockRendererSync,
+		}, target);
+		this._markdownResult.value = rendered;
 		if (!target) {
 			if (this.textContainer) {
 				clearNode(this.textContainer);
@@ -710,7 +707,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 		const previousValue = this.currentThinkingValue;
-		const reuseExisting = !!(this.markdownResult && next.startsWith(previousValue) && next.length > previousValue.length);
+		const reuseExisting = !!(this._markdownResult.value && next.startsWith(previousValue) && next.length > previousValue.length);
 		this.currentThinkingValue = next;
 		this.renderMarkdown(next, reuseExisting);
 
@@ -1532,10 +1529,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			}
 			this.titleShimmerSpan = undefined;
 			this.titleDetailContainer = undefined;
-			if (this.titleDetailRendered) {
-				this.titleDetailRendered.dispose();
-				this.titleDetailRendered = undefined;
-			}
+			this._titleDetailRendered.clear();
 			this.currentTitle = title;
 			return;
 		}
@@ -1559,15 +1553,12 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.titleShimmerSpan.textContent = 'Working: ';
 
 		// Dispose previous detail rendering
-		if (this.titleDetailRendered) {
-			this.titleDetailRendered.dispose();
-			this.titleDetailRendered = undefined;
-		}
+		this._titleDetailRendered.clear();
 
 		const result = this.chatContentMarkdownRenderer.render(new MarkdownString(title));
 		result.element.classList.add('collapsible-title-content', 'chat-thinking-title-detail');
 		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
-		this.titleDetailRendered = result;
+		this._titleDetailRendered.value = result;
 
 		if (this.titleDetailContainer) {
 			// Replace old detail in-place
@@ -1595,14 +1586,6 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 	override dispose(): void {
 		this.isActive = false;
-		if (this.markdownResult) {
-			this.markdownResult.dispose();
-			this.markdownResult = undefined;
-		}
-		if (this.titleDetailRendered) {
-			this.titleDetailRendered.dispose();
-			this.titleDetailRendered = undefined;
-		}
 		if (this.workingSpinnerElement) {
 			this.workingSpinnerElement.remove();
 			this.workingSpinnerElement = undefined;

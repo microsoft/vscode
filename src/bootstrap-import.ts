@@ -52,7 +52,6 @@ export async function resolve(specifier: string | number, context: unknown, next
 	const newSpecifier = _specifierToUrl[specifier];
 	if (newSpecifier !== undefined) {
 		return {
-			format: 'commonjs',
 			shortCircuit: true,
 			url: newSpecifier
 		};

@@ -5,6 +5,7 @@
 
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { constObservable, IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
@@ -164,7 +165,7 @@ export class ChatEditingDeletedFileEntry extends AbstractChatEditingModifiedFile
 
 	equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean {
 		return !!snapshot &&
-			this.modifiedURI.toString() === snapshot.resource.toString() &&
+			isEqual(this.modifiedURI, snapshot.resource) &&
 			this._languageId === snapshot.languageId &&
 			this._originalContent === snapshot.original &&
 			snapshot.current === '' &&

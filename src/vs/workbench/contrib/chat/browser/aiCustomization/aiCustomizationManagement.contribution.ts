@@ -20,9 +20,13 @@ import { AICustomizationManagementEditorInput } from './aiCustomizationManagemen
 import {
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
+	AI_CUSTOMIZATION_ITEM_STORAGE_KEY,
+	AI_CUSTOMIZATION_ITEM_TYPE_KEY,
+	AI_CUSTOMIZATION_ITEM_URI_KEY,
 	AICustomizationManagementCommands,
 	AICustomizationManagementItemMenuId,
 	AICustomizationManagementSection,
+	BUILTIN_STORAGE,
 } from './aiCustomizationManagement.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -33,7 +37,7 @@ import { PromptsStorage } from '../../common/promptSyntax/service/promptsService
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IFileService, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -227,8 +231,8 @@ registerAction2(class extends Action2 {
 		// For skills, use the parent folder name since skills are structured as <skillname>/SKILL.md.
 		const fileName = isSkill ? basename(dirname(uri)) : basename(uri);
 
-		// Extension and plugin files cannot be deleted
-		if (storage === PromptsStorage.extension || storage === PromptsStorage.plugin) {
+		// Extension, plugin, and built-in files cannot be deleted
+		if (storage === PromptsStorage.extension || storage === PromptsStorage.plugin || storage === BUILTIN_STORAGE) {
 			await dialogService.info(
 				localize('cannotDeleteExtension', "Cannot Delete Extension File"),
 				localize('cannotDeleteExtensionDetail', "Files provided by extensions cannot be deleted. You can disable the extension if you no longer want to use this customization.")
@@ -248,16 +252,21 @@ registerAction2(class extends Action2 {
 		});
 
 		if (confirmation.confirmed) {
-			const telemetryService = accessor.get(ITelemetryService);
-			telemetryService.publicLog2<CustomizationEditorDeleteItemEvent, CustomizationEditorDeleteItemClassification>('chatCustomizationEditor.deleteItem', {
-				promptType: promptType ?? '',
-				storage: storage ?? '',
-			});
+			try {
+				const telemetryService = accessor.get(ITelemetryService);
+				telemetryService.publicLog2<CustomizationEditorDeleteItemEvent, CustomizationEditorDeleteItemClassification>('chatCustomizationEditor.deleteItem', {
+					promptType: promptType ?? '',
+					storage: storage ?? '',
+				});
+			} catch {
+				// Telemetry must not block deletion
+			}
 
 			// For skills, delete the parent folder (e.g. .github/skills/my-skill/)
 			// since each skill is a folder containing SKILL.md.
 			const deleteTarget = isSkill ? dirname(uri) : uri;
-			await fileService.del(deleteTarget, { useTrash: true, recursive: isSkill });
+			const useTrash = fileService.hasCapability(deleteTarget, FileSystemProviderCapabilities.Trash);
+			await fileService.del(deleteTarget, { useTrash, recursive: isSkill });
 
 			// Commit the deletion to git (sessions: main repo + worktree)
 			if (storage === PromptsStorage.local) {
@@ -289,8 +298,14 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// Context Key for prompt type to conditionally show "Run Prompt"
-const AI_CUSTOMIZATION_ITEM_TYPE_KEY = 'aiCustomizationManagementItemType';
+/**
+ * When clause that hides an action for read-only (extension, plugin, built-in) items.
+ */
+const WHEN_ITEM_IS_DELETABLE = ContextKeyExpr.and(
+	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.extension),
+	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.plugin),
+	ContextKeyExpr.notEquals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, BUILTIN_STORAGE),
+);
 
 // Register context menu items
 
@@ -305,6 +320,7 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: DELETE_AI_CUSTOMIZATION_ID, title: localize('delete', "Delete"), icon: Codicon.trash },
 	group: 'inline',
 	order: 10,
+	when: WHEN_ITEM_IS_DELETABLE,
 });
 
 // Context menu items (shown on right-click)
@@ -326,8 +342,8 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	group: '3_file',
 	order: 1,
 	when: ContextKeyExpr.or(
-		ContextKeyExpr.regex('aiCustomizationManagementItemUri', new RegExp(`^${Schemas.file}:`)),
-		ContextKeyExpr.regex('aiCustomizationManagementItemUri', new RegExp(`^${Schemas.vscodeUserData}:`))
+		ContextKeyExpr.regex(AI_CUSTOMIZATION_ITEM_URI_KEY, new RegExp(`^${Schemas.file}:`)),
+		ContextKeyExpr.regex(AI_CUSTOMIZATION_ITEM_URI_KEY, new RegExp(`^${Schemas.vscodeUserData}:`))
 	),
 });
 
@@ -335,6 +351,7 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: DELETE_AI_CUSTOMIZATION_ID, title: localize('delete', "Delete") },
 	group: '4_modify',
 	order: 1,
+	when: WHEN_ITEM_IS_DELETABLE,
 });
 
 //#endregion

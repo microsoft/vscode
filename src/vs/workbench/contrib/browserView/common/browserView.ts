@@ -7,6 +7,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
 import { IPlaywrightService } from '../../../../platform/browserView/common/playwrightService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -105,6 +106,36 @@ export interface IBrowserViewWorkbenchService {
 	 * Clear all storage data for the current workspace browser session
 	 */
 	clearWorkspaceStorage(): Promise<void>;
+}
+
+export const IBrowserViewCDPService = createDecorator<IBrowserViewCDPService>('browserViewCDPService');
+
+/**
+ * Workbench-level service for managing CDP (Chrome DevTools Protocol) sessions
+ * against browser views. Handles group lifecycle and window ID resolution.
+ */
+export interface IBrowserViewCDPService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Create a new CDP group for a browser view.
+	 * The window ID is resolved from the editor group containing the browser.
+	 * @param browserId The browser view identifier.
+	 * @returns The ID of the newly created group.
+	 */
+	createSessionGroup(browserId: string): Promise<string>;
+
+	/** Destroy a CDP group. */
+	destroySessionGroup(groupId: string): Promise<void>;
+
+	/** Send a CDP message to a group. */
+	sendCDPMessage(groupId: string, message: CDPRequest): Promise<void>;
+
+	/** Fires when a CDP message is received. */
+	onCDPMessage(groupId: string): Event<CDPResponse | CDPEvent>;
+
+	/** Fires when a CDP group is destroyed. */
+	onDidDestroy(groupId: string): Event<void>;
 }
 
 

@@ -641,7 +641,9 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		this._onDidClose.fire();
 
 		// Clean up the view and all its event listeners
-		this._view.webContents.close({ waitForBeforeUnload: false });
+		if (!this._view.webContents.isDestroyed()) {
+			this._view.webContents.close({ waitForBeforeUnload: false });
+		}
 
 		super.dispose();
 	}

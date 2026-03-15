@@ -77,6 +77,14 @@ export function sanitizeTerminalOutput(output: string): string {
 	return sanitized;
 }
 
+/**
+ * Normalizes command text for UI display by removing unnecessary quote and forward slash
+ * escaping artifacts (for example: \" \' \/) commonly produced in streamed tool-call JSON.
+ */
+export function normalizeTerminalCommandForDisplay(commandLine: string): string {
+	return commandLine.replace(/\\(["'\/])/g, '$1');
+}
+
 export function generateAutoApproveActions(commandLine: string, subCommands: string[], autoApproveResult: { subCommandResults: ICommandApprovalResultWithReason[]; commandLineResult: ICommandApprovalResultWithReason }): ToolConfirmationAction[] {
 	const actions: ToolConfirmationAction[] = [];
 

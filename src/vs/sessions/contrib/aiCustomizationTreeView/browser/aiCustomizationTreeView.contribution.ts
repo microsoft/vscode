@@ -14,7 +14,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { IFileService, FileSystemProviderCapabilities } from '../../../../platform/files/common/files.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 
@@ -108,7 +108,8 @@ registerAction2(class extends Action2 {
 		});
 
 		if (confirmation.confirmed) {
-			await fileService.del(uri, { useTrash: true, recursive: true });
+			const useTrash = fileService.hasCapability(uri, FileSystemProviderCapabilities.Trash);
+			await fileService.del(uri, { useTrash, recursive: true });
 		}
 	}
 });

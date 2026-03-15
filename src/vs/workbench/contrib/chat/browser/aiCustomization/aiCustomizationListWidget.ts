@@ -20,8 +20,9 @@ import { WorkbenchList } from '../../../../../platform/list/browser/listService.
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../../base/browser/ui/list/list.js';
 import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon, builtinIcon } from './aiCustomizationIcons.js';
-import { AICustomizationManagementItemMenuId, AICustomizationManagementSection, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
+import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementSection, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { Delayer } from '../../../../../base/common/async.js';
@@ -352,8 +353,15 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			storage: element.storage,
 		};
 
+		// Create scoped context key service with item-specific keys for when-clause filtering
+		const overlay = this.contextKeyService.createOverlay([
+			[AI_CUSTOMIZATION_ITEM_TYPE_KEY, element.promptType],
+			[AI_CUSTOMIZATION_ITEM_STORAGE_KEY, element.storage],
+			[AI_CUSTOMIZATION_ITEM_URI_KEY, element.uri.toString()],
+		]);
+
 		const menu = templateData.elementDisposables.add(
-			this.menuService.createMenu(AICustomizationManagementItemMenuId, this.contextKeyService)
+			this.menuService.createMenu(AICustomizationManagementItemMenuId, overlay)
 		);
 
 		const updateActions = () => {
@@ -434,8 +442,8 @@ export class AICustomizationListWidget extends Disposable {
 	private readonly _onDidRequestCreate = this._register(new Emitter<PromptsType>());
 	readonly onDidRequestCreate: Event<PromptsType> = this._onDidRequestCreate.event;
 
-	private readonly _onDidRequestCreateManual = this._register(new Emitter<{ type: PromptsType; target: 'workspace' | 'user' }>());
-	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'workspace' | 'user' }> = this._onDidRequestCreateManual.event;
+	private readonly _onDidRequestCreateManual = this._register(new Emitter<{ type: PromptsType; target: 'workspace' | 'user' | 'workspace-root' }>());
+	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'workspace' | 'user' | 'workspace-root' }> = this._onDidRequestCreateManual.event;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -614,8 +622,15 @@ export class AICustomizationListWidget extends Disposable {
 			storage: item.storage,
 		};
 
+		// Create scoped context key service with item-specific keys for when-clause filtering
+		const overlay = this.contextKeyService.createOverlay([
+			[AI_CUSTOMIZATION_ITEM_TYPE_KEY, item.promptType],
+			[AI_CUSTOMIZATION_ITEM_STORAGE_KEY, item.storage],
+			[AI_CUSTOMIZATION_ITEM_URI_KEY, item.uri.toString()],
+		]);
+
 		// Get menu actions, excluding inline actions to avoid duplicates
-		const actions = this.menuService.getMenuActions(AICustomizationManagementItemMenuId, this.contextKeyService, {
+		const actions = this.menuService.getMenuActions(AICustomizationManagementItemMenuId, overlay, {
 			arg: context,
 			shouldForwardArgs: true,
 		});
@@ -778,6 +793,12 @@ export class AICustomizationListWidget extends Disposable {
 			actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
 				this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
 			})));
+			// For instructions: offer AGENTS.md at workspace root
+			if (promptType === PromptsType.instructions && this.hasActiveWorkspace()) {
+				actions.push(this.dropdownActionDisposables.add(new Action('createAgentsMd', `$(${Codicon.file.id}) New ${AGENT_MD_FILENAME}`, undefined, true, () => {
+					this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace-root' });
+				})));
+			}
 		} else {
 			// Core: primary is generate, dropdown has workspace + user
 			if (this.hasActiveWorkspace()) {

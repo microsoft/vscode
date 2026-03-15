@@ -233,6 +233,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		this.state = updateService.state;
 		this.updateStateContextKey = CONTEXT_UPDATE_STATE.bindTo(this.contextKeyService);
 		this.majorMinorUpdateAvailableContextKey = MAJOR_MINOR_UPDATE_AVAILABLE.bindTo(this.contextKeyService);
+		this.titleBarEnabled = this.configurationService.getValue<string>('update.titleBar') !== 'none';
 
 		this._register(updateService.onStateChange(this.onUpdateStateChange, this));
 		this.onUpdateStateChange(this.updateService.state);
@@ -254,7 +255,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			this.storageService.remove('update/updateNotificationTime', StorageScope.APPLICATION);
 		}
 
-		this.titleBarEnabled = this.configurationService.getValue<string>('update.titleBar') !== 'none';
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('update.titleBar')) {
 				this.titleBarEnabled = this.configurationService.getValue<string>('update.titleBar') !== 'none';

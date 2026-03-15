@@ -60,17 +60,17 @@ suite('formatEventDetail', () => {
 			sessionResource: URI.parse('test://s1'),
 			created: new Date(),
 			model: 'gpt-4o',
-			inputTokens: 1000,
-			outputTokens: 500,
-			totalTokens: 1500,
-			durationInMillis: 3200,
+			inputTokens: 100,
+			outputTokens: 50,
+			totalTokens: 150,
+			durationInMillis: 320,
 		};
 		const result = formatEventDetail(event);
 		assert.ok(result.includes('gpt-4o'));
-		assert.ok(result.includes('1000'));
-		assert.ok(result.includes('500'));
-		assert.ok(result.includes('1500'));
-		assert.ok(result.includes('3200'));
+		assert.ok(result.includes('100'));
+		assert.ok(result.includes('50'));
+		assert.ok(result.includes('150'));
+		assert.ok(result.includes('320'));
 	});
 
 	test('generic event', () => {
@@ -118,7 +118,7 @@ suite('formatEventDetail', () => {
 			agentName: 'Data',
 			description: 'Querying KQL',
 			status: 'completed',
-			durationInMillis: 5000,
+			durationInMillis: 500,
 			toolCallCount: 3,
 			modelTurnCount: 2,
 		};
@@ -126,7 +126,7 @@ suite('formatEventDetail', () => {
 		assert.ok(result.includes('Data'));
 		assert.ok(result.includes('Querying KQL'));
 		assert.ok(result.includes('completed'));
-		assert.ok(result.includes('5000'));
+		assert.ok(result.includes('500'));
 		assert.ok(result.includes('3'));
 		assert.ok(result.includes('2'));
 	});

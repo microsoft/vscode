@@ -1456,6 +1456,7 @@ export default tseslint.config(
 					// - electron-main
 					'when': 'hasNode',
 					'allow': [
+						'@anthropic-ai/sandbox-runtime',
 						'@parcel/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',

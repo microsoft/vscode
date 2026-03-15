@@ -13,7 +13,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribu
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatContextService } from '../../../chat/browser/contextContrib/chatContextService.js';
 import { ILanguageModelToolsService, ToolDataSource, ToolSet } from '../../../chat/common/tools/languageModelToolsService.js';
-import { BrowserEditorInput } from '../browserEditorInput.js';
+import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { ClickBrowserTool, ClickBrowserToolData } from './clickBrowserTool.js';
 import { DragElementTool, DragElementToolData } from './dragElementTool.js';
 import { HandleDialogBrowserTool, HandleDialogBrowserToolData } from './handleDialogBrowserTool.js';

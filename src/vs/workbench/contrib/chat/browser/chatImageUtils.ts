@@ -8,6 +8,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 
 /**
  * Resizes an image provided as a UInt8Array string. Resizing is based on Open AI's algorithm for tokenzing images.
@@ -160,3 +161,10 @@ function getTimestampFromFilename(filename: string): number | undefined {
 	}
 	return undefined;
 }
+
+CommandsRegistry.registerCommand('_chat.resizeImage', async (_accessor, data: Uint8Array | VSBuffer, mimeType?: string): Promise<Uint8Array> => {
+	if (data instanceof VSBuffer) {
+		data = data.buffer;
+	}
+	return resizeImage(data, mimeType);
+});

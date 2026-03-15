@@ -16,13 +16,14 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
-import { BrowserEditorInput } from './browserEditorInput.js';
+import { BrowserEditorInput } from '../common/browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { IBrowserViewModel } from '../../browserView/common/browserView.js';
+import { IBrowserZoomService } from '../../browserView/common/browserZoomService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, BrowserNewPageLocation } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, BrowserNewPageLocation, browserZoomFactors, browserZoomLabel, browserZoomAccessibilityLabel } from '../../../../platform/browserView/common/browserView.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -30,7 +31,8 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { BrowserOverlayManager, BrowserOverlayType, IBrowserOverlayInfo } from './overlayManager.js';
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -50,6 +52,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ChatConfiguration } from '../../chat/common/constants.js';
 import { Event } from '../../../../base/common/event.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -81,10 +84,46 @@ function watchForAgentSharingContextChanges(contextKeyService: IContextKeyServic
  */
 const originalHtmlElementFocus = HTMLElement.prototype.focus;
 
+/**
+ * Transient zoom-level indicator that briefly appears inside the URL bar on zoom changes.
+ * All DOM construction, state, and auto-hide logic are self-contained here.
+ */
+class BrowserZoomPill extends Disposable {
+	readonly element: HTMLElement;
+	private readonly _icon: HTMLElement;
+	private readonly _label: HTMLElement;
+	private readonly _timeout = this._register(new MutableDisposable());
+
+	constructor() {
+		super();
+		this.element = $('.browser-zoom-pill');
+		// Don't announce this transient element; the zoom level is announced via IAccessibilityService.status() in showZoomPill()
+		this.element.setAttribute('aria-hidden', 'true');
+		this._icon = $('span');
+		this._label = $('span');
+		this.element.appendChild(this._icon);
+		this.element.appendChild(this._label);
+	}
+
+	/**
+	 * Briefly show the zoom level, then auto-hide after 750 ms.
+	 */
+	show(zoomLabel: string, isAtOrAboveDefault: boolean): void {
+		this._icon.className = ThemeIcon.asClassName(isAtOrAboveDefault ? Codicon.zoomIn : Codicon.zoomOut);
+		this._label.textContent = zoomLabel;
+		this.element.classList.add('visible');
+		// Reset auto-hide timer so rapid zoom actions extend the display
+		this._timeout.value = disposableTimeout(() => {
+			this.element.classList.remove('visible');
+		}, 750); // Chrome shows the zoom level for 1.5 seconds, but we show it for less because ours is non-interactive
+	}
+}
+
 class BrowserNavigationBar extends Disposable {
 	private readonly _urlInput: HTMLInputElement;
 	private readonly _shareButton: Button;
 	private readonly _shareButtonContainer: HTMLElement;
+	private readonly _zoomPill: BrowserZoomPill;
 
 	constructor(
 		editor: BrowserEditor,
@@ -142,7 +181,10 @@ class BrowserNavigationBar extends Disposable {
 		this._shareButton.element.classList.add('browser-share-toggle');
 		this._shareButton.label = '$(agent)';
 
+		this._zoomPill = this._register(new BrowserZoomPill());
+
 		urlContainer.appendChild(this._urlInput);
+		urlContainer.appendChild(this._zoomPill.element);
 		urlContainer.appendChild(this._shareButtonContainer);
 
 		// Create actions toolbar (right side) with scoped context
@@ -226,14 +268,19 @@ class BrowserNavigationBar extends Disposable {
 		this._urlInput.focus();
 	}
 
+	/**
+	 * Briefly show the zoom level indicator pill, then auto-hide.
+	 */
+	showZoomLevel(zoomLabel: string, isAtOrAboveDefault: boolean): void {
+		this._zoomPill.show(zoomLabel, isAtOrAboveDefault);
+	}
+
 	clear(): void {
 		this._urlInput.value = '';
 	}
 }
 
 export class BrowserEditor extends EditorPane {
-	static readonly ID = 'workbench.editor.browser';
-
 	private _overlayVisible = false;
 	private _editorVisible = false;
 	private _currentKeyDownEvent: IBrowserViewKeyDownEvent | undefined;
@@ -279,9 +326,11 @@ export class BrowserEditor extends EditorPane {
 		@IBrowserElementsService private readonly browserElementsService: IBrowserElementsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILayoutService private readonly layoutService: ILayoutService
+		@ILayoutService private readonly layoutService: ILayoutService,
+		@IBrowserZoomService private readonly browserZoomService: IBrowserZoomService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
-		super(BrowserEditor.ID, group, telemetryService, themeService, storageService);
+		super(BrowserEditorInput.EDITOR_ID, group, telemetryService, themeService, storageService);
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -330,6 +379,9 @@ export class BrowserEditor extends EditorPane {
 			if (this._model) {
 				findWidget.setModel(this._model);
 			}
+			findWidget.onDidChangeHeight(() => {
+				this.layoutBrowserContainer();
+			});
 			return findWidget;
 		});
 		this._register(toDisposable(() => this._findWidget.rawValue?.dispose()));
@@ -730,14 +782,30 @@ export class BrowserEditor extends EditorPane {
 
 	async zoomIn(): Promise<void> {
 		await this._model?.zoomIn();
+		this.showZoomPill();
 	}
 
 	async zoomOut(): Promise<void> {
 		await this._model?.zoomOut();
+		this.showZoomPill();
 	}
 
 	async resetZoom(): Promise<void> {
 		await this._model?.resetZoom();
+		this.showZoomPill();
+	}
+
+	private showZoomPill(): void {
+		if (!this._model) {
+			return;
+		}
+		const defaultIndex = this.browserZoomService.getEffectiveZoomIndex(undefined, false);
+		const defaultFactor = browserZoomFactors[defaultIndex];
+		const currentFactor = this._model.zoomFactor;
+		const label = browserZoomLabel(currentFactor);
+		this._navigationBar.showZoomLevel(label, currentFactor >= defaultFactor);
+		// Announce the new zoom level to screen readers (polite, non-interruptive).
+		this.accessibilityService.status(browserZoomAccessibilityLabel(currentFactor));
 	}
 
 	private updateZoomContext(): void {

@@ -218,7 +218,7 @@
             },
             "scope": "resource",
             "default": [],
-            "description": "%css.lint.validProperties.desc%"
+            "markdownDescription": "%css.lint.validProperties.desc%"
           },
           "css.lint.ieHack": {
             "type": "string",
@@ -534,7 +534,7 @@
             },
             "scope": "resource",
             "default": [],
-            "description": "%scss.lint.validProperties.desc%"
+            "markdownDescription": "%scss.lint.validProperties.desc%"
           },
           "scss.lint.ieHack": {
             "type": "string",
@@ -840,7 +840,7 @@
             },
             "scope": "resource",
             "default": [],
-            "description": "%less.lint.validProperties.desc%"
+            "markdownDescription": "%less.lint.validProperties.desc%"
           },
           "less.lint.ieHack": {
             "type": "string",

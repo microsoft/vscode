@@ -1467,6 +1467,12 @@ export interface IChatService {
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionResource: URI, source?: string): Promise<void>;
 	/**
+	 * Migrates all in-flight and queued pending requests from one session to another.
+	 * Cancels the in-flight request on the original session, removes queued requests,
+	 * and re-sends them all on the target session preserving their original send options.
+	 */
+	migrateRequests(originalResource: URI, targetResource: URI): void;
+	/**
 	 * Sets yieldRequested on the active request for the given session.
 	 */
 	setYieldRequested(sessionResource: URI): void;

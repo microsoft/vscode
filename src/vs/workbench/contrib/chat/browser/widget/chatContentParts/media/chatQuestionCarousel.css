@@ -391,6 +391,9 @@
 	padding: 8px 16px 0;
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
+	max-height: min(220px, 25vh);
+	overflow-y: auto;
+	overscroll-behavior: contain;
 
 	.rendered-markdown p {
 		margin: 0;

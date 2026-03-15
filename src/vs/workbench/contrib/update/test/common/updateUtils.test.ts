@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Downloading, StateType } from '../../../../../platform/update/common/update.js';
-import { computeDownloadSpeed, computeDownloadTimeRemaining, computeProgressPercent, computeUpdateInfoVersion, formatBytes, formatDate, formatTimeRemaining, getUpdateInfoUrl, tryParseDate } from '../../common/updateUtils.js';
+import { computeDownloadSpeed, computeDownloadTimeRemaining, computeProgressPercent, computeUpdateInfoVersion, formatBytes, formatDate, formatTimeRemaining, getUpdateInfoUrl, isMajorMinorVersionChange, tryParseDate } from '../../common/updateUtils.js';
 
 suite('UpdateUtils', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -243,6 +243,41 @@ suite('UpdateUtils', () => {
 			const result = formatDate(1705276800000);
 			assert.ok(result.length > 0);
 			assert.ok(result.includes('2024'));
+		});
+	});
+
+	suite('isMajorMinorVersionChange', () => {
+		test('returns true for major version change', () => {
+			assert.strictEqual(isMajorMinorVersionChange('1.90.0', '2.0.0'), true);
+		});
+
+		test('returns true for minor version change', () => {
+			assert.strictEqual(isMajorMinorVersionChange('1.90.0', '1.91.0'), true);
+		});
+
+		test('returns false for patch-only change', () => {
+			assert.strictEqual(isMajorMinorVersionChange('1.90.0', '1.90.1'), false);
+		});
+
+		test('returns false for identical versions', () => {
+			assert.strictEqual(isMajorMinorVersionChange('1.90.0', '1.90.0'), false);
+		});
+
+		test('returns false when previous version is undefined', () => {
+			assert.strictEqual(isMajorMinorVersionChange(undefined, '1.90.0'), false);
+		});
+
+		test('returns false when new version is undefined', () => {
+			assert.strictEqual(isMajorMinorVersionChange('1.90.0', undefined), false);
+		});
+
+		test('returns false when both versions are undefined', () => {
+			assert.strictEqual(isMajorMinorVersionChange(undefined, undefined), false);
+		});
+
+		test('returns false for unparseable versions', () => {
+			assert.strictEqual(isMajorMinorVersionChange('invalid', '1.90.0'), false);
+			assert.strictEqual(isMajorMinorVersionChange('1.90.0', 'invalid'), false);
 		});
 	});
 });
