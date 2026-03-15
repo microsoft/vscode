@@ -1512,7 +1512,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		let context;
 		try {
-			context = await this._requestService.request({ type: 'GET', url: this._chatControlUrl! }, CancellationToken.None);
+			context = await this._requestService.request({ type: 'GET', url: this._chatControlUrl!, callSite: 'languageModels.fetchChatControlData' }, CancellationToken.None);
 		} catch (err) {
 			this._logService.warn('[LM] Failed to request chat control data', getErrorMessage(err));
 			return;

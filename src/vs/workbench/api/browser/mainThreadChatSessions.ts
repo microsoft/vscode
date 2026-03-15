@@ -15,6 +15,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { hasValidDiff, IAgentSession } from '../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -24,16 +25,17 @@ import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/c
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { awaitStatsForSession } from '../../contrib/chat/common/chat.js';
 import { IChatContentInlineReference, IChatProgress, IChatService, ResponseModelState } from '../../contrib/chat/common/chatService/chatService.js';
-import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
+import { ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
+import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IChatTodoListService } from '../../contrib/chat/common/tools/chatTodoListService.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, IChatSessionItemsChange, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
+import { ChatSessionContentContextDto, ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, IChatSessionItemsChange, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
 
 export class ObservableChatSession extends Disposable implements IChatSession {
 
@@ -97,17 +99,17 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 		this._dialogService = dialogService;
 	}
 
-	initialize(token: CancellationToken): Promise<void> {
+	initialize(token: CancellationToken, context: ChatSessionContentContextDto): Promise<void> {
 		if (!this._initializationPromise) {
-			this._initializationPromise = this._doInitializeContent(token);
+			this._initializationPromise = this._doInitializeContent(token, context);
 		}
 		return this._initializationPromise;
 	}
 
-	private async _doInitializeContent(token: CancellationToken): Promise<void> {
+	private async _doInitializeContent(token: CancellationToken, context: ChatSessionContentContextDto): Promise<void> {
 		try {
 			const sessionContent = await raceCancellationError(
-				this._proxy.$provideChatSessionContent(this._providerHandle, this.sessionResource, token),
+				this._proxy.$provideChatSessionContent(this._providerHandle, this.sessionResource, context, token),
 				token
 			);
 
@@ -328,16 +330,25 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 	private readonly _proxy: ExtHostChatSessionsShape;
 	private readonly _handle: number;
 
-	private readonly _onDidChangeChatSessionItems = this._register(new Emitter<void>());
+	private readonly _onDidChangeChatSessionItems = this._register(new Emitter<IChatSessionItemsDelta>());
 	public readonly onDidChangeChatSessionItems = this._onDidChangeChatSessionItems.event;
 
 	constructor(
 		proxy: ExtHostChatSessionsShape,
-		handle: number
+		chatSessionType: string,
+		handle: number,
+		@IChatService chatService: IChatService,
 	) {
 		super();
 		this._proxy = proxy;
 		this._handle = handle;
+
+		this._register(chatService.registerChatModelChangeListeners(chatSessionType, (sessionResource) => {
+			const item = this._items.get(sessionResource);
+			if (item) {
+				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [item] });
+			}
+		}));
 	}
 
 	private readonly _items = new ResourceMap<IChatSessionItem>();
@@ -349,7 +360,7 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 		return this._proxy.$refreshChatSessionItems(this._handle, token);
 	}
 
-	async newChatSessionItem(request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {
+	async newChatSessionItem(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {
 		const dto = await raceCancellationError(this._proxy.$newChatSessionItem(this._handle, request, token), token);
 		if (!dto) {
 			return undefined;
@@ -360,29 +371,35 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 			changes: revive(dto.changes),
 		};
 		this._items.set(item.resource, item);
-		this._onDidChangeChatSessionItems.fire();
+		this._onDidChangeChatSessionItems.fire({
+			addedOrUpdated: [item],
+		});
 		return item;
 	}
 
 	acceptChange(change: { readonly addedOrUpdated: readonly IChatSessionItem[]; readonly removed: readonly URI[] }): void {
 		for (const item of change.addedOrUpdated) {
+			warnOnUntitledSessionResource(item.resource);
 			this._items.set(item.resource, item);
 		}
 		for (const uri of change.removed) {
 			this._items.delete(uri);
 		}
-		this._onDidChangeChatSessionItems.fire();
+		this._onDidChangeChatSessionItems.fire({
+			addedOrUpdated: change.addedOrUpdated,
+			removed: change.removed,
+		});
 	}
 
 	addOrUpdateItem(item: IChatSessionItem): void {
+		warnOnUntitledSessionResource(item.resource);
 		this._items.set(item.resource, item);
-		this._onDidChangeChatSessionItems.fire();
-	}
-
-	fireOnDidChangeChatSessionItems(): void {
-		this._onDidChangeChatSessionItems.fire();
+		this._onDidChangeChatSessionItems.fire({
+			addedOrUpdated: [item],
+		});
 	}
 }
+
 
 @extHostNamedCustomer(MainContext.MainThreadChatSessions)
 export class MainThreadChatSessions extends Disposable implements MainThreadChatSessionsShape {
@@ -409,12 +426,14 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
 
 		this._register(this._chatSessionsService.onRequestNotifyExtension(({ sessionResource, updates, waitUntil }) => {
+			warnOnUntitledSessionResource(sessionResource);
 			const handle = this._getHandleForSessionType(sessionResource.scheme);
 			this._logService.trace(`[MainThreadChatSessions] onRequestNotifyExtension received: scheme '${sessionResource.scheme}', handle ${handle}, ${updates.length} update(s)`);
 			if (handle !== undefined) {
@@ -427,6 +446,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._register(this._agentSessionsService.model.onDidChangeSessionArchivedState(session => {
 			for (const [handle, { chatSessionType }] of this._itemControllerRegistrations) {
 				if (chatSessionType === session.providerType) {
+					warnOnUntitledSessionResource(session.resource);
 					this._proxy.$onDidChangeChatSessionItemState(handle, session.resource, session.isArchived());
 				}
 			}
@@ -440,7 +460,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	$registerChatSessionItemController(handle: number, chatSessionType: string): void {
 		const disposables = new DisposableStore();
 
-		const controller = disposables.add(new MainThreadChatSessionItemController(this._proxy, handle));
+		const controller = disposables.add(this._instantiationService.createInstance(MainThreadChatSessionItemController, this._proxy, chatSessionType, handle));
 		disposables.add(this._chatSessionsService.registerChatSessionItemController(chatSessionType, controller));
 
 		this._itemControllerRegistrations.set(handle, {
@@ -448,12 +468,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			controller,
 			dispose: () => disposables.dispose(),
 		});
-
-		disposables.add(this._chatSessionsService.registerChatModelChangeListeners(
-			this._chatService,
-			chatSessionType,
-			() => controller.fireOnDidChangeChatSessionItems()
-		));
 	}
 
 	private getController(handle: number): MainThreadChatSessionItemController {
@@ -462,11 +476,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			throw new Error(`No chat session controller registered for handle ${handle}`);
 		}
 		return registration.controller;
-	}
-
-	$onDidChangeChatSessionItems(handle: number): void {
-		const controller = this.getController(handle);
-		controller.fireOnDidChangeChatSessionItems();
 	}
 
 	private async _resolveSessionItem(item: Dto<IChatSessionItem>): Promise<IChatSessionItem> {
@@ -516,6 +525,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	$onDidChangeChatSessionOptions(handle: number, sessionResourceComponents: UriComponents, updates: ReadonlyArray<{ optionId: string; value: string }>): void {
 		const sessionResource = URI.revive(sessionResourceComponents);
+		warnOnUntitledSessionResource(sessionResource);
 		this._chatSessionsService.notifySessionOptionsChange(sessionResource, updates);
 	}
 
@@ -569,6 +579,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 						options,
 					},
 				}], originalGroup);
+
+				// Re-send queued requests from the original session on the committed session
+				this._resendPendingRequests(originalResource, modifiedResource);
 				return;
 			}
 
@@ -589,9 +602,19 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				const ref = await this._chatService.acquireOrLoadSession(modifiedResource, ChatAgentLocation.Chat, CancellationToken.None);
 				ref?.dispose();
 			}
+
+			// Re-send queued requests from the original session on the committed session
+			this._resendPendingRequests(originalResource, modifiedResource);
 		} finally {
 			originalModel?.dispose();
 		}
+	}
+
+	/**
+	 * Re-sends pending and in-flight requests from the original session on the committed session.
+	 */
+	private _resendPendingRequests(originalResource: URI, modifiedResource: URI): void {
+		this._chatService.migrateRequests(originalResource, modifiedResource);
 	}
 
 	private async handleSessionModelOverrides(model: IChatModel, session: Dto<IChatSessionItem>): Promise<Dto<IChatSessionItem>> {
@@ -623,6 +646,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	}
 
 	private async _provideChatSessionContent(providerHandle: number, sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
+		warnOnUntitledSessionResource(sessionResource);
+
 		let session = this._activeSessions.get(sessionResource);
 
 		if (!session) {
@@ -643,7 +668,10 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		}
 
 		try {
-			await session.initialize(token);
+			const initialSessionOptions = this._chatSessionsService.getSessionOptions(sessionResource);
+			await session.initialize(token, {
+				initialSessionOptions: initialSessionOptions ? [...initialSessionOptions].map(([optionId, value]) => ({ optionId, value })) : undefined,
+			});
 			if (session.options) {
 				for (const [_, handle] of this._sessionTypeToHandle) {
 					if (handle === providerHandle) {
@@ -712,6 +740,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	$handleProgressComplete(handle: number, sessionResource: UriComponents, requestId: string) {
 		const resource = URI.revive(sessionResource);
+		warnOnUntitledSessionResource(resource);
+
 		const observableSession = this._activeSessions.get(resource);
 		if (!observableSession) {
 			this._logService.warn(`No session found for progress completion: handle ${handle}, sessionResource ${resource}, requestId ${requestId}`);
@@ -802,5 +832,11 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		} catch (error) {
 			this._logService.error(`[MainThreadChatSessions] notifyOptionsChange: error for handle ${handle}, sessionResource ${sessionResource}:`, error);
 		}
+	}
+}
+
+function warnOnUntitledSessionResource(resource: URI): void {
+	if (isUntitledChatSession(resource)) {
+		console.trace(`[MainThreadChatSessions] untitled-style sessionResource detected ${resource.toString()}`);
 	}
 }

@@ -11,9 +11,10 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
+import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { agentSessionContainsResource, editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -78,6 +79,12 @@ export interface IAgentFeedbackService {
 	 * Set the navigation anchor to a specific feedback item, open its editor, and fire a navigation event.
 	 */
 	revealFeedback(sessionResource: URI, feedbackId: string): Promise<void>;
+
+	/**
+	 * Open an editor for the given session comment (feedback or code-review) at its range
+	 * and set it as the navigation anchor.
+	 */
+	revealSessionComment(sessionResource: URI, commentId: string, resourceUri: URI, range: IRange): Promise<void>;
 
 	/**
 	 * Navigate to next/previous feedback item in a session.
@@ -271,16 +278,87 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		if (!feedback) {
 			return;
 		}
-		await this._editorService.openEditor({
-			resource: feedback.resourceUri,
-			options: {
-				preserveFocus: false,
-				revealIfVisible: true,
-			}
-		});
-		setTimeout(() => {
-			this.setNavigationAnchor(sessionResource, feedbackId);
-		}, 50); // delay to ensure editor has revealed the correct position before firing navigation event
+		await this.revealSessionComment(sessionResource, feedbackId, feedback.resourceUri, feedback.range);
+	}
+
+	async revealSessionComment(sessionResource: URI, commentId: string, resourceUri: URI, range: IRange): Promise<void> {
+		const selection = { startLineNumber: range.startLineNumber, startColumn: range.startColumn };
+		const sessionChange = this._getSessionChange(resourceUri, this._agentSessionsService.getSession(sessionResource)?.changes);
+
+		if (sessionChange?.isDeletion && sessionChange.originalUri) {
+			await this._editorService.openEditor({
+				resource: sessionChange.originalUri,
+				options: {
+					modal: {},
+					preserveFocus: false,
+					revealIfVisible: true,
+					selection,
+				}
+			}, MODAL_GROUP);
+		} else if (sessionChange?.originalUri) {
+			await this._editorService.openEditor({
+				original: { resource: sessionChange.originalUri },
+				modified: { resource: sessionChange.modifiedUri },
+				options: {
+					modal: {},
+					preserveFocus: false,
+					revealIfVisible: true,
+					selection,
+				}
+			}, MODAL_GROUP);
+		} else {
+			await this._editorService.openEditor({
+				resource: sessionChange?.modifiedUri ?? resourceUri,
+				options: {
+					modal: {},
+					preserveFocus: false,
+					revealIfVisible: true,
+					selection,
+				}
+			}, MODAL_GROUP);
+		}
+
+		this.setNavigationAnchor(sessionResource, commentId);
+	}
+
+	private _getSessionChange(resourceUri: URI, changes: readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[] | {
+		readonly files: number;
+		readonly insertions: number;
+		readonly deletions: number;
+	} | undefined): { originalUri?: URI; modifiedUri: URI; isDeletion: boolean } | undefined {
+		if (!(changes instanceof Array)) {
+			return undefined;
+		}
+
+		const matchingChange = changes.find(change => this._changeContainsResource(change, resourceUri));
+		if (!matchingChange) {
+			return undefined;
+		}
+
+		if (isIChatSessionFileChange2(matchingChange)) {
+			return {
+				originalUri: matchingChange.originalUri,
+				modifiedUri: matchingChange.modifiedUri ?? matchingChange.uri,
+				isDeletion: matchingChange.modifiedUri === undefined,
+			};
+		}
+
+		return {
+			originalUri: matchingChange.originalUri,
+			modifiedUri: matchingChange.modifiedUri,
+			isDeletion: false,
+		};
+	}
+
+	private _changeContainsResource(change: IChatSessionFileChange | IChatSessionFileChange2, resourceUri: URI): boolean {
+		if (isIChatSessionFileChange2(change)) {
+			return change.uri.fsPath === resourceUri.fsPath
+				|| change.originalUri?.fsPath === resourceUri.fsPath
+				|| change.modifiedUri?.fsPath === resourceUri.fsPath;
+		}
+
+		return change.modifiedUri.fsPath === resourceUri.fsPath
+			|| change.originalUri?.fsPath === resourceUri.fsPath;
 	}
 
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined {

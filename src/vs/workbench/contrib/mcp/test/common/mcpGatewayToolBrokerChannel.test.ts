@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ContributionEnablementState } from '../../../chat/common/enablement.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IGatewayCallToolResult } from '../../../../../platform/mcp/common/mcpGateway.js';
 import { MCP } from '../../common/modelContextProtocol.js';
@@ -268,6 +269,7 @@ function createServer(
 		definition: { id: definitionId, label: definitionId },
 		connection: observableValue(owner, undefined),
 		connectionState,
+		enablement: observableValue(owner, ContributionEnablementState.EnabledProfile),
 		serverMetadata: observableValue(owner, undefined),
 		readDefinitions: () => observableValue(owner, { server: undefined, collection: undefined }),
 		showOutput: async () => { },
@@ -306,6 +308,7 @@ function createNeverStartingServer(
 		definition: { id: definitionId, label: definitionId },
 		connection: observableValue(owner, undefined),
 		connectionState,
+		enablement: observableValue(owner, ContributionEnablementState.EnabledProfile),
 		serverMetadata: observableValue(owner, undefined),
 		readDefinitions: () => observableValue(owner, { server: undefined, collection: undefined }),
 		showOutput: async () => { },

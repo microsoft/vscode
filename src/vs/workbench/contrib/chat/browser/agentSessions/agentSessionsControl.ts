@@ -14,6 +14,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
 import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionsSorter, IAgentSessionsFilter, IAgentSessionsSorterOptions } from './agentSessionsViewer.js';
+import { AgentSessionsGrouping } from './agentSessionsFilter.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -41,6 +42,7 @@ import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IChatWidget } from '../chat.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOptions {
 	readonly overrideStyles: IStyleOverride<IListStyles>;
@@ -107,6 +109,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -243,8 +246,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const sorter = new AgentSessionsSorter(this.options);
 		const approvalModel = this.options.enableApprovalRow ? this._register(this.instantiationService.createInstance(AgentSessionApprovalModel)) : undefined;
 		const activeSessionResource = observableValue<URI | undefined>(this, undefined);
-		const sessionRenderer = this._register(this.instantiationService.createInstance(AgentSessionRenderer, this.options, approvalModel, activeSessionResource));
-		const sessionFilter = this._register(new AgentSessionsDataSource(this.options.filter, sorter));
+		const sessionRenderer = this._register(this.instantiationService.createInstance(AgentSessionRenderer, {
+			...this.options,
+			isGroupedByRepository: () => this.options.filter.groupResults?.() === AgentSessionsGrouping.Repository,
+		}, approvalModel, activeSessionResource));
+		const sessionFilter = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.logService));
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
 			container,

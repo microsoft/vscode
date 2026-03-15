@@ -44,10 +44,12 @@ import { ExplorerFolderContext } from '../../../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../../../search/common/search.js';
 import { IChatContentInlineReference } from '../../../common/chatService/chatService.js';
 import { IChatWidgetService } from '../../chat.js';
+import { IChatImageCarouselService } from '../../chatImageCarouselService.js';
 import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { getMediaMime } from '../../../../../../base/common/mime.js';
 
 /**
  * Returns the editor ID to use when opening a resource from chat pills (inline anchors), based on the
@@ -110,6 +112,11 @@ export function renderFileWidgets(element: HTMLElement, instantiationService: II
 					linkText
 				};
 				shouldRenderWidget = true;
+
+				// Strip vscodeLinkType from the URI once we've extracted the metadata for better compatibility with different FS
+				searchParams.delete('vscodeLinkType');
+				const remainingQuery = searchParams.toString();
+				uri = uri.with({ query: remainingQuery });
 			}
 		}
 
@@ -131,6 +138,7 @@ export class InlineAnchorWidget extends Disposable {
 		private readonly element: HTMLAnchorElement | HTMLElement,
 		public readonly inlineReference: IChatContentInlineReference,
 		private readonly metadata: InlineAnchorWidgetMetadata | undefined,
+		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService originalContextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -298,6 +306,14 @@ export class InlineAnchorWidget extends Disposable {
 		// Click handler to open with custom editor association from chat.editorAssociations setting
 		this._register(dom.addDisposableListener(element, 'click', async (e) => {
 			dom.EventHelper.stop(e, true);
+
+			// If the reference is an image file and the carousel is enabled, open the carousel
+			const mimeType = getMediaMime(location.uri.path);
+			if (mimeType?.startsWith('image/') && this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+				await this.chatImageCarouselService.openCarouselAtResource(location.uri);
+				return;
+			}
+
 			const editorOverride = getEditorOverrideForChatResource(location.uri, this.configurationService);
 			const editorOptions: { override: string | undefined; selection?: IRange } = {
 				override: editorOverride,

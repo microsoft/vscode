@@ -12,6 +12,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -22,14 +23,19 @@ import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list
 import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { FilterWidget } from '../../../../browser/parts/views/viewFilter.js';
 import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
+import { filterDebugEventsByText } from '../../common/chatDebugEvents.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
-import { ChatDebugEventRenderer, ChatDebugEventDelegate, ChatDebugEventTreeRenderer } from './chatDebugEventList.js';
+import { ChatDebugEventRenderer, ChatDebugEventDelegate, ChatDebugEventTreeRenderer, getEventCreatedText, getEventNameText, getEventDetailsText } from './chatDebugEventList.js';
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem, LogsViewMode } from './chatDebugTypes.js';
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
 import { ChatDebugDetailPanel } from './chatDebugDetailPanel.js';
 import { IChatWidgetService } from '../chat.js';
 import { createDebugEventsAttachment } from './chatDebugAttachment.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { Action, Separator } from '../../../../../base/common/actions.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 
 const $ = DOM.$;
 
@@ -58,11 +64,12 @@ export class ChatDebugLogsView extends Disposable {
 	private tree: WorkbenchObjectTree<IChatDebugEvent, void>;
 
 	private currentSessionResource: URI | undefined;
-	private logsViewMode: LogsViewMode = LogsViewMode.List;
+	private logsViewMode: LogsViewMode = LogsViewMode.Tree;
 	private events: IChatDebugEvent[] = [];
 	private currentDimension: Dimension | undefined;
 	private readonly eventListener = this._register(new MutableDisposable());
 	private readonly sessionStateDisposable = this._register(new MutableDisposable());
+	private readonly refreshScheduler: RunOnceScheduler;
 	private shimmerRow!: HTMLElement;
 
 	constructor(
@@ -73,8 +80,11 @@ export class ChatDebugLogsView extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
+		this.refreshScheduler = this._register(new RunOnceScheduler(() => this.refreshList(), 50));
 		this.container = DOM.append(parent, $('.chat-debug-logs'));
 		DOM.hide(this.container);
 
@@ -164,8 +174,9 @@ export class ChatDebugLogsView extends Disposable {
 		// Body container
 		this.bodyContainer = DOM.append(mainColumn, $('.chat-debug-logs-body'));
 
-		// List container
+		// List container (initially hidden — tree view is default)
 		this.listContainer = DOM.append(this.bodyContainer, $('.chat-debug-list-container'));
+		DOM.hide(this.listContainer);
 
 		const accessibilityProvider = {
 			getAriaLabel: (e: IChatDebugEvent) => {
@@ -205,9 +216,8 @@ export class ChatDebugLogsView extends Disposable {
 			{ identityProvider, accessibilityProvider }
 		));
 
-		// Tree container (initially hidden)
+		// Tree container (default view)
 		this.treeContainer = DOM.append(this.bodyContainer, $('.chat-debug-list-container'));
-		DOM.hide(this.treeContainer);
 
 		this.tree = this._register(this.instantiationService.createInstance(
 			WorkbenchObjectTree<IChatDebugEvent, void>,
@@ -227,12 +237,32 @@ export class ChatDebugLogsView extends Disposable {
 
 		// Detail panel (sibling of main column so it aligns with table header)
 		this.detailPanel = this._register(this.instantiationService.createInstance(ChatDebugDetailPanel, contentContainer));
+		this._register(this.detailPanel.onDidChangeWidth(() => {
+			if (this.currentDimension) {
+				this.layout(this.currentDimension);
+			}
+		}));
 		this._register(this.detailPanel.onDidHide(() => {
 			if (this.list.getSelection().length > 0) {
 				this.list.setSelection([]);
 			}
 			if (this.tree.getSelection().length > 0) {
 				this.tree.setSelection([]);
+			}
+			if (this.currentDimension) {
+				this.layout(this.currentDimension);
+			}
+		}));
+
+		// Context menu
+		this._register(this.list.onContextMenu(e => {
+			if (e.element) {
+				this.showEventContextMenu(e.element, e.browserEvent);
+			}
+		}));
+		this._register(this.tree.onContextMenu(e => {
+			if (e.element) {
+				this.showEventContextMenu(e.element, e.browserEvent);
 			}
 		}));
 
@@ -288,7 +318,7 @@ export class ChatDebugLogsView extends Disposable {
 		}
 		const sessionTitle = this.chatService.getSessionTitle(this.currentSessionResource) || LocalChatSessionUri.parseLocalSessionId(this.currentSessionResource) || this.currentSessionResource.toString();
 		this.breadcrumbWidget.setItems([
-			new TextBreadcrumbItem(localize('chatDebug.title', "Agent Debug Panel"), true),
+			new TextBreadcrumbItem(localize('chatDebug.title', "Agent Debug Logs"), true),
 			new TextBreadcrumbItem(sessionTitle, true),
 			new TextBreadcrumbItem(localize('chatDebug.logs', "Logs")),
 		]);
@@ -299,8 +329,8 @@ export class ChatDebugLogsView extends Disposable {
 		const breadcrumbHeight = 22;
 		const headerHeight = this.headerContainer.offsetHeight;
 		const tableHeaderHeight = this.tableHeader.offsetHeight;
-		const detailVisible = this.detailPanel.element.style.display !== 'none';
-		const detailWidth = detailVisible ? this.detailPanel.element.offsetWidth : 0;
+		const detailVisible = this.detailPanel.isVisible;
+		const detailWidth = detailVisible ? this.detailPanel.width : 0;
 		const listHeight = dimension.height - breadcrumbHeight - headerHeight - tableHeaderHeight;
 		const listWidth = dimension.width - detailWidth;
 		if (this.logsViewMode === LogsViewMode.Tree) {
@@ -308,10 +338,14 @@ export class ChatDebugLogsView extends Disposable {
 		} else {
 			this.list.layout(listHeight, listWidth);
 		}
+		if (this.detailPanel.isVisible) {
+			this.detailPanel.layout(listHeight);
+		}
+		this.detailPanel.layoutSash();
 	}
 
 	refreshList(): void {
-		let filtered = this.events;
+		let filtered: readonly IChatDebugEvent[] = this.events;
 
 		// Filter by kind toggles (pass category for generic events so only
 		// discovery-category events are affected by the Prompt Discovery toggle)
@@ -320,54 +354,11 @@ export class ChatDebugLogsView extends Disposable {
 			return this.filterState.isKindVisible(e.kind, category);
 		});
 
-		// Filter by timestamp (before:/after: syntax)
-		filtered = filtered.filter(e => this.filterState.isTimestampVisible(e.created));
-
-		// Filter by text search (excluding before:/after: tokens)
-		const filterText = this.filterState.textFilterWithoutTimestamps;
+		// Filter by text search and timestamp (before:/after: syntax is handled
+		// inside filterDebugEventsByText)
+		const filterText = this.filterState.textFilter;
 		if (filterText) {
-			const terms = filterText.split(/\s*,\s*/).filter(t => t.length > 0);
-			const includeTerms = terms.filter(t => !t.startsWith('!')).map(t => t.trim());
-			const excludeTerms = terms.filter(t => t.startsWith('!')).map(t => t.slice(1).trim()).filter(t => t.length > 0);
-
-			filtered = filtered.filter(e => {
-				const matchesText = (term: string): boolean => {
-					if (e.kind.toLowerCase().includes(term)) {
-						return true;
-					}
-					switch (e.kind) {
-						case 'toolCall':
-							return e.toolName.toLowerCase().includes(term) ||
-								(e.input?.toLowerCase().includes(term) ?? false) ||
-								(e.output?.toLowerCase().includes(term) ?? false);
-						case 'modelTurn':
-							return (e.model?.toLowerCase().includes(term) ?? false);
-						case 'generic':
-							return e.name.toLowerCase().includes(term) ||
-								(e.details?.toLowerCase().includes(term) ?? false) ||
-								(e.category?.toLowerCase().includes(term) ?? false);
-						case 'subagentInvocation':
-							return e.agentName.toLowerCase().includes(term) ||
-								(e.description?.toLowerCase().includes(term) ?? false);
-						case 'userMessage':
-							return e.message.toLowerCase().includes(term) ||
-								e.sections.some(s => s.name.toLowerCase().includes(term) || s.content.toLowerCase().includes(term));
-						case 'agentResponse':
-							return e.message.toLowerCase().includes(term) ||
-								e.sections.some(s => s.name.toLowerCase().includes(term) || s.content.toLowerCase().includes(term));
-					}
-				};
-
-				// Exclude terms: if any exclude term matches, filter out the event
-				if (excludeTerms.some(term => matchesText(term))) {
-					return false;
-				}
-				// Include terms: if present, at least one must match
-				if (includeTerms.length > 0) {
-					return includeTerms.some(term => matchesText(term));
-				}
-				return true;
-			});
+			filtered = filterDebugEventsByText(filtered, filterText);
 		}
 
 		if (this.logsViewMode === LogsViewMode.List) {
@@ -383,8 +374,32 @@ export class ChatDebugLogsView extends Disposable {
 	}
 
 	addEvent(event: IChatDebugEvent): void {
-		this.events.push(event);
-		this.refreshList();
+		// Binary-insert to maintain chronological order without a full sort.
+		// Events almost always arrive in order, so the insertion point is
+		// typically at the end (O(log n) comparison, O(1) splice).
+		const time = event.created.getTime();
+		let lo = 0;
+		let hi = this.events.length;
+		while (lo < hi) {
+			const mid = (lo + hi) >>> 1;
+			if (this.events[mid].created.getTime() <= time) {
+				lo = mid + 1;
+			} else {
+				hi = mid;
+			}
+		}
+		if (lo === this.events.length) {
+			this.events.push(event);
+		} else {
+			this.events.splice(lo, 0, event);
+		}
+		this.scheduleRefresh();
+	}
+
+	private scheduleRefresh(): void {
+		if (!this.refreshScheduler.isScheduled()) {
+			this.refreshScheduler.schedule();
+		}
 	}
 
 	private loadEvents(): void {
@@ -392,8 +407,7 @@ export class ChatDebugLogsView extends Disposable {
 
 		const addEventDisposable = this.chatDebugService.onDidAddEvent(e => {
 			if (!this.currentSessionResource || e.sessionResource.toString() === this.currentSessionResource.toString()) {
-				this.events.push(e);
-				this.refreshList();
+				this.addEvent(e);
 			}
 		});
 
@@ -434,12 +448,12 @@ export class ChatDebugLogsView extends Disposable {
 		});
 	}
 
-	private refreshTree(filtered: IChatDebugEvent[]): void {
+	private refreshTree(filtered: readonly IChatDebugEvent[]): void {
 		const treeElements = this.buildTreeHierarchy(filtered);
 		this.tree.setChildren(null, treeElements);
 	}
 
-	private buildTreeHierarchy(events: IChatDebugEvent[]): IObjectTreeElement<IChatDebugEvent>[] {
+	private buildTreeHierarchy(events: readonly IChatDebugEvent[]): IObjectTreeElement<IChatDebugEvent>[] {
 		const idToEvent = new Map<string, IChatDebugEvent>();
 		const idToChildren = new Map<string, IChatDebugEvent[]>();
 		const roots: IChatDebugEvent[] = [];
@@ -522,5 +536,29 @@ export class ChatDebugLogsView extends Disposable {
 		this.filterWidget.checkMoreFilters(!this.filterState.isAllFiltersDefault());
 	}
 
+	private showEventContextMenu(event: IChatDebugEvent, browserEvent: UIEvent): void {
+		const d = event.created;
+		const pad = (n: number) => String(n).padStart(2, '0');
+		const timestamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+		const row = [getEventCreatedText(event), getEventNameText(event), getEventDetailsText(event)].filter(Boolean).join('\t');
+		const name = getEventNameText(event);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => DOM.isMouseEvent(browserEvent)
+				? new StandardMouseEvent(DOM.getWindow(this.container), browserEvent)
+				: this.container,
+			getActions: () => [
+				new Action('chatDebug.copyTimestamp', localize('chatDebug.copyTimestamp', "Copy Timestamp"), undefined, true, () => this.clipboardService.writeText(timestamp)),
+				new Action('chatDebug.copyRow', localize('chatDebug.copyRow', "Copy Row"), undefined, true, () => this.clipboardService.writeText(row)),
+				new Separator(),
+				new Action('chatDebug.filterBefore', localize('chatDebug.filterBefore', "Filter Before Timestamp"), undefined, true, () => this.applyFilterToken(`before:${timestamp}`)),
+				new Action('chatDebug.filterAfter', localize('chatDebug.filterAfter', "Filter After Timestamp"), undefined, true, () => this.applyFilterToken(`after:${timestamp}`)),
+				new Action('chatDebug.filterName', localize('chatDebug.filterName', "Filter Name"), undefined, !!name, () => this.applyFilterToken(name)),
+			],
+		});
+	}
+
+	private applyFilterToken(token: string): void {
+		this.filterWidget.setFilterText(token);
+	}
 
 }
