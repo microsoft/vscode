@@ -54,7 +54,7 @@ import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../../b
 import { StaticResourceContextKey } from '../../../../common/contextkeys.js';
 import { IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
-import { revealInSideBarCommand } from '../../../files/browser/fileActions.contribution.js';
+import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../files/browser/fileConstants.js';
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { toHistoryItemHoverContent } from '../../../scm/browser/scmHistory.js';
@@ -196,7 +196,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 	protected async openResource(resource: URI, openOptions: Partial<IOpenEditorOptions>, isDirectory?: boolean, range?: IRange): Promise<void> {
 		if (isDirectory) {
 			// Reveal Directory in explorer
-			this.commandService.executeCommand(revealInSideBarCommand.id, resource);
+			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
 			return;
 		}
 
