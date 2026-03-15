@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { JSONVisitor, visit } from 'jsonc-parser';
-import { Location, Position, Range, TextDocument } from 'vscode';
+import { Location, Position, Range, Uri } from 'vscode';
 
 export interface INpmScriptReference {
 	name: string;
@@ -18,7 +18,16 @@ export interface INpmScriptInfo {
 	scripts: INpmScriptReference[];
 }
 
-export const readScripts = (document: TextDocument, buffer = document.getText()): INpmScriptInfo | undefined => {
+export interface IPositionOffsetTransformer {
+	readonly uri: Uri;
+	positionAt(offset: number): Position;
+	getText?(): string;
+}
+
+export const readScripts = (document: IPositionOffsetTransformer & { getText?(): string }, buffer?: string): INpmScriptInfo | undefined => {
+	if (!buffer) {
+		buffer = document.getText?.() ?? '';
+	}
 	let start: Position | undefined;
 	let end: Position | undefined;
 	let inScripts = false;
