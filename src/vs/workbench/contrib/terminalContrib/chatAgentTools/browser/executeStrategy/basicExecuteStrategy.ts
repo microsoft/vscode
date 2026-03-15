@@ -13,7 +13,7 @@ import { ITerminalLogService } from '../../../../../../platform/terminal/common/
 import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHelpers.js';
+import { createAltBufferPromise, getPreferredOutputStartMarker, setupRecreatingStartMarker } from './strategyHelpers.js';
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -168,7 +168,13 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			}
 			if (output === undefined) {
 				try {
-					output = xterm.getContentsAsText(this._startMarker.value, endMarker);
+					const outputStartMarker = getPreferredOutputStartMarker(
+						this._startMarker.value,
+						finishedCommand?.marker,
+						finishedCommand?.executedMarker,
+						(msg: string) => this._log(msg)
+					);
+					output = xterm.getContentsAsText(outputStartMarker, endMarker);
 					this._log('Fetched output via markers');
 				} catch {
 					this._log('Failed to fetch output via markers');
