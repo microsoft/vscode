@@ -116,6 +116,15 @@ await page.keyboard.press('t');
 
 **Why this is required:** Monaco editors intercept keyboard events at the page level and use a virtualized rendering system. Clicking textareas directly or using `.fill()` bypasses Monaco's event handling, causing timeouts and failures.
 
+## CDP & agent-browser Troubleshooting
+
+If you encounter issues with CDP target selection, shadow DOM visibility, modifier key input, or `agent-browser` reliability, consult the **`vscode-cdp-automation`** skill in `.github/skills/vscode-cdp-automation/SKILL.md`. It covers:
+- Connecting to the correct CDP target when multiple are present
+- Navigating VS Code's shadow DOM for context menus
+- Using raw CDP via WebSocket when agent-browser is unreliable
+- Cmd+click and other modifier key patterns
+- Build setup (`gulp watch` heap size, tsgo compatibility)
+
 # Workflow Pattern
 
 1. Gather context:
