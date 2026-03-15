@@ -1199,13 +1199,13 @@ export class ChatService extends Disposable implements IChatService {
 					}
 					completeResponseCreated();
 
-					// Check for disabled Claude Code hooks and notify the user once per workspace
+					// Check for disabled Claude Code hooks and notify the user once per workspace.
+					// Only set the flag when actually showing the hint, so the setup agent flow
+					// (which may resend requests) doesn't consume the flag before the real request runs.
 					const disabledClaudeHooksDismissedKey = 'chat.disabledClaudeHooks.notification';
-					if (!this.storageService.getBoolean(disabledClaudeHooksDismissedKey, StorageScope.WORKSPACE)) {
+					if (hasDisabledClaudeHooks && !this.storageService.getBoolean(disabledClaudeHooksDismissedKey, StorageScope.WORKSPACE)) {
 						this.storageService.store(disabledClaudeHooksDismissedKey, true, StorageScope.WORKSPACE, StorageTarget.USER);
-						if (hasDisabledClaudeHooks) {
-							progressCallback([{ kind: 'disabledClaudeHooks' }]);
-						}
+						progressCallback([{ kind: 'disabledClaudeHooks' }]);
 					}
 
 					// MCP autostart: only run for native VS Code sessions (sidebar, new editors) but not for extension contributed sessions that have inputType set.
