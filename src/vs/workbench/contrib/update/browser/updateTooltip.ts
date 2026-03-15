@@ -6,17 +6,23 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { toAction } from '../../../../base/common/actions.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService, nativeHoverDelegate } from '../../../../platform/hover/browser/hover.js';
+import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { AvailableForDownload, Disabled, DisablementReason, Downloaded, Downloading, Idle, IUpdate, IUpdateService, Overwriting, Ready, State, StateType, Updating } from '../../../../platform/update/common/update.js';
-import { computeDownloadSpeed, computeDownloadTimeRemaining, computeProgressPercent, formatBytes, formatDate, formatTimeRemaining, tryParseDate } from '../common/updateUtils.js';
+import { asTextOrError, IRequestService } from '../../../../platform/request/common/request.js';
+import { AvailableForDownload, Disabled, DisablementReason, Downloaded, Downloading, Idle, IUpdate, Overwriting, Ready, State, StateType, Updating } from '../../../../platform/update/common/update.js';
+import { computeDownloadSpeed, computeDownloadTimeRemaining, computeProgressPercent, formatBytes, formatDate, formatTimeRemaining, getUpdateInfoUrl, tryParseDate } from '../common/updateUtils.js';
 import './media/updateTooltip.css';
 
 /**
@@ -29,9 +35,12 @@ export class UpdateTooltip extends Disposable {
 	private readonly titleNode: HTMLElement;
 
 	// Product info section
+	private readonly productInfoNode: HTMLElement;
 	private readonly productNameNode: HTMLElement;
 	private readonly currentVersionNode: HTMLElement;
+	private readonly currentVersionCopyValue: { value: string };
 	private readonly latestVersionNode: HTMLElement;
+	private readonly latestVersionCopyValue: { value: string };
 	private readonly releaseDateNode: HTMLElement;
 	private readonly releaseNotesLink: HTMLAnchorElement;
 
@@ -46,18 +55,26 @@ export class UpdateTooltip extends Disposable {
 	private readonly timeRemainingNode: HTMLElement;
 	private readonly speedInfoNode: HTMLElement;
 
+	// Update markdown section
+	private readonly markdownContainer: HTMLElement;
+	private readonly markdown = this._register(new MutableDisposable());
+
 	// State-specific message
 	private readonly messageNode: HTMLElement;
 
 	private releaseNotesVersion: string | undefined;
 
 	constructor(
+		private readonly hostedByTitleBar: boolean,
+		@IClipboardService private readonly clipboardService: IClipboardService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IMeteredConnectionService private readonly meteredConnectionService: IMeteredConnectionService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
-		@IUpdateService updateService: IUpdateService,
+		@IRequestService private readonly requestService: IRequestService,
 	) {
 		super();
 
@@ -76,19 +93,25 @@ export class UpdateTooltip extends Disposable {
 		}), { icon: true, label: false });
 
 		// Product info section
-		const productInfo = dom.append(this.domNode, dom.$('.product-info'));
+		this.productInfoNode = dom.append(this.domNode, dom.$('.product-info'));
 
-		const logoContainer = dom.append(productInfo, dom.$('.product-logo'));
+		const logoContainer = dom.append(this.productInfoNode, dom.$('.product-logo'));
 		logoContainer.setAttribute('role', 'img');
 		logoContainer.setAttribute('aria-label', this.productService.nameLong);
 
-		const details = dom.append(productInfo, dom.$('.product-details'));
+		const details = dom.append(this.productInfoNode, dom.$('.product-details'));
 
 		this.productNameNode = dom.append(details, dom.$('.product-name'));
 		this.productNameNode.textContent = this.productService.nameLong;
 
-		this.currentVersionNode = dom.append(details, dom.$('.product-version'));
-		this.latestVersionNode = dom.append(details, dom.$('.product-version'));
+		const currentVersionRow = this.createVersionRow(details);
+		this.currentVersionNode = currentVersionRow.label;
+		this.currentVersionCopyValue = currentVersionRow.copyValue;
+
+		const latestVersionRow = this.createVersionRow(details);
+		this.latestVersionNode = latestVersionRow.label;
+		this.latestVersionCopyValue = latestVersionRow.copyValue;
+
 		this.releaseDateNode = dom.append(details, dom.$('.product-release-date'));
 
 		this.releaseNotesLink = dom.append(details, dom.$('a.release-notes-link')) as HTMLAnchorElement;
@@ -115,15 +138,14 @@ export class UpdateTooltip extends Disposable {
 		this.timeRemainingNode = dom.append(this.downloadStatsContainer, dom.$('.time-remaining'));
 		this.speedInfoNode = dom.append(this.downloadStatsContainer, dom.$('.speed-info'));
 
+		// Update markdown section
+		this.markdownContainer = dom.append(this.domNode, dom.$('.update-markdown'));
+
 		// State-specific message
 		this.messageNode = dom.append(this.domNode, dom.$('.state-message'));
 
 		// Populate static product info
 		this.updateCurrentVersion();
-
-		// Subscribe to state changes
-		this._register(updateService.onStateChange(state => this.onStateChange(state)));
-		this.onStateChange(updateService.state);
 	}
 
 	private updateCurrentVersion() {
@@ -133,18 +155,25 @@ export class UpdateTooltip extends Disposable {
 			this.currentVersionNode.textContent = currentCommitId
 				? localize('updateTooltip.currentVersionLabelWithCommit', "Current Version: {0} ({1})", productVersion, currentCommitId)
 				: localize('updateTooltip.currentVersionLabel', "Current Version: {0}", productVersion);
-			this.currentVersionNode.style.display = '';
+			this.currentVersionCopyValue.value = currentCommitId ? `${productVersion} (${this.productService.commit})` : productVersion;
+			this.currentVersionNode.parentElement!.style.display = '';
 		} else {
-			this.currentVersionNode.style.display = 'none';
+			this.currentVersionNode.parentElement!.style.display = 'none';
 		}
 	}
 
-	private onStateChange(state: State) {
+	private hideAll() {
+		this.productInfoNode.style.display = '';
 		this.progressContainer.style.display = 'none';
 		this.speedInfoNode.textContent = '';
 		this.timeRemainingNode.textContent = '';
 		this.messageNode.style.display = 'none';
+		this.markdownContainer.style.display = 'none';
+		this.markdown.clear();
+	}
 
+	public renderState(state: State) {
+		this.hideAll();
 		switch (state.type) {
 			case StateType.Uninitialized:
 				this.renderUninitialized();
@@ -181,44 +210,44 @@ export class UpdateTooltip extends Disposable {
 
 	private renderUninitialized() {
 		this.renderTitleAndInfo(localize('updateTooltip.initializingTitle', "Initializing"));
-		this.showMessage(localize('updateTooltip.initializingMessage', "Initializing update service..."));
+		this.renderMessage(localize('updateTooltip.initializingMessage', "Initializing update service..."));
 	}
 
 	private renderDisabled({ reason }: Disabled) {
 		this.renderTitleAndInfo(localize('updateTooltip.updatesDisabledTitle', "Updates Disabled"));
 		switch (reason) {
 			case DisablementReason.NotBuilt:
-				this.showMessage(
+				this.renderMessage(
 					localize('updateTooltip.disabledNotBuilt', "Updates are not available for this build."),
 					Codicon.info);
 				break;
 			case DisablementReason.DisabledByEnvironment:
-				this.showMessage(
+				this.renderMessage(
 					localize('updateTooltip.disabledByEnvironment', "Updates are disabled by the --disable-updates command line flag."),
 					Codicon.warning);
 				break;
 			case DisablementReason.ManuallyDisabled:
-				this.showMessage(
+				this.renderMessage(
 					localize('updateTooltip.disabledManually', "Updates are manually disabled. Change the \"update.mode\" setting to enable."),
 					Codicon.warning);
 				break;
 			case DisablementReason.Policy:
-				this.showMessage(
+				this.renderMessage(
 					localize('updateTooltip.disabledByPolicy', "Updates are disabled by organization policy."),
 					Codicon.info);
 				break;
 			case DisablementReason.MissingConfiguration:
-				this.showMessage(
+				this.renderMessage(
 					localize('updateTooltip.disabledMissingConfig', "Updates are disabled because no update URL is configured."),
 					Codicon.info);
 				break;
 			case DisablementReason.InvalidConfiguration:
-				this.showMessage(
+				this.renderMessage(
 					localize('updateTooltip.disabledInvalidConfig', "Updates are disabled because the update URL is invalid."),
 					Codicon.error);
 				break;
 			case DisablementReason.RunningAsAdmin:
-				this.showMessage(
+				this.renderMessage(
 					localize(
 						'updateTooltip.disabledRunningAsAdmin',
 						"Updates are not available when running a user install of {0} as administrator.",
@@ -226,7 +255,7 @@ export class UpdateTooltip extends Disposable {
 					Codicon.warning);
 				break;
 			default:
-				this.showMessage(localize('updateTooltip.disabledGeneric', "Updates are disabled."), Codicon.warning);
+				this.renderMessage(localize('updateTooltip.disabledGeneric', "Updates are disabled."), Codicon.warning);
 				break;
 		}
 	}
@@ -234,34 +263,34 @@ export class UpdateTooltip extends Disposable {
 	private renderIdle({ error, notAvailable }: Idle) {
 		if (error) {
 			this.renderTitleAndInfo(localize('updateTooltip.updateErrorTitle', "Update Error"));
-			this.showMessage(error, Codicon.error);
+			this.renderMessage(error, Codicon.error);
 			return;
 		}
 
 		if (notAvailable) {
 			this.renderTitleAndInfo(localize('updateTooltip.noUpdateAvailableTitle', "No Update Available"));
-			this.showMessage(localize('updateTooltip.noUpdateAvailableMessage', "There are no updates currently available."), Codicon.info);
+			this.renderMessage(localize('updateTooltip.noUpdateAvailableMessage', "There are no updates currently available."), Codicon.info);
 			return;
 		}
 
 		this.renderTitleAndInfo(localize('updateTooltip.upToDateTitle', "Up to Date"));
 		switch (this.configurationService.getValue<string>('update.mode')) {
 			case 'none':
-				this.showMessage(localize('updateTooltip.autoUpdateNone', "Automatic updates are disabled."), Codicon.warning);
+				this.renderMessage(localize('updateTooltip.autoUpdateNone', "Automatic updates are disabled."), Codicon.warning);
 				break;
 			case 'manual':
-				this.showMessage(localize('updateTooltip.autoUpdateManual', "Automatic updates will be checked but not installed automatically."));
+				this.renderMessage(localize('updateTooltip.autoUpdateManual', "Automatic updates will be checked but not installed automatically."));
 				break;
 			case 'start':
-				this.showMessage(localize('updateTooltip.autoUpdateStart', "Updates will be applied on restart."));
+				this.renderMessage(localize('updateTooltip.autoUpdateStart', "Updates will be applied on restart."));
 				break;
 			case 'default':
 				if (this.meteredConnectionService.isConnectionMetered) {
-					this.showMessage(
+					this.renderMessage(
 						localize('updateTooltip.meteredConnectionMessage', "Automatic updates are paused because the network connection is metered."),
 						Codicon.radioTower);
 				} else {
-					this.showMessage(
+					this.renderMessage(
 						localize('updateTooltip.autoUpdateDefault', "Automatic updates are enabled. Happy Coding!"),
 						Codicon.smiley);
 				}
@@ -271,11 +300,14 @@ export class UpdateTooltip extends Disposable {
 
 	private renderCheckingForUpdates() {
 		this.renderTitleAndInfo(localize('updateTooltip.checkingForUpdatesTitle', "Checking for Updates"));
-		this.showMessage(localize('updateTooltip.checkingPleaseWait', "Checking for updates, please wait..."));
+		this.renderMessage(localize('updateTooltip.checkingPleaseWait', "Checking for updates, please wait..."));
 	}
 
 	private renderAvailableForDownload({ update }: AvailableForDownload) {
 		this.renderTitleAndInfo(localize('updateTooltip.updateAvailableTitle', "Update Available"), update);
+		if (this.hostedByTitleBar) {
+			this.renderMessage(localize('updateTooltip.clickToDownload', "Click the Update button to download."));
+		}
 	}
 
 	private renderDownloading(state: Downloading) {
@@ -301,12 +333,15 @@ export class UpdateTooltip extends Disposable {
 
 			this.downloadStatsContainer.style.display = '';
 		} else {
-			this.showMessage(localize('updateTooltip.downloadingPleaseWait', "Downloading update, please wait..."));
+			this.renderMessage(localize('updateTooltip.downloadingPleaseWait', "Downloading update, please wait..."));
 		}
 	}
 
 	private renderDownloaded({ update }: Downloaded) {
 		this.renderTitleAndInfo(localize('updateTooltip.updateReadyTitle', "Update is Ready to Install"), update);
+		if (this.hostedByTitleBar) {
+			this.renderMessage(localize('updateTooltip.clickToInstall', "Click the Update button to install."));
+		}
 	}
 
 	private renderUpdating({ update, currentProgress, maxProgress }: Updating) {
@@ -319,17 +354,61 @@ export class UpdateTooltip extends Disposable {
 			this.progressSizeNode.textContent = '';
 			this.progressContainer.style.display = '';
 		} else {
-			this.showMessage(localize('updateTooltip.installingPleaseWait', "Installing update, please wait..."));
+			this.renderMessage(localize('updateTooltip.installingPleaseWait', "Installing update, please wait..."));
 		}
 	}
 
 	private renderReady({ update }: Ready) {
 		this.renderTitleAndInfo(localize('updateTooltip.updateInstalledTitle', "Update Installed"), update);
+		if (this.hostedByTitleBar) {
+			this.renderMessage(localize('updateTooltip.clickToRestart', "Click the Update button to restart and apply."));
+		}
 	}
 
 	private renderOverwriting({ update }: Overwriting) {
 		this.renderTitleAndInfo(localize('updateTooltip.downloadingNewerUpdateTitle', "Downloading Newer Update"), update);
-		this.showMessage(localize('updateTooltip.downloadingNewerPleaseWait', "A newer update was released. Downloading, please wait..."));
+		this.renderMessage(localize('updateTooltip.downloadingNewerPleaseWait', "A newer update was released. Downloading, please wait..."));
+	}
+
+	public async renderPostInstall() {
+		this.hideAll();
+		this.renderTitleAndInfo(localize('updateTooltip.installedDefaultTitle', "New Update Installed"));
+		this.renderMessage(
+			localize('updateTooltip.installedDefaultMessage', "See release notes for details on what's new in this release."),
+			Codicon.info);
+
+		let text = null;
+		try {
+			const url = getUpdateInfoUrl(this.productService.version);
+			const context = await this.requestService.request({ url, callSite: 'updateTooltip' }, CancellationToken.None);
+			text = await asTextOrError(context);
+		} catch { }
+
+		if (!text) {
+			return;
+		}
+
+		this.titleNode.textContent = localize('updateTooltip.installedTitle', "New in {0}", this.productService.version);
+		this.productInfoNode.style.display = 'none';
+		this.messageNode.style.display = 'none';
+
+		const rendered = this.markdownRendererService.render(
+			new MarkdownString(text, {
+				isTrusted: true,
+				supportHtml: true,
+				supportThemeIcons: true,
+			}),
+			{
+				actionHandler: (link, mdStr) => {
+					openLinkFromMarkdown(this.openerService, link, mdStr.isTrusted);
+					this.hoverService.hideHover(true);
+				},
+			});
+
+		this.markdown.value = rendered;
+		dom.clearNode(this.markdownContainer);
+		this.markdownContainer.appendChild(rendered.element);
+		this.markdownContainer.style.display = '';
 	}
 
 	private renderTitleAndInfo(title: string, update?: IUpdate) {
@@ -342,9 +421,10 @@ export class UpdateTooltip extends Disposable {
 			this.latestVersionNode.textContent = updateCommitId
 				? localize('updateTooltip.latestVersionLabelWithCommit', "Latest Version: {0} ({1})", version, updateCommitId)
 				: localize('updateTooltip.latestVersionLabel', "Latest Version: {0}", version);
-			this.latestVersionNode.style.display = '';
+			this.latestVersionCopyValue.value = updateCommitId ? `${version} (${update.version})` : version;
+			this.latestVersionNode.parentElement!.style.display = '';
 		} else {
-			this.latestVersionNode.style.display = 'none';
+			this.latestVersionNode.parentElement!.style.display = 'none';
 		}
 
 		// Release date
@@ -361,7 +441,7 @@ export class UpdateTooltip extends Disposable {
 		this.releaseNotesLink.style.display = this.releaseNotesVersion ? '' : 'none';
 	}
 
-	private showMessage(message: string, icon?: ThemeIcon) {
+	private renderMessage(message: string, icon?: ThemeIcon) {
 		dom.clearNode(this.messageNode);
 		if (icon) {
 			const iconNode = dom.append(this.messageNode, dom.$('.state-message-icon'));
@@ -369,6 +449,31 @@ export class UpdateTooltip extends Disposable {
 		}
 		dom.append(this.messageNode, document.createTextNode(message));
 		this.messageNode.style.display = '';
+	}
+
+	private createVersionRow(parent: HTMLElement): { label: HTMLElement; copyValue: { value: string } } {
+		const row = dom.append(parent, dom.$('.product-version'));
+		const label = dom.append(row, dom.$('span'));
+		const copyValue = { value: '' };
+
+		const copyButton = dom.append(row, dom.$('a.copy-version-button'));
+		copyButton.setAttribute('role', 'button');
+		copyButton.setAttribute('tabindex', '0');
+		const title = localize('updateTooltip.copyVersion', "Copy");
+		copyButton.title = title;
+		copyButton.setAttribute('aria-label', title);
+
+		const copyIcon = dom.append(copyButton, dom.$('.copy-icon'));
+		copyIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.copy));
+		this._register(dom.addDisposableListener(copyButton, 'click', e => {
+			e.preventDefault();
+			e.stopPropagation();
+			if (copyValue.value) {
+				this.clipboardService.writeText(copyValue.value);
+			}
+		}));
+
+		return { label, copyValue };
 	}
 
 	private runCommandAndClose(command: string, ...args: unknown[]) {

@@ -18,7 +18,6 @@ import { IMarkdownString, MarkdownString } from '../../../../../base/common/html
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { getMediaMime } from '../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
@@ -62,6 +61,7 @@ import { toHistoryItemHoverContent } from '../../../scm/browser/scmHistory.js';
 import { getHistoryItemEditorTitle } from '../../../scm/browser/util.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
+import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
@@ -69,11 +69,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
-import { IChatWidgetService } from '../chat.js';
-import { isEqual } from '../../../../../base/common/resources.js';
-import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { extractImagesFromChatResponse, IChatExtractedImage } from '../../common/chatImageExtraction.js';
+import { IChatImageCarouselService } from '../chatImageCarouselService.js';
 
 const commonHoverOptions: Partial<IHoverOptions> = {
 	style: HoverStyle.Pointer,
@@ -427,7 +423,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
@@ -442,9 +438,10 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		const ref = attachment.references?.[0]?.reference;
 		resource = ref && URI.isUri(ref) ? ref : undefined;
+		const imageData = coerceImageBuffer(attachment.value);
 		const clickHandler = async () => {
-			if (attachment.value instanceof Uint8Array && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
-				await this.openInCarousel(attachment.name, attachment.value, resource);
+			if ((resource || imageData) && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+				await this.openInCarousel(attachment.name, imageData, resource);
 			} else if (resource) {
 				await this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
 			}
@@ -453,12 +450,12 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'Current model';
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
-		this._register(createImageElements(resource, attachment.name, fullName, this.element, attachment.value as Uint8Array, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
+		this._register(createImageElements(resource, attachment.name, fullName, this.element, imageData ?? (attachment.value as Uint8Array), this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 
 		// Wire up click + keyboard (Enter/Space) open handlers
 		const canOpenCarousel = attachment.value instanceof Uint8Array && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled);
-		if (canOpenCarousel || resource) {
+		if ((imageData && canOpenCarousel) || resource) {
 			this.element.style.cursor = 'pointer';
 			this._register(registerOpenEditorListeners(this.element, async () => {
 				await clickHandler();
@@ -472,55 +469,9 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 	}
 
-	private async openInCarousel(name: string, data: Uint8Array, referenceUri: URI | undefined): Promise<void> {
-		// Try to find all images from the focused chat widget's responses
-		const widget = this.chatWidgetService.lastFocusedWidget;
-		if (widget?.viewModel) {
-			const responses = widget.viewModel.getItems().filter((item): item is IChatResponseViewModel => isResponseVM(item));
-
-			// Collect all responses that have images, one section per response.
-			// The loop continues after finding the clicked image to gather all sections for the carousel.
-			const sections: { title: string; images: IChatExtractedImage[] }[] = [];
-			let clickedGlobalIndex = -1;
-			let globalOffset = 0;
-
-			// Use session-level ID so the same carousel is reused regardless of which image is clicked
-			const collectionId = widget.viewModel.sessionResource.toString() + '_carousel';
-
-			for (const response of responses) {
-				const extracted = extractImagesFromChatResponse(response);
-				if (extracted && extracted.images.length > 0) {
-					sections.push({ title: extracted.title, images: extracted.images });
-
-					if (clickedGlobalIndex === -1) {
-						const localIndex = referenceUri
-							? extracted.images.findIndex(img => isEqual(img.uri, referenceUri))
-							: extracted.images.findIndex(img => img.data.equals(VSBuffer.wrap(data)));
-						if (localIndex !== -1) {
-							clickedGlobalIndex = globalOffset + localIndex;
-						}
-					}
-
-					globalOffset += extracted.images.length;
-				}
-			}
-
-			if (clickedGlobalIndex !== -1 && sections.length > 0) {
-				await this.commandService.executeCommand('workbench.action.chat.openImageInCarousel', {
-					collection: {
-						id: collectionId,
-						title: sections.length === 1 ? sections[0].title : localize('chat.imageCarousel.allImages', "Chat Images"),
-						sections,
-					},
-					startIndex: clickedGlobalIndex,
-				});
-				return;
-			}
-		}
-
-		// Fallback: open just the single clicked image
-		const mimeType = getMediaMime(name) ?? 'image/png';
-		await this.commandService.executeCommand('workbench.action.chat.openImageInCarousel', { name, mimeType, data, title: name });
+	private async openInCarousel(name: string, data: Uint8Array | undefined, referenceUri: URI | undefined): Promise<void> {
+		const resource = referenceUri ?? URI.from({ scheme: 'data', path: name });
+		await this.chatImageCarouselService.openCarouselAtResource(resource, data);
 	}
 }
 
