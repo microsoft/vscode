@@ -45,31 +45,6 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		@ILanguageModelIgnoredFilesService private readonly _ignoredFilesService: ILanguageModelIgnoredFilesService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
-
-		// Push model settings to ext host when models change
-		this._store.add(this._chatProviderService.onDidChangeLanguageModels(() => {
-			this._pushModelSettings();
-		}));
-	}
-
-	private _pushModelSettings(): void {
-		for (const modelId of this._chatProviderService.getLanguageModelIds()) {
-			const metadata = this._chatProviderService.lookupLanguageModel(modelId);
-			if (metadata?.configurationSchema) {
-				const config = this._chatProviderService.getModelConfiguration(modelId);
-				// Resolve defaults from schema
-				const defaults: Record<string, unknown> = {};
-				if (metadata.configurationSchema.properties) {
-					for (const [key, propSchema] of Object.entries(metadata.configurationSchema.properties)) {
-						if (typeof propSchema !== 'boolean' && propSchema.default !== undefined) {
-							defaults[key] = propSchema.default;
-						}
-					}
-				}
-				const resolved = { ...defaults, ...config };
-				this._proxy.$updateModelSettings(modelId, Object.keys(resolved).length > 0 ? resolved : undefined);
-			}
-		}
 	}
 
 	dispose(): void {

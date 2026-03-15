@@ -670,13 +670,12 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const { request, location, history } = await this._createRequest(requestDto, context, detector.extension);
 
 		const model = await this.getModelForRequest(request, detector.extension);
-		const modelConfiguration = this._languageModels.getModelSettings(request.userSelectedModelId ?? '');
 		const tools = await this.getToolsForRequest(detector.extension, request.userSelectedTools, model.id, token);
 		const extRequest = typeConvert.ChatAgentRequest.to(
 			request,
 			location,
 			model,
-			modelConfiguration,
+			request.modelConfiguration,
 			this.getDiagnosticsWhenEnabled(detector.extension),
 			tools,
 			detector.extension,
@@ -773,13 +772,12 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables, this._pendingCarouselResolvers, token);
 
 			const model = await this.getModelForRequest(request, agent.extension);
-			const modelConfiguration = this._languageModels.getModelSettings(request.userSelectedModelId ?? '');
 			const tools = await this.getToolsForRequest(agent.extension, request.userSelectedTools, model.id, token);
 			const extRequest = typeConvert.ChatAgentRequest.to(
 				request,
 				location,
 				model,
-				modelConfiguration,
+				request.modelConfiguration,
 				this.getDiagnosticsWhenEnabled(agent.extension),
 				tools,
 				agent.extension,

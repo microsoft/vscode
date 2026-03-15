@@ -383,7 +383,9 @@ export interface ILanguageModelsService {
 	computeTokenLength(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
 
 	/**
-	 * Returns the per-model configuration for the given model identifier, if any.
+	 * Returns the resolved per-model configuration for the given model identifier.
+	 * Includes schema defaults with user overrides applied on top.
+	 * Returns undefined if the model has no configuration schema and no user config.
 	 */
 	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined;
 
@@ -1023,7 +1025,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		if (!provider) {
 			throw new Error(`Chat provider for model ${modelId} is not registered.`);
 		}
-		const configuration = this._resolveModelConfigurationWithDefaults(modelId, metadata);
+		const configuration = this.getModelConfiguration(modelId);
 		const mergedOptions = configuration ? { ...options, configuration } : options;
 		return provider.sendChatRequest(modelId, messages, from, mergedOptions, token);
 	}
@@ -1067,7 +1069,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined {
-		return this._modelConfigurations.get(modelId);
+		const metadata = this._modelCache.get(modelId);
+		return this._resolveModelConfigurationWithDefaults(modelId, metadata);
 	}
 
 	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {

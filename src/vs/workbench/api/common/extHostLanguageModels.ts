@@ -127,7 +127,6 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	private readonly _localModels = new Map<string, { group: string | undefined; metadata: ILanguageModelChatMetadata; info: vscode.LanguageModelChatInformation }>();
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
 	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
-	private readonly _modelSettings = new Map<string, IStringDictionary<unknown>>();
 	private readonly _ignoredFileProviders = new Map<number, vscode.LanguageModelIgnoredFileProvider>();
 	private _languageModelProxyProvider: vscode.LanguageModelProxyProvider | undefined;
 
@@ -607,18 +606,6 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				this._onDidChangeModelAccess.fire(newItem);
 			}
 		}
-	}
-
-	$updateModelSettings(modelId: string, settings: IStringDictionary<unknown> | undefined): void {
-		if (settings) {
-			this._modelSettings.set(modelId, settings);
-		} else {
-			this._modelSettings.delete(modelId);
-		}
-	}
-
-	getModelSettings(modelId: string): IStringDictionary<unknown> | undefined {
-		return this._modelSettings.get(modelId);
 	}
 
 	private readonly _languageAccessInformationExtensions = new Set<Readonly<IExtensionDescription>>();
