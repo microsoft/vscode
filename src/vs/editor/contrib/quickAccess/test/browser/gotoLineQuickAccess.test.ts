@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IEditor } from '../../../../common/editorCommon.js';
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { AbstractGotoLineQuickAccessProvider } from '../../browser/gotoLineQuickAccess.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 
 class TestGotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 	protected override onDidActiveTextEditorControlChange = Event.None;
@@ -24,6 +24,45 @@ class TestGotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvide
 
 	public parsePositionTest(editor: IEditor, value: string) {
 		return super.parsePosition(editor, value);
+	}
+}
+
+class TestAutoRevealPreferenceProvider extends AbstractGotoLineQuickAccessProvider {
+	protected override onDidActiveTextEditorControlChange = Event.None;
+	protected override activeTextEditorControl: IEditor | undefined;
+
+	private configuredValue: boolean | undefined;
+
+	constructor(private readonly storageImpl: InMemoryStorageService = new InMemoryStorageService()) {
+		super();
+	}
+
+	setConfiguredValue(value: boolean | undefined): void {
+		this.configuredValue = value;
+	}
+
+	getAutoRevealDisabledForTest(): boolean {
+		return Reflect.get(this as object, 'disableAutoReveal') as boolean;
+	}
+
+	setAutoRevealDisabledForTest(value: boolean): void {
+		Reflect.set(this as object, 'disableAutoReveal', value);
+	}
+
+	triggerConfigurationChangedForTest(): void {
+		this.onAutoRevealConfigurationChanged();
+	}
+
+	protected override get storageService(): IStorageService {
+		return this.storageImpl;
+	}
+
+	protected override getConfiguredAutoReveal(): boolean | undefined {
+		return this.configuredValue;
+	}
+
+	protected override isAutoRevealEnabledByDefault(): boolean {
+		return true;
 	}
 }
 
@@ -134,6 +173,37 @@ suite('AbstractGotoLineQuickAccessProvider', () => {
 		runTabTest('2:8', 2, 3);
 		runTabTest('2:9', 2, 3);
 		runTabTest('2:11', 2, 5);
+	});
+
+	test('auto reveal preference persists across sessions even when configured', () => {
+		const storage = new InMemoryStorageService();
+		try {
+			const providerA = new TestAutoRevealPreferenceProvider(storage);
+			providerA.setConfiguredValue(true);
+			assert.strictEqual(providerA.getAutoRevealDisabledForTest(), false);
+			providerA.setAutoRevealDisabledForTest(true);
+			const providerB = new TestAutoRevealPreferenceProvider(storage);
+			providerB.setConfiguredValue(true);
+			assert.strictEqual(providerB.getAutoRevealDisabledForTest(), true);
+		} finally {
+			storage.dispose();
+		}
+	});
+
+	test('configuration changes override persisted preference', () => {
+		const storage = new InMemoryStorageService();
+		try {
+			const providerA = new TestAutoRevealPreferenceProvider(storage);
+			providerA.setConfiguredValue(undefined);
+			providerA.setAutoRevealDisabledForTest(false);
+			providerA.setConfiguredValue(false);
+			providerA.triggerConfigurationChangedForTest();
+			const providerB = new TestAutoRevealPreferenceProvider(storage);
+			providerB.setConfiguredValue(false);
+			assert.strictEqual(providerB.getAutoRevealDisabledForTest(), true);
+		} finally {
+			storage.dispose();
+		}
 	});
 });
 
