@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../../nls.js';
-import { Action2 } from '../../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
@@ -17,7 +17,8 @@ import { CHAT_CATEGORY } from '../../actions/chatActions.js';
 import { ToggleTitleBarConfigAction } from '../../../../../browser/parts/titlebar/titlebarActions.js';
 import { IsCompactTitleBarContext } from '../../../../../common/contextkeys.js';
 import { inAgentSessionProjection } from './agentSessionProjection.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, getAgentControlMode } from '../../../common/constants.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
 //#region Enter Agent Session Projection
 
@@ -92,19 +93,49 @@ export class ExitAgentSessionProjectionAction extends Action2 {
 
 //#region Toggle Agent Status
 
-export class ToggleAgentStatusAction extends ToggleTitleBarConfigAction {
+export class ToggleAgentStatusAction extends Action2 {
 	constructor() {
-		super(
-			ChatConfiguration.AgentStatusEnabled,
-			localize('toggle.agentStatus', 'Agent Status'),
-			localize('toggle.agentStatusDescription', "Toggle visibility of the Agent Status in title bar"), 6,
-			ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				IsCompactTitleBarContext.negate(),
-				ChatContextKeys.supported,
-				ContextKeyExpr.has('config.window.commandCenter')
-			)
-		);
+		super({
+			id: `toggle.${ChatConfiguration.AgentStatusEnabled}`,
+			title: localize('toggle.agentStatus', 'Agent Status'),
+			metadata: { description: localize('toggle.agentStatusDescription', "Toggle visibility of the Agent Status in title bar") },
+			toggled: ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, 'hidden'),
+			menu: [
+				{
+					id: MenuId.TitleBarContext,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						IsCompactTitleBarContext.negate(),
+						ChatContextKeys.supported,
+						ContextKeyExpr.has('config.window.commandCenter')
+					),
+					order: 6,
+					group: '2_config'
+				},
+				{
+					id: MenuId.TitleBarTitleContext,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						IsCompactTitleBarContext.negate(),
+						ChatContextKeys.supported,
+						ContextKeyExpr.has('config.window.commandCenter')
+					),
+					order: 6,
+					group: '2_config'
+				}
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const configService = accessor.get(IConfigurationService);
+		const mode = getAgentControlMode(configService.getValue(ChatConfiguration.AgentStatusEnabled));
+		if (mode === 'hidden') {
+			// When currently hidden, restore to compact mode
+			configService.updateValue(ChatConfiguration.AgentStatusEnabled, 'compact');
+		} else {
+			configService.updateValue(ChatConfiguration.AgentStatusEnabled, 'hidden');
+		}
 	}
 }
 

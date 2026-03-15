@@ -251,10 +251,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: Codicon.chatSparkle,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
-		ContextKeyExpr.or(
-			ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
-			ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
-		)
+		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, 'hidden'),
 	),
 	order: 10002 // to the right of the chat button
 });
@@ -271,7 +268,7 @@ MenuRegistry.appendMenuItem(MenuId.TitleBar, {
 			ChatContextKeys.Setup.hidden.negate(),
 			ChatContextKeys.Setup.disabled.negate()
 		),
-		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, 'hidden'),
 		ContextKeyExpr.has('config.window.commandCenter').negate(),
 	),
 	order: 1
@@ -285,10 +282,8 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 	},
 	when: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
-		ContextKeyExpr.or(
-			ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
-			ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
-		)
+		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, 'hidden'),
+		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`), // backward compat: false → hidden
 	),
 	group: 'a_open',
 	order: 1
