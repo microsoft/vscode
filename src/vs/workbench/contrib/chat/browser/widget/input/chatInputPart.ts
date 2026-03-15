@@ -3024,6 +3024,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatEditsActionsDisposables.add(autorun(reader => {
 			const collapsed = this._workingSetCollapsed.read(reader);
 			button.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
+			button.element.setAttribute('aria-expanded', String(!collapsed));
+			workingSetContainer.style.maxHeight = collapsed ? '0px' : (this._chatEditList?.object.getHTMLElement().style.height || '0px');
 			workingSetContainer.classList.toggle('collapsed', collapsed);
 		}));
 
@@ -3091,8 +3093,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const itemsShown = Math.min(allEntries.length, maxItemsShown);
 			const height = itemsShown * 22;
 			const list = this._chatEditList!.object;
+			const collapsed = this._workingSetCollapsed.read(reader);
 			list.layout(height);
 			list.getHTMLElement().style.height = `${height}px`;
+			workingSetContainer.style.maxHeight = collapsed ? '0px' : `${height}px`;
 			list.splice(0, list.length, allEntries);
 		}));
 	}
