@@ -42,7 +42,7 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 
 		return localize(
 			'runInTerminalTool.sandboxCommandFailed',
-			"Command failed while running in sandboxed mode. Do not switch to other tools. Retry the command in sandboxed mode only if the result suggests the failure was transient."
+			"Command failed while running in sandboxed mode. Do not switch to other tools. Retry the command in sandboxed mode at most once, and only if the result suggests the failure was transient."
 		);
 	}
 
