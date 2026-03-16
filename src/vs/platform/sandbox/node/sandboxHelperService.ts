@@ -9,6 +9,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { posix, win32 } from '../../../base/common/path.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../environment/common/environment.js';
+import { ILogService } from '../../log/common/log.js';
 import { type ISandboxPermissionRequest, type ISandboxRuntimeConfig } from '../common/sandboxHelperIpc.js';
 import { ISandboxHelperService } from '../common/sandboxHelperService.js';
 
@@ -22,6 +23,7 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@ILogService logService: ILogService,
 	) {
 		super();
 		const nativeEnvironmentService = environmentService as IEnvironmentService & Partial<INativeEnvironmentService>;
@@ -29,6 +31,7 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 			? this._pathJoin(nativeEnvironmentService.appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg')
 			: undefined;
 		this._tempDir = nativeEnvironmentService.tmpDir?.path;
+		logService.trace('SandboxHelperService#constructor ripgrep path', this._rgPath ?? 'undefined');
 	}
 
 	async resolveSandboxPermissionRequest(requestId: string, allowed: boolean): Promise<void> {
