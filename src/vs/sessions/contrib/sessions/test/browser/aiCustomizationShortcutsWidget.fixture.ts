@@ -215,16 +215,18 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 		}));
 	}
 
-	// Override storage to set initial collapsed state
+	// Override storage to set initial collapsed state.
+	// The mock is self-contained: it intercepts the one key the widget reads and
+	// falls back to the provided fallback value for all other keys, avoiding any
+	// dependency on the underlying storage instance.
 	if (options?.collapsed !== undefined) {
 		const collapsed = options.collapsed;
-		const storageService = instantiationService.get(IStorageService);
 		instantiationService.set(IStorageService, new class extends mock<IStorageService>() {
-			override getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean {
+			override getBoolean(key: string, _scope: StorageScope, fallbackValue?: boolean): boolean {
 				if (key === 'agentSessions.customizationsCollapsed') {
 					return collapsed;
 				}
-				return storageService.getBoolean(key, scope, fallbackValue ?? false) ?? false;
+				return fallbackValue ?? false;
 			}
 			override store() { }
 		}());
