@@ -217,12 +217,12 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		descriptionText.className = 'description-text';
 		description.append(descriptionText);
 
-		// Submenu indicator is inside description to form a single interactive unit
+		const keybinding = new KeybindingLabel(container, OS);
+
+		// Submenu indicator stays outside description for alignment
 		const submenuIndicator = document.createElement('span');
 		submenuIndicator.className = 'action-list-submenu-indicator';
-		description.append(submenuIndicator);
-
-		const keybinding = new KeybindingLabel(container, OS);
+		container.append(submenuIndicator);
 
 		const toolbar = document.createElement('div');
 		toolbar.className = 'action-list-item-toolbar';
