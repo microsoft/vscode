@@ -175,6 +175,15 @@ registerSingleton(IBrowserZoomService, BrowserZoomService, InstantiationType.Del
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
 	properties: {
+		'workbench.browser.showInTitleBar': {
+			type: 'boolean',
+			default: false,
+			experiment: { mode: 'startup' },
+			description: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.showInTitleBar' },
+				'Controls whether the Integrated Browser button is shown in the title bar.'
+			)
+		},
 		'workbench.browser.openLocalhostLinks': {
 			type: 'boolean',
 			default: false,

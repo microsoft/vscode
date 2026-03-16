@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -21,6 +21,7 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { BrowserEditorInput } from '../common/browserEditorInput.js';
+import { ToggleTitleBarConfigAction } from '../../../browser/parts/titlebar/titlebarActions.js';
 
 // Context key expression to check if browser editor is active
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditorInput.EDITOR_ID);
@@ -42,7 +43,14 @@ class OpenIntegratedBrowserAction extends Action2 {
 			id: BrowserViewCommandId.Open,
 			title: localize2('browser.openAction', "Open Integrated Browser"),
 			category: BrowserCategory,
-			f1: true
+			icon: Codicon.globe,
+			f1: true,
+			menu: {
+				id: MenuId.TitleBar,
+				group: 'navigation',
+				order: 10,
+				when: ContextKeyExpr.equals('config.workbench.browser.showInTitleBar', true)
+			}
 		});
 	}
 
@@ -733,3 +741,9 @@ registerAction2(ShowBrowserFindAction);
 registerAction2(HideBrowserFindAction);
 registerAction2(BrowserFindNextAction);
 registerAction2(BrowserFindPreviousAction);
+
+registerAction2(class ToggleBrowserTitleBarButton extends ToggleTitleBarConfigAction {
+	constructor() {
+		super('workbench.browser.showInTitleBar', localize('toggle.browser', 'Integrated Browser'), localize('toggle.browserDescription', "Toggle visibility of the Integrated Browser button in title bar"), 8);
+	}
+});

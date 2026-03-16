@@ -6,7 +6,7 @@
 import { SandboxManager, type NetworkHostPattern } from '@anthropic-ai/sandbox-runtime';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { dirname, posix, win32 } from '../../../base/common/path.js';
+import { posix, win32 } from '../../../base/common/path.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../environment/common/environment.js';
 import { type ISandboxPermissionRequest, type ISandboxRuntimeConfig } from '../common/sandboxHelperIpc.js';
@@ -67,9 +67,9 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 			},
 			ignoreViolations: runtimeConfig.ignoreViolations,
 			enableWeakerNestedSandbox: runtimeConfig.enableWeakerNestedSandbox,
-			ripgrep: runtimeConfig.ripgrep ? {
-				command: runtimeConfig.ripgrep.command,
-				args: runtimeConfig.ripgrep.args ? [...runtimeConfig.ripgrep.args] : undefined,
+			ripgrep: (this._rgPath || runtimeConfig.ripgrep) ? {
+				command: this._rgPath ?? runtimeConfig.ripgrep?.command ?? 'rg',
+				args: runtimeConfig.ripgrep?.args ? [...runtimeConfig.ripgrep.args] : undefined,
 			} : undefined,
 			mandatoryDenySearchDepth: runtimeConfig.mandatoryDenySearchDepth,
 			allowPty: runtimeConfig.allowPty,
@@ -85,23 +85,7 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 			env.push(this._toEnvironmentAssignment('TMPDIR', this._tempDir));
 		}
 
-		const pathWithRipgrep = this._getPathWithRipgrepDir();
-		if (pathWithRipgrep) {
-			env.push(this._toEnvironmentAssignment('PATH', pathWithRipgrep));
-		}
-
 		return env.join(' ');
-	}
-
-	private _getPathWithRipgrepDir(): string | undefined {
-		if (!this._rgPath) {
-			return undefined;
-		}
-		const rgDir = dirname(this._rgPath);
-		const currentPath = process.env['PATH'];
-		const pathModule = process.platform === 'win32' ? win32 : posix;
-		const delimiter = pathModule.delimiter;
-		return currentPath ? `${currentPath}${delimiter}${rgDir}` : rgDir;
 	}
 
 	private _toEnvironmentAssignment(name: string, value: string): string {

@@ -21,6 +21,7 @@ import { autorun, autorunSelfDisposable, derived } from '../../../../../../base/
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { equalsIgnoreCase } from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
@@ -453,7 +454,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				ref.object.layout(width);
 			} else if (ref.object instanceof CollapsedCodeBlock) {
 				const codeblockModel = this._codeblocks[index];
-				if (codeblockModel.codemapperUri && ref.object.uri?.toString() !== codeblockModel.codemapperUri.toString()) {
+				if (codeblockModel.codemapperUri && !isEqual(ref.object.uri, codeblockModel.codemapperUri)) {
 					ref.object.render(codeblockModel.codemapperUri);
 				}
 			}

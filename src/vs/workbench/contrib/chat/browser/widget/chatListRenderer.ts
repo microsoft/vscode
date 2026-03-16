@@ -1138,6 +1138,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const parts: IChatContentPart[] = [];
 
 		let inlineSlashCommandRendered = false;
+		let codeBlockStartIndex = 0;
 		content.forEach((data, contentIndex) => {
 			const context: IChatContentPartRenderContext = {
 				element,
@@ -1151,12 +1152,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				currentWidth: this._currentLayoutWidth,
 				onDidChangeVisibility: this._onDidChangeVisibility.event,
 				inlineTextModels: this._inlineTextModels,
-				get codeBlockStartIndex() {
-					return parts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
-				},
-				get treeStartIndex() {
-					return parts.filter(part => part instanceof ChatTreeContentPart).length;
-				}
+				codeBlockStartIndex,
+				treeStartIndex: 0, // no trees in requests
 			};
 			const newPart = this.renderChatContentPart(data, templateData, context);
 			if (newPart) {
@@ -1179,6 +1176,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					templateData.value.appendChild(newPart.domNode);
 				}
 				parts.push(newPart);
+				codeBlockStartIndex += newPart.codeblocks?.length ?? 0;
 			}
 		});
 
@@ -1247,7 +1245,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const renderedParts = templateData.renderedParts ?? [];
 		templateData.renderedParts = renderedParts;
 		const lastMarkdownIndex = partsToRender.findLastIndex(part => part?.kind === 'markdownContent');
+		let codeBlockStartIndex = 0;
+		let treeStartIndex = 0;
 		partsToRender.forEach((partToRender, contentIndex) => {
+			// Accumulate counts from the part that ended up at the previous index
+			if (contentIndex > 0) {
+				const prevPart = renderedParts[contentIndex - 1];
+				if (prevPart) {
+					codeBlockStartIndex += prevPart.codeblocks?.length ?? 0;
+					if (prevPart instanceof ChatTreeContentPart) {
+						treeStartIndex++;
+					}
+				}
+			}
+
 			const alreadyRenderedPart = templateData.renderedParts?.[contentIndex];
 			const isFinalAnswerPart = partToRender?.kind === 'markdownContent' && contentIndex === lastMarkdownIndex && element.isComplete;
 
@@ -1285,7 +1296,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			}
 
-			const preceedingContentParts = renderedParts.slice(0, contentIndex);
 			const context: IChatContentPartRenderContext = {
 				element,
 				elementIndex: elementIndex,
@@ -1298,12 +1308,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				currentWidth: this._currentLayoutWidth,
 				onDidChangeVisibility: this._onDidChangeVisibility.event,
 				inlineTextModels: this._inlineTextModels,
-				get codeBlockStartIndex() {
-					return preceedingContentParts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
-				},
-				get treeStartIndex() {
-					return preceedingContentParts.filter(part => part instanceof ChatTreeContentPart).length;
-				}
+				codeBlockStartIndex,
+				treeStartIndex,
 			};
 
 			// combine tool invocations into thinking part if needed. render the tool, but do not replace the working spinner with the new part's dom node since it is already inside the thinking part.
