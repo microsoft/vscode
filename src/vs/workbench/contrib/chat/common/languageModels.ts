@@ -175,6 +175,11 @@ export interface ILanguageModelConfigurationSchemaProperty extends IJSONSchema {
 	 * When true, the current value of this property is shown in the model picker.
 	 */
 	showInPicker?: boolean;
+	/**
+	 * Labels for enum values. If provided, these are shown instead of the raw enum values.
+	 * Must have the same length and order as {@link IJSONSchema.enum}.
+	 */
+	enumItemLabels?: string[];
 }
 
 export interface ILanguageModelConfigurationSchema extends IJSONSchema {
@@ -1164,15 +1169,22 @@ export class LanguageModelsService implements ILanguageModelsService {
 				?? key.replace(/([a-z])([A-Z])/g, '$1 $2')
 					.replace(/^./, s => s.toUpperCase());
 			const defaultValue = propSchema.default;
-			const enumActions: IAction[] = propSchema.enum.map((value: unknown) => ({
-				id: `configureModel.${key}.${value}`,
-				label: value === defaultValue ? localize('models.enumDefault', "{0} (default)", String(value)) : String(value),
-				class: undefined,
-				enabled: true,
-				tooltip: '',
-				checked: currentValue === value,
-				run: () => this.setModelConfiguration(modelId, { [key]: value })
-			}));
+			const enumItemLabels = propSchema.enumItemLabels;
+			const enumDescriptions = propSchema.enumDescriptions;
+			const enumActions: IAction[] = propSchema.enum.map((value: unknown, index: number) => {
+				const itemLabel = enumItemLabels?.[index] ?? String(value);
+				const displayLabel = value === defaultValue ? localize('models.enumDefault', "{0} (default)", itemLabel) : itemLabel;
+				const tooltip = enumDescriptions?.[index] ?? '';
+				return {
+					id: `configureModel.${key}.${value}`,
+					label: displayLabel,
+					class: undefined,
+					enabled: true,
+					tooltip,
+					checked: currentValue === value,
+					run: () => this.setModelConfiguration(modelId, { [key]: value })
+				};
+			});
 			actions.push(new SubmenuAction(`configureModel.${key}`, label, enumActions));
 		}
 
@@ -1195,7 +1207,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 			}
 			const value = currentConfig[key] ?? propSchema.default;
 			if (value !== undefined) {
-				parts.push(String(value));
+				// Use enumItemLabels if available
+				const enumIndex = propSchema.enum?.indexOf(value) ?? -1;
+				const displayValue = (enumIndex >= 0 && propSchema.enumItemLabels?.[enumIndex]) ?? String(value);
+				parts.push(displayValue);
 			}
 		}
 
