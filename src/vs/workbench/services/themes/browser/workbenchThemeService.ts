@@ -269,9 +269,9 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 				run: () => this.commandService.executeCommand('workbench.action.tryNewDefaultThemes')
 			}]
 		);
-		Event.once(handle.onDidClose)(() => {
+		this._register(Event.once(handle.onDidClose)(() => {
 			this.storageService.store(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
-		});
+		}));
 	}
 
 	/**
@@ -287,11 +287,18 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			ThemeSettings.PREFERRED_HC_LIGHT_THEME,
 		];
 		for (const key of themeSettings) {
-			const value = this.configurationService.getValue<string>(key);
-			if (value) {
-				const migrated = migrateThemeSettingsId(value);
-				if (migrated !== value) {
-					this.configurationService.updateValue(key, migrated);
+			const inspection = this.configurationService.inspect<string>(key);
+			for (const [target, value] of [
+				[ConfigurationTarget.USER, inspection.userValue],
+				[ConfigurationTarget.USER_REMOTE, inspection.userRemoteValue],
+				[ConfigurationTarget.WORKSPACE, inspection.workspaceValue],
+				[ConfigurationTarget.WORKSPACE_FOLDER, inspection.workspaceFolderValue],
+			] as const) {
+				if (value) {
+					const migrated = migrateThemeSettingsId(value);
+					if (migrated !== value) {
+						this.configurationService.updateValue(key, migrated, target);
+					}
 				}
 			}
 		}

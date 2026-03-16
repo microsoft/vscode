@@ -587,7 +587,7 @@ registerAction2(class extends Action2 {
 		picker.placeholder = localize('pickNewTheme', "Pick a new default theme");
 		picker.canSelectMany = false;
 
-		const preferredId = previousTheme.type === ColorScheme.LIGHT ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
+		const preferredId = (previousTheme.type === ColorScheme.LIGHT || previousTheme.type === ColorScheme.HIGH_CONTRAST_LIGHT) ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
 		const activeItem = items.find(i => themes.find(t => t.id === i.id)?.settingsId === preferredId);
 		if (activeItem) {
 			picker.activeItems = [activeItem];
@@ -613,14 +613,18 @@ registerAction2(class extends Action2 {
 			picker.hide();
 		}));
 
-		disposables.add(picker.onDidHide(() => {
-			if (!picker.selectedItems.length) {
-				themeService.setColorTheme(previousTheme, undefined);
-			}
-			disposables.dispose();
-		}));
+		const result = new Promise<void>(resolve => {
+			disposables.add(picker.onDidHide(() => {
+				if (!picker.selectedItems.length) {
+					themeService.setColorTheme(previousTheme, undefined);
+				}
+				resolve();
+			}));
+		}).finally(() => disposables.dispose());
 
 		picker.show();
+
+		return result;
 	}
 });
 
