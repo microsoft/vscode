@@ -110,7 +110,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'age
 			content.push(localize('chatAgent.runCommand', 'To take the action, use the accept tool command{0}.', '<keybinding:workbench.action.chat.acceptTool>'));
 			content.push(localize('chatAgent.autoApprove', 'To automatically approve tool actions without manual confirmation, set {0} to {1} in your settings.', ChatConfiguration.GlobalAutoApprove, 'true'));
 			content.push(localize('chatAgent.acceptTool', 'To accept a tool action, use the Accept Tool Confirmation command{0}.', '<keybinding:workbench.action.chat.acceptTool>'));
-			content.push(localize('chatAgent.openEditedFilesSetting', 'By default, when edits are made to files, they will be opened. To change this behavior, set accessibility.openChatEditedFiles to false in your settings.'));
+			content.push(localize('chatAgent.openEditedFilesSetting', 'Files edited by the chat agent are not opened by default. To open them automatically, set accessibility.openChatEditedFiles to true in your settings.'));
 			content.push(localize('chatAgent.focusTodosView', 'To toggle focus between the Agent TODOs view and the chat input, use Agent TODOs: Toggle Focus{0}.', '<keybinding:workbench.action.chat.focusTodosView>'));
 		}
 		content.push(localize('chatEditing.helpfulCommands', 'Some helpful commands include:'));
