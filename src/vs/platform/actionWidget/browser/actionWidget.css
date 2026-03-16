@@ -300,6 +300,19 @@
 	width: max-content;
 }
 
+.action-list-submenu-hover {
+	padding: 4px 12px;
+	font-size: 13px;
+	line-height: 1.4;
+	max-width: 350px;
+}
+
+.action-list-submenu-hover p {
+	margin: 0;
+	white-space: normal;
+	word-wrap: break-word;
+}
+
 .action-list-submenu-item {
 	display: flex;
 	align-items: flex-start;
