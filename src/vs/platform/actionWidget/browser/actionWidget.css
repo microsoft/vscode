@@ -121,6 +121,7 @@
 	display: flex;
 	gap: 8px;
 	align-items: center;
+	padding-right: 10px;
 }
 
 .action-widget .monaco-list-row.action .codicon {
