@@ -166,6 +166,62 @@ suite('Workbench - TextModelResolverService', () => {
 		model.dispose();
 	});
 
+	test('re-acquiring virtual document during async disposal reuses the same model', async () => {
+		disposables.add(accessor.textModelResolverService.registerTextModelContentProvider('test', {
+			provideTextContent: async function (resource: URI): Promise<ITextModel | null> {
+				if (resource.scheme === 'test') {
+					const modelContent = 'Hello Test';
+					const languageSelection = accessor.languageService.createById('json');
+
+					return accessor.modelService.createModel(modelContent, languageSelection, resource);
+				}
+
+				return null;
+			}
+		}));
+
+		const resource = URI.from({ scheme: 'test', authority: null!, path: 'thePath' });
+
+		// Acquire first reference
+		const ref1 = await accessor.textModelResolverService.createModelReference(resource);
+		const model1 = ref1.object;
+
+		// Release the reference (triggers async disposal)
+		ref1.dispose();
+
+		// Re-acquire before async disposal completes — should reuse the same model
+		const ref2 = await accessor.textModelResolverService.createModelReference(resource);
+		const model2 = ref2.object;
+
+		assert.strictEqual(model1, model2, 'should reuse the pending-disposal model');
+
+		ref2.dispose();
+		await timeout(0);
+	});
+
+	test('re-acquiring inMemory resource reuses the same model wrapper', async () => {
+		const resource = URI.from({ scheme: 'inmemory', path: '/test/inMemoryReuse' });
+
+		// Create the underlying ITextModel (owned externally)
+		const textModel = disposables.add(accessor.modelService.createModel('Hello InMemory', null, resource));
+
+		// Acquire first reference
+		const ref1 = await accessor.textModelResolverService.createModelReference(resource);
+		const model1 = ref1.object;
+		assert.ok(model1.textEditorModel);
+		assert.strictEqual(model1.textEditorModel, textModel);
+
+		// Release the reference
+		ref1.dispose();
+
+		// Re-acquire — should reuse the same TextResourceEditorModel wrapper
+		const ref2 = await accessor.textModelResolverService.createModelReference(resource);
+		const model2 = ref2.object;
+		assert.strictEqual(model1, model2, 'should reuse the same wrapper for inMemory resources');
+
+		ref2.dispose();
+	});
+
 	test('even loading documents should be refcounted', async () => {
 		let resolveModel!: Function;
 		const waitForIt = new Promise(resolve => resolveModel = resolve);

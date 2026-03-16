@@ -25,6 +25,12 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 	private readonly providers = new Map<string, ITextModelContentProvider[]>();
 	private readonly modelsToDispose = new Set<string>();
 
+	// Models that are pending async disposal. When a model is re-acquired
+	// during the async disposal window, we reuse the pending model instead
+	// of creating a new wrapper that would orphan the old one and leak its
+	// onWillDispose listener on the shared ITextModel.
+	private readonly pendingDisposals = new Map<string, Promise<IResolvedTextEditorModel>>();
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -42,6 +48,23 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 
 		// Untrack as being disposed
 		this.modelsToDispose.delete(key);
+
+		// Reuse a model that is pending disposal to avoid creating a new
+		// wrapper. Without this, the old wrapper becomes orphaned and its
+		// onWillDispose listener leaks on the shared ITextModel.
+		const pendingModel = this.pendingDisposals.get(key);
+		if (pendingModel) {
+			this.pendingDisposals.delete(key);
+
+			try {
+				const model = await pendingModel;
+				if (isResolvedTextEditorModel(model)) {
+					return model;
+				}
+			} catch {
+				// pending model failed to resolve, fall through to create a new one
+			}
+		}
 
 		// inMemory Schema: go through model service cache
 		const resource = URI.parse(key);
@@ -103,7 +126,13 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 
 	protected destroyReferencedObject(key: string, modelPromise: Promise<ITextEditorModel>): void {
 
-		// inMemory is bound to a different lifecycle
+		// Store the model for potential reuse so that rapid
+		// release/re-acquire cycles don't orphan wrappers
+		this.pendingDisposals.set(key, modelPromise as Promise<IResolvedTextEditorModel>);
+
+		// inMemory is bound to a different lifecycle: the wrapper
+		// is kept in pendingDisposals for reuse and its listener
+		// is cleaned up when the underlying ITextModel is disposed
 		const resource = URI.parse(key);
 		if (resource.scheme === Schemas.inMemory) {
 			return;
@@ -136,6 +165,10 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 					// return if model has been acquired again meanwhile
 					return;
 				}
+
+				// Clean up pending disposal entry before disposing the
+				// model to prevent stale entries from being reused
+				this.pendingDisposals.delete(key);
 
 				// Finally we can dispose the model
 				model.dispose();
