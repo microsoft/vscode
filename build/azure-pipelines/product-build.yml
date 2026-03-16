@@ -710,7 +710,7 @@ extends:
                   baseImage: ubuntu:24.04
                   arch: arm64
 
-        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
+        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
           - stage: ApproveRelease
             dependsOn: [] # run in parallel to compile stage
             pool:
@@ -738,6 +738,50 @@ extends:
                   - template: build/azure-pipelines/product-release.yml@self
                     parameters:
                       VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
+
+      - ${{ if and(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/')) }}:
+        - stage: TriggerInsiderBuild
+          displayName: Trigger Insider Build
+          dependsOn: []
+          pool:
+            name: 1es-ubuntu-22.04-x64
+            os: linux
+          jobs:
+            - job: TriggerInsiderBuild
+              displayName: Trigger Insider Build
+              steps:
+                - checkout: none
+                - script: |
+                    set -e
+                    node -e '
+                      async function main() {
+                        const body = JSON.stringify({
+                          definition: { id: Number(process.env.DEFINITION_ID) },
+                          sourceBranch: process.env.SOURCE_BRANCH,
+                          sourceVersion: process.env.SOURCE_VERSION,
+                          templateParameters: { VSCODE_QUALITY: "insider", VSCODE_RELEASE: "false" }
+                        });
+                        console.log(`Triggering insider build on ${process.env.SOURCE_BRANCH} @ ${process.env.SOURCE_VERSION}...`);
+                        const response = await fetch(process.env.BUILDS_API_URL, {
+                          method: "POST",
+                          headers: { "Authorization": `Bearer ${process.env.SYSTEM_ACCESSTOKEN}`, "Content-Type": "application/json" },
+                          body
+                        });
+                        if (!response.ok) {
+                          throw new Error(`Request failed with status ${response.status}: ${await response.text()}`);
+                        }
+                        const build = await response.json();
+                        console.log(`Build queued successfully — ID: ${build.id}, URL: ${build._links.web.href}`);
+                      }
+                      main().catch(err => { console.error(err); process.exit(1); });
+                    '
+                  displayName: Queue insider build
+                  env:
+                    SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+                    DEFINITION_ID: $(System.DefinitionId)
+                    SOURCE_BRANCH: $(Build.SourceBranch)
+                    SOURCE_VERSION: $(Build.SourceVersion)
+                    BUILDS_API_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds?api-version=7.0
 
       - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
         - stage: node_modules
