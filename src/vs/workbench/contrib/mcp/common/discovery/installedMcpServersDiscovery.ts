@@ -96,7 +96,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					env: config.env || {},
 					envFile: config.envFile,
 					cwd: config.cwd,
-					sandbox: server.rootSandbox
+					sandbox: config.sandbox
 				};
 
 				definitions[1].push({

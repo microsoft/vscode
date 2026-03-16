@@ -1135,13 +1135,13 @@ suite('McpResourceManagementService', () => {
 		service = disposables.add(new TestMcpResourceManagementService(mcpResource, fileService, uriIdentityService, scannerService));
 
 		await fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify({
-			sandbox: {
-				network: { allowedDomains: ['example.com'] }
-			},
 			servers: {
 				test: {
 					type: 'stdio',
 					command: 'node',
+					sandbox: {
+						network: { allowedDomains: ['example.com'] }
+					},
 					sandboxEnabled: true
 				}
 			}
@@ -1154,10 +1154,10 @@ suite('McpResourceManagementService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('fires update when root sandbox changes', async () => {
+	test('fires update when server sandbox changes', async () => {
 		const initial = await service.getInstalled();
 		assert.strictEqual(initial.length, 1);
-		assert.deepStrictEqual(initial[0].rootSandbox, {
+		assert.deepStrictEqual(initial[0].config.type === McpServerType.LOCAL ? initial[0].config.sandbox : undefined, {
 			network: { allowedDomains: ['example.com'] }
 		});
 
@@ -1173,11 +1173,11 @@ suite('McpResourceManagementService', () => {
 		};
 
 		await fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify({
-			sandbox: updatedSandbox,
 			servers: {
 				test: {
 					type: 'stdio',
 					command: 'node',
+					sandbox: updatedSandbox,
 					sandboxEnabled: true
 				}
 			}
@@ -1187,6 +1187,6 @@ suite('McpResourceManagementService', () => {
 		const updated = await service.getInstalled();
 
 		assert.strictEqual(updateCount, 1);
-		assert.deepStrictEqual(updated[0].rootSandbox, updatedSandbox);
+		assert.deepStrictEqual(updated[0].config.type === McpServerType.LOCAL ? updated[0].config.sandbox : undefined, updatedSandbox);
 	});
 });

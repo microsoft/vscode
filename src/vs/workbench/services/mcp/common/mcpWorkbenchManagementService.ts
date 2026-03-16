@@ -211,7 +211,7 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 			}));
 
 			this._register(this.remoteMcpManagementService.onDidInstallMcpServers(e => this.handleRemoteInstallMcpServerResultsFromEvent(e, this._onDidInstallMcpServers, this._onDidInstallMcpServersInCurrentProfile)));
-			this._register(this.remoteMcpManagementService.onDidUpdateMcpServers(e => this.handleRemoteInstallMcpServerResultsFromEvent(e, this._onDidInstallMcpServers, this._onDidInstallMcpServersInCurrentProfile)));
+			this._register(this.remoteMcpManagementService.onDidUpdateMcpServers(e => this.handleRemoteInstallMcpServerResultsFromEvent(e, this._onDidUpdateMcpServers, this._onDidUpdateMcpServersInCurrentProfile)));
 
 			this._register(this.remoteMcpManagementService.onUninstallMcpServer(async e => {
 				this._onUninstallMcpServer.fire(e);

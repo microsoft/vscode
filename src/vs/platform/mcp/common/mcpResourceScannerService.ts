@@ -23,7 +23,6 @@ import { ICommonMcpServerConfiguration, IMcpSandboxConfiguration, IMcpServerConf
 interface IScannedMcpServers {
 	servers?: IStringDictionary<Mutable<IMcpServerConfiguration>>;
 	inputs?: IMcpServerVariable[];
-	sandbox?: IMcpSandboxConfiguration;
 }
 
 interface IOldScannedMcpServer {
@@ -47,7 +46,7 @@ export interface IMcpResourceScannerService {
 	readonly _serviceBrand: undefined;
 	scanMcpServers(mcpResource: URI, target?: McpResourceTarget): Promise<IScannedMcpServers>;
 	addMcpServers(servers: IInstallableMcpServer[], mcpResource: URI, target?: McpResourceTarget): Promise<void>;
-	updateSandboxConfig(updateFn: (data: IScannedMcpServers) => IScannedMcpServers, mcpResource: URI, target?: McpResourceTarget): Promise<void>;
+	updateSandboxConfig(serverName: string, updateFn: (sandbox: IMcpSandboxConfiguration | undefined) => IMcpSandboxConfiguration | undefined, mcpResource: URI, target?: McpResourceTarget): Promise<void>;
 	removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget): Promise<void>;
 }
 
@@ -79,12 +78,33 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 					updatedInputs = [...updatedInputs, ...newInputs];
 				}
 			}
-			return { servers: existingServers, inputs: updatedInputs, sandbox: scannedMcpServers.sandbox };
+			return { servers: existingServers, inputs: updatedInputs };
 		});
 	}
 
-	async updateSandboxConfig(updateFn: (data: IScannedMcpServers) => IScannedMcpServers, mcpResource: URI, target?: McpResourceTarget): Promise<void> {
-		await this.withProfileMcpServers(mcpResource, target, updateFn);
+	async updateSandboxConfig(serverName: string, updateFn: (sandbox: IMcpSandboxConfiguration | undefined) => IMcpSandboxConfiguration | undefined, mcpResource: URI, target?: McpResourceTarget): Promise<void> {
+		await this.withProfileMcpServers(mcpResource, target, scannedMcpServers => {
+			const existingServer = scannedMcpServers.servers?.[serverName];
+			if (!existingServer || existingServer.type !== McpServerType.LOCAL) {
+				return scannedMcpServers;
+			}
+
+			const nextSandbox = updateFn(existingServer.sandbox);
+			const nextServer: Mutable<IMcpStdioServerConfiguration> = { ...existingServer };
+			if (nextSandbox) {
+				nextServer.sandbox = nextSandbox;
+			} else {
+				delete nextServer.sandbox;
+			}
+
+			return {
+				...scannedMcpServers,
+				servers: {
+					...(scannedMcpServers.servers ?? {}),
+					[serverName]: nextServer,
+				},
+			};
+		});
 	}
 
 	async removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget): Promise<void> {
@@ -145,8 +165,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 
 	private async writeScannedMcpServers(mcpResource: URI, scannedMcpServers: IScannedMcpServers): Promise<void> {
 		if ((scannedMcpServers.servers && Object.keys(scannedMcpServers.servers).length > 0)
-			|| (scannedMcpServers.inputs && scannedMcpServers.inputs.length > 0)
-			|| scannedMcpServers.sandbox !== undefined) {
+			|| (scannedMcpServers.inputs && scannedMcpServers.inputs.length > 0)) {
 			await this.fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify(scannedMcpServers, null, '\t')));
 		} else {
 			await this.fileService.del(mcpResource);
@@ -182,7 +201,6 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 	private fromUserMcpServers(scannedMcpServers: IScannedMcpServers): IScannedMcpServers {
 		const userMcpServers: IScannedMcpServers = {
 			inputs: scannedMcpServers.inputs,
-			sandbox: scannedMcpServers.sandbox
 		};
 		const servers = Object.entries(scannedMcpServers.servers ?? {});
 		if (servers.length > 0) {
@@ -197,7 +215,6 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 	private fromWorkspaceFolderMcpServers(scannedWorkspaceFolderMcpServers: IScannedMcpServers): IScannedMcpServers {
 		const scannedMcpServers: IScannedMcpServers = {
 			inputs: scannedWorkspaceFolderMcpServers.inputs,
-			sandbox: scannedWorkspaceFolderMcpServers.sandbox
 		};
 		const servers = Object.entries(scannedWorkspaceFolderMcpServers.servers ?? {});
 		if (servers.length > 0) {

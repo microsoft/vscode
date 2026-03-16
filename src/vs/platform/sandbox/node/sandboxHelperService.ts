@@ -9,7 +9,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { dirname, posix, win32 } from '../../../base/common/path.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../environment/common/environment.js';
-import { type ISandboxPermissionRequest, type ISandboxRuntimeConfig } from '../common/sandboxHelperIpc.js';
+import { type ISandboxPermissionRequest, type ISandboxProcess, type ISandboxRuntimeConfig } from '../common/sandboxHelperIpc.js';
 import { ISandboxHelperService } from '../common/sandboxHelperService.js';
 
 export class SandboxHelperService extends Disposable implements ISandboxHelperService {
@@ -45,7 +45,26 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 	}
 
 	async wrapWithSandbox(runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string> {
-		const normalizedRuntimeConfig = {
+		await this._initializeSandbox(runtimeConfig);
+		return SandboxManager.wrapWithSandbox(`${this._getSandboxEnvironmentPrefix()} ${command}`);
+	}
+
+	async wrapProcessWithSandbox(runtimeConfig: ISandboxRuntimeConfig, targetProcess: ISandboxProcess): Promise<ISandboxProcess> {
+		await this._initializeSandbox(runtimeConfig);
+		const sandboxedCommand = await SandboxManager.wrapWithSandbox(this._createShellCommand(targetProcess));
+		return {
+			command: this._getShellCommand(),
+			args: ['-c', sandboxedCommand],
+			env: this._getSandboxProcessEnvironment(targetProcess.env),
+		};
+	}
+
+	private async _initializeSandbox(runtimeConfig: ISandboxRuntimeConfig): Promise<void> {
+		await SandboxManager.initialize(this._normalizeRuntimeConfig(runtimeConfig), request => this._requestSandboxPermission(request));
+	}
+
+	private _normalizeRuntimeConfig(runtimeConfig: ISandboxRuntimeConfig) {
+		return {
 			network: {
 				// adding at least one domain or else the sandbox doesnt do any proxy setup.
 				allowedDomains: runtimeConfig.network?.allowedDomains?.length ? [...runtimeConfig.network.allowedDomains] : ['microsoft.com'],
@@ -74,8 +93,6 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 			mandatoryDenySearchDepth: runtimeConfig.mandatoryDenySearchDepth,
 			allowPty: runtimeConfig.allowPty,
 		};
-		await SandboxManager.initialize(normalizedRuntimeConfig, request => this._requestSandboxPermission(request));
-		return SandboxManager.wrapWithSandbox(`${this._getSandboxEnvironmentPrefix()} ${command}`);
 	}
 
 	private _getSandboxEnvironmentPrefix(): string {
@@ -93,19 +110,53 @@ export class SandboxHelperService extends Disposable implements ISandboxHelperSe
 		return env.join(' ');
 	}
 
-	private _getPathWithRipgrepDir(): string | undefined {
+	private _getSandboxProcessEnvironment(baseEnv: Record<string, string | number | null>): Record<string, string | number | null> {
+		const env: Record<string, string | number | null> = {
+			...baseEnv,
+			NODE_USE_ENV_PROXY: '1',
+			VSCODE_INSPECTOR_OPTIONS: null,
+		};
+
+		if (this._tempDir) {
+			env['TMPDIR'] = this._tempDir;
+		}
+
+		const pathWithRipgrep = this._getPathWithRipgrepDir(baseEnv['PATH']);
+		if (pathWithRipgrep) {
+			env['PATH'] = pathWithRipgrep;
+		}
+
+		return env;
+	}
+
+	private _getPathWithRipgrepDir(currentPath?: string | number | null): string | undefined {
 		if (!this._rgPath) {
 			return undefined;
 		}
 		const rgDir = dirname(this._rgPath);
-		const currentPath = process.env['PATH'];
+		const resolvedCurrentPath = currentPath === undefined || currentPath === null ? process.env['PATH'] : String(currentPath);
 		const pathModule = process.platform === 'win32' ? win32 : posix;
 		const delimiter = pathModule.delimiter;
-		return currentPath ? `${currentPath}${delimiter}${rgDir}` : rgDir;
+		return resolvedCurrentPath ? `${resolvedCurrentPath}${delimiter}${rgDir}` : rgDir;
 	}
 
 	private _toEnvironmentAssignment(name: string, value: string): string {
 		return `${name}="${value}"`;
+	}
+
+	private _createShellCommand(targetProcess: ISandboxProcess): string {
+		return [
+			this._quoteShellArgument(targetProcess.command),
+			...targetProcess.args.map(arg => this._quoteShellArgument(arg)),
+		].join(' ');
+	}
+
+	private _quoteShellArgument(value: string): string {
+		return `'${value.replace(/'/g, `'\\''`)}'`;
+	}
+
+	private _getShellCommand(): string {
+		return process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
 	}
 
 	private _pathJoin(...segments: string[]): string {

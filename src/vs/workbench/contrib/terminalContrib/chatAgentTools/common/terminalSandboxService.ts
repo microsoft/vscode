@@ -12,7 +12,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
-import { SandboxHelperChannelName, type ISandboxPermissionRequest, type ISandboxRuntimeConfig } from '../../../../../platform/sandbox/common/sandboxHelperIpc.js';
+import { SandboxHelperChannelName, type ISandboxPermissionRequest, type ISandboxProcess, type ISandboxRuntimeConfig } from '../../../../../platform/sandbox/common/sandboxHelperIpc.js';
 import { ISandboxHelperService } from '../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxNetworkSettings } from './terminalSandbox.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
@@ -26,6 +26,7 @@ type ISandboxHelperChannel = {
 	resetSandbox(): Promise<void>;
 	resolveSandboxPermissionRequest(requestId: string, allowed: boolean): Promise<void>;
 	wrapWithSandbox(runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string>;
+	wrapProcessWithSandbox(runtimeConfig: ISandboxRuntimeConfig, process: ISandboxProcess): Promise<ISandboxProcess>;
 };
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');

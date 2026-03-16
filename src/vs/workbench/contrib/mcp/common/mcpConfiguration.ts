@@ -172,18 +172,6 @@ export const mcpStdioServerSchema: IJSONSchema = {
 				]
 			}
 		},
-		...mcpDevModeProps(true),
-	}
-};
-
-export const mcpServerSchema: IJSONSchema = {
-	id: mcpSchemaId,
-	type: 'object',
-	title: localize('app.mcp.json.title', "Model Context Protocol Servers"),
-	allowTrailingCommas: true,
-	allowComments: true,
-	additionalProperties: false,
-	properties: {
 		sandbox: {
 			description: localize('app.mcp.json.sandbox', "Sandbox config that determines file system and network access. Sandboxing is enabled when sandboxEnabled property is set at the server level on Mac OS and Linux only."),
 			type: 'object',
@@ -235,6 +223,18 @@ export const mcpServerSchema: IJSONSchema = {
 				}
 			}
 		},
+		...mcpDevModeProps(true),
+	}
+};
+
+export const mcpServerSchema: IJSONSchema = {
+	id: mcpSchemaId,
+	type: 'object',
+	title: localize('app.mcp.json.title', "Model Context Protocol Servers"),
+	allowTrailingCommas: true,
+	allowComments: true,
+	additionalProperties: false,
+	properties: {
 		servers: {
 			examples: [
 				mcpSchemaExampleServers,

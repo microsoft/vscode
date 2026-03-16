@@ -20,7 +20,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { ISandboxPermissionRequest, ISandboxRuntimeConfig } from '../../../../../../platform/sandbox/common/sandboxHelperIpc.js';
+import { ISandboxPermissionRequest, ISandboxProcess, ISandboxRuntimeConfig } from '../../../../../../platform/sandbox/common/sandboxHelperIpc.js';
 import { ISandboxHelperService } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { IWorkspaceContextService, IWorkspaceFolder, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
@@ -129,6 +129,10 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		async wrapWithSandbox(runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string> {
 			this.lastWrapRuntimeConfig = runtimeConfig;
 			return `wrapped:${command}`;
+		}
+
+		async wrapProcessWithSandbox(_runtimeConfig: ISandboxRuntimeConfig, targetProcess: ISandboxProcess): Promise<ISandboxProcess> {
+			return targetProcess;
 		}
 
 		fireSandboxPermissionRequest(request: ISandboxPermissionRequest): void {

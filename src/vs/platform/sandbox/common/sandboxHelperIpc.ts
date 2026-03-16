@@ -40,6 +40,12 @@ export interface ISandboxRuntimeConfig {
 	readonly allowPty?: boolean;
 }
 
+export interface ISandboxProcess {
+	readonly command: string;
+	readonly args: readonly string[];
+	readonly env: Record<string, string | number | null>;
+}
+
 export interface ISandboxPermissionRequest extends ISandboxNetworkHostPattern {
 	readonly requestId: string;
 }
