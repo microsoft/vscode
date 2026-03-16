@@ -301,10 +301,17 @@
 }
 
 .action-list-submenu-hover {
-	padding: 4px 12px;
+	padding: 6px 12px;
+	font-size: 12px;
+	line-height: 1.5;
+	max-width: 300px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.action-list-submenu-hover p:first-child {
+	color: var(--vscode-menu-foreground);
 	font-size: 13px;
-	line-height: 1.4;
-	max-width: 350px;
+	font-weight: 600;
 }
 
 .action-list-submenu-hover p {
