@@ -82,3 +82,7 @@
 .monaco-workbench .chatbar.pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item {
 	max-width: 150px;
 }
+
+.monaco-workbench .part.chatbar > .content > .monaco-progress-container {
+	top: 0;
+}
