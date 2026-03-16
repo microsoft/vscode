@@ -577,8 +577,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			}
 		}
 
-		// Build final sessions map: first preserve existing sessions from
-		// unresolved providers (maintaining their order), then add newly resolved ones.
+		// Build final sessions map: first add preserved sessions from unresolved
+		// providers, then add newly resolved ones (which may override preserved
+		// sessions with the same resource URI).
 		const sessions = new ResourceMap<IInternalAgentSession>();
 
 		for (const [, session] of this._sessions) {
