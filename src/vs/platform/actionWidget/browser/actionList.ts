@@ -414,7 +414,6 @@ export class ActionList<T> extends Disposable {
 	private readonly cts = this._register(new CancellationTokenSource());
 
 	private _hover = this._register(new MutableDisposable<IHoverWidget>());
-	private _hoverDelayTimer: ReturnType<typeof setTimeout> | undefined;
 
 	private readonly _collapsedSections = new Set<string>();
 	private _filterText = '';
@@ -715,7 +714,6 @@ export class ActionList<T> extends Disposable {
 	}
 
 	cleanupSubmenu(): void {
-		clearTimeout(this._hoverDelayTimer);
 		this._submenuDisposables.clear();
 		this._hover.clear();
 	}
@@ -1120,11 +1118,10 @@ export class ActionList<T> extends Disposable {
 
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
 		this._submenuDisposables.clear();
-		clearTimeout(this._hoverDelayTimer);
-		this._hover.clear();
 
 		const rowElement = this._getRowElement(index);
 		if (!rowElement) {
+			this._hover.clear();
 			return;
 		}
 
@@ -1132,98 +1129,95 @@ export class ActionList<T> extends Disposable {
 		const hasHoverContent = !!element.hover?.content;
 
 		if (!hasSubmenu && !hasHoverContent) {
+			this._hover.clear();
 			return;
 		}
 
-		const showHover = () => {
-			if (hasSubmenu) {
-				// Build combined hover content: model info + config actions as HTMLElement
-				const container = document.createElement('div');
-				container.className = 'action-list-submenu';
+		if (hasSubmenu) {
+			// Build combined hover content: model info + config actions as HTMLElement
+			const container = document.createElement('div');
+			container.className = 'action-list-submenu';
 
-				// Render hover content at the top if available
-				if (hasHoverContent) {
-					const hoverSection = dom.append(container, dom.$('.action-list-submenu-hover'));
-					const content = element.hover!.content!;
-					const markdown = typeof content === 'string' ? new MarkdownString(content) : content;
-					const rendered = renderMarkdown(markdown);
-					this._submenuDisposables.add(rendered);
-					hoverSection.appendChild(rendered.element);
-				}
+			// Render hover content at the top if available
+			if (hasHoverContent) {
+				const hoverSection = dom.append(container, dom.$('.action-list-submenu-hover'));
+				const content = element.hover!.content!;
+				const markdown = typeof content === 'string' ? new MarkdownString(content) : content;
+				const rendered = renderMarkdown(markdown);
+				this._submenuDisposables.add(rendered);
+				hoverSection.appendChild(rendered.element);
+			}
 
-				// Render submenu items
-				for (const action of element.submenuActions!) {
-					if (action instanceof SubmenuAction) {
-						const children = action.actions;
+			// Render submenu items
+			for (const action of element.submenuActions!) {
+				if (action instanceof SubmenuAction) {
+					const children = action.actions;
 
-						// Render group header: label with separator line
-						const headerRow = dom.append(container, dom.$('.action-list-submenu-group-header'));
-						const headerLabel = dom.append(headerRow, dom.$('span.action-list-submenu-group-label'));
-						headerLabel.textContent = action.label;
-						dom.append(headerRow, dom.$('.action-list-submenu-group-line'));
+					// Render group header: label with separator line
+					const headerRow = dom.append(container, dom.$('.action-list-submenu-group-header'));
+					const headerLabel = dom.append(headerRow, dom.$('span.action-list-submenu-group-label'));
+					headerLabel.textContent = action.label;
+					dom.append(headerRow, dom.$('.action-list-submenu-group-line'));
 
-						for (const child of children) {
-							const item = dom.append(container, dom.$('.action-list-submenu-item'));
-							const checkIcon = dom.append(item, dom.$('.check-icon'));
-							if (child.checked) {
-								checkIcon.classList.add('codicon', 'codicon-check');
-							}
-							const content = dom.append(item, dom.$('.action-list-submenu-content'));
-							const labelRow = dom.append(content, dom.$('.action-list-submenu-label-row'));
-							const label = dom.append(labelRow, dom.$('span.action-list-submenu-label'));
-							label.textContent = child.label;
-							if (child.tooltip) {
-								const desc = dom.append(content, dom.$('span.action-list-submenu-description'));
-								desc.textContent = child.tooltip;
-							}
-							this._submenuDisposables.add(dom.addDisposableListener(item, dom.EventType.MOUSE_DOWN, (e) => {
-								dom.EventHelper.stop(e, true);
-							}));
-							this._submenuDisposables.add(dom.addDisposableListener(item, dom.EventType.CLICK, (e) => {
-								dom.EventHelper.stop(e, true);
-								child.run();
-								this._hover.clear();
-								this.hide();
-							}));
+					for (const child of children) {
+						const item = dom.append(container, dom.$('.action-list-submenu-item'));
+						const checkIcon = dom.append(item, dom.$('.check-icon'));
+						if (child.checked) {
+							checkIcon.classList.add('codicon', 'codicon-check');
 						}
+						const content = dom.append(item, dom.$('.action-list-submenu-content'));
+						const labelRow = dom.append(content, dom.$('.action-list-submenu-label-row'));
+						const label = dom.append(labelRow, dom.$('span.action-list-submenu-label'));
+						label.textContent = child.label;
+						if (child.tooltip) {
+							const desc = dom.append(content, dom.$('span.action-list-submenu-description'));
+							desc.textContent = child.tooltip;
+						}
+						this._submenuDisposables.add(dom.addDisposableListener(item, dom.EventType.MOUSE_DOWN, (e) => {
+							dom.EventHelper.stop(e, true);
+						}));
+						this._submenuDisposables.add(dom.addDisposableListener(item, dom.EventType.CLICK, (e) => {
+							dom.EventHelper.stop(e, true);
+							child.run();
+							this._hover.clear();
+							this.hide();
+						}));
 					}
 				}
-
-				this._hover.value = this._hoverService.showInstantHover({
-					content: container,
-					target: rowElement,
-					additionalClasses: ['action-widget-hover'],
-					position: {
-						hoverPosition: HoverPosition.RIGHT,
-						forcePosition: false,
-						...element.hover?.position,
-					},
-					appearance: {
-						showPointer: true,
-					},
-					persistence: {
-						hideOnHover: false,
-					},
-				});
-			} else if (hasHoverContent) {
-				const markdown = typeof element.hover!.content === 'string' ? new MarkdownString(element.hover!.content) : element.hover!.content;
-				this._hover.value = this._hoverService.showInstantHover({
-					content: markdown ?? '',
-					target: rowElement,
-					additionalClasses: ['action-widget-hover'],
-					position: {
-						hoverPosition: HoverPosition.LEFT,
-						forcePosition: false,
-						...element.hover!.position,
-					},
-					appearance: {
-						showPointer: true,
-					},
-				});
 			}
-		};
 
-		this._hoverDelayTimer = setTimeout(showHover, 1000);
+			this._hover.value = this._hoverService.showDelayedHover({
+				content: container,
+				target: rowElement,
+				additionalClasses: ['action-widget-hover'],
+				position: {
+					hoverPosition: HoverPosition.RIGHT,
+					forcePosition: false,
+					...element.hover?.position,
+				},
+				appearance: {
+					showPointer: true,
+				},
+				persistence: {
+					hideOnHover: false,
+				},
+			}, { groupId: `actionListHover` });
+		} else if (hasHoverContent) {
+			const markdown = typeof element.hover!.content === 'string' ? new MarkdownString(element.hover!.content) : element.hover!.content;
+			this._hover.value = this._hoverService.showDelayedHover({
+				content: markdown ?? '',
+				target: rowElement,
+				additionalClasses: ['action-widget-hover'],
+				position: {
+					hoverPosition: HoverPosition.LEFT,
+					forcePosition: false,
+					...element.hover!.position,
+				},
+				appearance: {
+					showPointer: true,
+				},
+			}, { groupId: `actionListHover` });
+		}
 	}
 
 	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
