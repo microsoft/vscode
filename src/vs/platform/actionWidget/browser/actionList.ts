@@ -1273,24 +1273,26 @@ export class ActionList<T> extends Disposable {
 		// Render submenu items as simple DOM elements — no Menu widget, no focus management
 		for (const action of element.submenuActions) {
 			if (action instanceof SubmenuAction) {
-				// Render children with group label on the first item
 				const children = action.actions;
-				for (let i = 0; i < children.length; i++) {
-					const child = children[i];
+
+				// Render group label as a header with separator
+				const header = dom.append(submenuContainer, dom.$('.action-list-submenu-header'));
+				header.textContent = action.label;
+				dom.append(submenuContainer, dom.$('.action-list-submenu-separator'));
+
+				for (const child of children) {
 					const item = dom.append(submenuContainer, dom.$('.action-list-submenu-item'));
-					if (child.tooltip) {
-						item.title = child.tooltip;
-					}
 					const checkIcon = dom.append(item, dom.$('.check-icon'));
 					if (child.checked) {
 						checkIcon.classList.add('codicon', 'codicon-check');
 					}
-					const label = dom.append(item, dom.$('span.action-list-submenu-label'));
+					const content = dom.append(item, dom.$('.action-list-submenu-content'));
+					const labelRow = dom.append(content, dom.$('.action-list-submenu-label-row'));
+					const label = dom.append(labelRow, dom.$('span.action-list-submenu-label'));
 					label.textContent = child.label;
-					// Show group label right-aligned on the first item
-					if (i === 0) {
-						const groupLabel = dom.append(item, dom.$('span.action-list-submenu-group'));
-						groupLabel.textContent = action.label;
+					if (child.tooltip) {
+						const desc = dom.append(content, dom.$('span.action-list-submenu-description'));
+						desc.textContent = child.tooltip;
 					}
 					submenuDisposables.add(dom.addDisposableListener(item, dom.EventType.MOUSE_DOWN, (e) => {
 						dom.EventHelper.stop(e, true);
