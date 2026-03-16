@@ -94,8 +94,7 @@ suite('SandboxOutputAnalyzer', () => {
 		});
 
 		ok(/Command failed while running in sandboxed mode\./.test(result ?? ''));
-		ok(/Do not switch to other tools\./.test(result ?? ''));
-		ok(/at most once/.test(result ?? ''));
+		ok(/allowWrite/.test(result ?? ''));
 	});
 
 	test('should extract an inline path followed by warning text', async () => {
