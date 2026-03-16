@@ -542,13 +542,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			allowTrustedDomains: {
 				type: 'boolean',
 				description: localize('terminalSandbox.networkSetting.allowTrustedDomains', "When enabled, the Trusted Domains list is included in the allowed domains for network access."),
-				default: false
+				default: true
 			}
 		},
 		default: {
 			allowedDomains: [],
 			deniedDomains: [],
-			allowTrustedDomains: false
+			allowTrustedDomains: true
 		},
 		tags: ['preview'],
 		restricted: true,

@@ -1126,6 +1126,39 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.updateDropdownClickability();
 	}
 
+	public removeMaterializedItem(toolCallId: string): void {
+		this.toolDisposables.deleteAndDispose(toolCallId);
+
+		const wrapper = this.toolWrappersByCallId.get(toolCallId);
+		if (wrapper) {
+			this.toolWrappersByCallId.delete(toolCallId);
+		}
+
+		this.appendedItemCount = Math.max(0, this.appendedItemCount - 1);
+		this.toolInvocationCount = Math.max(0, this.toolInvocationCount - 1);
+
+		const toolInvocationsIndex = this.toolInvocations.findIndex(t =>
+			(t.kind === 'toolInvocation' || t.kind === 'toolInvocationSerialized') && t.toolCallId === toolCallId
+		);
+		if (toolInvocationsIndex !== -1) {
+			const invocation = this.toolInvocations[toolInvocationsIndex];
+			if (invocation.kind === 'toolInvocation' || invocation.kind === 'toolInvocationSerialized') {
+				const msg = invocation.invocationMessage;
+				const label = msg ? (typeof msg === 'string' ? msg : msg.value) : undefined;
+				if (label) {
+					const titleIndex = this.extractedTitles.indexOf(label);
+					if (titleIndex !== -1) {
+						this.extractedTitles.splice(titleIndex, 1);
+					}
+				}
+			}
+			this.toolInvocations.splice(toolInvocationsIndex, 1);
+		}
+
+		this.updateDropdownClickability();
+		this._onDidChangeHeight.fire();
+	}
+
 	/**
 	 * removes/re-establishes a lazy item from the thinking container
 	 * this is needed so we can check if there are confirmations still needed
@@ -1148,6 +1181,16 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		// Clear the attached-to-thinking flag on the removed tool invocation
 		if (removedItem.kind === 'tool' && removedItem.toolInvocationOrMarkdown && (removedItem.toolInvocationOrMarkdown.kind === 'toolInvocation' || removedItem.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized')) {
 			removedItem.toolInvocationOrMarkdown.isAttachedToThinking = false;
+
+			// Keep extractedTitles in sync when a lazy tool leaves the thinking container
+			const msg = removedItem.toolInvocationOrMarkdown.invocationMessage;
+			const label = msg ? (typeof msg === 'string' ? msg : msg.value) : undefined;
+			if (label) {
+				const titleIndex = this.extractedTitles.indexOf(label);
+				if (titleIndex !== -1) {
+					this.extractedTitles.splice(titleIndex, 1);
+				}
+			}
 		}
 
 		const toolInvocationsIndex = this.toolInvocations.findIndex(t =>

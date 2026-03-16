@@ -38,6 +38,7 @@ export class NewChatPermissionPicker extends Disposable {
 	readonly onDidChangeLevel: Event<ChatPermissionLevel> = this._onDidChangeLevel.event;
 
 	private _currentLevel: ChatPermissionLevel = ChatPermissionLevel.Default;
+	private _worktreeIsolated = false;
 	private _triggerElement: HTMLElement | undefined;
 	private _container: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
@@ -89,6 +90,21 @@ export class NewChatPermissionPicker extends Disposable {
 		}
 	}
 
+	setWorktreeIsolated(isolated: boolean): void {
+		if (this._worktreeIsolated === isolated) {
+			return;
+		}
+		this._worktreeIsolated = isolated;
+		if (isolated) {
+			this._currentLevel = ChatPermissionLevel.AutoApprove;
+			this._onDidChangeLevel.fire(this._currentLevel);
+		} else {
+			this._currentLevel = ChatPermissionLevel.Default;
+			this._onDidChangeLevel.fire(this._currentLevel);
+		}
+		this._updateTriggerLabel(this._triggerElement);
+	}
+
 	showPicker(): void {
 		if (!this._triggerElement || this.actionWidgetService.isVisible) {
 			return;
@@ -96,6 +112,8 @@ export class NewChatPermissionPicker extends Disposable {
 
 		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 		const isAutopilotEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
+		const worktreeIsolated = this._worktreeIsolated;
+		const worktreeTooltip = localize('permissions.worktreeIsolated', "Worktrees are isolated and don't require approvals");
 
 		const items: IActionListItem<IPermissionItem>[] = [
 			{
@@ -105,11 +123,12 @@ export class NewChatPermissionPicker extends Disposable {
 					level: ChatPermissionLevel.Default,
 					label: localize('permissions.default', "Default Approvals"),
 					icon: Codicon.shield,
-					checked: this._currentLevel === ChatPermissionLevel.Default,
+					checked: !worktreeIsolated && this._currentLevel === ChatPermissionLevel.Default,
 				},
 				label: localize('permissions.default', "Default Approvals"),
 				description: localize('permissions.default.subtext', "Copilot uses your configured settings"),
-				disabled: false,
+				disabled: worktreeIsolated,
+				tooltip: worktreeIsolated ? worktreeTooltip : undefined,
 			},
 			{
 				kind: ActionListItemKind.Action,
@@ -118,10 +137,12 @@ export class NewChatPermissionPicker extends Disposable {
 					level: ChatPermissionLevel.AutoApprove,
 					label: localize('permissions.autoApprove', "Bypass Approvals"),
 					icon: Codicon.warning,
-					checked: this._currentLevel === ChatPermissionLevel.AutoApprove,
+					checked: worktreeIsolated || this._currentLevel === ChatPermissionLevel.AutoApprove,
 				},
 				label: localize('permissions.autoApprove', "Bypass Approvals"),
-				description: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
+				description: worktreeIsolated
+					? localize('permissions.autoApprove.worktreeSubtext', "Worktrees run in an isolated Git branch")
+					: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
 				disabled: policyRestricted,
 			},
 		];
@@ -134,11 +155,12 @@ export class NewChatPermissionPicker extends Disposable {
 					level: ChatPermissionLevel.Autopilot,
 					label: localize('permissions.autopilot', "Autopilot (Preview)"),
 					icon: Codicon.rocket,
-					checked: this._currentLevel === ChatPermissionLevel.Autopilot,
+					checked: !worktreeIsolated && this._currentLevel === ChatPermissionLevel.Autopilot,
 				},
 				label: localize('permissions.autopilot', "Autopilot (Preview)"),
 				description: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
-				disabled: policyRestricted,
+				disabled: policyRestricted || worktreeIsolated,
+				tooltip: worktreeIsolated ? worktreeTooltip : undefined,
 			});
 		}
 
@@ -167,7 +189,12 @@ export class NewChatPermissionPicker extends Disposable {
 	}
 
 	private async _selectLevel(level: ChatPermissionLevel): Promise<void> {
-		if (level === ChatPermissionLevel.AutoApprove && !shownWarnings.has(ChatPermissionLevel.AutoApprove)) {
+		// When worktree isolated, only bypass approvals is allowed
+		if (this._worktreeIsolated && level !== ChatPermissionLevel.AutoApprove) {
+			return;
+		}
+
+		if (level === ChatPermissionLevel.AutoApprove && !this._worktreeIsolated && !shownWarnings.has(ChatPermissionLevel.AutoApprove)) {
 			const result = await this.dialogService.prompt({
 				type: Severity.Warning,
 				message: localize('permissions.autoApprove.warning.title', "Enable Bypass Approvals?"),
@@ -234,19 +261,24 @@ export class NewChatPermissionPicker extends Disposable {
 		dom.clearNode(trigger);
 		let icon: ThemeIcon;
 		let label: string;
-		switch (this._currentLevel) {
-			case ChatPermissionLevel.Autopilot:
-				icon = Codicon.rocket;
-				label = localize('permissions.autopilot.label', "Autopilot (Preview)");
-				break;
-			case ChatPermissionLevel.AutoApprove:
-				icon = Codicon.warning;
-				label = localize('permissions.autoApprove.label', "Bypass Approvals");
-				break;
-			default:
-				icon = Codicon.shield;
-				label = localize('permissions.default.label', "Default Approvals");
-				break;
+		if (this._worktreeIsolated) {
+			icon = Codicon.warning;
+			label = localize('permissions.autoApprove.label', "Bypass Approvals");
+		} else {
+			switch (this._currentLevel) {
+				case ChatPermissionLevel.Autopilot:
+					icon = Codicon.rocket;
+					label = localize('permissions.autopilot.label', "Autopilot (Preview)");
+					break;
+				case ChatPermissionLevel.AutoApprove:
+					icon = Codicon.warning;
+					label = localize('permissions.autoApprove.label', "Bypass Approvals");
+					break;
+				default:
+					icon = Codicon.shield;
+					label = localize('permissions.default.label', "Default Approvals");
+					break;
+			}
 		}
 
 		dom.append(trigger, renderIcon(icon));
