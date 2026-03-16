@@ -727,26 +727,6 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, la
 		markdown.appendText(`\n`);
 	}
 
-	// Show configuration properties marked with showInPicker
-	if (languageModelsService) {
-		const schema = model.metadata.configurationSchema;
-		if (schema?.properties) {
-			const currentConfig = languageModelsService.getModelConfiguration(model.identifier) ?? {};
-			for (const [key, propSchema] of Object.entries(schema.properties)) {
-				if (typeof propSchema === 'boolean' || !propSchema.showInPicker) {
-					continue;
-				}
-				const value = currentConfig[key] ?? propSchema.default;
-				if (value !== undefined) {
-					const title = (typeof propSchema.title === 'string' ? propSchema.title : undefined)
-						?? key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
-					markdown.appendMarkdown(`${title}: ${String(value)}`);
-					markdown.appendText(`\n`);
-				}
-			}
-		}
-	}
-
 	return markdown;
 }
 
