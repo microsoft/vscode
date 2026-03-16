@@ -309,6 +309,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 				)
 			);
 		},
+		when: ChatContextKeys.lockedToCodingAgent.negate(),
 		excludeWhenCommandsExecuted: [
 			INSERT_FORK_CONVERSATION_COMMAND_ID,
 			'workbench.action.chat.forkConversation',
