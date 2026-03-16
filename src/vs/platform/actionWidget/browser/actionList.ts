@@ -1156,8 +1156,9 @@ export class ActionList<T> extends Disposable {
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
 		let newHover: IHoverWidget | undefined;
 
-		// Show hover if the element has hover content
-		if (element.hover?.content) {
+		// Show hover if the element has hover content and no submenu
+		// (when submenu is available, hover content is shown inside the submenu)
+		if (element.hover?.content && !element.submenuActions?.length) {
 			// The List widget separates data models from DOM elements, so we need to
 			// look up the actual DOM node to use as the hover target.
 			const rowElement = this._getRowElement(index);
@@ -1265,10 +1266,20 @@ export class ActionList<T> extends Disposable {
 
 		const submenuDisposables = new DisposableStore();
 		// Append to the action-widget container (parent of the list) to avoid scrollbar overlap
-		const widgetContainer = this.domNode.closest('.action-widget') ?? this.domNode;
+		const widgetContainer = (this.domNode.closest('.action-widget') ?? this.domNode) as HTMLElement;
 		const submenuContainer = dom.append(widgetContainer, dom.$('div.action-list-submenu'));
 		submenuContainer.style.position = 'absolute';
 		submenuContainer.style.zIndex = '10000';
+
+		// Render hover content at the top if available
+		if (element.hover?.content) {
+			const hoverSection = dom.append(submenuContainer, dom.$('.action-list-submenu-hover'));
+			const markdown = typeof element.hover.content === 'string' ? new MarkdownString(element.hover.content) : element.hover.content;
+			const rendered = renderMarkdown(markdown);
+			submenuDisposables.add(rendered);
+			hoverSection.appendChild(rendered.element);
+			dom.append(submenuContainer, dom.$('.action-list-submenu-separator'));
+		}
 
 		// Render submenu items as simple DOM elements — no Menu widget, no focus management
 		for (const action of element.submenuActions) {
