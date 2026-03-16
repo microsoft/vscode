@@ -1149,6 +1149,11 @@ export class ActionList<T> extends Disposable {
 	}
 
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
+		// Don't show hover when a submenu is active
+		if (this._submenu) {
+			return;
+		}
+
 		let newHover: IHoverWidget | undefined;
 
 		// Show hover if the element has hover content
@@ -1260,7 +1265,9 @@ export class ActionList<T> extends Disposable {
 		}
 
 		const submenuDisposables = new DisposableStore();
-		const submenuContainer = dom.append(this.domNode, dom.$('div.action-list-submenu'));
+		// Append to the action-widget container (parent of the list) to avoid scrollbar overlap
+		const widgetContainer = this.domNode.closest('.action-widget') ?? this.domNode;
+		const submenuContainer = dom.append(widgetContainer, dom.$('div.action-list-submenu'));
 		submenuContainer.style.position = 'absolute';
 		submenuContainer.style.zIndex = '10000';
 
@@ -1296,23 +1303,23 @@ export class ActionList<T> extends Disposable {
 			}
 		}
 
-		// Position relative to domNode (which now has position:relative)
-		const domRect = this.domNode.getBoundingClientRect();
+		// Position relative to the widget container
+		const widgetRect = widgetContainer.getBoundingClientRect();
 		const rowRect = rowElement.getBoundingClientRect();
 		const targetWindow = dom.getWindow(this.domNode);
 		const submenuRect = submenuContainer.getBoundingClientRect();
 
-		// Vertical: align to row, clamp within action list bounds
-		let top = rowRect.top - domRect.top;
-		if (top + submenuRect.height > domRect.height) {
-			top = Math.max(0, domRect.height - submenuRect.height);
+		// Vertical: align to row, clamp within widget bounds
+		let top = rowRect.top - widgetRect.top;
+		if (top + submenuRect.height > widgetRect.height) {
+			top = Math.max(0, widgetRect.height - submenuRect.height);
 		}
 		top = Math.max(0, top);
 		submenuContainer.style.top = `${top}px`;
 
-		// Horizontal: right if space, otherwise left
-		if (domRect.right + submenuRect.width <= targetWindow.innerWidth) {
-			submenuContainer.style.left = `${domRect.width}px`;
+		// Horizontal: position outside the widget, to the right or left
+		if (widgetRect.right + submenuRect.width <= targetWindow.innerWidth) {
+			submenuContainer.style.left = `${widgetRect.width}px`;
 		} else {
 			submenuContainer.style.left = `${-submenuRect.width}px`;
 		}
