@@ -1,0 +1,300 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Tour Overlay Container ---- */
+
+.sessions-tour-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 300;
+	pointer-events: none; /* allow clicks through by default */
+	opacity: 1;
+	transition: opacity 250ms ease-out;
+}
+
+.sessions-tour-overlay.sessions-tour-dismissed {
+	opacity: 0;
+}
+
+/* ---- Spotlight: dark scrim filled by box-shadow on a positioned element ---- */
+
+.sessions-tour-spotlight {
+	position: absolute;
+	border-radius: 6px;
+	box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+	pointer-events: none;
+	transition: top 300ms ease, left 300ms ease, width 300ms ease, height 300ms ease,
+		border-radius 300ms ease;
+}
+
+/* When there is no spotlight target (intro/outro step) hide it */
+.sessions-tour-spotlight.hidden {
+	box-shadow: none;
+}
+
+/* For the interactive "send a prompt" step, the spotlight covers the input area
+   and pointer-events are restored only on the spotlight region itself */
+.sessions-tour-overlay.sessions-tour-interactive .sessions-tour-spotlight {
+	pointer-events: auto;
+}
+
+/* Scrim behind everything except spotlight when no spotlight is shown (intro) */
+.sessions-tour-overlay.sessions-tour-no-spotlight::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.55);
+	pointer-events: auto;
+}
+
+/* ---- Floating Card ---- */
+
+.sessions-tour-card {
+	position: absolute;
+	width: 340px;
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorHoverWidget-border);
+	border-radius: 10px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+	padding: 20px;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	pointer-events: auto;
+	transition: top 300ms ease, left 300ms ease;
+	z-index: 1;
+}
+
+/* Centered card (intro/outro) */
+.sessions-tour-card.sessions-tour-card-centered {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	transition: none;
+}
+
+/* ---- Card Header ---- */
+
+.sessions-tour-card-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 8px;
+}
+
+.sessions-tour-card-title {
+	font-size: 15px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	line-height: 1.3;
+	flex: 1;
+}
+
+.sessions-tour-close {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border-radius: 4px;
+	border: none;
+	background: none;
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+	padding: 0;
+}
+
+.sessions-tour-close:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.sessions-tour-close .codicon {
+	font-size: 16px;
+}
+
+/* ---- Card Body ---- */
+
+.sessions-tour-card-body {
+	font-size: 13px;
+	line-height: 1.5;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* ---- Progress ---- */
+
+.sessions-tour-progress {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.sessions-tour-progress-dots {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.sessions-tour-progress-dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--vscode-descriptionForeground);
+	opacity: 0.3;
+	transition: opacity 200ms, background 200ms;
+}
+
+.sessions-tour-progress-dot.active {
+	opacity: 1;
+	background: var(--vscode-button-background);
+}
+
+/* ---- Navigation buttons ---- */
+
+.sessions-tour-nav {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+
+.sessions-tour-nav .monaco-button {
+	padding: 6px 14px;
+	font-size: 12px;
+}
+
+/* ---- Arrow pointer on card ---- */
+
+.sessions-tour-card::before {
+	content: '';
+	position: absolute;
+	width: 0;
+	height: 0;
+	display: none;
+}
+
+/* Arrow pointing down (card above element) */
+.sessions-tour-card.arrow-down::before {
+	display: block;
+	bottom: -8px;
+	left: 24px;
+	border-left: 8px solid transparent;
+	border-right: 8px solid transparent;
+	border-top: 8px solid var(--vscode-editorHoverWidget-border);
+}
+
+.sessions-tour-card.arrow-down::after {
+	content: '';
+	position: absolute;
+	display: block;
+	bottom: -7px;
+	left: 25px;
+	border-left: 7px solid transparent;
+	border-right: 7px solid transparent;
+	border-top: 7px solid var(--vscode-editorWidget-background);
+}
+
+/* Arrow pointing up (card below element) */
+.sessions-tour-card.arrow-up::before {
+	display: block;
+	top: -8px;
+	left: 24px;
+	border-left: 8px solid transparent;
+	border-right: 8px solid transparent;
+	border-bottom: 8px solid var(--vscode-editorHoverWidget-border);
+}
+
+.sessions-tour-card.arrow-up::after {
+	content: '';
+	position: absolute;
+	display: block;
+	top: -7px;
+	left: 25px;
+	border-left: 7px solid transparent;
+	border-right: 7px solid transparent;
+	border-bottom: 7px solid var(--vscode-editorWidget-background);
+}
+
+/* Arrow pointing left (card to the right of element) */
+.sessions-tour-card.arrow-left::before {
+	display: block;
+	left: -8px;
+	top: 24px;
+	border-top: 8px solid transparent;
+	border-bottom: 8px solid transparent;
+	border-right: 8px solid var(--vscode-editorHoverWidget-border);
+}
+
+.sessions-tour-card.arrow-left::after {
+	content: '';
+	position: absolute;
+	display: block;
+	left: -7px;
+	top: 25px;
+	border-top: 7px solid transparent;
+	border-bottom: 7px solid transparent;
+	border-right: 7px solid var(--vscode-editorWidget-background);
+}
+
+/* Arrow pointing right (card to the left of element) */
+.sessions-tour-card.arrow-right::before {
+	display: block;
+	right: -8px;
+	top: 24px;
+	border-top: 8px solid transparent;
+	border-bottom: 8px solid transparent;
+	border-left: 8px solid var(--vscode-editorHoverWidget-border);
+}
+
+.sessions-tour-card.arrow-right::after {
+	content: '';
+	position: absolute;
+	display: block;
+	right: -7px;
+	top: 25px;
+	border-top: 7px solid transparent;
+	border-bottom: 7px solid transparent;
+	border-left: 7px solid var(--vscode-editorWidget-background);
+}
+
+/* ---- Interactive prompt hint (step 5) ---- */
+
+.sessions-tour-prompt-hint {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 12px;
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--vscode-button-background) 15%, transparent);
+	border: 1px solid color-mix(in srgb, var(--vscode-button-background) 40%, transparent);
+	font-size: 12px;
+	color: var(--vscode-foreground);
+}
+
+.sessions-tour-prompt-hint .codicon {
+	color: var(--vscode-button-background);
+	font-size: 14px;
+	flex-shrink: 0;
+}
+
+/* ---- Waiting indicator (step 5 after user types) ---- */
+
+.sessions-tour-waiting {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-tour-waiting .codicon-loading {
+	animation: sessions-tour-spin 1.5s linear infinite;
+}
+
+@keyframes sessions-tour-spin {
+	to { transform: rotate(360deg); }
+}

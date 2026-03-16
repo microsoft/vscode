@@ -19,3 +19,9 @@ export const ChatBarVisibleContext = new RawContextKey<boolean>('chatBarVisible'
 export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('sessionsWelcomeVisible', false, localize('sessionsWelcomeVisible', "Whether the sessions welcome overlay is visible"));
 
 //#endregion
+
+//#region < --- Tour --- >
+
+export const SessionsTourVisibleContext = new RawContextKey<boolean>('sessionsTourVisible', false, localize('sessionsTourVisible', "Whether the sessions product tour overlay is visible"));
+
+//#endregion
