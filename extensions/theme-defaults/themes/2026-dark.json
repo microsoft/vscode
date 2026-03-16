@@ -435,7 +435,7 @@
 			"scope": "carriage-return",
 			"settings": {
 				"foreground": "#f0f6fc",
-				"background": "#ff7b72",
+				"background": "#8b1111",
 				"fontStyle": "italic underline",
 				"content": "^M"
 			}
