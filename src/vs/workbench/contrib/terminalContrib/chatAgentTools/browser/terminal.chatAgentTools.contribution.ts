@@ -102,7 +102,7 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		this._register(toolsService.executeToolSet.addTool(KillTerminalToolData));
 
 		instantiationService.invokeFunction(createRunInTerminalToolData).then(runInTerminalToolData => {
-			const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
+			const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool, true);
 			this._register(toolsService.registerTool(runInTerminalToolData, runInTerminalTool));
 			this._register(toolsService.executeToolSet.addTool(runInTerminalToolData));
 		});
