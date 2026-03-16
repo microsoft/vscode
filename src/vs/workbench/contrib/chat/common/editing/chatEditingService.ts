@@ -123,6 +123,11 @@ export interface IChatEditingSession extends IDisposable {
 	getSnapshotModel(requestId: string, undoStop: string | undefined, snapshotUri: URI): Promise<ITextModel | null>;
 
 	/**
+	 * Persists the current editing session state to storage.
+	 */
+	storeState(): Promise<void>;
+
+	/**
 	 * Will lead to this object getting disposed
 	 */
 	stop(clearState?: boolean): Promise<void>;
