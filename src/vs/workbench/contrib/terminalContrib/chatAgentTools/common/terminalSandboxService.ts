@@ -33,7 +33,6 @@ export interface ITerminalSandboxService {
 	promptToAllowWritePath(path: string): Promise<boolean>;
 	wrapWithSandbox(runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string>;
 	wrapCommand(command: string): Promise<string>;
-	getTempDir(): URI | undefined;
 }
 
 export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
@@ -186,10 +185,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			this._logService.error('TerminalSandboxService: Failed to initialize sandbox', error);
 			return command;
 		}
-	}
-
-	public getTempDir(): URI | undefined {
-		return this._tempDir;
 	}
 
 	private async _resolveRuntimePaths(): Promise<void> {
