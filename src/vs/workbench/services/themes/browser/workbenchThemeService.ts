@@ -7,7 +7,7 @@ import * as nls from '../../../../nls.js';
 import * as types from '../../../../base/common/types.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS } from '../common/workbenchThemeService.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import * as errors from '../../../../base/common/errors.js';
@@ -43,6 +43,7 @@ import { getColorRegistry } from '../../../../platform/theme/common/colorRegistr
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { generateColorThemeCSS } from './colorThemeCss.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 
 // implementation
 
@@ -110,7 +111,8 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		@ILogService private readonly logService: ILogService,
 		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
-		@ILanguageService private readonly languageService: ILanguageService
+		@ILanguageService private readonly languageService: ILanguageService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 		this.container = layoutService.mainContainer;
@@ -240,7 +242,35 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		};
 
 
-		return Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
+		return Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]).then(result => {
+			this.showNewDefaultThemeNotification();
+			return result;
+		});
+	}
+
+	private static readonly NEW_THEME_NOTIFICATION_KEY = 'workbench.newDefaultThemeNotification';
+
+	private showNewDefaultThemeNotification(): void {
+		const newDefaultThemes = new Set([ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT]);
+		if (newDefaultThemes.has(this.currentColorTheme.settingsId)) {
+			return; // already using a new default theme
+		}
+		if (this.storageService.getBoolean(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, StorageScope.APPLICATION)) {
+			return; // already shown
+		}
+		this.storageService.store(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+
+		const selectThemeLabel = nls.localize('selectTheme', "Browse Themes");
+		this.notificationService.prompt(
+			Severity.Info,
+			nls.localize('newDefaultTheme', "VS Code has new default themes: VS Code Light and VS Code Dark. Try them out!"),
+			[{
+				label: selectThemeLabel,
+				run: () => {
+					this.configurationService.updateValue(ThemeSettings.COLOR_THEME, this.currentColorTheme.type === ColorScheme.LIGHT ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK);
+				}
+			}]
+		);
 	}
 
 	private installConfigurationListener() {

@@ -9,7 +9,7 @@ import { MenuRegistry, MenuId, Action2, registerAction2, ISubmenuItem } from '..
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings } from '../../../services/themes/common/workbenchThemeService.js';
+import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings, ThemeSettingDefaults } from '../../../services/themes/common/workbenchThemeService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from '../../../../platform/theme/common/colorRegistry.js';
@@ -602,13 +602,18 @@ function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
 	return (<any>i)['type'] !== 'separator';
 }
 
+const defaultThemeDescriptions: Record<string, string> = {
+	[ThemeSettingDefaults.COLOR_THEME_LIGHT]: localize('defaultLight', "Default Light"),
+	[ThemeSettingDefaults.COLOR_THEME_DARK]: localize('defaultDark', "Default Dark"),
+};
+
 function toEntry(theme: IWorkbenchTheme): ThemeItem {
 	const settingId = theme.settingsId ?? undefined;
 	const item: ThemeItem = {
 		id: theme.id,
 		theme: theme,
 		label: theme.label,
-		description: theme.description || (theme.label === settingId ? undefined : settingId),
+		description: defaultThemeDescriptions[settingId ?? ''] ?? theme.description ?? (theme.label === settingId ? undefined : settingId),
 	};
 	if (theme.extensionData) {
 		item.buttons = [configureButton];
@@ -617,7 +622,15 @@ function toEntry(theme: IWorkbenchTheme): ThemeItem {
 }
 
 function toEntries(themes: Array<IWorkbenchTheme>, label?: string): QuickPickInput<ThemeItem>[] {
-	const sorter = (t1: ThemeItem, t2: ThemeItem) => t1.label.localeCompare(t2.label);
+	const pinnedIds = new Set([ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT]);
+	const sorter = (t1: ThemeItem, t2: ThemeItem) => {
+		const pin1 = pinnedIds.has(t1.theme?.settingsId ?? '');
+		const pin2 = pinnedIds.has(t2.theme?.settingsId ?? '');
+		if (pin1 !== pin2) {
+			return pin1 ? -1 : 1;
+		}
+		return t1.label.localeCompare(t2.label);
+	};
 	const entries: QuickPickInput<ThemeItem>[] = themes.map(toEntry).sort(sorter);
 	if (entries.length > 0 && label) {
 		entries.unshift({ type: 'separator', label });
