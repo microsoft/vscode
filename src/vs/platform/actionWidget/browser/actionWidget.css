@@ -266,6 +266,7 @@
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	min-width: 200px;
 	width: max-content;
+	overflow: hidden;
 }
 
 .action-list-submenu-hover {

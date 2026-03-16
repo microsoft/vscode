@@ -1303,19 +1303,30 @@ export class ActionList<T> extends Disposable {
 		const targetWindow = dom.getWindow(this.domNode);
 		const submenuRect = submenuContainer.getBoundingClientRect();
 
-		// Vertical: align to row, clamp within widget bounds
+		// Vertical: align to top of hover section, clamp within viewport
 		let top = rowRect.top - widgetRect.top;
-		if (top + submenuRect.height > widgetRect.height) {
-			top = Math.max(0, widgetRect.height - submenuRect.height);
+		if (widgetRect.top + top + submenuRect.height > targetWindow.innerHeight) {
+			top = Math.max(0, targetWindow.innerHeight - widgetRect.top - submenuRect.height);
 		}
-		top = Math.max(0, top);
+		top = Math.max(-widgetRect.top, top); // don't go above viewport
 		submenuContainer.style.top = `${top}px`;
 
 		// Horizontal: position outside the widget, to the right or left
-		if (widgetRect.right + submenuRect.width <= targetWindow.innerWidth) {
+		const spaceRight = targetWindow.innerWidth - widgetRect.right;
+		const spaceLeft = widgetRect.left;
+		if (spaceRight >= submenuRect.width) {
 			submenuContainer.style.left = `${widgetRect.width}px`;
-		} else {
+		} else if (spaceLeft >= submenuRect.width) {
 			submenuContainer.style.left = `${-submenuRect.width}px`;
+		} else {
+			// Not enough space on either side — pick the larger side and constrain width
+			if (spaceRight >= spaceLeft) {
+				submenuContainer.style.left = `${widgetRect.width}px`;
+				submenuContainer.style.maxWidth = `${spaceRight}px`;
+			} else {
+				submenuContainer.style.maxWidth = `${spaceLeft}px`;
+				submenuContainer.style.left = `${-Math.min(submenuRect.width, spaceLeft)}px`;
+			}
 		}
 
 		submenuDisposables.add(dom.addDisposableListener(submenuContainer, dom.EventType.MOUSE_ENTER, () => {
