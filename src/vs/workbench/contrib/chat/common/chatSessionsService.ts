@@ -196,6 +196,8 @@ export interface IChatSessionContentProvider {
 export interface IChatNewSessionRequest {
 	readonly prompt: string;
 	readonly command?: string;
+
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>;
 }
 
 export interface IChatSessionItemsDelta {
@@ -280,6 +282,7 @@ export interface IChatSessionsService {
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
 	hasAnySessionOptions(sessionResource: URI): boolean;
+	getSessionOptions(sessionResource: URI): Map<string, string> | undefined;
 	getSessionOption(sessionResource: URI, optionId: string): string | IChatSessionProviderOptionItem | undefined;
 	setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean;
 

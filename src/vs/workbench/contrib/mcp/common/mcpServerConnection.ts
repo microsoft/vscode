@@ -11,6 +11,7 @@ import { autorun, IObservable, observableValue } from '../../../../base/common/o
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogger, log, LogLevel } from '../../../../platform/log/common/log.js';
+import { isSandboxFilesystemError } from '../../../../platform/sandbox/common/sandboxErrorAnalysis.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { McpTaskManager } from './mcpTaskManager.js';
@@ -162,7 +163,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 			};
 		}
 
-		if (/(?:\b(?:EACCES|EPERM|ENOENT|EROFS|fail(?:ed|ure)?)\b|not accessible|read[- ]only)/i.test(message)) {
+		if (isSandboxFilesystemError(message)) {
 			return {
 				kind: 'filesystem',
 				message,

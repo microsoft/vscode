@@ -181,6 +181,11 @@ export class MockChatSessionsService implements IChatSessionsService {
 		await this._onRequestNotifyExtension.fireAsync({ sessionResource, updates }, CancellationToken.None);
 	}
 
+	getSessionOptions(sessionResource: URI): Map<string, string> | undefined {
+		const options = this.sessionOptions.get(sessionResource);
+		return options && options.size > 0 ? options : undefined;
+	}
+
 	getSessionOption(sessionResource: URI, optionId: string): string | undefined {
 		return this.sessionOptions.get(sessionResource)?.get(optionId);
 	}
