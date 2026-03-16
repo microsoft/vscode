@@ -5,7 +5,6 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -26,15 +25,8 @@ export class LanguageModelStatsService extends Disposable implements ILanguageMo
 
 	constructor(
 		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
-		@IStorageService storageService: IStorageService,
 	) {
 		super();
-		// TODO: @sandy081 - remove this code after a while
-		for (const key in storageService.keys(StorageScope.APPLICATION, StorageTarget.USER)) {
-			if (key.startsWith('languageModelStats.') || key.startsWith('languageModelAccess.')) {
-				storageService.remove(key, StorageScope.APPLICATION);
-			}
-		}
 	}
 
 	async update(model: string, extensionId: ExtensionIdentifier, agent: string | undefined, tokenCount: number | undefined): Promise<void> {
