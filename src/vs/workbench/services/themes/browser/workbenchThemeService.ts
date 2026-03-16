@@ -292,7 +292,6 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 				[ConfigurationTarget.USER, inspection.userValue],
 				[ConfigurationTarget.USER_REMOTE, inspection.userRemoteValue],
 				[ConfigurationTarget.WORKSPACE, inspection.workspaceValue],
-				[ConfigurationTarget.WORKSPACE_FOLDER, inspection.workspaceFolderValue],
 			] as const) {
 				if (value) {
 					const migrated = migrateThemeSettingsId(value);
