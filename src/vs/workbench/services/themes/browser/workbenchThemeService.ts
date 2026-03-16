@@ -6,7 +6,7 @@
 import * as nls from '../../../../nls.js';
 import * as types from '../../../../base/common/types.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
-import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS } from '../common/workbenchThemeService.js';
+import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget, ThemeSettingDefaults, COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS, migrateThemeSettingsId } from '../common/workbenchThemeService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -192,7 +192,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		delayer.schedule();
 	}
 
-	private initialize(): Promise<[IWorkbenchColorTheme | null, IWorkbenchFileIconTheme | null, IWorkbenchProductIconTheme | null]> {
+	private async initialize(): Promise<[IWorkbenchColorTheme | null, IWorkbenchFileIconTheme | null, IWorkbenchProductIconTheme | null]> {
 		const extDevLocs = this.environmentService.extensionDevelopmentLocationURI;
 		const extDevLoc = extDevLocs && extDevLocs.length === 1 ? extDevLocs[0] : undefined; // in dev mode, switch to a theme provided by the extension under dev.
 
@@ -242,10 +242,10 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		};
 
 
-		return Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]).then(result => {
-			this.showNewDefaultThemeNotification();
-			return result;
-		});
+		this.migrateColorThemeSettings();
+		const result = await Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
+		this.showNewDefaultThemeNotification();
+		return result;
 	}
 
 	private static readonly NEW_THEME_NOTIFICATION_KEY = 'workbench.newDefaultThemeNotification';
@@ -258,19 +258,43 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		if (this.storageService.getBoolean(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, StorageScope.APPLICATION)) {
 			return; // already shown
 		}
-		this.storageService.store(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
 
-		const selectThemeLabel = nls.localize('selectTheme', "Browse Themes");
-		this.notificationService.prompt(
+		const handle = this.notificationService.prompt(
 			Severity.Info,
 			nls.localize('newDefaultTheme', "VS Code has new default themes: VS Code Light and VS Code Dark. Try them out!"),
 			[{
-				label: selectThemeLabel,
+				label: nls.localize('tryNewTheme', "Try It"),
 				run: () => {
 					this.configurationService.updateValue(ThemeSettings.COLOR_THEME, this.currentColorTheme.type === ColorScheme.LIGHT ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK);
 				}
 			}]
 		);
+		Event.once(handle.onDidClose)(() => {
+			this.storageService.store(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+		});
+	}
+
+	/**
+	 * Migrates legacy theme setting values to their current equivalents,
+	 * writing back the migrated value so settings sync distributes the correct ID.
+	 */
+	private migrateColorThemeSettings(): void {
+		const themeSettings = [
+			ThemeSettings.COLOR_THEME,
+			ThemeSettings.PREFERRED_DARK_THEME,
+			ThemeSettings.PREFERRED_LIGHT_THEME,
+			ThemeSettings.PREFERRED_HC_DARK_THEME,
+			ThemeSettings.PREFERRED_HC_LIGHT_THEME,
+		];
+		for (const key of themeSettings) {
+			const value = this.configurationService.getValue<string>(key);
+			if (value) {
+				const migrated = migrateThemeSettingsId(value);
+				if (migrated !== value) {
+					this.configurationService.updateValue(key, migrated);
+				}
+			}
+		}
 	}
 
 	private installConfigurationListener() {
