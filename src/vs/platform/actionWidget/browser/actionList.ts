@@ -1286,10 +1286,11 @@ export class ActionList<T> extends Disposable {
 			if (action instanceof SubmenuAction) {
 				const children = action.actions;
 
-				// Add separator between hover section and actions, or between groups
-				if (!isFirstGroup || element.hover?.content) {
-					dom.append(submenuContainer, dom.$('.action-list-submenu-separator'));
-				}
+				// Render group header: label with separator line
+				const headerRow = dom.append(submenuContainer, dom.$('.action-list-submenu-group-header'));
+				const headerLabel = dom.append(headerRow, dom.$('span.action-list-submenu-group-label'));
+				headerLabel.textContent = action.label;
+				dom.append(headerRow, dom.$('.action-list-submenu-group-line'));
 				isFirstGroup = false;
 
 				for (const child of children) {
