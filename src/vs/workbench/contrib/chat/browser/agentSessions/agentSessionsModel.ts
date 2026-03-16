@@ -113,6 +113,9 @@ export interface IAgentSession extends IAgentSessionData {
 	isArchived(): boolean;
 	setArchived(archived: boolean): void;
 
+	isPinned(): boolean;
+	setPinned(pinned: boolean): void;
+
 	isRead(): boolean;
 	isMarkedUnread(): boolean;
 	setRead(read: boolean): void;
@@ -139,7 +142,7 @@ export function isLocalAgentSessionItem(session: IAgentSession): boolean {
 export function isAgentSession(obj: unknown): obj is IAgentSession {
 	const session = obj as IAgentSession | undefined;
 
-	return URI.isUri(session?.resource) && typeof session.setArchived === 'function' && typeof session.setRead === 'function';
+	return URI.isUri(session?.resource) && typeof session.setArchived === 'function' && typeof session.setPinned === 'function' && typeof session.setRead === 'function';
 }
 
 export function isAgentSessionsModel(obj: unknown): obj is IAgentSessionsModel {
@@ -150,12 +153,14 @@ export function isAgentSessionsModel(obj: unknown): obj is IAgentSessionsModel {
 
 interface IAgentSessionState {
 	readonly archived?: boolean;
+	readonly pinned?: boolean;
 	readonly read?: number /* last date turned read */;
 }
 
 export const enum AgentSessionSection {
 
 	// Default Grouping (by date)
+	Pinned = 'pinned',
 	Today = 'today',
 	Yesterday = 'yesterday',
 	Week = 'week',
@@ -571,6 +576,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			...data,
 			isArchived: () => this.isArchived(data),
 			setArchived: (archived: boolean) => this.setArchived(data, archived),
+			isPinned: () => this.isPinned(data),
+			setPinned: (pinned: boolean) => this.setPinned(data, pinned),
 			isRead: () => this.isRead(data),
 			isMarkedUnread: () => this.isMarkedUnread(data),
 			setRead: (read: boolean) => this.setRead(data, read),
@@ -603,6 +610,21 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		if (agentSession) {
 			this._onDidChangeSessionArchivedState.fire(agentSession);
 		}
+
+		this._onDidChangeSessions.fire();
+	}
+
+	private isPinned(session: IInternalAgentSessionData): boolean {
+		return this.sessionStates.get(session.resource)?.pinned ?? false;
+	}
+
+	private setPinned(session: IInternalAgentSessionData, pinned: boolean): void {
+		if (pinned === this.isPinned(session)) {
+			return; // no change
+		}
+
+		const state = this.sessionStates.get(session.resource) ?? {};
+		this.sessionStates.set(session.resource, { ...state, pinned });
 
 		this._onDidChangeSessions.fire();
 	}
@@ -816,6 +838,7 @@ class AgentSessionsCache {
 		const serialized: ISerializedAgentSessionState[] = Array.from(states.entries()).map(([resource, state]) => ({
 			resource: resource.toString(),
 			archived: state.archived,
+			pinned: state.pinned,
 			read: state.read
 		}));
 
@@ -836,6 +859,7 @@ class AgentSessionsCache {
 			for (const entry of cached) {
 				states.set(typeof entry.resource === 'string' ? URI.parse(entry.resource) : URI.revive(entry.resource), {
 					archived: entry.archived,
+					pinned: entry.pinned,
 					read: entry.read
 				});
 			}

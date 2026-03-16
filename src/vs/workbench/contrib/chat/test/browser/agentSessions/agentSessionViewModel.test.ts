@@ -584,6 +584,8 @@ suite('AgentSessions', () => {
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
 				setArchived: archived => { },
+				isPinned: () => false,
+				setPinned: pinned => { },
 				isRead: () => false,
 				isMarkedUnread: () => false,
 				setRead: read => { }
@@ -600,6 +602,8 @@ suite('AgentSessions', () => {
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
 				setArchived: archived => { },
+				isPinned: () => false,
+				setPinned: pinned => { },
 				isRead: () => false,
 				isMarkedUnread: () => false,
 				setRead: read => { }
@@ -621,6 +625,8 @@ suite('AgentSessions', () => {
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
 				setArchived: archived => { },
+				isPinned: () => false,
+				setPinned: pinned => { },
 				isRead: () => false,
 				isMarkedUnread: () => false,
 				setRead: read => { }
@@ -646,6 +652,8 @@ suite('AgentSessions', () => {
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
 				setArchived: archived => { },
+				isPinned: () => false,
+				setPinned: pinned => { },
 				isRead: () => false,
 				isMarkedUnread: () => false,
 				setRead: read => { }
@@ -683,6 +691,8 @@ suite('AgentSessions', () => {
 				status: ChatSessionStatus.Completed,
 				isArchived: () => false,
 				setArchived: () => { },
+				isPinned: () => false,
+				setPinned: () => { },
 				isRead: () => false,
 				isMarkedUnread: () => false,
 				setRead: read => { },

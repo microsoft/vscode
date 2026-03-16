@@ -210,6 +210,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		// Archived
 		template.element.classList.toggle('archived', session.element.isArchived());
 
+		// Pinned
+		template.element.classList.toggle('pinned', session.element.isPinned());
+
 		// Icon
 		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}`;
 
@@ -219,6 +222,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// Title Actions - Update context keys
 		ChatContextKeys.isArchivedAgentSession.bindTo(template.contextKeyService).set(session.element.isArchived());
+		ChatContextKeys.isPinnedAgentSession.bindTo(template.contextKeyService).set(session.element.isPinned());
 		ChatContextKeys.isReadAgentSession.bindTo(template.contextKeyService).set(session.element.isRead());
 		ChatContextKeys.agentSessionType.bindTo(template.contextKeyService).set(session.element.providerType);
 		template.titleToolbar.context = session.element;
@@ -839,11 +843,30 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	private groupSessionsCapped(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
 		const result: AgentSessionListItem[] = [];
 
-		const firstArchivedIndex = sortedSessions.findIndex(session => session.isArchived());
-		const nonArchivedCount = firstArchivedIndex === -1 ? sortedSessions.length : firstArchivedIndex;
+		// Separate pinned sessions to show them at the top in their own section
+		const pinnedSessions: IAgentSession[] = [];
+		const nonPinnedSessions: IAgentSession[] = [];
+		for (const session of sortedSessions) {
+			if (!session.isArchived() && session.isPinned()) {
+				pinnedSessions.push(session);
+			} else {
+				nonPinnedSessions.push(session);
+			}
+		}
 
-		const topSessions = sortedSessions.slice(0, Math.min(AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT, nonArchivedCount));
-		const othersSessions = sortedSessions.slice(topSessions.length);
+		if (pinnedSessions.length > 0) {
+			result.push({
+				section: AgentSessionSection.Pinned,
+				label: AgentSessionSectionLabels[AgentSessionSection.Pinned],
+				sessions: pinnedSessions
+			});
+		}
+
+		const firstArchivedIndex = nonPinnedSessions.findIndex(session => session.isArchived());
+		const nonArchivedCount = firstArchivedIndex === -1 ? nonPinnedSessions.length : firstArchivedIndex;
+
+		const topSessions = nonPinnedSessions.slice(0, Math.min(AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT, nonArchivedCount));
+		const othersSessions = nonPinnedSessions.slice(topSessions.length);
 
 		// Add top sessions directly (no section header)
 		result.push(...topSessions);
@@ -877,6 +900,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 	private groupSessionsByRepository(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
 		const repoMap = new Map<string, { label: string; sessions: IAgentSession[] }>();
+		const pinnedSessions: IAgentSession[] = [];
 		const archivedSessions: IAgentSession[] = [];
 		const unknownKey = '\x00unknown';
 		const unknownLabel = localize('agentSessions.noRepository', "Other");
@@ -884,6 +908,11 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		for (const session of sortedSessions) {
 			if (session.isArchived()) {
 				archivedSessions.push(session);
+				continue;
+			}
+
+			if (session.isPinned()) {
+				pinnedSessions.push(session);
 				continue;
 			}
 
@@ -903,6 +932,15 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		}
 
 		const result: AgentSessionListItem[] = [];
+
+		if (pinnedSessions.length > 0) {
+			result.push({
+				section: AgentSessionSection.Pinned,
+				label: AgentSessionSectionLabels[AgentSessionSection.Pinned],
+				sessions: pinnedSessions,
+			});
+		}
+
 		for (const [, { label, sessions }] of repoMap) {
 			result.push({
 				section: AgentSessionSection.Repository,
@@ -1071,6 +1109,7 @@ function extractRepoNameFromPath(dirPath: string): string | undefined {
 }
 
 export const AgentSessionSectionLabels = {
+	[AgentSessionSection.Pinned]: localize('agentSessions.pinnedSection', "Pinned"),
 	[AgentSessionSection.Today]: localize('agentSessions.todaySection', "Today"),
 	[AgentSessionSection.Yesterday]: localize('agentSessions.yesterdaySection', "Yesterday"),
 	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last 7 days"),
@@ -1088,6 +1127,7 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
 	const weekThreshold = now - WEEK_THRESHOLD;
 
+	const pinnedSessions: IAgentSession[] = [];
 	const todaySessions: IAgentSession[] = [];
 	const yesterdaySessions: IAgentSession[] = [];
 	const weekSessions: IAgentSession[] = [];
@@ -1097,6 +1137,8 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 	for (const session of sessions) {
 		if (session.isArchived()) {
 			archivedSessions.push(session);
+		} else if (session.isPinned()) {
+			pinnedSessions.push(session);
 		} else {
 			const sessionTime = getAgentSessionTime(session.timing);
 			if (sessionTime >= startOfToday) {
@@ -1112,6 +1154,7 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 	}
 
 	return new Map<AgentSessionSection, IAgentSessionSection>([
+		[AgentSessionSection.Pinned, { section: AgentSessionSection.Pinned, label: AgentSessionSectionLabels[AgentSessionSection.Pinned], sessions: pinnedSessions }],
 		[AgentSessionSection.Today, { section: AgentSessionSection.Today, label: AgentSessionSectionLabels[AgentSessionSection.Today], sessions: todaySessions }],
 		[AgentSessionSection.Yesterday, { section: AgentSessionSection.Yesterday, label: AgentSessionSectionLabels[AgentSessionSection.Yesterday], sessions: yesterdaySessions }],
 		[AgentSessionSection.Week, { section: AgentSessionSection.Week, label: AgentSessionSectionLabels[AgentSessionSection.Week], sessions: weekSessions }],
@@ -1191,6 +1234,17 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 		}
 		if (!aNeedsInput && bNeedsInput) {
 			return 1; // a (other) comes after b (needs input)
+		}
+
+		// Pinned
+		const aPinned = sessionA.isPinned();
+		const bPinned = sessionB.isPinned();
+
+		if (aPinned && !bPinned) {
+			return -1; // a (pinned) comes before b (non-pinned)
+		}
+		if (!aPinned && bPinned) {
+			return 1; // a (non-pinned) comes after b (pinned)
 		}
 
 		// Archived

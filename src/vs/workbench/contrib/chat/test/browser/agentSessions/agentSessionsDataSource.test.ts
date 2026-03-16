@@ -129,6 +129,8 @@ suite('AgentSessionsDataSource', () => {
 			badge: overrides.badge,
 			isArchived: () => overrides.isArchived ?? false,
 			setArchived: () => { },
+			isPinned: () => false,
+			setPinned: () => { },
 			isRead: () => overrides.isRead ?? true,
 			isMarkedUnread: () => false,
 			setRead: () => { },
