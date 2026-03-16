@@ -362,6 +362,26 @@
 	padding-top: 2px;
 }
 
+.action-list-submenu-group-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 12px 2px 12px;
+}
+
+.action-list-submenu-group-label {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.action-list-submenu-group-line {
+	flex: 1;
+	height: 1px;
+	background-color: var(--vscode-menu-separatorBackground);
+}
+
 .action-list-submenu-separator {
 	height: 1px;
 	background-color: var(--vscode-menu-separatorBackground);
