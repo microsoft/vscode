@@ -230,18 +230,18 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 
 		// Check for VS Code's task finish messages (like "press any key to close the terminal").
-		// These should only be ignored if it's a task AND the task is finished.
-		// Otherwise, "press any key to continue" from scripts should prompt the user.
+		// If the execution is a task and the output contains a VS Code task finish message,
+		// always treat it as a stop signal regardless of task active state (which can be stale).
 		const isTask = this._execution.task !== undefined;
-		const isTaskInactive = this._execution.isActive ? !(await this._execution.isActive()) : true;
-		if (isTask && isTaskInactive && detectsVSCodeTaskFinishMessage(output)) {
-			this._logService.trace('OutputMonitor: Idle -> VS Code task finish message detected for inactive task, stopping');
+		if (isTask && detectsVSCodeTaskFinishMessage(output)) {
+			this._logService.trace('OutputMonitor: Idle -> VS Code task finish message detected, stopping');
 			// Task is finished, ignore the "press any key to close" message
 			return { shouldContinuePollling: false, output };
 		}
 
 		// Check for generic "press any key" prompts from scripts.
-		if ((!isTask || !isTaskInactive) && detectsGenericPressAnyKeyPattern(output)) {
+		// Only shown for non-task executions since task finish messages are handled above.
+		if (!isTask && detectsGenericPressAnyKeyPattern(output)) {
 			this._logService.trace('OutputMonitor: Idle -> generic "press any key" detected');
 			const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts) || this._isAutopilotMode();
 			if (autoReply) {
@@ -474,6 +474,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const model = await this._getLanguageModel();
 		if (!model) {
 			return 'No models available';
+
 		}
 
 		const response = await this._languageModelsService.sendChatRequest(
@@ -927,8 +928,26 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _getLanguageModel(): Promise<string | undefined> {
-		const models = await this._safeSelectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
-		return models.length ? models[0] : undefined;
+		const fastModels = await this._safeSelectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
+		if (fastModels.length) {
+			return fastModels[0];
+		}
+
+		const widget = this._chatWidgetService.lastFocusedWidget ?? this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)[0];
+		const currentModel = widget?.input.currentLanguageModel;
+		if (currentModel) {
+			const currentFamilyModels = await this._safeSelectLanguageModels({ vendor: 'copilot', family: currentModel.replaceAll('copilot/', '') });
+			if (currentFamilyModels.length) {
+				return currentFamilyModels[0];
+			}
+		}
+
+		const copilotModels = await this._safeSelectLanguageModels({ vendor: 'copilot' });
+		if (copilotModels.length) {
+			return copilotModels[0];
+		}
+
+		return undefined;
 	}
 
 	private async _safeSelectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]> {

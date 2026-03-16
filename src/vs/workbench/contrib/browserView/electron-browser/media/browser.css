@@ -69,6 +69,7 @@
 
 	.browser-url-input {
 		flex: 1;
+		min-width: 0;
 		padding: 4px 8px;
 		background-color: transparent;
 		color: var(--vscode-input-foreground);
@@ -76,6 +77,32 @@
 		border-radius: var(--vscode-cornerRadius-small);
 		outline: none !important;
 		font-size: 13px;
+		text-overflow: ellipsis;
+		overflow: hidden;
+		white-space: nowrap;
+	}
+
+	.browser-zoom-pill {
+		display: none;
+		align-items: center;
+		gap: 2px;
+		margin: 0 2px;
+		padding: 0 2px;
+		flex-shrink: 0;
+		border-radius: var(--vscode-cornerRadius-small);
+		color: var(--vscode-descriptionForeground);
+		font-size: 13px;
+		line-height: 1;
+		white-space: nowrap;
+		pointer-events: none;
+
+		&.visible {
+			display: flex;
+		}
+
+		.codicon {
+			font-size: 14px;
+		}
 	}
 
 	.browser-share-toggle-container {

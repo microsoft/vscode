@@ -504,6 +504,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			fontFamily: 'system-ui, -apple-system, sans-serif',
 			fontSize: 13,
 			lineHeight: 20,
+			cursorWidth: 1,
 			padding: { top: 8, bottom: 2 },
 			wrappingStrategy: 'advanced',
 			stickyScroll: { enabled: false },
@@ -978,6 +979,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			);
 			this._newSessionListener.clear();
 			this._contextAttachments.clear();
+			this._editor.getModel()?.setValue('');
 		} catch (e) {
 			this.logService.error('Failed to send request:', e);
 		}
@@ -1140,6 +1142,26 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._newSession.value?.setRepoUri(project.uri);
 		}
 	}
+
+	prefillInput(text: string): void {
+		const editor = this._editor;
+		const model = editor?.getModel();
+		if (editor && model) {
+			model.setValue(text);
+			const lastLine = model.getLineCount();
+			const maxColumn = model.getLineMaxColumn(lastLine);
+			editor.setPosition({ lineNumber: lastLine, column: maxColumn });
+			editor.focus();
+		}
+	}
+
+	sendQuery(text: string): void {
+		const model = this._editor?.getModel();
+		if (model) {
+			model.setValue(text);
+			this._send();
+		}
+	}
 }
 
 // #endregion
@@ -1190,6 +1212,14 @@ export class NewChatViewPane extends ViewPane {
 	override focus(): void {
 		super.focus();
 		this._widget?.focusInput();
+	}
+
+	prefillInput(text: string): void {
+		this._widget?.prefillInput(text);
+	}
+
+	sendQuery(text: string): void {
+		this._widget?.sendQuery(text);
 	}
 
 	override setVisible(visible: boolean): void {

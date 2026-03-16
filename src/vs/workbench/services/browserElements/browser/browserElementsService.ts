@@ -16,6 +16,8 @@ export interface IBrowserElementsService {
 	// no browser implementation yet
 	getElementData(rect: IRectangle, token: CancellationToken, locator: IBrowserTargetLocator | undefined): Promise<IElementData | undefined>;
 
+	getFocusedElementData(rect: IRectangle, token: CancellationToken, locator: IBrowserTargetLocator | undefined): Promise<IElementData | undefined>;
+
 	startDebugSession(token: CancellationToken, locator: IBrowserTargetLocator): Promise<void>;
 
 	startConsoleSession(token: CancellationToken, locator: IBrowserTargetLocator): Promise<void>;
