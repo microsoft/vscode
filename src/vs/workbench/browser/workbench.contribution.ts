@@ -1064,6 +1064,8 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			const result: ConfigurationKeyValuePairs = [];
 			if (value === 'default') {
 				result.push(['workbench.editor.useModal', { value: 'some' }]);
+			} else if (value === 'essential-only') {
+				result.push(['workbench.editor.useModal', { value: 'required-only' }]);
 			} else if (value === 'on') {
 				result.push(['workbench.editor.useModal', { value: 'all' }]);
 			}

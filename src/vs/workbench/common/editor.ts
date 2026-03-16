@@ -859,7 +859,7 @@ export const enum EditorInputCapabilities {
 
 	/**
 	 * Signals that the editor requires opening in a modal
-	 * overlay. Used with the `essential-only` modal mode
+	 * overlay. Used with the `required-only` modal mode
 	 * to allow specific editors to opt into modal behavior.
 	 */
 	RequiresModal = 1 << 11
