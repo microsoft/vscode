@@ -24,7 +24,7 @@ export function resolveWorkbenchCommonProperties(
 	isSessionsApp?: boolean
 ): ICommonProperties {
 	const { commit, version, date: releaseDate } = productService ?? {};
-	const result = resolveCommonProperties(release, hostname, process.arch, commit, version, machineId, sqmId, devDeviceId, isInternalTelemetry, releaseDate, isSessionsApp ? 'sessions-desktop' : undefined);
+	const result = resolveCommonProperties(release, hostname, process.arch, commit, version, machineId, sqmId, devDeviceId, isInternalTelemetry, releaseDate, isSessionsApp ? 'sessions' : undefined);
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.APPLICATION)!;
 
