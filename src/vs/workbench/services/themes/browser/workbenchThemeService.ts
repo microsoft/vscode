@@ -44,6 +44,7 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { mainWindow } from '../../../../base/browser/window.js';
 import { generateColorThemeCSS } from './colorThemeCss.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 // implementation
 
@@ -112,7 +113,8 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
 		@ILanguageService private readonly languageService: ILanguageService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 		this.container = layoutService.mainContainer;
@@ -261,12 +263,10 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 		const handle = this.notificationService.prompt(
 			Severity.Info,
-			nls.localize('newDefaultTheme', "VS Code has new default themes: VS Code Light and VS Code Dark. Try them out!"),
+			nls.localize('newDefaultTheme', "New default themes are available for VS Code."),
 			[{
-				label: nls.localize('tryNewTheme', "Try It"),
-				run: () => {
-					this.configurationService.updateValue(ThemeSettings.COLOR_THEME, this.currentColorTheme.type === ColorScheme.LIGHT ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK);
-				}
+				label: nls.localize('tryNewTheme', "Try Them Out"),
+				run: () => this.commandService.executeCommand('workbench.action.tryNewDefaultThemes')
 			}]
 		);
 		Event.once(handle.onDidClose)(() => {

@@ -557,6 +557,63 @@ registerAction2(class extends Action2 {
 	}
 });
 
+CommandsRegistry.registerCommand('workbench.action.tryNewDefaultThemes', async function (accessor: ServicesAccessor) {
+	const themeService = accessor.get(IWorkbenchThemeService);
+	const quickInputService = accessor.get(IQuickInputService);
+
+	const previousTheme = themeService.getColorTheme();
+	const allThemes = await themeService.getColorThemes();
+	const newThemeSettingsIds = new Set([ThemeSettingDefaults.COLOR_THEME_LIGHT, ThemeSettingDefaults.COLOR_THEME_DARK]);
+	const themes = allThemes.filter(t => newThemeSettingsIds.has(t.settingsId));
+
+	const items: IQuickPickItem[] = themes.map(t => ({
+		id: t.id,
+		label: t.label,
+		description: t.description,
+	}));
+
+	const disposables = new DisposableStore();
+	const picker = disposables.add(quickInputService.createQuickPick<IQuickPickItem>());
+	picker.items = items;
+	picker.placeholder = localize('pickNewTheme', "Pick a new default theme");
+	picker.canSelectMany = false;
+
+	const preferredId = previousTheme.type === ColorScheme.LIGHT ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
+	const activeItem = items.find(i => themes.find(t => t.id === i.id)?.settingsId === preferredId);
+	if (activeItem) {
+		picker.activeItems = [activeItem];
+	}
+
+	disposables.add(picker.onDidChangeActive(selected => {
+		if (selected[0]) {
+			const theme = themes.find(t => t.id === selected[0].id);
+			if (theme) {
+				themeService.setColorTheme(theme, 'preview');
+			}
+		}
+	}));
+
+	disposables.add(picker.onDidAccept(() => {
+		const selected = picker.activeItems[0];
+		if (selected) {
+			const theme = themes.find(t => t.id === selected.id);
+			if (theme) {
+				themeService.setColorTheme(theme, 'auto');
+			}
+		}
+		picker.hide();
+	}));
+
+	disposables.add(picker.onDidHide(() => {
+		if (!picker.selectedItems.length) {
+			themeService.setColorTheme(previousTheme, undefined);
+		}
+		disposables.dispose();
+	}));
+
+	picker.show();
+});
+
 CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async function (accessor: ServicesAccessor, extension: { publisher: string; name: string; version: string }, themeSettingsId?: string) {
 	const themeService = accessor.get(IWorkbenchThemeService);
 
