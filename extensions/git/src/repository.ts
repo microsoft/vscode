@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { cp } from '@vscode/fs-copyfile';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import * as fs from 'fs';
@@ -1956,59 +1957,76 @@ export class Repository implements Disposable {
 			gitIgnoredFiles.delete(uri.fsPath);
 		}
 
-		// Add the folder paths for git ignored files
+		// Compute the base directory for each glob pattern (the fixed
+		// prefix before any wildcard characters). This will be used to
+		// optimize the upward traversal when adding parent directories.
+		const filePatternBases = new Set<string>();
+		for (const pattern of worktreeIncludeFiles) {
+			const segments = pattern.split(/[\/\\]/);
+			const fixedSegments: string[] = [];
+			for (const seg of segments) {
+				if (/[*?{}[\]]/.test(seg)) {
+					break;
+				}
+				fixedSegments.push(seg);
+			}
+			filePatternBases.add(path.join(this.root, ...fixedSegments));
+		}
+
+		// Add the folder paths for git ignored files, walking
+		// up only to the nearest file pattern base directory.
 		const gitIgnoredPaths = new Set(gitIgnoredFiles);
 
 		for (const filePath of gitIgnoredFiles) {
 			let dir = path.dirname(filePath);
-			while (dir !== this.root && !gitIgnoredFiles.has(dir)) {
+			while (dir !== this.root && !gitIgnoredPaths.has(dir)) {
 				gitIgnoredPaths.add(dir);
+				if (filePatternBases.has(dir)) {
+					break;
+				}
 				dir = path.dirname(dir);
 			}
 		}
 
-		return gitIgnoredPaths;
+		// Find minimal set of paths (folders and files) to copy. Keep only topmost
+		// paths — if a directory is already in the set, all its descendants are
+		// implicitly included and don't need separate entries.
+		let lastTopmost: string | undefined;
+		const pathsToCopy = new Set<string>();
+		for (const p of Array.from(gitIgnoredPaths).sort()) {
+			if (lastTopmost && (p === lastTopmost || p.startsWith(lastTopmost + path.sep))) {
+				continue;
+			}
+			pathsToCopy.add(p);
+			lastTopmost = p;
+		}
+
+		return pathsToCopy;
 	}
 
 	private async _copyWorktreeIncludeFiles(worktreePath: string): Promise<void> {
-		const gitIgnoredPaths = await this._getWorktreeIncludePaths();
-		if (gitIgnoredPaths.size === 0) {
+		const worktreeIncludePaths = await this._getWorktreeIncludePaths();
+		if (worktreeIncludePaths.size === 0) {
 			return;
 		}
 
 		try {
-			// Find minimal set of paths (folders and files) to copy.
-			// The goal is to reduce the number of copy operations
-			// needed.
-			const pathsToCopy = new Set<string>();
-			for (const filePath of gitIgnoredPaths) {
-				const relativePath = path.relative(this.root, filePath);
-				const firstSegment = relativePath.split(path.sep)[0];
-				pathsToCopy.add(path.join(this.root, firstSegment));
-			}
-
-			const startTime = Date.now();
+			const startTime = performance.now();
 			const limiter = new Limiter<void>(15);
-			const files = Array.from(pathsToCopy);
+			const files = Array.from(worktreeIncludePaths);
 
 			// Copy files
-			const results = await Promise.allSettled(files.map(sourceFile =>
-				limiter.queue(async () => {
+			const results = await Promise.allSettled(files.map(sourceFile => {
+				return limiter.queue(async () => {
 					const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
 					await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
-					await fsPromises.cp(sourceFile, targetFile, {
-						filter: src => gitIgnoredPaths.has(src),
-						force: true,
-						mode: fs.constants.COPYFILE_FICLONE,
-						recursive: true,
-						verbatimSymlinks: true
-					});
-				})
-			));
+					await cp(sourceFile, targetFile, { force: true, recursive: true, verbatimSymlinks: true });
+				});
+			}));
 
 			// Log any failed operations
 			const failedOperations = results.filter(r => r.status === 'rejected');
-			this.logger.info(`[Repository][_copyWorktreeIncludeFiles] Copied ${files.length - failedOperations.length}/${files.length} folder(s)/file(s) to worktree. [${Date.now() - startTime}ms]`);
+			this.logger.info(`[Repository][_copyWorktreeIncludeFiles] Copied ${files.length - failedOperations.length}/${files.length} folder(s)/file(s) to worktree. [${(performance.now() - startTime).toFixed(2)}ms]`);
 
 			if (failedOperations.length > 0) {
 				window.showWarningMessage(l10n.t('Failed to copy {0} folder(s)/file(s) to the worktree.', failedOperations.length));
