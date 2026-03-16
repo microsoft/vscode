@@ -6,6 +6,7 @@
 import { ok, strictEqual } from 'assert';
 import { SandboxedCommandLinePresenter } from '../../browser/tools/commandLinePresenter/sandboxedCommandLinePresenter.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import type { ISandboxRuntimeConfig } from '../../../../../../platform/sandbox/common/sandboxHelperIpc.js';
@@ -35,6 +36,10 @@ suite('SandboxedCommandLinePresenter', () => {
 
 		async wrapWithSandbox(_runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string> {
 			return command;
+		}
+
+		getTempDir(): URI | undefined {
+			return undefined;
 		}
 	}
 

@@ -3,19 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { dirname, posix, win32 } from '../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { SandboxHelperChannelName, type ISandboxPermissionRequest, type ISandboxRuntimeConfig } from '../../../../../platform/sandbox/common/sandboxHelperIpc.js';
@@ -36,21 +33,14 @@ export interface ITerminalSandboxService {
 	promptToAllowWritePath(path: string): Promise<boolean>;
 	wrapWithSandbox(runtimeConfig: ISandboxRuntimeConfig, command: string): Promise<string>;
 	wrapCommand(command: string): Promise<string>;
-	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
-	setNeedsForceUpdateConfigFile(): void;
 }
 
 export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
-	private _srtPath: string | undefined;
 	private _rgPath: string | undefined;
-	private _srtPathResolved = false;
-	private _execPath?: string;
-	private _sandboxConfigPath: string | undefined;
-	private _needsForceUpdateConfigFile = true;
+	private _runtimePathsResolved = false;
 	private _tempDir: URI | undefined;
-	private _sandboxSettingsId: string | undefined;
 	private _remoteEnvDetailsPromise: Promise<IRemoteAgentEnvironment | null>;
 	private _remoteEnvDetails: IRemoteAgentEnvironment | null = null;
 	private _appRoot: string;
@@ -62,7 +52,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IFileService private readonly _fileService: IFileService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -72,10 +61,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	) {
 		super();
 		this._appRoot = dirname(FileAccess.asFileUri('').path);
-		// Get the node executable path from native environment service if available (Electron's execPath with ELECTRON_RUN_AS_NODE)
-		const nativeEnv = this._environmentService as IEnvironmentService & { execPath?: string };
-		this._execPath = nativeEnv.execPath;
-		this._sandboxSettingsId = generateUuid();
 		this._remoteEnvDetailsPromise = this._remoteAgentService.getEnvironment();
 
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, (e: IConfigurationChangeEvent | undefined) => {
@@ -164,26 +149,30 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	}
 
 	public async wrapCommand(command: string): Promise<string> {
+		await this._resolveRuntimePaths();
 		const sandboxSettings = await this._getSandboxSettings();
 		if (!sandboxSettings) {
 			throw new Error('Sandbox settings not initialized');
 		}
 
-		await this.getSandboxConfigPath();
-		if (!this._sandboxConfigPath || !this._tempDir) {
-			throw new Error('Sandbox config path or temp dir not initialized');
+		if (!this._tempDir) {
+			await this._initTempDir();
 		}
-		if (!this._execPath) {
-			throw new Error('Executable path not set to run sandbox commands');
-		}
-		if (!this._srtPath) {
-			throw new Error('Sandbox runtime path not resolved');
+		if (!this._tempDir) {
+			throw new Error('Sandbox temp dir not initialized');
 		}
 		if (!this._rgPath) {
 			throw new Error('Ripgrep path not resolved');
 		}
+		const sandboxRuntimeConfig: ISandboxRuntimeConfig = {
+			...sandboxSettings,
+			ripgrep: {
+				command: this._rgPath,
+				args: undefined,
+			}
+		};
 		// Quote shell arguments so the wrapped command cannot break out of the outer shell.
-		let envDetails = `PATH="$PATH:${dirname(this._rgPath)}" TMPDIR="${this._tempDir.path}"}`;
+		let envDetails = `TMPDIR="${this._tempDir.path}"`;
 		if (!this._remoteEnvDetails) {
 			envDetails = `ELECTRON_RUN_AS_NODE=1 ${envDetails}`;
 		}
@@ -192,7 +181,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		// TMPDIR must be set as environment variable before the command
 		// Initialize the sandbox manager before returning the wrapped command so permission prompts are wired up.
 		try {
-			return await this._getSandboxHelperService().wrapWithSandbox(sandboxSettings, command, envDetails);
+			return await this._getSandboxHelperService().wrapWithSandbox(sandboxRuntimeConfig, command, envDetails);
 		} catch (error) {
 			this._logService.error('TerminalSandboxService: Failed to initialize sandbox', error);
 			return command;
@@ -203,57 +192,17 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._tempDir;
 	}
 
-	public setNeedsForceUpdateConfigFile(): void {
-		this._needsForceUpdateConfigFile = true;
-	}
-
-	public async getSandboxConfigPath(forceRefresh: boolean = false): Promise<string | undefined> {
-		await this._resolveSrtPath();
-		if (!this._sandboxConfigPath || forceRefresh || this._needsForceUpdateConfigFile) {
-			this._sandboxConfigPath = await this._createSandboxConfig();
-			this._needsForceUpdateConfigFile = false;
-		}
-		return this._sandboxConfigPath;
-	}
-
-	private async _resolveSrtPath(): Promise<void> {
-		if (this._srtPathResolved) {
+	private async _resolveRuntimePaths(): Promise<void> {
+		if (this._runtimePathsResolved) {
 			return;
 		}
-		this._srtPathResolved = true;
+		this._runtimePathsResolved = true;
 		const remoteEnv = this._remoteEnvDetails || await this._remoteEnvDetailsPromise;
 		if (remoteEnv) {
 
 			this._appRoot = remoteEnv.appRoot.path;
-			this._execPath = this._pathJoin(this._appRoot, 'node');
 		}
-		this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
 		this._rgPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg');
-	}
-
-	private async _createSandboxConfig(): Promise<string | undefined> {
-		if (await this.isEnabled() && !this._tempDir) {
-			await this._initTempDir();
-		}
-		const runtimeConfig = await this._getSandboxSettings();
-		if (this._tempDir && runtimeConfig) {
-			const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
-			const persistedSettings = {
-				network: {
-					allowedDomains: runtimeConfig.network?.allowedDomains ?? [],
-					deniedDomains: runtimeConfig.network?.deniedDomains ?? []
-				},
-				filesystem: {
-					denyRead: runtimeConfig.filesystem?.denyRead ?? [],
-					allowWrite: runtimeConfig.filesystem?.allowWrite ?? [],
-					denyWrite: runtimeConfig.filesystem?.denyWrite ?? [],
-				}
-			};
-			this._sandboxConfigPath = configFileUri.path;
-			await this._fileService.createFile(configFileUri, VSBuffer.fromString(JSON.stringify(persistedSettings, null, '\t')), { overwrite: true });
-			return this._sandboxConfigPath;
-		}
-		return undefined;
 	}
 
 	private async _resetSandbox(): Promise<void> {
@@ -262,7 +211,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	}
 
 	private _handleSandboxConfigurationChange(): void {
-		this.setNeedsForceUpdateConfigFile();
 		this._resetSandbox().catch(error => {
 			this._logService.error('TerminalSandboxService: Failed to reset sandbox after configuration change', error);
 		});
@@ -310,7 +258,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 	private async _initTempDir(): Promise<void> {
 		if (await this.isEnabled()) {
-			this._needsForceUpdateConfigFile = true;
 			const remoteEnv = this._remoteEnvDetails || await this._remoteEnvDetailsPromise;
 			if (remoteEnv) {
 				this._tempDir = remoteEnv.tmpDir;
@@ -320,9 +267,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			}
 			if (this._tempDir) {
 				this._defaultWritePaths.push(this._tempDir.path);
-			}
-			if (!this._tempDir) {
-				this._logService.warn('TerminalSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
 			}
 		}
 	}

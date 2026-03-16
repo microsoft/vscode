@@ -24,4 +24,5 @@ export interface ICommandLineRewriterResult {
 	reasoning: string;
 	//for scenarios where we want to show a different command in the chat UI than what is actually run in the terminal
 	forDisplay?: string;
+	isSandboxWrapped?: boolean;
 }
