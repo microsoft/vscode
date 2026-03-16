@@ -338,7 +338,7 @@
 }
 
 .action-list-submenu-group-label {
-	font-size: 11px;
+	font-size: 13px;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
 	flex-shrink: 0;
