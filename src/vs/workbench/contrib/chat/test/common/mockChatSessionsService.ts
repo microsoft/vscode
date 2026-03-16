@@ -9,9 +9,9 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
+import { IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
-import { IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItem, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, IChatSessionItemsDelta } from '../../common/chatSessionsService.js';
+import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
@@ -228,5 +228,17 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	registerSessionResourceAlias(_untitledResource: URI, _realResource: URI): void {
 		// noop
+	}
+
+	registerChatSessionContribution(contribution: IChatSessionsExtensionPoint): IDisposable {
+		this.contributions.push(contribution);
+		return {
+			dispose: () => {
+				const idx = this.contributions.indexOf(contribution);
+				if (idx >= 0) {
+					this.contributions.splice(idx, 1);
+				}
+			}
+		};
 	}
 }

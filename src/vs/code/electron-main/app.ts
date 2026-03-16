@@ -121,6 +121,9 @@ import { ipcUtilityProcessWorkerChannelName } from '../../platform/utilityProces
 import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
 import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/electronPtyHostStarter.js';
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
+import { ElectronAgentHostStarter } from '../../platform/agentHost/electron-main/electronAgentHostStarter.js';
+import { AgentHostProcessManager } from '../../platform/agentHost/node/agentHostService.js';
+import { AgentHostEnabledSettingId } from '../../platform/agentHost/common/agentService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from '../../platform/remote/common/electronRemoteResources.js';
 import { Lazy } from '../../base/common/lazy.js';
 import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -1107,6 +1110,12 @@ export class CodeApplication extends Disposable {
 			this.loggerService
 		);
 		services.set(ILocalPtyService, ptyHostService);
+
+		// Agent Host
+		if (this.configurationService.getValue(AgentHostEnabledSettingId)) {
+			const agentHostStarter = new ElectronAgentHostStarter(this.environmentMainService, this.lifecycleMainService, this.logService);
+			this._register(new AgentHostProcessManager(agentHostStarter, this.logService, this.loggerService));
+		}
 
 		// External terminal
 		if (isWindows) {
