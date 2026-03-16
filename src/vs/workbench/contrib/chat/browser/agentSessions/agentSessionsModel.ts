@@ -490,13 +490,30 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		const providersToResolve = Array.from(this.providersToResolve);
 		this.providersToResolve.clear();
 
-		let providerFilter = providersToResolve.includes(undefined) ? undefined : coalesce(providersToResolve);
-		if (!providerFilter) {
-			providerFilter = this.chatSessionsService.getAllChatSessionContributions().map(contribution => contribution.type);
+		let providerFilter: string[] | undefined;
+		if (providersToResolve.includes(undefined)) {
+			// Explicit "all providers" request: keep filter undefined so that all
+			// providers/controllers are refreshed, including built-in ones.
+			providerFilter = undefined;
+		} else {
+			const coalesced = coalesce(providersToResolve);
+			// Treat an empty filter as "all" as well.
+			providerFilter = coalesced.length > 0 ? coalesced : undefined;
 		}
 
 		// Resolve provider not in sequence but parallel so that one slow provider
 		// does not block the others from resolving and showing up in the UI.
+
+		if (!providerFilter) {
+			// No specific providers requested: refresh and update all providers/controllers.
+			try {
+				await this.chatSessionsService.refreshChatSessionItems(undefined, token);
+				await this.updateItems(undefined, token);
+			} catch (error) {
+				this.logger.logIfTrace(`Error resolving sessions for all providers: ${error instanceof Error ? error.message : safeStringify(error)}`);
+			}
+			return;
+		}
 
 		await Promise.all(providerFilter.map(async provider => {
 			try {
