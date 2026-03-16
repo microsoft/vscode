@@ -874,12 +874,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		await this.tryActivateControllers(providersToResolve);
 
 		await Promise.all(Array.from(this._itemControllers).map(async ([chatSessionType, controllerEntry]) => {
+			const resolvedType = this._resolveToPrimaryType(chatSessionType) ?? chatSessionType;
+			if (providersToResolve && !providersToResolve.includes(resolvedType)) {
+				return; // skip: not considered for resolving
+			}
+
 			try {
 				await controllerEntry.controller.refresh(token);
 			} catch (err) {
 				if (!isCancellationError(err)) {
 					// Log error but continue with other providers
-					this._logService.error(`[ChatSessionsService] Failed to resolve sessions for provider ${chatSessionType}`, err);
+					this._logService.error(`[ChatSessionsService] Failed to resolve sessions for provider ${resolvedType}`, err);
 				}
 			}
 		}));

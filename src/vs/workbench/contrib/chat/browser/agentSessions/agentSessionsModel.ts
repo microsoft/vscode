@@ -490,10 +490,18 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		const providersToResolve = Array.from(this.providersToResolve);
 		this.providersToResolve.clear();
 
-		const providerFilter = providersToResolve.includes(undefined) ? undefined : coalesce(providersToResolve);
+		let providerFilter = providersToResolve.includes(undefined) ? undefined : coalesce(providersToResolve);
+		if (!providerFilter) {
+			providerFilter = this.chatSessionsService.getAllChatSessionContributions().map(contribution => contribution.type);
+		}
 
-		await this.chatSessionsService.refreshChatSessionItems(providerFilter, token);
-		await this.updateItems(providerFilter, token);
+		// Resolve provider not in sequence but parallel so that one slow provider
+		// does not block the others from resolving and showing up in the UI.
+
+		await Promise.all(providerFilter.map(async provider => {
+			await this.chatSessionsService.refreshChatSessionItems([provider], token);
+			await this.updateItems([provider], token);
+		}));
 	}
 
 	/**
@@ -505,17 +513,20 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
 
-		const providerResults = this.chatSessionsService.getChatSessionItems(providerFilter, token);
+		const providerResults: { readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }[] = [];
+		for await (const result of this.chatSessionsService.getChatSessionItems(providerFilter, token)) {
+			providerResults.push(result);
+		}
+
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		const resolvedProviders = new Set<string>();
 		const sessions = new ResourceMap<IInternalAgentSession>();
 
-		for await (const { chatSessionType, items: providerSessions } of providerResults) {
+		for (const { chatSessionType, items: providerSessions } of providerResults) {
 			resolvedProviders.add(chatSessionType);
-
-			if (token.isCancellationRequested) {
-				return;
-			}
 
 			for (const session of providerSessions) {
 				let icon: ThemeIcon;
