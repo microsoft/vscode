@@ -1549,8 +1549,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return true;
 		}
 
-		// Don't pin MCP tools
-		const isMcpTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.source?.type === 'mcp';
+		// Don't pin MCP tools + for CLI specficially, we parse tool name since CLI tools are "external" tools.
+		const isMcpTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && (part.source?.type === 'mcp' || part.toolId.toLowerCase().includes('mcp'));
 		if (isMcpTool) {
 			return false;
 		}
@@ -2046,6 +2046,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					wrapper.remove();
 				}
 				templateData.value.appendChild(createdPart.domNode);
+				// Decrement thinking part counters for the materialized item that was moved out
+				thinkingPart.removeMaterializedItem(toolInvocation.toolCallId);
 			} else {
 				thinkingPart.removeLazyItem(toolInvocation.toolId);
 				const { domNode } = createToolPart();

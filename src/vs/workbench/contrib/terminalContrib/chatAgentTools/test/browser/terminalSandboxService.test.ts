@@ -163,7 +163,7 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
 			allowedDomains: [],
 			deniedDomains: [],
-			allowTrustedDomains: false
+			allowTrustedDomains: true
 		});
 
 		instantiationService.stub(IConfigurationService, configurationService);
