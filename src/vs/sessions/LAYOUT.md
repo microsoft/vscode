@@ -473,6 +473,7 @@ The Sessions view is registered in `contrib/sessions/browser/sessions.contributi
 - **Container**: Sessions container in `ViewContainerLocation.Sidebar` (default)
 - **View**: `SessionsViewId` with `AgenticSessionsViewPane`
 - **Window visibility**: `WindowVisibility.Sessions`
+- **Customizations shortcuts**: The Customizations section at the bottom of the view is collapsed by default and persists its collapse state using `agentSessions.customizationsCollapsed`
 
 ---
 
@@ -640,6 +641,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-03-16 | Changed Sessions sidebar Customizations shortcuts section to be collapsed by default by changing the fallback for `agentSessions.customizationsCollapsed` to `true`; documented persisted collapse behavior in the layout and AI customizations specs |
 | 2026-03-02 | Fixed macOS sidebar traffic light spacer to only render with custom titlebar; added `!hasNativeTitlebar()` guard to `SidebarPart.createTitleArea()` so the 70px spacer is not created when using native titlebar (traffic lights are in the OS title bar, not overlapping the sidebar) |
 | 2026-02-20 | Replaced custom `EditorModal` with standard `ModalEditorPart` via `MODAL_GROUP`; main editor part created but hidden; changed `workbench.editor.useModal` from boolean to enum (`off`/`some`/`all`); sessions config uses `all`; removed `editorModal.ts` and editor modal CSS |
 | 2026-02-17 | Added `-webkit-app-region: drag` to sidebar title area so it can be used to drag the window; interactive children (actions, composite bar, labels) marked `no-drag`; CSS rules scoped to `.agent-sessions-workbench` in `parts/media/sidebarPart.css` |

@@ -50,6 +50,14 @@ src/vs/sessions/contrib/sessions/browser/
 └── customizationsToolbar.contribution.ts       # Sidebar customization links
 ```
 
+### Sessions Sidebar Customizations Section
+
+The Sessions sidebar includes a collapsible **Customizations** shortcuts section rendered by `AICustomizationShortcutsWidget` (`contrib/sessions/browser/aiCustomizationShortcutsWidget.ts`).
+
+- The section is **collapsed by default**
+- Collapse state is persisted in profile storage under `agentSessions.customizationsCollapsed`
+- The persisted preference overrides the default on subsequent launches
+
 ### IAICustomizationWorkspaceService
 
 The `IAICustomizationWorkspaceService` interface controls per-window behavior:
