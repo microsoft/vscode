@@ -130,6 +130,7 @@ suite('AgentSessionsDataSource', () => {
 			isArchived: () => overrides.isArchived ?? false,
 			setArchived: () => { },
 			isRead: () => overrides.isRead ?? true,
+			isMarkedUnread: () => false,
 			setRead: () => { },
 		};
 	}

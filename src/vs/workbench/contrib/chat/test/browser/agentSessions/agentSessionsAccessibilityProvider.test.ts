@@ -40,6 +40,7 @@ suite('AgentSessionsAccessibilityProvider', () => {
 			isArchived: () => false,
 			setArchived: () => { },
 			isRead: () => true,
+			isMarkedUnread: () => false,
 			setRead: () => { },
 		};
 	}
