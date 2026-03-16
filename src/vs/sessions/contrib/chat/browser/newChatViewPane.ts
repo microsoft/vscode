@@ -1014,7 +1014,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._projectPicker.removeFromRecents(folderUri);
 			const previousFolderUri = this._newSession.value?.repoUri;
 			if (previousFolderUri) {
-				this._projectPicker.setSelectedFolder(previousFolderUri);
+				this._projectPicker.setSelectedFolder(previousFolderUri, false);
 			} else {
 				this._projectPicker.clearSelection();
 			}
@@ -1047,11 +1047,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			if (draft.projectKind && draft.projectUri) {
 				try {
 					if (draft.projectKind === 'folder') {
-						this._projectPicker.setSelectedFolder(URI.parse(draft.projectUri));
+						this._projectPicker.setSelectedFolder(URI.parse(draft.projectUri), false);
+						this._currentTarget = AgentSessionProviders.Background;
 					} else if (draft.projectRepoId) {
-						this._projectPicker.setSelectedRepo(draft.projectRepoId);
+						this._projectPicker.setSelectedRepo(draft.projectRepoId, false);
+						this._currentTarget = AgentSessionProviders.Cloud;
 					}
-					this._currentTarget = draft.projectKind === 'folder' ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
 				} catch { /* ignore */ }
 			}
 		}

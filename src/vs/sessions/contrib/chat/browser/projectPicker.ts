@@ -248,25 +248,27 @@ export class ProjectPicker extends Disposable {
 
 	/**
 	 * Programmatically set the selected project from a folder URI.
+	 * @param fireEvent Whether to fire the onDidSelectProject event. Defaults to true.
 	 */
-	setSelectedFolder(folderUri: URI): void {
+	setSelectedFolder(folderUri: URI, fireEvent = true): void {
 		this._selectProject({
 			kind: 'folder',
 			uri: folderUri,
 			label: basename(folderUri),
-		});
+		}, fireEvent);
 	}
 
 	/**
 	 * Programmatically set the selected project from a repository id.
+	 * @param fireEvent Whether to fire the onDidSelectProject event. Defaults to true.
 	 */
-	setSelectedRepo(repoId: string): void {
+	setSelectedRepo(repoId: string, fireEvent = true): void {
 		this._selectProject({
 			kind: 'repo',
 			uri: URI.from({ scheme: 'github-remote-file', authority: 'github', path: `/${repoId}/HEAD` }),
 			label: repoId,
 			repoId,
-		});
+		}, fireEvent);
 	}
 
 	/**
@@ -290,13 +292,15 @@ export class ProjectPicker extends Disposable {
 		}
 	}
 
-	private _selectProject(project: IProjectSelection): void {
+	private _selectProject(project: IProjectSelection, fireEvent = true): void {
 		this._selectedProject = project;
 		const stored = this._toStored(project);
 		this._addToRecents(stored);
 		this.storageService.store(STORAGE_KEY_LAST_PROJECT, JSON.stringify(stored), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._updateTriggerLabel();
-		this._onDidSelectProject.fire(project);
+		if (fireEvent) {
+			this._onDidSelectProject.fire(project);
+		}
 	}
 
 	private async _browseForFolder(): Promise<void> {

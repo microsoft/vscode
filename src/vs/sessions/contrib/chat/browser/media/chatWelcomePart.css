@@ -202,41 +202,6 @@
 	font-size: 15px;
 }
 
-/* Target dropdown button */
-.sessions-chat-dropdown-button {
-	display: flex;
-	align-items: center;
-	height: 16px;
-	padding: 3px 3px 3px 6px;
-	cursor: pointer;
-	font-size: 13px;
-	color: var(--vscode-descriptionForeground);
-	background-color: transparent;
-	border: none;
-	white-space: nowrap;
-	border-radius: 4px;
-}
-
-.sessions-chat-dropdown-button:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-foreground);
-}
-
-.sessions-chat-dropdown-button:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.sessions-chat-dropdown-button .codicon {
-	font-size: 14px;
-	flex-shrink: 0;
-}
-
-.sessions-chat-dropdown-button .codicon.codicon-chevron-down {
-	font-size: 12px;
-	margin-left: 2px;
-}
-
 .sessions-chat-dropdown-label {
 	margin-left: 4px;
 }
