@@ -81,7 +81,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 							position: pickerOptions.hoverPosition
 						},
 						run: async () => {
-							if (worktreeIsolated) {
+							if (delegate.isWorktreeIsolated.get()) {
 								return;
 							}
 							delegate.setPermissionLevel(ChatPermissionLevel.Default);
@@ -110,7 +110,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 							position: pickerOptions.hoverPosition
 						},
 						run: async () => {
-							if (worktreeIsolated) {
+							if (delegate.isWorktreeIsolated.get()) {
 								return;
 							}
 							if (!hasShownElevatedWarning(ChatPermissionLevel.AutoApprove)) {
@@ -165,7 +165,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 							position: pickerOptions.hoverPosition
 						},
 						run: async () => {
-							if (worktreeIsolated) {
+							if (delegate.isWorktreeIsolated.get()) {
 								return;
 							}
 							if (!hasShownElevatedWarning(ChatPermissionLevel.Autopilot)) {

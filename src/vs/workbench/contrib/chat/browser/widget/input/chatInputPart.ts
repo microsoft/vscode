@@ -575,6 +575,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
 				if (ctx && (getChatSessionType(ctx.chatSessionResource) === chatSessionType) || delegateSessionType === chatSessionType) {
 					this.refreshChatSessionPickers();
+					this.updateWorktreeIsolationState(sessionResource);
 				}
 			}
 		}));
@@ -586,6 +587,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.agentSessionTypeKey.set(newSessionType);
 				this.updateWidgetLockStateFromSessionType(newSessionType);
 				this.refreshChatSessionPickers();
+				// Re-evaluate worktree isolation — the new session type may have
+				// a different isolation option than the previous one.
+				const sessionResource = this._widget?.viewModel?.model.sessionResource;
+				if (sessionResource) {
+					this.updateWorktreeIsolationState(sessionResource);
+				} else {
+					this._isWorktreeIsolated.set(false, undefined);
+				}
 			}));
 		}
 
