@@ -499,7 +499,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		});
 	}
 
-	async $provideChatSessionContent(handle: number, sessionResourceComponents: UriComponents, token: CancellationToken, context?: ChatSessionContentContextDto): Promise<ChatSessionDto> {
+	async $provideChatSessionContent(handle: number, sessionResourceComponents: UriComponents, context: ChatSessionContentContextDto, token: CancellationToken): Promise<ChatSessionDto> {
 		const provider = this._chatSessionContentProviders.get(handle);
 		if (!provider) {
 			throw new Error(`No provider for handle ${handle}`);

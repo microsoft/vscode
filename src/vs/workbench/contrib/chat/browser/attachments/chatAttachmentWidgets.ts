@@ -61,6 +61,7 @@ import { toHistoryItemHoverContent } from '../../../scm/browser/scmHistory.js';
 import { getHistoryItemEditorTitle } from '../../../scm/browser/util.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
+import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
@@ -437,9 +438,10 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		const ref = attachment.references?.[0]?.reference;
 		resource = ref && URI.isUri(ref) ? ref : undefined;
+		const imageData = coerceImageBuffer(attachment.value);
 		const clickHandler = async () => {
-			if (attachment.value instanceof Uint8Array && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
-				await this.openInCarousel(attachment.name, attachment.value, resource);
+			if ((resource || imageData) && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+				await this.openInCarousel(attachment.name, imageData, resource);
 			} else if (resource) {
 				await this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
 			}
@@ -448,12 +450,12 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'Current model';
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
-		this._register(createImageElements(resource, attachment.name, fullName, this.element, attachment.value as Uint8Array, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
+		this._register(createImageElements(resource, attachment.name, fullName, this.element, imageData ?? (attachment.value as Uint8Array), this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 
 		// Wire up click + keyboard (Enter/Space) open handlers
 		const canOpenCarousel = attachment.value instanceof Uint8Array && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled);
-		if (canOpenCarousel || resource) {
+		if ((imageData && canOpenCarousel) || resource) {
 			this.element.style.cursor = 'pointer';
 			this._register(registerOpenEditorListeners(this.element, async () => {
 				await clickHandler();
@@ -467,7 +469,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 	}
 
-	private async openInCarousel(name: string, data: Uint8Array, referenceUri: URI | undefined): Promise<void> {
+	private async openInCarousel(name: string, data: Uint8Array | undefined, referenceUri: URI | undefined): Promise<void> {
 		const resource = referenceUri ?? URI.from({ scheme: 'data', path: name });
 		await this.chatImageCarouselService.openCarouselAtResource(resource, data);
 	}
