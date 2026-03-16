@@ -215,8 +215,16 @@ suite('Workbench - TextModelResolverService', () => {
 		const ref = await accessor.textModelResolverService.createModelReference(resource);
 		const model = ref.object;
 		assert.ok(model);
-		assert.strictEqual(model.textEditorModel.getValue(), 'Hello InMemory');
+		const textModel = model.textEditorModel;
+		assert.ok(textModel);
+		assert.strictEqual(textModel.getValue(), 'Hello InMemory');
+		assert(!textModel.isDisposed(), 'the inMemory text model should not be disposed before releasing the reference');
+
+		const p = new Promise<void>(resolve => disposables.add(textModel.onWillDispose(resolve)));
 		ref.dispose();
+
+		await p;
+		assert(textModel.isDisposed(), 'the inMemory text model should be disposed after the reference is released');
 	});
 
 	test('resolve inMemory throws when model not found', async () => {
