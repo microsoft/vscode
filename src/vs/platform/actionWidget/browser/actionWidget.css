@@ -269,16 +269,13 @@
 }
 
 .action-list-submenu-hover {
-	padding: 6px 12px 6px 24px;
-	font-size: 12px;
-	line-height: 1.5;
+	padding: 6px 12px;
+	font-size: 13px;
+	line-height: 1.4;
 	max-width: 300px;
-	color: var(--vscode-descriptionForeground);
 }
 
 .action-list-submenu-hover p:first-child {
-	color: var(--vscode-menu-foreground);
-	font-size: 13px;
 	font-weight: 600;
 }
 
