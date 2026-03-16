@@ -127,7 +127,7 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 	// Group: Modal (gated behind a setting)
 	else if (preferredGroup === MODAL_GROUP) {
 		const modalMode = configurationService.getValue<string>('workbench.editor.useModal');
-		if (modalMode === 'essential-only') {
+		if (modalMode === 'required-only') {
 			// Only allow modal for editors that explicitly require it
 			const editorInput = isEditorInputWithOptions(input) ? input.editor : input;
 			if (isEditorInput(editorInput) && editorInput.hasCapability(EditorInputCapabilities.RequiresModal)) {

@@ -352,15 +352,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.useModal': {
 				'type': 'string',
-				'enum': ['off', 'essential-only', 'some', 'all'],
+				'enum': ['off', 'required-only', 'some', 'all'],
 				'enumDescriptions': [
 					localize('useModal.off', "Editors never open in a modal overlay."),
-					localize('useModal.essentialOnly', "Only editors that specifically require a modal overlay will open in one."),
+					localize('useModal.requiredOnly', "Only editors that specifically require a modal overlay will open in one."),
 					localize('useModal.some', "Certain editors such as Settings and Keyboard Shortcuts may open in a centered modal overlay."),
 					localize('useModal.all', "All editors open in a centered modal overlay."),
 				],
 				'description': localize('useModal', "Controls whether editors open in a modal overlay."),
-				'default': 'essential-only',
+				'default': 'required-only',
 				tags: ['experimental'],
 				experiment: {
 					mode: 'auto'
