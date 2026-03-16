@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * Issue Reporter — Flex Sibling Approach.
- * body becomes flex column. Header/footer are siblings of the workbench.
- * JS uses a MutationObserver to override the workbench height after
- * VS Code's layout() sets it. No transforms, no overlays, no !important.
+ * Issue Reporter — Wizard UI.
+ * body becomes flex column. The wizard panel is inserted BEFORE the workbench.
+ * layout.ts detects 'issue-reporter-active' on parent and subtracts sibling heights.
+ * The wizard panel animates open/close via max-height transition.
  */
 
 body.issue-reporter-active {
@@ -16,281 +16,505 @@ body.issue-reporter-active {
 	overflow: hidden !important;
 }
 
-.issue-reporter-state {
-	display: none;
-}
-
-/* ── Header ── */
-.issue-reporter-header {
-	flex-shrink: 0;
-	padding: 6px 12px;
-	padding-right: 140px;
-	/* space for window controls */
-	background: var(--vscode-titleBar-activeBackground, #3c3c3c);
-	border-bottom: 1px solid var(--vscode-panel-border, #444);
-	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
-	font-size: 13px;
-	color: var(--vscode-titleBar-activeForeground, #ccc);
-	-webkit-app-region: drag;
-}
-
-.issue-reporter-header > * {
-	-webkit-app-region: no-drag;
-}
-
-/* Make the annotation editor toolbar match window controls color too */
-.issue-reporter-annotation-overlay {
-	--issue-reporter-toolbar-bg: var(--vscode-titleBar-activeBackground, #3c3c3c);
-}
-
-/* ── Footer ── */
-.issue-reporter-footer {
-	flex-shrink: 0;
-	padding: 8px 12px;
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	background: var(--vscode-panel-background, var(--vscode-sideBar-background, #252526));
-	border-top: 1px solid var(--vscode-panel-border, #444);
-	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
-	font-size: 13px;
-	color: var(--vscode-foreground, #ccc);
-}
-
-/* ── Rows ── */
-.issue-reporter-row {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	flex-wrap: wrap;
-}
-
-.issue-reporter-label {
-	font-size: 12px;
-	font-weight: 600;
-	white-space: nowrap;
-}
-
 .spacer {
 	flex: 1;
 }
 
-/* ── Inputs ── */
-.issue-reporter-header select,
-.issue-reporter-footer select {
-	height: 24px;
-	font-size: 12px;
-	font-family: inherit;
+/* ═══════════════════════════════════════════════
+   Wizard Panel — the top section that pushes
+   the workbench down
+   ═══════════════════════════════════════════════ */
+.issue-reporter-wizard {
+	flex-shrink: 0;
+	display: flex;
+	flex-direction: column;
+	max-height: 0;
+	overflow: hidden;
+	transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+	background: var(--vscode-editor-background, #1e1e1e);
+	border-bottom: 3px solid var(--vscode-focusBorder, #007acc);
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
+	font-size: 13px;
 	color: var(--vscode-foreground, #ccc);
-	background: var(--vscode-dropdown-background, #3c3c3c);
-	border: 1px solid var(--vscode-dropdown-border, #555);
-	border-radius: 2px;
-	padding: 0 4px;
-	outline: none;
 }
 
-.issue-reporter-header select:focus,
-.issue-reporter-footer select:focus {
+.issue-reporter-wizard.open {
+	max-height: 50vh;
+}
+
+/* ── Toolbar ── */
+.wizard-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 16px;
+	padding-right: 140px;
+	background: var(--vscode-titleBar-activeBackground, #3c3c3c);
+	border-bottom: 1px solid var(--vscode-panel-border, #444);
+	-webkit-app-region: drag;
+	flex-shrink: 0;
+}
+
+.wizard-toolbar > * {
+	-webkit-app-region: no-drag;
+}
+
+/* Progress area */
+.wizard-progress-area {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.wizard-progress-dots {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.wizard-progress-dot {
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	border: 2px solid var(--vscode-foreground, #888);
+	background: transparent;
+	transition: all 0.2s ease;
+	opacity: 0.4;
+}
+
+.wizard-progress-dot.active {
 	border-color: var(--vscode-focusBorder, #007acc);
+	background: var(--vscode-focusBorder, #007acc);
+	opacity: 1;
+	transform: scale(1.15);
 }
 
-.issue-title-input {
+.wizard-progress-dot.completed {
+	border-color: var(--vscode-focusBorder, #007acc);
+	background: var(--vscode-focusBorder, #007acc);
+	opacity: 0.7;
+}
+
+.wizard-step-indicator {
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+	color: var(--vscode-titleBar-activeForeground, #ccc);
+}
+
+.wizard-step-label {
+	font-size: 12px;
+	white-space: nowrap;
+	color: var(--vscode-titleBar-activeForeground, #999);
+}
+
+.wizard-discard {
+	font-size: 12px;
+	cursor: pointer;
+	color: var(--vscode-titleBar-activeForeground, #999);
+	white-space: nowrap;
+	padding: 4px 8px;
+	border-radius: 3px;
+}
+
+.wizard-discard:hover {
+	color: var(--vscode-titleBar-activeForeground, #ccc);
+	background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Step Container ── */
+.wizard-step-container {
 	flex: 1;
-	min-width: 120px;
-	height: 24px;
-	font-size: 12px;
-	font-family: inherit;
-	color: var(--vscode-input-foreground, #ccc);
-	background: var(--vscode-input-background, #3c3c3c);
-	border: 1px solid var(--vscode-input-border, #555);
-	border-radius: 2px;
-	padding: 0 6px;
-	outline: none;
+	position: relative;
+	overflow: hidden;
+	min-height: 0;
 }
 
-.issue-title-input:focus {
-	border-color: var(--vscode-focusBorder, #007acc);
+/* ── Individual Steps ── */
+.wizard-step {
+	display: flex;
+	flex-direction: column;
+	padding: 24px 40px;
+	gap: 12px;
+	overflow-y: auto;
+	position: absolute;
+	inset: 0;
+	transition: transform 0.25s ease, opacity 0.25s ease;
 }
 
-.issue-title-input::placeholder {
-	color: var(--vscode-input-placeholderForeground, #888);
+.wizard-step.slide-out-left {
+	transform: translateX(-100%);
+	opacity: 0;
 }
 
-.description-input {
-	width: 100%;
-	font-size: 12px;
-	font-family: inherit;
+.wizard-step.slide-out-right {
+	transform: translateX(100%);
+	opacity: 0;
+}
+
+.wizard-step.slide-in-right {
+	animation: slideInRight 0.25s ease forwards;
+}
+
+.wizard-step.slide-in-left {
+	animation: slideInLeft 0.25s ease forwards;
+}
+
+@keyframes slideInRight {
+	from {
+		transform: translateX(100%);
+		opacity: 0;
+	}
+	to {
+		transform: translateX(0);
+		opacity: 1;
+	}
+}
+
+@keyframes slideInLeft {
+	from {
+		transform: translateX(-100%);
+		opacity: 0;
+	}
+	to {
+		transform: translateX(0);
+		opacity: 1;
+	}
+}
+
+/* ── Wizard Typography ── */
+.wizard-heading {
+	margin: 0;
+	font-size: 22px;
+	font-weight: 600;
+	color: var(--vscode-foreground, #eee);
+	line-height: 1.3;
+}
+
+.wizard-subtitle {
+	margin: 0;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground, #999);
 	line-height: 1.4;
+}
+
+/* ── Wizard Inputs ── */
+.wizard-textarea {
+	width: 100%;
+	min-height: 80px;
+	max-height: 160px;
+	font-size: 13px;
+	font-family: inherit;
+	line-height: 1.5;
 	color: var(--vscode-input-foreground, #ccc);
 	background: var(--vscode-input-background, #3c3c3c);
 	border: 1px solid var(--vscode-input-border, #555);
-	border-radius: 2px;
-	padding: 4px 6px;
+	border-radius: 4px;
+	padding: 10px 12px;
 	outline: none;
 	resize: vertical;
-	min-height: 36px;
-	max-height: 80px;
 	box-sizing: border-box;
 }
 
-.description-input:focus {
+.wizard-textarea:focus {
 	border-color: var(--vscode-focusBorder, #007acc);
 }
 
-.description-input::placeholder {
+.wizard-textarea::placeholder {
 	color: var(--vscode-input-placeholderForeground, #888);
 }
 
-/* ── Form validation ── */
-.issue-title-input.invalid-input,
-.description-input.invalid-input {
+.wizard-textarea.invalid-input,
+.wizard-title-input.invalid-input {
 	border-color: var(--vscode-inputValidation-errorBorder, #be1100) !important;
 	background: var(--vscode-inputValidation-errorBackground, rgba(190, 17, 0, 0.1));
 }
 
-/* ── Screenshot button group ── */
-.screenshot-btn-group {
+/* ── Category Buttons (Step 2) ── */
+.wizard-type-buttons {
 	display: flex;
-	align-items: center;
-	position: relative;
-	flex: 1;
-	min-width: 0;
-}
-
-.screenshot-btn-group .delay-btn {
-	display: flex;
-	align-items: center;
-	gap: 3px;
-	height: 24px;
-	padding: 0 8px;
-	font-size: 12px;
-	font-family: inherit;
-	cursor: pointer;
-	border: none;
-	border-left: 1px solid rgba(255, 255, 255, 0.2);
-	border-radius: 0 2px 2px 0;
-	color: var(--vscode-button-foreground, #fff);
-	background: var(--vscode-button-background, #0e639c);
-}
-
-.screenshot-btn-group .delay-btn:hover {
-	background: var(--vscode-button-hoverBackground, #1177bb);
-}
-
-.screenshot-btn-group .delay-label {
-	white-space: nowrap;
-}
-
-.screenshot-btn-group .monaco-button {
-	flex: 1;
-	border-radius: 2px 0 0 2px !important;
-}
-
-.screenshot-btn-group .delay-dropdown {
-	position: absolute;
-	bottom: 100%;
-	right: 0;
-	margin-bottom: 2px;
-	background: var(--vscode-editorWidget-background, #2d2d2d);
-	border: 1px solid var(--vscode-editorWidget-border, #555);
-	border-radius: 4px;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-	z-index: 1;
-	min-width: 100px;
-	overflow: hidden;
-}
-
-.screenshot-btn-group .delay-option {
-	padding: 4px 12px;
-	font-size: 12px;
-	cursor: pointer;
-	color: var(--vscode-foreground, #ccc);
-	white-space: nowrap;
-}
-
-.screenshot-btn-group .delay-option:hover {
-	background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.05));
-}
-
-.screenshot-btn-group .delay-option.active {
-	background: var(--vscode-list-activeSelectionBackground, #0e639c);
-	color: var(--vscode-list-activeSelectionForeground, #fff);
-}
-
-.issue-close-btn {
-	width: 22px;
-	height: 22px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	cursor: pointer;
-	border-radius: 3px;
-	color: inherit;
-	flex-shrink: 0;
-}
-
-.issue-close-btn:hover {
-	background: rgba(255, 255, 255, 0.1);
-}
-
-/* ── Thumbnails ── */
-.screenshot-thumbnails {
-	display: flex;
-	gap: 4px;
-	align-items: center;
+	gap: 10px;
 	flex-wrap: wrap;
+	margin-top: 8px;
 }
 
-.screenshot-thumbnails:empty {
-	display: none;
+.wizard-type-btn {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 20px;
+	border-radius: 20px;
+	border: 1px solid var(--vscode-input-border, #555);
+	background: transparent;
+	cursor: pointer;
+	font-size: 13px;
+	color: var(--vscode-foreground, #ccc);
+	transition: all 0.15s ease;
+	user-select: none;
 }
 
-.screenshot-thumbnail {
+.wizard-type-btn:hover {
+	border-color: var(--vscode-focusBorder, #007acc);
+	background: rgba(255, 255, 255, 0.04);
+}
+
+.wizard-type-btn.selected {
+	border-color: var(--vscode-focusBorder, #007acc);
+	background: var(--vscode-focusBorder, #007acc);
+	color: var(--vscode-button-foreground, #fff);
+}
+
+.wizard-type-icon {
+	display: flex;
+	align-items: center;
+	font-size: 16px;
+}
+
+/* ── Screenshot Cards (Step 3) ── */
+.wizard-screenshots {
+	display: flex;
+	gap: 12px;
+	flex-wrap: wrap;
+	margin-top: 8px;
+	min-height: 60px;
+}
+
+.wizard-screenshots-empty {
+	color: var(--vscode-descriptionForeground, #888);
+	font-style: italic;
+	display: flex;
+	align-items: center;
+}
+
+.wizard-screenshot-card {
 	position: relative;
-	width: 48px;
-	height: 32px;
-	border-radius: 3px;
+	width: 160px;
+	height: 100px;
+	border-radius: 6px;
 	overflow: hidden;
 	border: 1px solid var(--vscode-input-border, #555);
 	cursor: pointer;
+	transition: border-color 0.15s;
 }
 
-.screenshot-thumbnail:hover {
+.wizard-screenshot-card:hover {
 	border-color: var(--vscode-focusBorder, #007acc);
 }
 
-.screenshot-thumbnail img {
+.wizard-screenshot-card img {
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
 	display: block;
 }
 
-.screenshot-thumbnail .screenshot-delete {
+.wizard-screenshot-delete {
 	position: absolute;
-	top: 1px;
-	right: 1px;
-	width: 14px;
-	height: 14px;
+	top: 4px;
+	right: 4px;
+	width: 20px;
+	height: 20px;
 	border-radius: 50%;
-	background: rgba(0, 0, 0, .7);
+	background: rgba(0, 0, 0, .75);
 	color: #fff;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 9px;
+	font-size: 12px;
 	cursor: pointer;
 	opacity: 0;
 	transition: opacity .15s;
 }
 
-.screenshot-thumbnail:hover .screenshot-delete {
+.wizard-screenshot-card:hover .wizard-screenshot-delete {
 	opacity: 1;
 }
 
-/* ── Buttons ── */
-.issue-reporter-header .monaco-button,
-.issue-reporter-footer .monaco-button,
+.wizard-screenshot-add {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-style: dashed;
+	background: transparent;
+}
+
+.wizard-screenshot-plus {
+	font-size: 28px;
+	color: var(--vscode-descriptionForeground, #888);
+}
+
+.wizard-screenshot-add:hover .wizard-screenshot-plus {
+	color: var(--vscode-focusBorder, #007acc);
+}
+
+/* ── Screenshot Actions ── */
+.wizard-screenshot-actions {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-top: 8px;
+}
+
+.wizard-delay-group {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.wizard-delay-label {
+	font-size: 12px;
+	white-space: nowrap;
+	color: var(--vscode-descriptionForeground, #999);
+}
+
+.wizard-delay-select {
+	height: 28px;
+	font-size: 12px;
+	font-family: inherit;
+	color: var(--vscode-foreground, #ccc);
+	background: var(--vscode-dropdown-background, #3c3c3c);
+	border: 1px solid var(--vscode-dropdown-border, #555);
+	border-radius: 4px;
+	padding: 0 6px;
+	outline: none;
+}
+
+.wizard-delay-select:focus {
+	border-color: var(--vscode-focusBorder, #007acc);
+}
+
+.wizard-capture-btn {
+	gap: 6px;
+}
+
+.wizard-capture-btn.disabled {
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+.wizard-capture-icon {
+	display: flex;
+	font-size: 14px;
+}
+
+/* ── Review Step (Step 4) ── */
+.wizard-field {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.wizard-field-label {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-foreground, #ccc);
+}
+
+.wizard-title-input {
+	width: 100%;
+	height: 32px;
+	font-size: 13px;
+	font-family: inherit;
+	color: var(--vscode-input-foreground, #ccc);
+	background: var(--vscode-input-background, #3c3c3c);
+	border: 1px solid var(--vscode-input-border, #555);
+	border-radius: 4px;
+	padding: 0 10px;
+	outline: none;
+	box-sizing: border-box;
+}
+
+.wizard-title-input:focus {
+	border-color: var(--vscode-focusBorder, #007acc);
+}
+
+.wizard-title-input::placeholder {
+	color: var(--vscode-input-placeholderForeground, #888);
+}
+
+.wizard-review-details {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	margin-top: 12px;
+}
+
+.review-section {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.review-label {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-foreground, #ccc);
+}
+
+.review-value {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground, #999);
+	white-space: pre-wrap;
+	word-break: break-word;
+	max-height: 60px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* ── Bottom Navigation ── */
+.wizard-nav {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 16px;
+	border-top: 1px solid var(--vscode-panel-border, #444);
+	flex-shrink: 0;
+	background: var(--vscode-editor-background, #1e1e1e);
+}
+
+.wizard-nav-btn {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 16px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 13px;
+	user-select: none;
+	white-space: nowrap;
+	color: var(--vscode-foreground, #ccc);
+	border: 1px solid var(--vscode-input-border, #555);
+	background: transparent;
+	transition: all 0.15s ease;
+}
+
+.wizard-nav-btn:hover {
+	background: rgba(255, 255, 255, 0.06);
+	border-color: var(--vscode-foreground, #999);
+}
+
+.wizard-nav-btn.primary {
+	color: var(--vscode-button-foreground, #fff);
+	background: var(--vscode-button-background, #0e639c);
+	border-color: var(--vscode-button-background, #0e639c);
+}
+
+.wizard-nav-btn.primary:hover {
+	background: var(--vscode-button-hoverBackground, #1177bb);
+	border-color: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.wizard-nav-btn.submit {
+	background: var(--vscode-testing-runAction, #73c991);
+	border-color: var(--vscode-testing-runAction, #73c991);
+	color: #000;
+}
+
+.wizard-nav-btn.submit:hover {
+	filter: brightness(1.1);
+}
+
+/* ── Annotation Editor Buttons ── */
 .issue-reporter-annotation-overlay .monaco-button {
 	color: var(--vscode-button-foreground, #fff) !important;
 	background: var(--vscode-button-background, #0e639c) !important;
@@ -303,8 +527,6 @@ body.issue-reporter-active {
 	cursor: pointer;
 }
 
-.issue-reporter-header .monaco-button:hover,
-.issue-reporter-footer .monaco-button:hover,
 .issue-reporter-annotation-overlay .monaco-button:hover {
 	background: var(--vscode-button-hoverBackground, #1177bb) !important;
 }
