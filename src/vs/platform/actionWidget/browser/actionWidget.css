@@ -258,22 +258,22 @@
 
 /* Description group wraps description + twistie for hover feedback */
 .action-widget .monaco-list-row.action .description-group {
+	display: none;
+}
+
+.action-widget .monaco-list-row.action.has-submenu .description-group {
 	display: flex;
 	align-items: center;
 	border-radius: 4px;
-	padding: 2px 4px;
 	height: 18px;
+	margin-left: auto;
+	padding-left: 6px;
 }
 
 .action-widget .monaco-list-row.action .action-list-submenu-indicator {
 	display: flex;
 	align-items: center;
-	padding: 0 2px;
-	visibility: hidden;
-}
-
-/* Always reserve space for twistie when item has submenu */
-.action-widget .monaco-list-row.action.has-submenu .action-list-submenu-indicator {
+	padding: 0 8px 0 4px;
 	visibility: hidden;
 }
 
