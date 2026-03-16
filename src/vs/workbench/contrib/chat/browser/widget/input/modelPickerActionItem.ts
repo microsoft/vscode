@@ -150,6 +150,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
  */
 export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 	protected currentModel: ILanguageModelChatMetadataAndIdentifier | undefined;
+	private readonly _languageModelsService: ILanguageModelsService;
 
 	constructor(
 		action: IAction,
@@ -180,6 +181,7 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 		};
 
 		super(actionWithLabel, widgetOptions ?? modelPickerActionWidgetOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
+		this._languageModelsService = languageModelsService;
 		this.currentModel = delegate.currentModel.get();
 
 		// Listen for model changes from the delegate
@@ -214,7 +216,10 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 			domChildren.push(iconElement);
 		}
 
-		domChildren.push(dom.$('span.chat-input-picker-label', undefined, name ?? localize('chat.modelPicker.auto', "Auto")));
+		const modelLabel = name ?? localize('chat.modelPicker.auto', "Auto");
+		const configDescription = this.currentModel ? this._languageModelsService.getModelConfigurationDescription(this.currentModel.identifier) : undefined;
+		const fullLabel = configDescription ? `${modelLabel} · ${configDescription}` : modelLabel;
+		domChildren.push(dom.$('span.chat-input-picker-label', undefined, fullLabel));
 		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...domChildren);
