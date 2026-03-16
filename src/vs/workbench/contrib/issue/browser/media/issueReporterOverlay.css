@@ -188,9 +188,9 @@ body.issue-reporter-active {
 
 .screenshot-btn-group .delay-dropdown {
 	position: absolute;
-	top: 100%;
+	bottom: 100%;
 	right: 0;
-	margin-top: 2px;
+	margin-bottom: 2px;
 	background: var(--vscode-editorWidget-background, #2d2d2d);
 	border: 1px solid var(--vscode-editorWidget-border, #555);
 	border-radius: 4px;
@@ -238,6 +238,11 @@ body.issue-reporter-active {
 	display: flex;
 	gap: 4px;
 	align-items: center;
+	flex-wrap: wrap;
+}
+
+.screenshot-thumbnails:empty {
+	display: none;
 }
 
 .screenshot-thumbnail {
@@ -442,4 +447,22 @@ body.issue-reporter-active {
 	min-width: 100px;
 	color: inherit;
 	z-index: 1;
+}
+
+/* ── Toolbar selects (font family / size) ── */
+.issue-reporter-annotation-overlay .annotation-toolbar .toolbar-select {
+	height: 24px;
+	font-size: 11px;
+	font-family: inherit;
+	color: var(--vscode-foreground, #ccc);
+	background: var(--vscode-dropdown-background, #3c3c3c);
+	border: 1px solid var(--vscode-dropdown-border, #555);
+	border-radius: 2px;
+	padding: 0 4px;
+	outline: none;
+	cursor: pointer;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .toolbar-select:focus {
+	border-color: var(--vscode-focusBorder, #007acc);
 }

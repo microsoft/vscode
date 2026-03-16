@@ -11,6 +11,7 @@ import { localize } from '../../../../nls.js';
 import { IScreenshot } from './issueReporterOverlay.js';
 
 const enum AnnotationTool {
+	Select = 'select',
 	Freehand = 'freehand',
 	Rectangle = 'rectangle',
 	Arrow = 'arrow',
@@ -28,16 +29,26 @@ const COLORS = [
 	'#ffffff', // white
 ];
 
+const FONT_FAMILIES = [
+	{ label: 'Sans-serif', value: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
+	{ label: 'Monospace', value: '"Cascadia Code", "Fira Code", Consolas, monospace' },
+	{ label: 'Serif', value: 'Georgia, "Times New Roman", serif' },
+];
+
+const FONT_SIZES = [12, 16, 20, 24, 32, 48];
+
 interface DrawAction {
 	readonly type: AnnotationTool;
-	readonly color: string;
-	readonly lineWidth: number;
-	readonly points?: { x: number; y: number }[];
-	readonly rect?: { x: number; y: number; width: number; height: number };
-	readonly arrowStart?: { x: number; y: number };
-	readonly arrowEnd?: { x: number; y: number };
-	readonly text?: string;
-	readonly textPos?: { x: number; y: number };
+	color: string;
+	lineWidth: number;
+	fontSize?: number;
+	fontFamily?: string;
+	points?: { x: number; y: number }[];
+	rect?: { x: number; y: number; width: number; height: number };
+	arrowStart?: { x: number; y: number };
+	arrowEnd?: { x: number; y: number };
+	text?: string;
+	textPos?: { x: number; y: number };
 }
 
 export class ScreenshotAnnotationEditor {
@@ -74,6 +85,15 @@ export class ScreenshotAnnotationEditor {
 	private cropRect: { x: number; y: number; width: number; height: number } | null = null;
 	private hasUserZoomed = false;
 
+	// Selection (Select tool)
+	private selectedActionIndex = -1;
+	private isDraggingSelected = false;
+	private dragStart = { x: 0, y: 0 };
+
+	// Text configuration
+	private activeFontSize = 16;
+	private activeFontFamily = FONT_FAMILIES[0].value;
+
 
 	constructor(
 		private readonly screenshot: IScreenshot,
@@ -92,6 +112,7 @@ export class ScreenshotAnnotationEditor {
 
 		// Tool buttons
 		const tools: { tool: AnnotationTool; label: string; icon: string }[] = [
+			{ tool: AnnotationTool.Select, label: localize('select', "Select / Move"), icon: '\u2196' },
 			{ tool: AnnotationTool.Pan, label: localize('pan', "Pan"), icon: '\u270B' },
 			{ tool: AnnotationTool.Freehand, label: localize('freehand', "Draw"), icon: '\u270E' },
 			{ tool: AnnotationTool.Rectangle, label: localize('rectangle', "Rectangle"), icon: '\u25A1' },
@@ -112,10 +133,14 @@ export class ScreenshotAnnotationEditor {
 			toolButtons.push(btn);
 			this.disposables.add(addDisposableListener(btn, EventType.CLICK, () => {
 				this.activeTool = tool;
+				this.selectedActionIndex = -1;
 				for (const b of toolButtons) {
 					b.classList.remove('active');
 				}
 				btn.classList.add('active');
+				this.canvas.style.cursor = tool === AnnotationTool.Select ? 'default' :
+					tool === AnnotationTool.Pan ? 'grab' : 'crosshair';
+				this.redraw();
 			}));
 		}
 
@@ -161,6 +186,37 @@ export class ScreenshotAnnotationEditor {
 		// Close popover on outside click
 		this.disposables.add(addDisposableListener(this.container, EventType.CLICK, () => {
 			colorPopover.style.display = 'none';
+		}));
+
+		// Separator
+		append(toolbar, $('div.toolbar-separator'));
+
+		// Font family selector
+		const fontFamilySelect = append(toolbar, $('select.toolbar-select')) as HTMLSelectElement;
+		fontFamilySelect.title = localize('fontFamily', "Font Family");
+		for (const ff of FONT_FAMILIES) {
+			const opt = fontFamilySelect.ownerDocument.createElement('option');
+			opt.value = ff.value;
+			opt.textContent = ff.label;
+			fontFamilySelect.appendChild(opt);
+		}
+		fontFamilySelect.value = this.activeFontFamily;
+		this.disposables.add(addDisposableListener(fontFamilySelect, EventType.CHANGE, () => {
+			this.activeFontFamily = fontFamilySelect.value;
+		}));
+
+		// Font size selector
+		const fontSizeSelect = append(toolbar, $('select.toolbar-select')) as HTMLSelectElement;
+		fontSizeSelect.title = localize('fontSize', "Font Size");
+		for (const size of FONT_SIZES) {
+			const opt = fontSizeSelect.ownerDocument.createElement('option');
+			opt.value = String(size);
+			opt.textContent = `${size}px`;
+			fontSizeSelect.appendChild(opt);
+		}
+		fontSizeSelect.value = String(this.activeFontSize);
+		this.disposables.add(addDisposableListener(fontSizeSelect, EventType.CHANGE, () => {
+			this.activeFontSize = parseInt(fontSizeSelect.value);
 		}));
 
 		// Spacer
@@ -220,13 +276,24 @@ export class ScreenshotAnnotationEditor {
 			this.redraw();
 		}, { passive: false }));
 
-		// Escape key
+		// Keyboard shortcuts
 		this.disposables.add(addDisposableListener(this.container, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (e.key === 'Escape') {
+				if (this.selectedActionIndex >= 0) {
+					this.selectedActionIndex = -1;
+					this.redraw();
+					return;
+				}
 				e.preventDefault();
 				e.stopPropagation();
 				this._onDidCancel.fire();
 				this.dispose();
+			} else if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedActionIndex >= 0) {
+				e.preventDefault();
+				this.actions.splice(this.selectedActionIndex, 1);
+				this.selectedActionIndex = -1;
+				this.undoneActions.length = 0;
+				this.redraw();
 			}
 		}));
 	}
@@ -284,6 +351,23 @@ export class ScreenshotAnnotationEditor {
 	private onPointerDown(e: PointerEvent): void {
 		const pos = this.canvasCoords(e);
 
+		// Select tool: hit test and start drag
+		if (this.activeTool === AnnotationTool.Select) {
+			const hitIndex = this.hitTest(pos);
+			this.selectedActionIndex = hitIndex;
+			if (hitIndex >= 0) {
+				this.isDraggingSelected = true;
+				this.dragStart = { x: pos.x, y: pos.y };
+				this.canvas.setPointerCapture(e.pointerId);
+				this.canvas.style.cursor = 'move';
+			}
+			this.redraw();
+			return;
+		}
+
+		// Deselect when using other tools
+		this.selectedActionIndex = -1;
+
 		// Text tool: don't capture pointer — we need to focus the text input
 		if (this.activeTool === AnnotationTool.Text) {
 			this.showInlineTextInput(pos);
@@ -335,6 +419,17 @@ export class ScreenshotAnnotationEditor {
 	}
 
 	private onPointerMove(e: PointerEvent): void {
+		// Select tool: move selected element
+		if (this.isDraggingSelected && this.selectedActionIndex >= 0) {
+			const pos = this.canvasCoords(e);
+			const dx = pos.x - this.dragStart.x;
+			const dy = pos.y - this.dragStart.y;
+			this.moveAction(this.actions[this.selectedActionIndex], dx, dy);
+			this.dragStart = { x: pos.x, y: pos.y };
+			this.redraw();
+			return;
+		}
+
 		// Pan
 		if (this.isPanning) {
 			const dx = e.clientX - this.lastPanPoint.x;
@@ -387,6 +482,14 @@ export class ScreenshotAnnotationEditor {
 	}
 
 	private onPointerUp(e: PointerEvent): void {
+		// Select tool: end drag
+		if (this.isDraggingSelected) {
+			this.isDraggingSelected = false;
+			this.canvas.releasePointerCapture(e.pointerId);
+			this.canvas.style.cursor = 'default';
+			return;
+		}
+
 		// Pan
 		if (this.isPanning) {
 			this.isPanning = false;
@@ -495,7 +598,8 @@ export class ScreenshotAnnotationEditor {
 		input.style.left = `${leftPos}px`;
 		input.style.top = `${topPos}px`;
 		input.style.color = this.activeColor;
-		input.style.fontSize = `${Math.max(14, 14 * this.scale)}px`;
+		input.style.fontSize = `${Math.max(12, this.activeFontSize * this.scale)}px`;
+		input.style.fontFamily = this.activeFontFamily;
 		input.placeholder = localize('typeText', "Type text...");
 		canvasContainer.appendChild(input);
 
@@ -520,6 +624,8 @@ export class ScreenshotAnnotationEditor {
 					type: AnnotationTool.Text,
 					color: this.activeColor,
 					lineWidth: 1,
+					fontSize: this.activeFontSize,
+					fontFamily: this.activeFontFamily,
 					text,
 					textPos: pos,
 				});
@@ -557,6 +663,11 @@ export class ScreenshotAnnotationEditor {
 		// Draw all completed annotations
 		for (const action of this.actions) {
 			this.drawAction(action);
+		}
+
+		// Draw selection highlight
+		if (this.selectedActionIndex >= 0 && this.selectedActionIndex < this.actions.length) {
+			this.drawSelectionHighlight(this.actions[this.selectedActionIndex]);
 		}
 
 		// Draw current in-progress annotation
@@ -639,13 +750,192 @@ export class ScreenshotAnnotationEditor {
 
 			case AnnotationTool.Text:
 				if (action.text && action.textPos) {
-					this.ctx.font = `${14 * this.scale}px var(--vscode-font-family, sans-serif)`;
+					const fontSize = (action.fontSize || 16) * this.scale;
+					const fontFamily = action.fontFamily || 'sans-serif';
+					this.ctx.font = `${fontSize}px ${fontFamily}`;
 					this.ctx.fillText(action.text, action.textPos.x * this.scale, action.textPos.y * this.scale);
 				}
 				break;
 		}
 
 		this.ctx.restore();
+	}
+
+	private hitTest(pos: { x: number; y: number }): number {
+		for (let i = this.actions.length - 1; i >= 0; i--) {
+			if (this.isPointOnAction(pos, this.actions[i])) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	private isPointOnAction(pos: { x: number; y: number }, action: DrawAction): boolean {
+		const threshold = 8;
+		switch (action.type) {
+			case AnnotationTool.Freehand:
+				if (action.points) {
+					for (let i = 1; i < action.points.length; i++) {
+						if (this.pointToSegmentDist(pos, action.points[i - 1], action.points[i]) < threshold) {
+							return true;
+						}
+					}
+				}
+				return false;
+			case AnnotationTool.Rectangle:
+				if (action.rect) {
+					const r = action.rect;
+					const nx = Math.min(r.x, r.x + r.width);
+					const ny = Math.min(r.y, r.y + r.height);
+					const nw = Math.abs(r.width);
+					const nh = Math.abs(r.height);
+					return pos.x >= nx - threshold && pos.x <= nx + nw + threshold &&
+						pos.y >= ny - threshold && pos.y <= ny + nh + threshold;
+				}
+				return false;
+			case AnnotationTool.Arrow:
+				if (action.arrowStart && action.arrowEnd) {
+					return this.pointToSegmentDist(pos, action.arrowStart, action.arrowEnd) < threshold;
+				}
+				return false;
+			case AnnotationTool.Text:
+				if (action.text && action.textPos) {
+					const fontSize = action.fontSize || 16;
+					const fontFamily = action.fontFamily || 'sans-serif';
+					this.ctx.save();
+					this.ctx.font = `${fontSize}px ${fontFamily}`;
+					const metrics = this.ctx.measureText(action.text);
+					this.ctx.restore();
+					return pos.x >= action.textPos.x - threshold &&
+						pos.x <= action.textPos.x + metrics.width + threshold &&
+						pos.y >= action.textPos.y - fontSize - threshold &&
+						pos.y <= action.textPos.y + threshold;
+				}
+				return false;
+		}
+		return false;
+	}
+
+	private pointToSegmentDist(p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }): number {
+		const dx = b.x - a.x;
+		const dy = b.y - a.y;
+		const lengthSq = dx * dx + dy * dy;
+		if (lengthSq === 0) {
+			return Math.hypot(p.x - a.x, p.y - a.y);
+		}
+		let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq;
+		t = Math.max(0, Math.min(1, t));
+		const projX = a.x + t * dx;
+		const projY = a.y + t * dy;
+		return Math.hypot(p.x - projX, p.y - projY);
+	}
+
+	private moveAction(action: DrawAction, dx: number, dy: number): void {
+		switch (action.type) {
+			case AnnotationTool.Freehand:
+				if (action.points) {
+					for (const pt of action.points) {
+						pt.x += dx;
+						pt.y += dy;
+					}
+				}
+				break;
+			case AnnotationTool.Rectangle:
+				if (action.rect) {
+					action.rect.x += dx;
+					action.rect.y += dy;
+				}
+				break;
+			case AnnotationTool.Arrow:
+				if (action.arrowStart) {
+					action.arrowStart.x += dx;
+					action.arrowStart.y += dy;
+				}
+				if (action.arrowEnd) {
+					action.arrowEnd.x += dx;
+					action.arrowEnd.y += dy;
+				}
+				break;
+			case AnnotationTool.Text:
+				if (action.textPos) {
+					action.textPos.x += dx;
+					action.textPos.y += dy;
+				}
+				break;
+		}
+	}
+
+	private drawSelectionHighlight(action: DrawAction): void {
+		this.ctx.save();
+		this.ctx.strokeStyle = '#007acc';
+		this.ctx.lineWidth = 1;
+		this.ctx.setLineDash([4, 4]);
+		const pad = 6;
+		const bounds = this.getActionBounds(action);
+		if (bounds) {
+			this.ctx.strokeRect(
+				(bounds.x - pad) * this.scale,
+				(bounds.y - pad) * this.scale,
+				(bounds.width + pad * 2) * this.scale,
+				(bounds.height + pad * 2) * this.scale,
+			);
+		}
+		this.ctx.setLineDash([]);
+		this.ctx.restore();
+	}
+
+	private getActionBounds(action: DrawAction): { x: number; y: number; width: number; height: number } | null {
+		switch (action.type) {
+			case AnnotationTool.Freehand:
+				if (action.points && action.points.length > 0) {
+					let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+					for (const pt of action.points) {
+						minX = Math.min(minX, pt.x);
+						minY = Math.min(minY, pt.y);
+						maxX = Math.max(maxX, pt.x);
+						maxY = Math.max(maxY, pt.y);
+					}
+					return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+				}
+				return null;
+			case AnnotationTool.Rectangle:
+				if (action.rect) {
+					const r = action.rect;
+					return {
+						x: Math.min(r.x, r.x + r.width),
+						y: Math.min(r.y, r.y + r.height),
+						width: Math.abs(r.width),
+						height: Math.abs(r.height),
+					};
+				}
+				return null;
+			case AnnotationTool.Arrow:
+				if (action.arrowStart && action.arrowEnd) {
+					const minX = Math.min(action.arrowStart.x, action.arrowEnd.x);
+					const minY = Math.min(action.arrowStart.y, action.arrowEnd.y);
+					const maxX = Math.max(action.arrowStart.x, action.arrowEnd.x);
+					const maxY = Math.max(action.arrowStart.y, action.arrowEnd.y);
+					return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+				}
+				return null;
+			case AnnotationTool.Text:
+				if (action.text && action.textPos) {
+					const fontSize = action.fontSize || 16;
+					const fontFamily = action.fontFamily || 'sans-serif';
+					this.ctx.save();
+					this.ctx.font = `${fontSize}px ${fontFamily}`;
+					const metrics = this.ctx.measureText(action.text);
+					this.ctx.restore();
+					return {
+						x: action.textPos.x,
+						y: action.textPos.y - fontSize,
+						width: metrics.width,
+						height: fontSize,
+					};
+				}
+				return null;
+		}
+		return null;
 	}
 
 	private drawArrow(fromX: number, fromY: number, toX: number, toY: number): void {

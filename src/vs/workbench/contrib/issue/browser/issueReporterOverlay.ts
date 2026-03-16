@@ -122,11 +122,12 @@ export class IssueReporterOverlay {
 			this.descriptionTextarea.value = this.data.issueBody;
 		}
 
+		// Screenshot thumbnails on their own row
+		this.screenshotContainer = append(this.footerElement, $('div.screenshot-thumbnails'));
+
 		const bottomRow = append(this.footerElement, $('div.issue-reporter-row'));
 
-		this.screenshotContainer = append(bottomRow, $('div.screenshot-thumbnails'));
-
-		// Screenshot button group: [Screenshot] [⏱ No delay ▾]
+		// Screenshot split button: [Screenshot | ⏱ No delay ▾]
 		const screenshotGroup = append(bottomRow, $('div.screenshot-btn-group'));
 
 		this.screenshotButton = this.disposables.add(new Button(screenshotGroup, unthemedButtonStyles));
