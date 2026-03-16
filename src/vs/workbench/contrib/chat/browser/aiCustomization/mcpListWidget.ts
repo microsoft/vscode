@@ -378,9 +378,14 @@ export class McpListWidget extends Disposable {
 			this.toggleBrowseMode(!this.browseMode);
 		}));
 
-		this.addButton = this._register(new Button(buttonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		this.addButton = this._register(new Button(buttonContainer, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
+			title: localize('addServer', "Add Server"),
+			ariaLabel: localize('addServer', "Add Server")
+		}));
 		this.addButton.label = `$(${Codicon.add.id})`;
-		this.addButton.setTitle(localize('addServer', "Add Server"));
 		this.addButton.element.classList.add('list-icon-button');
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.addButton.element, localize('addServerTooltip', "Add Server")));
 		this._register(this.addButton.onDidClick(() => {
