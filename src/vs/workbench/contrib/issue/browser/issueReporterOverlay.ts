@@ -48,6 +48,7 @@ export class IssueReporterOverlay {
 	private readonly screenshots: IScreenshot[] = [];
 	private readonly model: IssueReporterModel;
 	private visible = false;
+	private screenshotDelay = 0; // seconds
 
 	constructor(
 		private readonly data: IssueReporterData,
@@ -125,8 +126,56 @@ export class IssueReporterOverlay {
 
 		this.screenshotContainer = append(bottomRow, $('div.screenshot-thumbnails'));
 
-		this.screenshotButton = this.disposables.add(new Button(bottomRow, unthemedButtonStyles));
+		// Screenshot button group: [Screenshot] [⏱ No delay ▾]
+		const screenshotGroup = append(bottomRow, $('div.screenshot-btn-group'));
+
+		this.screenshotButton = this.disposables.add(new Button(screenshotGroup, unthemedButtonStyles));
 		this.screenshotButton.label = localize('takeScreenshot', "Screenshot");
+
+		const delayBtn = append(screenshotGroup, $('button.delay-btn'));
+		const delayIcon = append(delayBtn, $('span'));
+		delayIcon.textContent = '\u23F1'; // ⏱
+		const delayLabel = append(delayBtn, $('span.delay-label'));
+		delayLabel.textContent = localize('noDelay', "No delay");
+		const chevron = append(delayBtn, $('span'));
+		chevron.textContent = ' \u25BE'; // ▾
+
+		// Delay dropdown (hidden by default)
+		const delayDropdown = append(screenshotGroup, $('div.delay-dropdown'));
+		delayDropdown.style.display = 'none';
+		const delayOptions = [
+			{ label: localize('noDelay', "No delay"), value: 0 },
+			{ label: localize('threeSeconds', "3 seconds"), value: 3 },
+			{ label: localize('fiveSeconds', "5 seconds"), value: 5 },
+			{ label: localize('tenSeconds', "10 seconds"), value: 10 },
+		];
+		for (const opt of delayOptions) {
+			const item = append(delayDropdown, $('div.delay-option'));
+			item.textContent = opt.label;
+			if (opt.value === this.screenshotDelay) {
+				item.classList.add('active');
+			}
+			this.disposables.add(addDisposableListener(item, EventType.CLICK, e => {
+				e.stopPropagation();
+				this.screenshotDelay = opt.value;
+				delayLabel.textContent = opt.label;
+				for (const child of Array.from(delayDropdown.children)) {
+					(child as HTMLElement).classList.remove('active');
+				}
+				item.classList.add('active');
+				delayDropdown.style.display = 'none';
+			}));
+		}
+
+		this.disposables.add(addDisposableListener(delayBtn, EventType.CLICK, e => {
+			e.stopPropagation();
+			delayDropdown.style.display = delayDropdown.style.display === 'none' ? 'block' : 'none';
+		}));
+
+		// Close dropdown on outside click
+		this.disposables.add(addDisposableListener(this.footerElement, EventType.CLICK, () => {
+			delayDropdown.style.display = 'none';
+		}));
 
 		append(bottomRow, $('div.spacer'));
 
@@ -182,19 +231,41 @@ export class IssueReporterOverlay {
 			});
 		}));
 
-		// Title input
+		// Title input — clear validation on type
 		this.disposables.add(addDisposableListener(this.titleInput, EventType.INPUT, () => {
 			this.model.update({ issueTitle: this.titleInput.value });
+			this.titleInput.classList.remove('invalid-input');
 		}));
 
-		// Description input
+		// Description input — clear validation on type
 		this.disposables.add(addDisposableListener(this.descriptionTextarea, EventType.INPUT, () => {
 			this.model.update({ issueDescription: this.descriptionTextarea.value });
+			this.descriptionTextarea.classList.remove('invalid-input');
 		}));
 
-		// Screenshot button
+		// Screenshot button — supports delay
 		this.disposables.add(this.screenshotButton.onDidClick(() => {
-			if (this.screenshots.length < MAX_SCREENSHOTS) {
+			if (this.screenshots.length >= MAX_SCREENSHOTS) {
+				return;
+			}
+			if (this.screenshotDelay > 0) {
+				// Disable buttons during countdown
+				this.screenshotButton.enabled = false;
+				const origLabel = this.screenshotButton.label;
+				let remaining = this.screenshotDelay;
+				this.screenshotButton.label = `${remaining}...`;
+				const interval = setInterval(() => {
+					remaining--;
+					if (remaining > 0) {
+						this.screenshotButton.label = `${remaining}...`;
+					} else {
+						clearInterval(interval);
+						this.screenshotButton.label = origLabel;
+						this.screenshotButton.enabled = true;
+						this._onDidRequestScreenshot.fire();
+					}
+				}, 1000);
+			} else {
 				this._onDidRequestScreenshot.fire();
 			}
 		}));
@@ -204,13 +275,28 @@ export class IssueReporterOverlay {
 
 		// Submit button
 		this.disposables.add(this.submitButton.onDidClick(() => {
+			let valid = true;
 			const title = this.titleInput.value.trim();
-			const body = this.buildIssueBody();
+			const description = this.descriptionTextarea.value.trim();
+
 			if (!title) {
 				this.titleInput.classList.add('invalid-input');
-				this.titleInput.focus();
+				valid = false;
+			}
+			if (!description) {
+				this.descriptionTextarea.classList.add('invalid-input');
+				valid = false;
+			}
+			if (!valid) {
+				// Focus the first invalid field
+				if (!title) {
+					this.titleInput.focus();
+				} else {
+					this.descriptionTextarea.focus();
+				}
 				return;
 			}
+			const body = this.buildIssueBody();
 			this._onDidSubmit.fire({
 				title,
 				body,
@@ -362,16 +448,16 @@ export class IssueReporterOverlay {
 
 	/** Hide the UI temporarily so screenshots only capture the workbench */
 	hideForCapture(): void {
-		this.headerElement.style.display = 'none';
-		this.footerElement.style.display = 'none';
-		this.layoutService.layout();
+		// Use visibility:hidden instead of display:none so layout doesn't change.
+		// This prevents context menus from shifting position in the screenshot.
+		this.headerElement.style.visibility = 'hidden';
+		this.footerElement.style.visibility = 'hidden';
 	}
 
 	/** Restore the UI after screenshot capture */
 	showAfterCapture(): void {
-		this.headerElement.style.display = '';
-		this.footerElement.style.display = '';
-		this.layoutService.layout();
+		this.headerElement.style.visibility = '';
+		this.footerElement.style.visibility = '';
 	}
 
 	dispose(): void {

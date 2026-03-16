@@ -15,6 +15,8 @@ const enum AnnotationTool {
 	Rectangle = 'rectangle',
 	Arrow = 'arrow',
 	Text = 'text',
+	Pan = 'pan',
+	Crop = 'crop',
 }
 
 const COLORS = [
@@ -62,6 +64,16 @@ export class ScreenshotAnnotationEditor {
 	private imageHeight = 0;
 	private scale = 1;
 
+	// Pan & zoom
+	private panX = 0;
+	private panY = 0;
+	private isPanning = false;
+	private lastPanPoint = { x: 0, y: 0 };
+
+	// Crop
+	private cropRect: { x: number; y: number; width: number; height: number } | null = null;
+	private hasUserZoomed = false;
+
 
 	constructor(
 		private readonly screenshot: IScreenshot,
@@ -80,10 +92,12 @@ export class ScreenshotAnnotationEditor {
 
 		// Tool buttons
 		const tools: { tool: AnnotationTool; label: string; icon: string }[] = [
+			{ tool: AnnotationTool.Pan, label: localize('pan', "Pan"), icon: '\u270B' },
 			{ tool: AnnotationTool.Freehand, label: localize('freehand', "Draw"), icon: '\u270E' },
 			{ tool: AnnotationTool.Rectangle, label: localize('rectangle', "Rectangle"), icon: '\u25A1' },
 			{ tool: AnnotationTool.Arrow, label: localize('arrow', "Arrow"), icon: '\u2192' },
 			{ tool: AnnotationTool.Text, label: localize('text', "Text"), icon: 'T' },
+			{ tool: AnnotationTool.Crop, label: localize('crop', "Crop"), icon: '\u2702' },
 		];
 
 		const toolButtons: HTMLElement[] = [];
@@ -108,24 +122,46 @@ export class ScreenshotAnnotationEditor {
 		// Separator
 		append(toolbar, $('div.toolbar-separator'));
 
-		// Color swatches
+		// Color button — shows current color, click opens popover
+		const colorBtn = append(toolbar, $('button.tool-btn.color-btn'));
+		colorBtn.title = localize('color', "Color");
+		colorBtn.setAttribute('aria-label', localize('color', "Color"));
+		const colorIndicator = append(colorBtn, $('div.color-indicator'));
+		colorIndicator.style.backgroundColor = this.activeColor;
+
+		// Color popover (hidden by default)
+		const colorPopover = append(toolbar, $('div.color-popover'));
+		colorPopover.style.display = 'none';
+
 		const swatchElements: HTMLElement[] = [];
 		for (const color of COLORS) {
-			const swatch = append(toolbar, $('div.color-swatch'));
+			const swatch = append(colorPopover, $('div.color-swatch'));
 			swatch.style.backgroundColor = color;
-			swatch.title = color;
 			if (color === this.activeColor) {
 				swatch.classList.add('active');
 			}
 			swatchElements.push(swatch);
-			this.disposables.add(addDisposableListener(swatch, EventType.CLICK, () => {
+			this.disposables.add(addDisposableListener(swatch, EventType.CLICK, e => {
+				e.stopPropagation();
 				this.activeColor = color;
+				colorIndicator.style.backgroundColor = color;
 				for (const s of swatchElements) {
 					s.classList.remove('active');
 				}
 				swatch.classList.add('active');
+				colorPopover.style.display = 'none';
 			}));
 		}
+
+		this.disposables.add(addDisposableListener(colorBtn, EventType.CLICK, e => {
+			e.stopPropagation();
+			colorPopover.style.display = colorPopover.style.display === 'none' ? 'flex' : 'none';
+		}));
+
+		// Close popover on outside click
+		this.disposables.add(addDisposableListener(this.container, EventType.CLICK, () => {
+			colorPopover.style.display = 'none';
+		}));
 
 		// Spacer
 		append(toolbar, $('div.toolbar-spacer'));
@@ -174,6 +210,16 @@ export class ScreenshotAnnotationEditor {
 		this.disposables.add(addDisposableListener(this.canvas, EventType.POINTER_MOVE, e => this.onPointerMove(e)));
 		this.disposables.add(addDisposableListener(this.canvas, EventType.POINTER_UP, e => this.onPointerUp(e)));
 
+		// Wheel zoom
+		this.disposables.add(addDisposableListener(canvasContainer, EventType.WHEEL, (e: WheelEvent) => {
+			e.preventDefault();
+			const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+			this.scale = Math.max(0.1, Math.min(5, this.scale * zoomFactor));
+			this.hasUserZoomed = true;
+			this.sizeCanvas();
+			this.redraw();
+		}, { passive: false }));
+
 		// Escape key
 		this.disposables.add(addDisposableListener(this.container, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (e.key === 'Escape') {
@@ -209,10 +255,12 @@ export class ScreenshotAnnotationEditor {
 		const maxWidth = container.clientWidth - 32;
 		const maxHeight = container.clientHeight - 32;
 
-		// Fit the image within the available space
-		const scaleX = maxWidth / this.imageWidth;
-		const scaleY = maxHeight / this.imageHeight;
-		this.scale = Math.min(scaleX, scaleY, 1);
+		// Only auto-fit on initial load; respect user zoom after that
+		if (!this.hasUserZoomed) {
+			const scaleX = maxWidth / this.imageWidth;
+			const scaleY = maxHeight / this.imageHeight;
+			this.scale = Math.min(scaleX, scaleY, 1);
+		}
 
 		const displayWidth = Math.floor(this.imageWidth * this.scale);
 		const displayHeight = Math.floor(this.imageHeight * this.scale);
@@ -239,6 +287,15 @@ export class ScreenshotAnnotationEditor {
 		// Text tool: don't capture pointer — we need to focus the text input
 		if (this.activeTool === AnnotationTool.Text) {
 			this.showInlineTextInput(pos);
+			return;
+		}
+
+		// Pan tool
+		if (this.activeTool === AnnotationTool.Pan) {
+			this.isPanning = true;
+			this.lastPanPoint = { x: e.clientX, y: e.clientY };
+			this.canvas.setPointerCapture(e.pointerId);
+			this.canvas.style.cursor = 'grabbing';
 			return;
 		}
 
@@ -271,15 +328,41 @@ export class ScreenshotAnnotationEditor {
 					arrowEnd: pos,
 				};
 				break;
+			case AnnotationTool.Crop:
+				this.cropRect = { x: pos.x, y: pos.y, width: 0, height: 0 };
+				break;
 		}
 	}
 
 	private onPointerMove(e: PointerEvent): void {
-		if (!this.isDrawing || !this.currentAction) {
+		// Pan
+		if (this.isPanning) {
+			const dx = e.clientX - this.lastPanPoint.x;
+			const dy = e.clientY - this.lastPanPoint.y;
+			this.panX += dx;
+			this.panY += dy;
+			this.lastPanPoint = { x: e.clientX, y: e.clientY };
+			this.canvas.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
+			return;
+		}
+
+		if (!this.isDrawing) {
 			return;
 		}
 
 		const pos = this.canvasCoords(e);
+
+		// Crop
+		if (this.activeTool === AnnotationTool.Crop && this.cropRect) {
+			this.cropRect.width = pos.x - this.cropRect.x;
+			this.cropRect.height = pos.y - this.cropRect.y;
+			this.redraw();
+			return;
+		}
+
+		if (!this.currentAction) {
+			return;
+		}
 
 		switch (this.currentAction.type) {
 			case AnnotationTool.Freehand:
@@ -304,11 +387,30 @@ export class ScreenshotAnnotationEditor {
 	}
 
 	private onPointerUp(e: PointerEvent): void {
+		// Pan
+		if (this.isPanning) {
+			this.isPanning = false;
+			this.canvas.releasePointerCapture(e.pointerId);
+			this.canvas.style.cursor = this.activeTool === AnnotationTool.Pan ? 'grab' : 'crosshair';
+			return;
+		}
+
 		if (!this.isDrawing) {
 			return;
 		}
 		this.canvas.releasePointerCapture(e.pointerId);
 		this.isDrawing = false;
+
+		// Crop: apply crop
+		if (this.activeTool === AnnotationTool.Crop && this.cropRect) {
+			const cr = this.normalizeCropRect(this.cropRect);
+			if (cr.width > 10 && cr.height > 10) {
+				this.applyCrop(cr);
+			}
+			this.cropRect = null;
+			this.redraw();
+			return;
+		}
 
 		if (this.currentAction) {
 			this.actions.push(this.currentAction);
@@ -335,9 +437,51 @@ export class ScreenshotAnnotationEditor {
 		}
 	}
 
+	private normalizeCropRect(r: { x: number; y: number; width: number; height: number }): { x: number; y: number; width: number; height: number } {
+		return {
+			x: r.width < 0 ? r.x + r.width : r.x,
+			y: r.height < 0 ? r.y + r.height : r.y,
+			width: Math.abs(r.width),
+			height: Math.abs(r.height),
+		};
+	}
+
+	private applyCrop(r: { x: number; y: number; width: number; height: number }): void {
+		// Composite current state, then crop
+		const currentDataUrl = this.compositeToDataUrl();
+		const img = new Image();
+		img.onload = () => {
+			// Crop from the full-resolution image
+			const targetWindow = getWindow(this.canvas);
+			const cropCanvas = targetWindow.document.createElement('canvas');
+			cropCanvas.width = r.width;
+			cropCanvas.height = r.height;
+			const cropCtx = cropCanvas.getContext('2d')!;
+			cropCtx.drawImage(img, r.x, r.y, r.width, r.height, 0, 0, r.width, r.height);
+
+			// Create new image from cropped
+			const croppedImg = new Image();
+			croppedImg.onload = () => {
+				this.imageElement = croppedImg;
+				this.imageWidth = croppedImg.naturalWidth;
+				this.imageHeight = croppedImg.naturalHeight;
+				this.actions.length = 0;
+				this.undoneActions.length = 0;
+				this.panX = 0;
+				this.panY = 0;
+				this.canvas.style.transform = '';
+				this.sizeCanvas();
+				this.redraw();
+			};
+			croppedImg.src = cropCanvas.toDataURL('image/png');
+		};
+		img.src = currentDataUrl;
+	}
+
 	private showInlineTextInput(pos: { x: number; y: number }): void {
 		const canvasContainer = this.canvas.parentElement;
 		if (!canvasContainer) {
+			console.warn('[IssueReporter] showInlineTextInput: no canvas container');
 			return;
 		}
 		const canvasRect = this.canvas.getBoundingClientRect();
@@ -346,13 +490,22 @@ export class ScreenshotAnnotationEditor {
 		const input = canvasContainer.ownerDocument.createElement('input');
 		input.type = 'text';
 		input.className = 'annotation-text-input';
-		input.style.left = `${canvasRect.left - containerRect.left + pos.x * this.scale}px`;
-		input.style.top = `${canvasRect.top - containerRect.top + pos.y * this.scale - 10}px`;
+		const leftPos = canvasRect.left - containerRect.left + pos.x * this.scale;
+		const topPos = canvasRect.top - containerRect.top + pos.y * this.scale - 10;
+		input.style.left = `${leftPos}px`;
+		input.style.top = `${topPos}px`;
 		input.style.color = this.activeColor;
 		input.style.fontSize = `${Math.max(14, 14 * this.scale)}px`;
 		input.placeholder = localize('typeText', "Type text...");
 		canvasContainer.appendChild(input);
-		input.focus();
+
+		console.log(`[IssueReporter] Text input created at (${leftPos}, ${topPos}), color: ${this.activeColor}`);
+
+		// Delay focus to ensure the pointer event is fully handled
+		setTimeout(() => {
+			input.focus();
+			console.log('[IssueReporter] Text input focused, activeElement:', canvasContainer.ownerDocument.activeElement === input);
+		}, 50);
 
 		let committed = false;
 		const commit = () => {
@@ -361,6 +514,7 @@ export class ScreenshotAnnotationEditor {
 			}
 			committed = true;
 			const text = input.value.trim();
+			console.log(`[IssueReporter] Text commit: "${text}"`);
 			if (text) {
 				this.actions.push({
 					type: AnnotationTool.Text,
@@ -376,6 +530,7 @@ export class ScreenshotAnnotationEditor {
 		};
 
 		input.addEventListener('keydown', e => {
+			e.stopPropagation(); // Prevent Escape from closing the whole editor
 			if (e.key === 'Enter') {
 				e.preventDefault();
 				commit();
@@ -385,7 +540,10 @@ export class ScreenshotAnnotationEditor {
 				input.remove();
 			}
 		});
-		input.addEventListener('blur', () => commit());
+		input.addEventListener('blur', () => {
+			// Small delay to allow click-to-commit on mobile
+			setTimeout(() => commit(), 100);
+		});
 	}
 
 	private redraw(): void {
@@ -404,6 +562,36 @@ export class ScreenshotAnnotationEditor {
 		// Draw current in-progress annotation
 		if (this.currentAction) {
 			this.drawAction(this.currentAction);
+		}
+
+		// Draw crop rect overlay
+		if (this.cropRect) {
+			const r = this.cropRect;
+			this.ctx.save();
+			// Dim area outside crop
+			this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+			this.ctx.fillRect(0, 0, this.canvas.width / (getWindow(this.canvas).devicePixelRatio || 1), this.canvas.height / (getWindow(this.canvas).devicePixelRatio || 1));
+			// Clear crop area
+			this.ctx.clearRect(r.x * this.scale, r.y * this.scale, r.width * this.scale, r.height * this.scale);
+			// Re-draw image in crop area
+			if (this.imageElement) {
+				this.ctx.save();
+				this.ctx.beginPath();
+				this.ctx.rect(r.x * this.scale, r.y * this.scale, r.width * this.scale, r.height * this.scale);
+				this.ctx.clip();
+				this.ctx.drawImage(this.imageElement, 0, 0, this.imageWidth * this.scale, this.imageHeight * this.scale);
+				for (const action of this.actions) {
+					this.drawAction(action);
+				}
+				this.ctx.restore();
+			}
+			// Draw crop border
+			this.ctx.strokeStyle = '#007acc';
+			this.ctx.lineWidth = 2;
+			this.ctx.setLineDash([4, 4]);
+			this.ctx.strokeRect(r.x * this.scale, r.y * this.scale, r.width * this.scale, r.height * this.scale);
+			this.ctx.setLineDash([]);
+			this.ctx.restore();
 		}
 	}
 

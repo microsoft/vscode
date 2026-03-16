@@ -24,6 +24,8 @@ body.issue-reporter-active {
 .issue-reporter-header {
 	flex-shrink: 0;
 	padding: 6px 12px;
+	padding-right: 140px;
+	/* space for window controls */
 	background: var(--vscode-titleBar-activeBackground, #3c3c3c);
 	border-bottom: 1px solid var(--vscode-panel-border, #444);
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
@@ -34,6 +36,11 @@ body.issue-reporter-active {
 
 .issue-reporter-header > * {
 	-webkit-app-region: no-drag;
+}
+
+/* Make the annotation editor toolbar match window controls color too */
+.issue-reporter-annotation-overlay {
+	--issue-reporter-toolbar-bg: var(--vscode-titleBar-activeBackground, #3c3c3c);
 }
 
 /* ── Footer ── */
@@ -132,6 +139,82 @@ body.issue-reporter-active {
 
 .description-input::placeholder {
 	color: var(--vscode-input-placeholderForeground, #888);
+}
+
+/* ── Form validation ── */
+.issue-title-input.invalid-input,
+.description-input.invalid-input {
+	border-color: var(--vscode-inputValidation-errorBorder, #be1100) !important;
+	background: var(--vscode-inputValidation-errorBackground, rgba(190, 17, 0, 0.1));
+}
+
+/* ── Screenshot button group ── */
+.screenshot-btn-group {
+	display: flex;
+	align-items: center;
+	position: relative;
+	flex: 1;
+	min-width: 0;
+}
+
+.screenshot-btn-group .delay-btn {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	height: 24px;
+	padding: 0 8px;
+	font-size: 12px;
+	font-family: inherit;
+	cursor: pointer;
+	border: none;
+	border-left: 1px solid rgba(255, 255, 255, 0.2);
+	border-radius: 0 2px 2px 0;
+	color: var(--vscode-button-foreground, #fff);
+	background: var(--vscode-button-background, #0e639c);
+}
+
+.screenshot-btn-group .delay-btn:hover {
+	background: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.screenshot-btn-group .delay-label {
+	white-space: nowrap;
+}
+
+.screenshot-btn-group .monaco-button {
+	flex: 1;
+	border-radius: 2px 0 0 2px !important;
+}
+
+.screenshot-btn-group .delay-dropdown {
+	position: absolute;
+	top: 100%;
+	right: 0;
+	margin-top: 2px;
+	background: var(--vscode-editorWidget-background, #2d2d2d);
+	border: 1px solid var(--vscode-editorWidget-border, #555);
+	border-radius: 4px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+	z-index: 1;
+	min-width: 100px;
+	overflow: hidden;
+}
+
+.screenshot-btn-group .delay-option {
+	padding: 4px 12px;
+	font-size: 12px;
+	cursor: pointer;
+	color: var(--vscode-foreground, #ccc);
+	white-space: nowrap;
+}
+
+.screenshot-btn-group .delay-option:hover {
+	background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.05));
+}
+
+.screenshot-btn-group .delay-option.active {
+	background: var(--vscode-list-activeSelectionBackground, #0e639c);
+	color: var(--vscode-list-activeSelectionForeground, #fff);
 }
 
 .issue-close-btn {
@@ -239,14 +322,22 @@ body.issue-reporter-active {
 	align-items: center;
 	gap: 3px;
 	padding: 4px 10px;
+	padding-right: 140px;
+	/* leave space for window controls (min/max/close) */
 	height: 34px;
 	background: var(--vscode-titleBar-activeBackground, #3c3c3c);
 	border-bottom: 1px solid var(--vscode-panel-border, #444);
+	-webkit-app-region: drag;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar > * {
+	-webkit-app-region: no-drag;
 }
 
 .issue-reporter-annotation-overlay .annotation-toolbar .tool-btn {
 	width: 28px;
 	height: 28px;
+	min-width: 28px;
 	padding: 0;
 	border-radius: 4px;
 	cursor: pointer;
@@ -256,7 +347,8 @@ body.issue-reporter-active {
 	border: 1px solid transparent;
 	background: transparent;
 	color: var(--vscode-foreground, #ccc);
-	font-size: 15px;
+	font-size: 14px;
+	flex-shrink: 0;
 }
 
 .issue-reporter-annotation-overlay .annotation-toolbar .tool-btn:hover {
@@ -280,12 +372,39 @@ body.issue-reporter-active {
 	flex: 1;
 }
 
+.issue-reporter-annotation-overlay .annotation-toolbar .color-btn {
+	position: relative;
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .color-indicator {
+	width: 16px;
+	height: 16px;
+	border-radius: 3px;
+	border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.issue-reporter-annotation-overlay .annotation-toolbar .color-popover {
+	position: absolute;
+	top: 34px;
+	display: flex;
+	gap: 4px;
+	padding: 6px;
+	background: var(--vscode-editorWidget-background, #2d2d2d);
+	border: 1px solid var(--vscode-editorWidget-border, #555);
+	border-radius: 4px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+	z-index: 1;
+	flex-wrap: wrap;
+	width: 130px;
+}
+
 .issue-reporter-annotation-overlay .annotation-toolbar .color-swatch {
-	width: 18px;
-	height: 18px;
+	width: 22px;
+	height: 22px;
 	border-radius: 50%;
 	cursor: pointer;
 	border: 2px solid transparent;
+	flex-shrink: 0;
 }
 
 .issue-reporter-annotation-overlay .annotation-toolbar .color-swatch:hover {
