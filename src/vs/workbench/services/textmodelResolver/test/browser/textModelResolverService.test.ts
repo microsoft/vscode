@@ -19,6 +19,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { UntitledTextEditorInput } from '../../../untitled/common/untitledTextEditorInput.js';
 import { createTextBufferFactory } from '../../../../../editor/common/model/textModel.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 suite('Workbench - TextModelResolverService', () => {
 
@@ -204,6 +205,27 @@ suite('Workbench - TextModelResolverService', () => {
 
 		await p1;
 		assert(textModel.isDisposed(), 'the text model should finally be disposed');
+	});
+
+	test('resolve inMemory', async () => {
+		const resource = URI.from({ scheme: Schemas.inMemory, path: '/test/inMemoryDoc' });
+		const languageSelection = accessor.languageService.createById('json');
+		disposables.add(accessor.modelService.createModel('Hello InMemory', languageSelection, resource));
+
+		const ref = await accessor.textModelResolverService.createModelReference(resource);
+		const model = ref.object;
+		assert.ok(model);
+		assert.strictEqual(model.textEditorModel.getValue(), 'Hello InMemory');
+		ref.dispose();
+	});
+
+	test('resolve inMemory throws when model not found', async () => {
+		const resource = URI.from({ scheme: Schemas.inMemory, path: '/test/nonExistent' });
+
+		await assert.rejects(
+			() => accessor.textModelResolverService.createModelReference(resource),
+			/Unable to resolve text model content for resource/
+		);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
