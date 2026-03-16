@@ -242,6 +242,13 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
+	// Verifies default behavior from storage fallback (collapsed by default).
+	DefaultCollapsed: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderWidget(ctx),
+	}),
+
+	// Explicitly force expanded to keep visual coverage of the expanded layout.
 	Expanded: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (ctx) => renderWidget(ctx, { collapsed: false }),

@@ -54,9 +54,11 @@ src/vs/sessions/contrib/sessions/browser/
 
 The Sessions sidebar includes a collapsible **Customizations** shortcuts section rendered by `AICustomizationShortcutsWidget` (`contrib/sessions/browser/aiCustomizationShortcutsWidget.ts`).
 
-- The section is **collapsed by default**
-- Collapse state is persisted in profile storage under `agentSessions.customizationsCollapsed`
-- The persisted preference overrides the default on subsequent launches
+- The initial state is read from `IStorageService.getBoolean('agentSessions.customizationsCollapsed', StorageScope.PROFILE, true)`.
+- The fallback is `true`, so users with no stored value see the section collapsed by default.
+- The toggle writes back with `StorageTarget.USER`, so the preference persists across Sessions window launches.
+- If a stored value exists, it takes precedence over the fallback: previously expanded sections remain expanded, and previously collapsed sections remain collapsed.
+- This behavior only affects the Sessions sidebar shortcuts widget and does not change data discovery or counts.
 
 ### IAICustomizationWorkspaceService
 
