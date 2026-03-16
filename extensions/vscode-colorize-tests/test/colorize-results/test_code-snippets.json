@@ -43,7 +43,7 @@
 			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
 			"light_modern": "comment: #008000",
-			"2026-dark": "punctuation.definition.comment: #768390",
+			"2026-dark": "punctuation.definition.comment: #8B949E",
 			"2026-light": "punctuation.definition.comment: #6E7781"
 		}
 	},
@@ -59,7 +59,7 @@
 			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
 			"light_modern": "comment: #008000",
-			"2026-dark": "comment: #768390",
+			"2026-dark": "comment: #8B949E",
 			"2026-light": "comment: #6E7781"
 		}
 	},
@@ -91,7 +91,7 @@
 			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
 			"light_modern": "comment: #008000",
-			"2026-dark": "punctuation.definition.comment: #768390",
+			"2026-dark": "punctuation.definition.comment: #8B949E",
 			"2026-light": "punctuation.definition.comment: #6E7781"
 		}
 	},
@@ -107,7 +107,7 @@
 			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
 			"light_modern": "comment: #008000",
-			"2026-dark": "comment: #768390",
+			"2026-dark": "comment: #8B949E",
 			"2026-light": "comment: #6E7781"
 		}
 	},
@@ -139,7 +139,7 @@
 			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
 			"light_modern": "comment: #008000",
-			"2026-dark": "punctuation.definition.comment: #768390",
+			"2026-dark": "punctuation.definition.comment: #8B949E",
 			"2026-light": "punctuation.definition.comment: #6E7781"
 		}
 	},
@@ -155,7 +155,7 @@
 			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
 			"light_modern": "comment: #008000",
-			"2026-dark": "comment: #768390",
+			"2026-dark": "comment: #8B949E",
 			"2026-light": "comment: #6E7781"
 		}
 	},
@@ -187,7 +187,7 @@
 			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
 			"light_modern": "comment: #008000",
-			"2026-dark": "punctuation.definition.comment: #768390",
+			"2026-dark": "punctuation.definition.comment: #8B949E",
 			"2026-light": "punctuation.definition.comment: #6E7781"
 		}
 	},
@@ -203,7 +203,7 @@
 			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
 			"light_modern": "comment: #008000",
-			"2026-dark": "comment: #768390",
+			"2026-dark": "comment: #8B949E",
 			"2026-light": "comment: #6E7781"
 		}
 	},
@@ -235,7 +235,7 @@
 			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
 			"light_modern": "comment: #008000",
-			"2026-dark": "punctuation.definition.comment: #768390",
+			"2026-dark": "punctuation.definition.comment: #8B949E",
 			"2026-light": "punctuation.definition.comment: #6E7781"
 		}
 	},
@@ -251,7 +251,7 @@
 			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
 			"light_modern": "comment: #008000",
-			"2026-dark": "comment: #768390",
+			"2026-dark": "comment: #8B949E",
 			"2026-light": "comment: #6E7781"
 		}
 	},
@@ -283,7 +283,7 @@
 			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
 			"light_modern": "comment: #008000",
-			"2026-dark": "punctuation.definition.comment: #768390",
+			"2026-dark": "punctuation.definition.comment: #8B949E",
 			"2026-light": "punctuation.definition.comment: #6E7781"
 		}
 	},
@@ -299,7 +299,7 @@
 			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
 			"light_modern": "comment: #008000",
-			"2026-dark": "comment: #768390",
+			"2026-dark": "comment: #8B949E",
 			"2026-light": "comment: #6E7781"
 		}
 	},
@@ -331,7 +331,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -347,7 +347,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -363,7 +363,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -443,7 +443,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -459,7 +459,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -475,7 +475,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -523,7 +523,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -539,7 +539,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -555,7 +555,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -603,7 +603,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -619,7 +619,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -635,7 +635,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -715,7 +715,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -731,7 +731,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -747,7 +747,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -795,7 +795,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -811,7 +811,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -827,7 +827,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -875,7 +875,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -891,7 +891,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -907,7 +907,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -987,7 +987,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -1003,7 +1003,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -1019,7 +1019,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -1099,7 +1099,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1115,7 +1115,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1131,7 +1131,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1179,7 +1179,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1195,7 +1195,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1211,7 +1211,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1259,7 +1259,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1275,7 +1275,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1291,7 +1291,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1339,7 +1339,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1355,7 +1355,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1371,7 +1371,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1419,7 +1419,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1435,7 +1435,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1483,7 +1483,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1531,7 +1531,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1611,7 +1611,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -1627,7 +1627,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -1643,7 +1643,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -1691,7 +1691,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1707,7 +1707,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1723,7 +1723,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -1803,7 +1803,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -1819,7 +1819,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -1835,7 +1835,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -1915,7 +1915,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -1931,7 +1931,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -1947,7 +1947,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -1995,7 +1995,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -2011,7 +2011,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -2027,7 +2027,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -2075,7 +2075,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -2091,7 +2091,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -2107,7 +2107,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -2155,7 +2155,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -2171,7 +2171,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -2187,7 +2187,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -2235,7 +2235,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -2251,7 +2251,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -2267,7 +2267,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -2315,7 +2315,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -2331,7 +2331,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -2347,7 +2347,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -2395,7 +2395,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -2411,7 +2411,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -2427,7 +2427,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -2475,7 +2475,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -2491,7 +2491,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -2539,7 +2539,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -2587,7 +2587,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -2667,7 +2667,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -2715,7 +2715,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -2795,7 +2795,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -2811,7 +2811,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -2827,7 +2827,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -2907,7 +2907,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -2923,7 +2923,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -2939,7 +2939,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -2987,7 +2987,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3003,7 +3003,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3019,7 +3019,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3067,7 +3067,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -3083,7 +3083,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -3099,7 +3099,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -3147,7 +3147,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3163,7 +3163,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3179,7 +3179,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3227,7 +3227,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -3243,7 +3243,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -3259,7 +3259,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -3307,7 +3307,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3323,7 +3323,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3339,7 +3339,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3387,7 +3387,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -3403,7 +3403,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -3419,7 +3419,7 @@
 			"dark_modern": "support.type.property-name: #9CDCFE",
 			"hc_light": "support.type.property-name.json: #0451A5",
 			"light_modern": "support.type.property-name.json: #0451A5",
-			"2026-dark": "support.type.property-name.json: #8DDB8C",
+			"2026-dark": "support.type.property-name.json: #7EE787",
 			"2026-light": "support.type.property-name.json: #116329"
 		}
 	},
@@ -3499,7 +3499,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3515,7 +3515,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3563,7 +3563,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3611,7 +3611,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3627,7 +3627,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3675,7 +3675,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3691,7 +3691,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3739,7 +3739,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3787,7 +3787,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3835,7 +3835,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
@@ -3851,7 +3851,7 @@
 			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
 			"light_modern": "string: #A31515",
-			"2026-dark": "string: #96D0FF",
+			"2026-dark": "string: #A5D6FF",
 			"2026-light": "string: #0A3069"
 		}
 	},
