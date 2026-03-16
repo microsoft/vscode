@@ -301,7 +301,7 @@
 }
 
 .action-list-submenu-hover {
-	padding: 6px 12px;
+	padding: 6px 12px 6px 24px;
 	font-size: 12px;
 	line-height: 1.5;
 	max-width: 300px;
