@@ -114,6 +114,7 @@ export interface IAgentSession extends IAgentSessionData {
 	setArchived(archived: boolean): void;
 
 	isRead(): boolean;
+	isMarkedUnread(): boolean;
 	setRead(read: boolean): void;
 }
 
@@ -571,6 +572,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			isArchived: () => this.isArchived(data),
 			setArchived: (archived: boolean) => this.setArchived(data, archived),
 			isRead: () => this.isRead(data),
+			isMarkedUnread: () => this.isMarkedUnread(data),
 			setRead: (read: boolean) => this.setRead(data, read),
 		};
 	}
@@ -603,6 +605,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		}
 
 		this._onDidChangeSessions.fire();
+	}
+
+	private isMarkedUnread(session: IInternalAgentSessionData): boolean {
+		return this.sessionStates.get(session.resource)?.read === AgentSessionsModel.UNREAD_MARKER;
 	}
 
 	private isRead(session: IInternalAgentSessionData): boolean {
