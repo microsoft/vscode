@@ -1278,6 +1278,9 @@ export class ActionList<T> extends Disposable {
 				for (let i = 0; i < children.length; i++) {
 					const child = children[i];
 					const item = dom.append(submenuContainer, dom.$('.action-list-submenu-item'));
+					if (child.tooltip) {
+						item.title = child.tooltip;
+					}
 					const checkIcon = dom.append(item, dom.$('.check-icon'));
 					if (child.checked) {
 						checkIcon.classList.add('codicon', 'codicon-check');
