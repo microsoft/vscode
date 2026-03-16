@@ -125,9 +125,19 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 	}
 
 	// Group: Modal (gated behind a setting)
-	else if (preferredGroup === MODAL_GROUP && configurationService.getValue<string>('workbench.editor.useModal') !== 'off') {
-		group = editorGroupService.createModalEditorPart(options?.modal)
-			.then(part => part.activeGroup);
+	else if (preferredGroup === MODAL_GROUP) {
+		const modalMode = configurationService.getValue<string>('workbench.editor.useModal');
+		if (modalMode === 'essential-only') {
+			// Only allow modal for editors that explicitly require it
+			const editorInput = isEditorInputWithOptions(input) ? input.editor : input;
+			if (isEditorInput(editorInput) && editorInput.hasCapability(EditorInputCapabilities.RequiresModal)) {
+				group = editorGroupService.createModalEditorPart(options?.modal)
+					.then(part => part.activeGroup);
+			}
+		} else if (modalMode !== 'off') {
+			group = editorGroupService.createModalEditorPart(options?.modal)
+				.then(part => part.activeGroup);
+		}
 	}
 
 	// Group: Unspecified without a specific index to open

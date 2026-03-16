@@ -855,7 +855,14 @@ export const enum EditorInputCapabilities {
 	 * Signals that the editor should be revealed when being
 	 * opened if it is already opened in any editor group.
 	 */
-	ForceReveal = 1 << 10
+	ForceReveal = 1 << 10,
+
+	/**
+	 * Signals that the editor requires opening in a modal
+	 * overlay. Used with the `essential-only` modal mode
+	 * to allow specific editors to opt into modal behavior.
+	 */
+	RequiresModal = 1 << 11
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
