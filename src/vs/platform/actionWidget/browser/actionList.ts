@@ -1278,18 +1278,19 @@ export class ActionList<T> extends Disposable {
 			const rendered = renderMarkdown(markdown);
 			submenuDisposables.add(rendered);
 			hoverSection.appendChild(rendered.element);
-			dom.append(submenuContainer, dom.$('.action-list-submenu-separator'));
 		}
 
 		// Render submenu items as simple DOM elements — no Menu widget, no focus management
+		let isFirstGroup = true;
 		for (const action of element.submenuActions) {
 			if (action instanceof SubmenuAction) {
 				const children = action.actions;
 
-				// Render group label as a header with separator
-				const header = dom.append(submenuContainer, dom.$('.action-list-submenu-header'));
-				header.textContent = action.label;
-				dom.append(submenuContainer, dom.$('.action-list-submenu-separator'));
+				// Add separator between hover section and actions, or between groups
+				if (!isFirstGroup || element.hover?.content) {
+					dom.append(submenuContainer, dom.$('.action-list-submenu-separator'));
+				}
+				isFirstGroup = false;
 
 				for (const child of children) {
 					const item = dom.append(submenuContainer, dom.$('.action-list-submenu-item'));
