@@ -1221,10 +1221,10 @@ export class ActionList<T> extends Disposable {
 			this._showHoverForElement(element, e.index);
 		}
 
-		// Handle submenu show/hide on hover — only when hovering on the submenu indicator (▸)
-		const isHoveringIndicator = element?.submenuActions?.length && dom.isHTMLElement(e.browserEvent.target) &&
-			e.browserEvent.target.closest('.action-list-submenu-indicator') !== null;
-		if (isHoveringIndicator && typeof e.index === 'number') {
+		// Handle submenu show/hide on hover — only when hovering on the description group
+		const isHoveringDescriptionGroup = element?.submenuActions?.length && dom.isHTMLElement(e.browserEvent.target) &&
+			e.browserEvent.target.closest('.description-group') !== null;
+		if (isHoveringDescriptionGroup && typeof e.index === 'number') {
 			this._submenuHoverIndex = e.index;
 			this._submenuHideScheduler.cancel();
 			this._submenuShowScheduler.schedule();
