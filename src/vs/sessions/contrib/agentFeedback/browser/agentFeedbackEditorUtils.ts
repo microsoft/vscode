@@ -8,6 +8,7 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { agentSessionContainsResource, editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
+import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 /**
  * Find the session that contains the given resource by checking editing sessions and agent sessions.
@@ -30,6 +31,36 @@ export function getSessionForResource(
 	}
 
 	return undefined;
+}
+
+export type AgentFeedbackSessionChange = IChatSessionFileChange | IChatSessionFileChange2;
+
+export function changeMatchesResource(change: AgentFeedbackSessionChange, resourceUri: URI): boolean {
+	if (isIChatSessionFileChange2(change)) {
+		return change.uri.fsPath === resourceUri.fsPath
+			|| change.modifiedUri?.fsPath === resourceUri.fsPath
+			|| change.originalUri?.fsPath === resourceUri.fsPath;
+	}
+
+	return change.modifiedUri.fsPath === resourceUri.fsPath
+		|| change.originalUri?.fsPath === resourceUri.fsPath;
+}
+
+export function getSessionChangeForResource(
+	sessionResource: URI | undefined,
+	resourceUri: URI,
+	agentSessionsService: IAgentSessionsService,
+): AgentFeedbackSessionChange | undefined {
+	if (!sessionResource) {
+		return undefined;
+	}
+
+	const changes = agentSessionsService.getSession(sessionResource)?.changes;
+	if (!(changes instanceof Array)) {
+		return undefined;
+	}
+
+	return changes.find(change => changeMatchesResource(change, resourceUri));
 }
 
 export function getActiveResourceCandidates(input: Parameters<typeof EditorResourceAccessor.getOriginalUri>[0]): URI[] {

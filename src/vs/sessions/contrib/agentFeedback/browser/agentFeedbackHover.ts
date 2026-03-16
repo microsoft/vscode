@@ -43,6 +43,7 @@ interface IFeedbackCommentElement {
 	readonly text: string;
 	readonly resourceUri: URI;
 	readonly codeSelection?: string;
+	readonly diffHunks?: string;
 }
 
 type FeedbackTreeElement = IFeedbackFileElement | IFeedbackCommentElement;
@@ -227,6 +228,11 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 			markdown.appendCodeblock(languageId ?? '', element.codeSelection);
 		}
 
+		if (element.diffHunks) {
+			markdown.appendMarkdown('\n\n');
+			markdown.appendCodeblock('diff', element.diffHunks);
+		}
+
 		return {
 			content: markdown,
 			style: HoverStyle.Pointer,
@@ -376,6 +382,7 @@ export class AgentFeedbackHover extends Disposable {
 				text: item.text,
 				resourceUri: item.resourceUri,
 				codeSelection: item.codeSelection,
+				diffHunks: item.diffHunks,
 			});
 		}
 
