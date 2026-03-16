@@ -256,20 +256,20 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-/* Description with submenu indicator as a single unit */
-.action-widget .monaco-list-row.action .description {
-	align-items: center;
-	gap: 2px;
+/* Description with button-like hover feedback for submenu items */
+.action-widget .monaco-list-row.action.has-submenu .description {
 	border-radius: 4px;
-	padding: 1px 4px;
+	padding: 2px 6px;
+	margin: -2px -6px;
 }
 
 .action-widget .monaco-list-row.action .action-list-submenu-indicator {
 	display: none;
 	align-items: center;
+	padding: 0 4px;
 }
 
-/* Show twistie on hover and give button-like feedback */
+/* Show twistie and description hover on focus/hover */
 .action-widget .monaco-list-row.focused.action.has-submenu .description,
 .action-widget .monaco-list-row:hover.action.has-submenu .description {
 	background-color: var(--vscode-toolbar-hoverBackground);
