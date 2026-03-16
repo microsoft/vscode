@@ -334,7 +334,7 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	padding: 4px 12px 2px 12px;
+	padding: 4px 8px 2px 8px;
 }
 
 .action-list-submenu-group-label {
