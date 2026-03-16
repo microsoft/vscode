@@ -1154,11 +1154,6 @@ export class ActionList<T> extends Disposable {
 	}
 
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
-		// Don't show hover when a submenu is active
-		if (this._submenu) {
-			return;
-		}
-
 		let newHover: IHoverWidget | undefined;
 
 		// Show hover if the element has hover content
