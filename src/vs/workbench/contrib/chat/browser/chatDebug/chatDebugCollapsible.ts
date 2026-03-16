@@ -7,9 +7,6 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IChatDebugMessageSection } from '../../common/chatDebugService.js';
-
-const $ = DOM.$;
 
 /**
  * Wire up a collapsible toggle on a chevron+header+content triple.
@@ -46,26 +43,4 @@ export function setupCollapsibleToggle(chevron: HTMLElement, header: HTMLElement
 			header.click();
 		}
 	}));
-}
-
-/**
- * Render a collapsible section with a clickable header and pre-formatted content
- * wrapped in a scrollable element.
- */
-export function renderCollapsibleSection(parent: HTMLElement, section: IChatDebugMessageSection, disposables: DisposableStore, initiallyCollapsed: boolean = false): void {
-	const sectionEl = DOM.append(parent, $('div.chat-debug-message-section'));
-
-	const header = DOM.append(sectionEl, $('div.chat-debug-message-section-header'));
-
-	const chevron = DOM.append(header, $(`span.chat-debug-message-section-chevron`));
-	DOM.append(header, $('span.chat-debug-message-section-title', undefined, section.name));
-
-	const contentEl = $('pre.chat-debug-message-section-content');
-	contentEl.textContent = section.content;
-	contentEl.tabIndex = 0;
-
-	const wrapper = DOM.append(sectionEl, $('div.chat-debug-message-section-content-wrapper'));
-	wrapper.appendChild(contentEl);
-
-	setupCollapsibleToggle(chevron, header, wrapper, disposables, initiallyCollapsed);
 }

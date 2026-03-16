@@ -14,6 +14,10 @@
 	background-color: var(--vscode-sideBar-background);
 }
 
+.monaco-workbench .part.chatbar > .content > .monaco-progress-container {
+	top: 0;
+}
+
 .monaco-workbench .part.chatbar .title-actions .actions-container {
 	justify-content: flex-end;
 }

@@ -21,22 +21,52 @@ jobs:
             echo "engineering_systems_modified=false" >> $GITHUB_OUTPUT
             echo "No engineering systems were modified in this PR"
           fi
+      - name: Allow automated distro updates
+        id: distro_exception
+        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && github.event.pull_request.user.login == 'vs-code-engineering[bot]' }}
+        run: |
+          # Allow the vs-code-engineering bot ONLY when package.json is the
+          # sole changed file and the diff exclusively touches the "distro" field.
+          ONLY_PKG=$(jq -e '. == ["package.json"]' "$HOME/files.json" > /dev/null 2>&1 && echo true || echo false)
+          if [[ "$ONLY_PKG" != "true" ]]; then
+            echo "Bot modified files beyond package.json — not allowed"
+            echo "allowed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          DIFF=$(gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }}) || {
+            echo "Failed to fetch PR diff — not allowed"
+            echo "allowed=false" >> $GITHUB_OUTPUT
+            exit 0
+          }
+          CHANGED_LINES=$(echo "$DIFF" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | wc -l)
+          DISTRO_LINES=$(echo "$DIFF" | grep -cE '^[+-][[:space:]]*"distro"[[:space:]]*:' || true)
+
+          if [[ "$CHANGED_LINES" -eq 2 && "$DISTRO_LINES" -eq 2 ]]; then
+            echo "Distro-only update by bot — allowing"
+            echo "allowed=true" >> $GITHUB_OUTPUT
+          else
+            echo "Bot changed more than the distro field — not allowed"
+            echo "allowed=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Prevent Copilot from modifying engineering systems
-        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && github.event.pull_request.user.login == 'Copilot' }}
+        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && steps.distro_exception.outputs.allowed != 'true' && github.event.pull_request.user.login == 'Copilot' }}
         run: |
           echo "Copilot is not allowed to modify .github/workflows, build folder files, or package.json files."
           echo "If you need to update engineering systems, please do so manually or through authorized means."
           exit 1
       - uses: octokit/request-action@dad4362715b7fb2ddedf9772c8670824af564f0d # v2.4.0
         id: get_permissions
-        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && github.event.pull_request.user.login != 'Copilot' }}
+        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && steps.distro_exception.outputs.allowed != 'true' && github.event.pull_request.user.login != 'Copilot' }}
         with:
           route: GET /repos/microsoft/vscode/collaborators/${{ github.event.pull_request.user.login }}/permission
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Set control output variable
         id: control
-        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && github.event.pull_request.user.login != 'Copilot' }}
+        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && steps.distro_exception.outputs.allowed != 'true' && github.event.pull_request.user.login != 'Copilot' }}
         run: |
           echo "user: ${{ github.event.pull_request.user.login }}"
           echo "role: ${{ fromJson(steps.get_permissions.outputs.data).permission }}"
@@ -44,7 +74,7 @@ jobs:
           echo "should_run: ${{ !contains(fromJson('["admin", "maintain", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) }}"
           echo "should_run=${{ !contains(fromJson('["admin", "maintain", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) && github.event.pull_request.user.login != 'dependabot[bot]' }}" >> $GITHUB_OUTPUT
       - name: Check for engineering system changes
-        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && steps.control.outputs.should_run == 'true' }}
+        if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && steps.distro_exception.outputs.allowed != 'true' && steps.control.outputs.should_run == 'true' }}
         run: |
           echo "Changes to .github/workflows/, build/ folder files, or package.json files aren't allowed in PRs."
           exit 1

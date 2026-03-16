@@ -153,6 +153,9 @@ export const browserZoomDefaultIndex = browserZoomFactors.indexOf(1);
 export function browserZoomLabel(zoomFactor: number): string {
 	return localize('browserZoomPercent', "{0}%", Math.round(zoomFactor * 100));
 }
+export function browserZoomAccessibilityLabel(zoomFactor: number): string {
+	return localize('browserZoomAccessibilityLabel', "Page Zoom: {0}%", Math.round(zoomFactor * 100));
+}
 
 /**
  * This should match the isolated world ID defined in `preload-browserView.ts`.

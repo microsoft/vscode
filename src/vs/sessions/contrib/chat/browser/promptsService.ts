@@ -6,7 +6,7 @@
 import { PromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsServiceImpl.js';
 import { PromptFilesLocator } from '../../../../workbench/contrib/chat/common/promptSyntax/utils/promptFilesLocator.js';
 import { Event } from '../../../../base/common/event.js';
-import { basename, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
+import { basename, dirname, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { FileAccess } from '../../../../base/common/network.js';
@@ -14,9 +14,9 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
-import { HOOKS_SOURCE_FOLDER, getCleanPromptName } from '../../../../workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.js';
+import { HOOKS_SOURCE_FOLDER, SKILL_FILENAME, getCleanPromptName } from '../../../../workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptPath, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IAgentSkill, IPromptPath, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { BUILTIN_STORAGE, IBuiltinPromptPath } from '../../chat/common/builtinPromptsStorage.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
@@ -28,9 +28,13 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 /** URI root for built-in prompts bundled with the Sessions app. */
 export const BUILTIN_PROMPTS_URI = FileAccess.asFileUri('vs/sessions/prompts');
 
+/** URI root for built-in skills bundled with the Sessions app. */
+export const BUILTIN_SKILLS_URI = FileAccess.asFileUri('vs/sessions/skills');
+
 export class AgenticPromptsService extends PromptsService {
 	private _copilotRoot: URI | undefined;
 	private _builtinPromptsCache: Map<PromptsType, Promise<readonly IBuiltinPromptPath[]>> | undefined;
+	private _builtinSkillsCache: Promise<readonly IAgentSkill[]> | undefined;
 
 	protected override createPromptFilesLocator(): PromptFilesLocator {
 		return this.instantiationService.createInstance(AgenticPromptFilesLocator);
@@ -80,27 +84,134 @@ export class AgenticPromptsService extends PromptsService {
 		}
 	}
 
+	//#region Built-in Skills
+
 	/**
-	 * Override to include built-in prompts and filter out those overridden
-	 * by user or workspace prompts with the same name.
+	 * Returns built-in skill metadata, discovering and parsing SKILL.md files
+	 * bundled in the `vs/sessions/skills/` directory.
+	 */
+	private async getBuiltinSkills(): Promise<readonly IAgentSkill[]> {
+		if (!this._builtinSkillsCache) {
+			this._builtinSkillsCache = this.discoverBuiltinSkills();
+		}
+		return this._builtinSkillsCache;
+	}
+
+	/**
+	 * Discovers built-in skills from `vs/sessions/skills/{name}/SKILL.md`.
+	 * Each subdirectory containing a SKILL.md is treated as a skill.
+	 */
+	private async discoverBuiltinSkills(): Promise<readonly IAgentSkill[]> {
+		const fileService = this.instantiationService.invokeFunction(accessor => accessor.get(IFileService));
+		try {
+			const stat = await fileService.resolve(BUILTIN_SKILLS_URI);
+			if (!stat.children) {
+				return [];
+			}
+
+			const skills: IAgentSkill[] = [];
+			for (const child of stat.children) {
+				if (!child.isDirectory) {
+					continue;
+				}
+				const skillFileUri = joinPath(child.resource, SKILL_FILENAME);
+				try {
+					const parsed = await this.parseNew(skillFileUri, CancellationToken.None);
+					const rawName = parsed.header?.name;
+					const rawDescription = parsed.header?.description;
+					if (!rawName || !rawDescription) {
+						continue;
+					}
+					const name = sanitizeSkillText(rawName, 64);
+					const description = sanitizeSkillText(rawDescription, 1024);
+					const folderName = basename(child.resource);
+					if (name !== folderName) {
+						continue;
+					}
+					skills.push({
+						uri: skillFileUri,
+						storage: BUILTIN_STORAGE as PromptsStorage,
+						name,
+						description,
+						disableModelInvocation: parsed.header?.disableModelInvocation === true,
+						userInvocable: parsed.header?.userInvocable !== false,
+					});
+				} catch (e) {
+					this.logger.warn(`[discoverBuiltinSkills] Failed to parse built-in skill: ${skillFileUri}`, e instanceof Error ? e.message : String(e));
+				}
+			}
+			return skills;
+		} catch {
+			return [];
+		}
+	}
+
+	/**
+	 * Returns built-in skill file paths for listing in the UI.
+	 */
+	private async getBuiltinSkillPaths(): Promise<readonly IBuiltinPromptPath[]> {
+		const skills = await this.getBuiltinSkills();
+		return skills.map(s => ({
+			uri: s.uri,
+			storage: BUILTIN_STORAGE,
+			type: PromptsType.skill,
+		}));
+	}
+
+	/**
+	 * Override to include built-in skills, appending them with lowest priority.
+	 * Skills from any other source (workspace, user, extension, internal) take precedence.
+	 */
+	public override async findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined> {
+		const baseResult = await super.findAgentSkills(token, sessionResource);
+		if (baseResult === undefined) {
+			return undefined;
+		}
+
+		const builtinSkills = await this.getBuiltinSkills();
+		if (builtinSkills.length === 0) {
+			return baseResult;
+		}
+
+		// Collect names already present from other sources
+		const existingNames = new Set(baseResult.map(s => s.name));
+		const nonOverridden = builtinSkills.filter(s => !existingNames.has(s.name));
+		if (nonOverridden.length === 0) {
+			return baseResult;
+		}
+
+		return [...baseResult, ...nonOverridden];
+	}
+
+	//#endregion
+
+	/**
+	 * Override to include built-in prompts and built-in skills, filtering out
+	 * those overridden by user or workspace items with the same name.
 	 */
 	public override async listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
 		const baseResults = await super.listPromptFiles(type, token);
-		const builtinPrompts = await this.getBuiltinPromptFiles(type);
-		if (builtinPrompts.length === 0) {
+
+		let builtinItems: readonly IBuiltinPromptPath[];
+		if (type === PromptsType.skill) {
+			builtinItems = await this.getBuiltinSkillPaths();
+		} else {
+			builtinItems = await this.getBuiltinPromptFiles(type);
+		}
+		if (builtinItems.length === 0) {
 			return baseResults;
 		}
 
-		// Collect names of user/workspace prompts to detect overrides
+		// Collect names of user/workspace items to detect overrides
 		const overriddenNames = new Set<string>();
 		for (const p of baseResults) {
 			if (p.storage === PromptsStorage.local || p.storage === PromptsStorage.user) {
-				overriddenNames.add(getCleanPromptName(p.uri));
+				overriddenNames.add(type === PromptsType.skill ? basename(dirname(p.uri)) : getCleanPromptName(p.uri));
 			}
 		}
 
-		const nonOverridden = builtinPrompts.filter(
-			p => !overriddenNames.has(getCleanPromptName(p.uri))
+		const nonOverridden = builtinItems.filter(
+			p => !overriddenNames.has(type === PromptsType.skill ? basename(dirname(p.uri)) : getCleanPromptName(p.uri))
 		);
 		// Built-in items use BUILTIN_STORAGE ('builtin') which is not in the
 		// core IPromptPath union but is handled by the sessions UI layer.
@@ -109,6 +220,9 @@ export class AgenticPromptsService extends PromptsService {
 
 	public override async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
 		if (storage === BUILTIN_STORAGE) {
+			if (type === PromptsType.skill) {
+				return this.getBuiltinSkillPaths() as Promise<readonly IPromptPath[]>;
+			}
 			return this.getBuiltinPromptFiles(type) as Promise<readonly IPromptPath[]>;
 		}
 		return super.listPromptFilesForStorage(type, storage, token);
@@ -215,5 +329,14 @@ function getCliUserSubfolder(type: PromptsType): string | undefined {
 		case PromptsType.agent: return 'agents';
 		default: return undefined;
 	}
+}
+
+/**
+ * Strips XML tags and truncates to the given max length.
+ * Matches the sanitization applied by PromptsService for other skill sources.
+ */
+function sanitizeSkillText(text: string, maxLength: number): string {
+	const sanitized = text.replace(/<[^>]+>/g, '');
+	return sanitized.length > maxLength ? sanitized.substring(0, maxLength) : sanitized;
 }
 

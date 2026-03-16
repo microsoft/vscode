@@ -317,7 +317,7 @@
 	"configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.tsserver.web.projectWideIntellisense.suppressSemanticErrors#` instead.",
 	"configuration.tsserver.web.typeAcquisition.enabled": "Enable/disable package acquisition on the web. This enables IntelliSense for imported packages. Requires `#js/ts.tsserver.web.projectWideIntellisense.enabled#`. Currently not supported for Safari.",
 	"configuration.tsserver.web.typeAcquisition.enabled.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.tsserver.web.typeAcquisition.enabled#` instead.",
-	"configuration.tsserver.nodePath": "Run TS Server on a custom Node installation. This can be a path to a Node executable, or 'node' if you want VS Code to detect a Node installation.",
+	"configuration.tsserver.nodePath": "Run TS Server on a custom Node installation. This can be a path to a Node executable, or `node` if you want VS Code to detect a Node installation.",
 	"configuration.tsserver.nodePath.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.tsserver.node.path#` instead.",
 	"configuration.tsserver.watchOptions.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.tsserver.watchOptions#` instead.",
 	"configuration.updateImportsOnPaste": "Automatically update imports when pasting code. Requires TypeScript 5.6+.",
