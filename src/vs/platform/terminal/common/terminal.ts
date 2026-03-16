@@ -123,6 +123,7 @@ export const enum TerminalSettingId {
 	EnableKittyKeyboardProtocol = 'terminal.integrated.enableKittyKeyboardProtocol',
 	EnableWin32InputMode = 'terminal.integrated.enableWin32InputMode',
 	AllowInUntrustedWorkspace = 'terminal.integrated.allowInUntrustedWorkspace',
+	EditorInheritBackground = 'terminal.integrated.editor.inheritBackground',
 
 	// Developer/debug settings
 

@@ -669,6 +669,11 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 		]
 	},
+	[TerminalSettingId.EditorInheritBackground]: {
+		description: localize('terminal.integrated.editor.inheritBackground', "Controls whether terminals opened in the editor area use the editor's background color instead of the terminal background color."),
+		type: 'boolean',
+		default: false
+	},
 	[TerminalSettingId.AllowInUntrustedWorkspace]: {
 		restricted: true,
 		markdownDescription: localize('terminal.integrated.allowInUntrustedWorkspace', "Controls whether terminals can be created in an untrusted workspace.\n\n**This feature bypasses a security protection that prevents terminals from launching in untrusted workspaces. The reason this is a security risk is because shells are often set up to potentially execute code automatically based on the contents of the current working directory. This should be safe to use provided your shell is set up in such a way that code execution in the folder never happens.**"),
