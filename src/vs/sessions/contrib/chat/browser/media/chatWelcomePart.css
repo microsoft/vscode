@@ -180,8 +180,8 @@
 /* Prominent project picker button */
 .sessions-chat-project-picker .action-label {
 	height: auto !important;
-	padding: 6px 14px !important;
-	font-size: 14px !important;
+	padding: 8px 20px !important;
+	font-size: 15px !important;
 	border: 1px solid var(--vscode-button-secondaryBorder, var(--vscode-contrastBorder, transparent)) !important;
 	background-color: var(--vscode-button-secondaryBackground) !important;
 	color: var(--vscode-button-secondaryForeground) !important;
@@ -194,12 +194,12 @@
 }
 
 .sessions-chat-project-picker .action-label .codicon {
-	font-size: 16px !important;
-	margin-right: 4px;
+	font-size: 18px !important;
+	margin-right: 6px;
 }
 
 .sessions-chat-project-picker .action-label .sessions-chat-dropdown-label {
-	font-size: 14px;
+	font-size: 15px;
 }
 
 /* Target dropdown button */
