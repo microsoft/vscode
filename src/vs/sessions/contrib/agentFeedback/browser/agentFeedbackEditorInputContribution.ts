@@ -371,6 +371,16 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 					return;
 				}
 
+				// Keep caret/navigation keys in the editor. Only actual typing should move focus.
+				if (
+					e.keyCode === KeyCode.UpArrow
+					|| e.keyCode === KeyCode.DownArrow
+					|| e.keyCode === KeyCode.LeftArrow
+					|| e.keyCode === KeyCode.RightArrow
+				) {
+					return;
+				}
+
 				// Only auto-focus the input on typing when the document is readonly;
 				// when editable the user must click or use Ctrl+I to focus.
 				if (!this._editor.getOption(EditorOption.readOnly)) {
