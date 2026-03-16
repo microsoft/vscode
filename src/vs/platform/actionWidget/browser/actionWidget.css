@@ -256,29 +256,37 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-/* Description with button-like hover feedback for submenu items */
-.action-widget .monaco-list-row.action.has-submenu .description {
+/* Description group wraps description + twistie for hover feedback */
+.action-widget .monaco-list-row.action .description-group {
+	display: flex;
+	align-items: center;
 	border-radius: 4px;
-	padding: 2px 6px;
-	margin: -2px -6px;
+	padding: 2px 4px;
+	height: 18px;
 }
 
 .action-widget .monaco-list-row.action .action-list-submenu-indicator {
-	display: none;
+	display: flex;
 	align-items: center;
-	padding: 0 4px;
+	padding: 0 2px;
+	visibility: hidden;
 }
 
-/* Show twistie and description hover on focus/hover */
-.action-widget .monaco-list-row.focused.action.has-submenu .description,
-.action-widget .monaco-list-row:hover.action.has-submenu .description {
+/* Always reserve space for twistie when item has submenu */
+.action-widget .monaco-list-row.action.has-submenu .action-list-submenu-indicator {
+	visibility: hidden;
+}
+
+/* Show twistie and hover background on focus/hover */
+.action-widget .monaco-list-row.focused.action.has-submenu .description-group,
+.action-widget .monaco-list-row:hover.action.has-submenu .description-group {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	cursor: pointer;
 }
 
 .action-widget .monaco-list-row.focused.action.has-submenu .action-list-submenu-indicator,
 .action-widget .monaco-list-row:hover.action.has-submenu .action-list-submenu-indicator {
-	display: flex;
+	visibility: visible;
 }
 
 .action-list-submenu {
