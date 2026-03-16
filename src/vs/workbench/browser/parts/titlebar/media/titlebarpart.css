@@ -148,7 +148,7 @@
 }
 
 .monaco-workbench .part.titlebar.inactive > * {
-	opacity: 0.3;
+	opacity: 0.6;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item > .action-label,
