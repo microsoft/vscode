@@ -413,8 +413,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private readonly _currentModeObservable: ISettableObservable<IChatMode>;
 	private readonly _currentPermissionLevel: ISettableObservable<ChatPermissionLevel>;
-	private readonly _isWorktreeIsolated: ISettableObservable<boolean>;
-	private _lastIsolationOptionId: string | undefined;
 	private permissionLevelKey: IContextKey<ChatPermissionLevel>;
 
 	public get currentModeKind(): ChatModeKind {
@@ -553,7 +551,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 		this._currentModeObservable = observableValue<IChatMode>('currentMode', this.options.defaultMode ?? ChatMode.Agent);
 		this._currentPermissionLevel = observableValue<ChatPermissionLevel>('permissionLevel', ChatPermissionLevel.Default);
-		this._isWorktreeIsolated = observableValue<boolean>('isWorktreeIsolated', false);
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this._indexOfLastOpenedContext = -1;
 			this.refreshChatSessionPickers();
@@ -565,7 +562,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (sessionResource && isEqual(sessionResource, e)) {
 				// Options changed for our current session - refresh pickers
 				this.refreshChatSessionPickers();
-				this.updateWorktreeIsolationState(sessionResource);
 			}
 		}));
 
@@ -576,7 +572,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
 				if (ctx && (getChatSessionType(ctx.chatSessionResource) === chatSessionType) || delegateSessionType === chatSessionType) {
 					this.refreshChatSessionPickers();
-					this.updateWorktreeIsolationState(sessionResource);
 				}
 			}
 		}));
@@ -588,9 +583,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.agentSessionTypeKey.set(newSessionType);
 				this.updateWidgetLockStateFromSessionType(newSessionType);
 				this.refreshChatSessionPickers();
-				// Re-evaluate worktree isolation — the new session type may have
-				// a different isolation option than the previous one.
-				this.updateWorktreeIsolationState(this._widget?.viewModel?.model.sessionResource);
 			}));
 		}
 
@@ -831,44 +823,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.permissionWidget?.refresh();
 	}
 
-	private updateWorktreeIsolationState(sessionResource?: URI): void {
-		let isolationOptionId: string | undefined;
-
-		// Try session-based lookup first (existing session)
-		if (sessionResource) {
-			const ctx = this.chatService.getChatSessionFromInternalUri(sessionResource);
-			if (ctx) {
-				const isolationOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, 'isolation');
-				isolationOptionId = typeof isolationOption === 'string'
-					? isolationOption
-					: isolationOption?.id;
-			}
-		}
-
-		// Fall back to the last known isolation option value (welcome view / no session yet)
-		if (isolationOptionId === undefined) {
-			isolationOptionId = this._lastIsolationOptionId;
-		}
-
-		this.applyWorktreeIsolation(isolationOptionId === 'worktree');
-	}
-
-	private applyWorktreeIsolation(isWorktree: boolean): void {
-		const wasWorktree = this._isWorktreeIsolated.get();
-		this._isWorktreeIsolated.set(isWorktree, undefined);
-		if (isWorktree && !wasWorktree) {
-			// Switching to worktree: force bypass approvals
-			this._currentPermissionLevel.set(ChatPermissionLevel.AutoApprove, undefined);
-			this.permissionLevelKey.set(ChatPermissionLevel.AutoApprove);
-			this.permissionWidget?.refresh();
-		} else if (!isWorktree && wasWorktree) {
-			// Switching away from worktree: reset to default
-			this._currentPermissionLevel.set(ChatPermissionLevel.Default, undefined);
-			this.permissionLevelKey.set(ChatPermissionLevel.Default);
-			this.permissionWidget?.refresh();
-		}
-	}
-
 	public openSessionTargetPicker(): void {
 		this.sessionTargetWidget?.show();
 	}
@@ -899,11 +853,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Clear existing widgets
 		this.disposeSessionPickerWidgets();
 
-		// Reset isolation tracking if the isolation option is no longer visible
-		if (!visibleGroupIds.has('isolation')) {
-			this._lastIsolationOptionId = undefined;
-		}
-
 		const widgets: (ChatSessionPickerActionItem | SearchableOptionPickerActionItem)[] = [];
 		for (const optionGroup of optionGroups) {
 			if (!visibleGroupIds.has(optionGroup.id)) {
@@ -913,11 +862,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const initialItem = this.getCurrentOptionForGroup(optionGroup.id);
 			const initialState = { group: optionGroup, item: initialItem };
 
-			// Track the initial isolation option value for welcome view fallback
-			if (optionGroup.id === 'isolation' && initialItem) {
-				this._lastIsolationOptionId = initialItem.id;
-			}
-
 			// Create delegate for this option group
 			const itemDelegate: IChatSessionPickerDelegate = {
 				getCurrentOption: () => this.getCurrentOptionForGroup(optionGroup.id),
@@ -926,12 +870,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					// Update context key for this option group
 					this.updateOptionContextKey(optionGroup.id, option.id);
 					this.getOrCreateOptionEmitter(optionGroup.id).fire(option);
-
-					// Track isolation option changes for worktree isolation state
-					if (optionGroup.id === 'isolation') {
-						this._lastIsolationOptionId = option.id;
-						this.applyWorktreeIsolation(option.id === 'worktree');
-					}
 
 					// Notify session if we have one (not in welcome view before session creation)
 					const sessionResource = this._widget?.viewModel?.model.sessionResource;
@@ -978,14 +916,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._currentPermissionLevel.set(ChatPermissionLevel.Default, undefined);
 			this.permissionLevelKey.set(ChatPermissionLevel.Default);
 			this.permissionWidget?.refresh();
-		}
-
-		// Update worktree isolation state for the new session
-		const sessionResource = this._widget?.viewModel?.model.sessionResource;
-		if (sessionResource) {
-			this.updateWorktreeIsolationState(sessionResource);
-		} else {
-			this._isWorktreeIsolated.set(false, undefined);
 		}
 
 		// TODO@roblourens This is for an experiment which will be obsolete in a month or two and can then be removed.
@@ -2453,7 +2383,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this._currentPermissionLevel.set(level, undefined);
 							this.permissionLevelKey.set(level);
 						},
-						isWorktreeIsolated: this._isWorktreeIsolated,
 					};
 					return this.permissionWidget = this.instantiationService.createInstance(PermissionPickerActionItem, action, delegate, pickerOptions);
 				}
