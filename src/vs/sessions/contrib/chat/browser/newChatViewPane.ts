@@ -134,6 +134,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	// Repository loading
 	private readonly _openRepositoryCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _projectSelectionCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _repositoryLoading = false;
 	private _branchLoading = false;
 	private _loadingSpinner: HTMLElement | undefined;
@@ -1115,6 +1116,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * and shows/hides pickers accordingly.
 	 */
 	private async _onProjectSelected(project: IProjectSelection): Promise<void> {
+		// Cancel any in-flight project selection
+		this._projectSelectionCts.value?.cancel();
+		const cts = this._projectSelectionCts.value = new CancellationTokenSource();
+
 		const newTarget = project.kind === 'folder' ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
 		const targetChanged = this._currentTarget !== newTarget;
 		this._currentTarget = newTarget;
@@ -1130,9 +1135,13 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		if (isLocal) {
 			// For folder selections, request trust
 			const trusted = await this._requestFolderTrust(project.uri);
-			if (!trusted) {
+			if (!trusted || cts.token.isCancellationRequested) {
 				return;
 			}
+		}
+
+		if (cts.token.isCancellationRequested) {
+			return;
 		}
 
 		// Recreate session if target type changed, otherwise just update the URI
