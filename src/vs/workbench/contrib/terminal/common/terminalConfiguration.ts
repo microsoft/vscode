@@ -127,7 +127,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSettingId.EditorUseEditorBackground]: {
 		type: 'boolean',
 		default: true,
-		description: localize('terminal.integrated.editorUseEditorBackground', "Controls whether terminals in the editor area use the editor background color instead of the terminal background color.")
+		markdownDescription: localize('terminal.integrated.editorUseEditorBackground', "Controls whether terminals in the editor area use the editor background color instead of the terminal background color. When enabled, this takes precedence over {0} for terminals in the editor area.", '`#terminal.integrated.background#`')
 	},
 	[TerminalSettingId.TabsFocusMode]: {
 		type: 'string',
