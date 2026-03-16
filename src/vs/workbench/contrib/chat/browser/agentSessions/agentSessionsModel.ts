@@ -499,8 +499,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		// does not block the others from resolving and showing up in the UI.
 
 		await Promise.all(providerFilter.map(async provider => {
-			await this.chatSessionsService.refreshChatSessionItems([provider], token);
-			await this.updateItems([provider], token);
+			try {
+				await this.chatSessionsService.refreshChatSessionItems([provider], token);
+				await this.updateItems([provider], token);
+			} catch (error) {
+				this.logger.logIfTrace(`Error resolving sessions for provider ${provider}: ${error instanceof Error ? error.message : safeStringify(error)}`);
+			}
 		}));
 	}
 
