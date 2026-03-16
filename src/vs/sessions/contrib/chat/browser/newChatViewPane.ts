@@ -213,6 +213,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			const isLocal = target === AgentSessionProviders.Background;
 			this._updateIsolationPickerVisibility();
 			this._permissionPicker.setVisible(isLocal);
+			this._permissionPicker.setWorktreeIsolated(isLocal && this._isolationModePicker.isolationMode === 'worktree');
 			this._branchPicker.setVisible(isLocal);
 			this._syncIndicator.setVisible(isLocal);
 			this._updateDraftState();
@@ -244,6 +245,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._newSession.value?.setIsolationMode(mode);
 			this._branchPicker.setVisible(mode === 'worktree');
 			this._syncIndicator.setVisible(mode === 'worktree');
+			this._permissionPicker.setWorktreeIsolated(mode === 'worktree');
 			this._updateDraftState();
 			this._focusEditor();
 		}));
@@ -350,6 +352,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const isWorktree = this._isolationModePicker.isolationMode === 'worktree';
 		this._branchPicker.setVisible(isLocal && isWorktree);
 		this._syncIndicator.setVisible(isLocal && isWorktree);
+		if (isLocal) {
+			this._permissionPicker.setWorktreeIsolated(isWorktree);
+		}
 
 		// Render target buttons & extension pickers
 		this._renderOptionGroupPickers();
@@ -1074,6 +1079,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			);
 			this._newSessionListener.clear();
 			this._contextAttachments.clear();
+			this._editor.getModel()?.setValue('');
 		} catch (e) {
 			this.logService.error('Failed to send request:', e);
 		}
@@ -1217,6 +1223,26 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._editor?.focus();
 	}
 
+	prefillInput(text: string): void {
+		const editor = this._editor;
+		const model = editor?.getModel();
+		if (editor && model) {
+			model.setValue(text);
+			const lastLine = model.getLineCount();
+			const maxColumn = model.getLineMaxColumn(lastLine);
+			editor.setPosition({ lineNumber: lastLine, column: maxColumn });
+			editor.focus();
+		}
+	}
+
+	sendQuery(text: string): void {
+		const model = this._editor?.getModel();
+		if (model) {
+			model.setValue(text);
+			this._send();
+		}
+	}
+
 	updateAllowedTargets(targets: AgentSessionProviders[]): void {
 		this._targetPicker.updateAllowedTargets(targets);
 	}
@@ -1283,6 +1309,14 @@ export class NewChatViewPane extends ViewPane {
 	override focus(): void {
 		super.focus();
 		this._widget?.focusInput();
+	}
+
+	prefillInput(text: string): void {
+		this._widget?.prefillInput(text);
+	}
+
+	sendQuery(text: string): void {
+		this._widget?.sendQuery(text);
 	}
 
 	override setVisible(visible: boolean): void {

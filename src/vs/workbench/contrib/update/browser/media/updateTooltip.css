@@ -8,8 +8,8 @@
 	flex-direction: column;
 	gap: 12px;
 	padding: 6px 6px;
-	min-width: 310px;
-	max-width: 410px;
+	min-width: 320px;
+	max-width: 320px;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-bodyFontSize-small);
 }
@@ -52,6 +52,30 @@
 	font-weight: 600;
 	color: var(--vscode-foreground);
 	margin-bottom: 4px;
+}
+
+.update-tooltip .product-version {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.update-tooltip .copy-version-button {
+	cursor: pointer;
+	opacity: 0;
+	color: var(--vscode-descriptionForeground);
+	transition: opacity 0.1s;
+	margin-top: -2px;
+}
+
+.update-tooltip .product-version:hover .copy-version-button,
+.update-tooltip .product-version:focus-within .copy-version-button {
+	opacity: 1;
+}
+
+.update-tooltip .copy-version-button:hover,
+.update-tooltip .copy-version-button:focus-visible {
+	color: var(--vscode-foreground);
 }
 
 .update-tooltip .release-notes-link {
@@ -112,4 +136,24 @@
 
 .update-tooltip .state-message-icon.codicon.codicon-error {
 	color: var(--vscode-editorError-foreground);
+}
+
+/* Markdown */
+.update-tooltip .update-markdown {
+	background: var(--vscode-editor-background);
+	border-radius: var(--vscode-cornerRadius-large);
+	padding: 12px;
+}
+
+.update-tooltip .update-markdown p {
+	margin-bottom: 16px;
+}
+
+.update-tooltip .update-markdown p:last-child {
+	margin-bottom: 0;
+}
+
+.update-tooltip .update-markdown .codicon[class*='codicon-'] {
+	font-size: 16px;
+	vertical-align: text-top;
 }

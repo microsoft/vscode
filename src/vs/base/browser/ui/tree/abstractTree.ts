@@ -2729,7 +2729,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			renderer.updateOptions(optionsUpdate);
 		}
 
-		this.view.updateOptions(this._options);
+		this.view.updateOptions(optionsUpdate);
 		this.findController?.updateOptions(optionsUpdate);
 		this.updateStickyScroll(optionsUpdate);
 

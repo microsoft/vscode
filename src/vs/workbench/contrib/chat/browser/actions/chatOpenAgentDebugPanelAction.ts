@@ -27,14 +27,14 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { IChatDebugEditorOptions } from '../chatDebug/chatDebugTypes.js';
 
 /**
- * Registers the Open Agent Debug Panel and Show Agent Logs actions.
+ * Registers the Open Agent Debug Logs and Show Agent Debug Logs actions.
  */
 export function registerChatOpenAgentDebugPanelAction() {
 	registerAction2(class OpenAgentDebugPanelAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.openAgentDebugPanel',
-				title: localize2('chat.openAgentDebugPanel.label', "Open Agent Debug Panel"),
+				title: localize2('chat.openAgentDebugPanel.label', "Open Agent Debug Logs"),
 				f1: true,
 				category: Categories.Developer,
 				precondition: ChatContextKeys.enabled,
@@ -57,7 +57,7 @@ export function registerChatOpenAgentDebugPanelAction() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.openAgentDebugPanelForSession',
-				title: localize2('chat.openAgentDebugPanelForSession.label', "Show Agent Logs"),
+				title: localize2('chat.openAgentDebugPanelForSession.label', "Show Agent Debug Logs"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatSessionHasDebugData),
@@ -237,7 +237,7 @@ type ChatDebugExportEvent = {
 type ChatDebugExportClassification = {
 	fileSizeBytes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Size of the exported chat debug log file in bytes.' };
 	owner: 'vijayu';
-	comment: 'Tracks usage of the debug panel export feature.';
+	comment: 'Tracks usage of the Agent Debug Logs export feature.';
 };
 
 type ChatDebugImportEvent = {
@@ -249,5 +249,5 @@ type ChatDebugImportClassification = {
 	fileSizeBytes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Size of the imported chat debug log file in bytes.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Outcome of the chat debug file import: success, fileTooLarge, or providerFailed.' };
 	owner: 'vijayu';
-	comment: 'Tracks usage of the debug panel import feature and failure modes.';
+	comment: 'Tracks usage of the Agent Debug Logs import feature and failure modes.';
 };
