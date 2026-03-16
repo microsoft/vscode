@@ -34,7 +34,7 @@ export class AgentSessionsService extends Disposable implements IAgentSessionsSe
 				this._onDidChangeSessionArchivedState.fire(session);
 
 				if (session.isArchived()) {
-					this.chatService.cancelCurrentRequestForSession(session.resource, 'archive');
+					void this.chatService.cancelCurrentRequestForSession(session.resource, 'archive');
 				}
 			}));
 			this._model.resolve(undefined /* all providers */);
