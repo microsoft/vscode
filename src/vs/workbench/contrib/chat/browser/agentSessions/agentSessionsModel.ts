@@ -501,11 +501,16 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		await Promise.all(providerFilter.map(async provider => {
 			try {
 				await this.chatSessionsService.refreshChatSessionItems([provider], token);
-				await this.updateItems([provider], token);
 			} catch (error) {
 				this.logger.logIfTrace(`Error resolving sessions for provider ${provider}: ${error instanceof Error ? error.message : safeStringify(error)}`);
 			}
 		}));
+
+		try {
+			await this.updateItems(providerFilter, token);
+		} catch (error) {
+			this.logger.logIfTrace(`Error updating sessions for providers ${providerFilter.join(', ')}: ${error instanceof Error ? error.message : safeStringify(error)}`);
+		}
 	}
 
 	/**
